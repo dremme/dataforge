@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { Job, BrowseResponse } from "../types";
+import type { CaptionBBox, Job, BrowseResponse } from "@/shared/types";
 import { emptyBrowse, homeBrowse, vacationBrowse } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
@@ -476,10 +476,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         });
       }
 
-      const bodyBboxes = Array.isArray(body.bboxes) ? body.bboxes : null;
+      const bodyBboxes = Array.isArray(body.bboxes) ? (body.bboxes as CaptionBBox[]) : null;
       const responseIsJson =
         savedItem?.caption_file_type === "json" || (bodyBboxes !== null && bodyBboxes.length > 0);
-      const responseBboxes = bodyBboxes ?? savedItem?.bboxes ?? [];
+      const responseBboxes: CaptionBBox[] = bodyBboxes ?? savedItem?.bboxes ?? [];
 
       if (responseIsJson) {
         const jsonCaptionContent =

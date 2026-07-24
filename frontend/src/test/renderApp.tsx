@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { StrictMode } from "react";
 import { expect } from "vitest";
-import App from "../App";
+import App from "@/app/App";
 import "../styles/main.scss";
 
 /**

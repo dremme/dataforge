@@ -1,4 +1,4 @@
-import type { BrowseResponse, GalleryItem } from "../types";
+import type { BrowseResponse, GalleryItem } from "@/shared/types";
 
 export const HOME_PATH = "C:\\Photos";
 

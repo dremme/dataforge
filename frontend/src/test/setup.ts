@@ -7,7 +7,7 @@ vi.mock("@uiw/react-codemirror", async () => {
   return { default: MockCodeMirror };
 });
 
-vi.mock("../utils/codeEditorTheme", () => ({
+vi.mock("@/shared/lib/codeEditorTheme", () => ({
   getCodeEditorTheme: () => [],
 }));
 
