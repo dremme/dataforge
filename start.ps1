@@ -57,25 +57,27 @@ Write-Host ''
 
 Write-Host '[1/2] Starting backend on port 8080 with hot reload...'
 $backendCmd = @(
+    'title DataForge - Backend',
     "cd /d `"$ROOT`"",
     'echo DataForge Backend - http://127.0.0.1:8080',
     'echo Hot reload: uvicorn --reload',
     'echo.',
     "`"$VENV_PY`" `"$(Join-Path $SCRIPTS 'dev_server.py')`""
 ) -join ' && '
-Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $backendCmd | Out-Null
+Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $backendCmd -WindowStyle Normal | Out-Null
 
 Start-Sleep -Seconds 2
 
 Write-Host '[2/2] Starting frontend on port 8081 with Vite HMR...'
 $frontendCmd = @(
+    'title DataForge - Frontend',
     "cd /d `"$FRONTEND`"",
     'echo DataForge Frontend - http://127.0.0.1:8081',
     'echo Hot reload: Vite HMR',
     'echo.',
     "call `"$NPM`" run dev"
 ) -join ' && '
-Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $frontendCmd | Out-Null
+Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $frontendCmd -WindowStyle Normal | Out-Null
 
 Start-Sleep -Seconds 3
 try {

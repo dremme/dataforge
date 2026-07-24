@@ -37,12 +37,12 @@ if exist "%ROOT%\.node\npm.cmd" (
 )
 
 echo [1/2] Starting backend on port 8080 with hot reload...
-start "DataForge - Backend (8080)" cmd /k cd /d "%ROOT%" ^&^& echo DataForge Backend - http://127.0.0.1:8080 ^&^& echo Hot reload: uvicorn --reload ^&^& echo. ^&^& "%VENV_PY%" scripts\dev_server.py
+start "DataForge - Backend" cmd /k title DataForge - Backend ^&^& cd /d "%ROOT%" ^&^& echo DataForge Backend - http://127.0.0.1:8080 ^&^& echo Hot reload: uvicorn --reload ^&^& echo. ^&^& "%VENV_PY%" scripts\dev_server.py
 
 timeout /t 2 /nobreak >nul
 
 echo [2/2] Starting frontend on port 8081 with Vite HMR...
-start "DataForge - Frontend (8081)" cmd /k cd /d "%ROOT%\frontend" ^&^& echo DataForge Frontend - http://127.0.0.1:8081 ^&^& echo Hot reload: Vite HMR ^&^& echo. ^&^& call "%NPM%" run dev
+start "DataForge - Frontend" cmd /k title DataForge - Frontend ^&^& cd /d "%ROOT%\frontend" ^&^& echo DataForge Frontend - http://127.0.0.1:8081 ^&^& echo Hot reload: Vite HMR ^&^& echo. ^&^& call "%NPM%" run dev
 
 timeout /t 3 /nobreak >nul
 start "" "http://127.0.0.1:8081"
