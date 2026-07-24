@@ -93,7 +93,7 @@ One-time `setup.bat` installs **portable** Python and Node under the project (no
 
 | Feature | Needs |
 | --- | --- |
-| Auto-caption, verify captions | Local OpenAI-compatible **vision** server (LM Studio, llama.cpp server, vLLM, etc.) |
+| Auto-caption, verify captions | Local OpenAI-compatible **vision** server (LM Studio, llama.cpp server, vLLM, etc.) with a Qwen3 vision model (see [Configuration](#configuration)) |
 | Body parts (GPU) | CUDA PyTorch + Ultralytics; weights auto-download into `backend/automation/` |
 | Ostris job list | AI-Toolkit install + `OSTRIS_TOOLKIT_ROOT` (optional) |
 
@@ -159,15 +159,18 @@ Point the app at `sample-images/` in this repo for a tiny folder with mixed capt
 
 ### Vision LLM (auto-caption / verify)
 
+**Recommended model:** [Qwen3.6 35B A3B](https://huggingface.co/Qwen) (or the equivalent build in your local server).
+Any **Qwen3** model with **vision** capabilities should work for auto-caption and verify-captions.
+
 Environment variables (optional; defaults target a local server):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OPENAI_API_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base URL |
 | `OPENAI_API_KEY` | `sk-1234` | Placeholder key for local servers |
-| Model name | `qwen` | Passed as the chat `model` field |
+| Model name | `qwen` | Passed as the chat `model` field (match the id your server exposes) |
 
-Point these at your LM Studio / local server and load a **vision** model before running AI jobs.
+Point these at your LM Studio / local server and load a vision model before running AI jobs.
 
 ### Hugging Face (SAM download)
 
