@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { AutomationDialogOverlays } from "@/features/automation";
-import { FileImportOverwriteDialog } from "@/features/browse";
+import { CreateFolderDialog, FileImportOverwriteDialog } from "@/features/browse";
 import { GalleryItemModal, IssueResolverModal } from "@/features/gallery";
 import { JOB_START_CONFIRM, JobsDrawer } from "@/features/jobs";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -22,6 +22,7 @@ export function AppOverlays({
   jobStart,
   automation,
   fileImport,
+  createFolder,
 }: AppOverlaysProps) {
   return (
     <>
@@ -79,6 +80,16 @@ export function AppOverlays({
           onReplaceExisting={fileImport.onReplaceExisting}
           onCopyNewOnly={fileImport.onCopyNewOnly}
           onCancel={fileImport.onCancel}
+        />
+      )}
+
+      {createFolder && (
+        <CreateFolderDialog
+          parentLabel={createFolder.parentLabel}
+          busy={createFolder.busy}
+          error={createFolder.error}
+          onConfirm={createFolder.onConfirm}
+          onCancel={createFolder.onCancel}
         />
       )}
     </>

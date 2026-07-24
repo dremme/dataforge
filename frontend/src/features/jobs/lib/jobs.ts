@@ -1,15 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
-import {
-  iconCircleQuestionMark,
-  iconGroup,
-  iconMessageCheck,
-  iconFilePen,
-  iconMessagePlus,
-  iconPencilSparkles,
-  iconShredder,
-} from "@/shared/icons";
 import type { Job, JobStatus, JobType } from "@/shared/types";
 import { folderLeafName, foldersMatch } from "@/features/browse/lib/folderPath";
+import { jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
 
 export type JobCompletionNotificationVariant = "danger" | "warning" | "success";
 
@@ -19,29 +11,15 @@ export interface JobCompletionNotification {
 }
 
 export function jobTypeOf(job: Job): JobType {
-  return job.job_type ?? "auto_caption";
+  return job.job_type ?? PRIMARY_JOB_TYPE;
 }
 
 export function jobTypeLabel(job: Job): string {
-  const jobType = jobTypeOf(job);
-  if (jobType === "body_parts") return "Body parts";
-  if (jobType === "strip_metadata") return "Strip metadata";
-  if (jobType === "set_captions") return "Set captions";
-  if (jobType === "verify_captions") return "Verify captions";
-  if (jobType === "batch_rename") return "Batch rename";
-  if (jobType === "auto_caption") return "Auto-caption";
-  return "?";
+  return jobTypeLabelFor(jobTypeOf(job));
 }
 
 export function jobIcon(job: Job): AppIcon {
-  const jobType = jobTypeOf(job);
-  if (jobType === "body_parts") return iconGroup;
-  if (jobType === "strip_metadata") return iconShredder;
-  if (jobType === "set_captions") return iconMessagePlus;
-  if (jobType === "verify_captions") return iconMessageCheck;
-  if (jobType === "batch_rename") return iconFilePen;
-  if (jobType === "auto_caption") return iconPencilSparkles;
-  return iconCircleQuestionMark;
+  return jobTypeIconFor(jobTypeOf(job));
 }
 
 export function compareJobRecency(a: Job, b: Job): number {

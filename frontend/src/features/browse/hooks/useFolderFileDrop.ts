@@ -8,13 +8,13 @@ type OverwritePrompt = {
   conflicts: string[];
 };
 
-type UseGalleryFileDropOptions = {
+type UseFolderFileDropOptions = {
   folderPath: string | undefined;
   enabled: boolean;
   onImported: () => Promise<void> | void;
 };
 
-export function useGalleryFileDrop({ folderPath, enabled, onImported }: UseGalleryFileDropOptions) {
+export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolderFileDropOptions) {
   const [isDragActive, setIsDragActive] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);

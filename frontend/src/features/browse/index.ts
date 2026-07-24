@@ -6,9 +6,11 @@ export { FolderBrowseLoading } from "./components/FolderBrowseLoading";
 export { FolderGrid } from "./components/FolderGrid";
 export { FolderPickerModal } from "./components/FolderPickerModal";
 
+export { useCreateFolderDialog } from "./hooks/useCreateFolderDialog";
 export { useFolderChangeDetection } from "./hooks/useFolderChangeDetection";
+export { useFolderFileDrop } from "./hooks/useFolderFileDrop";
 export { useFolderNavigation } from "./hooks/useFolderNavigation";
-export { useGalleryFileDrop } from "./hooks/useGalleryFileDrop";
+export { useFolderSession } from "./hooks/useFolderSession";
 
 export {
   folderLeafName,

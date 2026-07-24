@@ -1,7 +1,8 @@
-import { useCallback } from "react";
-import { isStartingJobForFolder } from "@/features/jobs/lib/jobStartHelpers";
-import { useJobTransitions, useJobs, useFolderJob } from "@/features/jobs/context/JobsContext";
+import { useCallback, useMemo } from "react";
 import { foldersMatch } from "@/features/browse/lib/folderPath";
+import { useFolderJob, useJobTransitions, useJobs } from "@/features/jobs/context/JobsContext";
+import { isStartingJobForFolder } from "@/features/jobs/lib/jobStartHelpers";
+import type { JobType } from "@/shared/types";
 
 export function useFolderAutomation(
   folder: string | undefined,
@@ -39,15 +40,23 @@ export function useFolderAutomation(
     });
   }, [cancelJob, folderJob]);
 
+  const startingJobType = useMemo((): JobType | null => {
+    if (!startingJob || !folder) return null;
+    if (!foldersMatch(startingJob.folder, folder)) return null;
+    return startingJob.jobType;
+  }, [folder, startingJob]);
+
+  const isStartingType = useCallback(
+    (jobType: JobType) => isStartingJobForFolder(startingJob, folder, jobType),
+    [folder, startingJob],
+  );
+
   return {
     folderJob,
     folderHasActiveJob,
-    startingAutoCaption: isStartingJobForFolder(startingJob, folder, "auto_caption"),
-    startingBodyParts: isStartingJobForFolder(startingJob, folder, "body_parts"),
-    startingStripMetadata: isStartingJobForFolder(startingJob, folder, "strip_metadata"),
-    startingSetCaptions: isStartingJobForFolder(startingJob, folder, "set_captions"),
-    startingVerifyCaptions: isStartingJobForFolder(startingJob, folder, "verify_captions"),
-    startingBatchRename: isStartingJobForFolder(startingJob, folder, "batch_rename"),
+    startingJobType,
+    isStarting: startingJobType !== null,
+    isStartingType,
     cancellingJob: folderJob ? cancellingJobId === folderJob.id : false,
     cancelFolderJob,
     startBodyPartsJob,

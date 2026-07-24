@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from "react";
 
 export function useGallerySelection() {
   const [selectionEpoch, setSelectionEpoch] = useState(0);
-  const [syspromptOpen, setSyspromptOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -12,7 +11,6 @@ export function useGallerySelection() {
 
   const clearSelection = useCallback(() => {
     setSelectionEpoch((epoch) => epoch + 1);
-    setSyspromptOpen(false);
     setSelectionMode(false);
     clearSelectedPaths();
   }, [clearSelectedPaths]);
@@ -64,8 +62,6 @@ export function useGallerySelection() {
 
   return {
     selectionEpoch,
-    syspromptOpen,
-    setSyspromptOpen,
     clearSelection,
     selectionMode,
     selectedPaths,

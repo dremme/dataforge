@@ -1,29 +1,29 @@
 import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
-import { buildSyspromptItem, useGalleryModal } from "@/features/gallery";
+import { useGalleryModal } from "@/features/gallery/hooks/useGalleryModal";
+import { buildSyspromptItem } from "@/features/gallery/lib/sysprompt";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 
-type UseAppModalsArgs = {
+type UseGalleryModalsArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
   selectionEpoch: number;
-  syspromptOpen: boolean;
-  setSyspromptOpen: (open: boolean) => void;
   folder: string | undefined;
   sysprompt: GalleryItem | null;
   mainRef: RefObject<HTMLElement | null>;
 };
 
-export function useAppModals({
+/** Gallery item modal, sysprompt modal, and shared scroll-lock. */
+export function useGalleryModals({
   images,
   filteredItems,
   selectionEpoch,
-  syspromptOpen,
-  setSyspromptOpen,
   folder,
   sysprompt,
   mainRef,
-}: UseAppModalsArgs) {
+}: UseGalleryModalsArgs) {
+  const [syspromptOpen, setSyspromptOpen] = useState(false);
+
   const {
     selectedPath,
     selectedIndex,
@@ -35,20 +35,24 @@ export function useAppModals({
     removeGalleryItem,
   } = useGalleryModal(images, filteredItems, selectionEpoch);
 
+  useEffect(() => {
+    setSyspromptOpen(false);
+  }, [selectionEpoch]);
+
   const openGalleryItem = useCallback(
     (path: string) => {
       setSyspromptOpen(false);
       openGalleryItemBase(path);
     },
-    [openGalleryItemBase, setSyspromptOpen],
+    [openGalleryItemBase],
   );
 
   const openSysPrompt = useCallback(() => {
     closeGalleryItem();
     setSyspromptOpen(true);
-  }, [closeGalleryItem, setSyspromptOpen]);
+  }, [closeGalleryItem]);
 
-  const closeSysPrompt = useCallback(() => setSyspromptOpen(false), [setSyspromptOpen]);
+  const closeSysPrompt = useCallback(() => setSyspromptOpen(false), []);
 
   const [jsonEditorOpen, setJsonEditorOpen] = useState(false);
 

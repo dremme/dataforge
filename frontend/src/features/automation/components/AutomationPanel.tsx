@@ -12,10 +12,9 @@ import {
   iconInfo,
   iconLoader2,
   iconMemoryStick,
-  iconPencilSparkles,
   iconTriangleAlert,
 } from "@/shared/icons";
-import type { GalleryItem, Job } from "@/shared/types";
+import type { GalleryItem, Job, JobType } from "@/shared/types";
 import {
   isActiveJobStatus,
   jobErrorMessage,
@@ -27,6 +26,7 @@ import {
   progressPercent,
   statusLabel,
 } from "@/features/jobs/lib/jobs";
+import { JOB_TYPE_META, PRIMARY_JOB_TYPE, jobTypeIconFor } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobRemainingTime } from "@/features/jobs/hooks/useJobRemainingTime";
@@ -37,25 +37,15 @@ import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
-interface AutomationPanelProps {
+export interface AutomationPanelProps {
   filteredItems: GalleryItem[];
   job: Job | null;
-  startingAutoCaption: boolean;
-  startingBodyParts: boolean;
-  startingStripMetadata: boolean;
-  startingSetCaptions: boolean;
-  startingVerifyCaptions: boolean;
-  startingBatchRename: boolean;
+  startingJobType: JobType | null;
   canStart: boolean;
   hasSyspromptFile: boolean;
   hasSyspromptContent: boolean;
   onEditSysprompt: () => void;
-  onStartAutoCaption: () => void;
-  onStartBodyParts: () => void;
-  onStartStripMetadata: () => void;
-  onStartSetCaptions: () => void;
-  onStartVerifyCaptions: () => void;
-  onStartBatchRename: () => void;
+  onRequestStart: (jobType: JobType) => void;
   onCancelJob: () => void;
   cancellingJob?: boolean;
   issueCount?: number;
@@ -65,22 +55,12 @@ interface AutomationPanelProps {
 export function AutomationPanel({
   filteredItems,
   job,
-  startingAutoCaption,
-  startingBodyParts,
-  startingStripMetadata,
-  startingSetCaptions,
-  startingVerifyCaptions,
-  startingBatchRename,
+  startingJobType,
   canStart,
   hasSyspromptFile,
   hasSyspromptContent,
   onEditSysprompt,
-  onStartAutoCaption,
-  onStartBodyParts,
-  onStartStripMetadata,
-  onStartSetCaptions,
-  onStartVerifyCaptions,
-  onStartBatchRename,
+  onRequestStart,
   onCancelJob,
   cancellingJob = false,
   issueCount = 0,
@@ -89,13 +69,9 @@ export function AutomationPanel({
   const stickySentinelRef = useRef<HTMLDivElement>(null);
   const isFloating = useStickyFloating(stickySentinelRef);
   const jobActive = job ? isActiveJobStatus(job.status) : false;
-  const starting =
-    startingAutoCaption ||
-    startingBodyParts ||
-    startingStripMetadata ||
-    startingSetCaptions ||
-    startingVerifyCaptions ||
-    startingBatchRename;
+  const starting = startingJobType !== null;
+  const startingPrimary = startingJobType === PRIMARY_JOB_TYPE;
+  const primaryMeta = JOB_TYPE_META[PRIMARY_JOB_TYPE];
   const showResolveIssues = issueCount > 0 && Boolean(onResolveIssues);
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
   const specsPanelId = useId();
@@ -108,15 +84,15 @@ export function AutomationPanel({
   const remainingTime = useJobRemainingTime(job);
   const systemSpecs = useSystemSpecs();
 
-  const startTooltip = startingAutoCaption
-    ? "Starting auto-caption job..."
+  const startTooltip = startingPrimary
+    ? `Starting ${primaryMeta.label.toLowerCase()} job...`
     : starting
       ? "Another job is starting..."
       : !hasSyspromptFile
         ? "Add a .sysprompt file to enable auto-captioning"
         : !hasSyspromptContent
           ? "Write instructions in .sysprompt before running auto-caption"
-          : "Auto-complete captions with the local model";
+          : (primaryMeta.menuDescription ?? `Start ${primaryMeta.label.toLowerCase()}`);
   const specsTooltip = showSpecs ? "Hide system specifications" : "Show system specifications";
   const syspromptTooltip = hasSyspromptFile
     ? "Edit the .sysprompt instructions for this folder"
@@ -176,10 +152,10 @@ export function AutomationPanel({
                     <button
                       type="button"
                       className="automation__start"
-                      onClick={onStartAutoCaption}
+                      onClick={() => onRequestStart(PRIMARY_JOB_TYPE)}
                       disabled={starting || filteredItems.length === 0 || !hasSyspromptContent}
                     >
-                      {startingAutoCaption ? (
+                      {startingPrimary ? (
                         <>
                           <Icon
                             icon={iconLoader2}
@@ -189,8 +165,11 @@ export function AutomationPanel({
                         </>
                       ) : (
                         <>
-                          <Icon icon={iconPencilSparkles} className="automation__btn-icon" />
-                          Auto-caption
+                          <Icon
+                            icon={jobTypeIconFor(PRIMARY_JOB_TYPE)}
+                            className="automation__btn-icon"
+                          />
+                          {primaryMeta.label}
                         </>
                       )}
                     </button>
@@ -217,16 +196,8 @@ export function AutomationPanel({
                 {canStart && (
                   <AutomationMoreJobsMenu
                     disabled={starting || filteredItems.length === 0}
-                    startingBodyParts={startingBodyParts}
-                    startingStripMetadata={startingStripMetadata}
-                    startingSetCaptions={startingSetCaptions}
-                    startingVerifyCaptions={startingVerifyCaptions}
-                    startingBatchRename={startingBatchRename}
-                    onStartBodyParts={onStartBodyParts}
-                    onStartStripMetadata={onStartStripMetadata}
-                    onStartSetCaptions={onStartSetCaptions}
-                    onStartVerifyCaptions={onStartVerifyCaptions}
-                    onStartBatchRename={onStartBatchRename}
+                    startingJobType={startingJobType}
+                    onRequestStart={onRequestStart}
                   />
                 )}
               </>

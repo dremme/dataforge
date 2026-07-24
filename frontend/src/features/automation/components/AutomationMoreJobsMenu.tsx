@@ -1,107 +1,47 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import {
-  iconChevronDown,
-  iconGroup,
-  iconLoader2,
-  iconFilePen,
-  iconMessageCheck,
-  iconMessagePlus,
-  iconShredder,
-  type AppIcon,
-} from "@/shared/icons";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { JOB_TYPE_META, SECONDARY_JOB_TYPES, jobTypeIconFor } from "@/features/jobs/lib/jobMeta";
+import type { JobType } from "@/shared/types";
+import { iconChevronDown, iconLoader2 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
-
-interface MoreJobOption {
-  id: "body_parts" | "strip_metadata" | "set_captions" | "verify_captions" | "batch_rename";
-  label: string;
-  description: string;
-  icon: AppIcon;
-  starting: boolean;
-  onSelect: () => void;
-}
 
 interface AutomationMoreJobsMenuProps {
   disabled: boolean;
-  startingBodyParts: boolean;
-  startingStripMetadata: boolean;
-  startingSetCaptions: boolean;
-  startingVerifyCaptions: boolean;
-  startingBatchRename: boolean;
-  onStartBodyParts: () => void;
-  onStartStripMetadata: () => void;
-  onStartSetCaptions: () => void;
-  onStartVerifyCaptions: () => void;
-  onStartBatchRename: () => void;
+  startingJobType: JobType | null;
+  onRequestStart: (jobType: JobType) => void;
 }
 
 export function AutomationMoreJobsMenu({
   disabled,
-  startingBodyParts,
-  startingStripMetadata,
-  startingSetCaptions,
-  startingVerifyCaptions,
-  startingBatchRename,
-  onStartBodyParts,
-  onStartStripMetadata,
-  onStartSetCaptions,
-  onStartVerifyCaptions,
-  onStartBatchRename,
+  startingJobType,
+  onRequestStart,
 }: AutomationMoreJobsMenuProps) {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
 
   const secondaryStarting =
-    startingBodyParts ||
-    startingStripMetadata ||
-    startingSetCaptions ||
-    startingVerifyCaptions ||
-    startingBatchRename;
+    startingJobType !== null && SECONDARY_JOB_TYPES.includes(startingJobType);
 
   const close = useCallback(() => setOpen(false), []);
 
-  const jobs: MoreJobOption[] = [
-    {
-      id: "body_parts",
-      label: "Detect body parts",
-      description: "Detect body and face; optional SAM keywords.",
-      icon: iconGroup,
-      starting: startingBodyParts,
-      onSelect: onStartBodyParts,
-    },
-    {
-      id: "strip_metadata",
-      label: "Strip metadata",
-      description: "Remove embedded metadata from media files.",
-      icon: iconShredder,
-      starting: startingStripMetadata,
-      onSelect: onStartStripMetadata,
-    },
-    {
-      id: "batch_rename",
-      label: "Batch rename",
-      description: "Rename media files.",
-      icon: iconFilePen,
-      starting: startingBatchRename,
-      onSelect: onStartBatchRename,
-    },
-    {
-      id: "set_captions",
-      label: "Set captions",
-      description: "Write the same caption text to media files.",
-      icon: iconMessagePlus,
-      starting: startingSetCaptions,
-      onSelect: onStartSetCaptions,
-    },
-    {
-      id: "verify_captions",
-      label: "Verify captions",
-      description: "Verifies captions by comparing them with their media file.",
-      icon: iconMessageCheck,
-      starting: startingVerifyCaptions,
-      onSelect: onStartVerifyCaptions,
-    },
-  ];
+  const jobs = useMemo(
+    () =>
+      SECONDARY_JOB_TYPES.map((type) => {
+        const meta = JOB_TYPE_META[type] as {
+          label: string;
+          menuLabel?: string;
+          menuDescription?: string;
+        };
+        return {
+          id: type,
+          label: meta.menuLabel ?? meta.label,
+          description: meta.menuDescription ?? "",
+          icon: jobTypeIconFor(type),
+          starting: startingJobType === type,
+        };
+      }),
+    [startingJobType],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -126,10 +66,10 @@ export function AutomationMoreJobsMenu({
     };
   }, [close, open]);
 
-  const handleSelect = (job: MoreJobOption) => {
-    if (disabled || job.starting) return;
+  const handleSelect = (jobType: JobType, starting: boolean) => {
+    if (disabled || starting) return;
     close();
-    job.onSelect();
+    onRequestStart(jobType);
   };
 
   return (
@@ -159,7 +99,7 @@ export function AutomationMoreJobsMenu({
               type="button"
               role="menuitem"
               className="automation__more-item"
-              onClick={() => handleSelect(job)}
+              onClick={() => handleSelect(job.id, job.starting)}
               disabled={disabled || job.starting}
             >
               <Icon icon={job.icon} className="automation__more-item-icon" />

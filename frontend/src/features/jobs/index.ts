@@ -6,6 +6,15 @@ export { JobsProvider, useFolderJob, useJobTransitions, useJobs } from "./contex
 export { useJobStartConfirmation } from "./hooks/useJobStartConfirmation";
 
 export { JOB_START_CONFIRM, type ConfirmableJobType } from "./constants/jobStartConfirm";
+export {
+  JOB_TYPE_META,
+  PRIMARY_JOB_TYPE,
+  SECONDARY_JOB_TYPES,
+  isConfirmableJobType,
+  jobTypeIconFor,
+  jobTypeLabelFor,
+  jobTypeMeta,
+} from "./lib/jobMeta";
 
 export {
   isActiveJobStatus,

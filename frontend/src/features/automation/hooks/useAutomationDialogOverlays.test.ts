@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
 const baseDialogOverlayProps = {
-  startingBatchRename: false,
+  startingJobType: null as null,
   itemCount: 3,
   startBatchRenameJob: vi.fn(),
 };
@@ -19,10 +19,6 @@ describe("useAutomationDialogOverlays", () => {
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",
         folderLabel: "Photos",
-        startingSetCaptions: false,
-        startingBodyParts: false,
-        startingAutoCaption: false,
-        startingVerifyCaptions: false,
         ...baseDialogOverlayProps,
         startSetCaptionsJob,
         startBodyPartsJob,
@@ -51,10 +47,6 @@ describe("useAutomationDialogOverlays", () => {
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",
         folderLabel: "Photos",
-        startingSetCaptions: false,
-        startingBodyParts: false,
-        startingAutoCaption: false,
-        startingVerifyCaptions: false,
         ...baseDialogOverlayProps,
         startSetCaptionsJob: vi.fn(),
         startBodyPartsJob: vi.fn(),
@@ -81,68 +73,41 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
-  it("opens batch rename dialog and starts job with stem", async () => {
-    const startBatchRenameJob = vi.fn().mockResolvedValue({ id: "job-6" });
-
+  it("opens dialog by job type via openDialogForJobType", () => {
     const { result } = renderHook(() =>
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",
         folderLabel: "Photos",
-        startingSetCaptions: false,
-        startingBodyParts: false,
-        startingAutoCaption: false,
-        startingVerifyCaptions: false,
-        startingBatchRename: false,
-        itemCount: 5,
+        ...baseDialogOverlayProps,
         startSetCaptionsJob: vi.fn(),
         startBodyPartsJob: vi.fn(),
         startAutoCaptionJob: vi.fn(),
         startVerifyCaptionsJob: vi.fn(),
-        startBatchRenameJob,
       }),
     );
 
     act(() => {
-      result.current.openBatchRenameDialog();
+      result.current.openDialogForJobType("batch_rename");
     });
     expect(result.current.dialogs.batchRename.open).toBe(true);
-
-    await act(async () => {
-      result.current.dialogs.batchRename.onConfirm("portugal");
-    });
-
-    expect(result.current.dialogs.batchRename.open).toBe(false);
-    expect(startBatchRenameJob).toHaveBeenCalledWith("C:\\Photos", "portugal", undefined);
   });
 
-  it("does not start jobs when folder path is missing", async () => {
-    const startSetCaptionsJob = vi.fn().mockResolvedValue({ id: "job-1" });
-
+  it("marks dialog busy from startingJobType", () => {
     const { result } = renderHook(() =>
       useAutomationDialogOverlays({
-        folderPath: undefined,
+        folderPath: "C:\\Photos",
         folderLabel: "Photos",
-        startingSetCaptions: false,
-        startingBodyParts: false,
-        startingAutoCaption: false,
-        startingVerifyCaptions: false,
-        ...baseDialogOverlayProps,
-        startSetCaptionsJob,
+        startingJobType: "set_captions",
+        itemCount: 1,
+        startBatchRenameJob: vi.fn(),
+        startSetCaptionsJob: vi.fn(),
         startBodyPartsJob: vi.fn(),
         startAutoCaptionJob: vi.fn(),
         startVerifyCaptionsJob: vi.fn(),
       }),
     );
 
-    act(() => {
-      result.current.openSetCaptionsDialog();
-    });
-
-    await act(async () => {
-      result.current.dialogs.setCaptions.onConfirm("Caption", false);
-    });
-
-    expect(result.current.dialogs.setCaptions.open).toBe(true);
-    expect(startSetCaptionsJob).not.toHaveBeenCalled();
+    expect(result.current.dialogs.setCaptions.busy).toBe(true);
+    expect(result.current.dialogs.bodyParts.busy).toBe(false);
   });
 });

@@ -1,17 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
-import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
+import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
+import type { JobType } from "@/shared/types";
 
 type UseAutomationDialogOverlaysOptions = {
   folderPath: string | undefined;
   folderLabel: string;
-  startingSetCaptions: boolean;
-  startingBodyParts: boolean;
-  startingAutoCaption: boolean;
-  startingVerifyCaptions: boolean;
-  startingBatchRename: boolean;
+  startingJobType: JobType | null;
   itemCount: number;
   startSetCaptionsJob: (
     folder: string,
@@ -42,11 +39,7 @@ type UseAutomationDialogOverlaysOptions = {
 export function useAutomationDialogOverlays({
   folderPath,
   folderLabel,
-  startingSetCaptions,
-  startingBodyParts,
-  startingAutoCaption,
-  startingVerifyCaptions,
-  startingBatchRename,
+  startingJobType,
   itemCount,
   startSetCaptionsJob,
   startBodyPartsJob,
@@ -77,7 +70,7 @@ export function useAutomationDialogOverlays({
       setCaptions: {
         open: setCaptionsOpen,
         folderLabel,
-        busy: startingSetCaptions,
+        busy: startingJobType === "set_captions",
         onConfirm: (caption, overwrite) => {
           startJobFromDialog(
             () => setSetCaptionsOpen(false),
@@ -89,7 +82,7 @@ export function useAutomationDialogOverlays({
       bodyParts: {
         open: bodyPartsOpen,
         folderLabel,
-        busy: startingBodyParts,
+        busy: startingJobType === "body_parts",
         onConfirm: (settings) => {
           startJobFromDialog(
             () => setBodyPartsOpen(false),
@@ -101,7 +94,7 @@ export function useAutomationDialogOverlays({
       autoCaption: {
         open: autoCaptionOpen,
         folderLabel,
-        busy: startingAutoCaption,
+        busy: startingJobType === "auto_caption",
         onConfirm: (mode) => {
           startJobFromDialog(
             () => setAutoCaptionOpen(false),
@@ -113,7 +106,7 @@ export function useAutomationDialogOverlays({
       verifyCaptions: {
         open: verifyCaptionsOpen,
         folderLabel,
-        busy: startingVerifyCaptions,
+        busy: startingJobType === "verify_captions",
         onConfirm: (mode, context) => {
           startJobFromDialog(
             () => setVerifyCaptionsOpen(false),
@@ -126,7 +119,7 @@ export function useAutomationDialogOverlays({
         open: batchRenameOpen,
         folderLabel,
         itemCount,
-        busy: startingBatchRename,
+        busy: startingJobType === "batch_rename",
         onConfirm: (stem) => {
           startJobFromDialog(
             () => setBatchRenameOpen(false),
@@ -152,16 +145,21 @@ export function useAutomationDialogOverlays({
       startJobFromDialog,
       startSetCaptionsJob,
       startVerifyCaptionsJob,
-      startingAutoCaption,
-      startingBatchRename,
-      startingBodyParts,
-      startingSetCaptions,
-      startingVerifyCaptions,
+      startingJobType,
     ],
   );
 
+  const openDialogForJobType = useCallback((jobType: JobType) => {
+    if (jobType === "set_captions") setSetCaptionsOpen(true);
+    else if (jobType === "body_parts") setBodyPartsOpen(true);
+    else if (jobType === "auto_caption") setAutoCaptionOpen(true);
+    else if (jobType === "verify_captions") setVerifyCaptionsOpen(true);
+    else if (jobType === "batch_rename") setBatchRenameOpen(true);
+  }, []);
+
   return {
     dialogs,
+    openDialogForJobType,
     openSetCaptionsDialog: () => setSetCaptionsOpen(true),
     openBodyPartsDialog: () => setBodyPartsOpen(true),
     openAutoCaptionDialog: () => setAutoCaptionOpen(true),

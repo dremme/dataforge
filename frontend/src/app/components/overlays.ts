@@ -49,6 +49,14 @@ export type FileImportOverlayState = {
   onCancel: () => void;
 };
 
+export type CreateFolderOverlayState = {
+  parentLabel: string;
+  busy: boolean;
+  error: string | null;
+  onConfirm: (name: string) => void;
+  onCancel: () => void;
+};
+
 export type AppOverlaysProps = {
   currentFolder: string | undefined;
   onOpenFolder: (path?: string) => void;
@@ -59,4 +67,5 @@ export type AppOverlaysProps = {
   jobStart: JobStartConfirmState;
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;
+  createFolder: CreateFolderOverlayState | null;
 };

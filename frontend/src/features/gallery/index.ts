@@ -5,10 +5,13 @@ export { GallerySelectionControls } from "./components/GallerySelectionControls"
 export { IssueResolverModal } from "./components/IssueResolverModal";
 export { Toolbar } from "./components/Toolbar";
 
-export { useBrowseCaptionSave } from "./hooks/useBrowseCaptionSave";
+export { useBrowseCaptionPatch } from "./hooks/useBrowseCaptionPatch";
 export { useGalleryModal } from "./hooks/useGalleryModal";
+export { useGalleryModals } from "./hooks/useGalleryModals";
 export { useGalleryQuery } from "./hooks/useGalleryQuery";
 export { useGallerySelection } from "./hooks/useGallerySelection";
+export { useGallerySession } from "./hooks/useGallerySession";
+export { useIssueResolverOverlay } from "./hooks/useIssueResolverOverlay";
 
 export type { FilterEmptyState, FilterEmptyVariant } from "./lib/filters";
 export { countResolvableIssues, listResolvableIssueItems } from "./lib/issues";

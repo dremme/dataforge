@@ -1,248 +1,40 @@
-import { useCallback, useMemo, useRef, useState } from "react";
 import { AppBrowseContent } from "@/app/components/AppBrowseContent";
 import { AppHeader } from "@/app/components/AppHeader";
 import { AppOverlays } from "@/app/components/AppOverlays";
-import { useAppModals } from "@/app/hooks/useAppModals";
-import { useAutomationDialogOverlays, useFolderAutomation } from "@/features/automation";
-import {
-  CreateFolderDialog,
-  createFolder,
-  useFolderChangeDetection,
-  useFolderNavigation,
-  useGalleryFileDrop,
-} from "@/features/browse";
-import {
-  countResolvableIssues,
-  listResolvableIssueItems,
-  useBrowseCaptionSave,
-  useGalleryQuery,
-  useGallerySelection,
-} from "@/features/gallery";
-import { useJobStartConfirmation } from "@/features/jobs";
-import { formatApiError } from "@/shared/api/http";
-import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
+import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
 
 export function AppContent() {
-  const mainRef = useRef<HTMLElement>(null);
   const {
-    selectionEpoch,
-    syspromptOpen,
-    setSyspromptOpen,
+    mainRef,
+    browse,
+    loading,
+    refreshing,
+    error,
+    folderNotFound,
+    subfolders,
+    items,
+    navigateTo,
+    createFolder,
+    fileDrop,
+    gallery,
+    automation,
+  } = useAppWorkspace();
+
+  const {
+    query,
     clearSelection,
     selectionMode,
     selectedPaths,
     selectedCount,
-    getJobPaths,
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,
-    selectAllPaths,
-    removeSelectedPaths,
     clearSelectedPaths,
-  } = useGallerySelection();
-
-  const { browse, loading, refreshing, error, navigateTo, setBrowse, reloadFolder } =
-    useFolderNavigation(clearSelection);
-
-  const reloadFolderSilently = useCallback(() => reloadFolder({ silent: true }), [reloadFolder]);
-
-  const {
-    filter,
-    setFilter,
-    mediaTypeFilter,
-    setMediaTypeFilter,
-    searchQuery,
-    searchRegex,
-    setSearchQuery,
-    setSearchRegex,
-    sort,
-    setSort,
-    filteredItems,
-    captionedCount,
-    filterCounts,
-    mediaTypeFilterCounts,
-    filterEmptyState,
-  } = useGalleryQuery(browse?.items ?? []);
-  useDocumentTitle(browse?.folder, browse?.breadcrumbs ?? []);
-
-  const subfolders = useMemo(() => browse?.subfolders ?? [], [browse?.subfolders]);
-  const items = useMemo(() => browse?.items ?? [], [browse?.items]);
-  const issueCount = useMemo(() => countResolvableIssues(items), [items]);
-  const sysprompt = browse?.sysprompt ?? null;
-  const folderNotFound = error?.kind === "folder-not-found";
-
-  const handleCaptionSaved = useBrowseCaptionSave(setBrowse);
-  const automation = useFolderAutomation(browse?.folder, reloadFolderSilently);
-
-  const { syncBaseline } = useFolderChangeDetection(
-    browse?.folder,
-    browse?.fingerprint,
-    reloadFolderSilently,
-    {
-      suspendReloads: automation.folderHasActiveJob,
-      enabled: !folderNotFound,
-    },
-  );
-
-  const onCaptionSaved = useCallback(
-    (path: string, update: Parameters<typeof handleCaptionSaved>[1]) => {
-      handleCaptionSaved(path, update);
-      void syncBaseline();
-    },
-    [handleCaptionSaved, syncBaseline],
-  );
-
-  const {
-    selectedPath,
-    selectedIndex,
-    modalItems,
+    handleSelectAllPaths,
     openGalleryItem,
-    closeGalleryItem,
-    goToPrevious,
-    goToNext,
-    removeGalleryItem,
-    openSysPrompt,
-    closeSysPrompt,
-    syspromptModalItem,
-    onJsonEditorOpenChange,
-  } = useAppModals({
-    images: items,
-    filteredItems,
-    selectionEpoch,
-    syspromptOpen,
-    setSyspromptOpen,
-    folder: browse?.folder,
-    sysprompt,
-    mainRef,
-  });
-
-  const onGalleryItemDeleted = useCallback(
-    (path: string) => {
-      removeGalleryItem(path);
-      void reloadFolderSilently().then(() => syncBaseline());
-    },
-    [removeGalleryItem, reloadFolderSilently, syncBaseline],
-  );
-
-  const onGalleryItemsDeleted = useCallback(
-    async (paths: string[]) => {
-      for (const path of paths) {
-        removeGalleryItem(path);
-      }
-      removeSelectedPaths(paths);
-      await reloadFolderSilently();
-      await syncBaseline();
-    },
-    [removeGalleryItem, removeSelectedPaths, reloadFolderSilently, syncBaseline],
-  );
-
-  const onGalleryItemsMoved = useCallback(
-    async (paths: string[]) => {
-      for (const path of paths) {
-        removeGalleryItem(path);
-      }
-      removeSelectedPaths(paths);
-      await reloadFolderSilently();
-      await syncBaseline();
-    },
-    [removeGalleryItem, removeSelectedPaths, reloadFolderSilently, syncBaseline],
-  );
-
-  const jobStart = useJobStartConfirmation(
-    browse?.folder,
-    browse?.breadcrumbs ?? [],
-    {
-      strip_metadata: automation.startStripMetadataJob,
-    },
-    getJobPaths,
-  );
-
-  const automationDialogs = useAutomationDialogOverlays({
-    folderPath: browse?.folder,
-    folderLabel: jobStart.folderLabel,
-    startingSetCaptions: automation.startingSetCaptions,
-    startingBodyParts: automation.startingBodyParts,
-    startingAutoCaption: automation.startingAutoCaption,
-    startingVerifyCaptions: automation.startingVerifyCaptions,
-    startingBatchRename: automation.startingBatchRename,
-    itemCount: getJobPaths()?.length ?? items.length,
-    startSetCaptionsJob: automation.startSetCaptionsJob,
-    startBodyPartsJob: automation.startBodyPartsJob,
-    startAutoCaptionJob: automation.startAutoCaptionJob,
-    startVerifyCaptionsJob: automation.startVerifyCaptionsJob,
-    startBatchRenameJob: automation.startBatchRenameJob,
-    getJobPaths,
-  });
-
-  const handleSelectAllPaths = useCallback(() => {
-    selectAllPaths(filteredItems.map((item) => item.path));
-  }, [filteredItems, selectAllPaths]);
-
-  const [issueResolverOpen, setIssueResolverOpen] = useState(false);
-  const [issueResolverIndex, setIssueResolverIndex] = useState(0);
-  const [issueResolverItems, setIssueResolverItems] = useState(() => listResolvableIssueItems([]));
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [creatingFolder, setCreatingFolder] = useState(false);
-  const [createFolderError, setCreateFolderError] = useState<string | null>(null);
-
-  const openIssueResolver = useCallback(() => {
-    setIssueResolverItems(listResolvableIssueItems(items));
-    setIssueResolverIndex(0);
-    setIssueResolverOpen(true);
-  }, [items]);
-
-  const closeIssueResolver = useCallback(() => {
-    setIssueResolverOpen(false);
-    setIssueResolverIndex(0);
-    setIssueResolverItems([]);
-  }, []);
-
-  const fileDropFolderLabel =
-    browse?.breadcrumbs[browse.breadcrumbs.length - 1]?.name ?? browse?.folder ?? "this folder";
-
-  const createFolderParentLabel = fileDropFolderLabel;
-
-  const openCreateFolderDialog = useCallback(() => {
-    if (folderNotFound || !browse?.folder) return;
-    setCreateFolderError(null);
-    setCreateFolderOpen(true);
-  }, [browse?.folder, folderNotFound]);
-
-  const closeCreateFolderDialog = useCallback(() => {
-    if (creatingFolder) return;
-    setCreateFolderOpen(false);
-    setCreateFolderError(null);
-  }, [creatingFolder]);
-
-  const handleCreateFolder = useCallback(
-    async (name: string) => {
-      if (!browse?.folder || creatingFolder) return;
-
-      setCreatingFolder(true);
-      setCreateFolderError(null);
-
-      try {
-        const created = await createFolder(browse.folder, name);
-        setCreateFolderOpen(false);
-        await navigateTo(created.path);
-        await syncBaseline();
-      } catch (error) {
-        setCreateFolderError(formatApiError(error));
-      } finally {
-        setCreatingFolder(false);
-      }
-    },
-    [browse?.folder, creatingFolder, navigateTo, syncBaseline],
-  );
-
-  const fileDrop = useGalleryFileDrop({
-    folderPath: browse?.folder,
-    enabled: Boolean(browse) && !folderNotFound && !loading,
-    onImported: async () => {
-      await reloadFolderSilently();
-      await syncBaseline();
-    },
-  });
+    onGalleryItemsDeleted,
+    onGalleryItemsMoved,
+  } = gallery;
 
   return (
     <div className="app">
@@ -251,37 +43,37 @@ export function AppContent() {
           browse={browse}
           folderNotFound={folderNotFound}
           onNavigate={navigateTo}
-          onCreateFolder={folderNotFound ? undefined : openCreateFolderDialog}
+          onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
           toolbarProps={{
             subfolderCount: browse.subfolder_count,
             fileCount: items.length,
-            captionedCount,
+            captionedCount: query.captionedCount,
             statsLoading: loading && !refreshing,
-            searchQuery,
-            searchRegex,
-            sort,
-            filter,
-            filterCounts,
-            mediaTypeFilter,
-            mediaTypeFilterCounts,
+            searchQuery: query.searchQuery,
+            searchRegex: query.searchRegex,
+            sort: query.sort,
+            filter: query.filter,
+            filterCounts: query.filterCounts,
+            mediaTypeFilter: query.mediaTypeFilter,
+            mediaTypeFilterCounts: query.mediaTypeFilterCounts,
             onSearchQueryChange: (value) => {
-              setSearchQuery(value);
+              query.setSearchQuery(value);
               clearSelection();
             },
             onSearchRegexChange: (value) => {
-              setSearchRegex(value);
+              query.setSearchRegex(value);
               clearSelection();
             },
             onSortChange: (value) => {
-              setSort(value);
+              query.setSort(value);
               clearSelection();
             },
             onFilterChange: (value) => {
-              setFilter(value);
+              query.setFilter(value);
               clearSelection();
             },
             onMediaTypeFilterChange: (value) => {
-              setMediaTypeFilter(value);
+              query.setMediaTypeFilter(value);
               clearSelection();
             },
           }}
@@ -296,15 +88,19 @@ export function AppContent() {
             browse={browse}
             subfolders={subfolders}
             items={items}
-            filteredItems={filteredItems}
-            filterEmptyState={filterEmptyState}
+            filteredItems={query.filteredItems}
+            filterEmptyState={query.filterEmptyState}
             onNavigate={navigateTo}
-            onCreateFolder={folderNotFound ? undefined : openCreateFolderDialog}
-            createFolderDisabled={creatingFolder}
+            onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
+            createFolderDisabled={createFolder.busy}
             onOpenGalleryItem={openGalleryItem}
             fileDropEnabled={Boolean(browse) && !folderNotFound && !loading}
             fileDropActive={fileDrop.isDragActive}
-            fileDropFolderLabel={fileDropFolderLabel}
+            fileDropFolderLabel={
+              browse?.breadcrumbs[browse.breadcrumbs.length - 1]?.name ??
+              browse?.folder ??
+              "this folder"
+            }
             onFileDragEnter={fileDrop.onDragEnter}
             onFileDragOver={fileDrop.onDragOver}
             onFileDragLeave={fileDrop.onDragLeave}
@@ -320,77 +116,33 @@ export function AppContent() {
             onDeleteSelectedPaths={onGalleryItemsDeleted}
             onMoveSelectedPaths={onGalleryItemsMoved}
             currentFolder={browse?.folder ?? ""}
-            automationPanelProps={{
-              filteredItems,
-              job: automation.folderJob,
-              startingAutoCaption: automation.startingAutoCaption,
-              startingBodyParts: automation.startingBodyParts,
-              startingStripMetadata: automation.startingStripMetadata,
-              startingSetCaptions: automation.startingSetCaptions,
-              startingVerifyCaptions: automation.startingVerifyCaptions,
-              startingBatchRename: automation.startingBatchRename,
-              canStart: !automation.folderHasActiveJob,
-              hasSyspromptFile: Boolean(sysprompt),
-              hasSyspromptContent: sysprompt?.has_description ?? false,
-              onEditSysprompt: openSysPrompt,
-              onStartAutoCaption: automationDialogs.openAutoCaptionDialog,
-              onStartBodyParts: automationDialogs.openBodyPartsDialog,
-              onStartStripMetadata: () => jobStart.requestJobStart("strip_metadata"),
-              onStartSetCaptions: automationDialogs.openSetCaptionsDialog,
-              onStartVerifyCaptions: automationDialogs.openVerifyCaptionsDialog,
-              onStartBatchRename: automationDialogs.openBatchRenameDialog,
-              cancellingJob: automation.cancellingJob,
-              onCancelJob: automation.cancelFolderJob,
-              issueCount,
-              onResolveIssues: issueCount > 0 ? openIssueResolver : undefined,
-            }}
+            automationPanelProps={automation.panelProps}
           />
         </div>
       </main>
 
-      {createFolderOpen && (
-        <CreateFolderDialog
-          parentLabel={createFolderParentLabel}
-          busy={creatingFolder}
-          error={createFolderError}
-          onConfirm={handleCreateFolder}
-          onCancel={closeCreateFolderDialog}
-        />
-      )}
-
       <AppOverlays
         currentFolder={browse?.folder}
         onOpenFolder={navigateTo}
-        onCaptionSaved={onCaptionSaved}
+        onCaptionSaved={gallery.onCaptionSaved}
         gallery={{
-          selectedPath,
-          selectedIndex,
-          modalItems,
-          onClose: closeGalleryItem,
-          onPrevious: goToPrevious,
-          onNext: goToNext,
-          onDeleted: onGalleryItemDeleted,
-          onJsonEditorOpenChange,
+          selectedPath: gallery.selectedPath,
+          selectedIndex: gallery.selectedIndex,
+          modalItems: gallery.modalItems,
+          onClose: gallery.closeGalleryItem,
+          onPrevious: gallery.goToPrevious,
+          onNext: gallery.goToNext,
+          onDeleted: gallery.onGalleryItemDeleted,
+          onJsonEditorOpenChange: gallery.onJsonEditorOpenChange,
         }}
-        issueResolver={{
-          open: issueResolverOpen,
-          items: issueResolverItems,
-          index: issueResolverIndex,
-          onClose: closeIssueResolver,
-          onIndexChange: setIssueResolverIndex,
-        }}
+        issueResolver={gallery.issueResolver.overlay}
         sysprompt={{
-          open: syspromptOpen,
-          item: syspromptModalItem,
-          onClose: closeSysPrompt,
+          open: gallery.syspromptOpen,
+          item: gallery.syspromptModalItem,
+          onClose: gallery.closeSysPrompt,
         }}
-        jobStart={{
-          pending: jobStart.pendingJobStart,
-          folderLabel: jobStart.folderLabel,
-          onConfirm: jobStart.confirmPendingJobStart,
-          onCancel: jobStart.cancelPendingJobStart,
-        }}
-        automation={automationDialogs.dialogs}
+        jobStart={automation.jobStartConfirm}
+        automation={automation.dialogs}
         fileImport={{
           overwritePrompt: fileDrop.overwritePrompt,
           busy: fileDrop.importing,
@@ -398,6 +150,7 @@ export function AppContent() {
           onCopyNewOnly: fileDrop.importNewFilesOnly,
           onCancel: fileDrop.dismissOverwritePrompt,
         }}
+        createFolder={createFolder.overlay}
       />
     </div>
   );
