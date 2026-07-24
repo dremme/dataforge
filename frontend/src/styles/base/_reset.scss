@@ -1,0 +1,31 @@
+@use "../abstracts/variables" as *;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}

@@ -1,0 +1,46 @@
+# Python
+backend/.venv/
+backend/data/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.ruff_cache/
+*.pt
+.env*
+!.env.example
+
+# Self-contained Windows tools downloaded by setup.bat (no global Python/Node needed)
+.python/
+.node/
+
+# Temporary files from Windows setup.bat (self-contained Python/Node downloads)
+python-installer.exe
+node.zip
+
+# Node
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Local-only notes (not shared via git)
+TODO.md
+CHANGELOG.md
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.bak
+*.swp
+*~
+
+# Cursor / agent / MCP session artifacts (often contain local paths and personal data)
+agent-tools/
+terminals/
+mcps/
+.grok/
+.cursor/
+.claude/

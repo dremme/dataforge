@@ -1,0 +1,164 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .folder-controls
+// ---------------------------------------------------------------------------
+
+.folder-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  min-height: 1.5rem;
+
+  &__btn {
+    @include pill-btn-compact(default);
+    padding: 0.2rem 0.5rem;
+    min-height: 1.5rem;
+
+    &-icon {
+      width: 0.85rem;
+      height: 0.85rem;
+    }
+
+    &--accent {
+      @include pill-btn-compact(accent);
+      padding: 0.2rem 0.5rem;
+    }
+
+    &--danger {
+      @include pill-btn-compact(danger);
+      padding: 0.2rem 0.5rem;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// .folder-grid
+// ---------------------------------------------------------------------------
+
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+// ---------------------------------------------------------------------------
+// .folder-card
+// ---------------------------------------------------------------------------
+
+.folder-card {
+  @include control-interactive;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 0.9rem;
+  height: 4.3rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: var(--accent-border);
+    box-shadow: var(--shadow);
+    background: var(--bg-elevated);
+  }
+
+  &:disabled {
+    @include disabled-state;
+  }
+
+  &--skeleton {
+    pointer-events: none;
+    cursor: default;
+
+    .folder-card__body {
+      gap: 0.45rem;
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-base));
+    color: var(--accent);
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    @include line-clamp(3);
+  }
+
+  &__stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-normal);
+    color: var(--text-muted);
+
+    &--warning {
+      strong {
+        color: var(--warning);
+        font-weight: var(--font-semibold);
+      }
+    }
+
+    &--success {
+      strong {
+        color: var(--success);
+        font-weight: var(--font-semibold);
+      }
+    }
+
+    &-icon {
+      @include icon-muted;
+      @include icon-size(var(--icon-size-xs));
+    }
+  }
+
+  &__issue-icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-xs));
+    color: var(--warning);
+  }
+
+  &__skeleton-block {
+    width: 1rem;
+    height: 1rem;
+    border-radius: var(--radius-sm);
+  }
+
+  &__skeleton-line {
+    @include skeleton-line(0.65rem);
+
+    &--short {
+      width: 55%;
+      height: 0.5rem;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// .folder-loading
+// ---------------------------------------------------------------------------
+
+.folder-loading__spinner {
+  @include icon-size(var(--icon-size-base));
+  color: var(--accent);
+}

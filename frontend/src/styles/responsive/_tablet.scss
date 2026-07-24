@@ -1,0 +1,87 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+@include media($breakpoint-tablet) {
+  .app-nav__inner {
+    padding: 0 1rem;
+    gap: 0.75rem;
+  }
+
+  .main {
+    padding: 1.25rem 0 3rem;
+
+    &__inner {
+      padding: 0 1rem;
+    }
+  }
+
+  .breadcrumbs {
+    flex-wrap: wrap;
+
+    &__link,
+    &__current {
+      max-width: 8rem;
+    }
+  }
+
+  .toolbar__controls {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .toolbar__search--expanded {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  .toolbar__sort {
+    flex: 1 1 auto;
+  }
+
+  .toolbar__filters {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .gallery-item-modal {
+    &__stage {
+      padding: 1rem 2.75rem;
+    }
+
+    &__nav {
+      width: 2.35rem;
+      height: 2.35rem;
+      font-size: var(--text-sm);
+
+      &--prev {
+        left: 0.5rem;
+      }
+
+      &--next {
+        right: 0.5rem;
+      }
+    }
+
+    &__meta {
+      gap: 0.75rem 1rem;
+      padding: 0.75rem 1rem;
+
+      &-divider {
+        display: none;
+      }
+    }
+
+    &__caption-editor {
+      padding: 0.85rem 1rem 1rem;
+    }
+
+    &__caption-input {
+      text-align: left;
+    }
+
+    &__bboxes {
+      padding: 0 1rem 1rem;
+    }
+  }
+}

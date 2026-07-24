@@ -1,0 +1,14 @@
+@use "../abstracts/mixins" as *;
+
+.truncate {
+  @include truncate;
+}
+
+.line-clamp-3 {
+  @include line-clamp(3);
+}
+
+.confirm-dialog .confirm-dialog__description strong {
+  font-weight: var(--font-semibold);
+  color: var(--text);
+}

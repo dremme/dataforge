@@ -1,0 +1,78 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.app {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.app-nav {
+  flex-shrink: 0;
+  z-index: 20;
+  width: 100vw;
+  margin: 0 calc(50% - 50vw);
+  padding: 0.65rem 0 0.85rem;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.28);
+
+  &__inner {
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+  }
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100vw;
+  margin: 0 calc(50% - 50vw);
+  padding: 1.5rem 0 4rem;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, $color-body-glow, transparent), var(--bg);
+  @include app-scrollbar;
+
+  &__inner {
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+}
+
+.app-initial-loading {
+  @include flex-center(column, 1rem);
+  min-height: min(72vh, 640px);
+  padding: 2rem 0;
+  text-align: center;
+
+  &__spinner {
+    @include inline-flex-center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    box-shadow: 0 0 28px $color-initial-loading-glow;
+  }
+
+  &__icon {
+    @include icon-size(var(--icon-size-base));
+    color: var(--accent);
+  }
+
+  &__label {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--text-muted);
+  }
+}

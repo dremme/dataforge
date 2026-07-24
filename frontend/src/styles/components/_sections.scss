@@ -1,0 +1,44 @@
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .folder-section, .gallery-section
+// ---------------------------------------------------------------------------
+
+.folder-section,
+.gallery-section {
+  margin-bottom: 2rem;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+    min-height: 1.25rem;
+  }
+
+  &__title {
+    @include section-label;
+  }
+
+  &__count {
+    @include count-pill;
+  }
+}
+
+.section-title__icon {
+  @include icon-block;
+  @include icon-size(var(--icon-size-base));
+  color: var(--accent);
+  opacity: var(--icon-muted-strong);
+}
+
+.section-header__count-skeleton {
+  display: inline-block;
+  width: 1.35rem;
+  height: 1.1rem;
+  border-radius: var(--radius-pill);
+}
+
+.browse-loading .folder-section--loading {
+  margin-bottom: 2rem;
+}

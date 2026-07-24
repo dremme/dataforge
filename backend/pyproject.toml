@@ -1,0 +1,69 @@
+[project]
+name = "dataforge-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["."]
+exclude = ["data", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "PIE", # flake8-pie
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "E501", # line length; rely on the formatter
+    "B008", # FastAPI dependency injection uses call expressions in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test_*.py" = [
+    "E402", # tests isolate the database before importing app modules
+    "SIM117", # nested with blocks are fine in tests
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "automation",
+    "body_parts_settings",
+    "browse",
+    "captions",
+    "comfy_metadata",
+    "constants",
+    "db",
+    "external",
+    "file_import",
+    "filesystem",
+    "folder_favorites",
+    "folder_fingerprint",
+    "logging_config",
+    "main",
+    "media_delete",
+    "media_listing",
+    "media_metadata",
+    "media_move",
+    "routes",
+    "schemas",
+    "sysprompt",
+    "system_specs",
+    "testing_fixtures",
+    "thumbnails",
+    "ui_settings",
+    "verify_captions_settings",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

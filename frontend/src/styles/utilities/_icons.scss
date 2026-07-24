@@ -1,0 +1,15 @@
+@use "../abstracts/mixins" as *;
+
+// Lucide icons use explicit pixel sizes (via icon-size mixin) for crisp strokes.
+.lucide {
+  display: block;
+  flex-shrink: 0;
+  width: var(--icon-size, var(--icon-size-base));
+  height: var(--icon-size, var(--icon-size-base));
+  stroke: currentColor;
+  fill: none;
+}
+
+.app-icon--spin {
+  @include spin;
+}

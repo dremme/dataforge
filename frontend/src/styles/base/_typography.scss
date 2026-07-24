@@ -1,0 +1,45 @@
+html {
+  font-family: var(--font-sans);
+  font-size: 100%;
+  font-optical-sizing: auto;
+  font-feature-settings: var(--font-features);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text);
+}
+
+p {
+  margin: 0;
+}
+
+strong {
+  font-weight: var(--font-semibold);
+}
+
+button {
+  font-family: inherit;
+  font-weight: var(--font-medium);
+  letter-spacing: inherit;
+}

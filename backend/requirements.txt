@@ -1,0 +1,17 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+httpx==0.28.1
+openai==1.59.6
+Pillow==11.1.0
+imageio-ffmpeg==0.6.0
+# Install a recent CUDA build of torch + torchvision first (CPU wheels break GPU inference).
+# For RTX 40/50-series (Ada/Blackwell), use a current PyTorch with CUDA 12.6 or newer, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+# Older pinned versions (e.g. 2.1) lack proper support for newer GPUs and drivers.
+#
+# YOLO/SAM weights for body-parts are auto-downloaded from upstream sources on startup /
+# first use if missing from backend/ (see body_parts.py ensure_body_parts_models).
+opencv-python-headless>=4.8.0
+numpy>=1.26.0
+ultralytics>=8.3.0

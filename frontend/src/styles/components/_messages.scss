@@ -1,0 +1,28 @@
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .message
+// ---------------------------------------------------------------------------
+
+.message {
+  @include alert-banner;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-snug);
+
+  &__icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-base));
+  }
+
+  &__dismiss {
+    @include dismiss-btn;
+
+    &:hover {
+      background: var(--danger-hover);
+    }
+  }
+}

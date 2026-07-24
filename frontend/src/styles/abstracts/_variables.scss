@@ -1,0 +1,131 @@
+// Design tokens — single source of truth for :root custom properties and SCSS helpers.
+
+// Color
+$color-bg: #0f1115;
+$color-bg-elevated: #171a21;
+$color-bg-card: #1c2029;
+$color-bg-media: #0a0c10;
+$color-bg-sticky: rgba(#171a21, 0.8);
+$color-bg-soft: rgba(#171a21, 0.25);
+$color-border: rgba(255, 255, 255, 0.08);
+$color-text: #f3f4f6;
+$color-text-muted: #9ca3af;
+$color-text-subtle: #6b7280;
+$color-accent: #7c9cff;
+$color-accent-soft: rgba(124, 156, 255, 0.15);
+$color-accent-border: rgba(124, 156, 255, 0.25);
+$color-accent-hover: rgba(124, 156, 255, 0.22);
+$color-success: #6ee7b7;
+$color-success-soft: rgba(110, 231, 183, 0.12);
+$color-success-border: rgba(110, 231, 183, 0.25);
+$color-danger: #fca5a5;
+$color-danger-deep: #c45a5a;
+$color-danger-soft: rgba(252, 165, 165, 0.12);
+$color-danger-border: rgba(252, 165, 165, 0.25);
+$color-danger-hover: rgba(252, 165, 165, 0.22);
+$color-surface-hover: rgba(255, 255, 255, 0.05);
+$color-overlay: rgba(0, 0, 0, 0.45);
+$color-body-glow: rgba(124, 156, 255, 0.18);
+$color-card-hover-border: rgba(255, 255, 255, 0.14);
+$color-captioned-border: rgba(110, 231, 183, 0.2);
+$color-partial-border: rgba(251, 191, 36, 0.22);
+$color-warning: #fbbf24;
+$color-warning-soft: rgba(251, 191, 36, 0.08);
+$color-warning-border: rgba(251, 191, 36, 0.22);
+$color-json-badge-text: #a5b4fc;
+$color-json-badge-bg: rgba(83, 90, 124, 0.5);
+$color-json-badge-border: rgba(165, 180, 252, 0.08);
+$color-video-badge-bg: rgba(128, 128, 128, 0.5);
+$color-modal-backdrop: rgba(0, 0, 0, 0.62);
+$modal-backdrop-blur: 10px;
+$color-modal-stage-glow: rgba(124, 156, 255, 0.06);
+$color-shimmer-mid: rgba(255, 255, 255, 0.07);
+$color-initial-loading-glow: rgba(124, 156, 255, 0.14);
+$color-caption-input-bg: rgba(0, 0, 0, 0.2);
+$color-caption-focus: #60a5fa;
+$color-caption-focus-ring: rgba(96, 165, 250, 0.2);
+$color-caption-saved: #4ade80;
+$color-caption-saved-ring: rgba(74, 222, 128, 0.45);
+$color-caption-error: #f87171;
+$color-caption-error-ring: rgba(248, 113, 113, 0.45);
+$color-video-bg: #000;
+
+// Layout
+$content-max: 1400px;
+$radius: 14px;
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-lg-offset: 4px;
+$radius-pill: 999px;
+$shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+$control-height: 2.25rem;
+$control-height-sm: 2rem;
+$control-height-xs: 1.5rem;
+$toolbar-control-height: $control-height;
+$panel-padding: 1.15rem;
+$modal-gutter: 1.5rem;
+$progress-height: 0.4rem;
+
+// Opacity
+$disabled-opacity: 0.5;
+$icon-muted-opacity: 0.7;
+$icon-muted-strong-opacity: 0.8;
+
+// Icon sizes — integer pixels for crisp Lucide strokes (avoid em-derived subpixels).
+$icon-size-xs: 0.75rem;
+$icon-size-sm: 0.875rem;
+$icon-size-base: 1rem;
+$icon-size-xl: 2rem;
+
+// Stacking
+$z-index-sticky-panel: 15;
+$z-index-tooltip: 50;
+$z-index-drawer: 1050;
+$z-index-modal: 1000;
+$z-index-confirm: 1100;
+$z-index-notification: 1200;
+
+// Motion
+$transition-fast: 0.15s ease;
+$transition-medium: 0.2s;
+$transition-content: 0.25s ease;
+$transition-image: 0.35s ease;
+$transition-caption: 0.25s ease;
+
+// Typography
+$font-sans:
+  "Inter",
+  system-ui,
+  -apple-system,
+  sans-serif;
+$font-features:
+  "cv11" 1,
+  "ss01" 1;
+$font-features-numeric:
+  "tnum" 1,
+  "cv11" 1,
+  "ss01" 1;
+
+$text-2xs: 0.6875rem;
+$text-xs: 0.75rem;
+$text-sm: 0.875rem;
+$text-base: 1rem;
+$text-md: 1.125rem;
+$text-lg: 1.3125rem;
+$text-xl: 1.625rem;
+
+$font-normal: 400;
+$font-medium: 500;
+$font-semibold: 600;
+
+$leading-tight: 1.2;
+$leading-snug: 1.35;
+$leading-normal: 1.5;
+$leading-relaxed: 1.6;
+
+$tracking-tight: -0.025em;
+$tracking-normal: -0.011em;
+$tracking-caps: 0.06em;
+
+// Breakpoints
+$breakpoint-tablet: 720px;

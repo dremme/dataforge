@@ -1,0 +1,77 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .notifications
+// ---------------------------------------------------------------------------
+
+.notifications {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: $z-index-notification;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+
+  &__toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+    backdrop-filter: blur(var(--modal-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
+    box-shadow: var(--shadow);
+    animation: notification-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: opacity, transform;
+
+    &--exiting {
+      animation: notification-exit 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+      pointer-events: none;
+    }
+
+    &--danger {
+      background: var(--danger-soft);
+      border: 1px solid var(--danger-border);
+      color: var(--danger);
+    }
+
+    &--warning {
+      background: var(--warning-soft);
+      border: 1px solid var(--warning-border);
+      color: var(--warning);
+    }
+
+    &--success {
+      background: var(--success-soft);
+      border: 1px solid var(--success-border);
+      color: var(--success);
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+    @include icon-size(var(--icon-size-base));
+  }
+
+  &__message {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__dismiss {
+    @include dismiss-btn;
+    background-color: transparent;
+    border-color: transparent;
+    flex-shrink: 0;
+    margin-top: -0.1rem;
+    margin-right: -0.15rem;
+  }
+}

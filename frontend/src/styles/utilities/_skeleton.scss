@@ -1,0 +1,5 @@
+@use "../abstracts/mixins" as *;
+
+.skeleton-shimmer {
+  @include skeleton-shimmer;
+}

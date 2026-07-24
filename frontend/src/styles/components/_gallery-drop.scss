@@ -1,0 +1,63 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.gallery-drop-zone {
+  position: relative;
+  min-height: 12rem;
+
+  &--active {
+    .gallery-drop-zone__content {
+      pointer-events: none;
+      user-select: none;
+    }
+  }
+}
+
+.gallery-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 17, 21, 0.82);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  pointer-events: none;
+
+  &__panel {
+    max-width: 28rem;
+    text-align: center;
+  }
+
+  &__icon {
+    @include icon-size(var(--icon-size-xl));
+    display: inline;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+  }
+
+  &__title {
+    margin: 0 0 0.5rem;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--text);
+  }
+
+  &__description {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    color: var(--text-muted);
+  }
+
+  &__folder {
+    color: var(--text);
+    font-weight: var(--font-medium);
+  }
+}
+
+.gallery-drop-status {
+  margin-top: 0.75rem;
+}

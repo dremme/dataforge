@@ -1,0 +1,402 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// Sentinel sits in document flow above the panel; when it scrolls past the top of
+// .main, the panel is stuck and gains the floating appearance.
+.automation-sentinel {
+  margin: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+// ---------------------------------------------------------------------------
+// .automation
+// ---------------------------------------------------------------------------
+
+.automation {
+  position: sticky;
+  top: 0;
+  z-index: $z-index-sticky-panel;
+  margin-bottom: 1.25rem;
+  padding: 1rem var(--panel-padding);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition:
+    background 0.22s ease,
+    box-shadow 0.22s ease,
+    backdrop-filter 0.22s ease;
+
+  &--floating {
+    background: var(--bg-sticky);
+    backdrop-filter: blur(var(--modal-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
+    box-shadow: 0 0px 8px rgba(0, 0, 0, 0.28);
+  }
+
+  // Block modifiers
+  &--cancelled,
+  &--warning {
+    @include status-panel-warning;
+  }
+
+  &--error {
+    @include status-panel-danger;
+  }
+
+  // Header
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: var(--font-semibold);
+    color: var(--text);
+    line-height: 1;
+
+    &-icon {
+      @include icon-size(var(--icon-size-base));
+      color: var(--accent);
+    }
+  }
+
+  &__specs-toggle {
+    @include icon-btn-sm;
+    background: transparent;
+    border-color: transparent;
+
+    &--active {
+      color: var(--accent);
+
+      &:hover:not(:disabled) {
+        color: var(--accent);
+      }
+    }
+  }
+
+  &__specs-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+
+    &--open {
+      grid-template-rows: 1fr;
+    }
+
+    &-inner {
+      overflow: hidden;
+      min-height: 0;
+    }
+  }
+
+  &__specs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
+    min-width: 0;
+    padding-top: 0.35rem;
+    opacity: 0;
+    transform: translateY(-0.35rem);
+    transition:
+      opacity 0.22s ease,
+      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+
+    .automation__specs-panel--open & {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  &__spec {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: 100%;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: var(--leading-snug);
+
+    &-icon {
+      flex-shrink: 0;
+      color: var(--text-subtle);
+    }
+
+    &-label {
+      min-width: 0;
+      font-weight: var(--font-medium);
+      @include truncate;
+    }
+
+    &-detail {
+      color: var(--text-subtle);
+      font-weight: var(--font-normal);
+    }
+  }
+
+  &__spec-divider {
+    @include modal-meta-divider;
+    height: 1rem;
+  }
+
+  // Action buttons
+  &__sysprompt {
+    @include pill-btn-ghost(0.4rem);
+    --bg-elevated: #{$color-bg-soft};
+  }
+
+  &__start {
+    @include pill-btn-accent(0.4rem);
+  }
+
+  &__resolve-issues {
+    @include pill-btn-warning(0.4rem);
+  }
+
+  &__cancel {
+    @include pill-btn-ghost(0.4rem);
+    --bg-elevated: #{$color-bg-soft};
+  }
+
+  &__btn-icon {
+    @include icon-size(var(--icon-size-base));
+
+    &--spin {
+      @include spin;
+    }
+  }
+
+  // More menu
+  &__more {
+    position: relative;
+    --bg-elevated: #{$color-bg-soft};
+
+    &-trigger {
+      @include pill-btn-ghost(0.4rem);
+
+      &-chevron {
+        font-size: var(--text-2xs);
+        transition: transform var(--transition);
+      }
+    }
+
+    &--open &-trigger {
+      color: var(--text);
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+
+      &-chevron {
+        transform: rotate(180deg);
+      }
+    }
+
+    &-menu {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      right: 0;
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      min-width: min(18rem, calc(100vw - 2rem));
+      padding: 0.35rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow);
+    }
+
+    &-item {
+      @include control-interactive;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      width: 100%;
+      padding: 0.65rem 0.7rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+
+      &:hover:not(:disabled) {
+        background: var(--accent-soft);
+      }
+
+      &:disabled {
+        @include disabled-state;
+      }
+
+      &-icon {
+        flex-shrink: 0;
+        margin-top: 0.1rem;
+        @include icon-size(var(--icon-size-base));
+        color: var(--text-muted);
+      }
+
+      &-text {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+
+      &-title {
+        font-size: var(--text-sm);
+        font-weight: var(--font-medium);
+        line-height: var(--leading-snug);
+      }
+
+      &-desc {
+        font-size: var(--text-xs);
+        line-height: var(--leading-snug);
+        color: var(--text-muted);
+      }
+
+      &-spinner {
+        flex-shrink: 0;
+        margin-top: 0.15rem;
+        @include icon-size(var(--icon-size-base));
+        color: var(--accent);
+      }
+    }
+  }
+
+  // Hints & messages
+  &__hint {
+    margin: 0.65rem 0 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: var(--leading-snug);
+  }
+
+  &__message {
+    @include alert-banner;
+    gap: 0.55rem;
+    margin-top: 0.75rem;
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-base));
+    }
+
+    &--error {
+      background: var(--danger-soft);
+      border-color: var(--danger-border);
+      color: var(--danger);
+    }
+
+    &--warning {
+      background: $color-warning-soft;
+      border-color: $color-warning-border;
+      color: $color-warning;
+    }
+  }
+
+  &__dismiss {
+    @include dismiss-btn;
+  }
+
+  // Job status body
+  &__body {
+    margin-top: 0.85rem;
+  }
+
+  &__job-type {
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-hover);
+    color: var(--text-subtle);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+
+  &__status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+    font-size: var(--text-sm);
+  }
+
+  &__status-label {
+    color: var(--text-muted);
+    font-weight: var(--font-medium);
+  }
+
+  &__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text);
+    font-weight: var(--font-medium);
+
+    &-icon {
+      @include icon-size(var(--icon-size-base));
+
+      &--spin {
+        @include spin;
+        color: var(--accent);
+      }
+
+      &--success {
+        color: var(--success);
+      }
+
+      &--error {
+        color: var(--danger);
+      }
+
+      &--cancelled,
+      &--warning {
+        color: $color-warning;
+      }
+    }
+  }
+
+  &__counts {
+    color: var(--text-muted);
+    @include tabular-nums;
+    text-align: right;
+  }
+
+  &__remaining {
+    color: var(--text-subtle);
+    white-space: nowrap;
+  }
+
+  &__current-file {
+    margin: 0.35rem 0 0;
+    min-width: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--text-muted);
+    @include truncate;
+  }
+
+  &__progress {
+    @include progress-track;
+
+    &-bar {
+      @include progress-bar-fill;
+    }
+  }
+}

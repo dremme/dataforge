@@ -1,0 +1,59 @@
+@use "../abstracts/variables" as *;
+
+.tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: top;
+
+  &--disabled-wrap {
+    cursor: not-allowed;
+  }
+
+  &__bubble {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 50%;
+    z-index: $z-index-tooltip;
+    width: max-content;
+    max-width: 14rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+    color: var(--text);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    line-height: var(--leading-snug);
+    text-align: center;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(-0.25rem);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease,
+      visibility 0.15s ease;
+  }
+
+  &__arrow {
+    position: absolute;
+    top: -0.3rem;
+    left: 50%;
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    transform: translateX(-50%) rotate(45deg);
+  }
+
+  &--visible &__bubble {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+}

@@ -1,0 +1,101 @@
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .breadcrumbs
+// ---------------------------------------------------------------------------
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  &__explorer {
+    @include text-btn;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0.35rem;
+  }
+
+  &__explorer-icon {
+    @include icon-block;
+    @include icon-size(var(--icon-size-base));
+
+    &--spin {
+      @include spin;
+    }
+  }
+
+  &__picker {
+    @include pill-btn-compact-accent;
+
+    &-icon {
+      @include icon-block;
+      @include icon-size(var(--icon-size-base));
+    }
+  }
+
+  &__list {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+
+  &__item {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  &__sep {
+    @include icon-block;
+    @include icon-size(var(--icon-size-base));
+    margin: 0 0.1rem;
+    color: var(--text-subtle);
+    opacity: var(--disabled-opacity);
+    user-select: none;
+  }
+
+  &__link,
+  &__current {
+    max-width: 14rem;
+    padding: 0.15rem 0.3rem;
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+    @include truncate;
+  }
+
+  &__link {
+    @include text-btn;
+    font-weight: var(--font-medium);
+  }
+
+  &__current {
+    color: var(--text);
+    font-weight: var(--font-semibold);
+
+    &--not-found {
+      color: var(--danger);
+      text-decoration: line-through;
+    }
+  }
+}
