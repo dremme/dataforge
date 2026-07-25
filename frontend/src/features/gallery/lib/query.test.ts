@@ -151,6 +151,22 @@ describe("filterBySearch", () => {
       "waves.mp4",
     ]);
   });
+
+  it("matches with a valid regular expression", () => {
+    expect(filterBySearch(items, "sun|ocean", true).map((entry) => entry.name)).toEqual([
+      "sunset.png",
+      "waves.mp4",
+    ]);
+  });
+
+  it("does not crash on an incomplete or invalid regular expression", () => {
+    expect(() => filterBySearch(items, "land(scape", true)).not.toThrow();
+    // Falls back to plain substring match while the pattern is invalid.
+    expect(filterBySearch(items, "sunset", true).map((entry) => entry.name)).toEqual([
+      "sunset.png",
+    ]);
+    expect(filterBySearch(items, "land(scape", true).map((entry) => entry.name)).toEqual([]);
+  });
 });
 
 describe("applyCaptionFilter", () => {

@@ -100,17 +100,28 @@ export function sortGalleryItems(items: GalleryItem[], sort: SortOption): Galler
   return sorted;
 }
 
+function compileSearchRegex(pattern: string): RegExp | null {
+  try {
+    return new RegExp(pattern, "i");
+  } catch {
+    return null;
+  }
+}
+
 function matchesSearchQuery(
   query: string,
-  regex: boolean,
+  pattern: RegExp | null,
+  useRegex: boolean,
   name: string,
   description?: string | null,
 ): boolean {
-  const needle = query.toLowerCase();
-  if (regex) {
-    if (name.toLowerCase().match(needle)) return true;
-    if (description?.toLowerCase().match(needle)) return true;
+  if (useRegex && pattern) {
+    if (pattern.test(name)) return true;
+    if (description != null && pattern.test(description)) return true;
+    return false;
   }
+
+  const needle = query.toLowerCase();
   if (name.toLowerCase().includes(needle)) return true;
   if (description?.toLowerCase().includes(needle)) return true;
   return false;
@@ -120,7 +131,12 @@ export function filterBySearch(items: GalleryItem[], query: string, regex: boole
   const trimmed = query.trim();
   if (!trimmed) return items;
 
-  return items.filter((item) => matchesSearchQuery(trimmed, regex, item.name, item.description));
+  // Incomplete/invalid patterns must not throw while the user is still typing.
+  const pattern = regex ? compileSearchRegex(trimmed) : null;
+
+  return items.filter((item) =>
+    matchesSearchQuery(trimmed, pattern, regex, item.name, item.description),
+  );
 }
 
 export function applyCaptionFilter(items: GalleryItem[], filter: CaptionFilter): GalleryItem[] {
