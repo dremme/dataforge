@@ -6,11 +6,14 @@ import {
   formatDuration,
   jobCompletionNotification,
   jobErrorMessage,
+  jobIcon,
   jobIsCancelled,
   jobRemainingSeconds,
   jobRemainingTimeLabel,
   jobShowsWarningState,
   jobStatusTone,
+  jobTypeLabel,
+  jobTypeOf,
   jobWarningMessage,
   progressPercent,
   selectFolderJob,
@@ -18,6 +21,7 @@ import {
   statusTone,
   updateJobTimingTracker,
 } from "./jobs";
+import { iconCircleQuestionMark, iconPencilSparkles } from "@/shared/icons";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
@@ -35,6 +39,27 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     ...overrides,
   };
 }
+
+describe("job type display", () => {
+  it("uses registry metadata for known job types", () => {
+    const job = makeJob({ job_type: "auto_caption" });
+    expect(jobTypeOf(job)).toBe("auto_caption");
+    expect(jobTypeLabel(job)).toBe("Auto-caption");
+    expect(jobIcon(job)).toBe(iconPencilSparkles);
+  });
+
+  it("defaults missing job_type to auto-caption and tolerates unknown API values", () => {
+    const missing = makeJob({ job_type: undefined });
+    expect(jobTypeOf(missing)).toBe("auto_caption");
+    expect(jobTypeLabel(missing)).toBe("Auto-caption");
+    expect(jobIcon(missing)).toBe(iconPencilSparkles);
+
+    const legacy = makeJob({ job_type: "legacy_job" as Job["job_type"] });
+    expect(jobTypeOf(legacy)).toBe("auto_caption");
+    expect(jobTypeLabel(legacy)).toBe("legacy_job");
+    expect(jobIcon(legacy)).toBe(iconCircleQuestionMark);
+  });
+});
 
 describe("progressPercent", () => {
   it("reflects partial progress for cancelled jobs", () => {

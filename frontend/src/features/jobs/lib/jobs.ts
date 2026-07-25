@@ -1,7 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import type { Job, JobStatus, JobType } from "@/shared/types";
 import { folderLeafName, foldersMatch } from "@/features/browse/lib/folderPath";
-import { jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
+import { isKnownJobType, jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
 
 export type JobCompletionNotificationVariant = "danger" | "warning" | "success";
 
@@ -11,15 +11,15 @@ export interface JobCompletionNotification {
 }
 
 export function jobTypeOf(job: Job): JobType {
-  return job.job_type ?? PRIMARY_JOB_TYPE;
+  return isKnownJobType(job.job_type) ? job.job_type : PRIMARY_JOB_TYPE;
 }
 
 export function jobTypeLabel(job: Job): string {
-  return jobTypeLabelFor(jobTypeOf(job));
+  return jobTypeLabelFor(job.job_type);
 }
 
 export function jobIcon(job: Job): AppIcon {
-  return jobTypeIconFor(jobTypeOf(job));
+  return jobTypeIconFor(job.job_type);
 }
 
 export function compareJobRecency(a: Job, b: Job): number {

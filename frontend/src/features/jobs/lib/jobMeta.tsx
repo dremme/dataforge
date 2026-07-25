@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { AppIcon } from "@/shared/icons";
 import {
+  iconCircleQuestionMark,
   iconFilePen,
   iconGroup,
   iconMessageCheck,
@@ -98,6 +99,10 @@ export type ConfirmableJobType = {
 
 export const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
 
+export function isKnownJobType(value: string | null | undefined): value is JobType {
+  return typeof value === "string" && Object.hasOwn(JOB_TYPE_META, value);
+}
+
 export function jobTypeMeta(type: JobType): JobTypeMeta {
   return JOB_TYPE_META[type] as JobTypeMeta;
 }
@@ -109,16 +114,22 @@ export const SECONDARY_JOB_TYPES: JobType[] = JOB_TYPES.filter(
   (type) => !jobTypeMeta(type).primary,
 );
 
-export function jobTypeLabelFor(type: JobType): string {
-  return JOB_TYPE_META[type].label;
+/** Safe for API values that may predate the registry or be unexpected. */
+export function jobTypeLabelFor(type: string | null | undefined): string {
+  if (isKnownJobType(type)) return JOB_TYPE_META[type].label;
+  // Older jobs omit job_type; treat as the primary type for display.
+  if (type == null || type.trim() === "") return JOB_TYPE_META[PRIMARY_JOB_TYPE].label;
+  return type.trim();
 }
 
-export function jobTypeIconFor(type: JobType): AppIcon {
-  return JOB_TYPE_META[type].icon;
+export function jobTypeIconFor(type: string | null | undefined): AppIcon {
+  if (isKnownJobType(type)) return JOB_TYPE_META[type].icon;
+  if (type == null || type.trim() === "") return JOB_TYPE_META[PRIMARY_JOB_TYPE].icon;
+  return iconCircleQuestionMark;
 }
 
 export function isConfirmableJobType(type: JobType): type is ConfirmableJobType {
-  return JOB_TYPE_META[type].startUi === "confirm";
+  return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "confirm";
 }
 
 export const JOB_START_CONFIRM: Record<ConfirmableJobType, NonNullable<JobTypeMeta["confirm"]>> = {
