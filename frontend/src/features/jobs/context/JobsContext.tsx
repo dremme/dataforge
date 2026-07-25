@@ -15,7 +15,7 @@ import {
   startSetCaptionsJob as apiStartSetCaptionsJob,
   startStripMetadataJob as apiStartStripMetadataJob,
   startVerifyCaptionsJob as apiStartVerifyCaptionsJob,
-} from "@/features/automation/api";
+} from "@/features/automation/api/jobs";
 import {
   cancelJob,
   deleteAllJobs,

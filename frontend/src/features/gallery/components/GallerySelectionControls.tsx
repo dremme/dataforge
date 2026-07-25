@@ -10,7 +10,7 @@ import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import { iconFolderInput, iconLoader2, iconTrash2 } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
-import { FolderPickerModal } from "@/features/browse";
+import { FolderPickerModal } from "@/features/browse/components/FolderPickerModal";
 import { Icon } from "@/shared/ui/Icon";
 
 function pathBaseName(path: string): string {

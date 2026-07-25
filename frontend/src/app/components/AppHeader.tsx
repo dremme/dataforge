@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
-import { BreadcrumbBar } from "@/features/browse";
-import { Toolbar } from "@/features/gallery";
+import { BreadcrumbBar } from "@/features/browse/components/BreadcrumbBar";
+import { Toolbar } from "@/features/gallery/components/Toolbar";
 import type { BrowseResponse } from "@/shared/types";
 
 type AppHeaderProps = {

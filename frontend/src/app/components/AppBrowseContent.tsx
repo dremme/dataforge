@@ -1,12 +1,12 @@
 import type { ComponentProps } from "react";
-import { AutomationPanel } from "@/features/automation";
-import { BrowseErrorState, FolderBrowseLoading, FolderGrid } from "@/features/browse";
-import {
-  Gallery,
-  GalleryFileDropOverlay,
-  GallerySelectionControls,
-  type FilterEmptyState,
-} from "@/features/gallery";
+import { AutomationPanel } from "@/features/automation/components/AutomationPanel";
+import { BrowseErrorState } from "@/features/browse/components/BrowseErrorState";
+import { FolderBrowseLoading } from "@/features/browse/components/FolderBrowseLoading";
+import { FolderGrid } from "@/features/browse/components/FolderGrid";
+import { Gallery } from "@/features/gallery/components/Gallery";
+import { GalleryFileDropOverlay } from "@/features/gallery/components/GalleryFileDropOverlay";
+import { GallerySelectionControls } from "@/features/gallery/components/GallerySelectionControls";
+import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { BrowseError } from "@/shared/api/http";
 import { iconFolderOpen, iconImages } from "@/shared/icons";
 import type { BrowseResponse, GalleryItem, Subfolder } from "@/shared/types";
