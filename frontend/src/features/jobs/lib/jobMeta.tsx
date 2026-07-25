@@ -46,30 +46,6 @@ export const JOB_TYPE_META = {
     primary: true as const,
     menuDescription: "Auto-complete captions with the local model.",
   },
-  body_parts: {
-    type: "body_parts" as const,
-    label: "Body parts",
-    icon: iconGroup,
-    startUi: "dialog" as const,
-    menuLabel: "Detect body parts",
-    menuDescription: "Detect body and face; optional SAM keywords.",
-  },
-  strip_metadata: {
-    type: "strip_metadata" as const,
-    label: "Strip metadata",
-    icon: iconShredder,
-    startUi: "confirm" as const,
-    menuDescription: "Remove embedded metadata from media files.",
-    confirm: {
-      title: "Start strip metadata?",
-      description: (folderLabel: string) => (
-        <>
-          Remove embedded metadata from PNGs and MP4s in <strong>{folderLabel}</strong>.
-        </>
-      ),
-      confirmLabel: "Start strip metadata",
-    },
-  },
   set_captions: {
     type: "set_captions" as const,
     label: "Set captions",
@@ -90,6 +66,30 @@ export const JOB_TYPE_META = {
     icon: iconFilePen,
     startUi: "dialog" as const,
     menuDescription: "Rename media files.",
+  },
+  strip_metadata: {
+    type: "strip_metadata" as const,
+    label: "Strip metadata",
+    icon: iconShredder,
+    startUi: "confirm" as const,
+    menuDescription: "Remove embedded metadata from media files.",
+    confirm: {
+      title: "Start strip metadata?",
+      description: (folderLabel: string) => (
+        <>
+          Remove embedded metadata from PNGs and MP4s in <strong>{folderLabel}</strong>.
+        </>
+      ),
+      confirmLabel: "Start strip metadata",
+    },
+  },
+  body_parts: {
+    type: "body_parts" as const,
+    label: "Body parts",
+    icon: iconGroup,
+    startUi: "dialog" as const,
+    menuLabel: "Detect body parts",
+    menuDescription: "Detect body and face; optional SAM keywords.",
   },
 } satisfies Record<JobType, JobTypeMeta>;
 
