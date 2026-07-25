@@ -53,6 +53,7 @@ known-first-party = [
     "media_listing",
     "media_metadata",
     "media_move",
+    "openai_settings",
     "routes",
     "schemas",
     "sysprompt",

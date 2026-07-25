@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import os
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,21 +16,22 @@ from PIL import Image
 
 from captions import issue_file_path
 from constants import IMAGE_EXTENSIONS
+from openai_settings import (
+    create_openai_client,
+    get_instruct_presence_penalty,
+    get_instruct_temperature,
+    get_instruct_top_p,
+    get_max_tokens,
+    get_openai_model,
+    get_thinking_presence_penalty,
+    get_thinking_temperature,
+    get_thinking_top_p,
+    get_top_k,
+)
 
 logger = logging.getLogger(__name__)
 
-MAX_TOKENS = 8192
-THINKING_TEMPERATURE = 1.0
-THINKING_PRESENCE_PENALTY = 0.0
-THINKING_TOP_P = 0.95
-INSTRUCT_TEMPERATURE = 0.7
-INSTRUCT_PRESENCE_PENALTY = 1.5
-INSTRUCT_TOP_P = 0.8
-TOP_K = 20
-DEFAULT_MODEL = "qwen"
-DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
-DEFAULT_API_KEY = "sk-1234"
-IMAGE_MAX_PIXELS = 1_600_000
+IMAGE_MAX_PIXELS = 1_750_000
 MAX_MODEL_ATTEMPTS = 3
 
 # Used as a trailing assistant prefill for "instruct" (non-thinking) mode on Qwen3 hybrid models.
@@ -53,15 +53,6 @@ class VerificationResult:
     correct: bool
     issues: str
     suggestions: str
-
-
-def _openai_client():
-    from openai import OpenAI
-
-    return OpenAI(
-        base_url=os.environ.get("OPENAI_API_BASE_URL", DEFAULT_BASE_URL),
-        api_key=os.environ.get("OPENAI_API_KEY", DEFAULT_API_KEY),
-    )
 
 
 def resize_for_qwen(image: Image.Image, max_pixels: int = IMAGE_MAX_PIXELS) -> Image.Image:
@@ -355,33 +346,35 @@ def _run_chat_completion(
     client,
     messages: list[dict],
     *,
-    model: str,
-    max_tokens: int,
+    model: str | None = None,
+    max_tokens: int | None = None,
     mode: VerifyMode,
 ) -> str | None:
+    resolved_model = model if model is not None else get_openai_model()
+    resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
     if mode == "instruct":
-        temperature = INSTRUCT_TEMPERATURE
-        presence_penalty = INSTRUCT_PRESENCE_PENALTY
-        top_p = INSTRUCT_TOP_P
+        temperature = get_instruct_temperature()
+        presence_penalty = get_instruct_presence_penalty()
+        top_p = get_instruct_top_p()
         extra_body: dict[str, object] = {
-            "top_k": TOP_K,
+            "top_k": get_top_k(),
             "chat_template_kwargs": {"enable_thinking": False},
         }
         outbound_messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
     elif mode == "thinking":
-        temperature = THINKING_TEMPERATURE
-        presence_penalty = THINKING_PRESENCE_PENALTY
-        top_p = THINKING_TOP_P
-        extra_body = {"top_k": TOP_K}
+        temperature = get_thinking_temperature()
+        presence_penalty = get_thinking_presence_penalty()
+        top_p = get_thinking_top_p()
+        extra_body = {"top_k": get_top_k()}
         outbound_messages = messages
     else:
         return None
 
     try:
         response = client.chat.completions.create(
-            model=model,
+            model=resolved_model,
             messages=outbound_messages,
-            max_tokens=max_tokens,
+            max_tokens=resolved_max_tokens,
             temperature=temperature,
             top_p=top_p,
             presence_penalty=presence_penalty,
@@ -401,8 +394,8 @@ def verify_caption(
     ref_caption: str,
     *,
     images: list[Image.Image] | None = None,
-    model: str = DEFAULT_MODEL,
-    max_tokens: int = MAX_TOKENS,
+    model: str | None = None,
+    max_tokens: int | None = None,
     mode: VerifyMode = "instruct",
 ) -> str | None:
     if images is None:
@@ -422,8 +415,8 @@ def verify_caption(
     return _run_chat_completion(
         client,
         messages,
-        model=model,
-        max_tokens=max_tokens,
+        model=model if model is not None else get_openai_model(),
+        max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),
         mode=mode,
     )
 
@@ -447,10 +440,11 @@ def process_media(
     media_path: Path,
     system_prompt: str,
     *,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     mode: VerifyMode = "instruct",
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, VerificationResult | None, str, str | None]:
+    resolved_model = model if model is not None else get_openai_model()
     ref_caption, status = _read_caption(media_path)
     if status != "ok" or ref_caption is None:
         return media_path, None, status, None
@@ -472,7 +466,7 @@ def process_media(
             system_prompt,
             ref_caption,
             images=images,
-            model=model,
+            model=resolved_model,
             mode=mode,
         )
 
@@ -565,7 +559,7 @@ def _record_result_status(
 def run_verify_captions_job(
     folder: Path,
     *,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     mode: VerifyMode = "instruct",
     context: str = "",
     on_progress: ProgressCallback | None = None,
@@ -579,7 +573,8 @@ def run_verify_captions_job(
 
     system_prompt = build_verification_system_prompt(context)
     media_files = filter_media_list(list_verify_captions_media(folder), selected_paths)
-    client = _openai_client()
+    client = create_openai_client()
+    resolved_model = model if model is not None else get_openai_model()
 
     stats = _initial_job_stats(len(media_files))
     file_results: list[dict[str, object]] = []
@@ -597,7 +592,7 @@ def run_verify_captions_job(
             client,
             media_path,
             system_prompt,
-            model=model,
+            model=resolved_model,
             mode=mode,
             should_cancel=should_cancel,
         )

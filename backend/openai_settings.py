@@ -1,0 +1,108 @@
+"""Shared OpenAI-compatible vision LLM settings for auto-caption and verify jobs.
+
+Environment (all optional):
+
+- ``OPENAI_API_BASE_URL`` — base URL of the OpenAI-compatible server
+- ``OPENAI_API_KEY`` — API key (placeholder is fine for many local servers)
+- ``OPENAI_MODEL`` — chat ``model`` id the server expects
+- ``OPENAI_MAX_TOKENS`` — completion max tokens
+- ``OPENAI_THINKING_TEMPERATURE`` / ``OPENAI_THINKING_PRESENCE_PENALTY`` / ``OPENAI_THINKING_TOP_P``
+- ``OPENAI_INSTRUCT_TEMPERATURE`` / ``OPENAI_INSTRUCT_PRESENCE_PENALTY`` / ``OPENAI_INSTRUCT_TOP_P``
+- ``OPENAI_TOP_K`` — top-k (sent via extra_body for compatible servers)
+"""
+
+from __future__ import annotations
+
+import os
+from typing import Any
+
+DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:1234/v1"
+DEFAULT_OPENAI_API_KEY = "sk-1234"
+DEFAULT_OPENAI_MODEL = "qwen35moe"
+
+DEFAULT_MAX_TOKENS = 8192
+DEFAULT_THINKING_TEMPERATURE = 1.0
+DEFAULT_THINKING_PRESENCE_PENALTY = 0.0
+DEFAULT_THINKING_TOP_P = 0.95
+DEFAULT_INSTRUCT_TEMPERATURE = 0.7
+DEFAULT_INSTRUCT_PRESENCE_PENALTY = 1.5
+DEFAULT_INSTRUCT_TOP_P = 0.8
+DEFAULT_TOP_K = 20
+
+
+def _env_str(name: str) -> str:
+    return os.environ.get(name, "").strip()
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = _env_str(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = _env_str(name)
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def get_openai_base_url() -> str:
+    return _env_str("OPENAI_API_BASE_URL") or DEFAULT_OPENAI_BASE_URL
+
+
+def get_openai_api_key() -> str:
+    return _env_str("OPENAI_API_KEY") or DEFAULT_OPENAI_API_KEY
+
+
+def get_openai_model() -> str:
+    return _env_str("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
+
+
+def get_max_tokens() -> int:
+    return _env_int("OPENAI_MAX_TOKENS", DEFAULT_MAX_TOKENS)
+
+
+def get_thinking_temperature() -> float:
+    return _env_float("OPENAI_THINKING_TEMPERATURE", DEFAULT_THINKING_TEMPERATURE)
+
+
+def get_thinking_presence_penalty() -> float:
+    return _env_float("OPENAI_THINKING_PRESENCE_PENALTY", DEFAULT_THINKING_PRESENCE_PENALTY)
+
+
+def get_thinking_top_p() -> float:
+    return _env_float("OPENAI_THINKING_TOP_P", DEFAULT_THINKING_TOP_P)
+
+
+def get_instruct_temperature() -> float:
+    return _env_float("OPENAI_INSTRUCT_TEMPERATURE", DEFAULT_INSTRUCT_TEMPERATURE)
+
+
+def get_instruct_presence_penalty() -> float:
+    return _env_float("OPENAI_INSTRUCT_PRESENCE_PENALTY", DEFAULT_INSTRUCT_PRESENCE_PENALTY)
+
+
+def get_instruct_top_p() -> float:
+    return _env_float("OPENAI_INSTRUCT_TOP_P", DEFAULT_INSTRUCT_TOP_P)
+
+
+def get_top_k() -> int:
+    return _env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
+
+
+def create_openai_client() -> Any:
+    """Return an OpenAI client configured from environment / defaults."""
+    from openai import OpenAI
+
+    return OpenAI(
+        base_url=get_openai_base_url(),
+        api_key=get_openai_api_key(),
+    )

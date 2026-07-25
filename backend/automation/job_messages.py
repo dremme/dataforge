@@ -97,9 +97,12 @@ def verify_captions_failure_message(stats: dict[str, int]) -> str | None:
             "the required JSON output format."
         )
     if api_errors and not parse_errors:
+        from openai_settings import get_openai_model
+
+        model_id = get_openai_model()
         return (
             f"{summary} Check that the local model server is running and the vision model "
-            '(default id "qwen") is loaded.'
+            f'(id "{model_id}") is loaded.'
         )
     return (
         f"{summary} Check that the vision model is loaded and returns the JSON format from "

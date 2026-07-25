@@ -93,7 +93,7 @@ One-time `setup.bat` installs **portable** Python and Node under the project (no
 
 | Feature | Needs |
 | --- | --- |
-| Auto-caption, verify captions | Local OpenAI-compatible **vision** server (LM Studio, llama.cpp server, vLLM, etc.) with a Qwen3 vision model (see [Configuration](#configuration)) |
+| Auto-caption, verify captions | Local OpenAI-compatible **vision** server (LM Studio, llama.cpp server, vLLM, etc.) with a vision model (see [Configuration](#configuration)) |
 | Body parts (GPU) | CUDA PyTorch + Ultralytics; weights auto-download into `backend/automation/` |
 | Ostris job list | AI-Toolkit install + `OSTRIS_TOOLKIT_ROOT` (optional) |
 
@@ -159,18 +159,37 @@ Point the app at `sample-images/` in this repo for a tiny folder with mixed capt
 
 ### Vision LLM (auto-caption / verify)
 
-**Recommended model:** [Qwen3.6 35B A3B](https://huggingface.co/Qwen) (or the equivalent build in your local server).
-Any **Qwen3** model with **vision** capabilities should work for auto-caption and verify-captions.
+DataForge talks to any **OpenAI-compatible** vision endpoint.
+Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp / vLLM before running AI jobs.
 
-Environment variables (optional; defaults target a local server):
+**Suggested models (best first):**
+
+- [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) — recommended default
+- [Qwen3.6 35B A3B uncensored by HauhauCS](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) — same class, fewer refusals
+- [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) — strong dense alternative
+- [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) — lighter VLM for smaller GPUs
+- [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) — weak; usable only when VRAM is tight
+
+**Also workable with some prompt/server tweaks:**
+
+- [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it)
+- [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
+
+**Environment variables (optional; defaults target a local server):**
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OPENAI_API_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base URL |
 | `OPENAI_API_KEY` | `sk-1234` | Placeholder key for local servers |
-| Model name | `qwen` | Passed as the chat `model` field (match the id your server exposes) |
-
-Point these at your LM Studio / local server and load a vision model before running AI jobs.
+| `OPENAI_MODEL` | `qwen35moe` | Chat `model` id (must match the id your server exposes) |
+| `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
+| `OPENAI_THINKING_TEMPERATURE` | `1.0` | Sampling temperature in thinking mode |
+| `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0` | Presence penalty in thinking mode |
+| `OPENAI_THINKING_TOP_P` | `0.95` | Top-p in thinking mode |
+| `OPENAI_INSTRUCT_TEMPERATURE` | `0.7` | Sampling temperature in instruct mode |
+| `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5` | Presence penalty in instruct mode |
+| `OPENAI_INSTRUCT_TOP_P` | `0.8` | Top-p in instruct mode |
+| `OPENAI_TOP_K` | `20` | Top-k (via server `extra_body`, when supported) |
 
 ### Hugging Face (SAM download)
 

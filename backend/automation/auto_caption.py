@@ -15,21 +15,22 @@ from typing import Literal
 from PIL import Image
 
 from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
+from openai_settings import (
+    create_openai_client,
+    get_instruct_presence_penalty,
+    get_instruct_temperature,
+    get_instruct_top_p,
+    get_max_tokens,
+    get_openai_model,
+    get_thinking_presence_penalty,
+    get_thinking_temperature,
+    get_thinking_top_p,
+    get_top_k,
+)
 from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
 
-MAX_TOKENS = 8192
-THINKING_TEMPERATURE = 1.0
-THINKING_PRESENCE_PENALTY = 0.0
-THINKING_TOP_P = 0.95
-INSTRUCT_TEMPERATURE = 0.7
-INSTRUCT_PRESENCE_PENALTY = 1.5
-INSTRUCT_TOP_P = 0.8
-TOP_K = 20
-DEFAULT_MODEL = "qwen"
-DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
-DEFAULT_API_KEY = "sk-1234"
 DRAFT_CAPTION_THRESHOLD = 250
 IMAGE_MAX_PIXELS = 1_000_000
 VIDEO_FRAME_MAX_PIXELS = 500_000
@@ -72,15 +73,6 @@ MEDIA_KIND_SETTINGS: dict[MediaKind, MediaKindSettings] = {
     "image": MediaKindSettings("image", IMAGE_MAX_PIXELS),
     "video": MediaKindSettings("video", VIDEO_FRAME_MAX_PIXELS),
 }
-
-
-def _openai_client():
-    from openai import OpenAI
-
-    return OpenAI(
-        base_url=os.environ.get("OPENAI_API_BASE_URL", DEFAULT_BASE_URL),
-        api_key=os.environ.get("OPENAI_API_KEY", DEFAULT_API_KEY),
-    )
 
 
 def media_kind_for(path: Path) -> MediaKind:
@@ -328,12 +320,14 @@ def complete_caption(
     ref_caption: str,
     *,
     images: list[Image.Image] | None = None,
-    model: str = DEFAULT_MODEL,
-    max_tokens: int = MAX_TOKENS,
+    model: str | None = None,
+    max_tokens: int | None = None,
     mode: str = "thinking",
 ) -> str | None:
     media_kind = media_kind_for(media_path)
     settings = MEDIA_KIND_SETTINGS[media_kind]
+    resolved_model = model if model is not None else get_openai_model()
+    resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
 
     if images is None:
         images, _load_error = _load_media_images(media_path, media_kind)
@@ -345,13 +339,13 @@ def complete_caption(
         return None
 
     if mode == "instruct":
-        temperature = INSTRUCT_TEMPERATURE
-        presence_penalty = INSTRUCT_PRESENCE_PENALTY
-        top_p = INSTRUCT_TOP_P
+        temperature = get_instruct_temperature()
+        presence_penalty = get_instruct_presence_penalty()
+        top_p = get_instruct_top_p()
     else:
-        temperature = THINKING_TEMPERATURE
-        presence_penalty = THINKING_PRESENCE_PENALTY
-        top_p = THINKING_TOP_P
+        temperature = get_thinking_temperature()
+        presence_penalty = get_thinking_presence_penalty()
+        top_p = get_thinking_top_p()
 
     try:
         messages = _vision_messages(
@@ -376,14 +370,14 @@ def complete_caption(
             # (vLLM, some LM Studio versions, direct llama-server, etc.).
             messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
 
-        extra_body: dict[str, object] = {"top_k": TOP_K}
+        extra_body: dict[str, object] = {"top_k": get_top_k()}
         if mode == "instruct":
             extra_body["chat_template_kwargs"] = {"enable_thinking": False}
 
         response = client.chat.completions.create(
-            model=model,
+            model=resolved_model,
             messages=messages,
-            max_tokens=max_tokens,
+            max_tokens=resolved_max_tokens,
             temperature=temperature,
             top_p=top_p,
             presence_penalty=presence_penalty,
@@ -419,11 +413,13 @@ def process_media(
     media_path: Path,
     system_prompts: dict[MediaKind, str],
     *,
-    model: str = DEFAULT_MODEL,
-    max_tokens: int = MAX_TOKENS,
+    model: str | None = None,
+    max_tokens: int | None = None,
     mode: str = "thinking",
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, str | None, str]:
+    resolved_model = model if model is not None else get_openai_model()
+    resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
     ref_caption, status = _read_draft_caption(media_path)
     if status != "ok" or ref_caption is None:
         return media_path, None, status
@@ -446,8 +442,8 @@ def process_media(
             system_prompts[media_kind],
             ref_caption,
             images=images,
-            model=model,
-            max_tokens=max_tokens,
+            model=resolved_model,
+            max_tokens=resolved_max_tokens,
             mode=mode,
         )
 
@@ -519,7 +515,7 @@ def _record_result_status(
 def run_auto_caption_job(
     folder: Path,
     *,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     mode: str = "thinking",
     on_progress: ProgressCallback | None = None,
     should_cancel: Callable[[], bool] | None = None,
@@ -531,7 +527,8 @@ def run_auto_caption_job(
 
     system_prompts = build_system_prompts(folder)
     media_files = filter_media_list(list_auto_caption_media(folder), selected_paths)
-    client = _openai_client()
+    client = create_openai_client()
+    resolved_model = model if model is not None else get_openai_model()
 
     stats = _initial_job_stats(len(media_files))
     file_results: list[dict[str, object]] = []
@@ -549,7 +546,7 @@ def run_auto_caption_job(
             client,
             media_path,
             system_prompts,
-            model=model,
+            model=resolved_model,
             mode=mode,
             should_cancel=should_cancel,
         )
