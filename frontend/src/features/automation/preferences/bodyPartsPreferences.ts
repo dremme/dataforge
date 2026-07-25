@@ -33,23 +33,6 @@ function parseSettings(data: BodyPartsSettingsApi): BodyPartsSettings {
   };
 }
 
-function toApiPartial(partial: Partial<BodyPartsSettings>): Partial<BodyPartsSettingsApi> {
-  const body: Partial<BodyPartsSettingsApi> = {};
-  if (partial.bodyDescription !== undefined) {
-    body.body_description = partial.bodyDescription;
-  }
-  if (partial.faceDescription !== undefined) {
-    body.face_description = partial.faceDescription;
-  }
-  if (partial.keywords !== undefined) {
-    body.keywords = partial.keywords;
-  }
-  if (partial.elementDescription !== undefined) {
-    body.element_description = partial.elementDescription;
-  }
-  return body;
-}
-
 export function readCachedBodyPartsSettings(): BodyPartsSettings | null {
   try {
     const stored = localStorage.getItem(BODY_PARTS_CACHE_KEY);
@@ -79,25 +62,8 @@ export function cacheBodyPartsSettings(settings: BodyPartsSettings): void {
   }
 }
 
-export async function fetchBodyPartsSettings(): Promise<BodyPartsSettings> {
+async function fetchBodyPartsSettings(): Promise<BodyPartsSettings> {
   const data = await requestJson<BodyPartsSettingsApi>("/api/preferences/body-parts");
-  const settings = parseSettings(data);
-  cacheBodyPartsSettings(settings);
-  return settings;
-}
-
-async function fetchBodyPartsSettingsWithRetry(): Promise<BodyPartsSettings> {
-  return withRetry(fetchBodyPartsSettings);
-}
-
-export async function updateBodyPartsSettings(
-  partial: Partial<BodyPartsSettings>,
-): Promise<BodyPartsSettings> {
-  const data = await requestJson<BodyPartsSettingsApi>("/api/preferences/body-parts", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(toApiPartial(partial)),
-  });
   const settings = parseSettings(data);
   cacheBodyPartsSettings(settings);
   return settings;
@@ -105,7 +71,7 @@ export async function updateBodyPartsSettings(
 
 export async function loadBodyPartsSettings(): Promise<BodyPartsSettings> {
   try {
-    return await fetchBodyPartsSettingsWithRetry();
+    return await withRetry(fetchBodyPartsSettings);
   } catch {
     return readCachedBodyPartsSettings() ?? EMPTY_SETTINGS;
   }

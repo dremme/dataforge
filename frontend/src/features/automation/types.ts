@@ -2,7 +2,7 @@ import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPa
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 
-export type FolderBusyDialogState<TConfirm> = {
+type FolderBusyDialogState<TConfirm> = {
   open: boolean;
   folderLabel: string;
   busy?: boolean;

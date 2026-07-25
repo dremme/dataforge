@@ -99,7 +99,7 @@ class StripMp4MetadataTests(unittest.TestCase):
             fake_ffmpeg = root / "ffmpeg.exe"
             fake_ffmpeg.write_text("", encoding="utf-8")
 
-            def fake_run(command, capture_output, check):
+            def fake_run(command, *_args, **_kwargs):
                 from pathlib import Path
 
                 output_path = Path(command[-1])

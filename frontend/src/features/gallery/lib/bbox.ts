@@ -73,7 +73,7 @@ export function bboxesEqual(a: CaptionBBox[], b: CaptionBBox[]): boolean {
   );
 }
 
-export function bboxContainsPoint(bbox: CaptionBBox, x: number, y: number): boolean {
+function bboxContainsPoint(bbox: CaptionBBox, x: number, y: number): boolean {
   return x >= bbox.x1 && x <= bbox.x2 && y >= bbox.y1 && y <= bbox.y2;
 }
 

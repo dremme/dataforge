@@ -6,7 +6,7 @@ import {
   type ScrollLockClass,
 } from "./scrollLockManager";
 
-export { getScrollLockDepth, isNestedOverlay } from "./scrollLockManager";
+export { getScrollLockDepth } from "./scrollLockManager";
 
 export function useScrollLock(
   active: boolean,

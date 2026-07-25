@@ -1,8 +1,8 @@
-export type MediaType = "image" | "video" | "sysprompt";
+type MediaType = "image" | "video" | "sysprompt";
 
 export type CaptionStatus = "none" | "empty" | "text" | "bboxes_only";
 
-export type CaptionFileType = "json" | "txt";
+type CaptionFileType = "json" | "txt";
 
 export interface CaptionBBox {
   x1: number;
@@ -40,7 +40,7 @@ export interface Breadcrumb {
   path: string;
 }
 
-export interface FolderRoot {
+interface FolderRoot {
   name: string;
   path: string;
 }
@@ -77,13 +77,13 @@ export interface MediaMovePreviewResponse {
   skipped: string[];
 }
 
-export interface MediaMoveItemResponse {
+interface MediaMoveItemResponse {
   source: string;
   destination: string;
   moved: string[];
 }
 
-export interface MediaMoveFailure {
+interface MediaMoveFailure {
   path: string;
   detail: string;
 }
@@ -169,7 +169,7 @@ export type JobType =
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
-export interface JobFileResult {
+interface JobFileResult {
   path: string;
   name: string;
   status: string;

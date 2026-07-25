@@ -1,6 +1,6 @@
 export const LOAD_RETRY_DELAYS_MS = [250, 500, 1000, 1500, 2000];
 
-export function delay(ms: number): Promise<void> {
+function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

@@ -1,9 +1,9 @@
 import { isSysPrompt } from "./itemKind";
 import type { CaptionStatus, GalleryItem } from "@/shared/types";
 
-export type CaptionStatusVariant = "success" | "warning" | "muted";
+type CaptionStatusVariant = "success" | "warning" | "muted";
 
-export interface CaptionStatusDisplay {
+interface CaptionStatusDisplay {
   message: string;
   variant: CaptionStatusVariant;
 }

@@ -1,7 +1,7 @@
 import { getAppScrollElement } from "@/shared/lib/appScroll";
 
 /** Start loading roughly one row ahead of the viewport. */
-export const GALLERY_MEDIA_LOAD_MARGIN_PX = 400;
+const GALLERY_MEDIA_LOAD_MARGIN_PX = 400;
 /** Keep loaded previews until several rows outside the viewport. */
 export const GALLERY_MEDIA_KEEP_MARGIN_PX = 1200;
 

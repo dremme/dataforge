@@ -12,9 +12,9 @@ import {
 import type { JobType } from "@/shared/types";
 
 /** How the app asks the user before starting this job type. */
-export type JobStartUi = "dialog" | "confirm";
+type JobStartUi = "dialog" | "confirm";
 
-export interface JobTypeMeta {
+interface JobTypeMeta {
   type: JobType;
   label: string;
   icon: AppIcon;
@@ -97,13 +97,13 @@ export type ConfirmableJobType = {
   [K in JobType]: (typeof JOB_TYPE_META)[K]["startUi"] extends "confirm" ? K : never;
 }[JobType];
 
-export const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
+const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
 
 export function isKnownJobType(value: string | null | undefined): value is JobType {
   return typeof value === "string" && Object.hasOwn(JOB_TYPE_META, value);
 }
 
-export function jobTypeMeta(type: JobType): JobTypeMeta {
+function jobTypeMeta(type: JobType): JobTypeMeta {
   return JOB_TYPE_META[type] as JobTypeMeta;
 }
 

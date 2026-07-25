@@ -2,7 +2,7 @@ import { thumbnailUrl } from "@/features/gallery/api/media";
 import type { GalleryItem } from "@/shared/types";
 
 /** Matches backend DEFAULT_THUMBNAIL_WIDTH — sized for ~280px cards at 1.4x DPR. */
-export const GALLERY_THUMBNAIL_WIDTH = 400;
+const GALLERY_THUMBNAIL_WIDTH = 400;
 
 export function thumbnailCacheKey(modifiedAt?: string, size?: number): string | undefined {
   if (!modifiedAt) {

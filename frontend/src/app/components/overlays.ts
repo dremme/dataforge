@@ -2,14 +2,12 @@ import type { AutomationDialogsState } from "@/features/automation";
 import type { ConfirmableJobType } from "@/features/jobs";
 import type { CaptionSaveResponse, GalleryItem, SysPromptSaveResponse } from "@/shared/types";
 
-export type { AutomationDialogsState } from "@/features/automation";
-
-export type CaptionSavedHandler = (
+type CaptionSavedHandler = (
   path: string,
   update: CaptionSaveResponse | SysPromptSaveResponse,
 ) => void;
 
-export type GalleryOverlayState = {
+type GalleryOverlayState = {
   selectedPath: string | null;
   selectedIndex: number;
   modalItems: GalleryItem[];
@@ -20,7 +18,7 @@ export type GalleryOverlayState = {
   onJsonEditorOpenChange?: (open: boolean) => void;
 };
 
-export type IssueResolverOverlayState = {
+type IssueResolverOverlayState = {
   open: boolean;
   items: GalleryItem[];
   index: number;
@@ -28,20 +26,20 @@ export type IssueResolverOverlayState = {
   onIndexChange: (index: number) => void;
 };
 
-export type SysPromptOverlayState = {
+type SysPromptOverlayState = {
   open: boolean;
   item: GalleryItem | null;
   onClose: () => void;
 };
 
-export type JobStartConfirmState = {
+type JobStartConfirmState = {
   pending: ConfirmableJobType | null;
   folderLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
 };
 
-export type FileImportOverlayState = {
+type FileImportOverlayState = {
   overwritePrompt: { conflicts: string[] } | null;
   busy: boolean;
   onReplaceExisting: () => void;
@@ -49,7 +47,7 @@ export type FileImportOverlayState = {
   onCancel: () => void;
 };
 
-export type CreateFolderOverlayState = {
+type CreateFolderOverlayState = {
   parentLabel: string;
   busy: boolean;
   error: string | null;

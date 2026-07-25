@@ -8,13 +8,6 @@ import {
 /** Session-scoped gallery query state (search + filters). Sort uses uiPreferences. */
 const SESSION_QUERY_CACHE_KEY = "gallery-session-query";
 
-/** @deprecated Legacy keys — read once for migration, then ignored. */
-const LEGACY_FILTER_CACHE_KEY = "gallery-filter";
-/** @deprecated */
-const LEGACY_MEDIA_TYPE_FILTER_CACHE_KEY = "gallery-media-type-filter";
-/** @deprecated */
-const LEGACY_SEARCH_CACHE_KEY = "gallery-search";
-
 export interface GallerySessionQuery {
   filter: CaptionFilter;
   mediaTypeFilter: MediaTypeFilter;
@@ -49,48 +42,12 @@ function parseStoredSessionQuery(raw: string | null): GallerySessionQuery | null
   }
 }
 
-/** @deprecated */
-function readLegacySessionQuery(): GallerySessionQuery | null {
-  try {
-    const filterValue = sessionStorage.getItem(LEGACY_FILTER_CACHE_KEY);
-    const mediaTypeFilterValue = sessionStorage.getItem(LEGACY_MEDIA_TYPE_FILTER_CACHE_KEY);
-    const searchQuery = sessionStorage.getItem(LEGACY_SEARCH_CACHE_KEY);
-
-    if (filterValue === null && mediaTypeFilterValue === null && searchQuery === null) {
-      return null;
-    }
-
-    return {
-      filter: isCaptionFilter(filterValue) ? filterValue : "all",
-      mediaTypeFilter: isMediaTypeFilter(mediaTypeFilterValue) ? mediaTypeFilterValue : "all",
-      searchQuery: searchQuery ?? "",
-      searchRegex: false,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** @deprecated */
-function clearLegacySessionQuery(): void {
-  sessionStorage.removeItem(LEGACY_FILTER_CACHE_KEY);
-  sessionStorage.removeItem(LEGACY_MEDIA_TYPE_FILTER_CACHE_KEY);
-  sessionStorage.removeItem(LEGACY_SEARCH_CACHE_KEY);
-}
-
 export function readGallerySessionQuery(): GallerySessionQuery {
   try {
-    const stored = parseStoredSessionQuery(sessionStorage.getItem(SESSION_QUERY_CACHE_KEY));
-    if (stored) return stored;
-
-    const legacy = readLegacySessionQuery();
-    if (legacy) {
-      cacheGallerySessionQuery(legacy);
-      clearLegacySessionQuery();
-      return legacy;
-    }
-
-    return DEFAULT_SESSION_QUERY;
+    return (
+      parseStoredSessionQuery(sessionStorage.getItem(SESSION_QUERY_CACHE_KEY)) ??
+      DEFAULT_SESSION_QUERY
+    );
   } catch {
     return DEFAULT_SESSION_QUERY;
   }

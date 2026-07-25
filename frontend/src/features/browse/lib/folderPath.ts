@@ -15,7 +15,7 @@ export function normalizeFolderPath(path: string): string {
   return trimmed.replace(/\\+$/, "");
 }
 
-export function normalizeForMatch(path: string): string {
+function normalizeForMatch(path: string): string {
   // Canonical form for comparisons: normalized display form, / separators, lowercased.
   // Handles drive roots etc via normalizeFolderPath.
   const norm = normalizeFolderPath(path).replace(/\\/g, "/");

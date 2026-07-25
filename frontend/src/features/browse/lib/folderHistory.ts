@@ -5,13 +5,13 @@ export function getFolderFromUrl(): string | undefined {
   return value ?? undefined;
 }
 
-export function buildFolderUrl(path: string): string {
+function buildFolderUrl(path: string): string {
   const url = new URL(window.location.href);
   url.searchParams.set(FOLDER_PARAM, path);
   return url.pathname + url.search + url.hash;
 }
 
-export function buildDefaultUrl(): string {
+function buildDefaultUrl(): string {
   const url = new URL(window.location.href);
   url.searchParams.delete(FOLDER_PARAM);
   return url.pathname + url.search + url.hash;

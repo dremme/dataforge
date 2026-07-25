@@ -42,7 +42,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 
 const SORT_OPTION_VALUES = new Set<SortOption>(SORT_OPTIONS.map((option) => option.value));
 
-export function isSortOption(value: string): value is SortOption {
+function isSortOption(value: string): value is SortOption {
   return SORT_OPTION_VALUES.has(value as SortOption);
 }
 

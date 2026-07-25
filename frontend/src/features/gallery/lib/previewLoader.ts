@@ -358,9 +358,6 @@ export function resetGalleryPreviewLoaderForTests(): void {
   warmedMediaPaths.clear();
 }
 
-/** @internal Test helper — alias kept for tests that referenced the old cache module. */
-export const resetGalleryMediaCacheForTests = resetGalleryPreviewLoaderForTests;
-
 /** @internal Test helper */
 export function getGalleryPreviewLoaderStateForTests(): {
   paused: boolean;

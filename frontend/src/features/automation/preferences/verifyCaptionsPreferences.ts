@@ -31,19 +31,6 @@ function parseSettings(data: VerifyCaptionsSettingsApi): VerifyCaptionsSettings 
   };
 }
 
-function toApiPartial(
-  partial: Partial<VerifyCaptionsSettings>,
-): Partial<VerifyCaptionsSettingsApi> {
-  const body: Partial<VerifyCaptionsSettingsApi> = {};
-  if (partial.mode !== undefined) {
-    body.mode = partial.mode;
-  }
-  if (partial.context !== undefined) {
-    body.context = partial.context;
-  }
-  return body;
-}
-
 export function readCachedVerifyCaptionsSettings(): VerifyCaptionsSettings | null {
   try {
     const stored = localStorage.getItem(VERIFY_CAPTIONS_CACHE_KEY);
@@ -70,25 +57,8 @@ export function cacheVerifyCaptionsSettings(settings: VerifyCaptionsSettings): v
   }
 }
 
-export async function fetchVerifyCaptionsSettings(): Promise<VerifyCaptionsSettings> {
+async function fetchVerifyCaptionsSettings(): Promise<VerifyCaptionsSettings> {
   const data = await requestJson<VerifyCaptionsSettingsApi>("/api/preferences/verify-captions");
-  const settings = parseSettings(data);
-  cacheVerifyCaptionsSettings(settings);
-  return settings;
-}
-
-async function fetchVerifyCaptionsSettingsWithRetry(): Promise<VerifyCaptionsSettings> {
-  return withRetry(fetchVerifyCaptionsSettings);
-}
-
-export async function updateVerifyCaptionsSettings(
-  partial: Partial<VerifyCaptionsSettings>,
-): Promise<VerifyCaptionsSettings> {
-  const data = await requestJson<VerifyCaptionsSettingsApi>("/api/preferences/verify-captions", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(toApiPartial(partial)),
-  });
   const settings = parseSettings(data);
   cacheVerifyCaptionsSettings(settings);
   return settings;
@@ -96,7 +66,7 @@ export async function updateVerifyCaptionsSettings(
 
 export async function loadVerifyCaptionsSettings(): Promise<VerifyCaptionsSettings> {
   try {
-    return await fetchVerifyCaptionsSettingsWithRetry();
+    return await withRetry(fetchVerifyCaptionsSettings);
   } catch {
     return readCachedVerifyCaptionsSettings() ?? EMPTY_SETTINGS;
   }

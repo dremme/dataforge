@@ -50,30 +50,6 @@ describe("gallery session preferences", () => {
     });
   });
 
-  it("migrates legacy session keys into the unified cache", () => {
-    window.sessionStorage.setItem("gallery-filter", "captioned");
-    window.sessionStorage.setItem("gallery-media-type-filter", "video");
-    window.sessionStorage.setItem("gallery-search", "waves");
-
-    expect(readGallerySessionQuery()).toEqual({
-      filter: "captioned",
-      mediaTypeFilter: "video",
-      searchQuery: "waves",
-      searchRegex: false,
-    });
-    expect(window.sessionStorage.getItem(SESSION_QUERY_CACHE_KEY)).toBe(
-      JSON.stringify({
-        filter: "captioned",
-        mediaTypeFilter: "video",
-        searchQuery: "waves",
-        searchRegex: false,
-      }),
-    );
-    expect(window.sessionStorage.getItem("gallery-filter")).toBeNull();
-    expect(window.sessionStorage.getItem("gallery-media-type-filter")).toBeNull();
-    expect(window.sessionStorage.getItem("gallery-search")).toBeNull();
-  });
-
   it("falls back safely when stored JSON is invalid", () => {
     window.sessionStorage.setItem(SESSION_QUERY_CACHE_KEY, "{not-json");
 

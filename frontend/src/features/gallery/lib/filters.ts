@@ -49,7 +49,7 @@ export const MEDIA_TYPE_FILTER_OPTIONS = [
   icon: AppIcon;
 }>;
 
-export type FilterEmptyVariant = "default" | "success" | "muted";
+type FilterEmptyVariant = "default" | "success" | "muted";
 
 export interface FilterEmptyState {
   icon: AppIcon;

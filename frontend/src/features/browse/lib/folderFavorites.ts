@@ -31,7 +31,7 @@ function readStorageCache(): FolderFavorite[] {
   }
 }
 
-export function favoriteDisplayName(path: string): string {
+function favoriteDisplayName(path: string): string {
   const normalized = normalizeFolderPath(path);
   if (/^[A-Z]:\\$/i.test(normalized)) {
     return normalized.slice(0, 2);

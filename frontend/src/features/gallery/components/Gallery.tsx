@@ -1,10 +1,10 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef } from "react";
 import {
+  GALLERY_GAP_PX,
   GALLERY_OVERSCAN_ROWS,
   GALLERY_ROW_CAPTION_ESTIMATE,
   GALLERY_ROW_ESTIMATE,
-  GALLERY_ROW_GAP,
 } from "@/features/gallery/lib/layout";
 import { groupIntoRows, rowCacheKey } from "@/features/gallery/lib/groupIntoRows";
 import { useGalleryVisiblePrefetch } from "@/features/gallery/lib/visiblePrefetch";
@@ -29,8 +29,6 @@ function estimateRowSize(row: GalleryItem[]): number {
     : GALLERY_ROW_ESTIMATE;
 }
 
-export { GALLERY_ROW_ESTIMATE };
-
 export function Gallery({
   items,
   onSelect,
@@ -52,7 +50,7 @@ export function Gallery({
     count: rowCount,
     getScrollElement: () => scrollElement,
     estimateSize: (index) => estimateRowSize(rows[index] ?? []),
-    gap: GALLERY_ROW_GAP,
+    gap: GALLERY_GAP_PX,
     overscan: GALLERY_OVERSCAN_ROWS,
     scrollMargin,
     getItemKey: (index) => rowCacheKey(rows[index] ?? []),

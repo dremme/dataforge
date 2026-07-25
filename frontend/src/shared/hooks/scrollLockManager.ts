@@ -3,7 +3,7 @@ import { getAppScrollElement } from "@/shared/lib/appScroll";
 const SCROLL_LOCK_ALLOW_SELECTOR = "[data-scroll-lock-allow]";
 const CODE_MIRROR_SCROLLER_CLASS = "cm-scroller";
 
-export const SCROLL_LOCK_CLASSES = [
+const SCROLL_LOCK_CLASSES = [
   "gallery-item-modal-open",
   "gallery-item-json-editor-open",
   "sysprompt-modal-open",

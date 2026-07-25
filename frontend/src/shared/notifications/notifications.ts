@@ -24,7 +24,7 @@ export interface NotificationsContextValue {
 
 export const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
-export function useNotifications() {
+function useNotifications() {
   const context = useContext(NotificationsContext);
   if (!context) {
     throw new Error("useNotifications must be used within NotificationsProvider");

@@ -3,7 +3,7 @@ import type { Job, JobStatus, JobType } from "@/shared/types";
 import { folderLeafName, foldersMatch } from "@/features/browse/lib/folderPath";
 import { isKnownJobType, jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
 
-export type JobCompletionNotificationVariant = "danger" | "warning" | "success";
+type JobCompletionNotificationVariant = "danger" | "warning" | "success";
 
 export interface JobCompletionNotification {
   variant: JobCompletionNotificationVariant;
@@ -22,7 +22,7 @@ export function jobIcon(job: Job): AppIcon {
   return jobTypeIconFor(job.job_type);
 }
 
-export function compareJobRecency(a: Job, b: Job): number {
+function compareJobRecency(a: Job, b: Job): number {
   const aCreated = Date.parse(a.created_at);
   const bCreated = Date.parse(b.created_at);
   const aTime = Number.isNaN(aCreated) ? 0 : aCreated;
@@ -67,19 +67,15 @@ export function isTerminalJobStatus(status: JobStatus): boolean {
   );
 }
 
-export function jobApiErrorCount(job: Job): number {
+function jobApiErrorCount(job: Job): number {
   return job.stats?.api_error ?? 0;
 }
 
-export function jobHasApiErrors(job: Job): boolean {
+function jobHasApiErrors(job: Job): boolean {
   return jobApiErrorCount(job) > 0;
 }
 
-export function jobParseErrorCount(job: Job): number {
-  return job.stats?.parse_error ?? 0;
-}
-
-export function jobVerifyErrorCount(job: Job): number {
+function jobVerifyErrorCount(job: Job): number {
   const stats = job.stats ?? {};
   return (
     (stats.api_error ?? 0) +
@@ -89,31 +85,31 @@ export function jobVerifyErrorCount(job: Job): number {
   );
 }
 
-export function jobNoTxtCount(job: Job): number {
+function jobNoTxtCount(job: Job): number {
   return job.stats?.no_txt ?? 0;
 }
 
-export function jobHasMissingCaptions(job: Job): boolean {
+function jobHasMissingCaptions(job: Job): boolean {
   return jobNoTxtCount(job) > 0;
 }
 
-export function jobDetectionErrorCount(job: Job): number {
+function jobDetectionErrorCount(job: Job): number {
   return job.stats?.detection_error ?? 0;
 }
 
-export function jobHasDetectionErrors(job: Job): boolean {
+function jobHasDetectionErrors(job: Job): boolean {
   return jobDetectionErrorCount(job) > 0;
 }
 
-export function jobNoDetectionsCount(job: Job): number {
+function jobNoDetectionsCount(job: Job): number {
   return job.stats?.no_detections ?? 0;
 }
 
-export function jobHasNoDetections(job: Job): boolean {
+function jobHasNoDetections(job: Job): boolean {
   return jobNoDetectionsCount(job) > 0;
 }
 
-export function effectiveJobStatus(job: Job): JobStatus {
+function effectiveJobStatus(job: Job): JobStatus {
   if (job.status === "completed") {
     if (jobTypeOf(job) === "verify_captions" && jobVerifyErrorCount(job) > 0) {
       return "failed";
@@ -346,7 +342,7 @@ export function updateJobTimingTracker(
   };
 }
 
-export function jobTimingCounts(job: Job): { fast: number; slow: number } {
+function jobTimingCounts(job: Job): { fast: number; slow: number } {
   const stats = job.stats ?? {};
 
   if (jobTypeOf(job) === "body_parts") {

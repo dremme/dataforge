@@ -6,4 +6,3 @@ export {
   startStripMetadataJob,
   startVerifyCaptionsJob,
 } from "./jobs";
-export { fetchSystemSpecs } from "./system";
