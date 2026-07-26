@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from urllib.parse import quote
 
 from db import get_connection
 from routes._test_client import client
@@ -67,7 +68,6 @@ class VerifyCaptionsPreferencesEndpointTests(unittest.TestCase):
             conn.commit()
 
     def test_read_default_settings(self) -> None:
-        # Ensure no prior value so we exercise the default path
         with get_connection() as conn:
             conn.execute(
                 "DELETE FROM preferences WHERE key = ?",
@@ -75,22 +75,75 @@ class VerifyCaptionsPreferencesEndpointTests(unittest.TestCase):
             )
             conn.commit()
 
-        response = client.get("/api/preferences/verify-captions")
+        folder = r"C:\Photos"
+        response = client.get(f"/api/preferences/verify-captions?path={quote(folder)}")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mode"], "instruct")
         self.assertEqual(response.json()["context"], "")
+        self.assertTrue(response.json()["folder_path"])
 
-    def test_update_settings(self) -> None:
+    def test_path_is_required_on_read(self) -> None:
+        response = client.get("/api/preferences/verify-captions")
+        self.assertEqual(response.status_code, 422)
+
+    def test_folder_path_is_required_on_write(self) -> None:
         response = client.put(
             "/api/preferences/verify-captions",
-            json={"mode": "thinking", "context": "Outdoor portraits."},
+            json={"mode": "thinking", "context": "Notes."},
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_context_is_stored_per_folder(self) -> None:
+        folder_a = r"C:\Photos\A"
+        folder_b = r"C:\Photos\B"
+
+        response_a = client.put(
+            "/api/preferences/verify-captions",
+            json={
+                "mode": "thinking",
+                "context": "Outdoor portraits.",
+                "folder_path": folder_a,
+            },
+        )
+        self.assertEqual(response_a.status_code, 200)
+        self.assertEqual(response_a.json()["mode"], "thinking")
+        self.assertEqual(response_a.json()["context"], "Outdoor portraits.")
+
+        response_b = client.put(
+            "/api/preferences/verify-captions",
+            json={
+                "mode": "thinking",
+                "context": "Studio product shots.",
+                "folder_path": folder_b,
+            },
+        )
+        self.assertEqual(response_b.status_code, 200)
+        self.assertEqual(response_b.json()["context"], "Studio product shots.")
+
+        read_a = client.get(f"/api/preferences/verify-captions?path={quote(folder_a)}")
+        self.assertEqual(read_a.status_code, 200)
+        self.assertEqual(read_a.json()["mode"], "thinking")
+        self.assertEqual(read_a.json()["context"], "Outdoor portraits.")
+
+        read_b = client.get(f"/api/preferences/verify-captions?path={quote(folder_b)}")
+        self.assertEqual(read_b.json()["context"], "Studio product shots.")
+
+        folder_c = r"C:\Photos\C"
+        read_c = client.get(f"/api/preferences/verify-captions?path={quote(folder_c)}")
+        self.assertEqual(read_c.json()["mode"], "thinking")
+        self.assertEqual(read_c.json()["context"], "")
+
+    def test_empty_context_clears_folder_entry(self) -> None:
+        folder = r"C:\Photos\A"
+        client.put(
+            "/api/preferences/verify-captions",
+            json={"context": "Notes.", "folder_path": folder},
+        )
+        client.put(
+            "/api/preferences/verify-captions",
+            json={"context": "  ", "folder_path": folder},
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["mode"], "thinking")
-        self.assertEqual(response.json()["context"], "Outdoor portraits.")
-
-        read_back = client.get("/api/preferences/verify-captions")
-        self.assertEqual(read_back.json()["mode"], "thinking")
-        self.assertEqual(read_back.json()["context"], "Outdoor portraits.")
+        read_back = client.get(f"/api/preferences/verify-captions?path={quote(folder)}")
+        self.assertEqual(read_back.json()["context"], "")

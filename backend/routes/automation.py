@@ -139,6 +139,7 @@ def start_verify_captions_job(
     update_verify_captions_settings(
         mode=body.mode,
         context=body.context,
+        folder_path=str(folder),
     )
 
     selected_paths = resolve_selected_media(folder, body.paths)

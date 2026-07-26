@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from body_parts_settings import get_body_parts_settings, update_body_parts_settings
 from schemas import (
@@ -64,11 +64,14 @@ def write_body_parts_settings(body: BodyPartsSettingsUpdate) -> BodyPartsSetting
 
 
 @router.get("/preferences/verify-captions", response_model=VerifyCaptionsSettingsResponse)
-def read_verify_captions_settings() -> VerifyCaptionsSettingsResponse:
-    settings = get_verify_captions_settings()
+def read_verify_captions_settings(
+    path: str = Query(..., description="Folder path; context is returned for this folder"),
+) -> VerifyCaptionsSettingsResponse:
+    settings = get_verify_captions_settings(folder_path=path)
     return VerifyCaptionsSettingsResponse(
         mode=settings["mode"],  # type: ignore[arg-type]
         context=settings["context"],
+        folder_path=settings["folder_path"],
     )
 
 
@@ -79,8 +82,10 @@ def write_verify_captions_settings(
     settings = update_verify_captions_settings(
         mode=body.mode,
         context=body.context,
+        folder_path=body.folder_path,
     )
     return VerifyCaptionsSettingsResponse(
         mode=settings["mode"],  # type: ignore[arg-type]
         context=settings["context"],
+        folder_path=settings["folder_path"],
     )

@@ -159,7 +159,15 @@ class VerifyCaptionsAutomationEndpointTest(unittest.TestCase):
         reset_job_manager()
 
     def tearDown(self) -> None:
-        client.put("/api/preferences/verify-captions", json={"mode": "instruct", "context": ""})
+        from db import get_connection
+        from verify_captions_settings import VERIFY_CAPTIONS_SETTINGS_KEY
+
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM preferences WHERE key = ?",
+                (VERIFY_CAPTIONS_SETTINGS_KEY,),
+            )
+            conn.commit()
 
     def test_requires_supported_media(self) -> None:
         with TempMediaFolder() as root:

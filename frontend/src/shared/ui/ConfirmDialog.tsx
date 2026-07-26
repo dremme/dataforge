@@ -11,7 +11,7 @@ interface ConfirmDialogProps {
   description: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
-  confirmVariant?: "default" | "danger";
+  confirmVariant?: "primary" | "danger";
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -22,7 +22,7 @@ export function ConfirmDialog({
   description,
   confirmLabel,
   cancelLabel = "Cancel",
-  confirmVariant = "default",
+  confirmVariant = "primary",
   busy = false,
   onConfirm,
   onCancel,

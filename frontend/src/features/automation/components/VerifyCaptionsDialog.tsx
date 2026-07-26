@@ -5,32 +5,34 @@ import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconBrain, iconX } from "@/shared/icons";
 import {
-  cacheVerifyCaptionsSettings,
-  loadVerifyCaptionsSettings,
-  readCachedVerifyCaptionsSettings,
+  updateVerifyCaptionsSettings,
   type VerifyCaptionsMode,
+  type VerifyCaptionsSettings,
 } from "@/features/automation/preferences/verifyCaptionsPreferences";
 import { Icon } from "@/shared/ui/Icon";
 
 export type { VerifyCaptionsMode };
 
 interface VerifyCaptionsDialogProps {
+  folderPath: string;
   folderLabel: string;
+  initialSettings: VerifyCaptionsSettings;
   busy?: boolean;
   onConfirm: (mode: VerifyCaptionsMode, context: string) => void;
   onCancel: () => void;
 }
 
 export function VerifyCaptionsDialog({
+  folderPath,
   folderLabel,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: VerifyCaptionsDialogProps) {
-  const cachedSettings = readCachedVerifyCaptionsSettings();
-  const [mode, setMode] = useState<VerifyCaptionsMode>(cachedSettings?.mode ?? "instruct");
-  const [context, setContext] = useState(cachedSettings?.context ?? "");
-  const [loadingSettings, setLoadingSettings] = useState(!cachedSettings);
+  const [mode, setMode] = useState<VerifyCaptionsMode>(initialSettings.mode);
+  const [context, setContext] = useState(initialSettings.context);
+  const [saving, setSaving] = useState(false);
   const backdropClass = useOverlayBackdropClass("confirm-dialog__backdrop");
   const reasoningId = useId();
   const instructId = useId();
@@ -39,36 +41,25 @@ export function VerifyCaptionsDialog({
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, true);
 
-  useEffect(() => {
-    if (readCachedVerifyCaptionsSettings()) return;
-
-    let cancelled = false;
-    loadVerifyCaptionsSettings()
-      .then((settings) => {
-        if (cancelled) return;
-        setMode(settings.mode);
-        setContext(settings.context);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingSettings(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleConfirm = useCallback(() => {
-    if (busy || loadingSettings) return;
-    const settings = { mode, context };
-    cacheVerifyCaptionsSettings(settings);
-    onConfirm(mode, context);
-  }, [busy, context, loadingSettings, mode, onConfirm]);
+  const handleConfirm = useCallback(async () => {
+    if (busy || saving) return;
+    setSaving(true);
+    try {
+      const settings = await updateVerifyCaptionsSettings(folderPath, { mode, context });
+      onConfirm(settings.mode, settings.context);
+    } catch {
+      // Job start also persists settings.
+      onConfirm(mode, context);
+    } finally {
+      setSaving(false);
+    }
+  }, [busy, context, folderPath, mode, onConfirm, saving]);
 
   useScrollLock(true, "confirm-dialog-open");
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (busy || loadingSettings) return;
+      if (busy || saving) return;
 
       if (event.key === "Escape") {
         event.preventDefault();
@@ -81,13 +72,16 @@ export function VerifyCaptionsDialog({
           return;
         }
         event.preventDefault();
-        handleConfirm();
+        void handleConfirm();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, handleConfirm, loadingSettings, onCancel]);
+  }, [busy, handleConfirm, onCancel, saving]);
+
+  const confirmDisabled = busy || saving;
+  const confirmLabel = busy ? "Starting..." : saving ? "Saving..." : "Start verify captions";
 
   return createPortal(
     <div className="confirm-dialog" role="presentation">
@@ -96,7 +90,7 @@ export function VerifyCaptionsDialog({
         className={backdropClass}
         aria-label="Close dialog"
         onClick={onCancel}
-        disabled={busy}
+        disabled={busy || saving}
         tabIndex={-1}
       />
 
@@ -117,7 +111,7 @@ export function VerifyCaptionsDialog({
             className="confirm-dialog__close"
             onClick={onCancel}
             aria-label="Close"
-            disabled={busy}
+            disabled={busy || saving}
           >
             <Icon icon={iconX} />
           </button>
@@ -151,7 +145,7 @@ export function VerifyCaptionsDialog({
                 value="thinking"
                 checked={mode === "thinking"}
                 onChange={() => setMode("thinking")}
-                disabled={busy || loadingSettings}
+                disabled={confirmDisabled}
               />
               <span className="verify-captions-dialog__radio" aria-hidden="true" />
               <div className="verify-captions-dialog__option-content">
@@ -174,7 +168,7 @@ export function VerifyCaptionsDialog({
                 value="instruct"
                 checked={mode === "instruct"}
                 onChange={() => setMode("instruct")}
-                disabled={busy || loadingSettings}
+                disabled={confirmDisabled}
               />
               <span className="verify-captions-dialog__radio" aria-hidden="true" />
               <div className="verify-captions-dialog__option-content">
@@ -198,7 +192,7 @@ export function VerifyCaptionsDialog({
             onChange={(e) => setContext(e.target.value)}
             placeholder="Optional notes about the dataset, e.g. typical poses or recurring subjects"
             rows={3}
-            disabled={busy || loadingSettings}
+            disabled={confirmDisabled}
             data-scroll-lock-allow
           />
         </div>
@@ -208,17 +202,17 @@ export function VerifyCaptionsDialog({
             type="button"
             className="confirm-dialog__btn confirm-dialog__btn--secondary"
             onClick={onCancel}
-            disabled={busy}
+            disabled={busy || saving}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--default"
-            onClick={handleConfirm}
-            disabled={busy || loadingSettings}
+            className="confirm-dialog__btn confirm-dialog__btn--primary"
+            onClick={() => void handleConfirm()}
+            disabled={confirmDisabled}
           >
-            {busy ? "Starting..." : loadingSettings ? "Loading..." : "Start verify captions"}
+            {confirmLabel}
           </button>
         </footer>
       </div>

@@ -165,7 +165,7 @@ export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorMod
             </button>
             <button
               type="button"
-              className="confirm-dialog__btn confirm-dialog__btn--default"
+              className="confirm-dialog__btn confirm-dialog__btn--primary"
               onClick={handleSave}
               disabled={saving}
             >

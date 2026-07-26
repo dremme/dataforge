@@ -166,11 +166,13 @@ class BatchRenameStartRequest(JobSelectionRequest):
 class VerifyCaptionsSettingsResponse(BaseModel):
     mode: Literal["thinking", "instruct"] = "instruct"
     context: str = ""
+    folder_path: str
 
 
 class VerifyCaptionsSettingsUpdate(BaseModel):
     mode: Literal["thinking", "instruct"] | None = None
     context: str | None = None
+    folder_path: str
 
 
 class VerifyCaptionsStartRequest(JobSelectionRequest):

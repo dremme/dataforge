@@ -146,7 +146,7 @@ export function CreateFolderDialog({
           </button>
           <button
             type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--default"
+            className="confirm-dialog__btn confirm-dialog__btn--primary"
             onClick={handleConfirm}
             disabled={busy || !canSubmit}
             aria-busy={busy || undefined}

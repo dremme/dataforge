@@ -152,7 +152,7 @@ export function BatchRenameDialog({
           </button>
           <button
             type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--default"
+            className="confirm-dialog__btn confirm-dialog__btn--primary"
             onClick={handleConfirm}
             disabled={busy}
           >

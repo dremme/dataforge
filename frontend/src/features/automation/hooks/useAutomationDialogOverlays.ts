@@ -1,7 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
-import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
+import {
+  loadBodyPartsSettings,
+  type BodyPartsSettings,
+} from "@/features/automation/preferences/bodyPartsPreferences";
+import {
+  loadVerifyCaptionsSettings,
+  type VerifyCaptionsSettings,
+} from "@/features/automation/preferences/verifyCaptionsPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobType } from "@/shared/types";
 
@@ -50,8 +57,11 @@ export function useAutomationDialogOverlays({
 }: UseAutomationDialogOverlaysOptions) {
   const [setCaptionsOpen, setSetCaptionsOpen] = useState(false);
   const [bodyPartsOpen, setBodyPartsOpen] = useState(false);
+  const [bodyPartsSettings, setBodyPartsSettings] = useState<BodyPartsSettings | null>(null);
   const [autoCaptionOpen, setAutoCaptionOpen] = useState(false);
   const [verifyCaptionsOpen, setVerifyCaptionsOpen] = useState(false);
+  const [verifyCaptionsSettings, setVerifyCaptionsSettings] =
+    useState<VerifyCaptionsSettings | null>(null);
   const [batchRenameOpen, setBatchRenameOpen] = useState(false);
 
   const startJobFromDialog = useCallback(
@@ -64,6 +74,30 @@ export function useAutomationDialogOverlays({
     },
     [folderPath],
   );
+
+  const closeBodyPartsDialog = useCallback(() => {
+    setBodyPartsOpen(false);
+    setBodyPartsSettings(null);
+  }, []);
+
+  const closeVerifyCaptionsDialog = useCallback(() => {
+    setVerifyCaptionsOpen(false);
+    setVerifyCaptionsSettings(null);
+  }, []);
+
+  const openBodyPartsDialog = useCallback(async () => {
+    if (!folderPath) return;
+    const settings = await loadBodyPartsSettings();
+    setBodyPartsSettings(settings);
+    setBodyPartsOpen(true);
+  }, [folderPath]);
+
+  const openVerifyCaptionsDialog = useCallback(async () => {
+    if (!folderPath) return;
+    const settings = await loadVerifyCaptionsSettings(folderPath);
+    setVerifyCaptionsSettings(settings);
+    setVerifyCaptionsOpen(true);
+  }, [folderPath]);
 
   const dialogs = useMemo<AutomationDialogsState>(
     () => ({
@@ -82,14 +116,14 @@ export function useAutomationDialogOverlays({
       bodyParts: {
         open: bodyPartsOpen,
         folderLabel,
+        initialSettings: bodyPartsSettings,
         busy: startingJobType === "body_parts",
         onConfirm: (settings) => {
-          startJobFromDialog(
-            () => setBodyPartsOpen(false),
-            () => startBodyPartsJob(folderPath!, settings, getJobPaths?.()),
+          startJobFromDialog(closeBodyPartsDialog, () =>
+            startBodyPartsJob(folderPath!, settings, getJobPaths?.()),
           );
         },
-        onCancel: () => setBodyPartsOpen(false),
+        onCancel: closeBodyPartsDialog,
       },
       autoCaption: {
         open: autoCaptionOpen,
@@ -105,15 +139,16 @@ export function useAutomationDialogOverlays({
       },
       verifyCaptions: {
         open: verifyCaptionsOpen,
+        folderPath: folderPath ?? "",
         folderLabel,
+        initialSettings: verifyCaptionsSettings,
         busy: startingJobType === "verify_captions",
         onConfirm: (mode, context) => {
-          startJobFromDialog(
-            () => setVerifyCaptionsOpen(false),
-            () => startVerifyCaptionsJob(folderPath!, mode, context, getJobPaths?.()),
+          startJobFromDialog(closeVerifyCaptionsDialog, () =>
+            startVerifyCaptionsJob(folderPath!, mode, context, getJobPaths?.()),
           );
         },
-        onCancel: () => setVerifyCaptionsOpen(false),
+        onCancel: closeVerifyCaptionsDialog,
       },
       batchRename: {
         open: batchRenameOpen,
@@ -133,12 +168,14 @@ export function useAutomationDialogOverlays({
       autoCaptionOpen,
       batchRenameOpen,
       bodyPartsOpen,
+      bodyPartsSettings,
+      closeBodyPartsDialog,
+      closeVerifyCaptionsDialog,
       folderLabel,
       folderPath,
+      getJobPaths,
       itemCount,
       setCaptionsOpen,
-      verifyCaptionsOpen,
-      getJobPaths,
       startAutoCaptionJob,
       startBatchRenameJob,
       startBodyPartsJob,
@@ -146,24 +183,29 @@ export function useAutomationDialogOverlays({
       startSetCaptionsJob,
       startVerifyCaptionsJob,
       startingJobType,
+      verifyCaptionsOpen,
+      verifyCaptionsSettings,
     ],
   );
 
-  const openDialogForJobType = useCallback((jobType: JobType) => {
-    if (jobType === "set_captions") setSetCaptionsOpen(true);
-    else if (jobType === "body_parts") setBodyPartsOpen(true);
-    else if (jobType === "auto_caption") setAutoCaptionOpen(true);
-    else if (jobType === "verify_captions") setVerifyCaptionsOpen(true);
-    else if (jobType === "batch_rename") setBatchRenameOpen(true);
-  }, []);
+  const openDialogForJobType = useCallback(
+    (jobType: JobType) => {
+      if (jobType === "set_captions") setSetCaptionsOpen(true);
+      else if (jobType === "body_parts") void openBodyPartsDialog();
+      else if (jobType === "auto_caption") setAutoCaptionOpen(true);
+      else if (jobType === "verify_captions") void openVerifyCaptionsDialog();
+      else if (jobType === "batch_rename") setBatchRenameOpen(true);
+    },
+    [openBodyPartsDialog, openVerifyCaptionsDialog],
+  );
 
   return {
     dialogs,
     openDialogForJobType,
     openSetCaptionsDialog: () => setSetCaptionsOpen(true),
-    openBodyPartsDialog: () => setBodyPartsOpen(true),
+    openBodyPartsDialog: () => void openBodyPartsDialog(),
     openAutoCaptionDialog: () => setAutoCaptionOpen(true),
-    openVerifyCaptionsDialog: () => setVerifyCaptionsOpen(true),
+    openVerifyCaptionsDialog: () => void openVerifyCaptionsDialog(),
     openBatchRenameDialog: () => setBatchRenameOpen(true),
   };
 }

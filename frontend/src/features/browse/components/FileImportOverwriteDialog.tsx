@@ -113,7 +113,7 @@ export function FileImportOverwriteDialog({
           </button>
           <button
             type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--default"
+            className="confirm-dialog__btn confirm-dialog__btn--primary"
             onClick={onCopyNewOnly}
             disabled={busy}
           >

@@ -57,12 +57,12 @@
   &__btn {
     @include dialog-btn;
 
-    &--secondary {
-      @include btn-surface-default;
+    &--primary {
+      @include btn-surface-accent;
     }
 
-    &--default {
-      @include btn-surface-accent;
+    &--secondary {
+      @include btn-surface-default;
     }
 
     &--warning {

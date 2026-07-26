@@ -2,6 +2,23 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
+vi.mock("@/features/automation/preferences/bodyPartsPreferences", () => ({
+  loadBodyPartsSettings: vi.fn(async () => ({
+    bodyDescription: "body",
+    faceDescription: "face",
+    keywords: "hat",
+    elementDescription: "part",
+  })),
+}));
+
+vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
+  loadVerifyCaptionsSettings: vi.fn(async (folderPath: string) => ({
+    mode: "instruct" as const,
+    context: "Outdoor portraits.",
+    folderPath,
+  })),
+}));
+
 const baseDialogOverlayProps = {
   startingJobType: null as null,
   itemCount: 3,
@@ -40,7 +57,7 @@ describe("useAutomationDialogOverlays", () => {
     expect(startSetCaptionsJob).toHaveBeenCalledWith("C:\\Photos", "A sunny day", true, undefined);
   });
 
-  it("opens verify captions dialog and starts job with mode and context", async () => {
+  it("fetches preferences before opening verify captions dialog", async () => {
     const startVerifyCaptionsJob = vi.fn().mockResolvedValue({ id: "job-5" });
 
     const { result } = renderHook(() =>
@@ -55,10 +72,15 @@ describe("useAutomationDialogOverlays", () => {
       }),
     );
 
-    act(() => {
+    await act(async () => {
       result.current.openVerifyCaptionsDialog();
     });
     expect(result.current.dialogs.verifyCaptions.open).toBe(true);
+    expect(result.current.dialogs.verifyCaptions.initialSettings).toEqual({
+      mode: "instruct",
+      context: "Outdoor portraits.",
+      folderPath: "C:\\Photos",
+    });
 
     await act(async () => {
       result.current.dialogs.verifyCaptions.onConfirm("thinking", "Outdoor portraits.");
@@ -73,7 +95,33 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
-  it("opens dialog by job type via openDialogForJobType", () => {
+  it("fetches preferences before opening body parts dialog", async () => {
+    const { result } = renderHook(() =>
+      useAutomationDialogOverlays({
+        folderPath: "C:\\Photos",
+        folderLabel: "Photos",
+        ...baseDialogOverlayProps,
+        startSetCaptionsJob: vi.fn(),
+        startBodyPartsJob: vi.fn(),
+        startAutoCaptionJob: vi.fn(),
+        startVerifyCaptionsJob: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      result.current.openBodyPartsDialog();
+    });
+
+    expect(result.current.dialogs.bodyParts.open).toBe(true);
+    expect(result.current.dialogs.bodyParts.initialSettings).toEqual({
+      bodyDescription: "body",
+      faceDescription: "face",
+      keywords: "hat",
+      elementDescription: "part",
+    });
+  });
+
+  it("opens dialog by job type via openDialogForJobType", async () => {
     const { result } = renderHook(() =>
       useAutomationDialogOverlays({
         folderPath: "C:\\Photos",

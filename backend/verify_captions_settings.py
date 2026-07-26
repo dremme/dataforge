@@ -1,4 +1,10 @@
+"""Verify-captions preferences: global mode + per-folder additional context."""
+
+from __future__ import annotations
+
 import json
+import re
+from pathlib import Path
 
 from db import get_preference, set_preference
 
@@ -7,14 +13,36 @@ VERIFY_CAPTIONS_SETTINGS_KEY = "verify_captions_settings"
 VALID_MODES = frozenset({"thinking", "instruct"})
 
 
-def _default_settings() -> dict[str, str]:
+def _default_settings() -> dict[str, object]:
     return {
         "mode": "instruct",
-        "context": "",
+        "context_by_folder": {},
     }
 
 
-def get_verify_captions_settings() -> dict[str, str]:
+def preference_folder_key(path: str) -> str:
+    """Canonical folder key for preference maps (aligned with frontend normalization)."""
+    text = path.strip().replace("/", "\\")
+    drive_root = re.fullmatch(r"([A-Za-z]:)(?:\\)?", text)
+    if drive_root:
+        return f"{drive_root.group(1).upper()}\\"
+    try:
+        return str(Path(text).expanduser().resolve())
+    except OSError:
+        return text.rstrip("\\") if text else text
+
+
+def _parse_context_by_folder(raw: object) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+    result: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(key, str) and isinstance(value, str) and value.strip():
+            result[preference_folder_key(key)] = value
+    return result
+
+
+def _load_raw_settings() -> dict[str, object]:
     raw = get_preference(VERIFY_CAPTIONS_SETTINGS_KEY)
     if not raw:
         return _default_settings()
@@ -28,10 +56,28 @@ def get_verify_captions_settings() -> dict[str, str]:
         return _default_settings()
 
     mode = data.get("mode")
-    context = data.get("context")
+    context_by_folder = _parse_context_by_folder(data.get("context_by_folder"))
+
+    # Legacy single global context is intentionally not migrated onto folders.
     return {
         "mode": mode if isinstance(mode, str) and mode in VALID_MODES else "instruct",
-        "context": context if isinstance(context, str) else "",
+        "context_by_folder": context_by_folder,
+    }
+
+
+def get_verify_captions_settings(*, folder_path: str) -> dict[str, str]:
+    """Return mode and context for a folder (empty context when unset for that folder)."""
+    data = _load_raw_settings()
+    mode = str(data["mode"])
+    folder_key = preference_folder_key(folder_path)
+    contexts = data["context_by_folder"]
+    assert isinstance(contexts, dict)
+    context = str(contexts.get(folder_key, ""))
+
+    return {
+        "mode": mode,
+        "context": context,
+        "folder_path": folder_key,
     }
 
 
@@ -39,13 +85,28 @@ def update_verify_captions_settings(
     *,
     mode: str | None = None,
     context: str | None = None,
+    folder_path: str,
 ) -> dict[str, str]:
-    current = get_verify_captions_settings()
+    """Update global mode and/or per-folder context. Returns settings for the given folder."""
+    data = _load_raw_settings()
+    contexts = data["context_by_folder"]
+    assert isinstance(contexts, dict)
+    folder_key = preference_folder_key(folder_path)
 
     if mode is not None:
-        current["mode"] = mode if mode in VALID_MODES else "instruct"
-    if context is not None:
-        current["context"] = context
+        data["mode"] = mode if mode in VALID_MODES else "instruct"
 
-    set_preference(VERIFY_CAPTIONS_SETTINGS_KEY, json.dumps(current))
-    return current
+    if context is not None:
+        if context.strip() == "":
+            contexts.pop(folder_key, None)
+        else:
+            contexts[folder_key] = context
+        data["context_by_folder"] = contexts
+
+    set_preference(VERIFY_CAPTIONS_SETTINGS_KEY, json.dumps(data))
+
+    return {
+        "mode": str(data["mode"]),
+        "context": str(contexts.get(folder_key, "")),
+        "folder_path": folder_key,
+    }

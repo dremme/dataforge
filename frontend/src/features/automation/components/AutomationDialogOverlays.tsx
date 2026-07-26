@@ -23,9 +23,10 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
         />
       )}
 
-      {bodyParts.open && (
+      {bodyParts.open && bodyParts.initialSettings && (
         <BodyPartsDialog
           folderLabel={bodyParts.folderLabel}
+          initialSettings={bodyParts.initialSettings}
           busy={bodyParts.busy}
           onConfirm={bodyParts.onConfirm}
           onCancel={bodyParts.onCancel}
@@ -41,9 +42,11 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
         />
       )}
 
-      {verifyCaptions.open && (
+      {verifyCaptions.open && verifyCaptions.folderPath && verifyCaptions.initialSettings && (
         <VerifyCaptionsDialog
+          folderPath={verifyCaptions.folderPath}
           folderLabel={verifyCaptions.folderLabel}
+          initialSettings={verifyCaptions.initialSettings}
           busy={verifyCaptions.busy}
           onConfirm={verifyCaptions.onConfirm}
           onCancel={verifyCaptions.onCancel}

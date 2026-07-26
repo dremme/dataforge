@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  cacheBodyPartsSettings,
-  loadBodyPartsSettings,
-  readCachedBodyPartsSettings,
+  updateBodyPartsSettings,
   type BodyPartsSettings,
 } from "@/features/automation/preferences/bodyPartsPreferences";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
@@ -14,6 +12,7 @@ import { Icon } from "@/shared/ui/Icon";
 
 interface BodyPartsDialogProps {
   folderLabel: string;
+  initialSettings: BodyPartsSettings;
   busy?: boolean;
   onConfirm: (settings: BodyPartsSettings) => void;
   onCancel: () => void;
@@ -21,18 +20,16 @@ interface BodyPartsDialogProps {
 
 export function BodyPartsDialog({
   folderLabel,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: BodyPartsDialogProps) {
-  const cachedSettings = readCachedBodyPartsSettings();
-  const [bodyDescription, setBodyDescription] = useState(cachedSettings?.bodyDescription ?? "");
-  const [faceDescription, setFaceDescription] = useState(cachedSettings?.faceDescription ?? "");
-  const [keywords, setKeywords] = useState(cachedSettings?.keywords ?? "");
-  const [elementDescription, setElementDescription] = useState(
-    cachedSettings?.elementDescription ?? "",
-  );
-  const [loadingSettings, setLoadingSettings] = useState(!cachedSettings);
+  const [bodyDescription, setBodyDescription] = useState(initialSettings.bodyDescription);
+  const [faceDescription, setFaceDescription] = useState(initialSettings.faceDescription);
+  const [keywords, setKeywords] = useState(initialSettings.keywords);
+  const [elementDescription, setElementDescription] = useState(initialSettings.elementDescription);
+  const [saving, setSaving] = useState(false);
   const backdropClass = useOverlayBackdropClass("confirm-dialog__backdrop");
   const bodyDescriptionId = useId();
   const faceDescriptionId = useId();
@@ -42,46 +39,26 @@ export function BodyPartsDialog({
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, true);
 
-  useEffect(() => {
-    if (readCachedBodyPartsSettings()) return;
-
-    let cancelled = false;
-    loadBodyPartsSettings()
-      .then((settings) => {
-        if (cancelled) return;
-        setBodyDescription(settings.bodyDescription);
-        setFaceDescription(settings.faceDescription);
-        setKeywords(settings.keywords);
-        setElementDescription(settings.elementDescription);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingSettings(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleConfirm = useCallback(() => {
-    if (busy || loadingSettings) return;
+  const handleConfirm = useCallback(async () => {
+    if (busy || saving) return;
     const settings = { bodyDescription, faceDescription, keywords, elementDescription };
-    cacheBodyPartsSettings(settings);
-    onConfirm(settings);
-  }, [
-    bodyDescription,
-    busy,
-    elementDescription,
-    faceDescription,
-    keywords,
-    loadingSettings,
-    onConfirm,
-  ]);
+    setSaving(true);
+    try {
+      const saved = await updateBodyPartsSettings(settings);
+      onConfirm(saved);
+    } catch {
+      // Job start also persists settings.
+      onConfirm(settings);
+    } finally {
+      setSaving(false);
+    }
+  }, [bodyDescription, busy, elementDescription, faceDescription, keywords, onConfirm, saving]);
 
   useScrollLock(true, "confirm-dialog-open");
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (busy || loadingSettings) return;
+      if (busy || saving) return;
 
       if (event.key === "Escape") {
         event.preventDefault();
@@ -94,13 +71,15 @@ export function BodyPartsDialog({
           return;
         }
         event.preventDefault();
-        handleConfirm();
+        void handleConfirm();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, handleConfirm, loadingSettings, onCancel]);
+  }, [busy, handleConfirm, onCancel, saving]);
+
+  const confirmDisabled = busy || saving;
 
   return createPortal(
     <div className="confirm-dialog" role="presentation">
@@ -109,7 +88,7 @@ export function BodyPartsDialog({
         className={backdropClass}
         aria-label="Close dialog"
         onClick={onCancel}
-        disabled={busy}
+        disabled={busy || saving}
         tabIndex={-1}
       />
 
@@ -130,7 +109,7 @@ export function BodyPartsDialog({
             className="confirm-dialog__close"
             onClick={onCancel}
             aria-label="Close"
-            disabled={busy}
+            disabled={busy || saving}
           >
             <Icon icon={iconX} />
           </button>
@@ -151,7 +130,7 @@ export function BodyPartsDialog({
             value={bodyDescription}
             onChange={(e) => setBodyDescription(e.target.value)}
             placeholder="e.g. the persons' body"
-            disabled={busy || loadingSettings}
+            disabled={confirmDisabled}
           />
         </div>
 
@@ -165,7 +144,7 @@ export function BodyPartsDialog({
             value={faceDescription}
             onChange={(e) => setFaceDescription(e.target.value)}
             placeholder="e.g. the persons' face"
-            disabled={busy || loadingSettings}
+            disabled={confirmDisabled}
           />
         </div>
 
@@ -179,7 +158,7 @@ export function BodyPartsDialog({
             value={elementDescription}
             onChange={(e) => setElementDescription(e.target.value)}
             placeholder="e.g. the subject's hat"
-            disabled={busy || loadingSettings}
+            disabled={confirmDisabled}
           />
         </div>
 
@@ -194,7 +173,7 @@ export function BodyPartsDialog({
             onChange={(e) => setKeywords(e.target.value)}
             placeholder="e.g. hat, sunglasses, jewelry"
             rows={2}
-            disabled={busy || loadingSettings}
+            disabled={confirmDisabled}
             data-scroll-lock-allow
           />
           <p className="body-parts-dialog__hint">
@@ -207,17 +186,17 @@ export function BodyPartsDialog({
             type="button"
             className="confirm-dialog__btn confirm-dialog__btn--secondary"
             onClick={onCancel}
-            disabled={busy}
+            disabled={busy || saving}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--default"
-            onClick={handleConfirm}
-            disabled={busy || loadingSettings}
+            className="confirm-dialog__btn confirm-dialog__btn--primary"
+            onClick={() => void handleConfirm()}
+            disabled={confirmDisabled}
           >
-            {busy ? "Starting..." : loadingSettings ? "Loading..." : "Start detection"}
+            {busy ? "Starting..." : saving ? "Saving..." : "Start detection"}
           </button>
         </footer>
       </div>
