@@ -8,7 +8,7 @@ Built for people who curate training data for generative models (LoRAs, fine-tun
 No cloud account is required.
 Processing stays on your machine.
 
-[Features](#features) · [Quick start](#quick-start) · [Configuration](#configuration) · [Development](#development) · [Security](SECURITY.md) · [License](#license)
+[Features](#features) · [System requirements](#system-requirements) · [Quick start](#quick-start) · [Configuration](#configuration) · [Development](#development) · [Security](SECURITY.md) · [License](#license)
 
 ---
 
@@ -73,38 +73,51 @@ External **Ostris / AI-Toolkit** training jobs can also appear in the jobs drawe
 | Kind | Where it lives |
 | --- | --- |
 | Captions, issues, `.sysprompt` | Next to media (portable with the dataset) |
-| Preferences, job history, thumbnails | `backend/data/` (gitignored SQLite + cache) |
-| Browser UI prefs | Local browser storage |
+| App preferences, job history, thumbnails | `backend/data/` (gitignored SQLite + cache) |
+| UI session state (search, gallery filters) | Browser session storage |
+
+Verify-captions **additional context** is stored **per folder** in the app database.
+Body-parts dialog fields and UI prefs (sort, automation specs visibility) are also stored server-side.
 
 ---
 
-## Requirements
+## System requirements
 
-### Windows (recommended)
+### App only (browse, edit captions, non-AI jobs)
 
-One-time `setup.bat` installs **portable** Python and Node under the project (no global install required).
+Enough for gallery browsing, caption editing, strip metadata, set captions, and batch rename.
 
-### Linux / macOS
+| | Minimum | Recommended |
+| --- | --- | --- |
+| **OS** | Windows 10/11, Linux, or macOS | Windows 11 or recent Linux |
+| **CPU** | Dual-core, 64-bit | Quad-core or better |
+| **RAM** | 8 GB | 16 GB |
+| **Disk** | ~2 GB free for app + deps | SSD; more free space for datasets and thumbnails |
+| **Software** | See [Quick start](#quick-start) (Python / Node, or Windows `setup.bat`) | Same |
 
-- Python **3.11+** (venv)
-- Node.js + npm (Node **20+** recommended)
+### Vision LLM jobs (auto-caption / verify)
 
-### Optional AI features
+Hardware is driven by the **model you load** in LM Studio, llama.cpp, vLLM, or similar—not by DataForge itself.
+DataForge only calls an OpenAI-compatible HTTP endpoint.
 
-| Feature | Needs |
-| --- | --- |
-| Auto-caption, verify captions | Local OpenAI-compatible **vision** server (LM Studio, llama.cpp server, vLLM, etc.) with a vision model (see [Configuration](#configuration)) |
-| Body parts (GPU) | CUDA PyTorch + Ultralytics; weights auto-download into `backend/automation/` |
-| Ostris job list | AI-Toolkit install + `OSTRIS_TOOLKIT_ROOT` (optional) |
+| | Minimum (lighter models) | Optimal (recommended models) |
+| --- | --- | --- |
+| **GPU** | NVIDIA with **8–12 GB** VRAM | NVIDIA with **24 GB** VRAM (e.g. RTX 3090 / 4090 class) |
+| **System RAM** | **16 GB** | **32 GB** or more |
+| **Storage** | Fast SSD; room for model weights (several GB to tens of GB per quant) | NVMe SSD |
+| **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) or [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) (good quants) |
+| **Software** | Local OpenAI-compatible vision server with a vision model loaded | Same, with enough VRAM for quality quants and longer contexts |
+
+### Body-parts job (YOLO + SAM)
+
+Default `pip install` uses **CPU** PyTorch.
+Install a CUDA torch build before relying on body-parts on GPU.
 
 Body-parts weights when missing:
 
 - `yolo26x.pt` — [Ultralytics assets](https://github.com/ultralytics/assets)
 - `yolov8n-face.pt` — [yolov8-face](https://github.com/derronqi/yolov8-face)
 - `sam3.1.pt` — [Meta SAM 3.1](https://huggingface.co/facebook/sam3.1) (gated; set `HF_TOKEN` if needed)
-
-Default `pip install` uses **CPU** PyTorch.
-For GPU, install a CUDA torch build first (see comments in `backend/requirements.txt`).
 
 ---
 
@@ -129,6 +142,9 @@ For GPU, install a CUDA torch build first (see comments in `backend/requirements
 Stop servers with **Ctrl+C** in each console window, or by closing those windows.
 
 ### Linux / macOS (or global Python/Node)
+
+- Python **3.11+** (venv)
+- Node.js + npm (Node **20+** recommended)
 
 From the **project root**:
 
@@ -161,6 +177,7 @@ Point the app at `sample-images/` in this repo for a tiny folder with mixed capt
 
 DataForge talks to any **OpenAI-compatible** vision endpoint.
 Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp / vLLM before running AI jobs.
+Set `OPENAI_MODEL` to the **id your server exposes** (not necessarily the Hugging Face repo name).
 
 **Suggested models (best first):**
 
@@ -175,7 +192,7 @@ Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp /
 - [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it)
 - [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
 
-**Environment variables (optional; defaults target a local server):**
+**Environment variables** (optional; defaults target a local server):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -190,6 +207,9 @@ Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp /
 | `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5` | Presence penalty in instruct mode |
 | `OPENAI_INSTRUCT_TOP_P` | `0.8` | Top-p in instruct mode |
 | `OPENAI_TOP_K` | `20` | Top-k (via server `extra_body`, when supported) |
+
+Many single-model local servers ignore a wrong `OPENAI_MODEL` string and still answer.
+Multi-model servers need the id to match the loaded model.
 
 ### Hugging Face (SAM download)
 
@@ -208,6 +228,9 @@ Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp /
 | Variable | Purpose |
 | --- | --- |
 | `DATAFORGE_DB_PATH` | Override SQLite path (default under `backend/data/`) |
+| `DATAFORGE_THUMBNAIL_CACHE` | Override thumbnail cache directory |
+
+Preferences (UI sort, body-parts fields, verify mode, **per-folder verify context**, etc.) live in the SQLite app DB, not only in the browser.
 
 ---
 
