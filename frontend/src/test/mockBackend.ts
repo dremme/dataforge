@@ -243,6 +243,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/system/vision-llm") {
+      return jsonResponse({ model: "qwen35moe" });
+    }
+
     if (url.pathname === "/api/preferences/ui") {
       if (method === "PUT") {
         const body = init?.body ? JSON.parse(init.body as string) : {};

@@ -36,11 +36,19 @@ from testing_fixtures import (
 
 
 def _make_fake_caption_client(
-    response_text: str, captured: dict | None = None
+    response_text: str = "",
+    captured: dict | None = None,
+    *,
+    reasoning_content: str | None = None,
 ) -> tuple[object, dict]:
-    """Helper for tests: returns fake client + capture dict for complete_caption calls."""
+    """Fake client + capture dict for complete_caption calls."""
     if captured is None:
         captured = {}
+    message = type(
+        "Message",
+        (),
+        {"content": response_text, "reasoning_content": reasoning_content},
+    )()
 
     class FakeCompletions:
         def create(self, **kwargs: object) -> object:
@@ -51,25 +59,22 @@ def _make_fake_caption_client(
             captured["presence_penalty"] = kwargs.get("presence_penalty")
             captured["extra_body"] = kwargs.get("extra_body")
 
-            # capture video specific fields if present
             if msgs and len(msgs) > 1 and isinstance(msgs[1].get("content"), list):
-                content = msgs[1]["content"]
-                image_parts = [
-                    p for p in content if isinstance(p, dict) and p.get("type") == "image_url"
-                ]
-                captured["image_count"] = len(image_parts)
+                parts = msgs[1]["content"]
+                captured["image_count"] = sum(
+                    1 for p in parts if isinstance(p, dict) and p.get("type") == "image_url"
+                )
                 text_part = next(
-                    (p for p in content if isinstance(p, dict) and p.get("type") == "text"), None
+                    (p for p in parts if isinstance(p, dict) and p.get("type") == "text"),
+                    None,
                 )
                 captured["user_text"] = text_part.get("text") if text_part else None
                 captured["message_count"] = len(msgs)
             else:
                 captured["message_count"] = len(msgs) if msgs else 0
 
-            class Choice:
-                message = type("Message", (), {"content": response_text})()
-
-            return type("Response", (), {"choices": [Choice()]})()
+            choice = type("Choice", (), {"message": message})()
+            return type("Response", (), {"choices": [choice]})()
 
     class FakeClient:
         def __init__(self) -> None:
@@ -145,6 +150,7 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             self.assertIsNotNone(extra)
             self.assertNotIn("chat_template_kwargs", extra)
             self.assertEqual(extra.get("top_k"), 20)
+            self.assertIn("min_p", extra)
 
     def test_complete_caption_uses_instruct_params_when_mode_instruct(self) -> None:
         with TempMediaFolder() as root:
@@ -178,6 +184,31 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             self.assertIsNotNone(extra)
             self.assertEqual(extra.get("chat_template_kwargs"), {"enable_thinking": False})
             self.assertEqual(extra.get("top_k"), 20)
+            self.assertIn("min_p", extra)
+
+    def test_complete_caption_reasoning_fallback_only_in_instruct(self) -> None:
+        frames = [Image.new("RGB", (128, 128), color="blue")]
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            common = {
+                "media_path": media,
+                "system_prompt": "Sys prompt",
+                "ref_caption": "Draft.",
+                "images": frames,
+            }
+
+            instruct_client, _ = _make_fake_caption_client(
+                "", reasoning_content="A landscape with a mountain peak."
+            )
+            self.assertEqual(
+                complete_caption(instruct_client, **common, mode="instruct"),
+                "A landscape with a mountain peak.",
+            )
+
+            thinking_client, _ = _make_fake_caption_client(
+                "", reasoning_content="Long chain of thought about the image."
+            )
+            self.assertIsNone(complete_caption(thinking_client, **common, mode="thinking"))
 
     def test_extract_video_keyframes_returns_none_for_minimal_mp4(self) -> None:
         try:

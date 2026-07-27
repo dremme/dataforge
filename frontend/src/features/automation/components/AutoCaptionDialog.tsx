@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { iconBrain, iconX } from "@/shared/icons";
+import { iconX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 
 export type AutoCaptionMode = "thinking" | "instruct";
@@ -92,12 +93,8 @@ export function AutoCaptionDialog({
 
         <p id="auto-caption-dialog-description" className="confirm-dialog__description">
           Auto-complete captions for images and videos in <strong>{folderLabel}</strong> using the
-          local LLM model{" "}
-          <span className="confirm-dialog__model-badge">
-            <Icon icon={iconBrain} className="confirm-dialog__model-badge-icon" />
-            Qwen3.6
-          </span>
-          .
+          local LLM model
+          <VisionModelBadge />.
         </p>
 
         <div className="auto-caption-dialog__field">

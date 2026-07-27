@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { iconBrain, iconX } from "@/shared/icons";
+import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import {
   updateVerifyCaptionsSettings,
   type VerifyCaptionsMode,
   type VerifyCaptionsSettings,
 } from "@/features/automation/preferences/verifyCaptionsPreferences";
+import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
+import { useScrollLock } from "@/shared/hooks/useScrollLock";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { iconX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 
 export type { VerifyCaptionsMode };
@@ -118,12 +119,8 @@ export function VerifyCaptionsDialog({
         </header>
 
         <p id="verify-captions-dialog-description" className="confirm-dialog__description">
-          Verify captions for images in <strong>{folderLabel}</strong> using the local LLM model{" "}
-          <span className="confirm-dialog__model-badge">
-            <Icon icon={iconBrain} className="confirm-dialog__model-badge-icon" />
-            Qwen3.6
-          </span>
-          . Images with caption issues will be marked with an exclamation mark.
+          Verify captions for images in <strong>{folderLabel}</strong> using the local LLM model
+          <VisionModelBadge />. Images with caption issues will be marked with an exclamation mark.
         </p>
 
         <div className="verify-captions-dialog__field">

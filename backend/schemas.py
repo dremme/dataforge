@@ -78,6 +78,10 @@ class SystemSpecsResponse(BaseModel):
     gpu_available: bool = False
 
 
+class VisionLlmInfoResponse(BaseModel):
+    model: str
+
+
 class UiSettingsResponse(BaseModel):
     sort: str
     show_automation_specs: bool = False

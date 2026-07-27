@@ -135,7 +135,11 @@ Body-parts weights when missing:
    - Browser opens **http://localhost:8081**  
    - API listens on **http://localhost:8080** (Vite proxies `/api`)
 
-3. **Daily use**  
+3. **Optional AI config**  
+   Copy `.env.example` to `.env` in the project root and set `OPENAI_*` (and other) variables.  
+   The backend loads `.env` automatically on startup (see [Configuration](#configuration)).
+
+4. **Daily use**  
    After the first setup, only `start.bat` is needed.  
    Re-run `setup.bat` when you want to refresh dependencies.
 
@@ -173,11 +177,21 @@ Point the app at `sample-images/` in this repo for a tiny folder with mixed capt
 
 ## Configuration
 
+### Local `.env` file (recommended with `start.bat`)
+
+On startup the backend loads the first existing file:
+
+1. Project root `.env` (next to `start.bat`)
+2. `backend/.env`
+
+OS / shell env vars are not overwritten. `.env` is gitignored — copy [`.env.example`](.env.example) and restart the backend after edits.
+
 ### Vision LLM (auto-caption / verify)
 
 DataForge talks to any **OpenAI-compatible** vision endpoint.
 Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp / vLLM before running AI jobs.
 Set `OPENAI_MODEL` to the **id your server exposes** (not necessarily the Hugging Face repo name).
+Values can live in `.env` or the OS environment.
 
 **Suggested models (best first):**
 
@@ -192,7 +206,7 @@ Set `OPENAI_MODEL` to the **id your server exposes** (not necessarily the Huggin
 - [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it)
 - [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
 
-**Environment variables** (optional; defaults target a local server):
+**Environment variables** (optional; defaults target a local server; set in `.env` or the OS environment):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -203,10 +217,12 @@ Set `OPENAI_MODEL` to the **id your server exposes** (not necessarily the Huggin
 | `OPENAI_THINKING_TEMPERATURE` | `1.0` | Sampling temperature in thinking mode |
 | `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0` | Presence penalty in thinking mode |
 | `OPENAI_THINKING_TOP_P` | `0.95` | Top-p in thinking mode |
+| `OPENAI_THINKING_MIN_P` | `0.0` | Min-p in thinking mode (via `extra_body`) |
 | `OPENAI_INSTRUCT_TEMPERATURE` | `0.7` | Sampling temperature in instruct mode |
 | `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5` | Presence penalty in instruct mode |
 | `OPENAI_INSTRUCT_TOP_P` | `0.8` | Top-p in instruct mode |
-| `OPENAI_TOP_K` | `20` | Top-k (via server `extra_body`, when supported) |
+| `OPENAI_INSTRUCT_MIN_P` | `0.0` | Min-p in instruct mode (via `extra_body`) |
+| `OPENAI_TOP_K` | `20` | Top-k (via `extra_body`) |
 
 Many single-model local servers ignore a wrong `OPENAI_MODEL` string and still answer.
 Multi-model servers need the id to match the loaded model.
@@ -245,6 +261,8 @@ DataForge/
 ├── frontend/          # React + TypeScript + Vite UI
 ├── scripts/           # Dev server, lint, tests, git hooks
 ├── sample-images/     # Tiny example dataset
+├── .env.example       # Sample backend env vars (copy to .env)
+├── .env               # Local secrets/config (gitignored; optional)
 ├── setup.bat          # Windows self-contained install
 ├── start.bat / .ps1   # Launchers
 ├── SECURITY.md

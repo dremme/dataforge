@@ -16,12 +16,15 @@ from PIL import Image
 
 from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
 from openai_settings import (
+    assistant_message_text,
     create_openai_client,
+    get_instruct_min_p,
     get_instruct_presence_penalty,
     get_instruct_temperature,
     get_instruct_top_p,
     get_max_tokens,
     get_openai_model,
+    get_thinking_min_p,
     get_thinking_presence_penalty,
     get_thinking_temperature,
     get_thinking_top_p,
@@ -342,10 +345,12 @@ def complete_caption(
         temperature = get_instruct_temperature()
         presence_penalty = get_instruct_presence_penalty()
         top_p = get_instruct_top_p()
+        min_p = get_instruct_min_p()
     else:
         temperature = get_thinking_temperature()
         presence_penalty = get_thinking_presence_penalty()
         top_p = get_thinking_top_p()
+        min_p = get_thinking_min_p()
 
     try:
         messages = _vision_messages(
@@ -355,22 +360,11 @@ def complete_caption(
         )
 
         if mode == "instruct":
-            # For Qwen3.6 (and 3.5) hybrid "thinking" models, the chat template controls
-            # whether <think>...</think> reasoning is generated (via enable_thinking Jinja var).
-            # LM Studio (llama.cpp backend) often does not reliably forward per-request
-            # chat_template_kwargs through its OpenAI compat layer.
-            #
-            # Primary mechanism: Append a trailing assistant message containing an *empty*
-            # think block. This is a "prefill" (last message = assistant) that, when combined
-            # with template support for "continuing" the last assistant turn (see the Jinja
-            # changes below), makes the prompt end right after the empty think so generation
-            # continues the same assistant turn and skips new reasoning.
-            #
-            # Secondary: We still send chat_template_kwargs for servers that honor it
-            # (vLLM, some LM Studio versions, direct llama-server, etc.).
+            # Empty-think prefill skips reasoning on hybrid Qwen models; kwargs for servers
+            # that honor them (vLLM, some LM Studio builds). Prefill helps when kwargs are ignored.
             messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
 
-        extra_body: dict[str, object] = {"top_k": get_top_k()}
+        extra_body: dict[str, object] = {"top_k": get_top_k(), "min_p": min_p}
         if mode == "instruct":
             extra_body["chat_template_kwargs"] = {"enable_thinking": False}
 
@@ -384,8 +378,11 @@ def complete_caption(
             extra_body=extra_body,
         )
 
-        raw = (response.choices[0].message.content or "").strip()
-        return raw if raw else None
+        raw = assistant_message_text(
+            response.choices[0].message,
+            allow_reasoning_fallback=mode == "instruct",
+        )
+        return raw or None
     except Exception as exc:
         logger.error("API/Vision error for %s: %s", media_path.name, exc)
         return None

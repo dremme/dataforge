@@ -27,8 +27,11 @@ RELOAD_EXCLUDES = [
 if __name__ == "__main__":
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
+    from env_file import load_env_file
     from logging_config import configure_logging
 
+    # Parent process loads .env; reloader child also loads via main:app.
+    load_env_file()
     configure_logging()
     uvicorn.run(
         "main:app",

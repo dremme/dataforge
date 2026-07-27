@@ -4,6 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Load project .env before other modules read os.environ.
+from env_file import load_env_file
+
+load_env_file()
+
 from automation.jobs import job_manager
 from db import init_db
 from logging_config import configure_logging

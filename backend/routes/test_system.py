@@ -1,4 +1,4 @@
-"""Tests for /api/system/specs."""
+"""Tests for /api/system/*."""
 
 from __future__ import annotations
 
@@ -38,6 +38,15 @@ class SystemSpecsEndpointTests(unittest.TestCase):
                 "gpu_available": True,
             },
         )
+
+
+class VisionLlmInfoEndpointTests(unittest.TestCase):
+    @patch("routes.system.get_openai_model", return_value="qwen35moe")
+    def test_returns_configured_model_id(self, _get_model_mock) -> None:
+        response = client.get("/api/system/vision-llm")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"model": "qwen35moe"})
 
 
 if __name__ == "__main__":

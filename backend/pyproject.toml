@@ -28,6 +28,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"main.py" = [
+    "E402", # load .env before other local modules read os.environ
+]
 "test_*.py" = [
     "E402", # tests isolate the database before importing app modules
     "SIM117", # nested with blocks are fine in tests
@@ -42,6 +45,7 @@ known-first-party = [
     "comfy_metadata",
     "constants",
     "db",
+    "env_file",
     "external",
     "file_import",
     "filesystem",

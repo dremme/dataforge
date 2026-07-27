@@ -50,23 +50,39 @@ def _verification_json(
     )
 
 
-def _make_fake_verify_client(captured: dict | None = None) -> tuple[object, dict]:
-    """Create a fake OpenAI-like client that records call kwargs for verify_caption tests."""
+def _make_fake_verify_client(
+    captured: dict | None = None,
+    *,
+    content: str | None = None,
+    reasoning_content: str | None = None,
+) -> tuple[object, dict]:
+    """Fake OpenAI client that records call kwargs for verify_caption tests."""
     if captured is None:
         captured = {}
+    if content is None and reasoning_content is None:
+        content = _verification_json()
+    message = type(
+        "Message",
+        (),
+        {
+            "content": "" if content is None else content,
+            "reasoning_content": reasoning_content,
+        },
+    )()
 
     class FakeCompletions:
         def create(self, **kwargs: object) -> object:
-            captured["temperature"] = kwargs.get("temperature")
-            captured["top_p"] = kwargs.get("top_p")
-            captured["presence_penalty"] = kwargs.get("presence_penalty")
-            captured["messages"] = kwargs.get("messages")
-            captured["extra_body"] = kwargs.get("extra_body")
-
-            class Choice:
-                message = type("Message", (), {"content": _verification_json()})()
-
-            return type("Response", (), {"choices": [Choice()]})()
+            captured.update(
+                {
+                    "temperature": kwargs.get("temperature"),
+                    "top_p": kwargs.get("top_p"),
+                    "presence_penalty": kwargs.get("presence_penalty"),
+                    "messages": kwargs.get("messages"),
+                    "extra_body": kwargs.get("extra_body"),
+                }
+            )
+            choice = type("Choice", (), {"message": message})()
+            return type("Response", (), {"choices": [choice]})()
 
     class FakeClient:
         def __init__(self) -> None:
@@ -261,6 +277,36 @@ class VerifyCaptionsApiTests(unittest.TestCase):
             self.assertEqual(len(captured["messages"]), 2)
             self.assertNotIn("chat_template_kwargs", captured["extra_body"])
             self.assertIn("Outdoor portraits.", captured["messages"][0]["content"])
+
+    def test_verify_caption_reasoning_fallback_only_in_instruct(self) -> None:
+        payload = _verification_json(correct=True, issues="None", suggestions="None")
+        frames = [Image.new("RGB", (128, 128), color="blue")]
+        kwargs = {
+            "content": "",
+            "reasoning_content": f"```json\n{payload}\n```",
+        }
+
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            system = build_verification_system_prompt()
+            caption = "A blue car in the rain."
+
+            instruct_client, _ = _make_fake_verify_client(**kwargs)
+            instruct_raw = verify_caption(
+                instruct_client, media, system, caption, images=frames, mode="instruct"
+            )
+            self.assertIsNotNone(instruct_raw)
+            parsed = parse_verification_response(instruct_raw or "")
+            self.assertIsNotNone(parsed)
+            assert parsed is not None
+            self.assertTrue(parsed.correct)
+
+            thinking_client, _ = _make_fake_verify_client(**kwargs)
+            self.assertIsNone(
+                verify_caption(
+                    thinking_client, media, system, caption, images=frames, mode="thinking"
+                )
+            )
 
 
 class VerifyCaptionsMediaListingTests(unittest.TestCase):

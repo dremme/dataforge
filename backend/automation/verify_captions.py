@@ -17,12 +17,15 @@ from PIL import Image
 from captions import issue_file_path
 from constants import IMAGE_EXTENSIONS
 from openai_settings import (
+    assistant_message_text,
     create_openai_client,
+    get_instruct_min_p,
     get_instruct_presence_penalty,
     get_instruct_temperature,
     get_instruct_top_p,
     get_max_tokens,
     get_openai_model,
+    get_thinking_min_p,
     get_thinking_presence_penalty,
     get_thinking_temperature,
     get_thinking_top_p,
@@ -356,8 +359,10 @@ def _run_chat_completion(
         temperature = get_instruct_temperature()
         presence_penalty = get_instruct_presence_penalty()
         top_p = get_instruct_top_p()
+        min_p = get_instruct_min_p()
         extra_body: dict[str, object] = {
             "top_k": get_top_k(),
+            "min_p": min_p,
             "chat_template_kwargs": {"enable_thinking": False},
         }
         outbound_messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
@@ -365,7 +370,8 @@ def _run_chat_completion(
         temperature = get_thinking_temperature()
         presence_penalty = get_thinking_presence_penalty()
         top_p = get_thinking_top_p()
-        extra_body = {"top_k": get_top_k()}
+        min_p = get_thinking_min_p()
+        extra_body = {"top_k": get_top_k(), "min_p": min_p}
         outbound_messages = messages
     else:
         return None
@@ -380,8 +386,11 @@ def _run_chat_completion(
             presence_penalty=presence_penalty,
             extra_body=extra_body,
         )
-        raw = (response.choices[0].message.content or "").strip()
-        return raw if raw else None
+        raw = assistant_message_text(
+            response.choices[0].message,
+            allow_reasoning_fallback=mode == "instruct",
+        )
+        return raw or None
     except Exception as exc:
         logger.error("API completion error: %s", exc)
         return None

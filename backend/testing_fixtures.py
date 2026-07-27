@@ -29,8 +29,13 @@ def isolate_test_database() -> Path:
     """Point the backend at a temporary SQLite file for tests.
 
     Call this before importing modules that read or write preferences.
+    Also disables project ``.env`` loading so developer machine config cannot
+    leak into assertions.
     """
     global _test_database_dir
+
+    # Must be set before any import of main / env_file load runs.
+    os.environ["DATAFORGE_DISABLE_DOTENV"] = "1"
 
     if _test_database_dir is None:
         _test_database_dir = tempfile.TemporaryDirectory(prefix="dataforge-test-db-")
