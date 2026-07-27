@@ -119,8 +119,8 @@ export function VerifyCaptionsDialog({
         </header>
 
         <p id="verify-captions-dialog-description" className="confirm-dialog__description">
-          Verify captions for images in <strong>{folderLabel}</strong> using the local LLM model
-          <VisionModelBadge />. Images with caption issues will be marked with an exclamation mark.
+          Verify captions for images in <strong>{folderLabel}</strong> using <VisionModelBadge />.
+          Images with caption issues will be marked with an exclamation mark.
         </p>
 
         <div className="verify-captions-dialog__field">

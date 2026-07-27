@@ -78,16 +78,14 @@
     @include icon-size(var(--icon-size-base));
   }
 
-  // Shared model badge (used in auto-caption and verify dialogs)
   &__model-badge {
-    @include count-pill;
+    display: inline-flex;
+    vertical-align: middle;
     gap: 0.15rem;
     white-space: nowrap;
-  }
-
-  &__model-badge-icon {
-    @include icon-block;
-    @include icon-size(var(--icon-size-xs));
+    line-height: 1;
+    color: var(--accent);
+    font-weight: var(--font-semibold);
   }
 }
 

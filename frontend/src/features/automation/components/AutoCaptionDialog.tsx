@@ -92,8 +92,7 @@ export function AutoCaptionDialog({
         </header>
 
         <p id="auto-caption-dialog-description" className="confirm-dialog__description">
-          Auto-complete captions for images and videos in <strong>{folderLabel}</strong> using the
-          local LLM model
+          Auto-complete captions for images and videos in <strong>{folderLabel}</strong> using{" "}
           <VisionModelBadge />.
         </p>
 
