@@ -110,5 +110,123 @@
   .cm-editor {
     height: 100%;
     min-height: inherit;
+    display: flex;
+    flex-direction: column;
+  }
+
+  // Keep the Ctrl+F panel inside the editor chrome (parent is overflow:hidden).
+  .cm-scroller {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .cm-panels {
+    flex: 0 0 auto;
+    background: transparent;
+    border-top: 1px solid var(--border);
+  }
+
+  .cm-panel.cm-search {
+    color: var(--text);
+
+    input,
+    button,
+    label {
+      vertical-align: middle;
+    }
+
+    input.cm-textfield {
+      @include toolbar-pill-interaction;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+
+      &::placeholder {
+        color: var(--text-subtle);
+      }
+    }
+
+    [name="close"] {
+      @include dismiss-btn;
+      background-color: transparent;
+      border-color: transparent;
+      top: 0.2rem;
+      right: 0.2rem;
+    }
+
+    button.cm-button {
+      @include control-interactive;
+      @include btn-surface-default;
+      border-radius: var(--radius-sm);
+    }
+
+    // Match .set-captions-dialog__checkbox (label > input + text; no extra box span).
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      position: relative;
+      padding-left: 1.5rem;
+      min-height: 1rem;
+      font-size: var(--text-sm);
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+
+      input[type="checkbox"] {
+        @include visually-hidden;
+      }
+
+      // Visual box (same metrics as set-captions-dialog__checkbox-box)
+      &::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 1rem;
+        height: 1rem;
+        transform: translateY(-50%);
+        border: 1px solid var(--border);
+        border-radius: 0.25rem;
+        background: var(--bg-elevated);
+        transition:
+          background var(--transition),
+          border-color var(--transition);
+      }
+
+      // CSS checkmark (rotated L), same as set-captions-dialog__checkbox-box::after
+      &::after {
+        content: "";
+        position: absolute;
+        left: 0.32rem;
+        top: 50%;
+        width: 0.3rem;
+        height: 0.55rem;
+        border: solid var(--bg);
+        border-width: 0 2px 2px 0;
+        transform: translateY(-65%) rotate(45deg);
+        opacity: 0;
+        transition: opacity var(--transition);
+        pointer-events: none;
+      }
+
+      &:has(input:checked)::before {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+
+      &:has(input:checked)::after {
+        opacity: 1;
+      }
+
+      &:has(input:focus-visible)::before {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      &:hover:has(input:not(:disabled))::before {
+        border-color: var(--accent-border);
+      }
+    }
   }
 }

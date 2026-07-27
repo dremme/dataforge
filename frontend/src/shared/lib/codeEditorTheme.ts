@@ -94,11 +94,12 @@ const jsonHighlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: mkpPink },
 ]);
 
-const highlightStyles: Record<CodeEditorLanguage, HighlightStyle> = {
-  markdown: markdownHighlightStyle,
-  json: jsonHighlightStyle,
+/** Stable per-language themes so react-codemirror does not reconfigure on every render. */
+const themes: Record<CodeEditorLanguage, Extension[]> = {
+  markdown: [baseEditorTheme, syntaxHighlighting(markdownHighlightStyle)],
+  json: [baseEditorTheme, syntaxHighlighting(jsonHighlightStyle)],
 };
 
 export function getCodeEditorTheme(language: CodeEditorLanguage): Extension[] {
-  return [baseEditorTheme, syntaxHighlighting(highlightStyles[language])];
+  return themes[language];
 }

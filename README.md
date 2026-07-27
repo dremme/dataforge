@@ -260,6 +260,7 @@ DataForge/
 │   └── routes/        # HTTP API
 ├── frontend/          # React + TypeScript + Vite UI
 ├── scripts/           # Dev server, lint, tests, git hooks
+├── .github/workflows/ # CI (run_checks.py)
 ├── sample-images/     # Tiny example dataset
 ├── .env.example       # Sample backend env vars (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
@@ -278,7 +279,7 @@ Run tooling from the **project root** with the backend venv:
 | Task | Command |
 | --- | --- |
 | API (hot reload) | `backend/.venv/.../python scripts/dev_server.py` |
-| Full checks | `python scripts/run_checks.py` |
+| Full checks | `python scripts/run_checks.py` (also runs on GitHub Actions via `.github/workflows/checks.yml`) |
 | Backend lint | `python scripts/run_lint.py` (`--fix` to auto-fix) |
 | Backend tests | `python scripts/run_tests.py` |
 | Frontend tests | `cd frontend && npm test` |

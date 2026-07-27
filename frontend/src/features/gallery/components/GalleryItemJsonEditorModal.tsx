@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { iconX } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
 import { parseJsonContent } from "@/shared/lib/format";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
@@ -46,18 +47,27 @@ export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorMod
     onSave(JSON.stringify(parsed.value, null, 2));
   }, [draft, onSave]);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, true);
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key !== "Escape") return;
+      // Prefer closing the code-editor find panel over the dialog.
+      if (closeCodeEditorSearchPanel(panelRef.current)) {
+        event.preventDefault();
         event.stopPropagation();
-        if (!saving) {
-          onClose();
-        }
+        return;
+      }
+      if (event.defaultPrevented) return;
+      event.stopPropagation();
+      if (!saving) {
+        onClose();
       }
     };
 
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handleKey, true);
+    return () => window.removeEventListener("keydown", handleKey, true);
   }, [onClose, saving]);
 
   const validationError = parseError ?? saveError;
@@ -70,9 +80,6 @@ export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorMod
   };
 
   const backdropClass = useOverlayBackdropClass("gallery-item-json-editor__backdrop");
-
-  const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, true);
 
   return createPortal(
     <div

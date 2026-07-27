@@ -1,10 +1,12 @@
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { search } from "@codemirror/search";
 import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import CodeMirror from "@uiw/react-codemirror";
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useCallback, useMemo, useRef, type KeyboardEvent } from "react";
+import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
 import { getCodeEditorTheme, type CodeEditorLanguage } from "@/shared/lib/codeEditorTheme";
 
 const CODE_MIRROR_BASIC_SETUP = {
@@ -50,6 +52,25 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     },
     ref,
   ) {
+    // Keep a stable onChange identity. @uiw/react-codemirror reconfigures the whole
+    // EditorState when this prop changes, which closes the Ctrl+F search panel.
+    const rootRef = useRef<HTMLDivElement>(null);
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
+    const handleChange = useCallback((next: string) => {
+      onChangeRef.current(next);
+    }, []);
+
+    // First Escape closes the find panel; do not let host dialogs see the key.
+    const handleKeyDownCapture = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Escape") return;
+      if (!closeCodeEditorSearchPanel(rootRef.current)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, []);
+
+    const theme = useMemo(() => getCodeEditorTheme(language), [language]);
+
     const extensions = useMemo(() => {
       const attrs: Record<string, string> = {
         tabindex: "0",
@@ -68,8 +89,11 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
         attrs.title = title;
       }
 
-      const viewExtensions = [
+      // search() must be permanent config. basicSetup only adds the keymap; the first
+      // Ctrl+F otherwise appends search state via appendConfig, which reconfigure drops.
+      const viewExtensions: Extension[] = [
         languageExtension(language),
+        search(),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of(attrs),
         EditorView.domEventHandlers({
@@ -88,7 +112,12 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     }, [ariaInvalid, ariaLabel, id, language, title]);
 
     return (
-      <div className={["code-editor", className].filter(Boolean).join(" ")} data-scroll-lock-allow>
+      <div
+        ref={rootRef}
+        className={["code-editor", className].filter(Boolean).join(" ")}
+        data-scroll-lock-allow
+        onKeyDownCapture={handleKeyDownCapture}
+      >
         <CodeMirror
           ref={ref}
           className="code-editor__codemirror"
@@ -98,9 +127,9 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
           aria-invalid={ariaInvalid || undefined}
           title={title}
           extensions={extensions}
-          theme={getCodeEditorTheme(language)}
+          theme={theme}
           basicSetup={CODE_MIRROR_BASIC_SETUP}
-          onChange={onChange}
+          onChange={handleChange}
         />
       </div>
     );
