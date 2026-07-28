@@ -312,13 +312,14 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     }
   }
 
-  // Caption chrome last so it wins over Monokai .cm-editor / .cm-gutters backgrounds.
-  // Match dialog inputs: 1px border only (no inset ::after ring → would read as 2px).
-  //
-  // Scroll: with height:auto, max-height only clips (overflow:hidden) and .cm-scroller
-  // grows with content, so there is no scrollbar. Wheel handlers also stopPropagation,
-  // so an outer scrollport never receives the event. Cap .cm-editor via max-height:
-  // inherit and keep a min-height:0 flex chain so .cm-scroller is the scrollport.
+  // ---------------------------------------------------------------------------
+  // .code-editor--caption
+  // ---------------------------------------------------------------------------
+
+  // Compact caption field. Unlike the tall markdown shell (22rem), a short
+  // caption (6.5rem / max 18vh) does not always make CM's contentHeight fill
+  // the viewport, so gutters would stop with the text. Stretch the scroller
+  // row and force gutter min-height past CM's inline contentHeight.
   &--caption {
     display: flex;
     flex-direction: column;
@@ -337,15 +338,16 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
 
     .code-editor__codemirror {
       flex: 1 1 auto;
-      min-height: 0;
+      min-height: inherit;
       max-height: inherit;
+      height: 100%;
       display: flex;
       flex-direction: column;
     }
 
     .cm-editor {
       flex: 1 1 auto;
-      min-height: 0;
+      min-height: inherit;
       max-height: inherit;
       height: 100%;
       background-color: transparent;
@@ -354,22 +356,35 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
 
     .cm-scroller {
       flex: 1 1 auto;
+      height: 100%;
       min-height: 0;
       font-size: var(--text-sm);
       font-weight: var(--font-normal);
       line-height: var(--leading-relaxed);
       overflow-y: auto;
+      // CM default is flex-start !important (gutters hug content height only).
+      align-items: stretch !important;
     }
 
     .cm-content {
       padding: 0.75rem 0.9rem;
       caret-color: var(--text);
+      min-height: 100%;
+      box-sizing: border-box;
     }
 
     .cm-gutters {
       background-color: transparent;
       border-right-color: var(--border);
       color: var(--text-muted);
+      // Beat CM inline minHeight = contentHeight when the doc is short.
+      height: auto !important;
+      min-height: 100% !important;
+      align-self: stretch !important;
+    }
+
+    .cm-gutter {
+      min-height: 100%;
     }
 
     .cm-placeholder {
