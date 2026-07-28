@@ -129,6 +129,8 @@ export function AppContent() {
           selectedPath: gallery.selectedPath,
           selectedIndex: gallery.selectedIndex,
           modalItems: gallery.modalItems,
+          searchQuery: query.searchQuery,
+          searchRegex: query.searchRegex,
           onClose: gallery.closeGalleryItem,
           onPrevious: gallery.goToPrevious,
           onNext: gallery.goToNext,

@@ -31,14 +31,17 @@ class JobsEndpointTests(unittest.TestCase):
             with patch("automation.auto_caption.complete_caption", return_value=None):
                 started = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
                 job_id = started.json()["id"]
-                wait_for_job(job_id)
+                finished = wait_for_job(job_id)
+
+            self.assertEqual(finished.status, "failed")
 
             listed = client.get("/api/jobs")
             self.assertEqual(listed.status_code, 200)
             payload = listed.json()
-            self.assertEqual(payload["active_count"], 0)
             matching = next(job for job in payload["jobs"] if job["id"] == job_id)
             self.assertEqual(matching["status"], "failed")
+            # Global active count must ignore this finished job and any stale rows.
+            self.assertEqual(payload["active_count"], 0)
 
     def test_delete_single_job(self) -> None:
         with TempMediaFolder() as root:

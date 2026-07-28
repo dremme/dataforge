@@ -11,6 +11,8 @@ type GalleryOverlayState = {
   selectedPath: string | null;
   selectedIndex: number;
   modalItems: GalleryItem[];
+  searchQuery: string;
+  searchRegex: boolean;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;

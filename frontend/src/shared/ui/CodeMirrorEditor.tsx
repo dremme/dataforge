@@ -44,6 +44,8 @@ export interface CodeMirrorEditorProps {
   placeholder?: string;
   className?: string;
   editable?: boolean;
+  /** Extra extensions merged after the built-in language/search setup. */
+  extensions?: Extension[];
   "aria-label"?: string;
   "aria-invalid"?: boolean;
   title?: string;
@@ -60,6 +62,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       placeholder,
       className,
       editable = true,
+      extensions: extraExtensions,
       "aria-label": ariaLabel,
       "aria-invalid": ariaInvalid,
       title,
@@ -126,6 +129,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
             return false;
           },
         }),
+        ...(extraExtensions ?? []),
       ];
 
       if (id) {
@@ -133,7 +137,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       }
 
       return viewExtensions;
-    }, [ariaInvalid, ariaLabel, id, language, title]);
+    }, [ariaInvalid, ariaLabel, extraExtensions, id, language, title]);
 
     return (
       <div

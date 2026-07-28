@@ -185,9 +185,11 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   }
 
   // Find hits — beat light/dark baseTheme yellow-cyan / orange-magenta defaults.
+  // Gallery toolbar search matches in caption (distinct from Ctrl+F find).
   .cm-editor.cm-light .cm-searchMatch,
   .cm-editor.cm-dark .cm-searchMatch,
-  .cm-searchMatch {
+  .cm-searchMatch,
+  .cm-query-match {
     background-color: $code-editor-search-match;
     outline: 1px solid $code-editor-search-match-outline;
     border-radius: 1px;

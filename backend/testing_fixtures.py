@@ -271,13 +271,15 @@ class TempMediaFolder:
 
 
 def reset_job_manager() -> None:
-    """Clear in-memory job state between tests."""
+    """Cancel active work and clear in-memory + SQLite job state between tests.
+
+    Only wiping memory left persisted ``running``/``queued`` rows visible to
+    ``list_jobs`` (active_count flakiness). Clearing ``_deleted_ids`` also let
+    finishing worker threads re-save jobs after a test thought they were gone.
+    """
     from automation.jobs import job_manager
 
-    with job_manager._lock:
-        job_manager._jobs.clear()
-        job_manager._cancel_flags.clear()
-        job_manager._deleted_ids.clear()
+    job_manager.delete_all_jobs()
 
 
 def wait_for_job(job_id: str, *, timeout: float = 5.0):

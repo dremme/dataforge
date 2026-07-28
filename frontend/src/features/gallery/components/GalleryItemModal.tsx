@@ -39,6 +39,9 @@ const GalleryItemJsonEditorModal = lazy(() =>
 interface GalleryItemModalProps {
   items: GalleryItem[];
   index: number;
+  /** Active gallery toolbar search — highlighted in the caption field. */
+  searchQuery?: string;
+  searchRegex?: boolean;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -50,6 +53,8 @@ interface GalleryItemModalProps {
 export function GalleryItemModal({
   items,
   index,
+  searchQuery = "",
+  searchRegex = false,
   onClose,
   onPrevious,
   onNext,
@@ -408,6 +413,8 @@ export function GalleryItemModal({
                 placeholder={placeholder}
                 variant={captionDisplay.variant}
                 saveState={saveState}
+                searchQuery={searchQuery}
+                searchRegex={searchRegex}
                 aria-label={`Caption for ${item.name}`}
                 aria-invalid={saveState === "error"}
                 title={saveState === "error" ? (saveError ?? "Save failed") : undefined}

@@ -27,6 +27,25 @@ vi.mock("@codemirror/view", () => ({
     editable: { of: () => [] },
     domEventHandlers: () => [],
   },
+  Decoration: {
+    mark: () => ({}),
+  },
+  ViewPlugin: {
+    fromClass: () => [],
+  },
+}));
+
+vi.mock("@codemirror/state", () => ({
+  RangeSetBuilder: class {
+    add() {}
+    finish() {
+      return {};
+    }
+  },
+}));
+
+vi.mock("@codemirror/search", () => ({
+  search: () => [],
 }));
 
 function createVirtualizerMock(options: { count: number }) {

@@ -45,6 +45,8 @@ export function AppOverlays({
         <GalleryItemModal
           items={gallery.modalItems}
           index={gallery.selectedIndex}
+          searchQuery={gallery.searchQuery}
+          searchRegex={gallery.searchRegex}
           onClose={gallery.onClose}
           onPrevious={gallery.onPrevious}
           onNext={gallery.onNext}
