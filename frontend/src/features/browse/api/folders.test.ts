@@ -11,6 +11,7 @@ vi.mock("@/shared/api/http", () => ({
 import {
   addFolderFavorite,
   createFolder,
+  fetchFolderChildren,
   fetchFolderFavorites,
   fetchFolderRoots,
   openFolderInExplorer,
@@ -28,6 +29,17 @@ describe("folders API", () => {
     await fetchFolderRoots();
 
     expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/roots");
+  });
+
+  it("fetches child folders for a path", async () => {
+    requestJsonMock.mockResolvedValue({
+      folder: "C:\\Photos",
+      children: [{ name: "Vacation", path: "C:\\Photos\\Vacation" }],
+    });
+
+    await fetchFolderChildren("C:\\Photos");
+
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/children?path=C%3A%5CPhotos");
   });
 
   it("fetches folder favorites", async () => {

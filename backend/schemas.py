@@ -259,6 +259,18 @@ class FolderRootsResponse(BaseModel):
     roots: list[FolderRoot] = Field(default_factory=list)
 
 
+class FolderChild(BaseModel):
+    """Name + path only (no media/caption stats)."""
+
+    name: str
+    path: str
+
+
+class FolderChildrenResponse(BaseModel):
+    folder: str
+    children: list[FolderChild] = Field(default_factory=list)
+
+
 class FolderFavorite(BaseModel):
     name: str
     path: str

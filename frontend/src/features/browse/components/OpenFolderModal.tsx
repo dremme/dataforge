@@ -28,55 +28,51 @@ import {
 } from "@/features/browse/lib/folderPath";
 import { Icon } from "@/shared/ui/Icon";
 
-interface FolderPickerModalProps {
+interface OpenFolderModalProps {
   currentFolder: string;
   onClose: () => void;
   onOpenFolder: (path: string) => void;
-  title?: string;
-  submitLabel?: string;
-  disabledFolder?: string;
 }
 
-interface FolderPickerRowProps {
+interface FolderRowProps {
   path: string;
   name: string;
   isFavorite: boolean;
   isCurrent?: boolean;
-  isDisabled?: boolean;
   onOpen: (path: string) => void;
   onToggleFavorite: (path: string, isFavorite: boolean) => void;
 }
 
-function FolderPickerRow({
+function FolderRow({
   path,
   name,
   isFavorite,
   isCurrent = false,
-  isDisabled = false,
   onOpen,
   onToggleFavorite,
-}: FolderPickerRowProps) {
+}: FolderRowProps) {
   return (
-    <li className="folder-picker__row">
+    <li className="open-folder-modal__row">
       <div
-        className={`folder-picker__option${isCurrent ? " folder-picker__option--current" : ""}${isDisabled ? " folder-picker__option--disabled" : ""}`}
+        className={`open-folder-modal__option${isCurrent ? " open-folder-modal__option--current" : ""}`}
       >
         <button
           type="button"
-          className="folder-picker__option-main"
+          className="open-folder-modal__option-main"
           onClick={() => onOpen(path)}
-          disabled={isDisabled}
-          title={isDisabled ? "Cannot select the current folder" : path}
+          title={path}
         >
-          <Icon icon={iconFolder} className="folder-picker__option-icon" />
-          <span className="folder-picker__option-text">
-            <span className="folder-picker__option-name">{name}</span>
-            <span className="folder-picker__option-path">{path}</span>
+          <Icon icon={iconFolder} className="open-folder-modal__option-icon" />
+          <span className="open-folder-modal__option-text">
+            <span className="open-folder-modal__option-name">{name}</span>
+            <span className="open-folder-modal__option-path" title={path}>
+              <span>{path}</span>
+            </span>
           </span>
         </button>
         <button
           type="button"
-          className={`folder-picker__favorite${isFavorite ? " folder-picker__favorite--active" : ""}`}
+          className={`open-folder-modal__favorite${isFavorite ? " open-folder-modal__favorite--active" : ""}`}
           onClick={(event) => {
             event.stopPropagation();
             onToggleFavorite(path, isFavorite);
@@ -87,7 +83,7 @@ function FolderPickerRow({
         >
           <Icon
             icon={isFavorite ? iconStar : iconStarPlusIcon}
-            className="folder-picker__favorite-icon"
+            className="open-folder-modal__favorite-icon"
           />
         </button>
       </div>
@@ -95,14 +91,7 @@ function FolderPickerRow({
   );
 }
 
-export function FolderPickerModal({
-  currentFolder,
-  onClose,
-  onOpenFolder,
-  title = "Open folder",
-  submitLabel = "Open",
-  disabledFolder,
-}: FolderPickerModalProps) {
+export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFolderModalProps) {
   const inputId = useId();
   const favoritesTitleId = useId();
   const recentTitleId = useId();
@@ -113,7 +102,7 @@ export function FolderPickerModal({
   const syncingFavoritePathsRef = useRef(new Set<string>());
   const favoritesEpochRef = useRef(0);
 
-  useScrollLock(true, "folder-picker-open");
+  useScrollLock(true, "open-folder-modal-open");
 
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, true);
@@ -164,12 +153,9 @@ export function FolderPickerModal({
     [currentFolder, favorites, recentRevision],
   );
 
-  const isDisabledFolder = (path: string) =>
-    Boolean(disabledFolder && folderPathsEqual(path, disabledFolder));
-
   const submitPath = (path: string) => {
     const trimmed = path.trim();
-    if (!trimmed || isDisabledFolder(trimmed)) return;
+    if (!trimmed) return;
     onOpenFolder(trimmed);
     onClose();
   };
@@ -219,10 +205,10 @@ export function FolderPickerModal({
   };
 
   return createPortal(
-    <div className="folder-picker" role="presentation">
+    <div className="open-folder-modal" role="presentation">
       <button
         type="button"
-        className="folder-picker__backdrop"
+        className="open-folder-modal__backdrop"
         aria-label="Close folder picker"
         onClick={onClose}
         tabIndex={-1}
@@ -230,18 +216,18 @@ export function FolderPickerModal({
 
       <div
         ref={panelRef}
-        className="folder-picker__panel"
+        className="open-folder-modal__panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="folder-picker-title"
+        aria-labelledby="open-folder-modal-title"
       >
-        <header className="folder-picker__header">
-          <h2 id="folder-picker-title" className="folder-picker__title">
-            {title}
+        <header className="open-folder-modal__header">
+          <h2 id="open-folder-modal-title" className="open-folder-modal__title">
+            Open folder
           </h2>
           <button
             type="button"
-            className="folder-picker__close"
+            className="open-folder-modal__close"
             onClick={onClose}
             aria-label="Close"
           >
@@ -249,22 +235,22 @@ export function FolderPickerModal({
           </button>
         </header>
 
-        <div className="folder-picker__composer">
+        <div className="open-folder-modal__composer">
           <form
-            className="folder-picker__form"
+            className="open-folder-modal__form"
             onSubmit={(event) => {
               event.preventDefault();
               submitPath(draftPath);
             }}
           >
-            <label htmlFor={inputId} className="folder-picker__label">
+            <label htmlFor={inputId} className="open-folder-modal__label">
               Folder path
             </label>
-            <div className="folder-picker__input-row">
+            <div className="open-folder-modal__input-row">
               <input
                 id={inputId}
                 type="text"
-                className="folder-picker__input"
+                className="open-folder-modal__input"
                 value={draftPath}
                 onChange={(event) => setDraftPath(event.target.value)}
                 placeholder="C:\Users\you\Pictures"
@@ -273,31 +259,30 @@ export function FolderPickerModal({
               />
               <button
                 type="submit"
-                className="folder-picker__submit"
-                disabled={!draftPath.trim() || isDisabledFolder(draftPath)}
+                className="open-folder-modal__submit"
+                disabled={!draftPath.trim()}
                 tabIndex={-1}
               >
-                {submitLabel}
+                Open
               </button>
             </div>
           </form>
         </div>
 
-        <div className="folder-picker__body" data-scroll-lock-allow>
+        <div className="open-folder-modal__body" data-scroll-lock-allow>
           {favorites.length > 0 && (
-            <section className="folder-picker__section" aria-labelledby={favoritesTitleId}>
-              <h3 id={favoritesTitleId} className="folder-picker__section-title">
+            <section className="open-folder-modal__section" aria-labelledby={favoritesTitleId}>
+              <h3 id={favoritesTitleId} className="open-folder-modal__section-title">
                 Favorites
               </h3>
-              <ul className="folder-picker__list">
+              <ul className="open-folder-modal__list">
                 {favorites.map((favorite) => (
-                  <FolderPickerRow
+                  <FolderRow
                     key={favorite.path}
                     path={favorite.path}
                     name={favorite.name}
                     isFavorite
                     isCurrent={folderPathsEqual(favorite.path, currentFolder)}
-                    isDisabled={isDisabledFolder(favorite.path)}
                     onOpen={submitPath}
                     onToggleFavorite={toggleFavorite}
                   />
@@ -307,19 +292,18 @@ export function FolderPickerModal({
           )}
 
           {recentFolders.length > 0 && (
-            <section className="folder-picker__section" aria-labelledby={recentTitleId}>
-              <h3 id={recentTitleId} className="folder-picker__section-title">
+            <section className="open-folder-modal__section" aria-labelledby={recentTitleId}>
+              <h3 id={recentTitleId} className="open-folder-modal__section-title">
                 Recent folders
               </h3>
-              <ul className="folder-picker__list">
+              <ul className="open-folder-modal__list">
                 {recentFolders.map((path) => (
-                  <FolderPickerRow
+                  <FolderRow
                     key={path}
                     path={path}
                     name={folderLeafName(path)}
                     isFavorite={false}
                     isCurrent={folderPathsEqual(path, currentFolder)}
-                    isDisabled={isDisabledFolder(path)}
                     onOpen={submitPath}
                     onToggleFavorite={toggleFavorite}
                   />

@@ -281,18 +281,29 @@ def reset_job_manager() -> None:
 
 
 def wait_for_job(job_id: str, *, timeout: float = 5.0):
-    """Poll until a background job reaches a terminal status."""
+    """Poll until a background job reaches a terminal status in memory and store.
+
+    Store and memory are updated under the same lock, but wait until the
+    persisted row matches so tests that read SQLite never race a lagging write.
+    """
     import time
 
     from automation.jobs import ACTIVE_STATUSES, job_manager
+    from automation.jobs_store import get_job as get_job_from_store
 
     deadline = time.time() + timeout
     while time.time() < deadline:
         job = job_manager.get_job(job_id)
         if job is not None and job.status not in ACTIVE_STATUSES:
-            return job
+            stored = get_job_from_store(job_id)
+            if stored is not None and stored.get("status") == job.status:
+                return job
         time.sleep(0.05)
 
     job = job_manager.get_job(job_id)
     status = job.status if job is not None else "missing"
-    raise TimeoutError(f"Job {job_id} did not finish in time (status={status})")
+    stored = get_job_from_store(job_id)
+    stored_status = stored.get("status") if stored is not None else "missing"
+    raise TimeoutError(
+        f"Job {job_id} did not finish in time (memory={status}, store={stored_status})"
+    )

@@ -199,6 +199,21 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/folders/children") {
+      const rawPath = url.searchParams.get("path");
+      const pathKey = normalizeBrowseKey(rawPath);
+      if (!pathKey || !folderExists(pathKey)) {
+        return jsonResponse({ detail: "Folder not found" }, 404);
+      }
+
+      const data = browseResponses[pathKey];
+      const children = (data?.subfolders ?? []).map((entry) => ({
+        name: entry.name,
+        path: entry.path,
+      }));
+      return jsonResponse({ folder: pathKey, children });
+    }
+
     if (url.pathname === "/api/browse/fingerprint") {
       const rawPath = url.searchParams.get("path");
       const pathKey = normalizeBrowseKey(rawPath);

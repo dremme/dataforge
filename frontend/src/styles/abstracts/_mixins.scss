@@ -44,6 +44,22 @@
   white-space: nowrap;
 }
 
+// Single-line path: ellipsis on the start so the leaf end stays visible
+// (…\Photos\Deep\Nested\Folder). Uses RTL overflow without reversing glyphs.
+@mixin truncate-path-start {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+
+  // Keep the path string itself LTR so drive letters and separators read correctly.
+  & > * {
+    direction: ltr;
+    unicode-bidi: embed;
+  }
+}
+
 @mixin line-clamp($lines: 3) {
   display: -webkit-box;
   -webkit-line-clamp: $lines;

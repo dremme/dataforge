@@ -1,5 +1,6 @@
 import { requestJson } from "@/shared/api/http";
 import type {
+  FolderChildrenResponse,
   FolderCreateResponse,
   FolderFavoritesResponse,
   FolderOpenResponse,
@@ -8,6 +9,12 @@ import type {
 
 export async function fetchFolderRoots(): Promise<FolderRootsResponse> {
   return requestJson<FolderRootsResponse>("/api/folders/roots");
+}
+
+/** Immediate child folders only — cheaper than full /api/browse for tree UIs. */
+export async function fetchFolderChildren(folderPath: string): Promise<FolderChildrenResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  return requestJson<FolderChildrenResponse>(`/api/folders/children?${params}`);
 }
 
 export async function fetchFolderFavorites(): Promise<FolderFavoritesResponse> {

@@ -100,7 +100,8 @@
 .body-parts-dialog__field,
 .set-captions-dialog__field,
 .verify-captions-dialog__field,
-.auto-caption-dialog__field {
+.auto-caption-dialog__field,
+.move-media-dialog__field {
   @include dialog-form-field;
 }
 
@@ -110,7 +111,8 @@
 .body-parts-dialog__label,
 .set-captions-dialog__label,
 .verify-captions-dialog__label,
-.auto-caption-dialog__label {
+.auto-caption-dialog__label,
+.move-media-dialog__label {
   @include dialog-form-label;
 }
 
@@ -141,6 +143,15 @@
 .verify-captions-dialog,
 .auto-caption-dialog {
   width: min(32rem, 100%);
+}
+
+// Move-media needs extra width + internal flex layout for the folder tree.
+.confirm-dialog__panel.move-media-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(36rem, 100%);
+  max-height: min(85vh, 720px);
+  overflow: hidden;
 }
 
 // Set captions form dialog extensions (reuses confirm-dialog shell)
@@ -363,5 +374,168 @@
 
   &__radio-input:disabled ~ &__option-content {
     opacity: var(--disabled-opacity);
+  }
+}
+
+// Move media dialog (confirm shell + folder tree body)
+.move-media-dialog {
+  &__destination {
+    @include truncate-path-start;
+    @include dialog-form-input(2.75rem);
+    align-items: center;
+    min-width: 0;
+    color: var(--text);
+    cursor: default;
+    pointer-events: none;
+
+    // Match dialog input ::placeholder (e.g. verify-captions).
+    &--placeholder {
+      color: var(--text-muted);
+    }
+  }
+
+  &__tree {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 12rem;
+    max-height: 24rem;
+    margin-top: 0.75rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    scrollbar-gutter: stable;
+  }
+
+  &__tree-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 8rem;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  &__tree-status-icon {
+    @include icon-size(var(--icon-size-base));
+  }
+
+  &__tree-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__tree-item {
+    --tree-depth: 0;
+  }
+
+  &__tree-row {
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    margin-left: calc(var(--tree-depth) * 0.9rem);
+    border-radius: var(--radius-sm);
+  }
+
+  &__tree-item--selected &__tree-row {
+    background: var(--accent-soft);
+  }
+
+  &__tree-item--disabled &__tree-select {
+    opacity: var(--disabled-opacity);
+    cursor: not-allowed;
+  }
+
+  &__tree-toggle {
+    @include control-interactive;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-subtle);
+
+    &:focus {
+      outline: none;
+    }
+
+    &:hover:not(:disabled) {
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
+    &--spacer {
+      pointer-events: none;
+    }
+  }
+
+  &__tree-icon {
+    @include icon-size(var(--icon-size-sm));
+  }
+
+  &__tree-select {
+    @include control-interactive;
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    padding: 0.35rem 0.45rem 0.35rem 0.15rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font-weight: var(--font-normal);
+
+    &:focus {
+      outline: none;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--surface-hover);
+    }
+
+    .move-media-dialog__tree-item--selected & {
+      background: transparent;
+    }
+  }
+
+  &__tree-folder-icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-base));
+    color: var(--accent);
+    opacity: var(--icon-muted-strong);
+  }
+
+  &__tree-name {
+    min-width: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+    @include truncate;
+  }
+
+  &__tree-badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-pill);
+    background: var(--bg-card);
+    color: var(--text-subtle);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
   }
 }

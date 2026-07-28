@@ -50,6 +50,17 @@ export interface FolderRootsResponse {
   roots: FolderRoot[];
 }
 
+/** Lightweight child folder (no media/caption stats). */
+export interface FolderChild {
+  name: string;
+  path: string;
+}
+
+export interface FolderChildrenResponse {
+  folder: string;
+  children: FolderChild[];
+}
+
 export interface FolderFavorite {
   name: string;
   path: string;

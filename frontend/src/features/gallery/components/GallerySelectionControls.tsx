@@ -10,7 +10,7 @@ import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import { iconFolderInput, iconLoader2, iconTrash2 } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
-import { FolderPickerModal } from "@/features/browse/components/FolderPickerModal";
+import { MoveMediaDialog } from "@/features/gallery/components/MoveMediaDialog";
 import { Icon } from "@/shared/ui/Icon";
 
 function pathBaseName(path: string): string {
@@ -286,13 +286,12 @@ export function GallerySelectionControls({
       </div>
 
       {movePickerOpen && (
-        <FolderPickerModal
+        <MoveMediaDialog
           currentFolder={currentFolder}
-          title="Move to folder"
-          submitLabel="Move"
-          disabledFolder={currentFolder}
+          selectedCount={selectedCount}
+          busy={moving}
           onClose={closeMovePicker}
-          onOpenFolder={(path) => {
+          onSelectDestination={(path) => {
             void handleDestinationSelected(path);
           }}
         />

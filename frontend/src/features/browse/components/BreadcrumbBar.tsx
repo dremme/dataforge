@@ -9,7 +9,7 @@ import {
   iconLoader2,
 } from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
-import { FolderPickerModal } from "./FolderPickerModal";
+import { OpenFolderModal } from "./OpenFolderModal";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
@@ -131,7 +131,7 @@ export function BreadcrumbBar({
       </nav>
 
       {pickerOpen && (
-        <FolderPickerModal
+        <OpenFolderModal
           currentFolder={currentFolder}
           onClose={() => setPickerOpen(false)}
           onOpenFolder={onNavigate}

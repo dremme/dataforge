@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from filesystem import (
     create_subfolder,
     folder_display_name,
+    list_child_folders,
     looks_like_windows_path,
     normalize_folder_path,
     normalize_user_path,
@@ -84,6 +85,20 @@ class PathHandlingTests(unittest.TestCase):
     def test_windows_drive_root(self) -> None:
         resolved = normalize_user_path("c:/")
         self.assertEqual(str(resolved), "C:\\")
+
+
+class ListChildFoldersTests(unittest.TestCase):
+    def test_lists_directories_without_stats_fields(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "Album").mkdir()
+            (root / "skip.txt").write_text("file", encoding="utf-8")
+
+            children = list_child_folders(root)
+
+            self.assertEqual(len(children), 1)
+            self.assertEqual(children[0]["name"], "Album")
+            self.assertEqual(children[0]["path"], str((root / "Album").resolve()))
+            self.assertEqual(set(children[0].keys()), {"name", "path"})
 
 
 class CreateSubfolderTests(unittest.TestCase):

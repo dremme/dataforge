@@ -479,7 +479,9 @@ describe("App", () => {
     });
 
     const recentSection = within(reopenedDialog).getByRole("region", { name: "Recent folders" });
-    const firstRecentName = recentSection.querySelector(".folder-picker__option-name")?.textContent;
+    const firstRecentName = recentSection.querySelector(
+      ".open-folder-modal__option-name",
+    )?.textContent;
     expect(firstRecentName).toBe("Vacation");
   });
 

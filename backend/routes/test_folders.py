@@ -11,6 +11,46 @@ from routes._test_client import client
 from testing_fixtures import TempMediaFolder
 
 
+class FolderChildrenEndpointTests(unittest.TestCase):
+    def test_lists_immediate_child_folders_only(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "Album").mkdir()
+            (root / "Vacation").mkdir()
+            (root / "notes.txt").write_text("skip files", encoding="utf-8")
+
+            response = client.get(f"/api/folders/children?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["folder"], str(root.resolve()))
+            names = {entry["name"] for entry in body["children"]}
+            paths = {entry["path"] for entry in body["children"]}
+            self.assertEqual(names, {"Album", "Vacation"})
+            self.assertIn(str((root / "Album").resolve()), paths)
+            for entry in body["children"]:
+                self.assertEqual(set(entry.keys()), {"name", "path"})
+
+    def test_returns_404_for_missing_folder(self) -> None:
+        with TempMediaFolder() as root:
+            missing = root / "does-not-exist"
+            response = client.get(f"/api/folders/children?path={quote(str(missing))}")
+            self.assertEqual(response.status_code, 404)
+
+    def test_does_not_update_last_browsed_folder(self) -> None:
+        from constants import LAST_FOLDER_KEY
+        from db import get_preference, set_preference
+
+        with TempMediaFolder() as root:
+            child = root / "Album"
+            child.mkdir()
+            set_preference(LAST_FOLDER_KEY, str(root.resolve()))
+
+            response = client.get(f"/api/folders/children?path={quote(str(child))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(get_preference(LAST_FOLDER_KEY), str(root.resolve()))
+
+
 class FolderOpenEndpointTests(unittest.TestCase):
     def test_opens_existing_folder(self) -> None:
         with TempMediaFolder() as root:

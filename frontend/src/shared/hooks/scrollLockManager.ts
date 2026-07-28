@@ -8,7 +8,7 @@ const SCROLL_LOCK_CLASSES = [
   "gallery-item-json-editor-open",
   "sysprompt-modal-open",
   "confirm-dialog-open",
-  "folder-picker-open",
+  "open-folder-modal-open",
   "jobs-drawer-open",
 ] as const;
 

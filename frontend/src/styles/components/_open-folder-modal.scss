@@ -2,10 +2,10 @@
 @use "../abstracts/mixins" as *;
 
 // ---------------------------------------------------------------------------
-// .folder-picker
+// .open-folder-modal
 // ---------------------------------------------------------------------------
 
-.folder-picker {
+.open-folder-modal {
   @include modal-shell($z-index-confirm);
 
   &__backdrop {
@@ -273,10 +273,11 @@
   }
 
   &__option-path {
+    @include truncate-path-start;
+    min-width: 0;
     font-size: var(--text-xs);
     color: var(--text-muted);
     line-height: var(--leading-snug);
-    @include truncate;
   }
 
   &__favorite {

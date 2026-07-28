@@ -186,6 +186,35 @@ def _subfolder_with_stats(entry: Path) -> dict[str, str | int]:
     }
 
 
+def _iter_child_directories(folder: Path) -> list[Path]:
+    """Immediate listable child directories, sorted by name (no content stats)."""
+    try:
+        entries = [
+            entry
+            for entry in sorted(folder.iterdir(), key=lambda path: path.name.lower())
+            if is_listable_dir(entry)
+        ]
+    except OSError:
+        return []
+
+    child_dirs: list[Path] = []
+    for entry in entries:
+        try:
+            if entry.is_dir():
+                child_dirs.append(entry)
+        except OSError:
+            continue
+    return child_dirs
+
+
+def list_child_folders(folder: Path) -> list[dict[str, str]]:
+    """Lightweight child folder list: name + path only (no media/caption scans)."""
+    return [
+        {"name": entry.name, "path": str(entry.resolve())}
+        for entry in _iter_child_directories(folder)
+    ]
+
+
 def sanitize_folder_name(name: str) -> str | None:
     if name != name.strip():
         return None
@@ -224,23 +253,8 @@ def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:
 
 
 def list_subfolders(folder: Path) -> list[dict[str, str | int]]:
-    try:
-        entries = [
-            entry
-            for entry in sorted(folder.iterdir(), key=lambda path: path.name.lower())
-            if is_listable_dir(entry)
-        ]
-    except OSError:
-        return []
-
-    subfolder_entries: list[Path] = []
-    for entry in entries:
-        try:
-            if entry.is_dir():
-                subfolder_entries.append(entry)
-        except OSError:
-            continue
-
+    """Child folders with per-folder media/caption stats (for the main gallery browse)."""
+    subfolder_entries = _iter_child_directories(folder)
     if not subfolder_entries:
         return []
 

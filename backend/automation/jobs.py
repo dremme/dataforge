@@ -710,8 +710,9 @@ class JobManager:
                 if prepare is not None:
                     prepare(job)
                 snapshot = job.to_dict()
+            # Persist before releasing the lock so store never lags behind memory status.
+            self._save_snapshot(job_id, snapshot)
 
-        self._save_snapshot(job_id, snapshot)
         return not cancel_event.is_set()
 
     def _progress_callback(self, job_id: str) -> ProgressCallback:
@@ -731,9 +732,7 @@ class JobManager:
                 active.processed = processed
                 active.total = total
                 active.stats = dict(stats)
-                snapshot = active.to_dict()
-
-            self._save_snapshot(job_id, snapshot)
+                self._save_snapshot(job_id, active.to_dict())
 
         return on_progress
 
@@ -745,9 +744,7 @@ class JobManager:
             job.status = "failed"
             job.error = error
             job.finished_at = _utc_now()
-            snapshot = job.to_dict()
-
-        self._save_snapshot(job_id, snapshot)
+            self._save_snapshot(job_id, job.to_dict())
 
     def _complete_job(
         self,
@@ -774,9 +771,7 @@ class JobManager:
             status, error = resolve_status(job, cancelled)
             job.status = status
             job.error = error
-            snapshot = job.to_dict()
-
-        self._save_snapshot(job_id, snapshot)
+            self._save_snapshot(job_id, job.to_dict())
 
     def _memory_job_for_folder_unlocked(
         self,

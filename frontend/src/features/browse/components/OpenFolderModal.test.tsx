@@ -16,11 +16,11 @@ vi.mock("@/features/browse/api/folders", () => ({
 }));
 
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { FolderPickerModal } from "./FolderPickerModal";
+import { OpenFolderModal } from "./OpenFolderModal";
 
 const render = renderWithProviders;
 
-describe("FolderPickerModal", () => {
+describe("OpenFolderModal", () => {
   beforeEach(() => {
     localStorage.clear();
     cacheFolderFavorites([{ name: "Home", path: HOME_PATH }]);
@@ -50,9 +50,7 @@ describe("FolderPickerModal", () => {
       ],
     });
 
-    render(
-      <FolderPickerModal currentFolder={HOME_PATH} onClose={vi.fn()} onOpenFolder={vi.fn()} />,
-    );
+    render(<OpenFolderModal currentFolder={HOME_PATH} onClose={vi.fn()} onOpenFolder={vi.fn()} />);
 
     const dialog = await screen.findByRole("dialog", { name: "Open folder" });
     const recentSection = within(dialog).getByRole("region", { name: "Recent folders" });

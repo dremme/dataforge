@@ -4,12 +4,14 @@ from filesystem import (
     FolderExplorerError,
     create_subfolder,
     get_home_folder,
+    list_child_folders,
     list_folder_roots,
     open_folder_in_file_manager,
 )
 from folder_favorites import add_folder_favorite, list_folder_favorites, remove_folder_favorite
 from routes._helpers import resolve_folder
 from schemas import (
+    FolderChildrenResponse,
     FolderCreateResponse,
     FolderFavoritesResponse,
     FolderOpenResponse,
@@ -23,6 +25,15 @@ router = APIRouter()
 def folder_roots() -> FolderRootsResponse:
     home = get_home_folder()
     return FolderRootsResponse(home=str(home), roots=list_folder_roots())
+
+
+@router.get("/folders/children", response_model=FolderChildrenResponse)
+def folder_children(
+    path: str = Query(..., description="Absolute path to parent folder"),
+) -> FolderChildrenResponse:
+    """List immediate child folders only (no media items, stats, or last-folder side effects)."""
+    folder = resolve_folder(path)
+    return FolderChildrenResponse(folder=str(folder), children=list_child_folders(folder))
 
 
 @router.get("/folders/favorites", response_model=FolderFavoritesResponse)

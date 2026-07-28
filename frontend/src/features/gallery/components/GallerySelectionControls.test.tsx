@@ -8,6 +8,7 @@ import {
   releaseScrollLock,
   resetScrollLockManagerForTests,
 } from "@/shared/hooks/scrollLockManager";
+import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { GallerySelectionControls } from "./GallerySelectionControls";
 
@@ -43,6 +44,7 @@ const defaultProps = {
 
 describe("GallerySelectionControls", () => {
   beforeEach(() => {
+    installMockBackend();
     deleteSelectedMediaMock.mockReset();
     moveSelectedMediaMock.mockReset();
     previewMediaMoveMock.mockReset();
@@ -251,9 +253,8 @@ describe("GallerySelectionControls", () => {
     await user.click(screen.getByRole("button", { name: "Move" }));
 
     const picker = await screen.findByRole("dialog", { name: "Move to folder" });
-    await user.clear(within(picker).getByLabelText("Folder path"));
-    await user.type(within(picker).getByLabelText("Folder path"), VACATION_PATH);
-    await user.click(within(picker).getByRole("button", { name: "Move" }));
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
     await waitFor(() => {
       expect(previewMediaMoveMock).toHaveBeenCalledWith(VACATION_PATH, Array.from(selectedPaths));
@@ -292,9 +293,8 @@ describe("GallerySelectionControls", () => {
     await user.click(screen.getByRole("button", { name: "Move" }));
 
     const picker = await screen.findByRole("dialog", { name: "Move to folder" });
-    await user.clear(within(picker).getByLabelText("Folder path"));
-    await user.type(within(picker).getByLabelText("Folder path"), VACATION_PATH);
-    await user.click(within(picker).getByRole("button", { name: "Move" }));
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
     const overwriteDialog = await screen.findByRole("alertdialog", {
       name: "Replace existing files?",
