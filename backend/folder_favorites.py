@@ -2,7 +2,12 @@ import json
 from pathlib import Path
 
 from db import get_preference, set_preference
-from filesystem import get_home_folder, normalize_folder_path, resolve_folder
+from filesystem import (
+    folder_display_name,
+    get_home_folder,
+    normalize_user_path,
+    resolve_folder,
+)
 
 FOLDER_FAVORITES_KEY = "folder_favorites"
 
@@ -25,7 +30,7 @@ def _normalize_stored_paths(paths: list[str]) -> list[str]:
 
     for entry in paths:
         try:
-            resolved = str(normalize_folder_path(entry).resolve())
+            resolved = str(normalize_user_path(entry))
         except OSError:
             continue
         if resolved not in seen:
@@ -59,12 +64,7 @@ def list_folder_favorites() -> list[dict[str, str]]:
             continue
 
         resolved = folder.resolve()
-        if resolved.drive and resolved == Path(resolved.anchor):
-            name = resolved.drive
-        elif resolved == home:
-            name = "Home"
-        else:
-            name = resolved.name or path_str
+        name = "Home" if resolved == home else folder_display_name(resolved)
         entries.append({"path": str(resolved), "name": name})
 
     return entries
@@ -83,7 +83,7 @@ def add_folder_favorite(path: str) -> list[dict[str, str]]:
 
 
 def remove_folder_favorite(path: str) -> list[dict[str, str]]:
-    folder_str = str(normalize_folder_path(path).resolve())
+    folder_str = str(normalize_user_path(path))
     paths = [entry for entry in get_folder_favorite_paths() if entry != folder_str]
     _save_paths(paths)
     return list_folder_favorites()

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from filesystem import normalize_user_path
+
 
 def resolve_selected_media(folder: Path, paths: list[str] | None) -> list[Path] | None:
     """Resolve optional client paths. None means process all eligible files in the folder."""
@@ -14,7 +16,7 @@ def resolve_selected_media(folder: Path, paths: list[str] | None) -> list[Path] 
     resolved: list[Path] = []
 
     for raw in paths:
-        file_path = Path(raw).expanduser().resolve()
+        file_path = normalize_user_path(raw)
         if not file_path.is_file():
             raise ValueError(f"Media file not found: {raw}")
         try:

@@ -535,14 +535,17 @@ def free_vram(models: BodyPartsModels):
 
     del models
 
-    # More aggressive collection
     for _ in range(3):
         gc.collect()
+
+    # CI and CPU-only installs have torch without a usable NVIDIA driver.
+    if not torch.cuda.is_available():
+        return
+
+    for _ in range(3):
         torch.cuda.empty_cache()
 
     torch.cuda.synchronize()
-
-    # Optional: reset stats so next run looks clean
     torch.cuda.reset_peak_memory_stats()
     torch.cuda.reset_accumulated_memory_stats()
 

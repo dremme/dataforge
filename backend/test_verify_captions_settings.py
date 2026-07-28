@@ -27,6 +27,18 @@ class VerifyCaptionsSettingsTests(unittest.TestCase):
         self.assertEqual(preference_folder_key("c:"), "C:\\")
         self.assertEqual(preference_folder_key("C:/"), "C:\\")
 
+    def test_preference_folder_key_keeps_windows_and_posix_paths_stable(self) -> None:
+        win_key = preference_folder_key(r"C:\Photos\A")
+        self.assertEqual(preference_folder_key(win_key), win_key)
+        self.assertTrue(win_key.replace("/", "\\").upper().startswith("C:"))
+
+        from testing_fixtures import TempMediaFolder
+
+        with TempMediaFolder() as root:
+            host_key = preference_folder_key(str(root))
+            self.assertEqual(preference_folder_key(host_key), host_key)
+            self.assertEqual(host_key, str(root.resolve()))
+
     def test_legacy_global_context_is_not_applied_to_folders(self) -> None:
         set_preference(
             VERIFY_CAPTIONS_SETTINGS_KEY,

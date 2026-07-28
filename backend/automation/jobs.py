@@ -56,6 +56,7 @@ from automation.jobs_store import (
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
 from automation.verify_captions import run_verify_captions_job, validate_verify_captions_folder
+from filesystem import normalize_user_path, path_leaf_name
 
 JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
 JobType = Literal[
@@ -74,12 +75,11 @@ def _utc_now() -> str:
 
 
 def _normalize_folder(folder: str) -> str:
-    return str(Path(folder).expanduser().resolve())
+    return str(normalize_user_path(folder))
 
 
 def _folder_name(folder: str) -> str:
-    path = Path(folder)
-    return path.name or str(path)
+    return path_leaf_name(folder)
 
 
 def _resolve_verify_captions_status(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:

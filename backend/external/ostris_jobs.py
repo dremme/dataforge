@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from filesystem import path_leaf_name
+
 OSTRIS_BASE_URL = "http://127.0.0.1:8675"
 OSTRIS_JOBS_URL = f"{OSTRIS_BASE_URL}/api/jobs"
 OSTRIS_REQUEST_TIMEOUT_SECONDS = 3.0
@@ -76,7 +78,7 @@ def _total_steps(raw_job: dict[str, Any], process_config: dict[str, Any]) -> int
 def _folder_name(folder_path: str | None) -> str:
     if not folder_path:
         return ""
-    return Path(folder_path).name or folder_path
+    return path_leaf_name(folder_path)
 
 
 def _as_bool(value: Any) -> bool:

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import re
-from pathlib import Path
 
 from db import get_preference, set_preference
+from filesystem import preference_folder_key
 
 VERIFY_CAPTIONS_SETTINGS_KEY = "verify_captions_settings"
 
@@ -20,16 +19,14 @@ def _default_settings() -> dict[str, object]:
     }
 
 
-def preference_folder_key(path: str) -> str:
-    """Canonical folder key for preference maps (aligned with frontend normalization)."""
-    text = path.strip().replace("/", "\\")
-    drive_root = re.fullmatch(r"([A-Za-z]:)(?:\\)?", text)
-    if drive_root:
-        return f"{drive_root.group(1).upper()}\\"
-    try:
-        return str(Path(text).expanduser().resolve())
-    except OSError:
-        return text.rstrip("\\") if text else text
+# Re-export for callers/tests that import from this module.
+__all__ = [
+    "VALID_MODES",
+    "VERIFY_CAPTIONS_SETTINGS_KEY",
+    "get_verify_captions_settings",
+    "preference_folder_key",
+    "update_verify_captions_settings",
+]
 
 
 def _parse_context_by_folder(raw: object) -> dict[str, str]:

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
 
 from db import get_connection
+from filesystem import normalize_user_path, path_leaf_name
 
 _JOB_COLUMNS = """
     id, folder, job_type, status, total, processed, current_file, current_name,
@@ -171,7 +171,7 @@ def recover_stale_jobs() -> int:
 
 
 def _normalize_folder(folder: str) -> str:
-    return str(Path(folder).expanduser().resolve())
+    return str(normalize_user_path(folder))
 
 
 def _row_to_dict(row: tuple) -> dict[str, object]:
@@ -208,12 +208,10 @@ def _row_to_dict(row: tuple) -> dict[str, object]:
     if not isinstance(results, list):
         results = []
 
-    folder_path = Path(folder)
-
     return {
         "id": job_id,
         "folder": folder,
-        "folder_name": folder_path.name or str(folder_path),
+        "folder_name": path_leaf_name(str(folder or "")),
         "job_type": str(job_type or "auto_caption"),
         "status": status,
         "total": int(total or 0),
