@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { classNames } from "@/shared/lib/classNames";
 
 interface IconProps {
   icon: LucideIcon;
@@ -7,7 +8,7 @@ interface IconProps {
 }
 
 export function Icon({ icon: IconComponent, className, spin }: IconProps) {
-  const classes = [className, spin ? "app-icon--spin" : undefined].filter(Boolean).join(" ");
+  const classes = classNames(className, spin && "app-icon--spin");
 
   return <IconComponent className={classes || undefined} aria-hidden strokeWidth={2} />;
 }

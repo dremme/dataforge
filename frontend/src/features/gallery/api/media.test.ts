@@ -10,6 +10,7 @@ import { requestJson } from "@/shared/api/http";
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: vi.fn(),
+  postJson: vi.fn(),
 }));
 
 const requestJsonMock = vi.mocked(requestJson);

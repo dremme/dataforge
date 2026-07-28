@@ -10,6 +10,7 @@ import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass"
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconX } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 export type { VerifyCaptionsMode };
@@ -131,7 +132,10 @@ export function VerifyCaptionsDialog({
             aria-label="Verification mode"
           >
             <label
-              className={`verify-captions-dialog__option${mode === "thinking" ? " verify-captions-dialog__option--selected" : ""}`}
+              className={classNames(
+                "verify-captions-dialog__option",
+                mode === "thinking" && "verify-captions-dialog__option--selected",
+              )}
               htmlFor={reasoningId}
             >
               <input
@@ -154,7 +158,10 @@ export function VerifyCaptionsDialog({
             </label>
 
             <label
-              className={`verify-captions-dialog__option${mode === "instruct" ? " verify-captions-dialog__option--selected" : ""}`}
+              className={classNames(
+                "verify-captions-dialog__option",
+                mode === "instruct" && "verify-captions-dialog__option--selected",
+              )}
               htmlFor={instructId}
             >
               <input

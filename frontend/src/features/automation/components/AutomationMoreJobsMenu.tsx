@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { JOB_TYPE_META, SECONDARY_JOB_TYPES, jobTypeIconFor } from "@/features/jobs/lib/jobMeta";
 import type { JobType } from "@/shared/types";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { iconChevronDown, iconLoader2 } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface AutomationMoreJobsMenuProps {
@@ -43,6 +45,8 @@ export function AutomationMoreJobsMenu({
     [startingJobType],
   );
 
+  useEscapeKey(close, open);
+
   useEffect(() => {
     if (!open) return;
 
@@ -51,19 +55,8 @@ export function AutomationMoreJobsMenu({
       close();
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close();
-      }
-    };
-
     document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [close, open]);
 
   const handleSelect = (jobType: JobType, starting: boolean) => {
@@ -73,7 +66,7 @@ export function AutomationMoreJobsMenu({
   };
 
   return (
-    <div ref={rootRef} className={`automation__more${open ? " automation__more--open" : ""}`}>
+    <div ref={rootRef} className={classNames("automation__more", open && "automation__more--open")}>
       <button
         type="button"
         className="automation__more-trigger"

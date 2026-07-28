@@ -7,6 +7,7 @@ import {
   normalizeFolderPath,
 } from "@/features/browse/lib/folderPath";
 import { formatApiError } from "@/shared/api/http";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
@@ -20,6 +21,7 @@ import {
 } from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { FolderChild } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface MoveMediaDialogProps {
@@ -154,13 +156,7 @@ export function MoveMediaDialog({
   useScrollLock(true, "confirm-dialog-open");
   useFocusTrap(panelRef, true);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, onClose]);
+  useEscapeKey(onClose, !busy);
 
   const markLoading = useCallback((key: string, loading: boolean) => {
     if (loading) {
@@ -392,12 +388,10 @@ export function MoveMediaDialog({
         <div className="move-media-dialog__field">
           <div className="move-media-dialog__label">Destination</div>
           <div
-            className={[
+            className={classNames(
               "move-media-dialog__destination",
-              selectedPath ? "" : "move-media-dialog__destination--placeholder",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+              !selectedPath && "move-media-dialog__destination--placeholder",
+            )}
             aria-live="polite"
             title={selectedPath || undefined}
           >
@@ -430,13 +424,11 @@ export function MoveMediaDialog({
                   return (
                     <li
                       key={entry.key}
-                      className={[
+                      className={classNames(
                         "move-media-dialog__tree-item",
-                        selected ? "move-media-dialog__tree-item--selected" : "",
-                        disabled ? "move-media-dialog__tree-item--disabled" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
+                        selected && "move-media-dialog__tree-item--selected",
+                        disabled && "move-media-dialog__tree-item--disabled",
+                      )}
                       role="treeitem"
                       aria-expanded={canExpand ? expanded : undefined}
                       aria-selected={selected}

@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { deleteMedia, mediaUrl, openMediaInViewer } from "@/features/gallery/api/media";
 import { formatApiError } from "@/shared/api/http";
@@ -203,21 +205,11 @@ export function GalleryItemModal({
     }
   }, [deleting, flushPendingSave, item, onDeleted]);
 
+  useEscapeKey(closeModal, !childOverlayOpen);
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      const target = event.target;
-      const isEditing =
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement &&
-          (target.isContentEditable || target.closest(".cm-content") != null));
-
-      if (event.key === "Escape") {
-        if (jsonEditorOpen || deleteConfirmOpen) return;
-        closeModal();
-      }
-      if (isEditing) return;
+      if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft") onPrevious();
       if (event.key === "ArrowRight") onNext();
     };
@@ -226,7 +218,7 @@ export function GalleryItemModal({
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [closeModal, deleteConfirmOpen, jsonEditorOpen, onPrevious, onNext]);
+  }, [onPrevious, onNext]);
 
   if (!item) return null;
 

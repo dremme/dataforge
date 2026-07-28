@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   BACKEND_UNREACHABLE,
   FOLDER_NOT_FOUND_MESSAGE,
   formatApiError,
   parseApiError,
+  postJson,
+  putJson,
   resolveBrowseError,
 } from "@/shared/api/http";
 
@@ -59,5 +61,53 @@ describe("parseApiError", () => {
       headers: { "Content-Type": "application/json" },
     });
     await expect(parseApiError(response)).resolves.toBe(FOLDER_NOT_FOUND_MESSAGE);
+  });
+});
+
+describe("postJson / putJson", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function mockFetchOk() {
+    return vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  }
+
+  it("sends a JSON body with the matching content type", async () => {
+    const fetchSpy = mockFetchOk();
+
+    await expect(postJson<{ ok: boolean }>("/api/thing", { name: "sample" })).resolves.toEqual({
+      ok: true,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/thing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "sample" }),
+    });
+  });
+
+  it("uses PUT for putJson", async () => {
+    const fetchSpy = mockFetchOk();
+
+    await putJson("/api/thing", { name: "sample" });
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/thing", expect.objectContaining({ method: "PUT" }));
+  });
+
+  it("surfaces API errors from the response detail", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Folder is read-only" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(postJson("/api/thing", {})).rejects.toThrow("Folder is read-only");
   });
 });

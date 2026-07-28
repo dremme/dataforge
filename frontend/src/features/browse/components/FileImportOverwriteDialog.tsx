@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { createPortal } from "react-dom";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
@@ -33,19 +34,7 @@ export function FileImportOverwriteDialog({
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, true);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (busy) return;
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCancel();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, onCancel]);
+  useEscapeKey(onCancel, !busy);
 
   const conflictPreview =
     conflicts.length <= 3

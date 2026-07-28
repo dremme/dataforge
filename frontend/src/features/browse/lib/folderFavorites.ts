@@ -4,6 +4,7 @@ import {
   removeFolderFavorite,
 } from "@/features/browse/api/folders";
 import type { FolderFavorite } from "@/shared/types";
+import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
 import { folderLeafName, folderPathsEqual, normalizeFolderPath } from "./folderPath";
 
 const FAVORITES_CACHE_KEY = "gallery-folder-favorites";
@@ -18,17 +19,11 @@ function isFolderFavorite(value: unknown): value is FolderFavorite {
 }
 
 function readStorageCache(): FolderFavorite[] {
-  try {
-    const stored = localStorage.getItem(FAVORITES_CACHE_KEY);
-    if (!stored) return [];
-
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter(isFolderFavorite);
-  } catch {
-    return [];
-  }
+  return readStoredJson<FolderFavorite[]>(
+    FAVORITES_CACHE_KEY,
+    (parsed) => (Array.isArray(parsed) ? parsed.filter(isFolderFavorite) : null),
+    [],
+  );
 }
 
 function favoriteDisplayName(path: string): string {
@@ -73,12 +68,7 @@ export function getCachedFolderFavorites(): FolderFavorite[] {
 
 export function cacheFolderFavorites(favorites: FolderFavorite[]): void {
   memoryCache = favorites;
-
-  try {
-    localStorage.setItem(FAVORITES_CACHE_KEY, JSON.stringify(favorites));
-  } catch {
-    // Ignore storage access errors
-  }
+  writeStoredJson(FAVORITES_CACHE_KEY, favorites);
 }
 
 async function fetchAndCacheFolderFavorites(): Promise<FolderFavorite[]> {

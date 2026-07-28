@@ -6,6 +6,7 @@ import { useDebouncedSave } from "@/shared/hooks/useDebouncedSave";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconX } from "@/shared/icons";
 import type { GalleryItem, SysPromptSaveResponse } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
 import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
 import { countWords } from "@/shared/lib/format";
 import { Icon } from "@/shared/ui/Icon";
@@ -147,12 +148,10 @@ export function SysPromptModal({ item, onClose, onSaved }: SysPromptModalProps) 
         <div className="sysprompt-modal__body">
           <MarkdownEditor
             id="sysprompt-editor"
-            className={[
+            className={classNames(
               `code-editor--${captionDisplay.variant}`,
               saveState !== "idle" && `code-editor--${saveState}`,
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            )}
             value={prompt}
             placeholder={placeholder}
             aria-label="System prompt"

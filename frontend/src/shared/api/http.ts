@@ -104,3 +104,19 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   }
   return response.json() as Promise<T>;
 }
+
+function jsonInit(method: "POST" | "PUT", body: unknown): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+}
+
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
+  return requestJson<T>(url, jsonInit("POST", body));
+}
+
+export async function putJson<T>(url: string, body: unknown): Promise<T> {
+  return requestJson<T>(url, jsonInit("PUT", body));
+}

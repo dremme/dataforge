@@ -15,6 +15,7 @@ import {
   iconSearch,
   iconX,
 } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { JobsButton } from "@/features/jobs/components/JobsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -91,13 +92,11 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
       disabled={expanded && focused}
     >
       <label
-        className={[
+        className={classNames(
           "toolbar__search",
           expanded ? "toolbar__search--expanded" : "toolbar__search--collapsed",
-          hasValue ? "toolbar__search--filtering" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          hasValue && "toolbar__search--filtering",
+        )}
         onClick={() => {
           if (!expanded) {
             openSearch();
@@ -120,7 +119,10 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
           />
           <button
             type="button"
-            className={`toolbar__search-regex ${regex ? "toolbar__search-regex--active" : ""}`}
+            className={classNames(
+              "toolbar__search-regex",
+              regex && "toolbar__search-regex--active",
+            )}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onRegexChange(!regex)}
             aria-label="Toggle regular expression search"
@@ -183,7 +185,7 @@ export function Toolbar({
   return (
     <div className="toolbar">
       <div
-        className={`toolbar__stats${statsLoading ? " toolbar__stats--loading" : ""}`}
+        className={classNames("toolbar__stats", statsLoading && "toolbar__stats--loading")}
         aria-busy={statsLoading || undefined}
         aria-live="polite"
       >
@@ -249,7 +251,10 @@ export function Toolbar({
               <Tooltip key={value} content={countLabel}>
                 <button
                   type="button"
-                  className={`filter-btn filter-btn--icon-only ${mediaTypeFilter === value ? "filter-btn--active" : ""}`}
+                  className={classNames(
+                    "filter-btn filter-btn--icon-only",
+                    mediaTypeFilter === value && "filter-btn--active",
+                  )}
                   onClick={() => onMediaTypeFilterChange(value)}
                   aria-label={countLabel}
                   aria-pressed={mediaTypeFilter === value}
@@ -273,7 +278,10 @@ export function Toolbar({
               <Tooltip key={value} content={countLabel}>
                 <button
                   type="button"
-                  className={`filter-btn filter-btn--icon-only ${filter === value ? "filter-btn--active" : ""}`}
+                  className={classNames(
+                    "filter-btn filter-btn--icon-only",
+                    filter === value && "filter-btn--active",
+                  )}
                   onClick={() => onFilterChange(value)}
                   aria-label={countLabel}
                   aria-pressed={filter === value}

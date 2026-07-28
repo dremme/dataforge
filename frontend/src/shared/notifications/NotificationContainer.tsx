@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { iconCircleAlert, iconCircleCheck, iconTriangleAlert, iconX } from "@/shared/icons";
 import type { Notification, NotificationVariant } from "./notifications";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface NotificationContainerProps {
@@ -33,7 +34,11 @@ export function NotificationContainer({
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className={`notifications__toast notifications__toast--${notification.variant}${notification.exiting ? " notifications__toast--exiting" : ""}`}
+          className={classNames(
+            "notifications__toast",
+            `notifications__toast--${notification.variant}`,
+            notification.exiting && "notifications__toast--exiting",
+          )}
           role={notificationRole(notification.variant)}
           onAnimationEnd={(event) => {
             if (event.currentTarget !== event.target) {

@@ -1,4 +1,4 @@
-import { requestJson } from "@/shared/api/http";
+import { postJson, requestJson } from "@/shared/api/http";
 import type { MediaMovePreviewResponse, MediaMoveResponse } from "@/shared/types";
 
 export type MediaDeleteResponse = {
@@ -69,11 +69,7 @@ export async function previewMediaMove(
   paths: readonly string[],
 ): Promise<MediaMovePreviewResponse> {
   const params = new URLSearchParams({ destination: destinationFolder });
-  return requestJson<MediaMovePreviewResponse>(`/api/media/move/preview?${params}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ paths }),
-  });
+  return postJson<MediaMovePreviewResponse>(`/api/media/move/preview?${params}`, { paths });
 }
 
 export async function moveSelectedMedia(
@@ -86,11 +82,7 @@ export async function moveSelectedMedia(
     overwrite: String(overwrite),
   });
 
-  const response = await requestJson<MediaMoveResponse>(`/api/media/move?${params}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ paths }),
-  });
+  const response = await postJson<MediaMoveResponse>(`/api/media/move?${params}`, { paths });
 
   return {
     succeeded: response.moved.map((entry) => entry.source),

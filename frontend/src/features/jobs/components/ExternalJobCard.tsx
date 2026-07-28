@@ -6,6 +6,7 @@ import {
   externalJobRemainingTimeLabel,
   externalJobStatusLabel,
 } from "@/features/jobs/lib/externalJobs";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface ExternalJobCardProps {
@@ -30,7 +31,10 @@ export function ExternalJobCard({
 
   return (
     <article
-      className={`job-card job-card--external job-card--active${isCurrentFolder ? " job-card--current" : ""}`}
+      className={classNames(
+        "job-card job-card--external job-card--active",
+        isCurrentFolder && "job-card--current",
+      )}
       aria-label={`external job ${job.name}`}
     >
       <div className="job-card__header">

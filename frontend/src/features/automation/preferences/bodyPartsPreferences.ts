@@ -1,4 +1,4 @@
-import { requestJson } from "@/shared/api/http";
+import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
 
 export interface BodyPartsSettings {
@@ -8,7 +8,7 @@ export interface BodyPartsSettings {
   elementDescription: string;
 }
 
-export const EMPTY_BODY_PARTS_SETTINGS: BodyPartsSettings = {
+const EMPTY_BODY_PARTS_SETTINGS: BodyPartsSettings = {
   bodyDescription: "",
   faceDescription: "",
   keywords: "",
@@ -48,7 +48,7 @@ function toApiPartial(partial: Partial<BodyPartsSettings>): Partial<BodyPartsSet
   return body;
 }
 
-export async function fetchBodyPartsSettings(): Promise<BodyPartsSettings> {
+async function fetchBodyPartsSettings(): Promise<BodyPartsSettings> {
   const data = await requestJson<BodyPartsSettingsApi>("/api/preferences/body-parts");
   return parseSettings(data);
 }
@@ -64,10 +64,9 @@ export async function loadBodyPartsSettings(): Promise<BodyPartsSettings> {
 export async function updateBodyPartsSettings(
   partial: Partial<BodyPartsSettings>,
 ): Promise<BodyPartsSettings> {
-  const data = await requestJson<BodyPartsSettingsApi>("/api/preferences/body-parts", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(toApiPartial(partial)),
-  });
+  const data = await putJson<BodyPartsSettingsApi>(
+    "/api/preferences/body-parts",
+    toApiPartial(partial),
+  );
   return parseSettings(data);
 }

@@ -11,6 +11,7 @@ import {
 } from "@/shared/icons";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
 import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
 import { Icon } from "@/shared/ui/Icon";
@@ -45,7 +46,12 @@ export function GalleryCard({
   return (
     <button
       type="button"
-      className={`card ${getCardModifierClass(item)} ${itemIsVideo ? " card--video" : ""}${selected ? " card--selected" : ""}`}
+      className={classNames(
+        "card",
+        getCardModifierClass(item),
+        itemIsVideo && "card--video",
+        selected && "card--selected",
+      )}
       onClick={handleClick}
       onDragStart={(event) => event.preventDefault()}
       aria-label={
@@ -61,7 +67,7 @@ export function GalleryCard({
           </span>
         )}
         <span
-          className={`card__overlay${selectionMode ? " card__overlay--hidden" : ""}`}
+          className={classNames("card__overlay", selectionMode && "card__overlay--hidden")}
           aria-hidden="true"
         >
           <span className="card__view">

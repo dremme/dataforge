@@ -4,7 +4,9 @@ import { saveCaption } from "@/features/gallery/api/captions";
 import { mediaUrl, openMediaInViewer } from "@/features/gallery/api/media";
 import { formatApiError } from "@/shared/api/http";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
@@ -127,24 +129,11 @@ export function IssueResolverModal({
     }
   }, [caption, index, item, onCaptionSaved, onClose, onIndexChange, queue.length, saving]);
 
+  useEscapeKey(closeModal, !saving);
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (saving) return;
-
-      const target = event.target;
-      const isEditing =
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement &&
-          (target.isContentEditable || target.closest(".cm-content") != null));
-
-      if (event.key === "Escape") {
-        closeModal();
-        return;
-      }
-
-      if (isEditing) return;
+      if (saving || isEditableTarget(event.target)) return;
 
       if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
@@ -154,7 +143,7 @@ export function IssueResolverModal({
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [closeModal, handleResolve, saving]);
+  }, [handleResolve, saving]);
 
   if (!item) return null;
 

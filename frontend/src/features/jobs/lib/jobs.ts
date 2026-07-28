@@ -71,10 +71,6 @@ function jobApiErrorCount(job: Job): number {
   return job.stats?.api_error ?? 0;
 }
 
-function jobHasApiErrors(job: Job): boolean {
-  return jobApiErrorCount(job) > 0;
-}
-
 function jobVerifyErrorCount(job: Job): number {
   const stats = job.stats ?? {};
   return (
@@ -89,24 +85,12 @@ function jobNoTxtCount(job: Job): number {
   return job.stats?.no_txt ?? 0;
 }
 
-function jobHasMissingCaptions(job: Job): boolean {
-  return jobNoTxtCount(job) > 0;
-}
-
 function jobDetectionErrorCount(job: Job): number {
   return job.stats?.detection_error ?? 0;
 }
 
-function jobHasDetectionErrors(job: Job): boolean {
-  return jobDetectionErrorCount(job) > 0;
-}
-
 function jobNoDetectionsCount(job: Job): number {
   return job.stats?.no_detections ?? 0;
-}
-
-function jobHasNoDetections(job: Job): boolean {
-  return jobNoDetectionsCount(job) > 0;
 }
 
 function effectiveJobStatus(job: Job): JobStatus {
@@ -114,7 +98,7 @@ function effectiveJobStatus(job: Job): JobStatus {
     if (jobTypeOf(job) === "verify_captions" && jobVerifyErrorCount(job) > 0) {
       return "failed";
     }
-    if (jobHasApiErrors(job)) {
+    if (jobApiErrorCount(job) > 0) {
       return "failed";
     }
   }
@@ -135,23 +119,18 @@ export function jobShowsWarningState(job: Job): boolean {
     return false;
   }
 
-  if (jobTypeOf(job) === "body_parts") {
-    return jobHasDetectionErrors(job) || jobHasNoDetections(job);
+  const type = jobTypeOf(job);
+
+  if (type === "body_parts") {
+    return jobDetectionErrorCount(job) > 0 || jobNoDetectionsCount(job) > 0;
   }
 
-  if (
-    jobTypeOf(job) === "strip_metadata" ||
-    jobTypeOf(job) === "set_captions" ||
-    jobTypeOf(job) === "batch_rename"
-  ) {
+  if (type === "strip_metadata" || type === "set_captions" || type === "batch_rename") {
     return false;
   }
 
-  if (jobTypeOf(job) === "verify_captions") {
-    return jobHasMissingCaptions(job);
-  }
-
-  return jobHasMissingCaptions(job);
+  // auto_caption and verify_captions both warn about media skipped for a missing .txt sidecar.
+  return jobNoTxtCount(job) > 0;
 }
 
 export function jobErrorMessage(job: Job): string | null {
@@ -160,25 +139,6 @@ export function jobErrorMessage(job: Job): string | null {
 
 export function jobWarningMessage(job: Job): string | null {
   if (!jobShowsWarningState(job)) {
-    return null;
-  }
-
-  if (
-    jobTypeOf(job) === "strip_metadata" ||
-    jobTypeOf(job) === "set_captions" ||
-    jobTypeOf(job) === "batch_rename"
-  ) {
-    return null;
-  }
-
-  if (jobTypeOf(job) === "verify_captions") {
-    const count = jobNoTxtCount(job);
-    if (count === 1) {
-      return "1 file had no caption sidecar (.txt) and was skipped.";
-    }
-    if (count > 1) {
-      return `${count} files had no caption sidecar (.txt) and were skipped.`;
-    }
     return null;
   }
 
@@ -198,10 +158,7 @@ export function jobWarningMessage(job: Job): string | null {
     if (noDetections === 1) {
       return "1 image had no body parts detected.";
     }
-    if (noDetections > 1) {
-      return `${noDetections} images had no body parts detected.`;
-    }
-    return null;
+    return `${noDetections} images had no body parts detected.`;
   }
 
   const count = jobNoTxtCount(job);
@@ -242,9 +199,9 @@ export function statusLabel(job: Job): string {
   }
 }
 
-export function statusTone(
-  status: JobStatus,
-): "active" | "success" | "danger" | "warning" | "muted" {
+export type JobStatusTone = "active" | "success" | "danger" | "warning" | "muted";
+
+export function statusTone(status: JobStatus): JobStatusTone {
   if (isActiveJobStatus(status)) return "active";
   if (status === "completed") return "success";
   if (status === "failed" || status === "interrupted") return "danger";
@@ -252,7 +209,7 @@ export function statusTone(
   return "muted";
 }
 
-export function jobStatusTone(job: Job): "active" | "success" | "danger" | "warning" | "muted" {
+export function jobStatusTone(job: Job): JobStatusTone {
   if (jobShowsWarningState(job)) {
     return "warning";
   }
@@ -344,31 +301,32 @@ export function updateJobTimingTracker(
 
 function jobTimingCounts(job: Job): { fast: number; slow: number } {
   const stats = job.stats ?? {};
+  const type = jobTypeOf(job);
 
-  if (jobTypeOf(job) === "body_parts") {
+  if (type === "body_parts") {
     const fast = (stats.no_detections ?? 0) + (stats.read_error ?? 0);
     const slow = (stats.success ?? 0) + (stats.detection_error ?? 0) + (stats.write_error ?? 0);
     return { fast, slow };
   }
 
-  if (jobTypeOf(job) === "strip_metadata") {
+  if (type === "strip_metadata") {
     const slow = (stats.success ?? 0) + (stats.write_error ?? 0) + (stats.ffmpeg_error ?? 0);
     const fast = stats.read_error ?? 0;
     return { fast, slow };
   }
 
-  if (jobTypeOf(job) === "set_captions") {
+  if (type === "set_captions") {
     const slow = (stats.success ?? 0) + (stats.write_error ?? 0);
     const fast = stats.skipped ?? 0;
     return { fast, slow };
   }
 
-  if (jobTypeOf(job) === "batch_rename") {
+  if (type === "batch_rename") {
     const slow = (stats.success ?? 0) + (stats.rename_error ?? 0);
     return { fast: stats.cancelled ?? 0, slow };
   }
 
-  if (jobTypeOf(job) === "verify_captions") {
+  if (type === "verify_captions") {
     const slow =
       (stats.success ?? 0) +
       (stats.api_error ?? 0) +

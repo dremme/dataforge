@@ -21,6 +21,7 @@ import {
   statusLabel,
 } from "@/features/jobs/lib/jobs";
 import { useJobRemainingTime } from "@/features/jobs/hooks/useJobRemainingTime";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface JobCardProps {
@@ -53,7 +54,13 @@ export function JobCard({
 
   return (
     <article
-      className={`job-card job-card--${tone}${showError ? " job-card--danger" : ""}${showWarning ? " job-card--warning" : ""}${isCurrentFolder ? " job-card--current" : ""}`}
+      className={classNames(
+        "job-card",
+        `job-card--${tone}`,
+        showError && "job-card--danger",
+        showWarning && "job-card--warning",
+        isCurrentFolder && "job-card--current",
+      )}
       aria-label={`${jobTypeLabel(job)} job for ${folderLabel}`}
     >
       <div className="job-card__header">
@@ -134,7 +141,12 @@ export function JobCard({
         aria-label={`Progress for ${folderLabel}`}
       >
         <div
-          className={`job-card__progress-bar${showError ? " job-card__progress-bar--error" : ""}${showWarning ? " job-card__progress-bar--warning" : ""}${showCancelled ? " job-card__progress-bar--cancelled" : ""}`}
+          className={classNames(
+            "job-card__progress-bar",
+            showError && "job-card__progress-bar--error",
+            showWarning && "job-card__progress-bar--warning",
+            showCancelled && "job-card__progress-bar--cancelled",
+          )}
           style={{ width: `${progressPercent(job)}%` }}
         />
       </div>

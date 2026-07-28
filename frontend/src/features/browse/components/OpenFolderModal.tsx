@@ -17,6 +17,7 @@ import {
   readRecentFolderPaths,
   restoreRecentFolders,
 } from "@/features/browse/lib/folderPreferences";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconFolder, iconStar, iconStarPlusIcon, iconX } from "@/shared/icons";
@@ -26,6 +27,7 @@ import {
   folderPathsEqual,
   normalizeFolderPath,
 } from "@/features/browse/lib/folderPath";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface OpenFolderModalProps {
@@ -54,7 +56,10 @@ function FolderRow({
   return (
     <li className="open-folder-modal__row">
       <div
-        className={`open-folder-modal__option${isCurrent ? " open-folder-modal__option--current" : ""}`}
+        className={classNames(
+          "open-folder-modal__option",
+          isCurrent && "open-folder-modal__option--current",
+        )}
       >
         <button
           type="button"
@@ -72,7 +77,10 @@ function FolderRow({
         </button>
         <button
           type="button"
-          className={`open-folder-modal__favorite${isFavorite ? " open-folder-modal__favorite--active" : ""}`}
+          className={classNames(
+            "open-folder-modal__favorite",
+            isFavorite && "open-folder-modal__favorite--active",
+          )}
           onClick={(event) => {
             event.stopPropagation();
             onToggleFavorite(path, isFavorite);
@@ -111,14 +119,7 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
     setRecentRevision((revision) => revision + 1);
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   useEffect(() => {
     let cancelled = false;

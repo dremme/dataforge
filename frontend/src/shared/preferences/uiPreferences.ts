@@ -1,5 +1,6 @@
-import { requestJson } from "@/shared/api/http";
+import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
+import { readStored, writeStored } from "@/shared/lib/storage";
 
 /**
  * UI preferences shared across features via a single backend endpoint.
@@ -14,38 +15,22 @@ const SORT_CACHE_KEY = "gallery-sort";
 const AUTOMATION_SPECS_CACHE_KEY = "automation-specs-visible";
 
 export function readCachedSortPreference(): string | null {
-  try {
-    return localStorage.getItem(SORT_CACHE_KEY);
-  } catch {
-    return null;
-  }
+  return readStored(SORT_CACHE_KEY);
 }
 
 export function readCachedAutomationSpecsPreference(): boolean | null {
-  try {
-    const stored = localStorage.getItem(AUTOMATION_SPECS_CACHE_KEY);
-    if (stored === "true") return true;
-    if (stored === "false") return false;
-  } catch {
-    // Ignore storage access errors
-  }
+  const stored = readStored(AUTOMATION_SPECS_CACHE_KEY);
+  if (stored === "true") return true;
+  if (stored === "false") return false;
   return null;
 }
 
-export function cacheSortPreference(sort: string): void {
-  try {
-    localStorage.setItem(SORT_CACHE_KEY, sort);
-  } catch {
-    // Ignore storage access errors
-  }
+function cacheSortPreference(sort: string): void {
+  writeStored(SORT_CACHE_KEY, sort);
 }
 
-export function cacheAutomationSpecsPreference(showAutomationSpecs: boolean): void {
-  try {
-    localStorage.setItem(AUTOMATION_SPECS_CACHE_KEY, String(showAutomationSpecs));
-  } catch {
-    // Ignore storage access errors
-  }
+function cacheAutomationSpecsPreference(showAutomationSpecs: boolean): void {
+  writeStored(AUTOMATION_SPECS_CACHE_KEY, String(showAutomationSpecs));
 }
 
 function parseUiSettingsResponse(data: {
@@ -58,7 +43,7 @@ function parseUiSettingsResponse(data: {
   };
 }
 
-export async function fetchUiSettings(): Promise<UiSettings> {
+async function fetchUiSettings(): Promise<UiSettings> {
   const data = await requestJson<{ sort: string; show_automation_specs?: boolean }>(
     "/api/preferences/ui",
   );
@@ -88,13 +73,9 @@ export async function updateUiSettings(partial: Partial<UiSettings>): Promise<Ui
     body.show_automation_specs = partial.showAutomationSpecs;
   }
 
-  const data = await requestJson<{ sort: string; show_automation_specs?: boolean }>(
+  const data = await putJson<{ sort: string; show_automation_specs?: boolean }>(
     "/api/preferences/ui",
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
+    body,
   );
   const settings = parseUiSettingsResponse(data);
   cacheSortPreference(settings.sort);

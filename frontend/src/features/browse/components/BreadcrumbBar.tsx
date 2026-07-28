@@ -9,6 +9,7 @@ import {
   iconLoader2,
 } from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
 import { OpenFolderModal } from "./OpenFolderModal";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -71,7 +72,10 @@ export function BreadcrumbBar({
                 {index > 0 && <Icon icon={iconChevronRight} className="breadcrumbs__sep" />}
                 {isLast ? (
                   <span
-                    className={`breadcrumbs__current${folderNotFound ? " breadcrumbs__current--not-found" : ""}`}
+                    className={classNames(
+                      "breadcrumbs__current",
+                      folderNotFound && "breadcrumbs__current--not-found",
+                    )}
                     aria-current="page"
                     title={crumb.path}
                   >
@@ -123,7 +127,10 @@ export function BreadcrumbBar({
             >
               <Icon
                 icon={openingInExplorer ? iconLoader2 : iconArrowUpRight}
-                className={`breadcrumbs__explorer-icon${openingInExplorer ? " breadcrumbs__explorer-icon--spin" : ""}`}
+                className={classNames(
+                  "breadcrumbs__explorer-icon",
+                  openingInExplorer && "breadcrumbs__explorer-icon--spin",
+                )}
               />
             </button>
           </Tooltip>

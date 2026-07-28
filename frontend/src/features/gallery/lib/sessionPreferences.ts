@@ -1,3 +1,4 @@
+import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
 import {
   isCaptionFilter,
   isMediaTypeFilter,
@@ -22,48 +23,39 @@ const DEFAULT_SESSION_QUERY: GallerySessionQuery = {
   searchRegex: false,
 };
 
-function parseStoredSessionQuery(raw: string | null): GallerySessionQuery | null {
-  if (!raw) return null;
+function parseStoredSessionQuery(value: unknown): GallerySessionQuery | null {
+  if (!value || typeof value !== "object") return null;
 
-  try {
-    const parsed = JSON.parse(raw) as Partial<GallerySessionQuery>;
-    const filter: CaptionFilter = isCaptionFilter(parsed.filter ?? null) ? parsed.filter! : "all";
-    const mediaTypeFilter: MediaTypeFilter = isMediaTypeFilter(parsed.mediaTypeFilter ?? null)
+  const parsed = value as Partial<GallerySessionQuery>;
+  return {
+    filter: isCaptionFilter(parsed.filter ?? null) ? parsed.filter! : "all",
+    mediaTypeFilter: isMediaTypeFilter(parsed.mediaTypeFilter ?? null)
       ? parsed.mediaTypeFilter!
-      : "all";
-    return {
-      filter,
-      mediaTypeFilter,
-      searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : "",
-      searchRegex: typeof parsed.searchRegex === "boolean" ? parsed.searchRegex : false,
-    };
-  } catch {
-    return null;
-  }
+      : "all",
+    searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : "",
+    searchRegex: typeof parsed.searchRegex === "boolean" ? parsed.searchRegex : false,
+  };
 }
 
 export function readGallerySessionQuery(): GallerySessionQuery {
-  try {
-    return (
-      parseStoredSessionQuery(sessionStorage.getItem(SESSION_QUERY_CACHE_KEY)) ??
-      DEFAULT_SESSION_QUERY
-    );
-  } catch {
-    return DEFAULT_SESSION_QUERY;
-  }
+  return readStoredJson(
+    SESSION_QUERY_CACHE_KEY,
+    parseStoredSessionQuery,
+    DEFAULT_SESSION_QUERY,
+    "session",
+  );
 }
 
 export function cacheGallerySessionQuery(partial: Partial<GallerySessionQuery>): void {
-  try {
-    const current = readGallerySessionQuery();
-    const next: GallerySessionQuery = {
+  const current = readGallerySessionQuery();
+  writeStoredJson(
+    SESSION_QUERY_CACHE_KEY,
+    {
       filter: partial.filter ?? current.filter,
       mediaTypeFilter: partial.mediaTypeFilter ?? current.mediaTypeFilter,
       searchQuery: partial.searchQuery ?? current.searchQuery,
       searchRegex: partial.searchRegex ?? current.searchRegex,
-    };
-    sessionStorage.setItem(SESSION_QUERY_CACHE_KEY, JSON.stringify(next));
-  } catch {
-    // Ignore storage access errors
-  }
+    } satisfies GallerySessionQuery,
+    "session",
+  );
 }

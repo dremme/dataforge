@@ -118,7 +118,10 @@ export function AutomationPanel({
             <Tooltip content={specsTooltip}>
               <button
                 type="button"
-                className={`automation__specs-toggle${showSpecs ? " automation__specs-toggle--active" : ""}`}
+                className={classNames(
+                  "automation__specs-toggle",
+                  showSpecs && "automation__specs-toggle--active",
+                )}
                 onClick={toggleSpecs}
                 aria-label="Toggle system specifications"
                 aria-expanded={showSpecs}
@@ -220,7 +223,10 @@ export function AutomationPanel({
                 >
                   <Icon
                     icon={cancellingJob ? iconLoader2 : iconBan}
-                    className={`automation__btn-icon${cancellingJob ? " automation__btn-icon--spin" : ""}`}
+                    className={classNames(
+                      "automation__btn-icon",
+                      cancellingJob && "automation__btn-icon--spin",
+                    )}
                   />
                   Cancel
                 </button>
@@ -342,7 +348,12 @@ export function AutomationPanel({
               aria-label={`${jobTypeLabel(job)} progress`}
             >
               <div
-                className={`automation__progress-bar${showJobError ? " automation__progress-bar--error" : ""}${showJobWarning ? " automation__progress-bar--warning" : ""}${showCancelled ? " automation__progress-bar--cancelled" : ""}`}
+                className={classNames(
+                  "automation__progress-bar",
+                  showJobError && "automation__progress-bar--error",
+                  showJobWarning && "automation__progress-bar--warning",
+                  showCancelled && "automation__progress-bar--cancelled",
+                )}
                 style={{ width: `${progressPercent(job)}%` }}
               />
             </div>

@@ -3,31 +3,26 @@ import { isFolderNotFoundError } from "@/shared/api/http";
 import type { BrowseResponse } from "@/shared/types";
 import { folderPathsEqual, normalizeFolderPath } from "./folderPath";
 import { LOAD_RETRY_DELAYS_MS, withRetry } from "@/shared/lib/retry";
+import { readStored, readStoredJson, writeStored, writeStoredJson } from "@/shared/lib/storage";
 
 const FOLDER_CACHE_KEY = "gallery-last-folder";
 const RECENT_FOLDERS_KEY = "gallery-recent-folders";
 const MAX_RECENT_FOLDERS = 8;
 
 export function getCachedLastFolder(): string | null {
-  try {
-    const stored = localStorage.getItem(FOLDER_CACHE_KEY);
-    if (stored) return normalizeFolderPath(stored);
-  } catch {
-    // Ignore storage access errors
-  }
-  return null;
+  const stored = readStored(FOLDER_CACHE_KEY);
+  return stored ? normalizeFolderPath(stored) : null;
 }
 
 function readRecentFoldersRaw(): string[] {
-  try {
-    const stored = localStorage.getItem(RECENT_FOLDERS_KEY);
-    if (!stored) return [];
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-  } catch {
-    return [];
-  }
+  return readStoredJson<string[]>(
+    RECENT_FOLDERS_KEY,
+    (parsed) =>
+      Array.isArray(parsed)
+        ? parsed.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        : null,
+    [],
+  );
 }
 
 function dedupeRecentFolders(paths: string[]): string[] {
@@ -44,11 +39,7 @@ function dedupeRecentFolders(paths: string[]): string[] {
 }
 
 function writeRecentFolders(paths: string[]): void {
-  try {
-    localStorage.setItem(RECENT_FOLDERS_KEY, JSON.stringify(dedupeRecentFolders(paths)));
-  } catch {
-    // Ignore storage access errors
-  }
+  writeStoredJson(RECENT_FOLDERS_KEY, dedupeRecentFolders(paths));
 }
 
 export function readRecentFolderPaths(): string[] {
@@ -85,15 +76,11 @@ export function getRecentFoldersForPicker(
   ];
 }
 
-export function cacheLastFolder(path: string): void {
+function cacheLastFolder(path: string): void {
   const normalized = normalizeFolderPath(path);
   if (!normalized) return;
 
-  try {
-    localStorage.setItem(FOLDER_CACHE_KEY, normalized);
-  } catch {
-    // Ignore storage access errors
-  }
+  writeStored(FOLDER_CACHE_KEY, normalized);
 }
 
 export function touchRecentFolder(path: string): void {
@@ -112,7 +99,7 @@ export function promoteRecentFolder(path: string): void {
   touchRecentFolder(path);
 }
 
-export function cacheFolderPreference(path: string): void {
+function cacheFolderPreference(path: string): void {
   cacheLastFolder(path);
   touchRecentFolder(path);
 }

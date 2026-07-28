@@ -1,5 +1,5 @@
 import type { AutomationDialogsState } from "@/features/automation/types";
-import type { ConfirmableJobType } from "@/features/jobs/constants/jobStartConfirm";
+import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { CaptionSaveResponse, GalleryItem, SysPromptSaveResponse } from "@/shared/types";
 
 type CaptionSavedHandler = (

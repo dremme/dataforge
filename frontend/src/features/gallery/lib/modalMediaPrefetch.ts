@@ -57,7 +57,7 @@ function tryMediaLoad(element: HTMLMediaElement): void {
  * Loads use low priority where supported so the primary stage stays snappy.
  * Returns a cleanup that aborts dangling loads.
  */
-export function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[]): () => void {
+function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[]): () => void {
   const images: HTMLImageElement[] = [];
   const videos: HTMLVideoElement[] = [];
 

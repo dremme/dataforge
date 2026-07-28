@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useJobs } from "@/features/jobs/context/JobsContext";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconListChecks, iconTrash2, iconX } from "@/shared/icons";
 import { foldersMatch } from "@/features/browse/lib/folderPath";
+import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { ExternalJobCard } from "./ExternalJobCard";
 import { Icon } from "@/shared/ui/Icon";
@@ -36,16 +38,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
 
   useScrollLock(drawerOpen, "jobs-drawer-open");
 
-  useEffect(() => {
-    if (!drawerOpen) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !clearAllOpen) closeDrawer();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [clearAllOpen, drawerOpen, closeDrawer]);
+  useEscapeKey(closeDrawer, drawerOpen && !clearAllOpen);
 
   if (!drawerOpen) return null;
 
@@ -156,7 +149,10 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                   )}
                   {hasLocalJobs && (
                     <section
-                      className={`jobs-drawer__section${hasExternalJobs ? " jobs-drawer__section--local" : ""}`}
+                      className={classNames(
+                        "jobs-drawer__section",
+                        hasExternalJobs && "jobs-drawer__section--local",
+                      )}
                       aria-label="DataForge jobs"
                     >
                       {hasExternalJobs && <h3 className="jobs-drawer__section-title">DataForge</h3>}

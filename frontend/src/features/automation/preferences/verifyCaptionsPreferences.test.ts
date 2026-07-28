@@ -6,9 +6,11 @@ import {
 } from "./verifyCaptionsPreferences";
 
 const requestJsonMock = vi.fn();
+const putJsonMock = vi.fn();
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: (...args: unknown[]) => requestJsonMock(...args),
+  putJson: (...args: unknown[]) => putJsonMock(...args),
 }));
 
 vi.mock("@/shared/lib/retry", () => ({
@@ -18,6 +20,7 @@ vi.mock("@/shared/lib/retry", () => ({
 describe("verifyCaptionsPreferences", () => {
   afterEach(() => {
     requestJsonMock.mockReset();
+    putJsonMock.mockReset();
   });
 
   it("loads settings for a folder from the backend", async () => {
@@ -40,7 +43,7 @@ describe("verifyCaptionsPreferences", () => {
   });
 
   it("persists settings to the backend with folder_path", async () => {
-    requestJsonMock.mockResolvedValue({
+    putJsonMock.mockResolvedValue({
       mode: "instruct",
       context: "Saved context.",
       folder_path: "C:\\Photos\\A",
@@ -51,14 +54,10 @@ describe("verifyCaptionsPreferences", () => {
       context: "Saved context.",
     });
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/preferences/verify-captions", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "instruct",
-        context: "Saved context.",
-        folder_path: "C:\\Photos\\A",
-      }),
+    expect(putJsonMock).toHaveBeenCalledWith("/api/preferences/verify-captions", {
+      mode: "instruct",
+      context: "Saved context.",
+      folder_path: "C:\\Photos\\A",
     });
     expect(settings.context).toBe("Saved context.");
   });

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { ConfirmableJobType } from "@/features/jobs/constants/jobStartConfirm";
+import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { Breadcrumb } from "@/shared/types";
 
 export type ConfirmableJobStarters = {

@@ -9,6 +9,7 @@ import {
   clampBBox,
   clientToSvgPoint,
 } from "@/features/gallery/lib/bbox";
+import { classNames } from "@/shared/lib/classNames";
 
 type DragMode = "move" | "n" | "s" | "e" | "w";
 
@@ -375,12 +376,10 @@ export function BboxOverlay({
   return (
     <svg
       ref={svgRef}
-      className={[
+      className={classNames(
         "gallery-item-modal__bbox-overlay",
         editable && "gallery-item-modal__bbox-overlay--editable",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      )}
       viewBox={`0 0 ${imageWidth} ${imageHeight}`}
       preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"

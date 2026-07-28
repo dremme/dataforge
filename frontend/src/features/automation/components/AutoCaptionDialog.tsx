@@ -5,6 +5,7 @@ import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass"
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconX } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 export type AutoCaptionMode = "thinking" | "instruct";
@@ -100,7 +101,10 @@ export function AutoCaptionDialog({
           <div className="auto-caption-dialog__label">Mode</div>
           <div className="auto-caption-dialog__options" role="radiogroup" aria-label="Caption mode">
             <label
-              className={`auto-caption-dialog__option${mode === "thinking" ? " auto-caption-dialog__option--selected" : ""}`}
+              className={classNames(
+                "auto-caption-dialog__option",
+                mode === "thinking" && "auto-caption-dialog__option--selected",
+              )}
               htmlFor={reasoningId}
             >
               <input
@@ -123,7 +127,10 @@ export function AutoCaptionDialog({
             </label>
 
             <label
-              className={`auto-caption-dialog__option${mode === "instruct" ? " auto-caption-dialog__option--selected" : ""}`}
+              className={classNames(
+                "auto-caption-dialog__option",
+                mode === "instruct" && "auto-caption-dialog__option--selected",
+              )}
               htmlFor={instructId}
             >
               <input

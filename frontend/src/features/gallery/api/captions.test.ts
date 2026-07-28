@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { requestJsonMock } = vi.hoisted(() => ({
+const { requestJsonMock, putJsonMock } = vi.hoisted(() => ({
   requestJsonMock: vi.fn(),
+  putJsonMock: vi.fn(),
 }));
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: requestJsonMock,
+  putJson: putJsonMock,
 }));
 
 import {
@@ -16,11 +18,10 @@ import {
   saveSysPrompt,
 } from "./captions";
 
-const jsonHeaders = { "Content-Type": "application/json" };
-
 describe("captions API", () => {
   afterEach(() => {
     requestJsonMock.mockReset();
+    putJsonMock.mockReset();
   });
 
   it("fetches a caption", async () => {
@@ -42,51 +43,44 @@ describe("captions API", () => {
   });
 
   it("saves a text caption", async () => {
-    requestJsonMock.mockResolvedValue({ description: "Updated." });
+    putJsonMock.mockResolvedValue({ description: "Updated." });
 
     await saveCaption("C:\\Photos\\sunset.png", "Updated.");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
-      method: "PUT",
-      headers: jsonHeaders,
-      body: JSON.stringify({ text: "Updated." }),
+    expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
+      text: "Updated.",
     });
   });
 
   it("includes bboxes when saving a caption", async () => {
-    requestJsonMock.mockResolvedValue({ description: "Updated." });
+    putJsonMock.mockResolvedValue({ description: "Updated." });
     const bboxes = [{ x1: 1, y1: 2, x2: 3, y2: 4, label: "Sign" }];
 
     await saveCaption("C:\\Photos\\sunset.png", "Updated.", bboxes);
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
-      method: "PUT",
-      headers: jsonHeaders,
-      body: JSON.stringify({ text: "Updated.", bboxes }),
+    expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
+      text: "Updated.",
+      bboxes,
     });
   });
 
   it("saves raw JSON caption content", async () => {
-    requestJsonMock.mockResolvedValue({ description: "Updated." });
+    putJsonMock.mockResolvedValue({ description: "Updated." });
 
     await saveCaptionJson("C:\\Photos\\sunset.png", '{"description":"Updated."}');
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
-      method: "PUT",
-      headers: jsonHeaders,
-      body: JSON.stringify({ json_content: '{"description":"Updated."}' }),
+    expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
+      json_content: '{"description":"Updated."}',
     });
   });
 
   it("saves a system prompt", async () => {
-    requestJsonMock.mockResolvedValue({ description: "Prompt." });
+    putJsonMock.mockResolvedValue({ description: "Prompt." });
 
     await saveSysPrompt("C:\\Photos", "Prompt.");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/sysprompt?path=C%3A%5CPhotos", {
-      method: "PUT",
-      headers: jsonHeaders,
-      body: JSON.stringify({ text: "Prompt." }),
+    expect(putJsonMock).toHaveBeenCalledWith("/api/sysprompt?path=C%3A%5CPhotos", {
+      text: "Prompt.",
     });
   });
 });

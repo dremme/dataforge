@@ -10,6 +10,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { classNames } from "@/shared/lib/classNames";
 
 interface TooltipChildProps {
   disabled?: boolean;
@@ -94,7 +95,11 @@ export function Tooltip({
 
   return (
     <span
-      className={`tooltip${visible ? " tooltip--visible" : ""}${childDisabled ? " tooltip--disabled-wrap" : ""}`}
+      className={classNames(
+        "tooltip",
+        visible && "tooltip--visible",
+        childDisabled && "tooltip--disabled-wrap",
+      )}
       onMouseEnter={show}
       onMouseLeave={hide}
     >

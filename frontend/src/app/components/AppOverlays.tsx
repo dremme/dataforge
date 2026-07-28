@@ -4,7 +4,7 @@ import { CreateFolderDialog } from "@/features/browse/components/CreateFolderDia
 import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
 import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal";
 import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
-import { JOB_START_CONFIRM } from "@/features/jobs/constants/jobStartConfirm";
+import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";

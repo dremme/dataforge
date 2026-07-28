@@ -13,6 +13,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from "react";
+import { classNames } from "@/shared/lib/classNames";
 import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
 import {
   getCodeEditorHighlightExtension,
@@ -142,7 +143,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     return (
       <div
         ref={rootRef}
-        className={["code-editor", className].filter(Boolean).join(" ")}
+        className={classNames("code-editor", className)}
         data-scroll-lock-allow
         onKeyDownCapture={handleKeyDownCapture}
         onBlur={handleBlur}

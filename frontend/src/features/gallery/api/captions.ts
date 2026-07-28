@@ -1,4 +1,4 @@
-import { requestJson } from "@/shared/api/http";
+import { putJson, requestJson } from "@/shared/api/http";
 import type {
   CaptionBBox,
   CaptionSaveResponse,
@@ -31,11 +31,7 @@ export async function saveCaption(
     body.resolve_issue = true;
   }
 
-  return requestJson<CaptionSaveResponse>(`/api/caption?${params}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  return putJson<CaptionSaveResponse>(`/api/caption?${params}`, body);
 }
 
 export async function saveCaptionJson(
@@ -43,11 +39,7 @@ export async function saveCaptionJson(
   jsonContent: string,
 ): Promise<CaptionSaveResponse> {
   const params = new URLSearchParams({ path: mediaPath });
-  return requestJson<CaptionSaveResponse>(`/api/caption?${params}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ json_content: jsonContent }),
-  });
+  return putJson<CaptionSaveResponse>(`/api/caption?${params}`, { json_content: jsonContent });
 }
 
 export async function saveSysPrompt(
@@ -55,9 +47,5 @@ export async function saveSysPrompt(
   text: string,
 ): Promise<SysPromptSaveResponse> {
   const params = new URLSearchParams({ path: syspromptPath });
-  return requestJson<SysPromptSaveResponse>(`/api/sysprompt?${params}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
+  return putJson<SysPromptSaveResponse>(`/api/sysprompt?${params}`, { text });
 }

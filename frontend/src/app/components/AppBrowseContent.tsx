@@ -10,6 +10,7 @@ import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { BrowseError } from "@/shared/api/http";
 import { iconFolderOpen, iconImages } from "@/shared/icons";
 import type { BrowseResponse, GalleryItem, Subfolder } from "@/shared/types";
+import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
 import { AppInitialLoading } from "./AppInitialLoading";
@@ -99,7 +100,10 @@ export function AppBrowseContent({
           <FolderBrowseLoading />
         ) : (
           <div
-            className={`gallery-drop-zone${fileDropActive ? " gallery-drop-zone--active" : ""}`}
+            className={classNames(
+              "gallery-drop-zone",
+              fileDropActive && "gallery-drop-zone--active",
+            )}
             onDragEnter={fileDropEnabled ? onFileDragEnter : undefined}
             onDragOver={fileDropEnabled ? onFileDragOver : undefined}
             onDragLeave={fileDropEnabled ? onFileDragLeave : undefined}

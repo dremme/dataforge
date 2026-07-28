@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { requestJsonMock } = vi.hoisted(() => ({
+const { requestJsonMock, postJsonMock } = vi.hoisted(() => ({
   requestJsonMock: vi.fn(),
+  postJsonMock: vi.fn(),
 }));
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: requestJsonMock,
+  postJson: postJsonMock,
 }));
 
 import { importFiles, previewFileImport } from "./files";
@@ -13,10 +15,11 @@ import { importFiles, previewFileImport } from "./files";
 describe("files API", () => {
   afterEach(() => {
     requestJsonMock.mockReset();
+    postJsonMock.mockReset();
   });
 
   it("previews import conflicts", async () => {
-    requestJsonMock.mockResolvedValue({
+    postJsonMock.mockResolvedValue({
       importable: ["a.png"],
       new_files: [],
       conflicts: ["a.png"],
@@ -25,10 +28,8 @@ describe("files API", () => {
 
     await previewFileImport("C:\\Photos", ["a.png"]);
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/files/import/preview?path=C%3A%5CPhotos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filenames: ["a.png"] }),
+    expect(postJsonMock).toHaveBeenCalledWith("/api/files/import/preview?path=C%3A%5CPhotos", {
+      filenames: ["a.png"],
     });
   });
 
