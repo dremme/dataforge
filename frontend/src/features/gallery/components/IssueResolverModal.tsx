@@ -10,6 +10,10 @@ import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution"
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { isVideo } from "@/features/gallery/lib/itemKind";
+import {
+  collectAdjacentModalMediaTargets,
+  schedulePrefetchModalMedia,
+} from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { formatMegapixels } from "@/shared/lib/format";
 import {
@@ -65,6 +69,14 @@ export function IssueResolverModal({
     setOpeningInViewer(false);
     setViewerError(null);
   }, [item?.path]);
+
+  // Warm the next queue item only (forward flow). Idle + low priority so the
+  // current stage media is not starved.
+  useEffect(() => {
+    return schedulePrefetchModalMedia(
+      collectAdjacentModalMediaTargets(queue, index, { offsets: [1] }),
+    );
+  }, [index, queue]);
 
   const closeModal = useCallback(() => {
     if (saving) return;

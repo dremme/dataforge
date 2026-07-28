@@ -19,6 +19,10 @@ import {
   iconX,
 } from "@/shared/icons";
 import { isVideo } from "@/features/gallery/lib/itemKind";
+import {
+  collectAdjacentModalMediaTargets,
+  schedulePrefetchModalMedia,
+} from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { BboxOverlay } from "./BboxOverlay";
@@ -110,6 +114,11 @@ export function GalleryItemModal({
     setViewerError(null);
     resetJsonSaveState();
   }, [item?.path, resetJsonSaveState]);
+
+  // Warm next/previous full-size media (idle/low priority) so nav does not flash empty.
+  useEffect(() => {
+    return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(items, index));
+  }, [index, items]);
 
   useEffect(() => {
     onJsonEditorOpenChange?.(jsonEditorOpen);
