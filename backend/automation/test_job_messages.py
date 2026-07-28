@@ -30,7 +30,7 @@ class JobMessagesTests(unittest.TestCase):
         self.assertIsNotNone(message)
         assert message is not None
         self.assertIn("model requests", message)
-        self.assertIn("qwen35moe", message)
+        self.assertIn("qwen35", message)
 
     def test_resolve_job_error_prefers_stored_message(self) -> None:
         message = resolve_job_error(

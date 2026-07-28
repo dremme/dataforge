@@ -435,8 +435,9 @@ class JobManager:
             self._jobs.pop(job_id, None)
             self._cancel_flags.pop(job_id, None)
             self._deleted_ids.add(job_id)
+            deleted_store = delete_job_from_store(job_id)
 
-        return delete_job_from_store(job_id) or had_memory
+        return deleted_store or had_memory
 
     def delete_all_jobs(self) -> int:
         stored_jobs = list_jobs_from_store(limit=100)
@@ -457,7 +458,10 @@ class JobManager:
             self._jobs.clear()
             self._cancel_flags.clear()
 
-        deleted_count = delete_all_jobs_from_store()
+            # Delete while holding the lock so a worker cannot pass the
+            # not-deleted check and re-insert a ``running`` row after we clear.
+            deleted_count = delete_all_jobs_from_store()
+
         return max(deleted_count, stored_count)
 
     def _queue_job(
@@ -678,11 +682,6 @@ class JobManager:
         if not self._begin_job(job_id, cancel_event, prepare=prepare):
             return
 
-        with self._lock:
-            job = self._jobs.get(job_id)
-        if job is not None:
-            self._persist(job)
-
         try:
             result = execute(self._progress_callback(job_id), cancel_event.is_set)
         except Exception as exc:
@@ -801,13 +800,19 @@ class JobManager:
         return job_id in self._deleted_ids
 
     def _persist(self, job: Job) -> None:
-        if self._is_deleted(job.id):
-            return
-        save_job(job.to_dict())
+        """Persist ``job`` if it is still tracked and not deleted."""
+        with self._lock:
+            self._save_snapshot(job.id, job.to_dict())
 
     def _save_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
-        if not self._is_deleted(job_id):
-            save_job(snapshot)
+        """Write a snapshot. Caller must hold ``self._lock``.
+
+        Requires the job to still be in memory and not deleted so a worker
+        cannot re-insert a row after ``delete_job`` / ``delete_all_jobs``.
+        """
+        if job_id in self._deleted_ids or job_id not in self._jobs:
+            return
+        save_job(snapshot)
 
 
 job_manager = JobManager()

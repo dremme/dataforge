@@ -105,7 +105,7 @@ DataForge only calls an OpenAI-compatible HTTP endpoint.
 | **GPU** | NVIDIA with **8–12 GB** VRAM | NVIDIA with **24 GB** VRAM (e.g. RTX 3090 / 4090 class) |
 | **System RAM** | **16 GB** | **32 GB** or more |
 | **Storage** | Fast SSD; room for model weights (several GB to tens of GB per quant) | NVMe SSD |
-| **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) or [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) (good quants) |
+| **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B), [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) (MoE alternative) |
 | **Software** | Local OpenAI-compatible vision server with a vision model loaded | Same, with enough VRAM for quality quants and longer contexts |
 
 ### Body-parts job (YOLO + SAM)
@@ -195,9 +195,10 @@ Values can live in `.env` or the OS environment.
 
 **Suggested models (best first):**
 
-- [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) — recommended default
-- [Qwen3.6 35B A3B uncensored by HauhauCS](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) — same class, fewer refusals
-- [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) — strong dense alternative
+- [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) — recommended default
+- [Qwen3.6 27B Fable Fusion by DavidAU](https://huggingface.co/DavidAU/Qwen3.6-27B-Fable-Fusion-711-Uncensored-Heretic-NM-DAU-NEO-MAX-MTP-GGUF) — strongest option; uncensored, multi-stage fine tune
+- [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) — MoE alternative
+- [Qwen3.6 35B A3B Uncensored by HauhauCS](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) — Uncensored MoE alternative with fewer refusals
 - [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) — lighter VLM for smaller GPUs
 - [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) — weak; usable only when VRAM is tight
 

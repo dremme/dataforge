@@ -37,6 +37,21 @@ export function collectAdjacentModalMediaTargets(
   return targets;
 }
 
+function setLowFetchPriority(element: HTMLElement): void {
+  if ("fetchPriority" in element) {
+    (element as HTMLElement & { fetchPriority: string }).fetchPriority = "low";
+  }
+}
+
+/** Invoke media load when the environment supports it (jsdom does not). */
+function tryMediaLoad(element: HTMLMediaElement): void {
+  try {
+    element.load();
+  } catch {
+    // Ignore incomplete media implementations (e.g. some test hosts).
+  }
+}
+
 /**
  * Warm the browser cache for modal full-size media.
  * Loads use low priority where supported so the primary stage stays snappy.
@@ -51,9 +66,7 @@ export function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[])
       const image = new Image();
       image.decoding = "async";
       // Prefer letting the current visible media claim bandwidth first.
-      if ("fetchPriority" in image) {
-        (image as HTMLImageElement & { fetchPriority: string }).fetchPriority = "low";
-      }
+      setLowFetchPriority(image);
       image.src = target.url;
       images.push(image);
       continue;
@@ -63,11 +76,9 @@ export function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[])
     video.preload = "auto";
     video.muted = true;
     video.playsInline = true;
-    if ("fetchPriority" in video) {
-      (video as HTMLVideoElement & { fetchPriority: string }).fetchPriority = "low";
-    }
+    setLowFetchPriority(video);
     video.src = target.url;
-    video.load();
+    tryMediaLoad(video);
     videos.push(video);
   }
 
@@ -77,7 +88,7 @@ export function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[])
     }
     for (const video of videos) {
       video.removeAttribute("src");
-      video.load();
+      tryMediaLoad(video);
     }
   };
 }

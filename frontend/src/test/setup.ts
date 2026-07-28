@@ -117,6 +117,14 @@ Object.defineProperty(navigator, "clipboard", {
 Object.defineProperty(window, "scrollY", { value: 0, writable: true });
 window.scrollTo = vi.fn();
 
+// jsdom does not implement HTMLMediaElement.load and logs noisy "Not implemented" errors
+// when modal video prefetch runs during gallery tests.
+Object.defineProperty(HTMLMediaElement.prototype, "load", {
+  configurable: true,
+  writable: true,
+  value: function load(this: HTMLMediaElement) {},
+});
+
 class ResizeObserverMock {
   observe(): void {}
   unobserve(): void {}
