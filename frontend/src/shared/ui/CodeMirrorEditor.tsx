@@ -5,9 +5,19 @@ import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import CodeMirror from "@uiw/react-codemirror";
-import { forwardRef, useCallback, useMemo, useRef, type KeyboardEvent } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useMemo,
+  useRef,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
 import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
-import { getCodeEditorTheme, type CodeEditorLanguage } from "@/shared/lib/codeEditorTheme";
+import {
+  getCodeEditorHighlightExtension,
+  type CodeEditorLanguage,
+} from "@/shared/lib/codeEditorTheme";
 
 const CODE_MIRROR_BASIC_SETUP = {
   lineNumbers: true,
@@ -22,7 +32,9 @@ const CODE_MIRROR_BASIC_SETUP = {
 } as const;
 
 function languageExtension(language: CodeEditorLanguage): Extension {
-  return language === "markdown" ? markdown() : json();
+  if (language === "markdown") return markdown();
+  if (language === "json") return json();
+  return [];
 }
 
 export interface CodeMirrorEditorProps {
@@ -31,10 +43,12 @@ export interface CodeMirrorEditorProps {
   value: string;
   placeholder?: string;
   className?: string;
+  editable?: boolean;
   "aria-label"?: string;
   "aria-invalid"?: boolean;
   title?: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
 }
 
 export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorProps>(
@@ -45,10 +59,12 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       value,
       placeholder,
       className,
+      editable = true,
       "aria-label": ariaLabel,
       "aria-invalid": ariaInvalid,
       title,
       onChange,
+      onBlur,
     },
     ref,
   ) {
@@ -61,6 +77,9 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       onChangeRef.current(next);
     }, []);
 
+    const onBlurRef = useRef(onBlur);
+    onBlurRef.current = onBlur;
+
     // First Escape closes the find panel; do not let host dialogs see the key.
     const handleKeyDownCapture = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key !== "Escape") return;
@@ -69,13 +88,17 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       event.stopPropagation();
     }, []);
 
-    const theme = useMemo(() => getCodeEditorTheme(language), [language]);
+    const handleBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
+      const next = event.relatedTarget;
+      if (next instanceof Node && event.currentTarget.contains(next)) return;
+      onBlurRef.current?.();
+    }, []);
 
     const extensions = useMemo(() => {
       const attrs: Record<string, string> = {
         tabindex: "0",
       };
-      if (language === "markdown") {
+      if (language === "markdown" || language === "plaintext") {
         attrs.spellcheck = "true";
         attrs.lang = "en";
       }
@@ -89,10 +112,11 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
         attrs.title = title;
       }
 
-      // search() must be permanent config. basicSetup only adds the keymap; the first
-      // Ctrl+F otherwise appends search state via appendConfig, which reconfigure drops.
+      // Chrome lives in SCSS; syntax colors stay in HighlightStyle.
+      // search() must be permanent config (basicSetup only adds the keymap).
       const viewExtensions: Extension[] = [
         languageExtension(language),
+        getCodeEditorHighlightExtension(language),
         search(),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of(attrs),
@@ -117,17 +141,20 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
         className={["code-editor", className].filter(Boolean).join(" ")}
         data-scroll-lock-allow
         onKeyDownCapture={handleKeyDownCapture}
+        onBlur={handleBlur}
       >
         <CodeMirror
           ref={ref}
+          id={id}
           className="code-editor__codemirror"
           value={value}
           placeholder={placeholder}
           aria-label={ariaLabel}
           aria-invalid={ariaInvalid || undefined}
           title={title}
+          editable={editable}
           extensions={extensions}
-          theme={theme}
+          theme="none"
           basicSetup={CODE_MIRROR_BASIC_SETUP}
           onChange={handleChange}
         />

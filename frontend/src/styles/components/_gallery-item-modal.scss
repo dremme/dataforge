@@ -286,62 +286,6 @@ $json-color: #fcd34d;
     @include icon-size(var(--icon-size-xs));
   }
 
-  &__caption-input {
-    display: block;
-    width: 100%;
-    min-height: 4.5rem;
-    max-height: 18vh;
-    margin: 0;
-    padding: 0.75rem 0.9rem;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    background: $color-caption-input-bg;
-    color: var(--text);
-    font-family: inherit;
-    font-size: var(--text-sm);
-    font-weight: var(--font-normal);
-    line-height: var(--leading-relaxed);
-    resize: vertical;
-
-    &:focus {
-      outline: none;
-    }
-
-    &:focus:not(.gallery-item-modal__caption-input--saved):not(
-        .gallery-item-modal__caption-input--error
-      ) {
-      border-color: var(--accent, $color-caption-focus);
-      box-shadow: 0 0 0 2px $color-caption-focus-ring;
-    }
-
-    &--saved,
-    &--saved:focus {
-      border-color: $color-caption-saved;
-      box-shadow: 0 0 0 2px $color-caption-saved-ring;
-    }
-
-    &--error,
-    &--error:focus {
-      border-color: $color-caption-error;
-      box-shadow: 0 0 0 2px $color-caption-error-ring;
-    }
-
-    &::placeholder {
-      color: var(--text-muted);
-      font-style: italic;
-      opacity: 0.75;
-    }
-
-    &--warning::placeholder {
-      color: $color-warning;
-      opacity: 0.9;
-    }
-
-    &--muted::placeholder {
-      opacity: 0.65;
-    }
-  }
-
   // Bounding boxes
   &__bboxes {
     padding: 0 1.5rem 1.15rem;

@@ -62,6 +62,22 @@
   }
 }
 
+// Chrome + highlight layers (syntax token colors stay in codeEditorTheme HighlightStyle).
+// Layers use distinct Monokai hues so selection / same-word / find stay separable when stacked:
+//   selection            soft cyan
+//   selectionMatch       soft purple (other occurrences of the selected word)
+//   searchMatch          yellow (find hits)
+//   searchMatch-selected pink (current find hit)
+$code-editor-text: #d6d6dd;
+$code-editor-bright: #fcfcfa;
+$code-editor-muted: #939293;
+$code-editor-selection: rgba(120, 220, 232, 0.26);
+$code-editor-selection-match: rgba(171, 157, 242, 0.28);
+$code-editor-search-match: rgba(255, 216, 102, 0.32);
+$code-editor-search-match-outline: rgba(255, 216, 102, 0.55);
+$code-editor-search-match-selected: rgba(255, 97, 136, 0.42);
+$code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
+
 .code-editor {
   position: relative;
   width: 100%;
@@ -107,17 +123,91 @@
     min-height: inherit;
   }
 
+  // --- Chrome (moved from EditorView.theme) ---
   .cm-editor {
     height: 100%;
     min-height: inherit;
     display: flex;
     flex-direction: column;
+    background-color: var(--bg-media);
+    color: $code-editor-text;
+  }
+
+  .cm-editor.cm-focused {
+    outline: none;
   }
 
   // Keep the Ctrl+F panel inside the editor chrome (parent is overflow:hidden).
   .cm-scroller {
     flex: 1 1 auto;
     min-height: 0;
+    font-family: Consolas, ui-monospace, monospace;
+    font-size: var(--text-sm);
+    font-weight: var(--font-normal);
+    line-height: var(--leading-relaxed);
+    overflow-y: auto;
+  }
+
+  .cm-content {
+    caret-color: $code-editor-bright;
+  }
+
+  .cm-gutters {
+    background-color: var(--bg-media);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    color: $code-editor-muted;
+    font-family: Consolas, ui-monospace, monospace;
+    font-size: var(--text-sm);
+    font-weight: var(--font-normal);
+    line-height: var(--leading-relaxed);
+  }
+
+  .cm-lineNumbers .cm-gutterElement {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Beat CodeMirror base theme (uses .cm-light/.cm-dark + deep focused path).
+  .cm-editor.cm-light .cm-selectionBackground,
+  .cm-editor.cm-dark .cm-selectionBackground,
+  .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+    background: $code-editor-selection;
+  }
+
+  // Same-word highlight (highlightSelectionMatches). Default lime clashes with green tokens.
+  .cm-selectionMatch {
+    background-color: $code-editor-selection-match;
+  }
+
+  // Find takes precedence when both marks wrap the same span.
+  .cm-searchMatch .cm-selectionMatch {
+    background-color: transparent;
+  }
+
+  // Find hits — beat light/dark baseTheme yellow-cyan / orange-magenta defaults.
+  .cm-editor.cm-light .cm-searchMatch,
+  .cm-editor.cm-dark .cm-searchMatch,
+  .cm-searchMatch {
+    background-color: $code-editor-search-match;
+    outline: 1px solid $code-editor-search-match-outline;
+    border-radius: 1px;
+  }
+
+  .cm-editor.cm-light .cm-searchMatch-selected,
+  .cm-editor.cm-dark .cm-searchMatch-selected,
+  .cm-searchMatch-selected {
+    background-color: $code-editor-search-match-selected;
+    outline-color: $code-editor-search-match-selected-outline;
+  }
+
+  .cm-editor.cm-focused .cm-cursor {
+    border-left-color: $code-editor-bright;
+  }
+
+  .cm-placeholder {
+    color: $code-editor-muted;
+    font-style: italic;
+    opacity: 0.9;
   }
 
   .cm-panels {
@@ -217,6 +307,97 @@
       &:hover:has(input:not(:disabled))::before {
         border-color: var(--accent-border);
       }
+    }
+  }
+
+  // Caption chrome last so it wins over Monokai .cm-editor / .cm-gutters backgrounds.
+  // Match dialog inputs: 1px border only (no inset ::after ring → would read as 2px).
+  //
+  // Scroll: with height:auto, max-height only clips (overflow:hidden) and .cm-scroller
+  // grows with content, so there is no scrollbar. Wheel handlers also stopPropagation,
+  // so an outer scrollport never receives the event. Cap .cm-editor via max-height:
+  // inherit and keep a min-height:0 flex chain so .cm-scroller is the scrollport.
+  &--caption {
+    display: flex;
+    flex-direction: column;
+    min-height: 6.5rem;
+    max-height: 18vh;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: $color-caption-input-bg;
+    color: var(--text);
+    overflow: hidden;
+
+    &::after {
+      display: none;
+    }
+
+    .code-editor__codemirror {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: inherit;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cm-editor {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: inherit;
+      height: 100%;
+      background-color: transparent;
+      color: var(--text);
+    }
+
+    .cm-scroller {
+      flex: 1 1 auto;
+      min-height: 0;
+      font-size: var(--text-sm);
+      font-weight: var(--font-normal);
+      line-height: var(--leading-relaxed);
+      overflow-y: auto;
+    }
+
+    .cm-content {
+      padding: 0.75rem 0.9rem;
+      caret-color: var(--text);
+    }
+
+    .cm-gutters {
+      background-color: transparent;
+      border-right-color: var(--border);
+      color: var(--text-muted);
+    }
+
+    .cm-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      opacity: 0.75;
+    }
+
+    .cm-editor.cm-light .cm-selectionBackground,
+    .cm-editor.cm-dark .cm-selectionBackground,
+    .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+      background: var(--accent-soft, $color-caption-focus-ring);
+    }
+
+    .cm-editor.cm-focused .cm-cursor {
+      border-left-color: var(--text);
+    }
+
+    &:focus-within:not(.code-editor--saved):not(.code-editor--error) {
+      border-color: var(--accent, $color-caption-focus);
+    }
+
+    &.code-editor--saved,
+    &.code-editor--saved:focus-within {
+      border-color: $color-caption-saved;
+    }
+
+    &.code-editor--error,
+    &.code-editor--error:focus-within {
+      border-color: $color-caption-error;
     }
   }
 }

@@ -11,7 +11,6 @@ import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass"
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
-import { classNames } from "@/shared/lib/classNames";
 import { formatMegapixels } from "@/shared/lib/format";
 import {
   iconArrowUpRight,
@@ -20,6 +19,7 @@ import {
   iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
+import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
@@ -123,7 +123,9 @@ export function IssueResolverModal({
       const isEditing =
         target instanceof HTMLTextAreaElement ||
         target instanceof HTMLInputElement ||
-        target instanceof HTMLSelectElement;
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable || target.closest(".cm-content") != null));
 
       if (event.key === "Escape") {
         closeModal();
@@ -282,30 +284,17 @@ export function IssueResolverModal({
               >
                 Caption
               </label>
-              <textarea
+              <CaptionEditor
                 id="issue-resolver-caption"
-                data-scroll-lock-allow
-                lang="en"
-                spellCheck
-                className={classNames(
-                  "issue-resolver-modal__caption-input",
-                  `issue-resolver-modal__caption-input--${captionDisplay.variant}`,
-                  saveError && "issue-resolver-modal__caption-input--error",
-                )}
                 value={caption}
                 placeholder={placeholder}
-                rows={6}
+                variant={captionDisplay.variant}
+                saveState={saveError ? "error" : "idle"}
                 aria-label={`Caption for ${item.name}`}
                 aria-invalid={saveError}
                 title={saveError ? "Save failed" : undefined}
-                disabled={saving}
-                onChange={(event) => handleCaptionChange(event.target.value)}
-                onBlur={() => {
-                  const trimmed = caption.trim();
-                  if (trimmed !== caption) {
-                    handleCaptionChange(trimmed);
-                  }
-                }}
+                editable={!saving}
+                onChange={handleCaptionChange}
               />
             </div>
           </div>

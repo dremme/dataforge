@@ -22,6 +22,7 @@ import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { BboxOverlay } from "./BboxOverlay";
+import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { GalleryItemModalBboxList } from "./GalleryItemModalBboxList";
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
@@ -194,7 +195,9 @@ export function GalleryItemModal({
       const isEditing =
         target instanceof HTMLTextAreaElement ||
         target instanceof HTMLInputElement ||
-        target instanceof HTMLSelectElement;
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable || target.closest(".cm-content") != null));
 
       if (event.key === "Escape") {
         if (jsonEditorOpen || deleteConfirmOpen) return;
@@ -399,34 +402,16 @@ export function GalleryItemModal({
                   </button>
                 </div>
               </div>
-              <textarea
+              <CaptionEditor
                 id="gallery-item-caption"
-                data-scroll-lock-allow
-                lang="en"
-                spellCheck
-                className={classNames(
-                  "gallery-item-modal__caption-input",
-                  `gallery-item-modal__caption-input--${captionDisplay.variant}`,
-                  saveState !== "idle" && `gallery-item-modal__caption-input--${saveState}`,
-                )}
                 value={caption}
                 placeholder={placeholder}
-                rows={6}
+                variant={captionDisplay.variant}
+                saveState={saveState}
                 aria-label={`Caption for ${item.name}`}
                 aria-invalid={saveState === "error"}
                 title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
-                onChange={(event) => handleCaptionChange(event.target.value)}
-                onBlur={() => {
-                  const trimmed = caption.trim();
-                  if (trimmed !== caption) {
-                    handleCaptionChange(trimmed);
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                    event.stopPropagation();
-                  }
-                }}
+                onChange={handleCaptionChange}
               />
             </div>
 

@@ -6,9 +6,11 @@ interface MockCodeMirrorProps {
   placeholder?: string;
   className?: string;
   id?: string;
+  editable?: boolean;
   "aria-label"?: string;
   "aria-invalid"?: boolean;
   title?: string;
+  onBlur?: () => void;
 }
 
 export const MockCodeMirror = forwardRef<HTMLTextAreaElement, MockCodeMirrorProps>(
@@ -19,9 +21,11 @@ export const MockCodeMirror = forwardRef<HTMLTextAreaElement, MockCodeMirrorProp
       placeholder,
       className,
       id,
+      editable = true,
       "aria-label": ariaLabel,
       "aria-invalid": ariaInvalid,
       title,
+      onBlur,
     },
     ref,
   ) {
@@ -35,7 +39,9 @@ export const MockCodeMirror = forwardRef<HTMLTextAreaElement, MockCodeMirrorProp
         aria-label={ariaLabel}
         aria-invalid={ariaInvalid || undefined}
         title={title}
+        disabled={editable === false}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
       />
     );
   },

@@ -8,7 +8,7 @@ vi.mock("@uiw/react-codemirror", async () => {
 });
 
 vi.mock("@/shared/lib/codeEditorTheme", () => ({
-  getCodeEditorTheme: () => [],
+  getCodeEditorHighlightExtension: () => [],
 }));
 
 vi.mock("@codemirror/lang-markdown", () => ({
@@ -112,6 +112,7 @@ Object.defineProperty(window, "ResizeObserver", {
 class IntersectionObserverMock implements IntersectionObserver {
   readonly root: Element | Document | null = null;
   readonly rootMargin = "0px";
+  readonly scrollMargin = "0px";
   readonly thresholds: readonly number[] = [0];
   private readonly callback: IntersectionObserverCallback;
 
