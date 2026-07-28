@@ -517,6 +517,94 @@
   }
 }
 
+// Custom checkbox (pair with a visually-hidden real input).
+// Surface = the square; mark = rotated L. Keep separate so CodeMirror can put
+// the box on label::before and the mark on label::after.
+@mixin custom-checkbox-box-surface {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg-elevated);
+  color: var(--bg);
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+// Rotated L checkmark; parent should center it (grid or absolute 50%/50%).
+@mixin custom-checkbox-mark {
+  content: "";
+  box-sizing: border-box;
+  width: 0.28rem;
+  height: 0.5rem;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  // Optical lift: L shape sits slightly low after rotate
+  transform: translateY(-0.05rem) rotate(45deg);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+@mixin custom-checkbox-box {
+  @include custom-checkbox-box-surface;
+
+  &::after {
+    @include custom-checkbox-mark;
+  }
+}
+
+@mixin custom-checkbox-box-checked {
+  background: var(--accent);
+  border-color: var(--accent);
+
+  &::after {
+    opacity: 1;
+  }
+}
+
+// Custom radio control (pair with a visually-hidden real input).
+@mixin custom-radio-control {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--bg);
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+
+  &::after {
+    content: "";
+    // Odd-pixel-friendly size so the disc sits on the grid center
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity var(--transition);
+  }
+}
+
+@mixin custom-radio-control-checked {
+  background: var(--accent);
+  border-color: var(--accent);
+
+  &::after {
+    opacity: 1;
+  }
+}
+
 @mixin toolbar-pill-interaction {
   @include btn-hover-default;
 
