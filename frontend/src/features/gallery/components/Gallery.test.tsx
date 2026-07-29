@@ -1,9 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import * as captionStatus from "@/features/gallery/lib/captionStatus";
 import * as scrollRoot from "@/features/gallery/lib/scrollRoot";
 import { HOME_PATH } from "@/test/fixtures";
+import { withGallerySelection } from "@/test/gallerySelection";
 import type { GalleryItem } from "@/shared/types";
 import { Gallery } from "./Gallery";
+
+// GalleryCard calls this once per render, so it doubles as a render counter.
+vi.mock("@/features/gallery/lib/captionStatus", async (importOriginal) => {
+  const actual = await importOriginal<typeof captionStatus>();
+  return { ...actual, getCardCaptionDisplay: vi.fn(actual.getCardCaptionDisplay) };
+});
+
+const cardRenderSpy = vi.mocked(captionStatus.getCardCaptionDisplay);
 
 const imageItem: GalleryItem = {
   name: "sunset.png",
@@ -40,9 +50,11 @@ const videoItem: GalleryItem = {
 describe("Gallery", () => {
   it("mounts image previews and video placeholders for visible virtual rows", () => {
     const { container } = render(
-      <main className="main">
-        <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} />
-      </main>,
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} />
+        </main>,
+      ),
     );
 
     expect(container.querySelectorAll("img.card__img")).toHaveLength(2);
@@ -51,23 +63,45 @@ describe("Gallery", () => {
 
   it("toggles selection in selection mode instead of opening the item", () => {
     const onSelect = vi.fn();
-    const onToggleSelect = vi.fn();
+    const toggleSelectedPath = vi.fn();
 
     render(
-      <main className="main">
-        <Gallery
-          items={[imageItem, videoItem]}
-          onSelect={onSelect}
-          selectionMode
-          selectedPaths={new Set([imageItem.path])}
-          onToggleSelect={onToggleSelect}
-        />
-      </main>,
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={[imageItem, videoItem]} onSelect={onSelect} />
+        </main>,
+        {
+          selectionMode: true,
+          selectedPaths: new Set([imageItem.path]),
+          toggleSelectedPath,
+        },
+      ),
     );
 
     fireEvent.click(screen.getByRole("button", { name: `Deselect ${imageItem.name}` }));
-    expect(onToggleSelect).toHaveBeenCalledWith(imageItem.path);
+    expect(toggleSelectedPath).toHaveBeenCalledWith(imageItem.path);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("re-renders only the card whose selection changed", () => {
+    // Stable across renders, matching the memoized `openGalleryItem` in the app.
+    const onSelect = vi.fn();
+    const gallery = (selectedPaths: ReadonlySet<string>) =>
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={[imageItem, videoItem]} onSelect={onSelect} />
+        </main>,
+        { selectionMode: true, selectedPaths },
+      );
+
+    const { rerender } = render(gallery(new Set()));
+    cardRenderSpy.mockClear();
+
+    // Selecting one item must not re-render the other card, or large folders
+    // would repaint the whole visible grid on every click.
+    rerender(gallery(new Set([imageItem.path])));
+
+    expect(cardRenderSpy.mock.calls.map(([item]) => item.path)).toEqual([imageItem.path]);
   });
 
   it("shows a back-to-top button after scrolling the main container", () => {
@@ -77,9 +111,11 @@ describe("Gallery", () => {
     });
 
     const { container } = render(
-      <main className="main">
-        <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} />
-      </main>,
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} />
+        </main>,
+      ),
     );
 
     const main = container.querySelector("main.main");

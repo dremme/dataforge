@@ -4,6 +4,7 @@ import {
   moveSelectedMedia,
   previewMediaMove,
 } from "@/features/gallery/api/media";
+import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
@@ -18,32 +19,27 @@ function pathBaseName(path: string): string {
 }
 
 interface GallerySelectionControlsProps {
+  /** Folder the selected media currently lives in — the move dialog's origin. */
   currentFolder: string;
+  /** Items currently visible under the active filters, for "select all". */
   totalCount: number;
-  selectionMode: boolean;
-  selectedCount: number;
-  selectedPaths: ReadonlySet<string>;
-  onEnterSelectionMode: () => void;
-  onExitSelectionMode: () => void;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-  onDeleted: (paths: string[]) => void | Promise<void>;
-  onMoved: (paths: string[]) => void | Promise<void>;
 }
 
 export function GallerySelectionControls({
   currentFolder,
   totalCount,
-  selectionMode,
-  selectedCount,
-  selectedPaths,
-  onEnterSelectionMode,
-  onExitSelectionMode,
-  onSelectAll,
-  onClearSelection,
-  onDeleted,
-  onMoved,
 }: GallerySelectionControlsProps) {
+  const {
+    selectionMode,
+    selectedCount,
+    selectedPaths,
+    enterSelectionMode,
+    exitSelectionMode,
+    selectAllPaths,
+    clearSelectedPaths,
+    onDeleted,
+    onMoved,
+  } = useGallerySelectionContext();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [movePickerOpen, setMovePickerOpen] = useState(false);
@@ -97,12 +93,12 @@ export function GallerySelectionControls({
       }
 
       event.preventDefault();
-      onExitSelectionMode();
+      exitSelectionMode();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onExitSelectionMode, selectionMode]);
+  }, [exitSelectionMode, selectionMode]);
 
   const confirmDelete = useCallback(async () => {
     const paths = Array.from(selectedPaths);
@@ -120,12 +116,12 @@ export function GallerySelectionControls({
       setDeleteConfirmOpen(false);
 
       if (succeeded.length === totalCount) {
-        onExitSelectionMode();
+        exitSelectionMode();
       }
     } finally {
       setDeleting(false);
     }
-  }, [totalCount, deleting, onDeleted, onExitSelectionMode, selectedPaths]);
+  }, [totalCount, deleting, onDeleted, exitSelectionMode, selectedPaths]);
 
   const executeMove = useCallback(
     async (destinationFolder: string, overwrite: boolean) => {
@@ -147,7 +143,7 @@ export function GallerySelectionControls({
         setMoveDestination(null);
 
         if (succeeded.length === totalCount) {
-          onExitSelectionMode();
+          exitSelectionMode();
         }
       } catch (error) {
         notify({ variant: "danger", message: formatApiError(error) });
@@ -155,7 +151,7 @@ export function GallerySelectionControls({
         setMoving(false);
       }
     },
-    [moving, notify, onExitSelectionMode, onMoved, selectedPaths, totalCount],
+    [moving, notify, exitSelectionMode, onMoved, selectedPaths, totalCount],
   );
 
   const handleDestinationSelected = useCallback(
@@ -197,7 +193,7 @@ export function GallerySelectionControls({
   if (!selectionMode) {
     return (
       <div className="gallery-controls">
-        <button type="button" className="gallery-controls__btn" onClick={onEnterSelectionMode}>
+        <button type="button" className="gallery-controls__btn" onClick={enterSelectionMode}>
           Select
         </button>
       </div>
@@ -223,7 +219,7 @@ export function GallerySelectionControls({
         <button
           type="button"
           className="gallery-controls__btn gallery-controls__btn--accent"
-          onClick={onExitSelectionMode}
+          onClick={exitSelectionMode}
           disabled={busy}
           aria-label="Exit selection mode"
         >
@@ -232,7 +228,7 @@ export function GallerySelectionControls({
         <button
           type="button"
           className="gallery-controls__btn"
-          onClick={onSelectAll}
+          onClick={selectAllPaths}
           disabled={busy || selectedCount === totalCount}
         >
           All
@@ -240,7 +236,7 @@ export function GallerySelectionControls({
         <button
           type="button"
           className="gallery-controls__btn"
-          onClick={onClearSelection}
+          onClick={clearSelectedPaths}
           disabled={busy || selectedCount === 0}
         >
           None

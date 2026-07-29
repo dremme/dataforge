@@ -10,9 +10,9 @@ import {
 } from "@/shared/hooks/scrollLockManager";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
+import { withGallerySelection } from "@/test/gallerySelection";
+import type { GallerySelectionValue } from "@/features/gallery/context/GallerySelectionContext";
 import { GallerySelectionControls } from "./GallerySelectionControls";
-
-const render = renderWithProviders;
 
 vi.mock("@/features/gallery/api/media", async (importOriginal) => {
   const actual = await importOriginal<typeof mediaApi>();
@@ -28,19 +28,22 @@ const deleteSelectedMediaMock = vi.mocked(mediaApi.deleteSelectedMedia);
 const moveSelectedMediaMock = vi.mocked(mediaApi.moveSelectedMedia);
 const previewMediaMoveMock = vi.mocked(mediaApi.previewMediaMove);
 
-const defaultProps = {
-  currentFolder: HOME_PATH,
-  totalCount: 2,
-  selectionMode: true,
-  selectedCount: 2,
-  selectedPaths: new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]),
-  onEnterSelectionMode: vi.fn(),
-  onExitSelectionMode: vi.fn(),
-  onSelectAll: vi.fn(),
-  onClearSelection: vi.fn(),
-  onDeleted: vi.fn(),
-  onMoved: vi.fn(),
-};
+const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
+
+/**
+ * The folder is a prop; everything about the selection comes from context.
+ * `totalCount` stays 2 so "all selected" matches BOTH_SELECTED.
+ */
+function renderControls(selection: Partial<GallerySelectionValue> = {}) {
+  return renderWithProviders(
+    withGallerySelection(<GallerySelectionControls currentFolder={HOME_PATH} totalCount={2} />, {
+      selectionMode: true,
+      selectedCount: 2,
+      selectedPaths: BOTH_SELECTED,
+      ...selection,
+    }),
+  );
+}
 
 describe("GallerySelectionControls", () => {
   beforeEach(() => {
@@ -59,15 +62,12 @@ describe("GallerySelectionControls", () => {
     const user = userEvent.setup();
     const onEnterSelectionMode = vi.fn();
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectionMode={false}
-        selectedCount={0}
-        selectedPaths={new Set()}
-        onEnterSelectionMode={onEnterSelectionMode}
-      />,
-    );
+    renderControls({
+      selectionMode: false,
+      selectedCount: 0,
+      selectedPaths: new Set(),
+      enterSelectionMode: onEnterSelectionMode,
+    });
 
     await user.click(screen.getByRole("button", { name: "Select" }));
     expect(onEnterSelectionMode).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe("GallerySelectionControls", () => {
   it("deletes selected files after confirmation", async () => {
     const user = userEvent.setup();
     const onDeleted = vi.fn();
-    const onExitSelectionMode = vi.fn();
+    const exitSelectionMode = vi.fn();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     deleteSelectedMediaMock.mockResolvedValue({
@@ -84,14 +84,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectedPaths={selectedPaths}
-        onDeleted={onDeleted}
-        onExitSelectionMode={onExitSelectionMode}
-      />,
-    );
+    renderControls({ selectedPaths, onDeleted, exitSelectionMode });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -106,7 +99,7 @@ describe("GallerySelectionControls", () => {
     await waitFor(() => {
       expect(deleteSelectedMediaMock).toHaveBeenCalledWith(Array.from(selectedPaths));
       expect(onDeleted).toHaveBeenCalledWith(Array.from(selectedPaths));
-      expect(onExitSelectionMode).toHaveBeenCalledTimes(1);
+      expect(exitSelectionMode).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -119,13 +112,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectedCount={1}
-        selectedPaths={selectedPaths}
-      />,
-    );
+    renderControls({ selectedCount: 1, selectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -153,14 +140,7 @@ describe("GallerySelectionControls", () => {
         }),
     );
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectedCount={1}
-        selectedPaths={selectedPaths}
-        onDeleted={onDeleted}
-      />,
-    );
+    renderControls({ selectedCount: 1, selectedPaths, onDeleted });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -185,45 +165,39 @@ describe("GallerySelectionControls", () => {
   });
 
   it("exits selection mode when Escape is pressed", () => {
-    const onExitSelectionMode = vi.fn();
+    const exitSelectionMode = vi.fn();
 
-    render(
-      <GallerySelectionControls {...defaultProps} onExitSelectionMode={onExitSelectionMode} />,
-    );
+    renderControls({ exitSelectionMode });
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(onExitSelectionMode).toHaveBeenCalledTimes(1);
+    expect(exitSelectionMode).toHaveBeenCalledTimes(1);
   });
 
   it("does not exit selection mode on Escape while scroll lock is active", () => {
-    const onExitSelectionMode = vi.fn();
+    const exitSelectionMode = vi.fn();
     const handle = acquireScrollLock("confirm-dialog-open");
 
-    render(
-      <GallerySelectionControls {...defaultProps} onExitSelectionMode={onExitSelectionMode} />,
-    );
+    renderControls({ exitSelectionMode });
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(onExitSelectionMode).not.toHaveBeenCalled();
+    expect(exitSelectionMode).not.toHaveBeenCalled();
     releaseScrollLock(handle);
   });
 
   it("does not exit selection mode on Escape while the delete confirm dialog is open", async () => {
     const user = userEvent.setup();
-    const onExitSelectionMode = vi.fn();
+    const exitSelectionMode = vi.fn();
 
-    render(
-      <GallerySelectionControls {...defaultProps} onExitSelectionMode={onExitSelectionMode} />,
-    );
+    renderControls({ exitSelectionMode });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await screen.findByRole("alertdialog", { name: "Delete selected files?" });
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(onExitSelectionMode).not.toHaveBeenCalled();
+    expect(exitSelectionMode).not.toHaveBeenCalled();
   });
 
   it("moves selected files after choosing a destination folder", async () => {
@@ -242,13 +216,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectedPaths={selectedPaths}
-        onMoved={onMoved}
-      />,
-    );
+    renderControls({ selectedPaths, onMoved });
 
     await user.click(screen.getByRole("button", { name: "Move" }));
 
@@ -282,13 +250,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectedCount={1}
-        selectedPaths={selectedPaths}
-      />,
-    );
+    renderControls({ selectedCount: 1, selectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Move" }));
 
@@ -315,7 +277,7 @@ describe("GallerySelectionControls", () => {
   it("applies partial deletes silently and keeps selection mode open", async () => {
     const user = userEvent.setup();
     const onDeleted = vi.fn();
-    const onExitSelectionMode = vi.fn();
+    const exitSelectionMode = vi.fn();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     deleteSelectedMediaMock.mockResolvedValue({
@@ -323,14 +285,7 @@ describe("GallerySelectionControls", () => {
       failed: [{ path: `${HOME_PATH}\\beach.jpg`, error: new Error("Permission denied") }],
     });
 
-    render(
-      <GallerySelectionControls
-        {...defaultProps}
-        selectedPaths={selectedPaths}
-        onDeleted={onDeleted}
-        onExitSelectionMode={onExitSelectionMode}
-      />,
-    );
+    renderControls({ selectedPaths, onDeleted, exitSelectionMode });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
@@ -341,7 +296,7 @@ describe("GallerySelectionControls", () => {
 
     await waitFor(() => {
       expect(onDeleted).toHaveBeenCalledWith([`${HOME_PATH}\\sunset.png`]);
-      expect(onExitSelectionMode).not.toHaveBeenCalled();
+      expect(exitSelectionMode).not.toHaveBeenCalled();
     });
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

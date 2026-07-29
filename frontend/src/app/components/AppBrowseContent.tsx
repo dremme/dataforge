@@ -6,6 +6,7 @@ import { FolderGrid } from "@/features/browse/components/FolderGrid";
 import { Gallery } from "@/features/gallery/components/Gallery";
 import { GalleryFileDropOverlay } from "@/features/gallery/components/GalleryFileDropOverlay";
 import { GallerySelectionControls } from "@/features/gallery/components/GallerySelectionControls";
+import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { BrowseError } from "@/shared/api/http";
 import { iconFolderOpen, iconImages } from "@/shared/icons";
@@ -28,24 +29,17 @@ type AppBrowseContentProps = {
   onCreateFolder?: () => void;
   createFolderDisabled?: boolean;
   onOpenGalleryItem: (path: string) => void;
-  fileDropEnabled?: boolean;
-  fileDropActive?: boolean;
-  fileDropFolderLabel?: string;
-  onFileDragEnter?: (event: React.DragEvent) => void;
-  onFileDragOver?: (event: React.DragEvent) => void;
-  onFileDragLeave?: (event: React.DragEvent) => void;
-  onFileDrop?: (event: React.DragEvent) => void;
-  selectionMode?: boolean;
-  selectedCount?: number;
-  selectedPaths?: ReadonlySet<string>;
-  onEnterSelectionMode: () => void;
-  onExitSelectionMode: () => void;
-  onSelectAllPaths: () => void;
-  onClearSelectedPaths: () => void;
-  onToggleSelectedPath: (path: string) => void;
-  onDeleteSelectedPaths: (paths: string[]) => void | Promise<void>;
-  onMoveSelectedPaths: (paths: string[]) => void | Promise<void>;
-  currentFolder?: string;
+  fileDrop: FileDropState;
+};
+
+type FileDropState = {
+  enabled: boolean;
+  active: boolean;
+  folderLabel: string;
+  onDragEnter: (event: React.DragEvent) => void;
+  onDragOver: (event: React.DragEvent) => void;
+  onDragLeave: (event: React.DragEvent) => void;
+  onDrop: (event: React.DragEvent) => void;
 };
 
 export function AppBrowseContent({
@@ -61,25 +55,9 @@ export function AppBrowseContent({
   onCreateFolder,
   createFolderDisabled = false,
   onOpenGalleryItem,
-  fileDropEnabled = false,
-  fileDropActive = false,
-  fileDropFolderLabel = "",
-  onFileDragEnter,
-  onFileDragOver,
-  onFileDragLeave,
-  onFileDrop,
-  selectionMode = false,
-  selectedCount = 0,
-  selectedPaths,
-  onEnterSelectionMode,
-  onExitSelectionMode,
-  onSelectAllPaths,
-  onClearSelectedPaths,
-  onToggleSelectedPath,
-  onDeleteSelectedPaths,
-  onMoveSelectedPaths,
-  currentFolder = "",
+  fileDrop,
 }: AppBrowseContentProps) {
+  const { selectionMode, selectedCount } = useGallerySelectionContext();
   const folderNotFound = error?.kind === "folder-not-found";
   const globalError = error && !folderNotFound ? error : null;
   const showEmptyFolder = !error && items.length === 0;
@@ -102,12 +80,12 @@ export function AppBrowseContent({
           <div
             className={classNames(
               "gallery-drop-zone",
-              fileDropActive && "gallery-drop-zone--active",
+              fileDrop.active && "gallery-drop-zone--active",
             )}
-            onDragEnter={fileDropEnabled ? onFileDragEnter : undefined}
-            onDragOver={fileDropEnabled ? onFileDragOver : undefined}
-            onDragLeave={fileDropEnabled ? onFileDragLeave : undefined}
-            onDrop={fileDropEnabled ? onFileDrop : undefined}
+            onDragEnter={fileDrop.enabled ? fileDrop.onDragEnter : undefined}
+            onDragOver={fileDrop.enabled ? fileDrop.onDragOver : undefined}
+            onDragLeave={fileDrop.enabled ? fileDrop.onDragLeave : undefined}
+            onDrop={fileDrop.enabled ? fileDrop.onDrop : undefined}
           >
             <div className="gallery-drop-zone__content">
               {!folderNotFound && <AutomationPanel {...automationPanelProps} />}
@@ -130,33 +108,16 @@ export function AppBrowseContent({
                       title="Media"
                       count={selectionMode ? selectedCount : filteredItems.length}
                       actions={
-                        onEnterSelectionMode ? (
-                          <GallerySelectionControls
-                            currentFolder={currentFolder}
-                            totalCount={filteredItems.length}
-                            selectionMode={selectionMode}
-                            selectedCount={selectedCount}
-                            selectedPaths={selectedPaths ?? new Set()}
-                            onEnterSelectionMode={onEnterSelectionMode}
-                            onExitSelectionMode={onExitSelectionMode}
-                            onSelectAll={onSelectAllPaths}
-                            onClearSelection={onClearSelectedPaths}
-                            onDeleted={onDeleteSelectedPaths}
-                            onMoved={onMoveSelectedPaths}
-                          />
-                        ) : undefined
+                        <GallerySelectionControls
+                          currentFolder={browse.folder}
+                          totalCount={filteredItems.length}
+                        />
                       }
                     />
                   )}
 
                   {filteredItems.length > 0 ? (
-                    <Gallery
-                      items={filteredItems}
-                      onSelect={onOpenGalleryItem}
-                      selectionMode={selectionMode}
-                      selectedPaths={selectedPaths}
-                      onToggleSelect={onToggleSelectedPath}
-                    />
+                    <Gallery items={filteredItems} onSelect={onOpenGalleryItem} />
                   ) : showEmptyFolder ? (
                     <EmptyState
                       icon={iconFolderOpen}
@@ -178,8 +139,11 @@ export function AppBrowseContent({
               {folderNotFound && error && <BrowseErrorState error={error} />}
             </div>
 
-            {fileDropEnabled && (
-              <GalleryFileDropOverlay visible={fileDropActive} folderLabel={fileDropFolderLabel} />
+            {fileDrop.enabled && (
+              <GalleryFileDropOverlay
+                visible={fileDrop.active}
+                folderLabel={fileDrop.folderLabel}
+              />
             )}
           </div>
         ))}

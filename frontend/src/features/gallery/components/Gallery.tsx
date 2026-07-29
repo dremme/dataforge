@@ -11,6 +11,7 @@ import { useGalleryVisiblePrefetch } from "@/features/gallery/lib/visiblePrefetc
 import { useGalleryBackToTop } from "@/features/gallery/hooks/useGalleryBackToTop";
 import { useGalleryColumns } from "@/features/gallery/hooks/useGalleryColumns";
 import { useGalleryScrollMargin } from "@/features/gallery/hooks/useGalleryScrollMargin";
+import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { GalleryItem } from "@/shared/types";
 import { GalleryBackToTop } from "./GalleryBackToTop";
 import { GalleryCard } from "./GalleryCard";
@@ -18,9 +19,6 @@ import { GalleryCard } from "./GalleryCard";
 interface GalleryProps {
   items: GalleryItem[];
   onSelect: (path: string) => void;
-  selectionMode?: boolean;
-  selectedPaths?: ReadonlySet<string>;
-  onToggleSelect?: (path: string) => void;
 }
 
 function estimateRowSize(row: GalleryItem[]): number {
@@ -29,13 +27,8 @@ function estimateRowSize(row: GalleryItem[]): number {
     : GALLERY_ROW_ESTIMATE;
 }
 
-export function Gallery({
-  items,
-  onSelect,
-  selectionMode = false,
-  selectedPaths,
-  onToggleSelect,
-}: GalleryProps) {
+export function Gallery({ items, onSelect }: GalleryProps) {
+  const { selectionMode, selectedPaths, toggleSelectedPath } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const columnCount = useGalleryColumns(listRef);
   const rowCount = Math.ceil(items.length / columnCount);
@@ -87,13 +80,15 @@ export function Gallery({
                 }}
               >
                 {rowItems.map((item) => (
+                  // `selected` is resolved here, not in the card, so a toggle
+                  // only re-renders the one card whose boolean actually changed.
                   <GalleryCard
                     key={item.path}
                     item={item}
                     onSelect={onSelect}
                     selectionMode={selectionMode}
-                    selected={selectedPaths?.has(item.path) ?? false}
-                    onToggleSelect={onToggleSelect}
+                    selected={selectedPaths.has(item.path)}
+                    onToggleSelect={toggleSelectedPath}
                   />
                 ))}
               </div>

@@ -26,7 +26,12 @@ export default tseslint.config(
         "warn",
         {
           allowConstantExport: true,
-          allowExportNames: ["useJobs", "useFolderJob", "useJobTransitions"],
+          allowExportNames: [
+            "useJobs",
+            "useFolderJob",
+            "useJobTransitions",
+            "useGallerySelectionContext",
+          ],
         },
       ],
       "@typescript-eslint/consistent-type-imports": [

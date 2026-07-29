@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
   iconBraces,
@@ -24,7 +25,11 @@ interface GalleryCardProps {
   onToggleSelect?: (path: string) => void;
 }
 
-export function GalleryCard({
+/**
+ * Memoized: the grid is virtualized and re-renders on every selection change,
+ * but an individual card only changes when its own `selected` flag flips.
+ */
+export const GalleryCard = memo(function GalleryCard({
   item,
   onSelect,
   selectionMode = false,
@@ -103,4 +108,4 @@ export function GalleryCard({
       </div>
     </button>
   );
-}
+});
