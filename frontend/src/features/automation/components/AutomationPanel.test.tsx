@@ -1,8 +1,26 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { SystemSpecs } from "@/shared/types";
+import type { Job, SystemSpecs } from "@/shared/types";
 import { AutomationPanel } from "./AutomationPanel";
+
+const finishedJob: Job = {
+  id: "job-1",
+  folder: "C:\\Photos",
+  folder_name: "Photos",
+  job_type: "auto_caption",
+  status: "completed",
+  total: 10,
+  processed: 10,
+  current_file: null,
+  current_name: null,
+  stats: { success: 10 },
+  results: [],
+  error: null,
+  created_at: "2026-01-01T12:00:00.000Z",
+  started_at: "2026-01-01T12:00:00.000Z",
+  finished_at: "2026-01-01T12:02:30.000Z",
+};
 
 const mockSystemSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7-12700K 12-Core Processor",
@@ -73,6 +91,30 @@ describe("AutomationPanel", () => {
     render(<AutomationPanel {...baseProps} issueCount={0} onResolveIssues={vi.fn()} />);
 
     expect(screen.queryByRole("button", { name: /Resolve/i })).not.toBeInTheDocument();
+  });
+
+  it("shows how long a finished job took next to the counts", () => {
+    mockShowSpecs = false;
+    const { container } = render(<AutomationPanel {...baseProps} job={finishedJob} />);
+
+    expect(container.querySelector(".automation__counts")).toHaveTextContent(
+      "10/10 · Took 2 min 30s",
+    );
+  });
+
+  it("shows the time taken for a cancelled job", () => {
+    mockShowSpecs = false;
+    const cancelledJob: Job = {
+      ...finishedJob,
+      status: "cancelled",
+      processed: 4,
+      stats: { success: 4 },
+      finished_at: "2026-01-01T12:00:20.000Z",
+    };
+
+    const { container } = render(<AutomationPanel {...baseProps} job={cancelledJob} />);
+
+    expect(container.querySelector(".automation__remaining")).toHaveTextContent("Took 20s");
   });
 
   it("shows system specs when available", async () => {

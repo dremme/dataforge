@@ -4,7 +4,9 @@ import {
   classifyProcessedBatch,
   createJobTimingTracker,
   formatDuration,
+  formatElapsed,
   jobCompletionNotification,
+  jobElapsedSeconds,
   jobErrorMessage,
   jobIcon,
   jobIsCancelled,
@@ -12,6 +14,7 @@ import {
   jobRemainingTimeLabel,
   jobShowsWarningState,
   jobStatusTone,
+  jobTimeLabel,
   jobTypeLabel,
   jobTypeOf,
   jobWarningMessage,
@@ -83,6 +86,13 @@ describe("remaining time", () => {
     expect(formatDuration(45)).toBe("45s");
     expect(formatDuration(90)).toBe("2 min");
     expect(formatDuration(3720)).toBe("1 hr 2 min");
+  });
+
+  it("carries rounded-up minutes into hours instead of reporting 60 min", () => {
+    expect(formatDuration(3540)).toBe("59 min");
+    expect(formatDuration(3599)).toBe("1 hr");
+    expect(formatDuration(3600)).toBe("1 hr");
+    expect(formatDuration(7199)).toBe("2 hr");
   });
 
   it("estimates remaining seconds from processed items and elapsed time", () => {
@@ -162,6 +172,89 @@ describe("remaining time", () => {
     expect(
       jobRemainingTimeLabel(makeJob({ status: "completed", processed: 10, total: 10 })),
     ).toBeNull();
+  });
+});
+
+describe("elapsed time", () => {
+  it("formats elapsed durations without rounding a run up to the next minute", () => {
+    expect(formatElapsed(0.2)).toBe("<1s");
+    expect(formatElapsed(45)).toBe("45s");
+    expect(formatElapsed(65)).toBe("1 min 5s");
+    expect(formatElapsed(120)).toBe("2 min");
+    expect(formatElapsed(3599)).toBe("59 min 59s");
+    expect(formatElapsed(3600)).toBe("1 hr");
+    expect(formatElapsed(3720)).toBe("1 hr 2 min");
+  });
+
+  it("reports how long a completed job took", () => {
+    const job = makeJob({
+      status: "completed",
+      processed: 10,
+      total: 10,
+      started_at: "2026-01-01T12:00:00.000Z",
+      finished_at: "2026-01-01T12:02:30.000Z",
+    });
+
+    expect(jobElapsedSeconds(job)).toBe(150);
+    expect(jobTimeLabel(job)).toBe("Took 2 min 30s");
+  });
+
+  it("reports elapsed time for cancelled and failed jobs too", () => {
+    const cancelled = makeJob({
+      status: "cancelled",
+      processed: 4,
+      started_at: "2026-01-01T12:00:00.000Z",
+      finished_at: "2026-01-01T12:00:20.000Z",
+    });
+    const failed = makeJob({
+      status: "failed",
+      processed: 1,
+      error: "boom",
+      started_at: "2026-01-01T12:00:00.000Z",
+      finished_at: "2026-01-01T12:00:05.000Z",
+    });
+
+    expect(jobTimeLabel(cancelled)).toBe("Took 20s");
+    expect(jobTimeLabel(failed)).toBe("Took 5s");
+  });
+
+  it("falls back to created_at when a job was cancelled before it started", () => {
+    const job = makeJob({
+      status: "cancelled",
+      processed: 0,
+      created_at: "2026-01-01T12:00:00.000Z",
+      started_at: null,
+      finished_at: "2026-01-01T12:00:03.000Z",
+    });
+
+    expect(jobTimeLabel(job)).toBe("Took 3s");
+  });
+
+  it("reads zone-less timestamps written by the interrupted-job fallback as UTC", () => {
+    const job = makeJob({
+      status: "interrupted",
+      processed: 2,
+      started_at: "2026-01-01 12:00:00",
+      finished_at: "2026-01-01 12:00:42",
+    });
+
+    expect(jobTimeLabel(job)).toBe("Took 42s");
+  });
+
+  it("shows nothing when a finished job has no timestamps to measure", () => {
+    expect(jobTimeLabel(makeJob({ status: "completed", finished_at: null }))).toBeNull();
+  });
+
+  it("keeps showing the estimate while a job is still running", () => {
+    const job = makeJob({
+      status: "running",
+      processed: 2,
+      total: 10,
+      started_at: "2026-01-01T12:00:00.000Z",
+      stats: { success: 2 },
+    });
+
+    expect(jobTimeLabel(job, Date.parse("2026-01-01T12:01:00.000Z"))).toBe("~4 min left");
   });
 });
 

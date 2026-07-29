@@ -3,12 +3,13 @@ import type { Job } from "@/shared/types";
 import {
   createJobTimingTracker,
   isActiveJobStatus,
-  jobRemainingTimeLabel,
+  jobTimeLabel,
   updateJobTimingTracker,
   type JobTimingTracker,
 } from "@/features/jobs/lib/jobs";
 
-export function useJobRemainingTime(job: Job | null): string | null {
+/** Remaining-time estimate while the job runs; how long it took once it finished. */
+export function useJobTimeLabel(job: Job | null): string | null {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const trackerRef = useRef<JobTimingTracker | null>(null);
 
@@ -39,5 +40,5 @@ export function useJobRemainingTime(job: Job | null): string | null {
     return null;
   }
 
-  return jobRemainingTimeLabel(job, nowMs, trackerRef.current);
+  return jobTimeLabel(job, nowMs, trackerRef.current);
 }

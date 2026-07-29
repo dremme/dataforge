@@ -29,7 +29,7 @@ import {
 import { JOB_TYPE_META, PRIMARY_JOB_TYPE, jobTypeIconFor } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
-import { useJobRemainingTime } from "@/features/jobs/hooks/useJobRemainingTime";
+import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { useSystemSpecs } from "@/features/automation/hooks/useSystemSpecs";
 import { classNames } from "@/shared/lib/classNames";
 import { formatBytes } from "@/shared/lib/format";
@@ -81,7 +81,7 @@ export function AutomationPanel({
   const showCancelled = job ? jobIsCancelled(job) : false;
   const errorMessage = job ? jobErrorMessage(job) : null;
   const warningMessage = job ? jobWarningMessage(job) : null;
-  const remainingTime = useJobRemainingTime(job);
+  const timeLabel = useJobTimeLabel(job);
   const systemSpecs = useSystemSpecs();
 
   const startTooltip = startingPrimary
@@ -329,7 +329,7 @@ export function AutomationPanel({
               </span>
               <span className="automation__counts">
                 {job.processed}/{job.total || "..."}
-                {remainingTime && <span className="automation__remaining"> · {remainingTime}</span>}
+                {timeLabel && <span className="automation__remaining"> · {timeLabel}</span>}
               </span>
             </div>
 

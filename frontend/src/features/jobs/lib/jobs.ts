@@ -380,6 +380,18 @@ function estimateSlowRemainingFraction(
   return 0.5;
 }
 
+/**
+ * Job timestamps normally arrive as UTC ISO strings, but rows finished by a SQLite
+ * fallback (interrupted jobs) carry "YYYY-MM-DD HH:MM:SS" with no zone marker.
+ */
+function parseJobTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+
+  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value);
+  const parsed = Date.parse(hasZone ? value : `${value.replace(" ", "T")}Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.round(totalSeconds));
 
@@ -387,13 +399,14 @@ export function formatDuration(totalSeconds: number): string {
     return seconds <= 1 ? "1s" : `${seconds}s`;
   }
 
-  if (seconds < 3600) {
-    const minutes = Math.ceil(seconds / 60);
-    return minutes === 1 ? "1 min" : `${minutes} min`;
+  // Round up to whole minutes first so the carry lands in the hours, never "1 hr 60 min".
+  const totalMinutes = Math.ceil(seconds / 60);
+  if (totalMinutes < 60) {
+    return totalMinutes === 1 ? "1 min" : `${totalMinutes} min`;
   }
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.ceil((seconds % 3600) / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   if (minutes === 0) {
     return hours === 1 ? "1 hr" : `${hours} hr`;
   }
@@ -419,9 +432,8 @@ export function jobRemainingSeconds(
     return 0;
   }
 
-  const startIso = job.started_at ?? job.created_at;
-  const startedMs = Date.parse(startIso);
-  if (Number.isNaN(startedMs)) {
+  const startedMs = parseJobTimestamp(job.started_at) ?? parseJobTimestamp(job.created_at);
+  if (startedMs === null) {
     return null;
   }
 
@@ -510,4 +522,69 @@ export function jobRemainingTimeLabel(
   }
 
   return `~${formatDuration(remainingSeconds)} left`;
+}
+
+/** Exact wall-clock time a run took, unlike the rounded-up estimate `formatDuration` gives. */
+export function formatElapsed(totalSeconds: number): string {
+  const seconds = Math.round(Math.max(0, totalSeconds));
+
+  if (seconds < 1) {
+    return "<1s";
+  }
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    const restSeconds = seconds % 60;
+    return restSeconds === 0 ? `${minutes} min` : `${minutes} min ${restSeconds}s`;
+  }
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
+}
+
+/** How long a finished run took, including cancelled and failed ones. */
+export function jobElapsedSeconds(job: Job): number | null {
+  if (!isTerminalJobStatus(job.status)) {
+    return null;
+  }
+
+  const finishedMs = parseJobTimestamp(job.finished_at);
+  if (finishedMs === null) {
+    return null;
+  }
+
+  // Jobs cancelled before they started running never got a started_at.
+  const startedMs = parseJobTimestamp(job.started_at) ?? parseJobTimestamp(job.created_at);
+  if (startedMs === null) {
+    return null;
+  }
+
+  return Math.max(0, (finishedMs - startedMs) / 1000);
+}
+
+export function jobElapsedTimeLabel(job: Job): string | null {
+  const elapsedSeconds = jobElapsedSeconds(job);
+  if (elapsedSeconds === null) {
+    return null;
+  }
+
+  return `Took ${formatElapsed(elapsedSeconds)}`;
+}
+
+/** The countdown while a job runs, then the time it took once it settles. */
+export function jobTimeLabel(
+  job: Job,
+  nowMs = Date.now(),
+  tracker?: JobTimingTracker | null,
+): string | null {
+  if (isActiveJobStatus(job.status)) {
+    return jobRemainingTimeLabel(job, nowMs, tracker);
+  }
+
+  return jobElapsedTimeLabel(job);
 }

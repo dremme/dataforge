@@ -29,4 +29,17 @@ describe("JobCard", () => {
     expect(cancelButton).toBeDisabled();
     expect(container.querySelector(".job-card__cancel-icon--spin")).toBeInTheDocument();
   });
+
+  it("shows how long a finished job took where the estimate used to be", () => {
+    const cancelledJob: Job = {
+      ...runningJob,
+      status: "cancelled",
+      started_at: "2026-01-01T00:00:00Z",
+      finished_at: "2026-01-01T00:01:15Z",
+    };
+
+    const { container } = render(<JobCard job={cancelledJob} />);
+
+    expect(container.querySelector(".job-card__remaining")).toHaveTextContent("Took 1 min 15s");
+  });
 });

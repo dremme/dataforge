@@ -20,7 +20,7 @@ import {
   progressPercent,
   statusLabel,
 } from "@/features/jobs/lib/jobs";
-import { useJobRemainingTime } from "@/features/jobs/hooks/useJobRemainingTime";
+import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
@@ -49,7 +49,7 @@ export function JobCard({
   const errorMessage = jobErrorMessage(job);
   const warningMessage = jobWarningMessage(job);
   const folderLabel = job.folder_name || job.folder;
-  const remainingTime = useJobRemainingTime(job);
+  const timeLabel = useJobTimeLabel(job);
   const jobTypeIcon = jobIcon(job);
 
   return (
@@ -129,7 +129,7 @@ export function JobCard({
         <span className="job-card__meta-count">
           {job.processed}/{job.total || "..."}
         </span>
-        {remainingTime && <span className="job-card__remaining">{remainingTime}</span>}
+        {timeLabel && <span className="job-card__remaining">{timeLabel}</span>}
       </div>
 
       <div
