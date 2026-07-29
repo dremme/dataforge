@@ -36,38 +36,7 @@ ignore = [
     "SIM117", # nested with blocks are fine in tests
 ]
 
-[tool.ruff.lint.isort]
-known-first-party = [
-    "automation",
-    "body_parts_settings",
-    "browse",
-    "captions",
-    "comfy_metadata",
-    "constants",
-    "db",
-    "env_file",
-    "external",
-    "file_import",
-    "filesystem",
-    "folder_favorites",
-    "folder_fingerprint",
-    "logging_config",
-    "main",
-    "media_delete",
-    "media_listing",
-    "media_metadata",
-    "media_move",
-    "openai_settings",
-    "preferences",
-    "routes",
-    "schemas",
-    "sysprompt",
-    "system_specs",
-    "testing_fixtures",
-    "thumbnails",
-    "ui_settings",
-    "verify_captions_settings",
-]
+# First-party modules are detected from `src` above, so they need no explicit list.
 
 [tool.ruff.format]
 quote-style = "double"
