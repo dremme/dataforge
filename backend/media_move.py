@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 def related_media_paths(media_path: Path) -> list[Path]:
+    """The media file plus every sidecar that belongs to it, in a stable order."""
     paths = [media_path]
 
-    for extension in SIDECAR_EXTENSIONS:
+    for extension in sorted(SIDECAR_EXTENSIONS):
         sidecar = media_path.with_suffix(extension)
         if sidecar.is_file():
             paths.append(sidecar)
@@ -27,6 +28,15 @@ def related_media_paths(media_path: Path) -> list[Path]:
         paths.append(issue_sidecar)
 
     return paths
+
+
+def sidecar_suffix(media_path: Path, related: Path) -> str:
+    """The part of ``related``'s name after the media stem, e.g. ``.issue.json``.
+
+    ``Path.suffix`` only reports the last extension, so it would collapse
+    ``photo.issue.json`` onto ``.json`` and collide with the caption sidecar.
+    """
+    return related.name[len(media_path.stem) :]
 
 
 def preview_media_move(destination: Path, source_paths: list[Path]) -> dict[str, list[str]]:

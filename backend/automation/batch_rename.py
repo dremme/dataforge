@@ -11,7 +11,7 @@ from pathlib import Path
 from automation.selection import filter_media_list, list_folder_media
 from constants import MEDIA_EXTENSIONS
 from logging_config import configure_logging, log_job_summary
-from media_move import related_media_paths
+from media_move import related_media_paths, sidecar_suffix
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +45,16 @@ def list_batch_rename_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
 
 
+def _target_for(source_media: Path, target_media: Path, related: Path) -> Path:
+    """Where ``related`` (the media file or one of its sidecars) lands after the rename."""
+    if related == source_media:
+        return target_media
+    return target_media.with_name(target_media.stem + sidecar_suffix(source_media, related))
+
+
 def _rename_media_group(source_media: Path, target_media: Path) -> None:
     for path in related_media_paths(source_media):
-        if path == source_media:
-            destination = target_media
-        else:
-            destination = target_media.with_suffix(path.suffix)
-        path.rename(destination)
+        path.rename(_target_for(source_media, target_media, path))
 
 
 def _check_target_conflict(target_path: Path, moving_sources: set[Path]) -> None:
@@ -79,8 +82,7 @@ def _validate_target_names(folder: Path, media_files: list[Path], stem: str) -> 
         for related in related_media_paths(media_path):
             if related == media_path:
                 continue
-            sidecar_target = target_media.with_suffix(related.suffix)
-            _check_target_conflict(sidecar_target, moving_sources)
+            _check_target_conflict(_target_for(media_path, target_media, related), moving_sources)
 
 
 def validate_batch_rename_folder(

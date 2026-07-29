@@ -18,7 +18,14 @@ from automation.batch_rename import (
     sequence_padding,
     validate_batch_rename_folder,
 )
-from testing_fixtures import TempMediaFolder, write_media, write_mp4_video, write_txt_caption
+from captions import issue_file_path
+from testing_fixtures import (
+    TempMediaFolder,
+    write_json_caption,
+    write_media,
+    write_mp4_video,
+    write_txt_caption,
+)
 
 
 class BatchRenameHelpersTests(unittest.TestCase):
@@ -83,6 +90,45 @@ class BatchRenameJobTests(unittest.TestCase):
             )
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
+
+    def test_renames_txt_json_and_issue_sidecars_together(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "alpha.png")
+            write_txt_caption(media, "Caption one.")
+            write_json_caption(media, {"description": "Json caption."})
+            issue_file_path(media).write_text(
+                '{"correct": false, "issues": "Wrong pose.", "suggestions": "Fix it."}',
+                encoding="utf-8",
+            )
+
+            result = run_batch_rename_job(root, stem="portugal")
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertTrue((root / "portugal_001.png").is_file())
+            self.assertEqual(
+                (root / "portugal_001.txt").read_text(encoding="utf-8").strip(),
+                "Caption one.",
+            )
+            self.assertIn(
+                "Json caption.",
+                (root / "portugal_001.json").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "Wrong pose.",
+                (root / "portugal_001.issue.json").read_text(encoding="utf-8"),
+            )
+            self.assertFalse(issue_file_path(media).exists())
+
+    def test_renames_issue_sidecar_when_no_json_caption_exists(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "alpha.png")
+            issue_file_path(media).write_text('{"issues": "Wrong pose."}', encoding="utf-8")
+
+            run_batch_rename_job(root, stem="portugal")
+
+            self.assertTrue((root / "portugal_001.issue.json").is_file())
+            # The issue sidecar must not be turned into a caption sidecar.
+            self.assertFalse((root / "portugal_001.json").exists())
 
     def test_rejects_conflicting_target_names(self) -> None:
         with TempMediaFolder() as root:

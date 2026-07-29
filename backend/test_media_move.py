@@ -6,8 +6,14 @@ import unittest
 
 from fastapi import HTTPException
 
+from captions import issue_file_path
 from media_move import move_media_with_sidecars, preview_media_move
-from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
+from testing_fixtures import (
+    TempMediaFolder,
+    write_json_caption,
+    write_media,
+    write_txt_caption,
+)
 
 
 class PreviewMediaMoveTests(unittest.TestCase):
@@ -52,20 +58,25 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
 
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
-            media.with_suffix(".issue.json").write_text('{"issues":"old"}', encoding="utf-8")
+            write_json_caption(media, {"description": "Golden hour."})
+            issue_file_path(media).write_text('{"issues":"old"}', encoding="utf-8")
 
             result = move_media_with_sidecars(media, destination_dir)
 
             destination_media = destination_dir / "sunset.png"
             self.assertTrue(destination_media.is_file())
             self.assertFalse(media.exists())
-            self.assertTrue(destination_media.with_suffix(".txt").is_file())
-            self.assertTrue(destination_media.with_suffix(".issue.json").is_file())
+            self.assertTrue((destination_dir / "sunset.txt").is_file())
+            self.assertTrue((destination_dir / "sunset.json").is_file())
+            self.assertTrue((destination_dir / "sunset.issue.json").is_file())
+            self.assertFalse(media.with_suffix(".txt").exists())
+            self.assertFalse(media.with_suffix(".json").exists())
+            self.assertFalse(issue_file_path(media).exists())
             self.assertEqual(result["source"], str(media))
             self.assertEqual(result["destination"], str(destination_media))
             self.assertEqual(
                 set(result["moved"]),
-                {"sunset.png", "sunset.txt", "sunset.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"},
             )
 
     def test_rejects_move_without_overwrite_when_destination_exists(self) -> None:
