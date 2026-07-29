@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useBrowseCaptionPatch } from "@/features/gallery/hooks/useBrowseCaptionPatch";
-import { useGalleryModals } from "@/features/gallery/hooks/useGalleryModals";
+import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays";
 import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolverOverlay";
@@ -70,7 +70,7 @@ export function useGallerySession({
     syspromptOpen,
     syspromptModalItem,
     onJsonEditorOpenChange,
-  } = useGalleryModals({
+  } = useGalleryOverlays({
     images: items,
     filteredItems: query.filteredItems,
     selectionEpoch,

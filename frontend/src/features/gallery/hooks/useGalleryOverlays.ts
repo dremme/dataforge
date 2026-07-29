@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
-import { useGalleryModal } from "@/features/gallery/hooks/useGalleryModal";
+import { useGalleryItemModal } from "@/features/gallery/hooks/useGalleryItemModal";
 import { buildSyspromptItem } from "@/features/gallery/lib/sysprompt";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 
-type UseGalleryModalsArgs = {
+type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
   selectionEpoch: number;
@@ -13,15 +13,19 @@ type UseGalleryModalsArgs = {
   mainRef: RefObject<HTMLElement | null>;
 };
 
-/** Gallery item modal, sysprompt modal, and shared scroll-lock. */
-export function useGalleryModals({
+/**
+ * Coordinates the gallery's overlay surfaces: which one is open, keeping the
+ * item modal and sysprompt mutually exclusive, and resolving the scroll-lock
+ * class from their precedence.
+ */
+export function useGalleryOverlays({
   images,
   filteredItems,
   selectionEpoch,
   folder,
   sysprompt,
   mainRef,
-}: UseGalleryModalsArgs) {
+}: UseGalleryOverlaysArgs) {
   const [syspromptOpen, setSyspromptOpen] = useState(false);
 
   const {
@@ -33,7 +37,7 @@ export function useGalleryModals({
     goToPrevious,
     goToNext,
     removeGalleryItem,
-  } = useGalleryModal(images, filteredItems, selectionEpoch);
+  } = useGalleryItemModal(images, filteredItems, selectionEpoch);
 
   useEffect(() => {
     setSyspromptOpen(false);

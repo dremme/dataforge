@@ -5,7 +5,8 @@ import {
 } from "@/features/gallery/lib/previewLoader";
 import type { GalleryItem } from "@/shared/types";
 
-export function useGalleryModal(
+/** Open/close and navigation state for the gallery item viewer modal. */
+export function useGalleryItemModal(
   images: GalleryItem[],
   filteredItems: GalleryItem[],
   resetToken?: unknown,
