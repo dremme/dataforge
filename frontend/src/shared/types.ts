@@ -248,6 +248,8 @@ export interface SystemSpecs {
   memory_available_bytes: number;
   gpu_name: string | null;
   gpu_memory_bytes: number | null;
+  gpu_memory_used_bytes: number | null;
+  gpu_memory_available_bytes: number | null;
   gpu_available: boolean;
 }
 

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { countWords, formatBytes, formatModifiedAt, parseJsonContent } from "./format";
+import {
+  countWords,
+  formatBytes,
+  formatBytesValue,
+  formatModifiedAt,
+  parseJsonContent,
+} from "./format";
 
 describe("formatModifiedAt", () => {
   it("formats ISO timestamps for display", () => {
@@ -26,12 +32,17 @@ describe("countWords", () => {
 });
 
 describe("formatBytes", () => {
-  it("rounds large values to whole gigabytes", () => {
+  it("rounds to whole gigabytes", () => {
     expect(formatBytes(32 * 1024 ** 3)).toBe("32 GB");
+    expect(formatBytes(8.5 * 1024 ** 3)).toBe("9 GB");
+    expect(formatBytes(1.9 * 1024 ** 3)).toBe("2 GB");
   });
+});
 
-  it("keeps one decimal for smaller values", () => {
-    expect(formatBytes(8.5 * 1024 ** 3)).toBe("8.5 GB");
+describe("formatBytesValue", () => {
+  it("rounds to whole gigabytes without the unit", () => {
+    expect(formatBytesValue(32 * 1024 ** 3)).toBe("32");
+    expect(formatBytesValue(8.5 * 1024 ** 3)).toBe("9");
   });
 });
 

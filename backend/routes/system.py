@@ -17,6 +17,8 @@ def read_system_specs() -> SystemSpecsResponse:
         memory_available_bytes=specs.memory_available_bytes,
         gpu_name=specs.gpu_name,
         gpu_memory_bytes=specs.gpu_memory_bytes,
+        gpu_memory_used_bytes=specs.gpu_memory_used_bytes,
+        gpu_memory_available_bytes=specs.gpu_memory_available_bytes,
         gpu_available=specs.gpu_available,
     )
 

@@ -22,18 +22,20 @@ const finishedJob: Job = {
   finished_at: "2026-01-01T12:02:30.000Z",
 };
 
-const mockSystemSpecs: SystemSpecs = {
+const defaultSystemSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7-12700K 12-Core Processor",
   cpu_cores: 16,
   memory_total_bytes: 32 * 1024 ** 3,
   memory_available_bytes: 24 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",
   gpu_memory_bytes: 10 * 1024 ** 3,
+  gpu_memory_used_bytes: 4 * 1024 ** 3,
+  gpu_memory_available_bytes: 6 * 1024 ** 3,
   gpu_available: true,
 };
 
 vi.mock("@/features/automation/hooks/useSystemSpecs", () => ({
-  useSystemSpecs: () => mockSystemSpecs,
+  useSystemSpecs: () => defaultSystemSpecs,
 }));
 
 const mockToggleSpecs = vi.fn();
@@ -117,31 +119,32 @@ describe("AutomationPanel", () => {
     expect(container.querySelector(".automation__remaining")).toHaveTextContent("Took 20s");
   });
 
-  it("shows system specs when available", async () => {
+  it("toggles the system specs panel it controls", async () => {
     mockShowSpecs = false;
     const user = userEvent.setup();
 
-    const { rerender } = render(
-      <AutomationPanel {...baseProps} issueCount={3} onResolveIssues={vi.fn()} />,
-    );
+    const { rerender } = render(<AutomationPanel {...baseProps} />);
 
     const button = screen.getByLabelText("Toggle system specifications");
-    expect(
-      screen.getByLabelText("System specifications").closest(".automation__specs-panel"),
-    ).not.toHaveClass("automation__specs-panel--open");
+    const panelId = button.getAttribute("aria-controls");
+    const specsPanel = screen
+      .getByLabelText("System specifications")
+      .closest(".automation__specs-panel");
+    expect(specsPanel).toHaveAttribute("id", panelId);
+    expect(specsPanel).not.toHaveClass("automation__specs-panel--open");
+    expect(button).toHaveAttribute("aria-expanded", "false");
 
     await user.click(button);
     expect(mockToggleSpecs).toHaveBeenCalledTimes(1);
 
-    rerender(<AutomationPanel {...baseProps} issueCount={3} onResolveIssues={vi.fn()} />);
+    rerender(<AutomationPanel {...baseProps} />);
 
-    const specs = screen.getByLabelText("System specifications");
-    expect(specs.closest(".automation__specs-panel")).toHaveClass("automation__specs-panel--open");
-    expect(specs).toHaveTextContent("Intel Core i7-12700K");
-    expect(specs).toHaveTextContent("16 cores");
-    expect(specs).toHaveTextContent("RAM 24 GB");
-    expect(specs).toHaveTextContent("32 GB");
-    expect(specs).toHaveTextContent("NVIDIA GeForce RTX 3080");
-    expect(specs).toHaveTextContent("10 GB");
+    expect(
+      screen.getByLabelText("System specifications").closest(".automation__specs-panel"),
+    ).toHaveClass("automation__specs-panel--open");
+    expect(screen.getByLabelText("Toggle system specifications")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 });

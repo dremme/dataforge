@@ -254,6 +254,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         memory_available_bytes: 24 * 1024 ** 3,
         gpu_name: "NVIDIA GeForce RTX 3080",
         gpu_memory_bytes: 10 * 1024 ** 3,
+        gpu_memory_used_bytes: 4 * 1024 ** 3,
+        gpu_memory_available_bytes: 6 * 1024 ** 3,
         gpu_available: true,
       });
     }

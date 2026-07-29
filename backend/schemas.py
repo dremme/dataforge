@@ -75,6 +75,8 @@ class SystemSpecsResponse(BaseModel):
     memory_available_bytes: int
     gpu_name: str | None = None
     gpu_memory_bytes: int | None = None
+    gpu_memory_used_bytes: int | None = None
+    gpu_memory_available_bytes: int | None = None
     gpu_available: bool = False
 
 

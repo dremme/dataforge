@@ -146,6 +146,10 @@
     &-detail {
       color: var(--text-subtle);
       font-weight: var(--font-normal);
+
+      &--warning {
+        color: var(--warning);
+      }
     }
   }
 

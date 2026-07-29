@@ -31,11 +31,12 @@ export function countWords(text: string): number {
 }
 
 export function formatBytes(bytes: number): string {
-  const gib = bytes / 1024 ** 3;
-  if (gib >= 10) {
-    return `${Math.round(gib)} GB`;
-  }
-  return `${gib.toFixed(1)} GB`;
+  return `${formatBytesValue(bytes)} GB`;
+}
+
+/** Unitless counterpart of {@link formatBytes}, for "x / y GB" pairs. */
+export function formatBytesValue(bytes: number): string {
+  return String(Math.round(bytes / 1024 ** 3));
 }
 
 export function parseJsonContent(

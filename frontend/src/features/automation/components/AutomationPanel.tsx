@@ -1,17 +1,15 @@
 import { useId, useRef } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   iconAlertTriangle,
   iconBan,
   iconCircleCheck,
   iconCircleAlert,
-  iconCpu,
   iconFilePen,
   iconFilePlus,
-  iconGpu,
   iconHammer,
   iconInfo,
   iconLoader2,
-  iconMemoryStick,
   iconTriangleAlert,
 } from "@/shared/icons";
 import type { GalleryItem, Job, JobType } from "@/shared/types";
@@ -30,12 +28,31 @@ import { JOB_TYPE_META, PRIMARY_JOB_TYPE, jobTypeIconFor } from "@/features/jobs
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
-import { useSystemSpecs } from "@/features/automation/hooks/useSystemSpecs";
 import { classNames } from "@/shared/lib/classNames";
-import { formatBytes } from "@/shared/lib/format";
 import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
+import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
+
+/** The status icon for a job, or null while no icon applies. Order decides precedence. */
+function jobStatusIcon(job: Job): { icon: LucideIcon; className: string } | null {
+  if (isActiveJobStatus(job.status)) {
+    return { icon: iconLoader2, className: "automation__status-icon--spin" };
+  }
+  if (jobShowsErrorState(job)) {
+    return { icon: iconCircleAlert, className: "automation__status-icon--error" };
+  }
+  if (jobIsCancelled(job)) {
+    return { icon: iconBan, className: "automation__status-icon--cancelled" };
+  }
+  if (jobShowsWarningState(job)) {
+    return { icon: iconTriangleAlert, className: "automation__status-icon--warning" };
+  }
+  if (job.status === "completed") {
+    return { icon: iconCircleCheck, className: "automation__status-icon--success" };
+  }
+  return null;
+}
 
 export interface AutomationPanelProps {
   filteredItems: GalleryItem[];
@@ -82,7 +99,9 @@ export function AutomationPanel({
   const errorMessage = job ? jobErrorMessage(job) : null;
   const warningMessage = job ? jobWarningMessage(job) : null;
   const timeLabel = useJobTimeLabel(job);
-  const systemSpecs = useSystemSpecs();
+  const statusIcon = job ? jobStatusIcon(job) : null;
+  const issueLabel = `${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`;
+  const jobLabel = job ? jobTypeLabel(job).toLowerCase() : "";
 
   const startTooltip = startingPrimary
     ? `Starting ${primaryMeta.label.toLowerCase()} job...`
@@ -180,15 +199,13 @@ export function AutomationPanel({
                 )}
 
                 {showResolveIssues && (
-                  <Tooltip
-                    content={`Review and fix ${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`}
-                  >
+                  <Tooltip content={`Review and fix ${issueLabel}`}>
                     <button
                       type="button"
                       className="automation__resolve-issues"
                       onClick={onResolveIssues}
                       disabled={starting}
-                      aria-label={`Resolve ${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`}
+                      aria-label={`Resolve ${issueLabel}`}
                     >
                       <Icon icon={iconAlertTriangle} className="automation__btn-icon" />
                       Resolve issues
@@ -208,11 +225,7 @@ export function AutomationPanel({
 
             {jobActive && job && (
               <Tooltip
-                content={
-                  cancellingJob
-                    ? `Cancelling ${jobTypeLabel(job).toLowerCase()} job...`
-                    : `Cancel ${jobTypeLabel(job).toLowerCase()} job`
-                }
+                content={cancellingJob ? `Cancelling ${jobLabel} job...` : `Cancel ${jobLabel} job`}
               >
                 <button
                   type="button"
@@ -235,93 +248,16 @@ export function AutomationPanel({
           </div>
         </div>
 
-        {systemSpecs && (
-          <div
-            id={specsPanelId}
-            className={classNames(
-              "automation__specs-panel",
-              showSpecs && "automation__specs-panel--open",
-            )}
-          >
-            <div className="automation__specs-panel-inner">
-              <div className="automation__specs" role="region" aria-label="System specifications">
-                <span className="automation__spec">
-                  <Icon icon={iconCpu} className="automation__spec-icon" />
-                  <span className="automation__spec-label">
-                    {systemSpecs.cpu_name}
-                    <span className="automation__spec-detail">
-                      {" "}
-                      · {systemSpecs.cpu_cores} cores
-                    </span>
-                  </span>
-                </span>
-                <span className="automation__spec-divider" aria-hidden="true" />
-                <span className="automation__spec">
-                  <Icon icon={iconMemoryStick} className="automation__spec-icon" />
-                  <span className="automation__spec-label">
-                    RAM {formatBytes(systemSpecs.memory_available_bytes)}
-                    <span className="automation__spec-detail">
-                      {" "}
-                      / {formatBytes(systemSpecs.memory_total_bytes)}
-                    </span>
-                  </span>
-                </span>
-                <span className="automation__spec-divider" aria-hidden="true" />
-                <span className="automation__spec">
-                  <Icon icon={iconGpu} className="automation__spec-icon" />
-                  <span className="automation__spec-label">
-                    {systemSpecs.gpu_available && systemSpecs.gpu_name ? (
-                      <>
-                        {systemSpecs.gpu_name}
-                        {systemSpecs.gpu_memory_bytes && (
-                          <span className="automation__spec-detail">
-                            {" "}
-                            · {formatBytes(systemSpecs.gpu_memory_bytes)}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="automation__spec-detail">No GPU</span>
-                    )}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
+        <AutomationSystemSpecs id={specsPanelId} open={showSpecs} />
 
         {job && (
           <div className="automation__body">
             <div className="automation__status-row">
               <span className="automation__status">
-                {jobActive && (
+                {statusIcon && (
                   <Icon
-                    icon={iconLoader2}
-                    className="automation__status-icon automation__status-icon--spin"
-                  />
-                )}
-                {!jobActive && job.status === "completed" && !showJobError && !showJobWarning && (
-                  <Icon
-                    icon={iconCircleCheck}
-                    className="automation__status-icon automation__status-icon--success"
-                  />
-                )}
-                {!jobActive && showJobWarning && (
-                  <Icon
-                    icon={iconTriangleAlert}
-                    className="automation__status-icon automation__status-icon--warning"
-                  />
-                )}
-                {!jobActive && showJobError && (
-                  <Icon
-                    icon={iconCircleAlert}
-                    className="automation__status-icon automation__status-icon--error"
-                  />
-                )}
-                {!jobActive && showCancelled && (
-                  <Icon
-                    icon={iconBan}
-                    className="automation__status-icon automation__status-icon--cancelled"
+                    icon={statusIcon.icon}
+                    className={`automation__status-icon ${statusIcon.className}`}
                   />
                 )}
                 <span className="automation__job-type">{jobTypeLabel(job)}</span>

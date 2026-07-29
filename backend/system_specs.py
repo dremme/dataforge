@@ -18,7 +18,17 @@ class SystemSpecs:
     memory_available_bytes: int
     gpu_name: str | None
     gpu_memory_bytes: int | None
+    gpu_memory_used_bytes: int | None
+    gpu_memory_available_bytes: int | None
     gpu_available: bool
+
+
+@dataclass(frozen=True)
+class _GpuInfo:
+    name: str
+    memory_total_bytes: int
+    memory_used_bytes: int | None
+    memory_available_bytes: int | None
 
 
 def _windows_memory_bytes() -> tuple[int, int]:
@@ -121,25 +131,17 @@ def _sanitize_cpu_name(name: str) -> str:
     return re.sub(r"\s+\d+-Core Processor$", "", name, flags=re.IGNORECASE)
 
 
-def _gpu_from_torch() -> tuple[str, int] | None:
-    try:
-        import torch
-    except ImportError:
-        return None
-
-    if not torch.cuda.is_available():
-        return None
-
-    device = torch.cuda.get_device_properties(0)
-    return device.name, int(device.total_memory)
+def _mb_to_bytes(value: str) -> int:
+    return int(float(value.strip()) * 1024 * 1024)
 
 
-def _gpu_from_nvidia_smi() -> tuple[str, int] | None:
+def _gpu_from_nvidia_smi() -> _GpuInfo | None:
+    """Whole-GPU stats (includes other processes such as a local LLM server)."""
     try:
         result = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.total",
+                "--query-gpu=name,memory.total,memory.used,memory.free",
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
@@ -153,23 +155,77 @@ def _gpu_from_nvidia_smi() -> tuple[str, int] | None:
     if result.returncode != 0 or not result.stdout.strip():
         return None
 
-    name, memory_mb = result.stdout.strip().split(",", 1)
-    memory_bytes = int(float(memory_mb.strip()) * 1024 * 1024)
-    return name.strip(), memory_bytes
+    # Use the first GPU line only (matches prior single-GPU behavior).
+    line = result.stdout.strip().splitlines()[0]
+    parts = [part.strip() for part in line.split(",")]
+    if len(parts) < 4:
+        return None
+
+    name, total_mb, used_mb, free_mb = parts[0], parts[1], parts[2], parts[3]
+    total_bytes = _mb_to_bytes(total_mb)
+    used_bytes = _mb_to_bytes(used_mb)
+    free_bytes = _mb_to_bytes(free_mb)
+    return _GpuInfo(
+        name=name,
+        memory_total_bytes=total_bytes,
+        memory_used_bytes=used_bytes,
+        memory_available_bytes=free_bytes,
+    )
 
 
-def _gpu_info() -> tuple[str | None, int | None, bool]:
-    for resolver in (_gpu_from_torch, _gpu_from_nvidia_smi):
+def _gpu_from_torch() -> _GpuInfo | None:
+    try:
+        import torch
+    except ImportError:
+        return None
+
+    if not torch.cuda.is_available():
+        return None
+
+    device = torch.cuda.get_device_properties(0)
+    total_bytes = int(device.total_memory)
+    used_bytes: int | None = None
+    free_bytes: int | None = None
+    try:
+        free, total = torch.cuda.mem_get_info(0)
+        free_bytes = int(free)
+        total_bytes = int(total)
+        used_bytes = total_bytes - free_bytes
+    except Exception:
+        pass
+
+    return _GpuInfo(
+        name=device.name,
+        memory_total_bytes=total_bytes,
+        memory_used_bytes=used_bytes,
+        memory_available_bytes=free_bytes,
+    )
+
+
+def _gpu_info() -> tuple[str | None, int | None, int | None, int | None, bool]:
+    # Prefer nvidia-smi so VRAM used by external processes (e.g. LM Studio) is included.
+    for resolver in (_gpu_from_nvidia_smi, _gpu_from_torch):
         info = resolver()
         if info is not None:
-            name, memory_bytes = info
-            return name, memory_bytes, True
-    return None, None, False
+            return (
+                info.name,
+                info.memory_total_bytes,
+                info.memory_used_bytes,
+                info.memory_available_bytes,
+                True,
+            )
+    return None, None, None, None, False
 
 
 def get_system_specs() -> SystemSpecs:
     total_bytes, available_bytes = _memory_bytes()
-    gpu_name, gpu_memory_bytes, gpu_available = _gpu_info()
+    (
+        gpu_name,
+        gpu_memory_bytes,
+        gpu_memory_used_bytes,
+        gpu_memory_available_bytes,
+        gpu_available,
+    ) = _gpu_info()
     return SystemSpecs(
         cpu_name=_sanitize_cpu_name(_cpu_name()),
         cpu_cores=os.cpu_count() or 1,
@@ -177,5 +233,7 @@ def get_system_specs() -> SystemSpecs:
         memory_available_bytes=available_bytes,
         gpu_name=gpu_name,
         gpu_memory_bytes=gpu_memory_bytes,
+        gpu_memory_used_bytes=gpu_memory_used_bytes,
+        gpu_memory_available_bytes=gpu_memory_available_bytes,
         gpu_available=gpu_available,
     )
