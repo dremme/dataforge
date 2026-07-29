@@ -69,7 +69,6 @@
   &__sep {
     @include icon-block;
     @include icon-size(var(--icon-size-base));
-    margin: 0 0.1rem;
     color: var(--text-subtle);
     opacity: var(--disabled-opacity);
     user-select: none;

@@ -31,7 +31,7 @@ $toolbar-search-expand-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   &__search,
   &__sort,
-  &__filters {
+  &__filter-menu {
     box-sizing: border-box;
   }
 
@@ -40,24 +40,6 @@ $toolbar-search-expand-ease: cubic-bezier(0.22, 1, 0.36, 1);
   &__controls > .tooltip > .jobs-button {
     height: 100%;
     min-height: var(--toolbar-control-height);
-  }
-
-  &__filters {
-    display: flex;
-    align-items: stretch;
-    gap: 0.2rem;
-    height: var(--toolbar-control-height);
-    min-height: var(--toolbar-control-height);
-    padding: 0.2rem;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
-
-    .tooltip {
-      align-self: stretch;
-      height: auto;
-      min-height: 0;
-    }
   }
 
   &__search {
@@ -257,6 +239,137 @@ $toolbar-search-expand-ease: cubic-bezier(0.22, 1, 0.36, 1);
       color: var(--text-subtle);
     }
   }
+
+  // Media type + caption status filters, collapsed into a dropdown
+  &__filter-menu {
+    position: relative;
+    height: var(--toolbar-control-height);
+
+    &-trigger {
+      @include pill-btn-ghost(0.4rem);
+      position: relative;
+      padding: 0 0.563rem;
+
+      &-icon {
+        @include icon-size(var(--icon-size-base));
+      }
+
+      // Marks a narrowed gallery while the chosen filters are out of sight.
+      &-dot {
+        position: absolute;
+        top: calc(50% - 0.2rem);
+        right: 0.25rem;
+        width: 0.4rem;
+        height: 0.4rem;
+        border-radius: var(--radius-pill);
+        background: var(--accent);
+      }
+    }
+
+    &--open &-trigger,
+    &-trigger--filtering {
+      color: var(--text);
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+    }
+
+    &-panel {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      right: 0;
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      min-width: min(15rem, calc(100vw - 2rem));
+      padding: 0.35rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow);
+    }
+
+    &-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+
+      & + & {
+        margin-top: 0.35rem;
+        padding-top: 0.45rem;
+        border-top: 1px solid var(--border);
+      }
+
+      &-label {
+        padding: 0.15rem 0.55rem 0.35rem;
+        color: var(--text-subtle);
+        font-size: var(--text-2xs);
+        font-weight: var(--font-semibold);
+        letter-spacing: 0.06em;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+    }
+
+    &-option {
+      @include control-interactive;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      width: 100%;
+      padding: 0.4rem 0.55rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
+      line-height: 1;
+      text-align: left;
+
+      &:hover {
+        color: var(--text);
+        background: var(--accent-soft);
+      }
+
+      &--active {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      &-icon {
+        flex-shrink: 0;
+        @include icon-block;
+        @include icon-size(var(--icon-size-sm));
+        @include icon-muted;
+      }
+
+      &--active &-icon {
+        opacity: 1;
+      }
+
+      &-label {
+        flex: 1;
+        min-width: 0;
+      }
+
+      &-count {
+        min-width: 1rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: var(--radius-pill);
+        background: var(--surface-hover);
+        color: var(--text-muted);
+        font-size: var(--text-2xs);
+        font-weight: var(--font-semibold);
+        line-height: 0.95;
+        @include tabular-nums;
+      }
+
+      &--active &-count {
+        background: var(--accent-hover);
+        color: var(--accent);
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -319,53 +432,5 @@ $toolbar-search-expand-ease: cubic-bezier(0.22, 1, 0.36, 1);
     height: 0.85em;
     border-radius: var(--radius-sm);
     vertical-align: -0.05em;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// .filter-btn
-// ---------------------------------------------------------------------------
-
-.filter-btn {
-  @include pill-btn-inset;
-
-  &--icon-only {
-    position: relative;
-    gap: 0.25rem;
-    padding: 0 0.5rem;
-
-    .filter-btn__label {
-      @include visually-hidden;
-    }
-  }
-
-  &__count {
-    min-width: 1rem;
-    padding: 0.1rem 0.3rem;
-    border-radius: var(--radius-pill);
-    background: var(--surface-hover);
-    color: var(--text-muted);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-semibold);
-    line-height: 0.95;
-    @include tabular-nums;
-  }
-
-  &--active &__count {
-    background: var(--accent-hover);
-    color: var(--accent);
-  }
-
-  &__icon {
-    @include icon-block;
-    @include icon-size(var(--icon-size-sm));
-    @include icon-muted;
-  }
-
-  &--active,
-  &--active:hover:not(:disabled) {
-    .filter-btn__icon {
-      opacity: 1;
-    }
   }
 }

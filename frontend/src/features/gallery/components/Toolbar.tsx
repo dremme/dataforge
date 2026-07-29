@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { FILTER_OPTIONS, MEDIA_TYPE_FILTER_OPTIONS } from "@/features/gallery/lib/filters";
 import {
   SORT_OPTIONS,
   type CaptionFilter,
@@ -19,6 +18,7 @@ import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { JobsButton } from "@/features/jobs/components/JobsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
+import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
 
 interface ToolbarProps {
   subfolderCount: number;
@@ -44,15 +44,6 @@ interface ToolbarSearchProps {
   regex: boolean;
   onQueryChange: (value: string) => void;
   onRegexChange: (value: boolean) => void;
-}
-
-function filterCountLabel(ariaLabel: string, count: number, searchQuery: string): string {
-  const trimmedSearch = searchQuery.trim();
-  if (!trimmedSearch) {
-    return `${ariaLabel} (${count})`;
-  }
-
-  return `${ariaLabel} (${count} matching "${trimmedSearch}")`;
 }
 
 function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSearchProps) {
@@ -239,59 +230,15 @@ export function Toolbar({
           </label>
         </Tooltip>
 
-        <div className="toolbar__filters" role="group" aria-label="Filter by media type">
-          {MEDIA_TYPE_FILTER_OPTIONS.map(({ value, label, ariaLabel, icon }) => {
-            const count = mediaTypeFilterCounts[value];
-            const countLabel = filterCountLabel(ariaLabel, count, searchQuery);
-            return (
-              <Tooltip key={value} content={countLabel}>
-                <button
-                  type="button"
-                  className={classNames(
-                    "filter-btn filter-btn--icon-only",
-                    mediaTypeFilter === value && "filter-btn--active",
-                  )}
-                  onClick={() => onMediaTypeFilterChange(value)}
-                  aria-label={countLabel}
-                  aria-pressed={mediaTypeFilter === value}
-                >
-                  <Icon icon={icon} className="filter-btn__icon" />
-                  <span className="filter-btn__label">{label}</span>
-                  <span className="filter-btn__count" aria-hidden="true">
-                    {count}
-                  </span>
-                </button>
-              </Tooltip>
-            );
-          })}
-        </div>
-
-        <div className="toolbar__filters" role="group" aria-label="Filter by caption status">
-          {FILTER_OPTIONS.map(({ value, label, ariaLabel, icon }) => {
-            const count = filterCounts[value];
-            const countLabel = filterCountLabel(ariaLabel, count, searchQuery);
-            return (
-              <Tooltip key={value} content={countLabel}>
-                <button
-                  type="button"
-                  className={classNames(
-                    "filter-btn filter-btn--icon-only",
-                    filter === value && "filter-btn--active",
-                  )}
-                  onClick={() => onFilterChange(value)}
-                  aria-label={countLabel}
-                  aria-pressed={filter === value}
-                >
-                  <Icon icon={icon} className="filter-btn__icon" />
-                  <span className="filter-btn__label">{label}</span>
-                  <span className="filter-btn__count" aria-hidden="true">
-                    {count}
-                  </span>
-                </button>
-              </Tooltip>
-            );
-          })}
-        </div>
+        <ToolbarFilterMenu
+          searchQuery={searchQuery}
+          filter={filter}
+          filterCounts={filterCounts}
+          mediaTypeFilter={mediaTypeFilter}
+          mediaTypeFilterCounts={mediaTypeFilterCounts}
+          onFilterChange={onFilterChange}
+          onMediaTypeFilterChange={onMediaTypeFilterChange}
+        />
 
         <JobsButton />
       </div>

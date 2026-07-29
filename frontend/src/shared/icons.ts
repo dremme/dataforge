@@ -25,6 +25,7 @@ export {
   FileDown as iconFileDown,
   FilePen as iconFilePen,
   FilePlus as iconFilePlus,
+  Filter as iconFilter,
   Folder as iconFolder,
   FolderInput as iconFolderInput,
   FolderOpen as iconFolderOpen,

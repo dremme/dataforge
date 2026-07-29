@@ -214,7 +214,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "View waves.mp4" })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Videos \(\d+\)/ }));
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /Videos \(\d+\)/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View waves.mp4" })).toBeInTheDocument();
@@ -274,7 +275,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /With issues/i }));
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /With issues/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "No files with issues" })).toBeInTheDocument();
@@ -300,7 +302,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Images \(\d+\)/ }));
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /Images \(\d+\)/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "No images" })).toBeInTheDocument();
@@ -316,7 +319,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "View beach.jpg" })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Captioned \(\d+\)/ }));
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /Captioned \(\d+\)/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
@@ -357,7 +361,8 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "View beach.jpg" })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Missing caption \(\d+\)/ }));
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /Missing caption \(\d+\)/ }));
 
     await user.click(screen.getByRole("button", { name: "View beach.jpg" }));
 

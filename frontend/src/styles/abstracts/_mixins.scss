@@ -337,35 +337,6 @@
   @include pill-btn-compact(accent);
 }
 
-@mixin pill-btn-inset {
-  @include control-interactive;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  height: 100%;
-  padding: 0 0.8rem;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  line-height: 1;
-  @include btn-disabled;
-
-  &:hover:not(:disabled) {
-    color: var(--text);
-    background: var(--accent-soft);
-  }
-
-  &--active,
-  &--active:hover:not(:disabled) {
-    @include btn-surface-active;
-    border: none;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Buttons — icon variants
 // ---------------------------------------------------------------------------
