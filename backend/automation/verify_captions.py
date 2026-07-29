@@ -18,18 +18,16 @@ from captions import issue_file_path
 from constants import IMAGE_EXTENSIONS
 from openai_settings import (
     assistant_message_text,
+    build_sampling_extra_body,
     create_openai_client,
-    get_instruct_min_p,
     get_instruct_presence_penalty,
     get_instruct_temperature,
     get_instruct_top_p,
     get_max_tokens,
     get_openai_model,
-    get_thinking_min_p,
     get_thinking_presence_penalty,
     get_thinking_temperature,
     get_thinking_top_p,
-    get_top_k,
 )
 
 logger = logging.getLogger(__name__)
@@ -359,22 +357,16 @@ def _run_chat_completion(
         temperature = get_instruct_temperature()
         presence_penalty = get_instruct_presence_penalty()
         top_p = get_instruct_top_p()
-        min_p = get_instruct_min_p()
-        extra_body: dict[str, object] = {
-            "top_k": get_top_k(),
-            "min_p": min_p,
-            "chat_template_kwargs": {"enable_thinking": False},
-        }
         outbound_messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
     elif mode == "thinking":
         temperature = get_thinking_temperature()
         presence_penalty = get_thinking_presence_penalty()
         top_p = get_thinking_top_p()
-        min_p = get_thinking_min_p()
-        extra_body = {"top_k": get_top_k(), "min_p": min_p}
         outbound_messages = messages
     else:
         return None
+
+    extra_body = build_sampling_extra_body(mode)
 
     try:
         response = client.chat.completions.create(

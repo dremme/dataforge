@@ -6,9 +6,9 @@ Environment (all optional):
 - ``OPENAI_API_KEY`` — API key (placeholder is fine for many local servers)
 - ``OPENAI_MODEL`` — chat ``model`` id the server expects
 - ``OPENAI_MAX_TOKENS`` — completion max tokens
-- ``OPENAI_THINKING_TEMPERATURE`` / ``OPENAI_THINKING_PRESENCE_PENALTY`` / ``OPENAI_THINKING_TOP_P`` / ``OPENAI_THINKING_MIN_P``
-- ``OPENAI_INSTRUCT_TEMPERATURE`` / ``OPENAI_INSTRUCT_PRESENCE_PENALTY`` / ``OPENAI_INSTRUCT_TOP_P`` / ``OPENAI_INSTRUCT_MIN_P``
-- ``OPENAI_TOP_K`` / min-p vars — sampling extras via ``extra_body`` (local servers)
+- ``OPENAI_THINKING_TEMPERATURE`` / ``OPENAI_THINKING_PRESENCE_PENALTY`` / ``OPENAI_THINKING_TOP_P`` / ``OPENAI_THINKING_MIN_P`` / ``OPENAI_THINKING_REPEAT_PENALTY``
+- ``OPENAI_INSTRUCT_TEMPERATURE`` / ``OPENAI_INSTRUCT_PRESENCE_PENALTY`` / ``OPENAI_INSTRUCT_TOP_P`` / ``OPENAI_INSTRUCT_MIN_P`` / ``OPENAI_INSTRUCT_REPEAT_PENALTY``
+- ``OPENAI_TOP_K`` / min-p / repeat-penalty vars — sampling extras via ``extra_body`` (local servers)
 """
 
 from __future__ import annotations
@@ -30,6 +30,12 @@ DEFAULT_INSTRUCT_PRESENCE_PENALTY = 1.5
 DEFAULT_INSTRUCT_TOP_P = 0.8
 DEFAULT_INSTRUCT_MIN_P = 0.0
 DEFAULT_TOP_K = 20
+
+# 1.0 disables the repetition penalty, so it is both the default and the value
+# at which the key is left out of ``extra_body`` entirely.
+NEUTRAL_REPEAT_PENALTY = 1.0
+DEFAULT_THINKING_REPEAT_PENALTY = NEUTRAL_REPEAT_PENALTY
+DEFAULT_INSTRUCT_REPEAT_PENALTY = NEUTRAL_REPEAT_PENALTY
 
 
 def _env_str(name: str) -> str:
@@ -104,8 +110,39 @@ def get_instruct_min_p() -> float:
     return _env_float("OPENAI_INSTRUCT_MIN_P", DEFAULT_INSTRUCT_MIN_P)
 
 
+def get_thinking_repeat_penalty() -> float:
+    return _env_float("OPENAI_THINKING_REPEAT_PENALTY", DEFAULT_THINKING_REPEAT_PENALTY)
+
+
+def get_instruct_repeat_penalty() -> float:
+    return _env_float("OPENAI_INSTRUCT_REPEAT_PENALTY", DEFAULT_INSTRUCT_REPEAT_PENALTY)
+
+
 def get_top_k() -> int:
     return _env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
+
+
+def build_sampling_extra_body(mode: str) -> dict[str, object]:
+    """Sampling knobs local servers accept outside the OpenAI chat schema.
+
+    ``repeat_penalty`` is the llama.cpp / LM Studio name for the knob Hugging
+    Face and vLLM call ``repetition_penalty``. It is only sent once configured
+    away from its neutral 1.0, so servers that do not recognise the key keep
+    seeing exactly the request they saw before the setting existed.
+    """
+    instruct = mode == "instruct"
+    repeat_penalty = get_instruct_repeat_penalty() if instruct else get_thinking_repeat_penalty()
+
+    extra: dict[str, object] = {
+        "top_k": get_top_k(),
+        "min_p": get_instruct_min_p() if instruct else get_thinking_min_p(),
+    }
+    if repeat_penalty != NEUTRAL_REPEAT_PENALTY:
+        extra["repeat_penalty"] = repeat_penalty
+    if instruct:
+        extra["chat_template_kwargs"] = {"enable_thinking": False}
+
+    return extra
 
 
 def create_openai_client() -> Any:

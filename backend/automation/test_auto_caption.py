@@ -186,6 +186,24 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             self.assertEqual(extra.get("top_k"), 20)
             self.assertIn("min_p", extra)
 
+    def test_complete_caption_forwards_configured_repeat_penalty(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            frames = [Image.new("RGB", (128, 128), color="blue")]
+
+            with patch.dict("os.environ", {"OPENAI_INSTRUCT_REPEAT_PENALTY": "1.2"}, clear=False):
+                fake_client, captured = _make_fake_caption_client("Caption.")
+                complete_caption(
+                    fake_client, media, "Sys", "Draft.", images=frames, mode="instruct"
+                )
+                self.assertEqual(captured["extra_body"].get("repeat_penalty"), 1.2)
+
+            # Unset again: the key must disappear rather than fall back to 1.0,
+            # so servers that do not recognise it keep seeing the pre-existing request.
+            fake_client, captured = _make_fake_caption_client("Caption.")
+            complete_caption(fake_client, media, "Sys", "Draft.", images=frames, mode="instruct")
+            self.assertNotIn("repeat_penalty", captured["extra_body"])
+
     def test_complete_caption_reasoning_fallback_only_in_instruct(self) -> None:
         frames = [Image.new("RGB", (128, 128), color="blue")]
         with TempMediaFolder() as root:

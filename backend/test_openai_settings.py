@@ -9,6 +9,7 @@ from unittest.mock import patch
 from openai_settings import (
     DEFAULT_INSTRUCT_MIN_P,
     DEFAULT_INSTRUCT_PRESENCE_PENALTY,
+    DEFAULT_INSTRUCT_REPEAT_PENALTY,
     DEFAULT_INSTRUCT_TEMPERATURE,
     DEFAULT_INSTRUCT_TOP_P,
     DEFAULT_MAX_TOKENS,
@@ -17,13 +18,17 @@ from openai_settings import (
     DEFAULT_OPENAI_MODEL,
     DEFAULT_THINKING_MIN_P,
     DEFAULT_THINKING_PRESENCE_PENALTY,
+    DEFAULT_THINKING_REPEAT_PENALTY,
     DEFAULT_THINKING_TEMPERATURE,
     DEFAULT_THINKING_TOP_P,
     DEFAULT_TOP_K,
+    NEUTRAL_REPEAT_PENALTY,
     assistant_message_text,
+    build_sampling_extra_body,
     create_openai_client,
     get_instruct_min_p,
     get_instruct_presence_penalty,
+    get_instruct_repeat_penalty,
     get_instruct_temperature,
     get_instruct_top_p,
     get_max_tokens,
@@ -32,6 +37,7 @@ from openai_settings import (
     get_openai_model,
     get_thinking_min_p,
     get_thinking_presence_penalty,
+    get_thinking_repeat_penalty,
     get_thinking_temperature,
     get_thinking_top_p,
     get_top_k,
@@ -53,6 +59,8 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(get_instruct_presence_penalty(), DEFAULT_INSTRUCT_PRESENCE_PENALTY)
             self.assertEqual(get_instruct_top_p(), DEFAULT_INSTRUCT_TOP_P)
             self.assertEqual(get_instruct_min_p(), DEFAULT_INSTRUCT_MIN_P)
+            self.assertEqual(get_thinking_repeat_penalty(), DEFAULT_THINKING_REPEAT_PENALTY)
+            self.assertEqual(get_instruct_repeat_penalty(), DEFAULT_INSTRUCT_REPEAT_PENALTY)
             self.assertEqual(get_top_k(), DEFAULT_TOP_K)
 
     def test_reads_environment_overrides(self) -> None:
@@ -71,6 +79,8 @@ class OpenAISettingsTests(unittest.TestCase):
                 "OPENAI_INSTRUCT_PRESENCE_PENALTY": "1.0",
                 "OPENAI_INSTRUCT_TOP_P": "0.75",
                 "OPENAI_INSTRUCT_MIN_P": "0.1",
+                "OPENAI_THINKING_REPEAT_PENALTY": "1.05",
+                "OPENAI_INSTRUCT_REPEAT_PENALTY": "1.15",
                 "OPENAI_TOP_K": "40",
             },
             clear=True,
@@ -87,6 +97,8 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(get_instruct_presence_penalty(), 1.0)
             self.assertEqual(get_instruct_top_p(), 0.75)
             self.assertEqual(get_instruct_min_p(), 0.1)
+            self.assertEqual(get_thinking_repeat_penalty(), 1.05)
+            self.assertEqual(get_instruct_repeat_penalty(), 1.15)
             self.assertEqual(get_top_k(), 40)
 
     def test_blank_or_invalid_env_values_fall_back_to_defaults(self) -> None:
@@ -108,6 +120,42 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(get_max_tokens(), DEFAULT_MAX_TOKENS)
             self.assertEqual(get_thinking_temperature(), DEFAULT_THINKING_TEMPERATURE)
             self.assertEqual(get_top_k(), DEFAULT_TOP_K)
+
+    def test_extra_body_omits_repeat_penalty_at_the_neutral_value(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            for mode in ("thinking", "instruct"):
+                extra = build_sampling_extra_body(mode)
+                self.assertNotIn("repeat_penalty", extra, mode)
+                self.assertEqual(extra["top_k"], DEFAULT_TOP_K)
+                self.assertIn("min_p", extra)
+
+    def test_extra_body_includes_configured_repeat_penalty_per_mode(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_THINKING_REPEAT_PENALTY": "1.1",
+                "OPENAI_INSTRUCT_REPEAT_PENALTY": "1.2",
+            },
+            clear=True,
+        ):
+            self.assertEqual(build_sampling_extra_body("thinking")["repeat_penalty"], 1.1)
+            self.assertEqual(build_sampling_extra_body("instruct")["repeat_penalty"], 1.2)
+
+    def test_extra_body_disables_thinking_only_for_instruct(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertNotIn("chat_template_kwargs", build_sampling_extra_body("thinking"))
+            self.assertEqual(
+                build_sampling_extra_body("instruct")["chat_template_kwargs"],
+                {"enable_thinking": False},
+            )
+
+    def test_neutral_repeat_penalty_is_explicitly_omitted(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"OPENAI_INSTRUCT_REPEAT_PENALTY": str(NEUTRAL_REPEAT_PENALTY)},
+            clear=True,
+        ):
+            self.assertNotIn("repeat_penalty", build_sampling_extra_body("instruct"))
 
     def test_create_openai_client_uses_resolved_settings(self) -> None:
         with (

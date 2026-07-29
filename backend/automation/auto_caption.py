@@ -17,18 +17,16 @@ from PIL import Image
 from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
 from openai_settings import (
     assistant_message_text,
+    build_sampling_extra_body,
     create_openai_client,
-    get_instruct_min_p,
     get_instruct_presence_penalty,
     get_instruct_temperature,
     get_instruct_top_p,
     get_max_tokens,
     get_openai_model,
-    get_thinking_min_p,
     get_thinking_presence_penalty,
     get_thinking_temperature,
     get_thinking_top_p,
-    get_top_k,
 )
 from sysprompt import load_sysprompt
 
@@ -345,12 +343,10 @@ def complete_caption(
         temperature = get_instruct_temperature()
         presence_penalty = get_instruct_presence_penalty()
         top_p = get_instruct_top_p()
-        min_p = get_instruct_min_p()
     else:
         temperature = get_thinking_temperature()
         presence_penalty = get_thinking_presence_penalty()
         top_p = get_thinking_top_p()
-        min_p = get_thinking_min_p()
 
     try:
         messages = _vision_messages(
@@ -364,10 +360,6 @@ def complete_caption(
             # that honor them (vLLM, some LM Studio builds). Prefill helps when kwargs are ignored.
             messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
 
-        extra_body: dict[str, object] = {"top_k": get_top_k(), "min_p": min_p}
-        if mode == "instruct":
-            extra_body["chat_template_kwargs"] = {"enable_thinking": False}
-
         response = client.chat.completions.create(
             model=resolved_model,
             messages=messages,
@@ -375,7 +367,7 @@ def complete_caption(
             temperature=temperature,
             top_p=top_p,
             presence_penalty=presence_penalty,
-            extra_body=extra_body,
+            extra_body=build_sampling_extra_body(mode),
         )
 
         raw = assistant_message_text(

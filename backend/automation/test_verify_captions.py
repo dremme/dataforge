@@ -278,6 +278,36 @@ class VerifyCaptionsApiTests(unittest.TestCase):
             self.assertNotIn("chat_template_kwargs", captured["extra_body"])
             self.assertIn("Outdoor portraits.", captured["messages"][0]["content"])
 
+    def test_verify_caption_forwards_configured_repeat_penalty(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            frames = [Image.new("RGB", (128, 128), color="blue")]
+
+            with patch.dict("os.environ", {"OPENAI_THINKING_REPEAT_PENALTY": "1.1"}, clear=False):
+                fake_client, captured = _make_fake_verify_client()
+                verify_caption(
+                    fake_client,
+                    media,
+                    build_verification_system_prompt(),
+                    "A blue car in the rain.",
+                    images=frames,
+                    mode="thinking",
+                )
+                self.assertEqual(captured["extra_body"].get("repeat_penalty"), 1.1)
+
+            # Unset again: the key must disappear rather than fall back to 1.0,
+            # so servers that do not recognise it keep seeing the pre-existing request.
+            fake_client, captured = _make_fake_verify_client()
+            verify_caption(
+                fake_client,
+                media,
+                build_verification_system_prompt(),
+                "A blue car in the rain.",
+                images=frames,
+                mode="thinking",
+            )
+            self.assertNotIn("repeat_penalty", captured["extra_body"])
+
     def test_verify_caption_reasoning_fallback_only_in_instruct(self) -> None:
         payload = _verification_json(correct=True, issues="None", suggestions="None")
         frames = [Image.new("RGB", (128, 128), color="blue")]

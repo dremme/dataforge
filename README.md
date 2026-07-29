@@ -206,6 +206,9 @@ Values can live in `.env` or the OS environment.
 - [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it)
 - [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
 
+Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`; the Qwen3.6 defaults leave it disabled.
+These models have no thinking mode, so run them in instruct mode and leave the `OPENAI_THINKING_*` values alone.
+
 **Environment variables** (optional; defaults target a local server; set in `.env` or the OS environment):
 
 | Variable | Default | Purpose |
@@ -218,11 +221,16 @@ Values can live in `.env` or the OS environment.
 | `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0` | Presence penalty in thinking mode |
 | `OPENAI_THINKING_TOP_P` | `0.95` | Top-p in thinking mode |
 | `OPENAI_THINKING_MIN_P` | `0.0` | Min-p in thinking mode (via `extra_body`) |
+| `OPENAI_THINKING_REPEAT_PENALTY` | `1.0` | Repetition penalty in thinking mode (via `extra_body`) |
 | `OPENAI_INSTRUCT_TEMPERATURE` | `0.7` | Sampling temperature in instruct mode |
 | `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5` | Presence penalty in instruct mode |
 | `OPENAI_INSTRUCT_TOP_P` | `0.8` | Top-p in instruct mode |
 | `OPENAI_INSTRUCT_MIN_P` | `0.0` | Min-p in instruct mode (via `extra_body`) |
+| `OPENAI_INSTRUCT_REPEAT_PENALTY` | `1.0` | Repetition penalty in instruct mode (via `extra_body`) |
 | `OPENAI_TOP_K` | `20` | Top-k (via `extra_body`) |
+
+`repeat_penalty` uses llama.cpp / LM Studio naming.
+Hugging Face and vLLM call the same knob `repetition_penalty`, which is the spelling you will see on model cards — rename it if you point DataForge at one of those servers.
 
 Many single-model local servers ignore a wrong `OPENAI_MODEL` string and still answer.
 Multi-model servers need the id to match the loaded model.
