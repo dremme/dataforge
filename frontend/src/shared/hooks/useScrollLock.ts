@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import {
   acquireScrollLock,
   releaseScrollLock,
@@ -8,6 +8,11 @@ import {
 
 export { getScrollLockDepth } from "./scrollLockManager";
 
+/**
+ * Scroll lock is acquired/released in layout effects so a dialog that mounts
+ * in the same commit as another unmounts can read the correct lock depth
+ * for backdrop nesting (see `useOverlayBackdropClass`).
+ */
 export function useScrollLock(
   active: boolean,
   lockClass: ScrollLockClass = "gallery-item-modal-open",
@@ -15,7 +20,7 @@ export function useScrollLock(
 ): void {
   const handleRef = useRef<symbol | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) {
       if (handleRef.current) {
         releaseScrollLock(handleRef.current);

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useLayoutEffect, useState } from "react";
 import { getScrollLockDepth } from "./scrollLockManager";
 
 export function overlayBackdropClass(baseClass: string, nested: boolean): string {
@@ -6,11 +6,20 @@ export function overlayBackdropClass(baseClass: string, nested: boolean): string
 }
 
 /**
- * Backdrop nesting is decided once at mount, before this overlay acquires its
- * scroll lock. Re-checking on every render would count this overlay's own lock
- * as nesting and drop backdrop blur after unrelated background refreshes.
+ * Backdrop nesting is decided once after layout cleanups of unmounted siblings
+ * have run (and before this overlay acquires its own scroll lock, which must
+ * use `useLayoutEffect` too). Deciding during render would still see the
+ * previous dialog's lock when one confirm replaces another in the same commit
+ * (e.g. MoveMediaDialog → FileImportOverwriteDialog), which dropped blur.
  */
 export function useOverlayBackdropClass(baseClass: string): string {
-  const nestedOnMountRef = useRef(getScrollLockDepth() > 0);
-  return overlayBackdropClass(baseClass, nestedOnMountRef.current);
+  const [nested, setNested] = useState(false);
+
+  useLayoutEffect(() => {
+    const isNested = getScrollLockDepth() > 0;
+    setNested((previous) => (previous === isNested ? previous : isNested));
+    // Only the open session matters; re-running would count our own lock.
+  }, []);
+
+  return overlayBackdropClass(baseClass, nested);
 }

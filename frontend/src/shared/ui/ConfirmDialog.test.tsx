@@ -60,6 +60,44 @@ describe("ConfirmDialog", () => {
     releaseScrollLock(handle);
   });
 
+  it("keeps the blurred backdrop when one dialog replaces another", () => {
+    function Host({ step }: { step: "move" | "overwrite" }) {
+      if (step === "move") {
+        return (
+          <ConfirmDialog
+            title="Move to folder"
+            description="Choose a destination."
+            confirmLabel="Move"
+            onConfirm={() => {}}
+            onCancel={() => {}}
+          />
+        );
+      }
+      return (
+        <ConfirmDialog
+          title="Replace existing files?"
+          description="Some files already exist."
+          confirmLabel="Replace"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+        />
+      );
+    }
+
+    const { rerender } = render(<Host step="move" />);
+    expect(screen.getByRole("button", { name: "Close dialog" })).not.toHaveClass(
+      "confirm-dialog__backdrop--nested",
+    );
+
+    rerender(<Host step="overwrite" />);
+    expect(
+      screen.getByRole("alertdialog", { name: "Replace existing files?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close dialog" })).not.toHaveClass(
+      "confirm-dialog__backdrop--nested",
+    );
+  });
+
   it("focuses the panel when it opens", () => {
     render(
       <ConfirmDialog
