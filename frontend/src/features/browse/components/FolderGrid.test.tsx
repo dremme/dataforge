@@ -15,6 +15,20 @@ function makeFolder(overrides: Partial<Subfolder> = {}): Subfolder {
 }
 
 describe("FolderGrid", () => {
+  it("keeps the header with a count when there are no folders", () => {
+    render(<FolderGrid folders={[]} onOpen={vi.fn()} />);
+
+    expect(screen.getByRole("heading", { name: "Folders" })).toBeInTheDocument();
+    expect(document.querySelector(".folder-section__count")).toHaveTextContent("0");
+    expect(document.querySelector(".folder-grid")).toBeNull();
+  });
+
+  it("reports matches against the unfiltered total", () => {
+    render(<FolderGrid folders={[makeFolder()]} totalCount={4} onOpen={vi.fn()} />);
+
+    expect(screen.getByLabelText("1 of 4")).toHaveClass("folder-section__count");
+  });
+
   it("shows a warning triangle when a folder has issue files", () => {
     render(
       <FolderGrid

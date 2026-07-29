@@ -73,7 +73,7 @@ export function getFilterEmptyState(options: {
     return {
       icon: iconSearch,
       title: "No search matches",
-      description: `Nothing in this folder matches "${trimmedSearch}". Try a different file or folder name, or caption phrase.`,
+      description: `Nothing in this folder matches "${trimmedSearch}". Try a different search phrase.`,
       variant: "muted",
     };
   }

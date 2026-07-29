@@ -122,6 +122,9 @@
   }
 
   &__empty {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
     padding: 2rem 0.5rem;
     text-align: center;
     color: var(--text-muted);
@@ -133,7 +136,6 @@
     }
 
     &-hint {
-      margin-top: 0.45rem !important;
       color: var(--text-subtle);
     }
   }

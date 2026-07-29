@@ -7,6 +7,7 @@ import { useFolderFileDrop } from "@/features/browse/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/browse/hooks/useFolderNavigation";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
+import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
 /**
@@ -74,6 +75,13 @@ export function useAppWorkspace() {
     syncBaseline,
   });
 
+  const { searchQuery, searchRegex } = gallery.query;
+
+  const filteredSubfolders = useMemo(
+    () => filterSubfoldersBySearch(subfolders, searchQuery, searchRegex),
+    [subfolders, searchQuery, searchRegex],
+  );
+
   const automation = useAutomationHost({
     folder: browse?.folder,
     breadcrumbs: browse?.breadcrumbs ?? [],
@@ -96,6 +104,7 @@ export function useAppWorkspace() {
     error,
     folderNotFound,
     subfolders,
+    filteredSubfolders,
     items,
     navigateTo,
     createFolder,

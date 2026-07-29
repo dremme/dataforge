@@ -1,5 +1,5 @@
 import { isResolvableIssueItem } from "./issues";
-import type { GalleryItem } from "@/shared/types";
+import type { GalleryItem, Subfolder } from "@/shared/types";
 
 export type SortOption =
   | "name-asc"
@@ -137,6 +137,20 @@ export function filterBySearch(items: GalleryItem[], query: string, regex: boole
   return items.filter((item) =>
     matchesSearchQuery(trimmed, pattern, regex, item.name, item.description),
   );
+}
+
+/** Folders carry no caption text, so only the folder name can match the search. */
+export function filterSubfoldersBySearch(
+  folders: Subfolder[],
+  query: string,
+  regex: boolean,
+): Subfolder[] {
+  const trimmed = query.trim();
+  if (!trimmed) return folders;
+
+  const pattern = regex ? compileSearchRegex(trimmed) : null;
+
+  return folders.filter((folder) => matchesSearchQuery(trimmed, pattern, regex, folder.name));
 }
 
 export function applyCaptionFilter(items: GalleryItem[], filter: CaptionFilter): GalleryItem[] {

@@ -84,11 +84,7 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
 
   return (
     <Tooltip
-      content={
-        hasValue
-          ? `Search active: "${value.trim()}". Matches file names and captions.`
-          : "Search by file name, folder name, or caption (optional regex)"
-      }
+      content="Search by file name, folder name, or caption (optional regex)"
       disabled={expanded && focused}
     >
       <label

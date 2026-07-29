@@ -131,6 +131,80 @@ describe("App", () => {
     });
   });
 
+  it("filters subfolders with the search box", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
+      "vac",
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /^Empty/ })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
+
+    // Both section counts read "matches / total" while the search narrows them.
+    expect(screen.getByLabelText("1 of 2")).toHaveClass("folder-section__count");
+    expect(screen.getByLabelText("0 of 3")).toHaveClass("gallery-section__count");
+  });
+
+  it("keeps the folder section header when a search matches no folder", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
+      "sunset",
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Vacation/ })).not.toBeInTheDocument();
+    });
+
+    // No folder card survives the search, but the section still reports 0 of 2.
+    expect(screen.getByRole("region", { name: "Subfolders" })).toBeInTheDocument();
+    expect(screen.getByLabelText("0 of 2")).toHaveClass("folder-section__count");
+    expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+    expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
+  });
+
+  it("counts the selection against the visible media while selecting", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Select" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("0 of 3")).toHaveClass("gallery-section__count");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
+
+    // The total stays visible once everything is selected.
+    await user.click(screen.getByRole("button", { name: "All" }));
+    expect(screen.getByLabelText("3 of 3")).toHaveClass("gallery-section__count");
+  });
+
   it("filters gallery items with media type buttons", async () => {
     const user = userEvent.setup();
     installMockBackend();
@@ -173,11 +247,16 @@ describe("App", () => {
     await renderApp();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
       expect(screen.getByText("Empty folder")).toBeInTheDocument();
     });
 
+    // The seeded search matches no folder, so the folder section is gone — but the
+    // empty-folder copy still reflects the real subfolder list.
+    expect(screen.queryByRole("button", { name: /Vacation/ })).not.toBeInTheDocument();
     expect(screen.queryByText("No matches")).not.toBeInTheDocument();
+    // The media header stays put above the empty state.
+    expect(screen.getByRole("heading", { name: "Media" })).toBeInTheDocument();
+    expect(document.querySelector(".gallery-section__count")).toHaveTextContent("0");
     expect(
       screen.getByText(
         "This folder has no supported image/video files. Drop compatible files here to import them.",

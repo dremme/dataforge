@@ -377,7 +377,16 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
       background-color: transparent;
       border-right-color: var(--border);
       color: var(--text-muted);
-      // Beat CM inline minHeight = contentHeight when the doc is short.
+      // Do not remove these !important flags — all three are load-bearing, and the
+      // gutter rule collapses on short/empty captions without any one of them:
+      //   height    - CM's base theme sets `height: 100%`, which cannot resolve here
+      //               (no definite height up the chain) and therefore falls back to
+      //               content height. `stretch` below is ignored unless this is auto.
+      //   min-height - CM writes an inline `minHeight = contentHeight` on every
+      //               geometry update; only !important beats an inline style.
+      //   align-self - guards against losing the specificity tie with CM's base
+      //               theme, which sets `align-items: flex-start !important` on the
+      //               scroller (same specificity as ours, so order would decide).
       height: auto !important;
       min-height: 100% !important;
       align-self: stretch !important;

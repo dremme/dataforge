@@ -5,13 +5,24 @@ import {
   countCaptioned,
   countMediaType,
   filterBySearch,
+  filterSubfoldersBySearch,
   parseSortOption,
   processGalleryItems,
   sortGalleryItems,
   type MediaTypeFilter,
   type SortOption,
 } from "./query";
-import type { GalleryItem } from "@/shared/types";
+import type { GalleryItem, Subfolder } from "@/shared/types";
+
+function folder(name: string): Subfolder {
+  return {
+    name,
+    path: `C:\\Photos\\${name}`,
+    file_count: 0,
+    captioned_count: 0,
+    issue_count: 0,
+  };
+}
 
 function item(
   name: string,
@@ -166,6 +177,31 @@ describe("filterBySearch", () => {
       "sunset.png",
     ]);
     expect(filterBySearch(items, "land(scape", true).map((entry) => entry.name)).toEqual([]);
+  });
+});
+
+describe("filterSubfoldersBySearch", () => {
+  const folders = [folder("Vacation"), folder("Sunsets"), folder("Empty")];
+
+  it("matches folder names case-insensitively", () => {
+    expect(filterSubfoldersBySearch(folders, "VAC", false).map((entry) => entry.name)).toEqual([
+      "Vacation",
+    ]);
+  });
+
+  it("returns all folders for blank search", () => {
+    expect(filterSubfoldersBySearch(folders, "  ", false)).toEqual(folders);
+  });
+
+  it("matches with a valid regular expression", () => {
+    expect(
+      filterSubfoldersBySearch(folders, "^(vac|sun)", true).map((entry) => entry.name),
+    ).toEqual(["Vacation", "Sunsets"]);
+  });
+
+  it("does not crash on an incomplete regular expression", () => {
+    expect(() => filterSubfoldersBySearch(folders, "vac(", true)).not.toThrow();
+    expect(filterSubfoldersBySearch(folders, "vac(", true)).toEqual([]);
   });
 });
 

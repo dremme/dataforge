@@ -34,7 +34,9 @@ function folderCardLabel(folder: Subfolder): string {
 }
 
 interface FolderGridProps {
+  /** Folders left after the search; `totalCount` carries the unfiltered size. */
   folders: Subfolder[];
+  totalCount?: number;
   onOpen: (path: string) => void;
   onCreateFolder?: () => void;
   createFolderDisabled?: boolean;
@@ -42,12 +44,12 @@ interface FolderGridProps {
 
 export function FolderGrid({
   folders,
+  totalCount,
   onOpen,
   onCreateFolder,
   createFolderDisabled = false,
 }: FolderGridProps) {
-  if (folders.length === 0 && !onCreateFolder) return null;
-
+  // The header stays put even with nothing to list, so the count is always readable.
   return (
     <section className="folder-section" aria-label="Subfolders">
       <SectionHeader
@@ -55,6 +57,7 @@ export function FolderGrid({
         icon={iconFolderTree}
         title="Folders"
         count={folders.length}
+        total={totalCount}
         actions={
           onCreateFolder ? (
             <div className="folder-controls">

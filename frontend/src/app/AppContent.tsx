@@ -13,6 +13,7 @@ export function AppContent() {
     error,
     folderNotFound,
     subfolders,
+    filteredSubfolders,
     items,
     navigateTo,
     createFolder,
@@ -100,6 +101,7 @@ export function AppContent() {
               loading={loading}
               browse={browse}
               subfolders={subfolders}
+              filteredSubfolders={filteredSubfolders}
               items={items}
               filteredItems={query.filteredItems}
               filterEmptyState={query.filterEmptyState}

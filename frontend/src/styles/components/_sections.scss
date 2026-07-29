@@ -22,7 +22,14 @@
 
   &__count {
     @include count-pill;
+    // Whitespace between the count parts would collapse inside the flex box.
+    gap: 0.3rem;
   }
+}
+
+.section-header__count-divider,
+.section-header__count-total {
+  opacity: 0.65;
 }
 
 .section-title__icon {

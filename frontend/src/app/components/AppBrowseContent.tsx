@@ -21,6 +21,7 @@ type AppBrowseContentProps = {
   loading: boolean;
   browse: BrowseResponse | null;
   subfolders: Subfolder[];
+  filteredSubfolders: Subfolder[];
   items: GalleryItem[];
   filteredItems: GalleryItem[];
   filterEmptyState: FilterEmptyState;
@@ -47,6 +48,7 @@ export function AppBrowseContent({
   loading,
   browse,
   subfolders,
+  filteredSubfolders,
   items,
   filteredItems,
   filterEmptyState,
@@ -92,7 +94,8 @@ export function AppBrowseContent({
 
               {!folderNotFound && (
                 <FolderGrid
-                  folders={subfolders}
+                  folders={filteredSubfolders}
+                  totalCount={subfolders.length}
                   onOpen={onNavigate}
                   onCreateFolder={onCreateFolder}
                   createFolderDisabled={createFolderDisabled}
@@ -101,20 +104,25 @@ export function AppBrowseContent({
 
               {!folderNotFound && (
                 <section className="gallery-section" aria-label="Media">
-                  {filteredItems.length > 0 && (
-                    <SectionHeader
-                      section="gallery"
-                      icon={iconImages}
-                      title="Media"
-                      count={selectionMode ? selectedCount : filteredItems.length}
-                      actions={
+                  <SectionHeader
+                    section="gallery"
+                    icon={iconImages}
+                    title="Media"
+                    count={selectionMode ? selectedCount : filteredItems.length}
+                    // Selection mode counts the selection against what is visible;
+                    // browse mode counts the visible media against the whole folder.
+                    total={selectionMode ? filteredItems.length : items.length}
+                    alwaysShowTotal={selectionMode}
+                    actions={
+                      // Nothing to select once the filters empty the grid.
+                      filteredItems.length > 0 ? (
                         <GallerySelectionControls
                           currentFolder={browse.folder}
                           totalCount={filteredItems.length}
                         />
-                      }
-                    />
-                  )}
+                      ) : undefined
+                    }
+                  />
 
                   {filteredItems.length > 0 ? (
                     <Gallery items={filteredItems} onSelect={onOpenGalleryItem} />

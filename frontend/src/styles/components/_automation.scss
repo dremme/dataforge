@@ -144,6 +144,7 @@
     }
 
     &-detail {
+      @include tabular-nums;
       color: var(--text-subtle);
       font-weight: var(--font-normal);
 
