@@ -82,12 +82,26 @@ class VisionLlmInfoResponse(BaseModel):
     model: str
 
 
+GallerySort = Literal[
+    "name-asc",
+    "name-desc",
+    "date-asc",
+    "date-desc",
+    "caption-asc",
+    "caption-desc",
+    "megapixels-asc",
+    "megapixels-desc",
+]
+
+
 class UiSettingsResponse(BaseModel):
-    sort: str
+    sort: GallerySort = "name-asc"
     show_automation_specs: bool = False
 
 
 class UiSettingsUpdate(BaseModel):
+    # Deliberately not ``GallerySort``: an unknown sort resets to the default
+    # instead of failing the request.
     sort: str | None = None
     show_automation_specs: bool | None = None
 

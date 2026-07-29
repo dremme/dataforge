@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from automation.job_runner import FileOutcome, run_media_job
+from automation.selection import filter_media_list, list_folder_media
 from body_parts_settings import resolve_body_description, resolve_face_description
 from constants import IMAGE_EXTENSIONS
 
@@ -148,25 +150,7 @@ def ensure_body_parts_models() -> None:
 
 
 def list_body_parts_images(folder: Path) -> list[Path]:
-    images: list[Path] = []
-    try:
-        entries = sorted(folder.iterdir(), key=lambda path: path.name.lower())
-    except OSError:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.suffix.lower() not in IMAGE_EXTENSIONS:
-            continue
-
-        images.append(entry)
-
-    return images
+    return list_folder_media(folder, IMAGE_EXTENSIONS, order="name")
 
 
 def validate_body_parts_folder(folder: Path) -> None:
@@ -562,8 +546,6 @@ def run_body_parts_job(
     model_loader: Callable[[], BodyPartsModels] | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
-    from automation.selection import filter_media_list
-
     validate_body_parts_folder(folder)
 
     image_files = filter_media_list(list_body_parts_images(folder), selected_paths)
@@ -578,9 +560,7 @@ def run_body_parts_job(
         "no_detections": 0,
         "cancelled": 0,
     }
-    file_results: list[dict[str, object]] = []
     total = len(image_files)
-
     loader = model_loader or load_body_parts_models
 
     if on_progress:
@@ -615,20 +595,7 @@ def run_body_parts_job(
             ) from exc
         raise RuntimeError(f"Failed to load body-parts models: {exc}") from exc
 
-    for index, img_path in enumerate(image_files, start=1):
-        if should_cancel and should_cancel():
-            stats["cancelled"] = total - index + 1
-            break
-
-        if on_progress:
-            on_progress(str(img_path), img_path.name, index - 1, total, dict(stats))
-
-        result: dict[str, object] = {
-            "path": str(img_path),
-            "name": img_path.name,
-            "status": "success",
-        }
-
+    def process(img_path: Path) -> FileOutcome:
         try:
             elements = detect_body_parts_for_image(
                 models,
@@ -638,46 +605,44 @@ def run_body_parts_job(
                 keywords=keywords,
                 element_description=element_description,
             )
-            if not elements:
-                stats["no_detections"] += 1
+            detection_stats = {} if elements else {"no_detections": 1}
 
             status, message = write_body_parts_sidecar(img_path, elements)
-            result["status"] = status
+            if status in {"created", "updated"}:
+                return FileOutcome(
+                    status=status,
+                    stats={**detection_stats, "success": 1, status: 1},
+                )
 
-            if status == "created":
-                stats["success"] += 1
-                stats["created"] += 1
-            elif status == "updated":
-                stats["success"] += 1
-                stats["updated"] += 1
-            else:
-                stats["write_error"] += 1
-                result["message"] = message
+            return FileOutcome(
+                status=status,
+                stats={**detection_stats, "write_error": 1},
+                fields={"message": message},
+            )
         except ValueError as exc:
-            stats["read_error"] += 1
-            result["status"] = "read_error"
-            result["message"] = str(exc)
+            return FileOutcome(
+                status="read_error",
+                stats={"read_error": 1},
+                fields={"message": str(exc)},
+            )
         except Exception as exc:
-            stats["detection_error"] += 1
-            result["status"] = "detection_error"
-            result["message"] = str(exc)
             logger.error("Body parts detection error for %s: %s", img_path.name, exc)
+            return FileOutcome(
+                status="detection_error",
+                stats={"detection_error": 1},
+                fields={"message": str(exc)},
+            )
 
-        file_results.append(result)
-
-        if on_progress:
-            on_progress(str(img_path), img_path.name, index, total, dict(stats))
-
-    # Each handled file is counted once in file_results. no_detections is a
-    # sub-stat of successful runs and must not be summed into processed.
-    processed = len(file_results)
-
-    free_vram(models)
-
-    return {
-        "folder": str(folder),
-        "total": stats["total"],
-        "processed": processed,
-        "stats": stats,
-        "results": file_results,
-    }
+    try:
+        # ``processed`` counts each handled file once: no_detections is a sub-stat
+        # of successful runs and must not inflate it.
+        return run_media_job(
+            folder,
+            image_files,
+            stats=stats,
+            process=process,
+            on_progress=on_progress,
+            should_cancel=should_cancel,
+        )
+    finally:
+        free_vram(models)

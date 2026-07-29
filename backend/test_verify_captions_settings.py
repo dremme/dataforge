@@ -46,8 +46,8 @@ class VerifyCaptionsSettingsTests(unittest.TestCase):
         )
 
         settings = get_verify_captions_settings(folder_path=r"C:\Photos")
-        self.assertEqual(settings["mode"], "thinking")
-        self.assertEqual(settings["context"], "")
+        self.assertEqual(settings.mode, "thinking")
+        self.assertEqual(settings.context, "")
 
     def test_update_and_read_per_folder_context(self) -> None:
         update_verify_captions_settings(
@@ -61,15 +61,15 @@ class VerifyCaptionsSettingsTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            get_verify_captions_settings(folder_path=r"C:\Photos\A")["context"],
+            get_verify_captions_settings(folder_path=r"C:\Photos\A").context,
             "Outdoor.",
         )
         self.assertEqual(
-            get_verify_captions_settings(folder_path=r"C:\Photos\B")["context"],
+            get_verify_captions_settings(folder_path=r"C:\Photos\B").context,
             "Studio.",
         )
         self.assertEqual(
-            get_verify_captions_settings(folder_path=r"C:\Photos\C")["context"],
+            get_verify_captions_settings(folder_path=r"C:\Photos\C").context,
             "",
         )
 

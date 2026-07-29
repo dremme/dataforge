@@ -7,8 +7,10 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
+from automation.job_runner import FileOutcome, run_media_job
+from automation.selection import filter_media_list, list_folder_media
 from captions import media_has_caption_text, save_caption
-from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from constants import MEDIA_EXTENSIONS
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -16,27 +18,9 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
 
-MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
-
 
 def list_set_captions_media(folder: Path) -> list[Path]:
-    media: list[Path] = []
-    try:
-        entries = sorted(folder.iterdir(), key=lambda path: path.name.lower())
-    except OSError:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.suffix.lower() in MEDIA_EXTENSIONS:
-            media.append(entry)
-
-    return media
+    return list_folder_media(folder, MEDIA_EXTENSIONS, order="name")
 
 
 def validate_set_captions_folder(folder: Path) -> None:
@@ -49,92 +33,62 @@ def validate_set_captions_folder(folder: Path) -> None:
 
 def run_set_captions_job(
     folder: Path,
-    caption_text: str,
     *,
+    caption: str,
     overwrite: bool = False,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
-    from automation.selection import filter_media_list
-
     validate_set_captions_folder(folder)
 
     media_files = filter_media_list(list_set_captions_media(folder), selected_paths)
-    stats: dict[str, int] = {
-        "total": len(media_files),
-        "success": 0,
-        "skipped": 0,
-        "write_error": 0,
-        "cancelled": 0,
-    }
-    file_results: list[dict[str, object]] = []
-    total = len(media_files)
-    text = (caption_text or "").strip()
+    text = (caption or "").strip()
 
-    for index, media_path in enumerate(media_files, start=1):
-        if should_cancel and should_cancel():
-            stats["cancelled"] = total - index + 1
-            break
-
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index - 1, total, dict(stats))
-
-        has_existing = False
+    def process(media_path: Path) -> FileOutcome:
         try:
             has_existing = media_has_caption_text(media_path)
         except Exception:
-            # Treat read issues as no caption; write attempt will surface error if any
+            # Treat read issues as no caption; the write attempt surfaces any real error.
             has_existing = False
 
         if has_existing and not overwrite:
-            stats["skipped"] += 1
-            file_results.append(
-                {
-                    "path": str(media_path),
-                    "name": media_path.name,
-                    "status": "skipped",
-                    "message": "Existing caption present",
-                }
+            return FileOutcome(
+                status="skipped",
+                stats={"skipped": 1},
+                fields={"message": "Existing caption present"},
             )
-            if on_progress:
-                on_progress(str(media_path), media_path.name, index, total, dict(stats))
-            continue
-
-        result: dict[str, object] = {
-            "path": str(media_path),
-            "name": media_path.name,
-            "status": "success",
-            "description": text or None,
-        }
 
         try:
             save_caption(media_path, text)
-            stats["success"] += 1
         except Exception as exc:
-            stats["write_error"] += 1
-            result["status"] = "write_error"
-            result["message"] = str(exc)
-            result.pop("description", None)
+            return FileOutcome(
+                status="write_error",
+                stats={"write_error": 1},
+                fields={"message": str(exc)},
+            )
 
-        file_results.append(result)
+        return FileOutcome(
+            status="success",
+            stats={"success": 1},
+            fields={"description": text or None},
+        )
 
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index, total, dict(stats))
-
-    processed = (
-        int(stats.get("success") or 0)
-        + int(stats.get("skipped") or 0)
-        + int(stats.get("write_error") or 0)
+    return run_media_job(
+        folder,
+        media_files,
+        stats={
+            "total": len(media_files),
+            "success": 0,
+            "skipped": 0,
+            "write_error": 0,
+            "cancelled": 0,
+        },
+        process=process,
+        on_progress=on_progress,
+        should_cancel=should_cancel,
+        processed_stat_keys=("success", "skipped", "write_error"),
     )
-
-    return {
-        "folder": str(folder),
-        "total": stats["total"],
-        "processed": processed,
-        "stats": stats,
-        "results": file_results,
-    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -163,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run_set_captions_job(
             folder,
-            args.caption,
+            caption=args.caption,
             overwrite=args.overwrite,
         )
     except ValueError as exc:

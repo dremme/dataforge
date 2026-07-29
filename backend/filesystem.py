@@ -274,8 +274,15 @@ class MediaPreviewError(Exception):
     """Raised when a file cannot be opened in the OS default viewer."""
 
 
-def open_folder_in_file_manager(folder: Path) -> None:
-    path = str(folder)
+def _open_with_os_handler(
+    target: Path,
+    *,
+    error: type[Exception],
+    unavailable: str,
+    failed: str,
+) -> None:
+    """Hand a path to the OS default handler, reporting failures as ``error``."""
+    path = str(target)
 
     try:
         if sys.platform == "win32":
@@ -286,26 +293,27 @@ def open_folder_in_file_manager(folder: Path) -> None:
             return
         subprocess.run(["xdg-open", path], check=True)
     except FileNotFoundError as exc:
-        raise FolderExplorerError("File manager is not available on this system") from exc
+        raise error(unavailable) from exc
     except OSError as exc:
-        raise FolderExplorerError(f"Failed to open folder: {exc}") from exc
+        raise error(f"{failed}: {exc}") from exc
+
+
+def open_folder_in_file_manager(folder: Path) -> None:
+    _open_with_os_handler(
+        folder,
+        error=FolderExplorerError,
+        unavailable="File manager is not available on this system",
+        failed="Failed to open folder",
+    )
 
 
 def open_file_in_default_viewer(file_path: Path) -> None:
-    path = str(file_path)
-
-    try:
-        if sys.platform == "win32":
-            os.startfile(path)  # type: ignore[attr-defined]
-            return
-        if sys.platform == "darwin":
-            subprocess.run(["open", path], check=True)
-            return
-        subprocess.run(["xdg-open", path], check=True)
-    except FileNotFoundError as exc:
-        raise MediaPreviewError("Default viewer is not available on this system") from exc
-    except OSError as exc:
-        raise MediaPreviewError(f"Failed to open file: {exc}") from exc
+    _open_with_os_handler(
+        file_path,
+        error=MediaPreviewError,
+        unavailable="Default viewer is not available on this system",
+        failed="Failed to open file",
+    )
 
 
 def resolve_initial_folder(path: str | None) -> Path:

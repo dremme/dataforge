@@ -12,19 +12,21 @@ isolate_test_database()
 from PIL import Image
 
 from automation.auto_caption import (
-    INSTRUCT_THINK_PREFILL,
-    MAX_MODEL_ATTEMPTS,
     VIDEO_FRAME_MAX_PIXELS,
     VIDEO_KEYFRAME_COUNT,
     build_system_prompt,
     complete_caption,
     extract_video_keyframes,
     list_auto_caption_media,
-    prepare_images_for_api,
     process_media,
-    resize_for_qwen,
     run_auto_caption_job,
     validate_auto_caption_folder,
+)
+from automation.vision import (
+    INSTRUCT_THINK_PREFILL,
+    MAX_MODEL_ATTEMPTS,
+    prepare_images_for_api,
+    resize_for_qwen,
 )
 from testing_fixtures import (
     TempMediaFolder,

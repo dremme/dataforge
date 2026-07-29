@@ -14,6 +14,7 @@ Environment (all optional):
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:1234/v1"
@@ -21,21 +22,38 @@ DEFAULT_OPENAI_API_KEY = "sk-1234"
 DEFAULT_OPENAI_MODEL = "qwen35moe"
 
 DEFAULT_MAX_TOKENS = 8192
-DEFAULT_THINKING_TEMPERATURE = 1.0
-DEFAULT_THINKING_PRESENCE_PENALTY = 0.0
-DEFAULT_THINKING_TOP_P = 0.95
-DEFAULT_THINKING_MIN_P = 0.0
-DEFAULT_INSTRUCT_TEMPERATURE = 0.7
-DEFAULT_INSTRUCT_PRESENCE_PENALTY = 1.5
-DEFAULT_INSTRUCT_TOP_P = 0.8
-DEFAULT_INSTRUCT_MIN_P = 0.0
 DEFAULT_TOP_K = 20
 
 # 1.0 disables the repetition penalty, so it is both the default and the value
 # at which the key is left out of ``extra_body`` entirely.
 NEUTRAL_REPEAT_PENALTY = 1.0
-DEFAULT_THINKING_REPEAT_PENALTY = NEUTRAL_REPEAT_PENALTY
-DEFAULT_INSTRUCT_REPEAT_PENALTY = NEUTRAL_REPEAT_PENALTY
+
+
+@dataclass(frozen=True)
+class SamplingProfile:
+    """Sampling knobs for one generation mode."""
+
+    temperature: float
+    presence_penalty: float
+    top_p: float
+    min_p: float
+    repeat_penalty: float
+
+
+THINKING_DEFAULTS = SamplingProfile(
+    temperature=1.0,
+    presence_penalty=0.0,
+    top_p=0.95,
+    min_p=0.0,
+    repeat_penalty=NEUTRAL_REPEAT_PENALTY,
+)
+INSTRUCT_DEFAULTS = SamplingProfile(
+    temperature=0.7,
+    presence_penalty=1.5,
+    top_p=0.8,
+    min_p=0.0,
+    repeat_penalty=NEUTRAL_REPEAT_PENALTY,
+)
 
 
 def _env_str(name: str) -> str:
@@ -78,48 +96,23 @@ def get_max_tokens() -> int:
     return _env_int("OPENAI_MAX_TOKENS", DEFAULT_MAX_TOKENS)
 
 
-def get_thinking_temperature() -> float:
-    return _env_float("OPENAI_THINKING_TEMPERATURE", DEFAULT_THINKING_TEMPERATURE)
-
-
-def get_thinking_presence_penalty() -> float:
-    return _env_float("OPENAI_THINKING_PRESENCE_PENALTY", DEFAULT_THINKING_PRESENCE_PENALTY)
-
-
-def get_thinking_top_p() -> float:
-    return _env_float("OPENAI_THINKING_TOP_P", DEFAULT_THINKING_TOP_P)
-
-
-def get_thinking_min_p() -> float:
-    return _env_float("OPENAI_THINKING_MIN_P", DEFAULT_THINKING_MIN_P)
-
-
-def get_instruct_temperature() -> float:
-    return _env_float("OPENAI_INSTRUCT_TEMPERATURE", DEFAULT_INSTRUCT_TEMPERATURE)
-
-
-def get_instruct_presence_penalty() -> float:
-    return _env_float("OPENAI_INSTRUCT_PRESENCE_PENALTY", DEFAULT_INSTRUCT_PRESENCE_PENALTY)
-
-
-def get_instruct_top_p() -> float:
-    return _env_float("OPENAI_INSTRUCT_TOP_P", DEFAULT_INSTRUCT_TOP_P)
-
-
-def get_instruct_min_p() -> float:
-    return _env_float("OPENAI_INSTRUCT_MIN_P", DEFAULT_INSTRUCT_MIN_P)
-
-
-def get_thinking_repeat_penalty() -> float:
-    return _env_float("OPENAI_THINKING_REPEAT_PENALTY", DEFAULT_THINKING_REPEAT_PENALTY)
-
-
-def get_instruct_repeat_penalty() -> float:
-    return _env_float("OPENAI_INSTRUCT_REPEAT_PENALTY", DEFAULT_INSTRUCT_REPEAT_PENALTY)
-
-
 def get_top_k() -> int:
     return _env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
+
+
+def get_sampling_profile(mode: str) -> SamplingProfile:
+    """Env-configured sampling knobs for ``mode``. Unknown modes fall back to thinking."""
+    instruct = mode == "instruct"
+    defaults = INSTRUCT_DEFAULTS if instruct else THINKING_DEFAULTS
+    prefix = "OPENAI_INSTRUCT" if instruct else "OPENAI_THINKING"
+
+    return SamplingProfile(
+        temperature=_env_float(f"{prefix}_TEMPERATURE", defaults.temperature),
+        presence_penalty=_env_float(f"{prefix}_PRESENCE_PENALTY", defaults.presence_penalty),
+        top_p=_env_float(f"{prefix}_TOP_P", defaults.top_p),
+        min_p=_env_float(f"{prefix}_MIN_P", defaults.min_p),
+        repeat_penalty=_env_float(f"{prefix}_REPEAT_PENALTY", defaults.repeat_penalty),
+    )
 
 
 def build_sampling_extra_body(mode: str) -> dict[str, object]:
@@ -130,16 +123,15 @@ def build_sampling_extra_body(mode: str) -> dict[str, object]:
     away from its neutral 1.0, so servers that do not recognise the key keep
     seeing exactly the request they saw before the setting existed.
     """
-    instruct = mode == "instruct"
-    repeat_penalty = get_instruct_repeat_penalty() if instruct else get_thinking_repeat_penalty()
+    profile = get_sampling_profile(mode)
 
     extra: dict[str, object] = {
         "top_k": get_top_k(),
-        "min_p": get_instruct_min_p() if instruct else get_thinking_min_p(),
+        "min_p": profile.min_p,
     }
-    if repeat_penalty != NEUTRAL_REPEAT_PENALTY:
-        extra["repeat_penalty"] = repeat_penalty
-    if instruct:
+    if profile.repeat_penalty != NEUTRAL_REPEAT_PENALTY:
+        extra["repeat_penalty"] = profile.repeat_penalty
+    if mode == "instruct":
         extra["chat_template_kwargs"] = {"enable_thinking": False}
 
     return extra

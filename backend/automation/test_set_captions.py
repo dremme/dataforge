@@ -46,7 +46,7 @@ class SetCaptionsJobTests(unittest.TestCase):
             first = write_media(root, "one.png")
             second = write_media(root, "two.png")
 
-            result = run_set_captions_job(root, "Shared caption.")
+            result = run_set_captions_job(root, caption="Shared caption.")
 
             self.assertEqual(result["total"], 2)
             self.assertEqual(result["stats"]["success"], 2)
@@ -64,7 +64,7 @@ class SetCaptionsJobTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Keep me.")
 
-            result = run_set_captions_job(root, "Replace me.", overwrite=False)
+            result = run_set_captions_job(root, caption="Replace me.", overwrite=False)
 
             self.assertEqual(result["stats"]["skipped"], 1)
             self.assertEqual(result["stats"]["success"], 0)
@@ -75,7 +75,7 @@ class SetCaptionsJobTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Old caption.")
 
-            result = run_set_captions_job(root, "New caption.", overwrite=True)
+            result = run_set_captions_job(root, caption="New caption.", overwrite=True)
 
             self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(
@@ -88,7 +88,7 @@ class SetCaptionsJobTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_json_caption(media, {"high_level_description": "Existing JSON."})
 
-            result = run_set_captions_job(root, "Ignored.", overwrite=False)
+            result = run_set_captions_job(root, caption="Ignored.", overwrite=False)
 
             self.assertEqual(result["stats"]["skipped"], 1)
             self.assertFalse(media.with_suffix(".txt").exists())
@@ -98,7 +98,7 @@ class SetCaptionsJobTests(unittest.TestCase):
             write_media(root, "photo.png")
 
             with patch("automation.set_captions.save_caption", side_effect=OSError("disk full")):
-                result = run_set_captions_job(root, "Caption text.", overwrite=True)
+                result = run_set_captions_job(root, caption="Caption text.", overwrite=True)
 
             self.assertEqual(result["stats"]["write_error"], 1)
             self.assertEqual(result["results"][0]["status"], "write_error")

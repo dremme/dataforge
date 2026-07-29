@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from automation import jobs_store
 from automation.auto_caption import run_auto_caption_job, validate_auto_caption_folder
 from automation.batch_rename import run_batch_rename_job, validate_batch_rename_folder
 from automation.body_parts import (
@@ -26,32 +27,6 @@ from automation.job_messages import (
     set_captions_error_message,
     strip_metadata_error_message,
     verify_captions_failure_message,
-)
-from automation.jobs_store import (
-    delete_all_jobs as delete_all_jobs_from_store,
-)
-from automation.jobs_store import (
-    delete_job as delete_job_from_store,
-)
-from automation.jobs_store import (
-    delete_jobs_for_folder as delete_jobs_for_folder_from_store,
-)
-from automation.jobs_store import (
-    get_active_job_for_folder as get_active_job_for_folder_from_store,
-)
-from automation.jobs_store import (
-    get_job as get_job_from_store,
-)
-from automation.jobs_store import (
-    get_latest_job_for_folder as get_latest_job_for_folder_from_store,
-)
-from automation.jobs_store import (
-    list_jobs as list_jobs_from_store,
-)
-from automation.jobs_store import (
-    prune_duplicate_jobs,
-    recover_stale_jobs,
-    save_job,
 )
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
@@ -182,10 +157,94 @@ class Job:
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 CancelCheck = Callable[[], bool]
-ExecuteFn = Callable[[ProgressCallback, CancelCheck], dict[str, object]]
 StatusResolver = Callable[[Job, bool], tuple[JobStatus, str | None]]
-JobRunner = Callable[[str, Path, threading.Event], None]
-ValidateFn = Callable[[Path], None]
+
+
+def _folder_only(validate: Callable[[Path], None]) -> Callable[..., None]:
+    """Adapt a plain folder validator to the ``(folder, **params)`` spec signature."""
+
+    def validate_folder(folder: Path, **_params: object) -> None:
+        validate(folder)
+
+    return validate_folder
+
+
+def _selected_paths(params: dict[str, object]) -> list[Path] | None:
+    selected = params.get("selected_paths")
+    return selected if isinstance(selected, list) else None
+
+
+def _validate_batch_rename(folder: Path, **params: object) -> None:
+    validate_batch_rename_folder(
+        folder,
+        stem=str(params.get("stem", "")),
+        selected_paths=_selected_paths(params),
+    )
+
+
+def _prepare_body_parts(job: Job, folder: Path, params: dict[str, object]) -> None:
+    """Show the real file count while the (slow) model load blocks the first progress tick."""
+    from automation.selection import filter_media_list
+
+    image_files = filter_media_list(list_body_parts_images(folder), _selected_paths(params))
+    job.total = len(image_files)
+    job.current_name = "Loading models..."
+
+
+@dataclass(frozen=True)
+class JobSpec:
+    """Everything that differs between job types; JobManager handles the rest.
+
+    ``run`` is called as ``run(folder, on_progress=..., should_cancel=..., **params)``,
+    so a job's queue-time parameters must match its runner's keyword arguments.
+    """
+
+    thread_prefix: str
+    run: Callable[..., dict[str, object]]
+    resolve_status: StatusResolver
+    validate: Callable[..., None]
+    prepare: Callable[[Job, Path, dict[str, object]], None] | None = None
+
+
+JOB_SPECS: dict[JobType, JobSpec] = {
+    "auto_caption": JobSpec(
+        thread_prefix="auto-caption",
+        run=run_auto_caption_job,
+        resolve_status=_resolve_api_errors("api_error", auto_caption_error_message),
+        validate=_folder_only(validate_auto_caption_folder),
+    ),
+    "body_parts": JobSpec(
+        thread_prefix="body-parts",
+        run=run_body_parts_job,
+        resolve_status=_resolve_stats_errors(body_parts_error_message),
+        validate=_folder_only(validate_body_parts_folder),
+        prepare=_prepare_body_parts,
+    ),
+    "strip_metadata": JobSpec(
+        thread_prefix="strip-metadata",
+        run=run_strip_metadata_job,
+        resolve_status=_resolve_stats_errors(strip_metadata_error_message),
+        validate=_folder_only(validate_strip_metadata_folder),
+    ),
+    "set_captions": JobSpec(
+        thread_prefix="set-captions",
+        run=run_set_captions_job,
+        resolve_status=_resolve_stats_errors(set_captions_error_message),
+        validate=_folder_only(validate_set_captions_folder),
+    ),
+    "batch_rename": JobSpec(
+        thread_prefix="batch-rename",
+        run=run_batch_rename_job,
+        resolve_status=_resolve_stats_errors(batch_rename_error_message),
+        validate=_validate_batch_rename,
+    ),
+    "verify_captions": JobSpec(
+        thread_prefix="verify-captions",
+        run=run_verify_captions_job,
+        resolve_status=_resolve_verify_captions_status,
+        validate=_folder_only(validate_verify_captions_folder),
+    ),
+}
 
 
 class JobManager:
@@ -196,9 +255,9 @@ class JobManager:
         self._deleted_ids: set[str] = set()
 
     def initialize(self) -> None:
-        recover_stale_jobs()
+        jobs_store.recover_stale_jobs()
         with suppress(Exception):
-            prune_duplicate_jobs()
+            jobs_store.prune_duplicate_jobs()
 
     def get_job(self, job_id: str) -> Job | None:
         with self._lock:
@@ -208,7 +267,7 @@ class JobManager:
         return self._job_from_store(job_id)
 
     def list_jobs(self, *, limit: int = 100) -> list[Job]:
-        stored_jobs = list_jobs_from_store(limit=limit)
+        stored_jobs = jobs_store.list_jobs(limit=limit)
 
         with self._lock:
             memory_jobs = dict(self._jobs)
@@ -231,7 +290,7 @@ class JobManager:
         with self._lock:
             memory_match = self._memory_job_for_folder_unlocked(folder, job_type=job_type)
 
-        stored = get_latest_job_for_folder_from_store(folder, job_type=job_type)
+        stored = jobs_store.get_latest_job_for_folder(folder, job_type=job_type)
         if memory_match is not None and stored is not None:
             if memory_match.created_at >= str(stored["created_at"]):
                 return memory_match
@@ -258,160 +317,35 @@ class JobManager:
             if active is not None:
                 return active
 
-        stored = get_active_job_for_folder_from_store(folder, job_type=job_type)
+        stored = jobs_store.get_active_job_for_folder(folder, job_type=job_type)
         if stored is None:
             return None
         return Job.from_dict(stored)
 
-    def queue_auto_caption_job(
-        self,
-        folder: Path,
-        *,
-        mode: str = "thinking",
-        selected_paths: list[Path] | None = None,
-    ) -> Job:
-        return self._queue_job(
-            folder,
-            job_type="auto_caption",
-            validate=validate_auto_caption_folder,
-            runner=lambda job_id, resolved, cancel_event: self._run_auto_caption_job(
-                job_id,
-                resolved,
-                cancel_event,
-                mode=mode,
-                selected_paths=selected_paths,
-            ),
-            thread_prefix="auto-caption",
-            auto_caption_mode=mode,
-        )
+    def queue_job(self, job_type: JobType, folder: Path, **params: object) -> Job:
+        """Queue a job of ``job_type``; ``params`` are forwarded to its runner."""
+        spec = JOB_SPECS[job_type]
+        folder = folder.expanduser().resolve()
+        spec.validate(folder, **params)
 
-    def queue_body_parts_job(
-        self,
-        folder: Path,
-        *,
-        body_description: str = "",
-        face_description: str = "",
-        keywords: list[str] | None = None,
-        element_description: str = "",
-        selected_paths: list[Path] | None = None,
-    ) -> Job:
-        keyword_list = keywords or []
-        return self._queue_job(
-            folder,
-            job_type="body_parts",
-            validate=validate_body_parts_folder,
-            runner=lambda job_id, resolved, cancel_event: self._run_body_parts_job(
-                job_id,
-                resolved,
-                cancel_event,
-                body_description,
-                face_description,
-                keyword_list,
-                element_description,
-                selected_paths=selected_paths,
-            ),
-            thread_prefix="body-parts",
-        )
+        job, cancel_event = self._register_job(folder, job_type, params)
 
-    def queue_strip_metadata_job(
-        self,
-        folder: Path,
-        *,
-        selected_paths: list[Path] | None = None,
-    ) -> Job:
-        return self._queue_job(
-            folder,
-            job_type="strip_metadata",
-            validate=validate_strip_metadata_folder,
-            runner=lambda job_id, resolved, cancel_event: self._run_strip_metadata_job(
-                job_id,
-                resolved,
-                cancel_event,
-                selected_paths=selected_paths,
-            ),
-            thread_prefix="strip-metadata",
+        thread = threading.Thread(
+            target=lambda: self._run_managed_job(spec, job.id, folder, cancel_event, params),
+            name=f"{spec.thread_prefix}-{job.id[:8]}",
+            daemon=True,
         )
-
-    def queue_set_captions_job(
-        self,
-        folder: Path,
-        *,
-        caption: str,
-        overwrite: bool = False,
-        selected_paths: list[Path] | None = None,
-    ) -> Job:
-        return self._queue_job(
-            folder,
-            job_type="set_captions",
-            validate=validate_set_captions_folder,
-            runner=lambda job_id, resolved, cancel_event: self._run_set_captions_job(
-                job_id,
-                resolved,
-                cancel_event,
-                caption,
-                overwrite,
-                selected_paths=selected_paths,
-            ),
-            thread_prefix="set-captions",
-        )
-
-    def queue_batch_rename_job(
-        self,
-        folder: Path,
-        *,
-        stem: str,
-        selected_paths: list[Path] | None = None,
-    ) -> Job:
-        return self._queue_job(
-            folder,
-            job_type="batch_rename",
-            validate=lambda resolved: validate_batch_rename_folder(
-                resolved, stem=stem, selected_paths=selected_paths
-            ),
-            runner=lambda job_id, resolved, cancel_event: self._run_batch_rename_job(
-                job_id,
-                resolved,
-                cancel_event,
-                stem,
-                selected_paths=selected_paths,
-            ),
-            thread_prefix="batch-rename",
-        )
-
-    def queue_verify_captions_job(
-        self,
-        folder: Path,
-        *,
-        mode: str = "instruct",
-        context: str = "",
-        selected_paths: list[Path] | None = None,
-    ) -> Job:
-        return self._queue_job(
-            folder,
-            job_type="verify_captions",
-            validate=validate_verify_captions_folder,
-            runner=lambda job_id, resolved, cancel_event: self._run_verify_captions_job(
-                job_id,
-                resolved,
-                cancel_event,
-                mode=mode,
-                context=context,
-                selected_paths=selected_paths,
-            ),
-            thread_prefix="verify-captions",
-        )
+        thread.start()
+        return job
 
     def cancel_job(self, job_id: str) -> Job | None:
         with self._lock:
             job = self._jobs.get(job_id)
             cancel_event = self._cancel_flags.get(job_id)
             if job is None:
-                job = self._job_from_store(job_id)
-                if job is None:
-                    return None
-                if job.status not in ACTIVE_STATUSES:
-                    return job
-                return job
+                # Only in-memory jobs have a worker to signal; a stored-only job
+                # is already finished, so report it back as-is.
+                return self._job_from_store(job_id)
 
             if cancel_event is None or job.status not in ACTIVE_STATUSES:
                 return job
@@ -419,7 +353,7 @@ class JobManager:
         return job
 
     def delete_job(self, job_id: str) -> bool:
-        stored = get_job_from_store(job_id)
+        stored = jobs_store.get_job(job_id)
         with self._lock:
             memory_job = self._jobs.get(job_id)
 
@@ -435,12 +369,12 @@ class JobManager:
             self._jobs.pop(job_id, None)
             self._cancel_flags.pop(job_id, None)
             self._deleted_ids.add(job_id)
-            deleted_store = delete_job_from_store(job_id)
+            deleted_store = jobs_store.delete_job(job_id)
 
         return deleted_store or had_memory
 
     def delete_all_jobs(self) -> int:
-        stored_jobs = list_jobs_from_store(limit=100)
+        stored_jobs = jobs_store.list_jobs(limit=100)
         stored_count = len(stored_jobs)
 
         with self._lock:
@@ -460,23 +394,17 @@ class JobManager:
 
             # Delete while holding the lock so a worker cannot pass the
             # not-deleted check and re-insert a ``running`` row after we clear.
-            deleted_count = delete_all_jobs_from_store()
+            deleted_count = jobs_store.delete_all_jobs()
 
         return max(deleted_count, stored_count)
 
-    def _queue_job(
+    def _register_job(
         self,
         folder: Path,
-        *,
         job_type: JobType,
-        validate: ValidateFn,
-        runner: JobRunner,
-        thread_prefix: str,
-        auto_caption_mode: str | None = None,
-    ) -> Job:
-        folder = folder.expanduser().resolve()
-        validate(folder)
-
+        params: dict[str, object],
+    ) -> tuple[Job, threading.Event]:
+        """Create the job, evict any earlier job for the same folder and type, persist it."""
         with self._lock:
             active = self._memory_job_for_folder_unlocked(str(folder), active_only=True)
             if active is not None:
@@ -487,7 +415,9 @@ class JobManager:
                 id=job_id,
                 folder=str(folder),
                 job_type=job_type,
-                auto_caption_mode=auto_caption_mode if job_type == "auto_caption" else None,
+                auto_caption_mode=(
+                    str(params.get("mode", "thinking")) if job_type == "auto_caption" else None
+                ),
             )
             self._jobs[job_id] = job
             cancel_event = threading.Event()
@@ -504,191 +434,37 @@ class JobManager:
         self._persist(job)
 
         with suppress(Exception):
-            delete_jobs_for_folder_from_store(str(folder), job_type=job_type, keep_id=job_id)
+            jobs_store.delete_jobs_for_folder(str(folder), job_type=job_type, keep_id=job_id)
 
-        thread = threading.Thread(
-            target=runner,
-            args=(job_id, folder, cancel_event),
-            name=f"{thread_prefix}-{job_id[:8]}",
-            daemon=True,
-        )
-        thread.start()
-        return job
-
-    def _run_auto_caption_job(
-        self,
-        job_id: str,
-        folder: Path,
-        cancel_event: threading.Event,
-        *,
-        mode: str = "thinking",
-        selected_paths: list[Path] | None = None,
-    ) -> None:
-        self._run_managed_job(
-            job_id,
-            folder,
-            cancel_event,
-            execute=lambda on_progress, should_cancel: run_auto_caption_job(
-                folder,
-                mode=mode,
-                on_progress=on_progress,
-                should_cancel=should_cancel,
-                selected_paths=selected_paths,
-            ),
-            resolve_status=_resolve_api_errors("api_error", auto_caption_error_message),
-        )
-
-    def _run_body_parts_job(
-        self,
-        job_id: str,
-        folder: Path,
-        cancel_event: threading.Event,
-        body_description: str,
-        face_description: str,
-        keywords: list[str],
-        element_description: str,
-        *,
-        selected_paths: list[Path] | None = None,
-    ) -> None:
-        def prepare(job: Job) -> None:
-            from automation.selection import filter_media_list
-
-            image_files = filter_media_list(list_body_parts_images(folder), selected_paths)
-            job.total = len(image_files)
-            job.current_name = "Loading models..."
-
-        self._run_managed_job(
-            job_id,
-            folder,
-            cancel_event,
-            prepare=prepare,
-            execute=lambda on_progress, should_cancel: run_body_parts_job(
-                folder,
-                body_description=body_description,
-                face_description=face_description,
-                keywords=keywords,
-                element_description=element_description,
-                on_progress=on_progress,
-                should_cancel=should_cancel,
-                selected_paths=selected_paths,
-            ),
-            resolve_status=_resolve_stats_errors(body_parts_error_message),
-        )
-
-    def _run_strip_metadata_job(
-        self,
-        job_id: str,
-        folder: Path,
-        cancel_event: threading.Event,
-        *,
-        selected_paths: list[Path] | None = None,
-    ) -> None:
-        self._run_managed_job(
-            job_id,
-            folder,
-            cancel_event,
-            execute=lambda on_progress, should_cancel: run_strip_metadata_job(
-                folder,
-                on_progress=on_progress,
-                should_cancel=should_cancel,
-                selected_paths=selected_paths,
-            ),
-            resolve_status=_resolve_stats_errors(strip_metadata_error_message),
-        )
-
-    def _run_set_captions_job(
-        self,
-        job_id: str,
-        folder: Path,
-        cancel_event: threading.Event,
-        caption: str,
-        overwrite: bool,
-        *,
-        selected_paths: list[Path] | None = None,
-    ) -> None:
-        self._run_managed_job(
-            job_id,
-            folder,
-            cancel_event,
-            execute=lambda on_progress, should_cancel: run_set_captions_job(
-                folder,
-                caption,
-                overwrite=overwrite,
-                on_progress=on_progress,
-                should_cancel=should_cancel,
-                selected_paths=selected_paths,
-            ),
-            resolve_status=_resolve_stats_errors(set_captions_error_message),
-        )
-
-    def _run_batch_rename_job(
-        self,
-        job_id: str,
-        folder: Path,
-        cancel_event: threading.Event,
-        stem: str,
-        *,
-        selected_paths: list[Path] | None = None,
-    ) -> None:
-        self._run_managed_job(
-            job_id,
-            folder,
-            cancel_event,
-            execute=lambda on_progress, should_cancel: run_batch_rename_job(
-                folder,
-                stem,
-                on_progress=on_progress,
-                should_cancel=should_cancel,
-                selected_paths=selected_paths,
-            ),
-            resolve_status=_resolve_stats_errors(batch_rename_error_message),
-        )
-
-    def _run_verify_captions_job(
-        self,
-        job_id: str,
-        folder: Path,
-        cancel_event: threading.Event,
-        *,
-        mode: str = "instruct",
-        context: str = "",
-        selected_paths: list[Path] | None = None,
-    ) -> None:
-        self._run_managed_job(
-            job_id,
-            folder,
-            cancel_event,
-            execute=lambda on_progress, should_cancel: run_verify_captions_job(
-                folder,
-                mode=mode,
-                context=context,
-                on_progress=on_progress,
-                should_cancel=should_cancel,
-                selected_paths=selected_paths,
-            ),
-            resolve_status=_resolve_verify_captions_status,
-        )
+        return job, cancel_event
 
     def _run_managed_job(
         self,
+        spec: JobSpec,
         job_id: str,
         folder: Path,
         cancel_event: threading.Event,
-        *,
-        execute: ExecuteFn,
-        resolve_status: StatusResolver,
-        prepare: Callable[[Job], None] | None = None,
+        params: dict[str, object],
     ) -> None:
+        def prepare(job: Job) -> None:
+            if spec.prepare is not None:
+                spec.prepare(job, folder, params)
+
         if not self._begin_job(job_id, cancel_event, prepare=prepare):
             return
 
         try:
-            result = execute(self._progress_callback(job_id), cancel_event.is_set)
+            result = spec.run(
+                folder,
+                on_progress=self._progress_callback(job_id),
+                should_cancel=cancel_event.is_set,
+                **params,
+            )
         except Exception as exc:
             self._fail_job(job_id, str(exc))
             return
 
-        self._complete_job(job_id, result, cancel_event.is_set(), resolve_status)
+        self._complete_job(job_id, result, cancel_event.is_set(), spec.resolve_status)
 
     def _begin_job(
         self,
@@ -791,7 +567,7 @@ class JobManager:
         return None
 
     def _job_from_store(self, job_id: str) -> Job | None:
-        stored = get_job_from_store(job_id)
+        stored = jobs_store.get_job(job_id)
         if stored is None:
             return None
         return Job.from_dict(stored)
@@ -812,7 +588,7 @@ class JobManager:
         """
         if job_id in self._deleted_ids or job_id not in self._jobs:
             return
-        save_job(snapshot)
+        jobs_store.save_job(snapshot)
 
 
 job_manager = JobManager()

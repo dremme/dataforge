@@ -2,42 +2,34 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
 from PIL import Image
 
+from automation.job_runner import FileOutcome, run_media_job
+from automation.selection import filter_media_list, list_folder_media
+from automation.vision import (
+    ModelOutcome,
+    call_with_retries,
+    clean_model_text,
+    load_image_rgb,
+    prepare_images_for_api,
+    run_vision_completion,
+    vision_messages,
+)
 from captions import issue_file_path
 from constants import IMAGE_EXTENSIONS
-from openai_settings import (
-    assistant_message_text,
-    build_sampling_extra_body,
-    create_openai_client,
-    get_instruct_presence_penalty,
-    get_instruct_temperature,
-    get_instruct_top_p,
-    get_max_tokens,
-    get_openai_model,
-    get_thinking_presence_penalty,
-    get_thinking_temperature,
-    get_thinking_top_p,
-)
+from openai_settings import create_openai_client, get_max_tokens, get_openai_model
 
 logger = logging.getLogger(__name__)
 
 IMAGE_MAX_PIXELS = 1_750_000
-MAX_MODEL_ATTEMPTS = 3
-
-# Used as a trailing assistant prefill for "instruct" (non-thinking) mode on Qwen3 hybrid models.
-# Signals that any thinking phase is complete/empty so the model emits the final answer directly.
-INSTRUCT_THINK_PREFILL = "<think>\n\n</think>"
 
 # For now, only images are supported
 VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS
@@ -54,67 +46,6 @@ class VerificationResult:
     correct: bool
     issues: str
     suggestions: str
-
-
-def resize_for_qwen(image: Image.Image, max_pixels: int = IMAGE_MAX_PIXELS) -> Image.Image:
-    width, height = image.size
-    current_pixels = width * height
-    if current_pixels <= max_pixels:
-        return image
-
-    scale = (max_pixels / current_pixels) ** 0.5
-    new_width = max((int(width * scale) // 32) * 32, 512)
-    new_height = max((int(height * scale) // 32) * 32, 512)
-    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-
-def image_to_base64(image: Image.Image) -> str:
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=85)
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-
-def prepare_images_for_api(
-    images: list[Image.Image],
-    *,
-    max_pixels: int,
-) -> list[str] | None:
-    encoded: list[str] = []
-    for image in images:
-        try:
-            resized = resize_for_qwen(image.convert("RGB"), max_pixels=max_pixels)
-            encoded.append(image_to_base64(resized))
-        except Exception as exc:
-            logger.error("Image prepare error: %s", exc)
-            return None
-    return encoded
-
-
-def clean_caption(raw_text: str) -> str:
-    text = raw_text.strip()
-
-    if "</think>" in text:
-        text = text.split("</think>")[-1].strip()
-    if "<think>" in text:
-        text = text.split("<think>")[0].strip()
-
-    prefixes = [
-        "assistant:",
-        "Assistant:",
-        "Here is the caption:",
-        "Caption:",
-        "The image shows:",
-        "The caption is:",
-        "Revised caption:",
-        "Output:",
-    ]
-    text_lower = text.lower()
-    for prefix in prefixes:
-        if text_lower.startswith(prefix.lower()):
-            text = text[len(prefix) :].strip()
-            break
-
-    return text.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip()
 
 
 def _strip_json_fences(text: str) -> str:
@@ -199,7 +130,7 @@ def _parse_verification_payload(data: dict) -> VerificationResult | None:
 
 
 def parse_verification_response(raw_text: str) -> VerificationResult | None:
-    text = _strip_json_fences(clean_caption(raw_text))
+    text = _strip_json_fences(clean_model_text(raw_text))
     data: dict | None = None
     try:
         parsed = json.loads(text)
@@ -299,93 +230,14 @@ def build_verification_user_text(ref_caption: str) -> str:
 
 
 def list_verify_captions_media(folder: Path) -> list[Path]:
-    media_files: list[Path] = []
-    try:
-        entries = sorted(folder.iterdir(), key=lambda path: path.name.lower())
-    except OSError:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.suffix.lower() not in VERIFY_CAPTIONS_EXTENSIONS:
-            continue
-
-        media_files.append(entry)
-
-    return media_files
-
-
-def _vision_messages(system_prompt: str, images_b64: list[str], user_text: str) -> list[dict]:
-    content: list[dict] = [
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
-        }
-        for encoded in images_b64
-    ]
-    content.append({"type": "text", "text": user_text})
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": content},
-    ]
+    return list_folder_media(folder, VERIFY_CAPTIONS_EXTENSIONS, order="name")
 
 
 def _load_image(media_path: Path) -> tuple[list[Image.Image] | None, str | None]:
-    try:
-        return [Image.open(media_path).convert("RGB")], None
-    except Exception as exc:
-        logger.error("Image read error for %s: %s", media_path.name, exc)
-        return None, f"read_error: {exc}"
-
-
-def _run_chat_completion(
-    client,
-    messages: list[dict],
-    *,
-    model: str | None = None,
-    max_tokens: int | None = None,
-    mode: VerifyMode,
-) -> str | None:
-    resolved_model = model if model is not None else get_openai_model()
-    resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
-    if mode == "instruct":
-        temperature = get_instruct_temperature()
-        presence_penalty = get_instruct_presence_penalty()
-        top_p = get_instruct_top_p()
-        outbound_messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
-    elif mode == "thinking":
-        temperature = get_thinking_temperature()
-        presence_penalty = get_thinking_presence_penalty()
-        top_p = get_thinking_top_p()
-        outbound_messages = messages
-    else:
-        return None
-
-    extra_body = build_sampling_extra_body(mode)
-
-    try:
-        response = client.chat.completions.create(
-            model=resolved_model,
-            messages=outbound_messages,
-            max_tokens=resolved_max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            presence_penalty=presence_penalty,
-            extra_body=extra_body,
-        )
-        raw = assistant_message_text(
-            response.choices[0].message,
-            allow_reasoning_fallback=mode == "instruct",
-        )
-        return raw or None
-    except Exception as exc:
-        logger.error("API completion error: %s", exc)
-        return None
+    images, error = load_image_rgb(media_path)
+    if images is None:
+        return None, f"read_error: {error}"
+    return images, None
 
 
 def verify_caption(
@@ -408,17 +260,12 @@ def verify_caption(
     if not images_b64:
         return None
 
-    messages = _vision_messages(
-        system_prompt,
-        images_b64,
-        build_verification_user_text(ref_caption),
-    )
-    return _run_chat_completion(
+    return run_vision_completion(
         client,
-        messages,
+        vision_messages(system_prompt, images_b64, build_verification_user_text(ref_caption)),
+        mode=mode,
         model=model if model is not None else get_openai_model(),
         max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),
-        mode=mode,
     )
 
 
@@ -454,13 +301,7 @@ def process_media(
     if load_error:
         return media_path, None, load_error, None
 
-    last_status = "api_error"
-    last_message: str | None = "Model request failed or returned no content."
-
-    for attempt in range(1, MAX_MODEL_ATTEMPTS + 1):
-        if should_cancel and should_cancel():
-            return media_path, None, "cancelled", None
-
+    def attempt() -> ModelOutcome[VerificationResult]:
         raw_caption = verify_caption(
             client,
             media_path,
@@ -470,32 +311,31 @@ def process_media(
             model=resolved_model,
             mode=mode,
         )
-
         if raw_caption is None:
-            last_status = "api_error"
-            last_message = "Model request failed or returned no content."
-        else:
-            if should_cancel and should_cancel():
-                return media_path, None, "cancelled", None
-
-            verification = parse_verification_response(raw_caption)
-            if verification is not None:
-                normalized = normalize_verification_result(verification)
-                return media_path, normalized, "success", None
-
-            last_status = "parse_error"
-            last_message = f"Model response was not valid JSON: {_response_preview(raw_caption)}"
-
-        if attempt < MAX_MODEL_ATTEMPTS:
-            logger.warning(
-                "Verify captions attempt %s/%s failed for %s (%s); retrying",
-                attempt,
-                MAX_MODEL_ATTEMPTS,
-                media_path.name,
-                last_status,
+            return ModelOutcome(
+                status="api_error",
+                message="Model request failed or returned no content.",
             )
 
-    return media_path, None, last_status, last_message
+        verification = parse_verification_response(raw_caption)
+        if verification is None:
+            return ModelOutcome(
+                status="parse_error",
+                message=f"Model response was not valid JSON: {_response_preview(raw_caption)}",
+            )
+
+        return ModelOutcome(
+            status="success",
+            value=normalize_verification_result(verification),
+        )
+
+    outcome = call_with_retries(
+        attempt,
+        job_label="Verify captions",
+        media_name=media_path.name,
+        should_cancel=should_cancel,
+    )
+    return media_path, outcome.value, outcome.status, outcome.message
 
 
 def validate_verify_captions_folder(folder: Path) -> None:
@@ -545,16 +385,16 @@ def _remove_stale_issue_file(media_path: Path) -> None:
         logger.warning("Failed to remove stale issue file %s: %s", issue_path.name, exc)
 
 
-def _record_result_status(
-    stats: dict[str, int],
-    result: dict[str, object],
-    status: str,
-) -> None:
-    base_status = status.split(":", 1)[0]
-    if base_status in NON_SUCCESS_STATUSES:
-        stats[base_status] += 1
-        if base_status == "read_error":
-            result["message"] = status.split(":", 1)[1].strip() if ":" in status else status
+def _failure_outcome(status: str, detail: str | None) -> FileOutcome:
+    """Map a non-success ``process_media`` status onto its counter and message."""
+    base_status, _, read_detail = status.partition(":")
+    message = read_detail.strip() or status if base_status == "read_error" else detail
+
+    return FileOutcome(
+        status=base_status,
+        stats={base_status: 1} if base_status in NON_SUCCESS_STATUSES else {},
+        fields={"message": message} if message else {},
+    )
 
 
 def run_verify_captions_job(
@@ -567,8 +407,6 @@ def run_verify_captions_job(
     should_cancel: Callable[[], bool] | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
-    from automation.selection import filter_media_list
-
     validate_verify_captions_folder(folder)
     _clear_existing_issue_sidecars(folder)
 
@@ -577,19 +415,8 @@ def run_verify_captions_job(
     client = create_openai_client()
     resolved_model = model if model is not None else get_openai_model()
 
-    stats = _initial_job_stats(len(media_files))
-    file_results: list[dict[str, object]] = []
-    total = len(media_files)
-
-    for index, media_path in enumerate(media_files, start=1):
-        if should_cancel and should_cancel():
-            stats["cancelled"] = total - index + 1
-            break
-
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index - 1, total, dict(stats))
-
-        media_path, verification, status, detail = process_media(
+    def process(media_path: Path) -> FileOutcome:
+        _path, verification, status, detail = process_media(
             client,
             media_path,
             system_prompt,
@@ -598,64 +425,52 @@ def run_verify_captions_job(
             should_cancel=should_cancel,
         )
 
-        result: dict[str, object] = {
-            "path": str(media_path),
-            "name": media_path.name,
-            "status": status.split(":", 1)[0],
-        }
-
-        if status == "success" and verification is not None:
-            if should_cancel and should_cancel():
-                stats["cancelled"] += 1
-                result["status"] = "cancelled"
-                # Do not write sidecar if cancellation was requested around this file's processing.
-            elif should_write_issue_file(verification):
-                issue_path = issue_file_path(media_path)
-                try:
-                    issue_path.write_text(
-                        json.dumps(verification_result_to_dict(verification), indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-                    stats["issues_found"] += 1
-                    stats["success"] += 1
-                    result["description"] = verification.issues
-                    result["preview"] = verification.suggestions
-                except OSError as exc:
-                    stats["write_error"] += 1
-                    result["status"] = "write_error"
-                    result["message"] = str(exc)
-            else:
-                _remove_stale_issue_file(media_path)
-                stats["success"] += 1
-                result["description"] = verification.issues or None
-        elif status == "cancelled":
-            stats["cancelled"] += 1
-            result["status"] = "cancelled"
-        else:
-            _record_result_status(stats, result, status)
-            if detail and "message" not in result:
-                result["message"] = detail
-
-        file_results.append(result)
-
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index, total, dict(stats))
-
         if status == "cancelled":
-            # Abort further files; account for any not-yet-processed remaining ones.
-            remaining_after_current = total - index
-            if remaining_after_current > 0:
-                stats["cancelled"] += remaining_after_current
-            break
+            return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
-    # Each handled file is counted once in file_results. issues_found is a
-    # sub-stat of successful verifications and must not inflate processed.
-    processed = len(file_results)
+        if status != "success" or verification is None:
+            return _failure_outcome(status, detail)
 
-    return {
-        "folder": str(folder),
-        "total": stats["total"],
-        "processed": processed,
-        "stats": stats,
-        "results": file_results,
-    }
+        if should_cancel and should_cancel():
+            # Do not write the sidecar when cancellation landed around this file.
+            return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+
+        if not should_write_issue_file(verification):
+            _remove_stale_issue_file(media_path)
+            return FileOutcome(
+                status="success",
+                stats={"success": 1},
+                fields={"description": verification.issues or None},
+            )
+
+        try:
+            issue_file_path(media_path).write_text(
+                json.dumps(verification_result_to_dict(verification), indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            return FileOutcome(
+                status="write_error",
+                stats={"write_error": 1},
+                fields={"message": str(exc)},
+            )
+
+        return FileOutcome(
+            status="success",
+            stats={"issues_found": 1, "success": 1},
+            fields={
+                "description": verification.issues,
+                "preview": verification.suggestions,
+            },
+        )
+
+    # ``processed`` counts each handled file once: issues_found is a sub-stat of
+    # successful verifications and must not inflate it.
+    return run_media_job(
+        folder,
+        media_files,
+        stats=_initial_job_stats(len(media_files)),
+        process=process,
+        on_progress=on_progress,
+        should_cancel=should_cancel,
+    )

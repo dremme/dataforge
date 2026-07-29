@@ -7,39 +7,23 @@ import unittest
 from unittest.mock import patch
 
 from openai_settings import (
-    DEFAULT_INSTRUCT_MIN_P,
-    DEFAULT_INSTRUCT_PRESENCE_PENALTY,
-    DEFAULT_INSTRUCT_REPEAT_PENALTY,
-    DEFAULT_INSTRUCT_TEMPERATURE,
-    DEFAULT_INSTRUCT_TOP_P,
     DEFAULT_MAX_TOKENS,
     DEFAULT_OPENAI_API_KEY,
     DEFAULT_OPENAI_BASE_URL,
     DEFAULT_OPENAI_MODEL,
-    DEFAULT_THINKING_MIN_P,
-    DEFAULT_THINKING_PRESENCE_PENALTY,
-    DEFAULT_THINKING_REPEAT_PENALTY,
-    DEFAULT_THINKING_TEMPERATURE,
-    DEFAULT_THINKING_TOP_P,
     DEFAULT_TOP_K,
+    INSTRUCT_DEFAULTS,
     NEUTRAL_REPEAT_PENALTY,
+    THINKING_DEFAULTS,
+    SamplingProfile,
     assistant_message_text,
     build_sampling_extra_body,
     create_openai_client,
-    get_instruct_min_p,
-    get_instruct_presence_penalty,
-    get_instruct_repeat_penalty,
-    get_instruct_temperature,
-    get_instruct_top_p,
     get_max_tokens,
     get_openai_api_key,
     get_openai_base_url,
     get_openai_model,
-    get_thinking_min_p,
-    get_thinking_presence_penalty,
-    get_thinking_repeat_penalty,
-    get_thinking_temperature,
-    get_thinking_top_p,
+    get_sampling_profile,
     get_top_k,
 )
 
@@ -51,17 +35,13 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(get_openai_api_key(), DEFAULT_OPENAI_API_KEY)
             self.assertEqual(get_openai_model(), DEFAULT_OPENAI_MODEL)
             self.assertEqual(get_max_tokens(), DEFAULT_MAX_TOKENS)
-            self.assertEqual(get_thinking_temperature(), DEFAULT_THINKING_TEMPERATURE)
-            self.assertEqual(get_thinking_presence_penalty(), DEFAULT_THINKING_PRESENCE_PENALTY)
-            self.assertEqual(get_thinking_top_p(), DEFAULT_THINKING_TOP_P)
-            self.assertEqual(get_thinking_min_p(), DEFAULT_THINKING_MIN_P)
-            self.assertEqual(get_instruct_temperature(), DEFAULT_INSTRUCT_TEMPERATURE)
-            self.assertEqual(get_instruct_presence_penalty(), DEFAULT_INSTRUCT_PRESENCE_PENALTY)
-            self.assertEqual(get_instruct_top_p(), DEFAULT_INSTRUCT_TOP_P)
-            self.assertEqual(get_instruct_min_p(), DEFAULT_INSTRUCT_MIN_P)
-            self.assertEqual(get_thinking_repeat_penalty(), DEFAULT_THINKING_REPEAT_PENALTY)
-            self.assertEqual(get_instruct_repeat_penalty(), DEFAULT_INSTRUCT_REPEAT_PENALTY)
             self.assertEqual(get_top_k(), DEFAULT_TOP_K)
+            self.assertEqual(get_sampling_profile("thinking"), THINKING_DEFAULTS)
+            self.assertEqual(get_sampling_profile("instruct"), INSTRUCT_DEFAULTS)
+
+    def test_unknown_mode_falls_back_to_the_thinking_profile(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(get_sampling_profile("unsupported"), THINKING_DEFAULTS)
 
     def test_reads_environment_overrides(self) -> None:
         with patch.dict(
@@ -89,17 +69,27 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(get_openai_api_key(), "test-key")
             self.assertEqual(get_openai_model(), "my-vision-model")
             self.assertEqual(get_max_tokens(), 2048)
-            self.assertEqual(get_thinking_temperature(), 0.5)
-            self.assertEqual(get_thinking_presence_penalty(), 0.25)
-            self.assertEqual(get_thinking_top_p(), 0.9)
-            self.assertEqual(get_thinking_min_p(), 0.05)
-            self.assertEqual(get_instruct_temperature(), 0.2)
-            self.assertEqual(get_instruct_presence_penalty(), 1.0)
-            self.assertEqual(get_instruct_top_p(), 0.75)
-            self.assertEqual(get_instruct_min_p(), 0.1)
-            self.assertEqual(get_thinking_repeat_penalty(), 1.05)
-            self.assertEqual(get_instruct_repeat_penalty(), 1.15)
             self.assertEqual(get_top_k(), 40)
+            self.assertEqual(
+                get_sampling_profile("thinking"),
+                SamplingProfile(
+                    temperature=0.5,
+                    presence_penalty=0.25,
+                    top_p=0.9,
+                    min_p=0.05,
+                    repeat_penalty=1.05,
+                ),
+            )
+            self.assertEqual(
+                get_sampling_profile("instruct"),
+                SamplingProfile(
+                    temperature=0.2,
+                    presence_penalty=1.0,
+                    top_p=0.75,
+                    min_p=0.1,
+                    repeat_penalty=1.15,
+                ),
+            )
 
     def test_blank_or_invalid_env_values_fall_back_to_defaults(self) -> None:
         with patch.dict(
@@ -110,6 +100,7 @@ class OpenAISettingsTests(unittest.TestCase):
                 "OPENAI_MODEL": "\t",
                 "OPENAI_MAX_TOKENS": "not-a-number",
                 "OPENAI_THINKING_TEMPERATURE": "",
+                "OPENAI_INSTRUCT_TOP_P": "not-a-number",
                 "OPENAI_TOP_K": "  ",
             },
             clear=True,
@@ -118,8 +109,12 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(get_openai_api_key(), DEFAULT_OPENAI_API_KEY)
             self.assertEqual(get_openai_model(), DEFAULT_OPENAI_MODEL)
             self.assertEqual(get_max_tokens(), DEFAULT_MAX_TOKENS)
-            self.assertEqual(get_thinking_temperature(), DEFAULT_THINKING_TEMPERATURE)
             self.assertEqual(get_top_k(), DEFAULT_TOP_K)
+            self.assertEqual(
+                get_sampling_profile("thinking").temperature,
+                THINKING_DEFAULTS.temperature,
+            )
+            self.assertEqual(get_sampling_profile("instruct").top_p, INSTRUCT_DEFAULTS.top_p)
 
     def test_extra_body_omits_repeat_penalty_at_the_neutral_value(self) -> None:
         with patch.dict(os.environ, {}, clear=True):

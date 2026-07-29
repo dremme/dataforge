@@ -71,7 +71,7 @@ class BatchRenameJobTests(unittest.TestCase):
             os.utime(first, (now - 20, now - 20))
             os.utime(second, (now - 10, now - 10))
 
-            result = run_batch_rename_job(root, "portugal")
+            result = run_batch_rename_job(root, stem="portugal")
 
             self.assertEqual(result["total"], 2)
             self.assertEqual(result["stats"]["success"], 2)
@@ -129,7 +129,7 @@ class BatchRenameJobTests(unittest.TestCase):
             ) -> None:
                 progress_samples.append((processed, total))
 
-            result = run_batch_rename_job(root, "sample", on_progress=on_progress)
+            result = run_batch_rename_job(root, stem="sample", on_progress=on_progress)
 
             self.assertEqual(result["total"], 3)
             self.assertEqual(result["stats"]["success"], 3)

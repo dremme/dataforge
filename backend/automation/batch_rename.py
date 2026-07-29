@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import re
 from collections.abc import Callable
 from pathlib import Path
 
-from automation.selection import filter_media_list
-from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from automation.selection import filter_media_list, list_folder_media
+from constants import MEDIA_EXTENSIONS
 from logging_config import configure_logging, log_job_summary
 from media_move import related_media_paths
 
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
 
-MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 _INVALID_STEM_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _TEMP_PREFIX = ".__df_batch_rename_"
 
@@ -44,26 +42,7 @@ def build_target_name(stem: str, index: int, padding: int, suffix: str) -> str:
 
 
 def list_batch_rename_media(folder: Path) -> list[Path]:
-    media: list[Path] = []
-    try:
-        entries = sorted(
-            folder.iterdir(),
-            key=lambda path: (os.path.getmtime(path), path.name.lower()),
-        )
-    except OSError:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.suffix.lower() in MEDIA_EXTENSIONS:
-            media.append(entry)
-
-    return media
+    return list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
 
 
 def _rename_media_group(source_media: Path, target_media: Path) -> None:
@@ -144,8 +123,8 @@ def _rollback_after_phase2_failure(
 
 def run_batch_rename_job(
     folder: Path,
-    stem: str,
     *,
+    stem: str,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
@@ -296,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
 
     folder = args.folder.expanduser().resolve()
     try:
-        result = run_batch_rename_job(folder, args.stem)
+        result = run_batch_rename_job(folder, stem=args.stem)
     except ValueError as exc:
         logger.error("%s", exc)
         return 1

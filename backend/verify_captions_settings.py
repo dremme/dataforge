@@ -2,26 +2,22 @@
 
 from __future__ import annotations
 
-import json
+from typing import Literal, get_args
 
-from db import get_preference, set_preference
+from pydantic import BaseModel, Field
+
 from filesystem import preference_folder_key
+from preferences import JsonPreference
+from schemas import VerifyCaptionsSettingsResponse
 
 VERIFY_CAPTIONS_SETTINGS_KEY = "verify_captions_settings"
 
-VALID_MODES = frozenset({"thinking", "instruct"})
+VerifyMode = Literal["thinking", "instruct"]
+VALID_MODES = frozenset(get_args(VerifyMode))
+DEFAULT_MODE: VerifyMode = "instruct"
 
-
-def _default_settings() -> dict[str, object]:
-    return {
-        "mode": "instruct",
-        "context_by_folder": {},
-    }
-
-
-# Re-export for callers/tests that import from this module.
+# Re-export so callers/tests keep a single import for folder-keyed preferences.
 __all__ = [
-    "VALID_MODES",
     "VERIFY_CAPTIONS_SETTINGS_KEY",
     "get_verify_captions_settings",
     "preference_folder_key",
@@ -29,53 +25,35 @@ __all__ = [
 ]
 
 
-def _parse_context_by_folder(raw: object) -> dict[str, str]:
-    if not isinstance(raw, dict):
-        return {}
-    result: dict[str, str] = {}
-    for key, value in raw.items():
-        if isinstance(key, str) and isinstance(value, str) and value.strip():
-            result[preference_folder_key(key)] = value
-    return result
+class VerifyCaptionsStoredSettings(BaseModel):
+    """Stored shape: one global mode, plus context keyed by folder.
+
+    A legacy single global ``context`` key is intentionally not migrated onto folders.
+    """
+
+    mode: VerifyMode = DEFAULT_MODE
+    context_by_folder: dict[str, str] = Field(default_factory=dict)
 
 
-def _load_raw_settings() -> dict[str, object]:
-    raw = get_preference(VERIFY_CAPTIONS_SETTINGS_KEY)
-    if not raw:
-        return _default_settings()
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return _default_settings()
-
-    if not isinstance(data, dict):
-        return _default_settings()
-
-    mode = data.get("mode")
-    context_by_folder = _parse_context_by_folder(data.get("context_by_folder"))
-
-    # Legacy single global context is intentionally not migrated onto folders.
-    return {
-        "mode": mode if isinstance(mode, str) and mode in VALID_MODES else "instruct",
-        "context_by_folder": context_by_folder,
-    }
+_settings: JsonPreference[VerifyCaptionsStoredSettings] = JsonPreference(
+    VERIFY_CAPTIONS_SETTINGS_KEY, VerifyCaptionsStoredSettings
+)
 
 
-def get_verify_captions_settings(*, folder_path: str) -> dict[str, str]:
+def _response_for(
+    stored: VerifyCaptionsStoredSettings,
+    folder_key: str,
+) -> VerifyCaptionsSettingsResponse:
+    return VerifyCaptionsSettingsResponse(
+        mode=stored.mode,
+        context=stored.context_by_folder.get(folder_key, ""),
+        folder_path=folder_key,
+    )
+
+
+def get_verify_captions_settings(*, folder_path: str) -> VerifyCaptionsSettingsResponse:
     """Return mode and context for a folder (empty context when unset for that folder)."""
-    data = _load_raw_settings()
-    mode = str(data["mode"])
-    folder_key = preference_folder_key(folder_path)
-    contexts = data["context_by_folder"]
-    assert isinstance(contexts, dict)
-    context = str(contexts.get(folder_key, ""))
-
-    return {
-        "mode": mode,
-        "context": context,
-        "folder_path": folder_key,
-    }
+    return _response_for(_settings.get(), preference_folder_key(folder_path))
 
 
 def update_verify_captions_settings(
@@ -83,27 +61,22 @@ def update_verify_captions_settings(
     mode: str | None = None,
     context: str | None = None,
     folder_path: str,
-) -> dict[str, str]:
-    """Update global mode and/or per-folder context. Returns settings for the given folder."""
-    data = _load_raw_settings()
-    contexts = data["context_by_folder"]
-    assert isinstance(contexts, dict)
+) -> VerifyCaptionsSettingsResponse:
+    """Update the global mode and/or this folder's context. Returns the folder's settings."""
+    stored = _settings.get()
     folder_key = preference_folder_key(folder_path)
-
-    if mode is not None:
-        data["mode"] = mode if mode in VALID_MODES else "instruct"
+    contexts = dict(stored.context_by_folder)
 
     if context is not None:
-        if context.strip() == "":
-            contexts.pop(folder_key, None)
-        else:
+        if context.strip():
             contexts[folder_key] = context
-        data["context_by_folder"] = contexts
+        else:
+            contexts.pop(folder_key, None)
 
-    set_preference(VERIFY_CAPTIONS_SETTINGS_KEY, json.dumps(data))
-
-    return {
-        "mode": str(data["mode"]),
-        "context": str(contexts.get(folder_key, "")),
-        "folder_path": folder_key,
-    }
+    updated = stored.model_copy(
+        update={
+            "mode": mode if mode in VALID_MODES else stored.mode,
+            "context_by_folder": contexts,
+        }
+    )
+    return _response_for(_settings.save(updated), folder_key)

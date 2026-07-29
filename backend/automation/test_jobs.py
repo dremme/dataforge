@@ -34,7 +34,7 @@ class JobManagerQueueTests(unittest.TestCase):
             write_txt_caption(media, "Draft.")
 
             with patch("automation.auto_caption.complete_caption", return_value=None):
-                job = job_manager.queue_auto_caption_job(root, mode="instruct")
+                job = job_manager.queue_job("auto_caption", root, mode="instruct")
 
             self.assertIn(job.status, {"queued", "running"})
             self.assertEqual(job.job_type, "auto_caption")
@@ -61,7 +61,7 @@ class JobManagerQueueTests(unittest.TestCase):
                 )
 
             with self.assertRaisesRegex(ValueError, "already running"):
-                job_manager.queue_strip_metadata_job(root)
+                job_manager.queue_job("strip_metadata", root)
 
     def test_get_active_job_for_folder_prefers_memory(self) -> None:
         with TempMediaFolder() as root:
@@ -88,7 +88,7 @@ class JobManagerExecutionTests(unittest.TestCase):
             write_txt_caption(media, "Draft.")
 
             with patch("automation.auto_caption.complete_caption", return_value=None):
-                job = job_manager.queue_auto_caption_job(root)
+                job = job_manager.queue_job("auto_caption", root, mode="thinking")
                 finished = wait_for_job(job.id)
 
             self.assertEqual(finished.status, "failed")
@@ -105,7 +105,7 @@ class JobManagerExecutionTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png", text_chunks={"comment": "secret"})
 
-            job = job_manager.queue_strip_metadata_job(root)
+            job = job_manager.queue_job("strip_metadata", root)
             finished = wait_for_job(job.id)
 
             self.assertEqual(finished.job_type, "strip_metadata")
@@ -120,7 +120,7 @@ class JobManagerExecutionTests(unittest.TestCase):
                 "automation.strip_metadata.strip_mp4_metadata",
                 side_effect=RuntimeError("ffmpeg failed to strip MP4 metadata"),
             ):
-                job = job_manager.queue_strip_metadata_job(root)
+                job = job_manager.queue_job("strip_metadata", root)
                 finished = wait_for_job(job.id)
 
             self.assertEqual(finished.status, "failed")
@@ -131,8 +131,8 @@ class JobManagerExecutionTests(unittest.TestCase):
             first = write_media(root, "one.png")
             second = write_media(root, "two.png")
 
-            job = job_manager.queue_set_captions_job(
-                root, caption="Shared caption.", overwrite=True
+            job = job_manager.queue_job(
+                "set_captions", root, caption="Shared caption.", overwrite=True
             )
             finished = wait_for_job(job.id)
 
@@ -165,7 +165,7 @@ class JobManagerExecutionTests(unittest.TestCase):
             )
 
             with patch("automation.verify_captions.verify_caption", return_value=response):
-                job = job_manager.queue_verify_captions_job(root)
+                job = job_manager.queue_job("verify_captions", root, mode="instruct", context="")
                 finished = wait_for_job(job.id)
 
             self.assertEqual(finished.status, "completed")
@@ -198,7 +198,14 @@ class JobManagerExecutionTests(unittest.TestCase):
 
             with patch("automation.body_parts.load_body_parts_models", fake_loader):
                 with patch("automation.body_parts.detect_body_parts_for_image", fake_detect):
-                    job = job_manager.queue_body_parts_job(root)
+                    job = job_manager.queue_job(
+                        "body_parts",
+                        root,
+                        body_description="",
+                        face_description="",
+                        keywords=[],
+                        element_description="",
+                    )
                     finished = wait_for_job(job.id)
 
             self.assertEqual(finished.status, "completed")
@@ -238,7 +245,7 @@ class JobManagerLifecycleTests(unittest.TestCase):
             write_txt_caption(media, "Draft.")
 
             with patch("automation.auto_caption.complete_caption", return_value=None):
-                job = job_manager.queue_auto_caption_job(root)
+                job = job_manager.queue_job("auto_caption", root, mode="thinking")
                 wait_for_job(job.id)
 
             self.assertTrue(job_manager.delete_job(job.id))
@@ -249,7 +256,7 @@ class JobManagerLifecycleTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png", text_chunks={"comment": "secret"})
 
-            job = job_manager.queue_strip_metadata_job(root)
+            job = job_manager.queue_job("strip_metadata", root)
             wait_for_job(job.id)
 
             deleted_count = job_manager.delete_all_jobs()

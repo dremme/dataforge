@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -12,6 +11,8 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+from automation.job_runner import FileOutcome, run_media_job
+from automation.selection import filter_media_list, list_folder_media
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -21,33 +22,11 @@ ShouldCancel = Callable[[], bool]
 
 STRIP_PNG_SUFFIX = ".png"
 STRIP_VIDEO_SUFFIX = ".mp4"
+STRIP_METADATA_EXTENSIONS = {STRIP_PNG_SUFFIX, STRIP_VIDEO_SUFFIX}
 
 
 def list_strip_metadata_files(folder: Path) -> list[Path]:
-    files: list[Path] = []
-    try:
-        # Sort by date modified so the original order is kept
-        entries = sorted(
-            folder.iterdir(),
-            key=lambda path: (os.path.getmtime(path), path.name.lower()),
-        )
-    except OSError:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        suffix = entry.suffix.lower()
-        if suffix not in {STRIP_PNG_SUFFIX, STRIP_VIDEO_SUFFIX}:
-            continue
-
-        files.append(entry)
-
-    return files
+    return list_folder_media(folder, STRIP_METADATA_EXTENSIONS, order="mtime")
 
 
 def validate_strip_metadata_folder(folder: Path) -> None:
@@ -143,88 +122,54 @@ def run_strip_metadata_job(
     ffmpeg: str | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
-    from automation.selection import filter_media_list
-
     validate_strip_metadata_folder(folder)
 
     media_files = filter_media_list(list_strip_metadata_files(folder), selected_paths)
-    stats: dict[str, int] = {
-        "total": len(media_files),
-        "success": 0,
-        "png_success": 0,
-        "mp4_success": 0,
-        "read_error": 0,
-        "write_error": 0,
-        "ffmpeg_error": 0,
-        "cancelled": 0,
-    }
-    file_results: list[dict[str, object]] = []
-    total = len(media_files)
     resolved_ffmpeg = ffmpeg or _ffmpeg_path()
 
-    for index, media_path in enumerate(media_files, start=1):
-        if should_cancel and should_cancel():
-            stats["cancelled"] = total - index + 1
-            break
-
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index - 1, total, dict(stats))
-
-        result: dict[str, object] = {
-            "path": str(media_path),
-            "name": media_path.name,
-            "status": "success",
-        }
-
+    def process(media_path: Path) -> FileOutcome:
         try:
             if media_path.suffix.lower() == STRIP_PNG_SUFFIX:
                 strip_png_metadata(media_path)
-                stats["success"] += 1
-                stats["png_success"] += 1
-            else:
-                strip_mp4_metadata(media_path, ffmpeg=resolved_ffmpeg)
-                stats["success"] += 1
-                stats["mp4_success"] += 1
+                return FileOutcome(status="success", stats={"success": 1, "png_success": 1})
+
+            strip_mp4_metadata(media_path, ffmpeg=resolved_ffmpeg)
+            return FileOutcome(status="success", stats={"success": 1, "mp4_success": 1})
         except UnidentifiedImageError as exc:
-            stats["read_error"] += 1
-            result["status"] = "read_error"
-            result["message"] = str(exc)
+            return FileOutcome(
+                status="read_error",
+                stats={"read_error": 1},
+                fields={"message": str(exc)},
+            )
         except RuntimeError as exc:
             message = str(exc)
-            if "ffmpeg" in message.lower():
-                stats["ffmpeg_error"] += 1
-                result["status"] = "ffmpeg_error"
-            else:
-                stats["write_error"] += 1
-                result["status"] = "write_error"
-            result["message"] = message
+            status = "ffmpeg_error" if "ffmpeg" in message.lower() else "write_error"
+            return FileOutcome(status=status, stats={status: 1}, fields={"message": message})
         except OSError as exc:
-            stats["write_error"] += 1
-            result["status"] = "write_error"
-            result["message"] = str(exc)
+            return FileOutcome(
+                status="write_error",
+                stats={"write_error": 1},
+                fields={"message": str(exc)},
+            )
 
-        file_results.append(result)
-
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index, total, dict(stats))
-
-    processed = sum(
-        stats[key]
-        for key in (
-            "success",
-            "read_error",
-            "write_error",
-            "ffmpeg_error",
-        )
+    return run_media_job(
+        folder,
+        media_files,
+        stats={
+            "total": len(media_files),
+            "success": 0,
+            "png_success": 0,
+            "mp4_success": 0,
+            "read_error": 0,
+            "write_error": 0,
+            "ffmpeg_error": 0,
+            "cancelled": 0,
+        },
+        process=process,
+        on_progress=on_progress,
+        should_cancel=should_cancel,
+        processed_stat_keys=("success", "read_error", "write_error", "ffmpeg_error"),
     )
-
-    return {
-        "folder": str(folder),
-        "total": stats["total"],
-        "processed": processed,
-        "stats": stats,
-        "results": file_results,
-    }
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -13,8 +13,6 @@ isolate_test_database()
 from PIL import Image
 
 from automation.verify_captions import (
-    INSTRUCT_THINK_PREFILL,
-    MAX_MODEL_ATTEMPTS,
     VerificationResult,
     build_verification_system_prompt,
     list_verify_captions_media,
@@ -26,6 +24,7 @@ from automation.verify_captions import (
     validate_verify_captions_folder,
     verify_caption,
 )
+from automation.vision import INSTRUCT_THINK_PREFILL, MAX_MODEL_ATTEMPTS
 from captions import issue_file_path
 from testing_fixtures import (
     TempMediaFolder,

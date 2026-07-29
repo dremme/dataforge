@@ -2,32 +2,28 @@
 
 from __future__ import annotations
 
-import base64
 import logging
-import os
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
 from PIL import Image
 
-from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
-from openai_settings import (
-    assistant_message_text,
-    build_sampling_extra_body,
-    create_openai_client,
-    get_instruct_presence_penalty,
-    get_instruct_temperature,
-    get_instruct_top_p,
-    get_max_tokens,
-    get_openai_model,
-    get_thinking_presence_penalty,
-    get_thinking_temperature,
-    get_thinking_top_p,
+from automation.job_runner import FileOutcome, run_media_job
+from automation.selection import filter_media_list, list_folder_media
+from automation.vision import (
+    ModelOutcome,
+    call_with_retries,
+    clean_model_text,
+    load_image_rgb,
+    prepare_images_for_api,
+    run_vision_completion,
+    vision_messages,
 )
+from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
+from openai_settings import create_openai_client, get_max_tokens, get_openai_model
 from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
@@ -36,11 +32,6 @@ DRAFT_CAPTION_THRESHOLD = 250
 IMAGE_MAX_PIXELS = 1_000_000
 VIDEO_FRAME_MAX_PIXELS = 500_000
 VIDEO_KEYFRAME_COUNT = 12
-MAX_MODEL_ATTEMPTS = 3
-
-# Used as a trailing assistant prefill for "instruct" (non-thinking) mode on Qwen3 hybrid models.
-# Signals that any thinking phase is complete/empty so the model emits the final answer directly.
-INSTRUCT_THINK_PREFILL = "<think>\n\n</think>"
 
 AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
@@ -78,40 +69,6 @@ MEDIA_KIND_SETTINGS: dict[MediaKind, MediaKindSettings] = {
 
 def media_kind_for(path: Path) -> MediaKind:
     return "video" if path.suffix.lower() in VIDEO_EXTENSIONS else "image"
-
-
-def resize_for_qwen(image: Image.Image, max_pixels: int = IMAGE_MAX_PIXELS) -> Image.Image:
-    width, height = image.size
-    current_pixels = width * height
-    if current_pixels <= max_pixels:
-        return image
-
-    scale = (max_pixels / current_pixels) ** 0.5
-    new_width = max((int(width * scale) // 32) * 32, 512)
-    new_height = max((int(height * scale) // 32) * 32, 512)
-    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-
-def image_to_base64(image: Image.Image) -> str:
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=85)
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-
-def prepare_images_for_api(
-    images: list[Image.Image],
-    *,
-    max_pixels: int,
-) -> list[str] | None:
-    encoded: list[str] = []
-    for image in images:
-        try:
-            resized = resize_for_qwen(image.convert("RGB"), max_pixels=max_pixels)
-            encoded.append(image_to_base64(resized))
-        except Exception as exc:
-            logger.error("Image prepare error: %s", exc)
-            return None
-    return encoded
 
 
 def extract_video_keyframes(
@@ -152,34 +109,6 @@ def extract_video_keyframes(
         return frames or None
     finally:
         cap.release()
-
-
-def clean_caption(raw_text: str) -> str:
-    text = raw_text.strip()
-
-    if "</think>" in text:
-        text = text.split("</think>")[-1].strip()
-    if "<think>" in text:
-        text = text.split("<think>")[0].strip()
-
-    prefixes = [
-        "assistant:",
-        "Assistant:",
-        "Here is the caption:",
-        "Caption:",
-        "The image shows:",
-        "The video shows:",
-        "The caption is:",
-        "Revised caption:",
-        "Output:",
-    ]
-    text_lower = text.lower()
-    for prefix in prefixes:
-        if text_lower.startswith(prefix.lower()):
-            text = text[len(prefix) :].strip()
-            break
-
-    return text.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip()
 
 
 def _load_specific_sysprompt(folder: Path) -> str:
@@ -229,28 +158,7 @@ def build_system_prompts(folder: Path) -> dict[MediaKind, str]:
 
 
 def list_auto_caption_media(folder: Path) -> list[Path]:
-    media_files: list[Path] = []
-    try:
-        entries = sorted(
-            folder.iterdir(),
-            key=lambda path: (os.path.getmtime(path), path.name.lower()),
-        )
-    except OSError:
-        return []
-
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.suffix.lower() not in AUTO_CAPTION_EXTENSIONS:
-            continue
-
-        media_files.append(entry)
-
-    return media_files
+    return list_folder_media(folder, AUTO_CAPTION_EXTENSIONS, order="mtime")
 
 
 def _build_user_text(ref_caption: str, media_kind: MediaKind) -> str:
@@ -282,21 +190,6 @@ def _build_user_text(ref_caption: str, media_kind: MediaKind) -> str:
     ).strip()
 
 
-def _vision_messages(system_prompt: str, images_b64: list[str], user_text: str) -> list[dict]:
-    content: list[dict] = [
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
-        }
-        for encoded in images_b64
-    ]
-    content.append({"type": "text", "text": user_text})
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": content},
-    ]
-
-
 def _load_media_images(
     media_path: Path,
     media_kind: MediaKind,
@@ -307,11 +200,10 @@ def _load_media_images(
             return None, "frame_error"
         return keyframes, None
 
-    try:
-        return [Image.open(media_path).convert("RGB")], None
-    except Exception as exc:
-        logger.error("Image read error for %s: %s", media_path.name, exc)
+    images, _error = load_image_rgb(media_path)
+    if images is None:
         return None, "api_error"
+    return images, None
 
 
 def complete_caption(
@@ -327,8 +219,6 @@ def complete_caption(
 ) -> str | None:
     media_kind = media_kind_for(media_path)
     settings = MEDIA_KIND_SETTINGS[media_kind]
-    resolved_model = model if model is not None else get_openai_model()
-    resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
 
     if images is None:
         images, _load_error = _load_media_images(media_path, media_kind)
@@ -339,45 +229,13 @@ def complete_caption(
     if not images_b64:
         return None
 
-    if mode == "instruct":
-        temperature = get_instruct_temperature()
-        presence_penalty = get_instruct_presence_penalty()
-        top_p = get_instruct_top_p()
-    else:
-        temperature = get_thinking_temperature()
-        presence_penalty = get_thinking_presence_penalty()
-        top_p = get_thinking_top_p()
-
-    try:
-        messages = _vision_messages(
-            system_prompt,
-            images_b64,
-            _build_user_text(ref_caption, media_kind),
-        )
-
-        if mode == "instruct":
-            # Empty-think prefill skips reasoning on hybrid Qwen models; kwargs for servers
-            # that honor them (vLLM, some LM Studio builds). Prefill helps when kwargs are ignored.
-            messages = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
-
-        response = client.chat.completions.create(
-            model=resolved_model,
-            messages=messages,
-            max_tokens=resolved_max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            presence_penalty=presence_penalty,
-            extra_body=build_sampling_extra_body(mode),
-        )
-
-        raw = assistant_message_text(
-            response.choices[0].message,
-            allow_reasoning_fallback=mode == "instruct",
-        )
-        return raw or None
-    except Exception as exc:
-        logger.error("API/Vision error for %s: %s", media_path.name, exc)
-        return None
+    return run_vision_completion(
+        client,
+        vision_messages(system_prompt, images_b64, _build_user_text(ref_caption, media_kind)),
+        mode=mode,
+        model=model if model is not None else get_openai_model(),
+        max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),
+    )
 
 
 def _read_draft_caption(media_path: Path) -> tuple[str | None, str]:
@@ -418,13 +276,7 @@ def process_media(
     if load_error:
         return media_path, None, load_error
 
-    last_status = "api_error"
-    last_caption: str | None = None
-
-    for attempt in range(1, MAX_MODEL_ATTEMPTS + 1):
-        if should_cancel and should_cancel():
-            return media_path, None, "cancelled"
-
+    def attempt() -> ModelOutcome[str]:
         raw_caption = complete_caption(
             client,
             media_path,
@@ -435,31 +287,21 @@ def process_media(
             max_tokens=resolved_max_tokens,
             mode=mode,
         )
-
         if raw_caption is None:
-            last_status = "api_error"
-            last_caption = None
-        else:
-            if should_cancel and should_cancel():
-                return media_path, None, "cancelled"
+            return ModelOutcome(status="api_error")
 
-            clean_text = clean_caption(raw_caption)
-            if len(clean_text.strip()) > DRAFT_CAPTION_THRESHOLD:
-                return media_path, clean_text, "success"
+        clean_text = clean_model_text(raw_caption)
+        if len(clean_text.strip()) <= DRAFT_CAPTION_THRESHOLD:
+            return ModelOutcome(status="too_short", value=clean_text)
+        return ModelOutcome(status="success", value=clean_text)
 
-            last_status = "too_short"
-            last_caption = clean_text
-
-        if attempt < MAX_MODEL_ATTEMPTS:
-            logger.warning(
-                "Auto-caption attempt %s/%s failed for %s (%s); retrying",
-                attempt,
-                MAX_MODEL_ATTEMPTS,
-                media_path.name,
-                last_status,
-            )
-
-    return media_path, last_caption, last_status
+    outcome = call_with_retries(
+        attempt,
+        job_label="Auto-caption",
+        media_name=media_path.name,
+        should_cancel=should_cancel,
+    )
+    return media_path, outcome.value, outcome.status
 
 
 def validate_auto_caption_folder(folder: Path) -> None:
@@ -489,16 +331,18 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     }
 
 
-def _record_result_status(
-    stats: dict[str, int],
-    result: dict[str, object],
-    status: str,
-) -> None:
-    base_status = status.split(":", 1)[0]
-    if base_status in NON_SUCCESS_STATUSES:
-        stats[base_status] += 1
-        if base_status == "read_error":
-            result["message"] = status.split(":", 1)[1].strip() if ":" in status else status
+def _failure_outcome(status: str) -> FileOutcome:
+    """Map a non-success ``process_media`` status onto its counter and message."""
+    base_status, _, detail = status.partition(":")
+    fields: dict[str, object] = {}
+    if base_status == "read_error":
+        fields["message"] = detail.strip() or status
+
+    return FileOutcome(
+        status=base_status,
+        stats={base_status: 1} if base_status in NON_SUCCESS_STATUSES else {},
+        fields=fields,
+    )
 
 
 def run_auto_caption_job(
@@ -510,8 +354,6 @@ def run_auto_caption_job(
     should_cancel: Callable[[], bool] | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
-    from automation.selection import filter_media_list
-
     validate_auto_caption_folder(folder)
 
     system_prompts = build_system_prompts(folder)
@@ -519,19 +361,8 @@ def run_auto_caption_job(
     client = create_openai_client()
     resolved_model = model if model is not None else get_openai_model()
 
-    stats = _initial_job_stats(len(media_files))
-    file_results: list[dict[str, object]] = []
-    total = len(media_files)
-
-    for index, media_path in enumerate(media_files, start=1):
-        if should_cancel and should_cancel():
-            stats["cancelled"] = total - index + 1
-            break
-
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index - 1, total, dict(stats))
-
-        media_path, clean_text, status = process_media(
+    def process(media_path: Path) -> FileOutcome:
+        _path, clean_text, status = process_media(
             client,
             media_path,
             system_prompts,
@@ -540,50 +371,37 @@ def run_auto_caption_job(
             should_cancel=should_cancel,
         )
 
-        result: dict[str, object] = {
-            "path": str(media_path),
-            "name": media_path.name,
-            "status": status.split(":", 1)[0],
-        }
+        if status == "cancelled":
+            return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
         if status == "success" and clean_text:
             if should_cancel and should_cancel():
-                stats["cancelled"] += 1
-                result["status"] = "cancelled"
-                # Do not write sidecar if cancellation was requested around this file's processing.
-            else:
-                try:
-                    media_path.with_suffix(".txt").write_text(clean_text, encoding="utf-8")
-                    stats["success"] += 1
-                    result["description"] = clean_text
-                except OSError as exc:
-                    stats["write_error"] += 1
-                    result["status"] = "write_error"
-                    result["message"] = str(exc)
-        elif status == "cancelled":
-            stats["cancelled"] += 1
-            result["status"] = "cancelled"
-        else:
-            _record_result_status(stats, result, status)
+                # Do not write the sidecar when cancellation landed around this file.
+                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
-        file_results.append(result)
+            try:
+                media_path.with_suffix(".txt").write_text(clean_text, encoding="utf-8")
+            except OSError as exc:
+                return FileOutcome(
+                    status="write_error",
+                    stats={"write_error": 1},
+                    fields={"message": str(exc)},
+                )
 
-        if on_progress:
-            on_progress(str(media_path), media_path.name, index, total, dict(stats))
+            return FileOutcome(
+                status="success",
+                stats={"success": 1},
+                fields={"description": clean_text},
+            )
 
-        if status == "cancelled":
-            # Abort further files; account for any not-yet-processed remaining ones.
-            remaining_after_current = total - index
-            if remaining_after_current > 0:
-                stats["cancelled"] += remaining_after_current
-            break
+        return _failure_outcome(status)
 
-    processed = sum(stats[key] for key in PROCESSED_STAT_KEYS)
-
-    return {
-        "folder": str(folder),
-        "total": stats["total"],
-        "processed": processed,
-        "stats": stats,
-        "results": file_results,
-    }
+    return run_media_job(
+        folder,
+        media_files,
+        stats=_initial_job_stats(len(media_files)),
+        process=process,
+        on_progress=on_progress,
+        should_cancel=should_cancel,
+        processed_stat_keys=PROCESSED_STAT_KEYS,
+    )

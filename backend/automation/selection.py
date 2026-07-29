@@ -1,10 +1,51 @@
-"""Helpers for running automation jobs on a subset of folder media."""
+"""Helpers for choosing which folder media an automation job runs on."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import Literal
 
 from filesystem import normalize_user_path
+
+MediaOrder = Literal["mtime", "name"]
+
+
+def _mtime_key(path: Path) -> tuple[float, str]:
+    return (os.path.getmtime(path), path.name.lower())
+
+
+def _name_key(path: Path) -> tuple[float, str]:
+    return (0.0, path.name.lower())
+
+
+def list_folder_media(
+    folder: Path,
+    extensions: set[str],
+    *,
+    order: MediaOrder = "name",
+) -> list[Path]:
+    """Files in ``folder`` with a matching suffix, in a stable processing order.
+
+    ``mtime`` preserves the order the files were captured in, ``name`` is alphabetical.
+    """
+    try:
+        entries = sorted(folder.iterdir(), key=_mtime_key if order == "mtime" else _name_key)
+    except OSError:
+        return []
+
+    media: list[Path] = []
+    for entry in entries:
+        try:
+            if not entry.is_file():
+                continue
+        except OSError:
+            continue
+
+        if entry.suffix.lower() in extensions:
+            media.append(entry)
+
+    return media
 
 
 def resolve_selected_media(folder: Path, paths: list[str] | None) -> list[Path] | None:
