@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import errno
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -9,7 +11,6 @@ from fastapi import HTTPException
 from captions import issue_file_path
 from constants import SIDECAR_EXTENSIONS
 from file_import import _existing_file_names
-from media_delete import delete_media_with_sidecars
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,54 @@ def preview_media_move(destination: Path, source_paths: list[Path]) -> dict[str,
     }
 
 
+def move_one_file(source: Path, destination: Path) -> None:
+    """Move a single file, replacing ``destination``, without ever leaving a stray copy.
+
+    ``shutil.move`` answers a failed rename by copying and then deleting the source. When
+    the source cannot be deleted — on Windows, any other process holding it open blocks
+    that — the copy stays at the destination while the original stays put, so one "moved"
+    file ends up in both folders. Rename instead, and only copy for a genuine cross-volume
+    move, undoing the copy when the original survives.
+    """
+    try:
+        os.replace(source, destination)
+        return
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+
+    shutil.copy2(source, destination)
+    try:
+        source.unlink()
+    except OSError:
+        destination.unlink(missing_ok=True)
+        raise
+
+
+def restore_moved_files(moved: list[tuple[Path, Path]]) -> None:
+    """Put a half-moved group back, so a failure never splits media from its sidecars."""
+    for origin, destination in reversed(moved):
+        try:
+            os.replace(destination, origin)
+        except OSError as exc:
+            logger.warning("Failed to restore %s after an aborted move: %s", origin.name, exc)
+
+
+def discard_replaced_sidecars(destination_media: Path, arrived_names: set[str]) -> None:
+    """Drop sidecars of the replaced destination file that the source did not bring along.
+
+    Runs only once the whole group has landed, so an aborted move never costs the
+    destination the caption it already had.
+    """
+    for path in related_media_paths(destination_media):
+        if path.name in arrived_names:
+            continue
+        try:
+            path.unlink()
+        except OSError as exc:
+            logger.warning("Failed to remove replaced sidecar %s: %s", path.name, exc)
+
+
 def move_media_with_sidecars(
     source: Path,
     destination_folder: Path,
@@ -85,41 +134,26 @@ def move_media_with_sidecars(
             detail="File already exists in the destination folder",
         )
 
-    if destination_media.exists():
-        try:
-            delete_media_with_sidecars(destination_media)
-        except OSError as exc:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to replace existing file: {exc}",
-            ) from exc
-
-    moved: list[str] = []
+    moved: list[tuple[Path, Path]] = []
 
     for path in related_media_paths(source):
         destination = destination_folder / path.name
-        if destination.exists():
-            try:
-                destination.unlink()
-            except OSError as exc:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to replace existing sidecar: {exc}",
-                ) from exc
-
         try:
-            shutil.move(str(path), str(destination))
+            move_one_file(path, destination)
         except OSError as exc:
+            restore_moved_files(moved)
             raise HTTPException(
                 status_code=500, detail=f"Failed to move {path.name}: {exc}"
             ) from exc
 
-        moved.append(path.name)
+        moved.append((path, destination))
+
+    discard_replaced_sidecars(destination_media, {destination.name for _, destination in moved})
 
     return {
         "source": str(source),
         "destination": str(destination_media),
-        "moved": moved,
+        "moved": [origin.name for origin, _ in moved],
     }
 
 

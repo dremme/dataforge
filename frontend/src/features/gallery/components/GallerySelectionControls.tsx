@@ -18,6 +18,22 @@ function pathBaseName(path: string): string {
   return path.split(/[/\\]/).pop() ?? path;
 }
 
+/** Names the first casualty and the count, since a batch can fail one file at a time. */
+function failureMessage(
+  verb: string,
+  failed: ReadonlyArray<{ path: string; error: unknown }>,
+): string {
+  const [first] = failed;
+  // Moves carry the backend's `detail` string; deletes carry the thrown request error.
+  const reason = typeof first.error === "string" ? first.error : formatApiError(first.error);
+
+  if (failed.length === 1) {
+    return `Could not ${verb} ${pathBaseName(first.path)}: ${reason}`;
+  }
+
+  return `Could not ${verb} ${failed.length} files. ${pathBaseName(first.path)}: ${reason}`;
+}
+
 interface GallerySelectionControlsProps {
   /** Folder the selected media currently lives in — the move dialog's origin. */
   currentFolder: string;
@@ -107,7 +123,7 @@ export function GallerySelectionControls({
     setDeleting(true);
 
     try {
-      const { succeeded } = await deleteSelectedMedia(paths);
+      const { succeeded, failed } = await deleteSelectedMedia(paths);
 
       if (succeeded.length > 0) {
         await onDeleted(succeeded);
@@ -115,13 +131,18 @@ export function GallerySelectionControls({
 
       setDeleteConfirmOpen(false);
 
+      // Per-file rejections come back in the result rather than as a thrown error.
+      if (failed.length > 0) {
+        notify({ variant: "danger", message: failureMessage("delete", failed) });
+      }
+
       if (succeeded.length === totalCount) {
         exitSelectionMode();
       }
     } finally {
       setDeleting(false);
     }
-  }, [totalCount, deleting, onDeleted, exitSelectionMode, selectedPaths]);
+  }, [totalCount, deleting, notify, onDeleted, exitSelectionMode, selectedPaths]);
 
   const executeMove = useCallback(
     async (destinationFolder: string, overwrite: boolean) => {
@@ -131,7 +152,7 @@ export function GallerySelectionControls({
       setMoving(true);
 
       try {
-        const { succeeded } = await moveSelectedMedia(destinationFolder, paths, overwrite);
+        const { succeeded, failed } = await moveSelectedMedia(destinationFolder, paths, overwrite);
 
         if (succeeded.length > 0) {
           await onMoved(succeeded);
@@ -141,6 +162,11 @@ export function GallerySelectionControls({
         setMoveOverwriteOpen(false);
         setMoveConflicts([]);
         setMoveDestination(null);
+
+        // The backend reports per-file failures in its 200 response, so nothing throws here.
+        if (failed.length > 0) {
+          notify({ variant: "danger", message: failureMessage("move", failed) });
+        }
 
         if (succeeded.length === totalCount) {
           exitSelectionMode();

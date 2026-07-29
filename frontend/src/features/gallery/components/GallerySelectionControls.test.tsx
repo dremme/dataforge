@@ -274,7 +274,38 @@ describe("GallerySelectionControls", () => {
     });
   });
 
-  it("applies partial deletes silently and keeps selection mode open", async () => {
+  it("reports files the backend could not move", async () => {
+    const user = userEvent.setup();
+    const onMoved = vi.fn();
+    const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
+
+    previewMediaMoveMock.mockResolvedValue({
+      movable: ["sunset.png", "beach.jpg"],
+      conflicts: [],
+      skipped: [],
+    });
+    moveSelectedMediaMock.mockResolvedValue({
+      succeeded: [`${HOME_PATH}\\beach.jpg`],
+      skipped: [],
+      failed: [
+        { path: `${HOME_PATH}\\sunset.png`, error: "sunset.png is used by another process" },
+      ],
+    });
+
+    renderControls({ selectedPaths, onMoved });
+
+    await user.click(screen.getByRole("button", { name: "Move" }));
+
+    const picker = await screen.findByRole("dialog", { name: "Move to folder" });
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Move here" }));
+
+    expect(
+      await screen.findByText(/Could not move sunset\.png: sunset\.png is used by another process/),
+    ).toBeInTheDocument();
+  });
+
+  it("reports files the backend could not delete and keeps selection mode open", async () => {
     const user = userEvent.setup();
     const onDeleted = vi.fn();
     const exitSelectionMode = vi.fn();
@@ -300,6 +331,8 @@ describe("GallerySelectionControls", () => {
     });
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("Could not delete beach.jpg: Permission denied"),
+    ).toBeInTheDocument();
   });
 });
