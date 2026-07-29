@@ -67,6 +67,48 @@ describe("IssueResolverModal", () => {
     });
   });
 
+  it("shows resolution and live character count in the meta row", async () => {
+    const user = userEvent.setup();
+    const caption = "Golden hour over the lake";
+
+    render(
+      <IssueResolverModal
+        items={[
+          makeIssueItem("sunset.png", {
+            description: caption,
+            width: 1920,
+            height: 1080,
+          }),
+        ]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Caption for sunset.png")).toHaveValue(caption);
+    });
+
+    expect(dialog).toHaveTextContent("2.1 MP");
+    expect(dialog).toHaveTextContent("1920 × 1080");
+    expect(dialog).toHaveTextContent(`${caption.length} characters`);
+
+    const captionInput = screen.getByLabelText("Caption for sunset.png");
+    await user.clear(captionInput);
+    await user.type(captionInput, "Short");
+
+    await waitFor(() => {
+      expect(dialog).toHaveTextContent("5 characters");
+    });
+    expect(dialog).not.toHaveTextContent(`${caption.length} characters`);
+  });
+
   it("opens images in the image preview", async () => {
     const user = userEvent.setup();
 

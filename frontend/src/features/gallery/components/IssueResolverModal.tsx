@@ -246,17 +246,23 @@ export function IssueResolverModal({
             <p className="issue-resolver-modal__file-name" title={item.name}>
               {item.name}
             </p>
-            {resolution && (
-              <div className="issue-resolver-modal__meta">
-                <div className="issue-resolver-modal__meta-value">
-                  {formatMegapixels(resolution.width, resolution.height)}
-                </div>
-                <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
-                <div className="issue-resolver-modal__meta-value">
-                  {resolution.width} × {resolution.height}
-                </div>
+            <div className="issue-resolver-modal__meta">
+              {resolution && (
+                <>
+                  <div className="issue-resolver-modal__meta-value">
+                    {formatMegapixels(resolution.width, resolution.height)}
+                  </div>
+                  <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
+                  <div className="issue-resolver-modal__meta-value">
+                    {resolution.width} × {resolution.height}
+                  </div>
+                  <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
+                </>
+              )}
+              <div className="issue-resolver-modal__meta-value">
+                {caption.length.toLocaleString()} characters
               </div>
-            )}
+            </div>
 
             <div className="issue-resolver-modal__issue-card">
               <div className="issue-resolver-modal__issue-row">
