@@ -6,6 +6,7 @@ Environment (all optional):
 - ``OPENAI_API_KEY`` — API key (placeholder is fine for many local servers)
 - ``OPENAI_MODEL`` — chat ``model`` id the server expects
 - ``OPENAI_MAX_TOKENS`` — completion max tokens
+- ``OPENAI_TIMEOUT`` — seconds to wait for a model response before giving up
 - ``OPENAI_THINKING_TEMPERATURE`` / ``OPENAI_THINKING_PRESENCE_PENALTY`` / ``OPENAI_THINKING_TOP_P`` / ``OPENAI_THINKING_MIN_P`` / ``OPENAI_THINKING_REPEAT_PENALTY``
 - ``OPENAI_INSTRUCT_TEMPERATURE`` / ``OPENAI_INSTRUCT_PRESENCE_PENALTY`` / ``OPENAI_INSTRUCT_TOP_P`` / ``OPENAI_INSTRUCT_MIN_P`` / ``OPENAI_INSTRUCT_REPEAT_PENALTY``
 - ``OPENAI_TOP_K`` / min-p / repeat-penalty vars — sampling extras via ``extra_body`` (local servers)
@@ -23,6 +24,12 @@ DEFAULT_OPENAI_MODEL = "qwen35moe"
 
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TOP_K = 20
+
+# Generous enough for a slow local GPU working through a long thinking-mode generation.
+DEFAULT_TIMEOUT_SECONDS = 600.0
+# A model server that is up answers the handshake immediately; one that is not should
+# fail fast rather than sit in the response budget.
+CONNECT_TIMEOUT_SECONDS = 10.0
 
 # 1.0 disables the repetition penalty, so it is both the default and the value
 # at which the key is left out of ``extra_body`` entirely.
@@ -100,6 +107,11 @@ def get_top_k() -> int:
     return _env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
 
 
+def get_openai_timeout() -> float:
+    timeout = _env_float("OPENAI_TIMEOUT", DEFAULT_TIMEOUT_SECONDS)
+    return timeout if timeout > 0 else DEFAULT_TIMEOUT_SECONDS
+
+
 def get_sampling_profile(mode: str) -> SamplingProfile:
     """Env-configured sampling knobs for ``mode``. Unknown modes fall back to thinking."""
     instruct = mode == "instruct"
@@ -138,12 +150,20 @@ def build_sampling_extra_body(mode: str) -> dict[str, object]:
 
 
 def create_openai_client() -> Any:
-    """Return an OpenAI client configured from environment / defaults."""
+    """Return an OpenAI client configured from environment / defaults.
+
+    Retries are disabled because ``automation.vision.call_with_retries`` already owns
+    them; the SDK default would silently turn every attempt into three HTTP requests,
+    multiplying how long a wedged server can hold a job hostage.
+    """
+    import httpx
     from openai import OpenAI
 
     return OpenAI(
         base_url=get_openai_base_url(),
         api_key=get_openai_api_key(),
+        timeout=httpx.Timeout(get_openai_timeout(), connect=CONNECT_TIMEOUT_SECONDS),
+        max_retries=0,
     )
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
@@ -29,6 +30,9 @@ from openai_settings import (
 logger = logging.getLogger(__name__)
 
 MAX_MODEL_ATTEMPTS = 3
+
+# How often a waiting job re-checks for cancellation while the model request is in flight.
+CANCEL_POLL_SECONDS = 0.1
 
 # Used as a trailing assistant prefill for "instruct" (non-thinking) mode on Qwen3 hybrid models.
 # Signals that any thinking phase is complete/empty so the model emits the final answer directly.
@@ -178,17 +182,68 @@ class ModelOutcome(Generic[T]):
     message: str | None = None
 
 
+def close_vision_client(client: object) -> None:
+    """Best-effort teardown so an abandoned request stops occupying the model server.
+
+    Only called once a job has been cancelled, after which its client is never used again.
+    """
+    close = getattr(client, "close", None)
+    if close is None:
+        return
+
+    try:
+        close()
+    except Exception as exc:
+        logger.debug("Closing the vision client after cancellation failed: %s", exc)
+
+
+def _await_attempt(
+    attempt: Callable[[], ModelOutcome[T]],
+    should_cancel: Callable[[], bool],
+) -> ModelOutcome[T] | None:
+    """Run ``attempt`` on a helper thread, returning ``None`` when cancellation wins the race.
+
+    A model request blocks in a socket read that cannot be interrupted, so a cancelled job
+    stops waiting for it rather than holding the whole job hostage until the server answers.
+    The abandoned thread ends on its own once the request completes or hits its timeout, and
+    its result is discarded: every file write happens after this returns, never inside it.
+    """
+    outcomes: list[ModelOutcome[T]] = []
+    failures: list[Exception] = []
+
+    def run() -> None:
+        try:
+            outcomes.append(attempt())
+        except Exception as exc:
+            failures.append(exc)
+
+    worker = threading.Thread(target=run, name="vision-model-call", daemon=True)
+    worker.start()
+
+    while worker.is_alive():
+        worker.join(CANCEL_POLL_SECONDS)
+        if worker.is_alive() and should_cancel():
+            return None
+
+    if failures:
+        raise failures[0]
+
+    return outcomes[0]
+
+
 def call_with_retries(
     attempt: Callable[[], ModelOutcome[T]],
     *,
     job_label: str,
     media_name: str,
     should_cancel: Callable[[], bool] | None = None,
+    on_abandon: Callable[[], None] | None = None,
     attempts: int = MAX_MODEL_ATTEMPTS,
 ) -> ModelOutcome[T]:
     """Run ``attempt`` until it succeeds, the attempts run out, or the job is cancelled.
 
-    The last failing outcome is returned once the attempts are exhausted.
+    The last failing outcome is returned once the attempts are exhausted. ``on_abandon``
+    runs when cancellation drops a request that is still in flight.
     """
     outcome: ModelOutcome[T] = ModelOutcome(status=API_ERROR)
 
@@ -196,7 +251,20 @@ def call_with_retries(
         if should_cancel and should_cancel():
             return ModelOutcome(status=CANCELLED)
 
-        outcome = attempt()
+        if should_cancel is None:
+            outcome = attempt()
+        else:
+            awaited = _await_attempt(attempt, should_cancel)
+            if awaited is None:
+                logger.info(
+                    "%s cancelled while waiting on the model for %s; dropping the request",
+                    job_label,
+                    media_name,
+                )
+                if on_abandon:
+                    on_abandon()
+                return ModelOutcome(status=CANCELLED)
+            outcome = awaited
 
         if should_cancel and should_cancel():
             return ModelOutcome(status=CANCELLED)

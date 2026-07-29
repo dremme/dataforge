@@ -217,6 +217,7 @@ These models have no thinking mode, so run them in instruct mode and leave the `
 | `OPENAI_API_KEY` | `sk-1234` | Placeholder key for local servers |
 | `OPENAI_MODEL` | `qwen35moe` | Chat `model` id (must match the id your server exposes) |
 | `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
+| `OPENAI_TIMEOUT` | `600` | Seconds to wait for a model response before giving up |
 | `OPENAI_THINKING_TEMPERATURE` | `1.0` | Sampling temperature in thinking mode |
 | `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0` | Presence penalty in thinking mode |
 | `OPENAI_THINKING_TOP_P` | `0.95` | Top-p in thinking mode |

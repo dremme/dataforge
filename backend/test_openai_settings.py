@@ -7,10 +7,12 @@ import unittest
 from unittest.mock import patch
 
 from openai_settings import (
+    CONNECT_TIMEOUT_SECONDS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_OPENAI_API_KEY,
     DEFAULT_OPENAI_BASE_URL,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_TOP_K,
     INSTRUCT_DEFAULTS,
     NEUTRAL_REPEAT_PENALTY,
@@ -23,6 +25,7 @@ from openai_settings import (
     get_openai_api_key,
     get_openai_base_url,
     get_openai_model,
+    get_openai_timeout,
     get_sampling_profile,
     get_top_k,
 )
@@ -165,10 +168,36 @@ class OpenAISettingsTests(unittest.TestCase):
             patch("openai.OpenAI") as openai_cls,
         ):
             create_openai_client()
-            openai_cls.assert_called_once_with(
-                base_url="http://example.local/v1",
-                api_key="secret",
-            )
+
+            kwargs = openai_cls.call_args.kwargs
+            self.assertEqual(kwargs["base_url"], "http://example.local/v1")
+            self.assertEqual(kwargs["api_key"], "secret")
+            self.assertEqual(kwargs["timeout"].read, DEFAULT_TIMEOUT_SECONDS)
+            self.assertEqual(kwargs["timeout"].connect, CONNECT_TIMEOUT_SECONDS)
+
+    def test_create_openai_client_leaves_retrying_to_the_job_layer(self) -> None:
+        """The SDK default of 2 would turn each attempt into three requests."""
+        with patch.dict(os.environ, {}, clear=True), patch("openai.OpenAI") as openai_cls:
+            create_openai_client()
+
+            self.assertEqual(openai_cls.call_args.kwargs["max_retries"], 0)
+
+    def test_default_timeout_stays_generous_for_slow_local_models(self) -> None:
+        """Thinking mode on a slow local GPU runs for minutes with no bytes on the wire.
+
+        The response budget must never be tightened below what the SDK allowed before
+        it was set explicitly, or long generations start failing as api_error.
+        """
+        self.assertGreaterEqual(DEFAULT_TIMEOUT_SECONDS, 600.0)
+
+    def test_openai_timeout_is_configurable(self) -> None:
+        with patch.dict(os.environ, {"OPENAI_TIMEOUT": "120"}, clear=True):
+            self.assertEqual(get_openai_timeout(), 120.0)
+
+    def test_openai_timeout_falls_back_when_unusable(self) -> None:
+        for raw in ("", "not-a-number", "0", "-30"):
+            with patch.dict(os.environ, {"OPENAI_TIMEOUT": raw}, clear=True):
+                self.assertEqual(get_openai_timeout(), DEFAULT_TIMEOUT_SECONDS)
 
     def test_assistant_message_text(self) -> None:
         both = type("M", (), {"content": " final ", "reasoning_content": "cot"})()

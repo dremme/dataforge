@@ -18,6 +18,7 @@ from automation.vision import (
     ModelOutcome,
     call_with_retries,
     clean_model_text,
+    close_vision_client,
     load_image_rgb,
     prepare_images_for_api,
     run_vision_completion,
@@ -334,6 +335,7 @@ def process_media(
         job_label="Verify captions",
         media_name=media_path.name,
         should_cancel=should_cancel,
+        on_abandon=lambda: close_vision_client(client),
     )
     return media_path, outcome.value, outcome.status, outcome.message
 
