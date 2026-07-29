@@ -36,9 +36,9 @@ import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 
-const GalleryItemJsonEditorModal = lazy(() =>
-  import("./GalleryItemJsonEditorModal").then((module) => ({
-    default: module.GalleryItemJsonEditorModal,
+const GalleryItemJsonEditorDialog = lazy(() =>
+  import("./GalleryItemJsonEditorDialog").then((module) => ({
+    default: module.GalleryItemJsonEditorDialog,
   })),
 );
 
@@ -454,7 +454,7 @@ export function GalleryItemModal({
 
       {jsonEditorOpen && jsonEditorContent && (
         <Suspense fallback={null}>
-          <GalleryItemJsonEditorModal
+          <GalleryItemJsonEditorDialog
             itemName={item.name}
             initialContent={jsonEditorContent}
             sessionKey={jsonEditorSession}

@@ -90,48 +90,107 @@
 }
 
 // ---------------------------------------------------------------------------
-// Shared form dialog controls (labels / fields / inputs)
-// All *-dialog variants reuse the same chrome for visual consistency.
+// Shared dialog form controls
+// Every dialog body is built from these, so the chrome stays identical.
 // ---------------------------------------------------------------------------
 
-.confirm-dialog__field,
-.batch-rename-dialog__field,
-.create-folder-dialog__field,
-.body-parts-dialog__field,
-.set-captions-dialog__field,
-.verify-captions-dialog__field,
-.auto-caption-dialog__field,
-.move-media-dialog__field {
-  @include dialog-form-field;
-}
+.dialog {
+  &__field {
+    @include dialog-form-field;
+  }
 
-.confirm-dialog__label,
-.batch-rename-dialog__label,
-.create-folder-dialog__label,
-.body-parts-dialog__label,
-.set-captions-dialog__label,
-.verify-captions-dialog__label,
-.auto-caption-dialog__label,
-.move-media-dialog__label {
-  @include dialog-form-label;
-}
+  &__label {
+    @include dialog-form-label;
+  }
 
-// Common single-line and multiline inputs. Specific dialogs override height/resize as needed.
-.batch-rename-dialog__input,
-.create-folder-dialog__input {
-  @include dialog-form-input(2.75rem);
-}
+  &__input {
+    @include dialog-form-input(2.75rem);
 
-.set-captions-dialog__input,
-.verify-captions-dialog__input {
-  @include dialog-form-input(4.25rem, vertical);
-}
+    &::placeholder {
+      color: var(--text-muted);
+    }
 
-.body-parts-dialog__input {
-  @include dialog-form-input(3.25rem, vertical);
+    // Multiline fields start taller and may only grow vertically.
+    &--multiline {
+      min-height: 4.25rem;
+      resize: vertical;
+    }
+  }
 
-  &--single {
-    min-height: 2.75rem;
+  &__hint {
+    margin: 0.45rem 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: var(--leading-snug);
+
+    code {
+      font-family: inherit;
+      color: var(--text);
+    }
+  }
+
+  &__error {
+    @include alert-banner;
+    margin: 0.75rem 0 0;
+  }
+
+  // Radio tiles laid out side by side (job mode selection).
+  &__options {
+    display: flex;
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+
+  &__option {
+    @include dialog-option-tile;
+
+    // Focus indication for the entire option tile.
+    &:focus-within {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  }
+
+  &__radio-input {
+    @include visually-hidden;
+  }
+
+  &__radio {
+    @include custom-radio-control;
+  }
+
+  &__radio-input:checked + &__radio {
+    @include custom-radio-control-checked;
+  }
+
+  // Subtle hover on the radio circle itself (in addition to tile border).
+  &__option:hover &__radio-input:not(:disabled) + &__radio {
+    border-color: var(--accent-border);
+  }
+
+  &__radio-input:disabled + &__radio {
+    @include disabled-state;
+  }
+
+  &__option-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-size: var(--text-sm);
+    line-height: 1.2;
+  }
+
+  &__option-title {
+    font-weight: var(--font-semibold);
+  }
+
+  &__option-desc {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  &__radio-input:disabled ~ &__option-content {
+    opacity: var(--disabled-opacity);
   }
 }
 
@@ -205,176 +264,9 @@
   }
 }
 
-// Batch rename dialog (reuses confirm-dialog shell)
-.batch-rename-dialog {
-  &__hint {
-    margin-top: 0.45rem;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    line-height: var(--leading-snug);
-
-    code {
-      font-family: inherit;
-      color: var(--text);
-    }
-  }
-
-  &__error {
-    @include alert-banner;
-    margin: 0.75rem 0 0;
-  }
-}
-
-// Create folder dialog (reuses confirm-dialog shell)
-.create-folder-dialog {
-  &__error {
-    @include alert-banner;
-    margin: 0.75rem 0 0;
-  }
-}
-
-// Body parts form dialog (reuses confirm-dialog shell)
-.body-parts-dialog {
-  &__hint {
-    margin: 0.45rem 0 0;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    line-height: var(--leading-snug);
-  }
-}
-
-// Auto caption mode selector dialog (reuses confirm-dialog shell)
-.auto-caption-dialog {
-  &__options {
-    display: flex;
-    flex-direction: row;
-    gap: 0.75rem;
-  }
-
-  // Custom radio options as side-by-side tiles
-  &__option {
-    @include dialog-option-tile;
-  }
-
-  // Subtle hover on the radio circle itself (in addition to tile border)
-  &__option:hover &__radio-input:not(:disabled) + &__radio {
-    border-color: var(--accent-border);
-  }
-
-  &__radio-input {
-    @include visually-hidden;
-  }
-
-  &__radio {
-    @include custom-radio-control;
-  }
-
-  &__radio-input:checked + &__radio {
-    @include custom-radio-control-checked;
-  }
-
-  // Focus indication for the entire option tile.
-  &__option:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  &__radio-input:disabled + &__radio {
-    @include disabled-state;
-  }
-
-  &__option-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    font-size: var(--text-sm);
-    line-height: 1.2;
-  }
-
-  &__option-title {
-    font-weight: var(--font-semibold);
-  }
-
-  &__option-desc {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-
-  &__radio-input:disabled ~ &__option-content {
-    opacity: var(--disabled-opacity);
-  }
-}
-
-// Verify captions dialog (mode selector + optional context field)
-.verify-captions-dialog {
-  // Context textarea uses shared __input styles above, but needs placeholder treatment
-  &__input {
-    &::placeholder {
-      color: var(--text-muted);
-    }
-
-    // Slightly softer disabled for this one to match previous
-    &:disabled {
-      opacity: 0.6;
-    }
-  }
-
-  &__options {
-    display: flex;
-    flex-direction: row;
-    gap: 0.75rem;
-  }
-
-  // Same option tile + radio visuals as auto-caption-dialog
-  &__option {
-    @include dialog-option-tile;
-  }
-
-  &__option:hover &__radio-input:not(:disabled) + &__radio {
-    border-color: var(--accent-border);
-  }
-
-  &__radio-input {
-    @include visually-hidden;
-  }
-
-  &__radio {
-    @include custom-radio-control;
-  }
-
-  &__radio-input:checked + &__radio {
-    @include custom-radio-control-checked;
-  }
-
-  &__option:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  &__radio-input:disabled + &__radio {
-    @include disabled-state;
-  }
-
-  &__option-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    font-size: var(--text-sm);
-    line-height: 1.2;
-  }
-
-  &__option-title {
-    font-weight: var(--font-semibold);
-  }
-
-  &__option-desc {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-
-  &__radio-input:disabled ~ &__option-content {
-    opacity: var(--disabled-opacity);
-  }
+// Body parts keywords field is shorter than the default multiline height.
+.body-parts-dialog__keywords {
+  min-height: 3.25rem;
 }
 
 // Move media dialog (confirm shell + folder tree body)

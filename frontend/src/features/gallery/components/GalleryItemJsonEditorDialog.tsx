@@ -2,14 +2,15 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { iconX } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
-import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
 import { parseJsonContent } from "@/shared/lib/format";
+import { useEditorOverlayEscape } from "@/shared/hooks/useEditorOverlayEscape";
 import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { DialogActions } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { JsonEditor } from "@/shared/ui/JsonEditor";
 
-interface GalleryItemJsonEditorModalProps {
+interface GalleryItemJsonEditorDialogProps {
   itemName: string;
   initialContent: string;
   sessionKey: number;
@@ -19,7 +20,7 @@ interface GalleryItemJsonEditorModalProps {
   onSave: (jsonContent: string) => void;
 }
 
-export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorModal({
+export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDialog({
   itemName,
   initialContent,
   sessionKey,
@@ -27,7 +28,7 @@ export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorMod
   saveError,
   onClose,
   onSave,
-}: GalleryItemJsonEditorModalProps) {
+}: GalleryItemJsonEditorDialogProps) {
   const [draft, setDraft] = useState(initialContent);
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -47,43 +48,24 @@ export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorMod
     onSave(JSON.stringify(parsed.value, null, 2));
   }, [draft, onSave]);
 
-  const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, true);
-
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      // Prefer closing the code-editor find panel over the dialog.
-      if (closeCodeEditorSearchPanel(panelRef.current)) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      if (event.defaultPrevented) return;
-      event.stopPropagation();
-      if (!saving) {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKey, true);
-    return () => window.removeEventListener("keydown", handleKey, true);
-  }, [onClose, saving]);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(overlayRef, true);
+  useEditorOverlayEscape(overlayRef, onClose, !saving);
 
   const validationError = parseError ?? saveError;
   const characterCount = draft.length;
   const lineCount = useMemo(() => (draft.length === 0 ? 0 : draft.split("\n").length), [draft]);
 
-  const close = () => {
+  const close = useCallback(() => {
     if (saving) return;
     onClose();
-  };
+  }, [onClose, saving]);
 
   const backdropClass = useOverlayBackdropClass("gallery-item-json-editor__backdrop");
 
   return createPortal(
     <div
-      ref={panelRef}
+      ref={overlayRef}
       className="gallery-item-json-editor"
       role="dialog"
       aria-modal="true"
@@ -162,22 +144,13 @@ export const GalleryItemJsonEditorModal = memo(function GalleryItemJsonEditorMod
             </div>
           </div>
           <div className="confirm-dialog__actions gallery-item-json-editor__footer-actions">
-            <button
-              type="button"
-              className="confirm-dialog__btn confirm-dialog__btn--secondary"
-              onClick={close}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="confirm-dialog__btn confirm-dialog__btn--primary"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save .json"}
-            </button>
+            <DialogActions
+              confirmLabel="Save .json"
+              busyLabel="Saving..."
+              busy={saving}
+              onConfirm={handleSave}
+              onCancel={close}
+            />
           </div>
         </footer>
       </div>

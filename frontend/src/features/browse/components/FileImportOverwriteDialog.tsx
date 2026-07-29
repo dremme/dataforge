@@ -1,11 +1,5 @@
-import { useRef } from "react";
-import { createPortal } from "react-dom";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
-import { Icon } from "@/shared/ui/Icon";
-import { iconAlertTriangle, iconX } from "@/shared/icons";
+import { iconAlertTriangle } from "@/shared/icons";
+import { Dialog, DialogButton } from "@/shared/ui/Dialog";
 
 type FileImportOverwriteDialogProps = {
   conflicts: string[];
@@ -28,54 +22,16 @@ export function FileImportOverwriteDialog({
   onCopyNewOnly,
   onCancel,
 }: FileImportOverwriteDialogProps) {
-  const backdropClass = useOverlayBackdropClass("confirm-dialog__backdrop");
-  useScrollLock(true, "confirm-dialog-open");
-
-  const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, true);
-
-  useEscapeKey(onCancel, !busy);
-
   const conflictPreview =
     conflicts.length <= 3
       ? conflicts.join(", ")
       : `${conflicts.slice(0, 3).join(", ")} and ${conflicts.length - 3} more`;
 
-  return createPortal(
-    <div className="confirm-dialog" role="presentation">
-      <button
-        type="button"
-        className={backdropClass}
-        aria-label="Close dialog"
-        onClick={onCancel}
-        disabled={busy}
-        tabIndex={-1}
-      />
-
-      <div
-        ref={panelRef}
-        className="confirm-dialog__panel"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="file-import-overwrite-title"
-        aria-describedby="file-import-overwrite-description"
-      >
-        <header className="confirm-dialog__header">
-          <h2 id="file-import-overwrite-title" className="confirm-dialog__title">
-            {title}
-          </h2>
-          <button
-            type="button"
-            className="confirm-dialog__close"
-            onClick={onCancel}
-            aria-label="Close"
-            disabled={busy}
-          >
-            <Icon icon={iconX} />
-          </button>
-        </header>
-
-        <p id="file-import-overwrite-description" className="confirm-dialog__description">
+  return (
+    <Dialog
+      title={title}
+      description={
+        <>
           {conflicts.length === 1 ? (
             <>
               <strong>{conflictPreview}</strong> already exists in this folder.
@@ -88,29 +44,27 @@ export function FileImportOverwriteDialog({
           )}
           <br />
           {descriptionSuffix}
-        </p>
-
-        <footer className="confirm-dialog__actions">
-          <button
-            type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--warning"
+        </>
+      }
+      busy={busy}
+      onClose={onCancel}
+      footer={
+        <>
+          <DialogButton
+            label="Replace existing"
+            variant="warning"
+            icon={iconAlertTriangle}
+            disabled={busy}
             onClick={onReplaceExisting}
+          />
+          <DialogButton
+            label={skipLabel}
+            variant="primary"
             disabled={busy}
-          >
-            <Icon icon={iconAlertTriangle} className="confirm-dialog__btn-icon" />
-            Replace existing
-          </button>
-          <button
-            type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--primary"
             onClick={onCopyNewOnly}
-            disabled={busy}
-          >
-            {skipLabel}
-          </button>
-        </footer>
-      </div>
-    </div>,
-    document.body,
+          />
+        </>
+      }
+    />
   );
 }

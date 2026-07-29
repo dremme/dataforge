@@ -3,11 +3,11 @@ import { createPortal } from "react-dom";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { saveSysPrompt } from "@/features/gallery/api/captions";
 import { useDebouncedSave } from "@/shared/hooks/useDebouncedSave";
+import { useEditorOverlayEscape } from "@/shared/hooks/useEditorOverlayEscape";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { iconX } from "@/shared/icons";
 import type { GalleryItem, SysPromptSaveResponse } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
-import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
 import { countWords } from "@/shared/lib/format";
 import { Icon } from "@/shared/ui/Icon";
 import { MarkdownEditor } from "@/shared/ui/MarkdownEditor";
@@ -69,25 +69,12 @@ export function SysPromptModal({ item, onClose, onSaved }: SysPromptModalProps) 
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, true);
 
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      // Prefer closing the code-editor find panel over the dialog.
-      if (closeCodeEditorSearchPanel(panelRef.current)) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      if (event.defaultPrevented) return;
-      flushPendingSave();
-      onClose();
-    };
-
-    window.addEventListener("keydown", handleKey, true);
-    return () => {
-      window.removeEventListener("keydown", handleKey, true);
-    };
+  const close = useCallback(() => {
+    flushPendingSave();
+    onClose();
   }, [flushPendingSave, onClose]);
+
+  useEditorOverlayEscape(panelRef, close);
 
   const characterCount = prompt.length;
   const wordCount = countWords(prompt);
@@ -100,11 +87,6 @@ export function SysPromptModal({ item, onClose, onSaved }: SysPromptModalProps) 
   const handleChange = (value: string) => {
     setPrompt(value);
     scheduleSave({ path: item.path, text: value });
-  };
-
-  const close = () => {
-    flushPendingSave();
-    onClose();
   };
 
   return createPortal(

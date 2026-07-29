@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useId, useState } from "react";
+import {
+  AutomationModeSelector,
+  type AutomationMode,
+} from "@/features/automation/components/AutomationModeSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import {
   updateVerifyCaptionsSettings,
   type VerifyCaptionsMode,
   type VerifyCaptionsSettings,
 } from "@/features/automation/preferences/verifyCaptionsPreferences";
-import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { iconX } from "@/shared/icons";
-import { classNames } from "@/shared/lib/classNames";
-import { Icon } from "@/shared/ui/Icon";
+import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 
 export type { VerifyCaptionsMode };
 
@@ -32,195 +30,76 @@ export function VerifyCaptionsDialog({
   onConfirm,
   onCancel,
 }: VerifyCaptionsDialogProps) {
-  const [mode, setMode] = useState<VerifyCaptionsMode>(initialSettings.mode);
+  const [mode, setMode] = useState<AutomationMode>(initialSettings.mode);
   const [context, setContext] = useState(initialSettings.context);
   const [saving, setSaving] = useState(false);
-  const backdropClass = useOverlayBackdropClass("confirm-dialog__backdrop");
-  const reasoningId = useId();
-  const instructId = useId();
   const contextId = useId();
 
-  const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, true);
-
-  const handleConfirm = useCallback(async () => {
+  const handleConfirm = useCallback(() => {
     if (busy || saving) return;
+
     setSaving(true);
-    try {
-      const settings = await updateVerifyCaptionsSettings(folderPath, { mode, context });
-      onConfirm(settings.mode, settings.context);
-    } catch {
-      // Job start also persists settings.
-      onConfirm(mode, context);
-    } finally {
-      setSaving(false);
-    }
+    void updateVerifyCaptionsSettings(folderPath, { mode, context })
+      .then((settings) => {
+        onConfirm(settings.mode, settings.context);
+      })
+      .catch(() => {
+        // Job start also persists settings.
+        onConfirm(mode, context);
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   }, [busy, context, folderPath, mode, onConfirm, saving]);
 
-  useScrollLock(true, "confirm-dialog-open");
+  const pending = busy || saving;
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (busy || saving) return;
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCancel();
-        return;
-      }
-
-      if (event.key === "Enter" && !event.shiftKey) {
-        if ((event.target as HTMLElement)?.tagName === "TEXTAREA") {
-          return;
-        }
-        event.preventDefault();
-        void handleConfirm();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, handleConfirm, onCancel, saving]);
-
-  const confirmDisabled = busy || saving;
-  const confirmLabel = busy ? "Starting..." : saving ? "Saving..." : "Start verify captions";
-
-  return createPortal(
-    <div className="confirm-dialog" role="presentation">
-      <button
-        type="button"
-        className={backdropClass}
-        aria-label="Close dialog"
-        onClick={onCancel}
-        disabled={busy || saving}
-        tabIndex={-1}
-      />
-
-      <div
-        ref={panelRef}
-        className="confirm-dialog__panel verify-captions-dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="verify-captions-dialog-title"
-        aria-describedby="verify-captions-dialog-description"
-      >
-        <header className="confirm-dialog__header">
-          <h2 id="verify-captions-dialog-title" className="confirm-dialog__title">
-            Start verify captions?
-          </h2>
-          <button
-            type="button"
-            className="confirm-dialog__close"
-            onClick={onCancel}
-            aria-label="Close"
-            disabled={busy || saving}
-          >
-            <Icon icon={iconX} />
-          </button>
-        </header>
-
-        <p id="verify-captions-dialog-description" className="confirm-dialog__description">
+  return (
+    <Dialog
+      title="Start verify captions?"
+      description={
+        <>
           Verify captions for images in <strong>{folderLabel}</strong> using <VisionModelBadge />.
           Images with caption issues will be marked with an exclamation mark.
-        </p>
+        </>
+      }
+      panelClassName="verify-captions-dialog"
+      busy={pending}
+      onConfirm={handleConfirm}
+      onClose={onCancel}
+      footer={
+        <DialogActions
+          confirmLabel="Start verify captions"
+          busyLabel={busy ? "Starting..." : "Saving..."}
+          busy={pending}
+          onConfirm={handleConfirm}
+          onCancel={onCancel}
+        />
+      }
+    >
+      <AutomationModeSelector
+        value={mode}
+        name="verify-captions-mode"
+        groupLabel="Verification mode"
+        disabled={pending}
+        onChange={setMode}
+      />
 
-        <div className="verify-captions-dialog__field">
-          <div className="verify-captions-dialog__label">Mode</div>
-          <div
-            className="verify-captions-dialog__options"
-            role="radiogroup"
-            aria-label="Verification mode"
-          >
-            <label
-              className={classNames(
-                "verify-captions-dialog__option",
-                mode === "thinking" && "verify-captions-dialog__option--selected",
-              )}
-              htmlFor={reasoningId}
-            >
-              <input
-                id={reasoningId}
-                type="radio"
-                name="verify-captions-mode"
-                className="verify-captions-dialog__radio-input"
-                value="thinking"
-                checked={mode === "thinking"}
-                onChange={() => setMode("thinking")}
-                disabled={confirmDisabled}
-              />
-              <span className="verify-captions-dialog__radio" aria-hidden="true" />
-              <div className="verify-captions-dialog__option-content">
-                <span className="verify-captions-dialog__option-title">Reasoning</span>
-                <span className="verify-captions-dialog__option-desc">
-                  Slower, but better overall outcome
-                </span>
-              </div>
-            </label>
-
-            <label
-              className={classNames(
-                "verify-captions-dialog__option",
-                mode === "instruct" && "verify-captions-dialog__option--selected",
-              )}
-              htmlFor={instructId}
-            >
-              <input
-                id={instructId}
-                type="radio"
-                name="verify-captions-mode"
-                className="verify-captions-dialog__radio-input"
-                value="instruct"
-                checked={mode === "instruct"}
-                onChange={() => setMode("instruct")}
-                disabled={confirmDisabled}
-              />
-              <span className="verify-captions-dialog__radio" aria-hidden="true" />
-              <div className="verify-captions-dialog__option-content">
-                <span className="verify-captions-dialog__option-title">Instruct</span>
-                <span className="verify-captions-dialog__option-desc">
-                  Faster, but makes more mistakes
-                </span>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <div className="verify-captions-dialog__field">
-          <label htmlFor={contextId} className="verify-captions-dialog__label">
-            Additional context
-          </label>
-          <textarea
-            id={contextId}
-            className="verify-captions-dialog__input"
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            placeholder="Optional notes about the dataset, e.g. typical poses or recurring subjects"
-            rows={3}
-            disabled={confirmDisabled}
-            data-scroll-lock-allow
-          />
-        </div>
-
-        <footer className="confirm-dialog__actions">
-          <button
-            type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--secondary"
-            onClick={onCancel}
-            disabled={busy || saving}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--primary"
-            onClick={() => void handleConfirm()}
-            disabled={confirmDisabled}
-          >
-            {confirmLabel}
-          </button>
-        </footer>
+      <div className="dialog__field">
+        <label htmlFor={contextId} className="dialog__label">
+          Additional context
+        </label>
+        <textarea
+          id={contextId}
+          className="dialog__input dialog__input--multiline"
+          value={context}
+          onChange={(event) => setContext(event.target.value)}
+          placeholder="Optional notes about the dataset, e.g. typical poses or recurring subjects"
+          rows={3}
+          disabled={pending}
+          data-scroll-lock-allow
+        />
       </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }

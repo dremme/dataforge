@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { fetchFolderChildren, fetchFolderRoots } from "@/features/browse/api/folders";
 import {
   folderLeafName,
@@ -7,21 +6,17 @@ import {
   normalizeFolderPath,
 } from "@/features/browse/lib/folderPath";
 import { formatApiError } from "@/shared/api/http";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import {
   iconChevronDown,
   iconChevronRight,
   iconFolder,
   iconFolderOpen,
   iconLoader2,
-  iconX,
 } from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { FolderChild } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
+import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 
 interface MoveMediaDialogProps {
@@ -133,7 +128,6 @@ export function MoveMediaDialog({
 }: MoveMediaDialogProps) {
   const treeId = useId();
   const notify = useNotify();
-  const panelRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<HTMLDivElement>(null);
   const loadingKeysRef = useRef(new Set<string>());
   const childrenByKeyRef = useRef<Record<string, FolderChild[]>>({});
@@ -151,12 +145,6 @@ export function MoveMediaDialog({
 
   childrenByKeyRef.current = childrenByKey;
   const currentKey = pathKey(currentFolder);
-
-  const backdropClass = useOverlayBackdropClass("confirm-dialog__backdrop");
-  useScrollLock(true, "confirm-dialog-open");
-  useFocusTrap(panelRef, true);
-
-  useEscapeKey(onClose, !busy);
 
   const markLoading = useCallback((key: string, loading: boolean) => {
     if (loading) {
@@ -346,186 +334,138 @@ export function MoveMediaDialog({
     return () => window.cancelAnimationFrame(frame);
   }, [currentKey, entries, rootsLoading]);
 
-  return createPortal(
-    <div className="confirm-dialog" role="presentation">
-      <button
-        type="button"
-        className={backdropClass}
-        aria-label="Close move dialog"
-        onClick={onClose}
-        disabled={busy}
-        tabIndex={-1}
-      />
-
-      <div
-        ref={panelRef}
-        className="confirm-dialog__panel move-media-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="move-media-dialog-title"
-        aria-describedby="move-media-dialog-description"
-      >
-        <header className="confirm-dialog__header">
-          <h2 id="move-media-dialog-title" className="confirm-dialog__title">
-            Move to folder
-          </h2>
-          <button
-            type="button"
-            className="confirm-dialog__close"
-            onClick={onClose}
-            aria-label="Close"
-            disabled={busy}
-          >
-            <Icon icon={iconX} />
-          </button>
-        </header>
-
-        <p id="move-media-dialog-description" className="confirm-dialog__description">
+  return (
+    <Dialog
+      title="Move to folder"
+      description={
+        <>
           Choose a destination for{" "}
           {selectedCount === 1 ? "1 selected file" : `${selectedCount} selected files`}.
-        </p>
-
-        <div className="move-media-dialog__field">
-          <div className="move-media-dialog__label">Destination</div>
-          <div
-            className={classNames(
-              "move-media-dialog__destination",
-              !selectedPath && "move-media-dialog__destination--placeholder",
-            )}
-            aria-live="polite"
-            title={selectedPath || undefined}
-          >
-            <span>{selectedPath || "Select a folder in the tree"}</span>
-          </div>
+        </>
+      }
+      role="dialog"
+      panelClassName="move-media-dialog"
+      busy={busy}
+      onClose={onClose}
+      footer={
+        <DialogActions
+          confirmLabel="Move here"
+          busyLabel="Moving..."
+          busy={busy}
+          confirmDisabled={!canMove}
+          onConfirm={handleConfirm}
+          onCancel={onClose}
+        />
+      }
+    >
+      <div className="dialog__field">
+        <div className="dialog__label">Destination</div>
+        <div
+          className={classNames(
+            "move-media-dialog__destination",
+            !selectedPath && "move-media-dialog__destination--placeholder",
+          )}
+          aria-live="polite"
+          title={selectedPath || undefined}
+        >
+          <span>{selectedPath || "Select a folder in the tree"}</span>
         </div>
+      </div>
 
-        <div className="move-media-dialog__field">
-          <div className="move-media-dialog__label">Folders</div>
-          <div ref={treeRef} className="move-media-dialog__tree" data-scroll-lock-allow id={treeId}>
-            {rootsLoading ? (
-              <div className="move-media-dialog__tree-status">
-                <Icon icon={iconLoader2} spin className="move-media-dialog__tree-status-icon" />
-                Loading folders...
-              </div>
-            ) : (
-              <ul className="move-media-dialog__tree-list" role="tree" aria-label="Folder tree">
-                {entries.map((entry) => {
-                  const expanded = expandedKeys.has(entry.key);
-                  const loading = loadingKeys.has(entry.key);
-                  const children = childrenByKey[entry.key];
-                  const hasLoadedChildren = children !== undefined;
-                  // Show a chevron only before load, while loading, or when subfolders exist.
-                  // Empty leaves keep a spacer so rows stay aligned (no stuck expand arrow).
-                  const canExpand = loading || !hasLoadedChildren || (children?.length ?? 0) > 0;
-                  const selected = entry.key === selectedKey;
-                  const disabled = isDisabledDestination(entry.path);
-                  const isCurrent = entry.key === currentKey;
+      <div className="dialog__field">
+        <div className="dialog__label">Folders</div>
+        <div ref={treeRef} className="move-media-dialog__tree" data-scroll-lock-allow id={treeId}>
+          {rootsLoading ? (
+            <div className="move-media-dialog__tree-status">
+              <Icon icon={iconLoader2} spin className="move-media-dialog__tree-status-icon" />
+              Loading folders...
+            </div>
+          ) : (
+            <ul className="move-media-dialog__tree-list" role="tree" aria-label="Folder tree">
+              {entries.map((entry) => {
+                const expanded = expandedKeys.has(entry.key);
+                const loading = loadingKeys.has(entry.key);
+                const children = childrenByKey[entry.key];
+                const hasLoadedChildren = children !== undefined;
+                // Show a chevron only before load, while loading, or when subfolders exist.
+                // Empty leaves keep a spacer so rows stay aligned (no stuck expand arrow).
+                const canExpand = loading || !hasLoadedChildren || (children?.length ?? 0) > 0;
+                const selected = entry.key === selectedKey;
+                const disabled = isDisabledDestination(entry.path);
+                const isCurrent = entry.key === currentKey;
 
-                  return (
-                    <li
-                      key={entry.key}
-                      className={classNames(
-                        "move-media-dialog__tree-item",
-                        selected && "move-media-dialog__tree-item--selected",
-                        disabled && "move-media-dialog__tree-item--disabled",
-                      )}
-                      role="treeitem"
-                      aria-expanded={canExpand ? expanded : undefined}
-                      aria-selected={selected}
-                      data-current-folder={isCurrent ? "" : undefined}
-                      style={{ ["--tree-depth" as string]: entry.depth }}
-                    >
-                      <div className="move-media-dialog__tree-row">
-                        {canExpand ? (
-                          <button
-                            type="button"
-                            className="move-media-dialog__tree-toggle"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              toggleExpanded(entry.path);
-                            }}
-                            aria-label={
-                              expanded ? `Collapse ${entry.name}` : `Expand ${entry.name}`
-                            }
-                            disabled={busy}
-                            tabIndex={-1}
-                          >
-                            {loading ? (
-                              <Icon
-                                icon={iconLoader2}
-                                spin
-                                className="move-media-dialog__tree-icon"
-                              />
-                            ) : (
-                              <Icon
-                                icon={expanded ? iconChevronDown : iconChevronRight}
-                                className="move-media-dialog__tree-icon"
-                              />
-                            )}
-                          </button>
-                        ) : (
-                          <span className="move-media-dialog__tree-toggle move-media-dialog__tree-toggle--spacer" />
-                        )}
-
+                return (
+                  <li
+                    key={entry.key}
+                    className={classNames(
+                      "move-media-dialog__tree-item",
+                      selected && "move-media-dialog__tree-item--selected",
+                      disabled && "move-media-dialog__tree-item--disabled",
+                    )}
+                    role="treeitem"
+                    aria-expanded={canExpand ? expanded : undefined}
+                    aria-selected={selected}
+                    data-current-folder={isCurrent ? "" : undefined}
+                    style={{ ["--tree-depth" as string]: entry.depth }}
+                  >
+                    <div className="move-media-dialog__tree-row">
+                      {canExpand ? (
                         <button
                           type="button"
-                          className="move-media-dialog__tree-select"
-                          onClick={() => selectPath(entry.path)}
-                          onDoubleClick={(event) => {
-                            event.preventDefault();
-                            if (canExpand) toggleExpanded(entry.path);
+                          className="move-media-dialog__tree-toggle"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleExpanded(entry.path);
                           }}
-                          disabled={busy || disabled}
-                          title={disabled ? "Files are already in this folder" : entry.path}
+                          aria-label={expanded ? `Collapse ${entry.name}` : `Expand ${entry.name}`}
+                          disabled={busy}
+                          tabIndex={-1}
                         >
-                          <Icon
-                            icon={expanded ? iconFolderOpen : iconFolder}
-                            className="move-media-dialog__tree-folder-icon"
-                          />
-                          <span className="move-media-dialog__tree-name">
-                            {entry.name || folderLeafName(entry.path)}
-                          </span>
-                          {disabled && (
-                            <span className="move-media-dialog__tree-badge">Current</span>
+                          {loading ? (
+                            <Icon
+                              icon={iconLoader2}
+                              spin
+                              className="move-media-dialog__tree-icon"
+                            />
+                          ) : (
+                            <Icon
+                              icon={expanded ? iconChevronDown : iconChevronRight}
+                              className="move-media-dialog__tree-icon"
+                            />
                           )}
                         </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
+                      ) : (
+                        <span className="move-media-dialog__tree-toggle move-media-dialog__tree-toggle--spacer" />
+                      )}
 
-        <footer className="confirm-dialog__actions">
-          <button
-            type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--secondary"
-            onClick={onClose}
-            disabled={busy}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="confirm-dialog__btn confirm-dialog__btn--primary"
-            onClick={handleConfirm}
-            disabled={!canMove}
-            aria-busy={busy || undefined}
-          >
-            {busy ? (
-              <>
-                <Icon icon={iconLoader2} spin className="confirm-dialog__btn-icon" />
-                Moving...
-              </>
-            ) : (
-              "Move here"
-            )}
-          </button>
-        </footer>
+                      <button
+                        type="button"
+                        className="move-media-dialog__tree-select"
+                        onClick={() => selectPath(entry.path)}
+                        onDoubleClick={(event) => {
+                          event.preventDefault();
+                          if (canExpand) toggleExpanded(entry.path);
+                        }}
+                        disabled={busy || disabled}
+                        title={disabled ? "Files are already in this folder" : entry.path}
+                      >
+                        <Icon
+                          icon={expanded ? iconFolderOpen : iconFolder}
+                          className="move-media-dialog__tree-folder-icon"
+                        />
+                        <span className="move-media-dialog__tree-name">
+                          {entry.name || folderLeafName(entry.path)}
+                        </span>
+                        {disabled && <span className="move-media-dialog__tree-badge">Current</span>}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
-    </div>,
-    document.body,
+    </Dialog>
   );
 }
