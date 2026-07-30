@@ -3,7 +3,7 @@ import {
   isMediaPathWarmed,
   isPreviewLoadPending,
   requestPreviewLoad,
-  subscribePreviewReady,
+  subscribePreviewSettled,
 } from "@/features/gallery/lib/previewLoader";
 import {
   GALLERY_MEDIA_KEEP_MARGIN_PX,
@@ -17,6 +17,9 @@ const HIDDEN_ZONES: GalleryMediaZones = {
   shouldKeep: false,
   priority: "hidden",
 };
+
+/** Cancellations to absorb before giving up on the shared loader for this card. */
+const MAX_PREVIEW_ATTEMPTS = 2;
 
 function syncImageReadyState(image: HTMLImageElement | null, onReady: () => void): void {
   if (!image || !image.complete) {
@@ -33,11 +36,34 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [zones, setZones] = useState<GalleryMediaZones>(HIDDEN_ZONES);
   const [ready, setReady] = useState(() => isMediaPathWarmed(path));
+  /** Set once the shared loader gives up, so the <img> fetches the URL itself. */
+  const [loadDirectly, setLoadDirectly] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
+  const attemptsRef = useRef(0);
 
   useEffect(() => {
+    attemptsRef.current = 0;
+    setRetryToken(0);
+    setLoadDirectly(false);
     setReady(isMediaPathWarmed(path));
-    return subscribePreviewReady(path, () => {
-      setReady(true);
+
+    return subscribePreviewSettled(path, (outcome) => {
+      if (outcome === "loaded") {
+        setReady(true);
+        return;
+      }
+
+      attemptsRef.current += 1;
+
+      // A load that failed, or one cancelled more often than it is worth waiting
+      // on, hands the URL to the <img>. Anything else leaves the card on its
+      // placeholder with no src, where its own error fallback can never run.
+      if (outcome === "failed" || attemptsRef.current >= MAX_PREVIEW_ATTEMPTS) {
+        setLoadDirectly(true);
+        return;
+      }
+
+      setRetryToken((token) => token + 1);
     });
   }, [path]);
 
@@ -79,10 +105,10 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
   }, [path]);
 
   useEffect(() => {
-    if (!zones.shouldLoad || isPreviewLoadPending(path)) return;
+    if (loadDirectly || !zones.shouldLoad || isPreviewLoadPending(path)) return;
 
     requestPreviewLoad(path, previewUrl, zones.priority);
-  }, [path, previewUrl, zones.priority, zones.shouldLoad]);
+  }, [loadDirectly, path, previewUrl, retryToken, zones.priority, zones.shouldLoad]);
 
   const showImage = zones.shouldLoad || (zones.shouldKeep && ready);
 
@@ -100,6 +126,8 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
     imageRef,
     showImage,
     ready,
+    /** Whether the <img> may carry a src yet — true once warmed, or once we stop waiting. */
+    srcReady: ready || loadDirectly,
     handleReady,
   };
 }

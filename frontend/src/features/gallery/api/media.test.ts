@@ -87,6 +87,12 @@ describe("mediaUrl", () => {
     const url = mediaUrl("C:\\Photos\\sunset.png");
     expect(url).toBe("/api/media?path=C%3A%5CPhotos%5Csunset.png");
   });
+
+  it("adds the cache token so an edited file is not served from cache", () => {
+    const url = mediaUrl("C:\\Photos\\sunset.png", "1718798400000-4096");
+    expect(url).toContain("path=C%3A%5CPhotos%5Csunset.png");
+    expect(url).toContain("v=1718798400000-4096");
+  });
 });
 
 describe("thumbnailUrl", () => {

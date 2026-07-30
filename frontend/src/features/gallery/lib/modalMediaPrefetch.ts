@@ -1,5 +1,5 @@
-import { mediaUrl } from "@/features/gallery/api/media";
 import { isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
+import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import type { GalleryItem } from "@/shared/types";
 
 export type ModalMediaPrefetchTarget = {
@@ -29,7 +29,7 @@ export function collectAdjacentModalMediaTargets(
     seen.add(item.path);
     targets.push({
       path: item.path,
-      url: mediaUrl(item.path),
+      url: galleryItemMediaUrl(item),
       kind: isVideo(item) ? "video" : "image",
     });
   }

@@ -72,9 +72,18 @@ export function useGalleryItemCaption({
   const captionRef = useRef(caption);
   const bboxesRef = useRef(bboxes);
   const captionRevisionRef = useRef<string | null>(null);
+  // Every caption state this hook has already shown for the open item. The folder
+  // poller reloads browse ~1.5s after a save, and that reload can be answered from
+  // data older than the save, so it echoes a revision we have already moved past.
+  const seenRevisionsRef = useRef(new Set<string>());
 
   captionRef.current = caption;
   bboxesRef.current = bboxes;
+
+  const markRevision = useCallback((revision: string) => {
+    captionRevisionRef.current = revision;
+    seenRevisionsRef.current.add(revision);
+  }, []);
 
   const itemPath = item?.path;
   const itemRevision = item ? itemCaptionRevision(item) : null;
@@ -84,14 +93,24 @@ export function useGalleryItemCaption({
   const persistCaption = useCallback(
     async (payload: CaptionSavePayload) => {
       const result = await saveCaption(payload.path, payload.text, payload.bboxes);
-      const nextBboxes = result.bboxes ?? payload.bboxes ?? bboxesRef.current;
+      const localBboxes = bboxesRef.current;
+      // Edits made during the round trip are newer than anything the response
+      // carries, so they win over both the echo and a superseded save's result.
+      const bboxesEditedDuringSave =
+        payload.bboxes != null && !bboxesEqual(localBboxes, payload.bboxes);
+      const nextBboxes = bboxesEditedDuringSave
+        ? localBboxes
+        : (result.bboxes ?? payload.bboxes ?? localBboxes);
 
-      // Keep the editor buffer when the server only echoes the same trimmed text.
-      setCaption((current) =>
-        current === result.description || current.trim() === (result.description ?? "")
-          ? current
-          : (result.description ?? ""),
-      );
+      setCaption((current) => {
+        // Characters typed while the request was open are not in the response.
+        if (current.trim() !== payload.text) return current;
+        // Keep the editor buffer when the server only echoes the same trimmed text.
+        if (current === result.description || current.trim() === (result.description ?? "")) {
+          return current;
+        }
+        return result.description ?? "";
+      });
       setBboxes(nextBboxes);
       setSelectedBboxIndex((current) => nextSelectedBboxIndex(current, nextBboxes.length, true));
       if (result.caption_content != null) {
@@ -99,16 +118,18 @@ export function useGalleryItemCaption({
       }
       // Match the browse revision produced by onCaptionSaved so background sync
       // does not wipe caption_content / selection after a bbox save.
-      captionRevisionRef.current = itemCaptionRevision({
-        description: result.description,
-        bboxes: nextBboxes,
-        caption_status: result.caption_status,
-        has_description: result.has_description,
-        caption_file_type: result.caption_file_type,
-      });
+      markRevision(
+        itemCaptionRevision({
+          description: result.description,
+          bboxes: nextBboxes,
+          caption_status: result.caption_status,
+          has_description: result.has_description,
+          caption_file_type: result.caption_file_type,
+        }),
+      );
       onCaptionSaved(payload.path, result);
     },
-    [onCaptionSaved],
+    [markRevision, onCaptionSaved],
   );
 
   const {
@@ -149,9 +170,9 @@ export function useGalleryItemCaption({
         setCaptionContent(null);
       }
       setBaseline({ path: source.path, text: cachedCaption, bboxes: cachedBboxes });
-      captionRevisionRef.current = itemCaptionRevision(source);
+      markRevision(itemCaptionRevision(source));
     },
-    [setBaseline],
+    [markRevision, setBaseline],
   );
 
   useEffect(() => {
@@ -161,6 +182,7 @@ export function useGalleryItemCaption({
       flushPendingSave();
     }
     invalidateInFlight();
+    seenRevisionsRef.current.clear();
     applyCaptionFromItem(item, { resetCaptionContent: true, preserveSelection: false });
 
     const requestId = next();
@@ -170,6 +192,20 @@ export function useGalleryItemCaption({
         .then((fresh) => {
           if (!isCurrent(requestId)) return;
 
+          // Typing can start before this lands; the editor buffer wins over the
+          // file on disk, and the pending save carries it to the server.
+          if (
+            hasUnsavedChanges({
+              path: itemPath,
+              text: captionRef.current,
+              bboxes: bboxesRef.current,
+            })
+          ) {
+            // Independent of the text buffer, and the .json editor needs it.
+            setCaptionContent(fresh.caption_content ?? null);
+            return;
+          }
+
           const caption = fresh.description ?? "";
           const bboxes = fresh.bboxes ?? [];
           setCaption(caption);
@@ -177,7 +213,7 @@ export function useGalleryItemCaption({
           setSelectedBboxIndex((current) => nextSelectedBboxIndex(current, bboxes.length, true));
           setBaseline({ path: itemPath, text: caption, bboxes });
           setCaptionContent(fresh.caption_content ?? null);
-          captionRevisionRef.current = revisionFromSaveResult(fresh);
+          markRevision(revisionFromSaveResult(fresh));
           onCaptionSaved(itemPath, fresh);
         })
         .catch(() => {
@@ -194,6 +230,7 @@ export function useGalleryItemCaption({
     applyCaptionFromItem,
     autoSave,
     flushPendingSave,
+    hasUnsavedChanges,
     invalidateInFlight,
     itemPath,
     onCaptionSaved,
@@ -206,7 +243,13 @@ export function useGalleryItemCaption({
     if (captionRevisionRef.current === itemRevision) return;
 
     const hadPreviousRevision = captionRevisionRef.current !== null;
-    captionRevisionRef.current = itemRevision;
+
+    // A folder reload answered from data older than our last write echoes a state
+    // this item already had. Applying it would undo newer text, so it is dropped
+    // without recording the revision — a later reload still reconciles real edits.
+    if (hadPreviousRevision && seenRevisionsRef.current.has(itemRevision)) return;
+
+    markRevision(itemRevision);
 
     if (!hadPreviousRevision) return;
 
@@ -234,7 +277,7 @@ export function useGalleryItemCaption({
 
     // Keep caption_content from the last fetch/save — browse items never include it.
     applyCaptionFromItem(item, { resetCaptionContent: false, preserveSelection: true });
-  }, [applyCaptionFromItem, hasUnsavedChanges, item, itemPath, itemRevision]);
+  }, [applyCaptionFromItem, hasUnsavedChanges, item, itemPath, itemRevision, markRevision]);
 
   const handleCaptionChange = useCallback(
     (value: string) => {
@@ -284,7 +327,7 @@ export function useGalleryItemCaption({
         setSelectedBboxIndex((current) => nextSelectedBboxIndex(current, nextBboxes.length, true));
         setCaptionContent(result.caption_content ?? null);
         setBaseline({ path: item.path, text: nextCaption, bboxes: nextBboxes });
-        captionRevisionRef.current = revisionFromSaveResult(result);
+        markRevision(revisionFromSaveResult(result));
         onCaptionSaved(item.path, result);
         setJsonSaveState("idle");
         return true;
@@ -295,7 +338,7 @@ export function useGalleryItemCaption({
         return false;
       }
     },
-    [flushPendingSave, invalidateInFlight, item, onCaptionSaved, setBaseline],
+    [flushPendingSave, invalidateInFlight, item, markRevision, onCaptionSaved, setBaseline],
   );
 
   const resetJsonSaveState = useCallback(() => {

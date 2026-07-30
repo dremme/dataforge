@@ -7,9 +7,11 @@ import {
 } from "@/features/gallery/lib/query";
 import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import {
+  iconArchive,
   iconArrowDownWideNarrow,
   iconFolder,
   iconMessageCheck,
+  iconMessageWarning,
   iconImages,
   iconSearch,
   iconX,
@@ -24,6 +26,10 @@ interface ToolbarProps {
   subfolderCount: number;
   fileCount: number;
   captionedCount: number;
+  /** Files with a caption issue file; the stat stays hidden while there are none. */
+  issueCount?: number;
+  /** Whether the folder being browsed has captions saved in `.backup`. */
+  hasCaptionBackup?: boolean;
   statsLoading?: boolean;
   searchQuery: string;
   searchRegex: boolean;
@@ -150,6 +156,8 @@ export function Toolbar({
   subfolderCount,
   fileCount,
   captionedCount,
+  issueCount = 0,
+  hasCaptionBackup = false,
   statsLoading = false,
   searchQuery,
   searchRegex,
@@ -171,6 +179,12 @@ export function Toolbar({
     captionPercent != null
       ? `${captionedCount} captioned (${captionPercent}%)`
       : `${captionedCount} captioned`;
+  const issueTooltip = `${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`;
+  const issueFilterActive = filter === "issue";
+  const captionedFilterActive = filter === "captioned";
+  // Both counts toggle their own filter, so a second click restores every file.
+  const filterHint = (active: boolean, only: string) =>
+    active ? "click to clear the filter" : `click to show only ${only}`;
   return (
     <div className="toolbar">
       <div
@@ -190,10 +204,16 @@ export function Toolbar({
             <StatValue loading={statsLoading} value={fileCount} />
           </span>
         </Tooltip>
-        <Tooltip content={captionedTooltip}>
+        <Tooltip
+          content={`${captionedTooltip} — ${filterHint(captionedFilterActive, "captioned files")}`}
+        >
           <span
-            className={`stat stat--${allCaptioned ? "success" : "warning"}`}
+            className={classNames(
+              `stat stat--${allCaptioned ? "success" : "warning"}`,
+              "stat--filter",
+            )}
             aria-label={captionedTooltip}
+            onClick={() => onFilterChange(captionedFilterActive ? "all" : "captioned")}
           >
             <Icon icon={iconMessageCheck} className="stat__icon" />
             <StatValue loading={statsLoading} value={captionedCount} />
@@ -204,6 +224,27 @@ export function Toolbar({
             )}
           </span>
         </Tooltip>
+        {issueCount > 0 && (
+          <Tooltip
+            content={`${issueTooltip} — ${filterHint(issueFilterActive, "files with issues")}`}
+          >
+            <span
+              className="stat stat--warning stat--filter"
+              aria-label={issueTooltip}
+              onClick={() => onFilterChange(issueFilterActive ? "all" : "issue")}
+            >
+              <Icon icon={iconMessageWarning} className="stat__icon" />
+              <StatValue loading={statsLoading} value={issueCount} />
+            </span>
+          </Tooltip>
+        )}
+        {hasCaptionBackup && (
+          <Tooltip content="This folder has backed up captions">
+            <span className="stat stat--backup" aria-label="This folder has backed up captions">
+              <Icon icon={iconArchive} className="stat__icon" />
+            </span>
+          </Tooltip>
+        )}
       </div>
 
       <div className="toolbar__controls">

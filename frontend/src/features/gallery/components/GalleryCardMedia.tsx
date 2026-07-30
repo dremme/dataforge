@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { mediaUrl } from "@/features/gallery/api/media";
-import { galleryItemThumbnailPreviewUrl } from "@/features/gallery/lib/thumbnail";
+import {
+  galleryItemMediaUrl,
+  galleryItemThumbnailPreviewUrl,
+} from "@/features/gallery/lib/thumbnail";
 import { useGalleryCardMedia } from "@/features/gallery/hooks/useGalleryCardMedia";
 import { iconImage, iconVideo } from "@/shared/icons";
 import type { GalleryItem } from "@/shared/types";
@@ -18,17 +20,19 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
 
   const thumbnailPreviewUrl = useMemo(() => galleryItemThumbnailPreviewUrl(item), [item]);
 
-  const previewUrl = useFullMediaFallback ? mediaUrl(item.path) : thumbnailPreviewUrl;
+  const previewUrl = useFullMediaFallback ? galleryItemMediaUrl(item) : thumbnailPreviewUrl;
 
-  const { containerRef, imageRef, showImage, ready, handleReady } = useGalleryCardMedia(
+  const { containerRef, imageRef, showImage, ready, srcReady, handleReady } = useGalleryCardMedia(
     item.path,
     previewUrl,
   );
 
+  // A new revision of the file deserves a fresh thumbnail attempt: the miss that
+  // forced the fallback is often just the previous revision being mid-write.
   useEffect(() => {
     setUseFullMediaFallback(false);
     setThumbnailUnavailable(false);
-  }, [item.path]);
+  }, [item.path, item.modified_at, item.size]);
 
   if (itemIsVideo && thumbnailUnavailable) {
     return (
@@ -72,7 +76,7 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
             itemIsVideo && "card__video",
             ready && itemIsVideo && "card__video--ready",
           )}
-          src={ready ? previewUrl : undefined}
+          src={srcReady ? previewUrl : undefined}
           alt=""
           decoding="async"
           draggable={false}

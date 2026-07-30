@@ -6,7 +6,7 @@ import {
   requestPreviewLoad,
   resetGalleryPreviewLoaderForTests,
   setGalleryScrollPhase,
-  subscribePreviewReady,
+  subscribePreviewSettled,
   syncGalleryPreviewTargets,
 } from "./previewLoader";
 
@@ -91,7 +91,7 @@ describe("galleryPreviewLoader", () => {
     globalThis.Image = MockImage as unknown as typeof Image;
 
     const ready = vi.fn();
-    const unsubscribe = subscribePreviewReady("keep-loading.png", ready);
+    const unsubscribe = subscribePreviewSettled("keep-loading.png", ready);
     requestPreviewLoad("keep-loading.png", "/api/thumbnail?path=keep-loading.png", "visible");
 
     unsubscribe();
@@ -107,7 +107,7 @@ describe("galleryPreviewLoader", () => {
     markMediaPathWarmed("cached.png");
     const ready = vi.fn();
 
-    subscribePreviewReady("cached.png", ready);
+    subscribePreviewSettled("cached.png", ready);
 
     expect(ready).toHaveBeenCalledTimes(1);
   });

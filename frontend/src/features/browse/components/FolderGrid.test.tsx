@@ -29,20 +29,6 @@ describe("FolderGrid", () => {
     expect(screen.getByLabelText("1 of 4")).toHaveClass("folder-section__count");
   });
 
-  it("marks the header when the browsed folder has backed up captions", () => {
-    render(<FolderGrid folders={[]} hasCaptionBackup onOpen={vi.fn()} />);
-
-    const badge = screen.getByLabelText("This folder has backed up captions");
-    expect(badge).toHaveClass("section-header__backup-badge");
-    expect(badge.closest(".folder-section__header")).not.toBeNull();
-  });
-
-  it("leaves the header unmarked without a backup", () => {
-    render(<FolderGrid folders={[makeFolder()]} onOpen={vi.fn()} />);
-
-    expect(document.querySelector(".section-header__backup-badge")).toBeNull();
-  });
-
   it("shows a warning triangle when a folder has issue files", () => {
     render(
       <FolderGrid

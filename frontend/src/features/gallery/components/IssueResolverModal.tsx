@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { saveCaption } from "@/features/gallery/api/captions";
-import { mediaUrl, openMediaInViewer } from "@/features/gallery/api/media";
+import { openMediaInViewer } from "@/features/gallery/api/media";
+import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
@@ -218,7 +219,7 @@ export function IssueResolverModal({
               <video
                 key={item.path}
                 className="issue-resolver-modal__video"
-                src={mediaUrl(item.path)}
+                src={galleryItemMediaUrl(item)}
                 controls
                 muted
                 playsInline
@@ -232,7 +233,7 @@ export function IssueResolverModal({
                 key={item.path}
                 className="issue-resolver-modal__media-wrap"
                 imgClassName="issue-resolver-modal__img"
-                src={mediaUrl(item.path)}
+                src={galleryItemMediaUrl(item)}
                 alt={item.name}
                 onLoad={(event) => {
                   const img = event.currentTarget;

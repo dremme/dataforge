@@ -28,8 +28,19 @@ router = APIRouter()
 @router.get("/media")
 def serve_media(
     path: str = Query(..., description="Absolute path to image or video file"),
+    v: str | None = Query(
+        None,
+        description="Client cache-busting token derived from file metadata",
+    ),
 ) -> FileResponse:
-    return FileResponse(resolve_media_file(path))
+    # A versioned URL names one revision of the file, so it can be cached hard.
+    # Without one, the response must be revalidated: browsers otherwise apply
+    # heuristic freshness and keep serving an edited file's old bytes.
+    cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
+    return FileResponse(
+        resolve_media_file(path),
+        headers={"Cache-Control": cache_control},
+    )
 
 
 @router.post("/media/open", response_model=MediaOpenResponse)

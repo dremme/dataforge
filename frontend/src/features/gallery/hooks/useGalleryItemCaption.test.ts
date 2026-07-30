@@ -257,6 +257,103 @@ describe("useGalleryItemCaption", () => {
     expect(result.current.saveState).toBe("saved");
   });
 
+  it("keeps characters typed while a save is in flight", async () => {
+    vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Fresh caption"));
+    let resolveSave: (() => void) | undefined;
+    const saveCaption = vi.spyOn(api, "saveCaption").mockImplementation(
+      (_path, text) =>
+        new Promise<CaptionSaveResponse>((resolve) => {
+          resolveSave = () => resolve(captionResponse(text));
+        }),
+    );
+    const onCaptionSaved = vi.fn();
+    const item = makeItem("sunset.png", { description: "Fresh caption" });
+
+    const { result } = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
+
+    await waitFor(() => {
+      expect(result.current.caption).toBe("Fresh caption");
+    });
+
+    act(() => {
+      result.current.handleCaptionChange("Hello");
+    });
+
+    await waitFor(() => {
+      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Hello", undefined);
+    });
+
+    // The round trip is still open while the user keeps typing.
+    act(() => {
+      result.current.handleCaptionChange("Hello world");
+    });
+
+    await act(async () => {
+      resolveSave?.();
+      await Promise.resolve();
+    });
+
+    expect(result.current.caption).toBe("Hello world");
+  });
+
+  it("ignores a background folder reload that predates the last save", async () => {
+    vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Hello"));
+    vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text) => captionResponse(text));
+    const onCaptionSaved = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ item }: { item: GalleryItem }) => useGalleryItemCaption({ item, onCaptionSaved }),
+      { initialProps: { item: makeItem("sunset.png", { description: "Hello" }) } },
+    );
+
+    await waitFor(() => {
+      expect(result.current.caption).toBe("Hello");
+    });
+
+    act(() => {
+      result.current.handleCaptionChange("Hello world");
+    });
+
+    await waitFor(() => {
+      expect(result.current.saveState).toBe("saved");
+    });
+
+    // The poller reloaded the folder from a response older than the save.
+    rerender({ item: makeItem("sunset.png", { description: "Hello" }) });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.caption).toBe("Hello world");
+  });
+
+  it("keeps characters typed before the initial caption fetch resolves", async () => {
+    let resolveFetch: (() => void) | undefined;
+    vi.spyOn(api, "fetchCaption").mockImplementation(
+      () =>
+        new Promise<CaptionSaveResponse>((resolve) => {
+          resolveFetch = () => resolve(captionResponse("Fresh caption"));
+        }),
+    );
+    vi.spyOn(api, "saveCaption").mockResolvedValue(captionResponse("Typed first"));
+    const onCaptionSaved = vi.fn();
+    const item = makeItem("sunset.png");
+
+    const { result } = renderHook(() => useGalleryItemCaption({ item, onCaptionSaved }));
+
+    act(() => {
+      result.current.handleCaptionChange("Typed first");
+    });
+
+    await act(async () => {
+      resolveFetch?.();
+      await Promise.resolve();
+    });
+
+    expect(result.current.caption).toBe("Typed first");
+  });
+
   it("does not auto-save caption edits when autoSave is false", async () => {
     vi.spyOn(api, "fetchCaption").mockRejectedValue(new Error("Network error"));
     const saveCaption = vi.spyOn(api, "saveCaption");

@@ -56,7 +56,11 @@ const prefetchQueue: PreviewRequest[] = [];
 const inflightPaths = new Set<string>();
 const inflightLoads = new Map<string, InflightLoad>();
 const loadedUrls = new Map<string, string>();
-const readyListeners = new Map<string, Set<() => void>>();
+
+/** How a preview load ended. Subscribers must hear about all three. */
+export type PreviewOutcome = "loaded" | "failed" | "cancelled";
+
+const settledListeners = new Map<string, Set<(outcome: PreviewOutcome) => void>>();
 
 function maxConcurrentPreviews(): number {
   return scrollPhase === "active" ? MAX_CONCURRENT_PREVIEWS_ACTIVE : MAX_CONCURRENT_PREVIEWS_IDLE;
@@ -78,12 +82,12 @@ export function isGalleryScrollActive(): boolean {
   return scrollPhase === "active";
 }
 
-function notifyReady(path: string): void {
-  const listeners = readyListeners.get(path);
+function notifySettled(path: string, outcome: PreviewOutcome): void {
+  const listeners = settledListeners.get(path);
   if (!listeners) return;
 
-  for (const listener of listeners) {
-    listener();
+  for (const listener of [...listeners]) {
+    listener(outcome);
   }
 }
 
@@ -134,6 +138,9 @@ function abortInflight(path: string): void {
   inflightLoads.delete(path);
   inflightPaths.delete(path);
   activeCount = Math.max(0, activeCount - 1);
+  // Cancelling silently would strand any card waiting on this path: it keeps its
+  // <img> without a src, so not even the element's own error fallback can run.
+  notifySettled(path, "cancelled");
 }
 
 function abortInflightPrefetch(path: string): void {
@@ -236,9 +243,9 @@ function startPreviewLoad(request: PreviewRequest): void {
     if (success) {
       loadedUrls.set(request.path, request.url);
       markMediaPathWarmed(request.path);
-      notifyReady(request.path);
     }
 
+    notifySettled(request.path, success ? "loaded" : "failed");
     drainQueue();
   };
 
@@ -311,22 +318,25 @@ export function syncGalleryPreviewTargets(targets: readonly PreviewRequest[]): v
   drainQueue();
 }
 
-export function subscribePreviewReady(path: string, listener: () => void): () => void {
-  let listeners = readyListeners.get(path);
+export function subscribePreviewSettled(
+  path: string,
+  listener: (outcome: PreviewOutcome) => void,
+): () => void {
+  let listeners = settledListeners.get(path);
   if (!listeners) {
     listeners = new Set();
-    readyListeners.set(path, listeners);
+    settledListeners.set(path, listeners);
   }
 
   listeners.add(listener);
   if (isMediaPathWarmed(path)) {
-    listener();
+    listener("loaded");
   }
 
   return () => {
     listeners?.delete(listener);
     if (listeners?.size === 0) {
-      readyListeners.delete(path);
+      settledListeners.delete(path);
     }
   };
 }
@@ -354,7 +364,7 @@ export function resetGalleryPreviewLoaderForTests(): void {
   inflightPaths.clear();
   inflightLoads.clear();
   loadedUrls.clear();
-  readyListeners.clear();
+  settledListeners.clear();
   warmedMediaPaths.clear();
 }
 

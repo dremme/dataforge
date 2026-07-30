@@ -4,7 +4,8 @@ import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
-import { deleteMedia, mediaUrl, openMediaInViewer } from "@/features/gallery/api/media";
+import { deleteMedia, openMediaInViewer } from "@/features/gallery/api/media";
+import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
@@ -315,7 +316,7 @@ export function GalleryItemModal({
               <video
                 key={item.path}
                 className="gallery-item-modal__video"
-                src={mediaUrl(item.path)}
+                src={galleryItemMediaUrl(item)}
                 controls
                 autoPlay
                 muted
@@ -330,7 +331,7 @@ export function GalleryItemModal({
                 key={item.path}
                 className="gallery-item-modal__media-wrap"
                 imgClassName="gallery-item-modal__img"
-                src={mediaUrl(item.path)}
+                src={galleryItemMediaUrl(item)}
                 alt={item.name}
                 zoomable={bboxes.length === 0}
                 onLoad={(event) => {

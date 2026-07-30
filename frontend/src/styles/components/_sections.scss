@@ -39,13 +39,6 @@
   opacity: var(--icon-muted-strong);
 }
 
-.section-header__backup-badge {
-  @include icon-block;
-  @include icon-size(var(--icon-size-sm));
-  flex-shrink: 0;
-  color: var(--text-subtle);
-}
-
 .section-header__count-skeleton {
   display: inline-block;
   width: 1.35rem;

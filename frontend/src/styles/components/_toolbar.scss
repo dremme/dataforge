@@ -427,6 +427,25 @@ $toolbar-search-width-max: 22rem;
     }
   }
 
+  // Stats that drive the caption filter. They keep the plain stat metrics, so the
+  // cursor and an underline on the count carry the affordance instead of a pill.
+  &--filter {
+    cursor: pointer;
+
+    &:hover {
+      .stat__icon {
+        opacity: 1;
+      }
+    }
+  }
+
+  // Icon-only marker; the rule keeps it from reading as a count that lost its number.
+  &--backup {
+    padding-left: 0.65rem;
+    border-left: 1px solid var(--border);
+    color: var(--text-subtle);
+  }
+
   &__percent {
     color: var(--text-subtle);
     font-size: var(--text-2xs);

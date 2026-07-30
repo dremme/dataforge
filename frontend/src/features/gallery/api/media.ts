@@ -62,8 +62,13 @@ export async function deleteSelectedMedia(
   return { succeeded, failed };
 }
 
-export function mediaUrl(mediaPath: string): string {
+export function mediaUrl(mediaPath: string, cacheKey?: string): string {
   const params = new URLSearchParams({ path: mediaPath });
+  // Without a token the browser may hold a rewritten file's old bytes: the
+  // response has no max-age, so it falls back to heuristic freshness.
+  if (cacheKey) {
+    params.set("v", cacheKey);
+  }
   return `/api/media?${params}`;
 }
 

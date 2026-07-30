@@ -64,6 +64,8 @@ export function AppContent() {
               subfolderCount: browse.subfolder_count,
               fileCount: items.length,
               captionedCount: query.captionedCount,
+              issueCount: gallery.issueCount,
+              hasCaptionBackup: browse.has_caption_backup,
               statsLoading: loading && !refreshing,
               searchQuery: query.searchQuery,
               searchRegex: query.searchRegex,

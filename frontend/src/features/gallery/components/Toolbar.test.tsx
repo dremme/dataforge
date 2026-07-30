@@ -17,6 +17,8 @@ const defaultProps = {
   subfolderCount: 1,
   fileCount: 3,
   captionedCount: 2,
+  issueCount: 0,
+  hasCaptionBackup: false,
   searchQuery: "",
   searchRegex: false,
   sort: "name-asc" as SortOption,
@@ -132,6 +134,84 @@ describe("Toolbar", () => {
     expect(
       screen.getByRole("menuitemradio", { name: 'Captioned (2 matching "sun")' }),
     ).toBeInTheDocument();
+  });
+
+  it("shows caption issues as a warning count next to the other stats", () => {
+    renderToolbar({ issueCount: 2 });
+
+    const stat = screen.getByLabelText("2 caption issues");
+    expect(stat).toHaveClass("stat--warning");
+    expect(stat).toHaveTextContent("2");
+    expect(stat.closest(".toolbar__stats")).not.toBeNull();
+  });
+
+  it("filters to caption issues when the issue count is clicked", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ issueCount: 2 });
+
+    await user.click(screen.getByLabelText("2 caption issues"));
+
+    expect(defaultProps.onFilterChange).toHaveBeenCalledWith("issue");
+  });
+
+  it("clears the filter when the active issue count is clicked again", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ issueCount: 2, filter: "issue" });
+
+    const stat = screen.getByLabelText("2 caption issues");
+
+    await user.click(stat);
+
+    expect(defaultProps.onFilterChange).toHaveBeenCalledWith("all");
+  });
+
+  it("filters to captioned files when the captioned count is clicked", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    const stat = screen.getByLabelText("2 captioned (67%)");
+    expect(stat).toHaveClass("stat--filter");
+
+    await user.click(stat);
+
+    expect(defaultProps.onFilterChange).toHaveBeenCalledWith("captioned");
+  });
+
+  it("clears the filter when the active captioned count is clicked again", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ filter: "captioned" });
+
+    const stat = screen.getByLabelText("2 captioned (67%)");
+
+    await user.click(stat);
+
+    expect(defaultProps.onFilterChange).toHaveBeenCalledWith("all");
+  });
+
+  it("names a single caption issue in the singular", () => {
+    renderToolbar({ issueCount: 1 });
+
+    expect(screen.getByLabelText("1 caption issue")).toBeInTheDocument();
+  });
+
+  it("hides the issue count when the folder has none", () => {
+    renderToolbar();
+
+    expect(screen.queryByLabelText(/caption issue/)).not.toBeInTheDocument();
+  });
+
+  it("marks the stats when the browsed folder has backed up captions", () => {
+    renderToolbar({ hasCaptionBackup: true });
+
+    const badge = screen.getByLabelText("This folder has backed up captions");
+    expect(badge).toHaveClass("stat--backup");
+    expect(badge.closest(".toolbar__stats")).not.toBeNull();
+  });
+
+  it("leaves the stats unmarked without a backup", () => {
+    renderToolbar();
+
+    expect(document.querySelector(".stat--backup")).toBeNull();
   });
 
   it("does not focus search while an overlay is open", async () => {

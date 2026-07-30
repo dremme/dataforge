@@ -23,6 +23,24 @@ class MediaEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.content.startswith(b"\x89PNG"))
 
+    def test_unversioned_media_must_be_revalidated(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            response = client.get(f"/api/media?path={quote(str(media))}")
+
+            # Heuristic freshness would otherwise serve an edited file's old bytes.
+            self.assertIn("no-cache", response.headers["cache-control"])
+
+    def test_versioned_media_is_cached_hard(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            response = client.get(f"/api/media?path={quote(str(media))}&v=123-4096")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("max-age=31536000", response.headers["cache-control"])
+
     def test_returns_404_for_missing_media(self) -> None:
         with TempMediaFolder() as root:
             missing = root / "missing.png"

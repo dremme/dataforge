@@ -12,8 +12,6 @@ interface SectionHeaderProps {
   /** Keeps the total visible even when it equals `count`, e.g. selection progress. */
   alwaysShowTotal?: boolean;
   loading?: boolean;
-  /** Small status indicator shown after the count, before the actions. */
-  badge?: ReactNode;
   actions?: ReactNode;
 }
 
@@ -25,7 +23,6 @@ export function SectionHeader({
   total,
   alwaysShowTotal = false,
   loading = false,
-  badge,
   actions,
 }: SectionHeaderProps) {
   const showTotal = total !== undefined && (alwaysShowTotal || total !== count);
@@ -53,7 +50,6 @@ export function SectionHeader({
           )}
         </span>
       )}
-      {badge}
       {actions}
     </div>
   );

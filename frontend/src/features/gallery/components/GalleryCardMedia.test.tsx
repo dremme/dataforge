@@ -1,9 +1,10 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HOME_PATH } from "@/test/fixtures";
 import {
   getGalleryPreviewLoaderStateForTests,
   resetGalleryPreviewLoaderForTests,
+  syncGalleryPreviewTargets,
 } from "@/features/gallery/lib/previewLoader";
 import * as galleryScrollRoot from "@/features/gallery/lib/scrollRoot";
 import type { GalleryItem } from "@/shared/types";
@@ -52,6 +53,37 @@ function installCompletingPreviewImages(): () => void {
   globalThis.Image = MockImage as unknown as typeof Image;
   return () => {
     globalThis.Image = originalImage;
+  };
+}
+
+/** Preview loads stay pending until the test settles them. */
+function installPendingPreviewImages() {
+  const originalImage = globalThis.Image;
+  const loads: { onload: (() => void) | null; onerror: (() => void) | null }[] = [];
+
+  class MockImage {
+    decoding = "async";
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    private _src = "";
+
+    set src(value: string) {
+      this._src = value;
+      // An abort clears the handlers and blanks src; only real loads count.
+      if (value) loads.push(this);
+    }
+
+    get src() {
+      return this._src;
+    }
+  }
+
+  globalThis.Image = MockImage as unknown as typeof Image;
+  return {
+    loads,
+    restore: () => {
+      globalThis.Image = originalImage;
+    },
   };
 }
 
@@ -110,5 +142,148 @@ describe("GalleryCardMedia", () => {
     });
 
     restoreImage();
+  });
+
+  it("points at the new revision when the file is rewritten in the background", async () => {
+    const restoreImage = installCompletingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    const original = { ...imageItem, modified_at: "2026-06-19T12:00:00.000Z", size: 4096 };
+    const { container, rerender } = render(
+      <main>
+        <GalleryCardMedia item={original} />
+      </main>,
+    );
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(`img[src*="v=${Date.parse(original.modified_at)}-4096"]`),
+      ).not.toBeNull();
+    });
+
+    const edited = { ...original, modified_at: "2026-06-19T12:30:00.000Z", size: 5120 };
+    rerender(
+      <main>
+        <GalleryCardMedia item={edited} />
+      </main>,
+    );
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(`img[src*="v=${Date.parse(edited.modified_at)}-5120"]`),
+      ).not.toBeNull();
+    });
+
+    restoreImage();
+  });
+
+  it("retries the thumbnail for a new revision after falling back to full media", async () => {
+    const restoreImage = installCompletingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    const original = { ...imageItem, modified_at: "2026-06-19T12:00:00.000Z", size: 4096 };
+    const { container, rerender } = render(
+      <main>
+        <GalleryCardMedia item={original} />
+      </main>,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('img[src*="/api/thumbnail"]')).not.toBeNull();
+    });
+
+    // The thumbnail missed, as it can while the file is still being written.
+    container.querySelector('img[src*="/api/thumbnail"]')?.dispatchEvent(new Event("error"));
+
+    await waitFor(() => {
+      expect(container.querySelector('img[src*="/api/media"]')).not.toBeNull();
+    });
+
+    rerender(
+      <main>
+        <GalleryCardMedia item={{ ...original, modified_at: "2026-06-19T12:30:00.000Z" }} />
+      </main>,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('img[src*="/api/thumbnail"]')).not.toBeNull();
+    });
+
+    restoreImage();
+  });
+
+  it("still shows the image when the preloaded thumbnail request fails", async () => {
+    const preview = installPendingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    const { container } = render(
+      <main>
+        <GalleryCardMedia item={imageItem} />
+      </main>,
+    );
+
+    await waitFor(() => expect(preview.loads.length).toBe(1));
+
+    // The thumbnail 404s, as it can while a newly added file is still being written.
+    act(() => preview.loads[0].onerror?.());
+
+    await waitFor(() => {
+      expect(container.querySelector("img[src]")).not.toBeNull();
+    });
+
+    preview.restore();
+  });
+
+  it("re-requests a preview that was cancelled while the card still wants it", async () => {
+    const preview = installPendingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    const { container } = render(
+      <main>
+        <GalleryCardMedia item={imageItem} />
+      </main>,
+    );
+
+    await waitFor(() => expect(preview.loads.length).toBe(1));
+
+    // A row resync that does not list this path yet cancels its load — what happens
+    // when an image is added in the background and the virtualizer snapshot lags it.
+    act(() => syncGalleryPreviewTargets([]));
+
+    // The card asks again rather than sitting on its placeholder forever.
+    await waitFor(() => expect(preview.loads.length).toBe(2));
+
+    act(() => preview.loads[1].onload?.());
+
+    await waitFor(() => {
+      expect(container.querySelector('img[src*="/api/thumbnail"]')).not.toBeNull();
+    });
+
+    preview.restore();
+  });
+
+  it("stops waiting on the loader when cancellations keep repeating", async () => {
+    const preview = installPendingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    const { container } = render(
+      <main>
+        <GalleryCardMedia item={imageItem} />
+      </main>,
+    );
+
+    await waitFor(() => expect(preview.loads.length).toBe(1));
+
+    act(() => syncGalleryPreviewTargets([]));
+    await waitFor(() => expect(preview.loads.length).toBe(2));
+    act(() => syncGalleryPreviewTargets([]));
+
+    // Rather than retrying forever, the card hands the URL to the <img> itself.
+    await waitFor(() => {
+      expect(container.querySelector("img[src]")).not.toBeNull();
+    });
+    expect(preview.loads.length).toBe(2);
+
+    preview.restore();
   });
 });
