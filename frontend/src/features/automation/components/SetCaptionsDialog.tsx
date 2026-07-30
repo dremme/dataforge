@@ -1,4 +1,4 @@
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 
 interface SetCaptionsDialogProps {
@@ -18,6 +18,7 @@ export function SetCaptionsDialog({
   const [overwrite, setOverwrite] = useState(false);
   const captionId = useId();
   const overwriteId = useId();
+  const captionRef = useRef<HTMLTextAreaElement>(null);
 
   const handleConfirm = useCallback(() => {
     if (busy) return;
@@ -38,6 +39,7 @@ export function SetCaptionsDialog({
       busy={busy}
       onConfirm={handleConfirm}
       onClose={onCancel}
+      initialFocusRef={captionRef}
       footer={
         <DialogActions
           confirmLabel="Set captions"
@@ -53,6 +55,7 @@ export function SetCaptionsDialog({
           Caption text
         </label>
         <textarea
+          ref={captionRef}
           id={captionId}
           className="dialog__input dialog__input--multiline"
           value={caption}
