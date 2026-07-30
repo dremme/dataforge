@@ -749,6 +749,16 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse(createMockJob(folderPath, "verify_captions"));
     }
 
+    if (url.pathname === "/api/automation/backup-captions" && method === "POST") {
+      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      return jsonResponse(createMockJob(folderPath, "backup_captions"));
+    }
+
+    if (url.pathname === "/api/automation/restore-captions" && method === "POST") {
+      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      return jsonResponse(createMockJob(folderPath, "restore_captions"));
+    }
+
     if (url.pathname === "/api/jobs") {
       if (method === "DELETE") {
         return jsonResponse({ deleted_count: 0 });

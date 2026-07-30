@@ -24,7 +24,7 @@ from automation.vision import (
     run_vision_completion,
     vision_messages,
 )
-from captions import issue_file_path
+from captions import NO_CAPTION_STATUS, issue_file_path, load_reference_caption
 from constants import IMAGE_EXTENSIONS
 from openai_settings import create_openai_client, get_max_tokens, get_openai_model
 
@@ -37,7 +37,7 @@ VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS
 
 VerifyMode = Literal["thinking", "instruct"]
 
-NON_SUCCESS_STATUSES = frozenset({"no_txt", "read_error", "api_error", "parse_error"})
+NON_SUCCESS_STATUSES = frozenset({NO_CAPTION_STATUS, "read_error", "api_error", "parse_error"})
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
@@ -270,20 +270,6 @@ def verify_caption(
     )
 
 
-def _read_caption(media_path: Path) -> tuple[str | None, str]:
-    txt_path = media_path.with_suffix(".txt")
-
-    if not txt_path.exists():
-        return None, "no_txt"
-
-    try:
-        ref_caption = txt_path.read_text(encoding="utf-8").strip()
-    except Exception as exc:
-        return None, f"read_error: {exc}"
-
-    return ref_caption, "ok"
-
-
 def process_media(
     client,
     media_path: Path,
@@ -294,7 +280,7 @@ def process_media(
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, VerificationResult | None, str, str | None]:
     resolved_model = model if model is not None else get_openai_model()
-    ref_caption, status = _read_caption(media_path)
+    ref_caption, status = load_reference_caption(media_path)
     if status != "ok" or ref_caption is None:
         return media_path, None, status, None
 
@@ -353,7 +339,7 @@ def _initial_job_stats(total: int) -> dict[str, int]:
         "total": total,
         "success": 0,
         "issues_found": 0,
-        "no_txt": 0,
+        NO_CAPTION_STATUS: 0,
         "read_error": 0,
         "api_error": 0,
         "parse_error": 0,

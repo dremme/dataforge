@@ -324,7 +324,9 @@ describe("missing caption warnings", () => {
     expect(jobShowsWarningState(job)).toBe(true);
     expect(statusLabel(job)).toBe("Warnings");
     expect(jobStatusTone(job)).toBe("warning");
-    expect(jobWarningMessage(job)).toBe("1 file had no caption sidecar (.txt) and was skipped.");
+    expect(jobWarningMessage(job)).toBe(
+      "1 file had no caption sidecar (.json/.txt) and was skipped.",
+    );
   });
 
   it("pluralizes the missing-caption warning", () => {
@@ -332,10 +334,85 @@ describe("missing caption warnings", () => {
       status: "completed",
       processed: 5,
       total: 5,
-      stats: { success: 2, no_txt: 3 },
+      stats: { success: 2, no_caption: 3 },
     });
 
-    expect(jobWarningMessage(job)).toBe("3 files had no caption sidecar (.txt) and were skipped.");
+    expect(jobWarningMessage(job)).toBe(
+      "3 files had no caption sidecar (.json/.txt) and were skipped.",
+    );
+  });
+
+  it("reads the current no_caption stat as well as the legacy no_txt one", () => {
+    const legacy = makeJob({
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 2, no_txt: 1 },
+    });
+    const current = makeJob({
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 2, no_caption: 1 },
+    });
+
+    expect(jobWarningMessage(legacy)).toBe(jobWarningMessage(current));
+  });
+});
+
+describe("caption backup and restore jobs", () => {
+  it("does not warn about media that had no caption to back up", () => {
+    const job = makeJob({
+      job_type: "backup_captions",
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 2, sidecars: 3, skipped: 1 },
+    });
+
+    expect(jobShowsWarningState(job)).toBe(false);
+    expect(jobWarningMessage(job)).toBeNull();
+  });
+
+  it("warns when a restored caption had no matching media file", () => {
+    const job = makeJob({
+      job_type: "restore_captions",
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 2, orphaned: 1 },
+    });
+
+    expect(jobShowsWarningState(job)).toBe(true);
+    expect(jobWarningMessage(job)).toBe(
+      "1 backed up caption had no matching media file and was skipped.",
+    );
+  });
+
+  it("pluralizes the orphaned-caption warning", () => {
+    const job = makeJob({
+      job_type: "restore_captions",
+      status: "completed",
+      processed: 5,
+      total: 5,
+      stats: { success: 2, orphaned: 3 },
+    });
+
+    expect(jobWarningMessage(job)).toBe(
+      "3 backed up captions had no matching media file and were skipped.",
+    );
+  });
+
+  it("does not warn when every backed up caption was restored", () => {
+    const job = makeJob({
+      job_type: "restore_captions",
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 3, orphaned: 0 },
+    });
+
+    expect(jobShowsWarningState(job)).toBe(false);
   });
 
   it("does not warn when every image was captioned", () => {
@@ -390,7 +467,9 @@ describe("verify captions jobs", () => {
     });
 
     expect(jobShowsWarningState(job)).toBe(true);
-    expect(jobWarningMessage(job)).toBe("1 file had no caption sidecar (.txt) and was skipped.");
+    expect(jobWarningMessage(job)).toBe(
+      "1 file had no caption sidecar (.json/.txt) and was skipped.",
+    );
   });
 });
 
@@ -422,7 +501,7 @@ describe("jobCompletionNotification", () => {
     ).toEqual({
       variant: "warning",
       message:
-        'Verify captions finished with warnings in "Photos": 1 file had no caption sidecar (.txt) and was skipped.',
+        'Verify captions finished with warnings in "Photos": 1 file had no caption sidecar (.json/.txt) and was skipped.',
     });
   });
 

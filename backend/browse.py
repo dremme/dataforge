@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from automation.backup_captions import has_caption_backup
 from constants import LAST_FOLDER_KEY
 from db import set_preference
 from filesystem import build_breadcrumbs, get_home_folder, list_subfolders
@@ -27,6 +28,7 @@ def build_browse_response(folder: Path) -> BrowseResponse:
         subfolders=subfolders,
         items=items,
         sysprompt=load_sysprompt_item(folder),
+        has_caption_backup=has_caption_backup(folder),
         item_count=len(items),
         subfolder_count=len(subfolders),
         fingerprint=folder_browse_fingerprint(folder) or "",

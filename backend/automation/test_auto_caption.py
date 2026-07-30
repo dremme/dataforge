@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from unittest.mock import patch
 
@@ -30,6 +31,7 @@ from automation.vision import (
 )
 from testing_fixtures import (
     TempMediaFolder,
+    write_json_caption,
     write_media,
     write_mp4_video,
     write_sysprompt,
@@ -369,3 +371,44 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             self.assertEqual(
                 media.with_suffix(".txt").read_text(encoding="utf-8").strip(), polished
             )
+
+    def test_run_job_updates_the_json_sidecar_instead_of_writing_txt(self) -> None:
+        """A new .txt would be shadowed by the .json caption, so the .json is updated."""
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            media = write_media(root, "photo.png")
+            write_json_caption(media, {"description": "Draft.", "mood": "calm"})
+
+            polished = (
+                "A detailed portrait with warm sunlight falling across the subject's face "
+                "and soft shadows in the background, with layered textures in the clothing, "
+                "subtle color grading, reflective highlights, and rich environmental context "
+                "that makes this caption substantially longer than the short draft threshold."
+            )
+
+            with patch("automation.auto_caption.complete_caption", return_value=polished):
+                result = run_auto_caption_job(root)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertFalse(media.with_suffix(".txt").exists())
+
+            data = json.loads(media.with_suffix(".json").read_text(encoding="utf-8"))
+            self.assertEqual(data["description"], polished)
+            self.assertEqual(data["mood"], "calm")
+
+    def test_run_job_reads_the_draft_from_the_json_sidecar(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Ignored text draft.")
+            write_json_caption(media, {"description": "JSON draft."})
+
+            polished = "x" * 300
+
+            with patch(
+                "automation.auto_caption.complete_caption",
+                return_value=polished,
+            ) as mock_complete:
+                run_auto_caption_job(root)
+
+            self.assertEqual(mock_complete.call_args.args[3], "JSON draft.")

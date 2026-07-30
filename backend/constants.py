@@ -1,10 +1,21 @@
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 VIDEO_EXTENSIONS = {".mp4"}
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
-SIDECAR_EXTENSIONS = {".txt", ".json"}
+
+# Caption sidecar suffixes in precedence order: a .json caption always wins over
+# a .txt one, so anything resolving a media file's caption must walk this in order.
+CAPTION_SIDECAR_EXTENSIONS = (".json", ".txt")
+SIDECAR_EXTENSIONS = set(CAPTION_SIDECAR_EXTENSIONS)
 IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
 
+# Caption issues written by verify-captions. Two suffixes deep, so `Path.stem` and
+# `Path.suffix` both mis-read it; resolve names against this instead of guessing.
+ISSUE_SIDECAR_SUFFIX = ".issue.json"
+
+CAPTION_BACKUP_DIR_NAME = ".backup"
+
 SKIP_DIR_NAMES = {
+    CAPTION_BACKUP_DIR_NAME,
     ".git",
     "node_modules",
     "__pycache__",

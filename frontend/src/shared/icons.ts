@@ -7,6 +7,8 @@ export {
   ArrowDownWideNarrow as iconArrowDownWideNarrow,
   ArrowUp as iconArrowUp,
   ArrowUpRight as iconArrowUpRight,
+  Archive as iconArchive,
+  ArchiveRestore as iconArchiveRestore,
   Ban as iconBan,
   Bold as iconBold,
   Braces as iconBraces,

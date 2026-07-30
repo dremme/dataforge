@@ -33,6 +33,7 @@ function createFailedBrowseShell(
     subfolders: [],
     items: [],
     sysprompt: null,
+    has_caption_backup: false,
     item_count: 0,
     subfolder_count: 0,
     fingerprint: "",

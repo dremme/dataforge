@@ -23,6 +23,7 @@ from automation.vision import (
     run_vision_completion,
     vision_messages,
 )
+from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
 from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
 from openai_settings import create_openai_client, get_max_tokens, get_openai_model
 from sysprompt import load_sysprompt
@@ -40,7 +41,7 @@ MediaKind = Literal["image", "video"]
 
 PROCESSED_STAT_KEYS = (
     "success",
-    "no_txt",
+    NO_CAPTION_STATUS,
     "read_error",
     "api_error",
     "frame_error",
@@ -50,7 +51,7 @@ PROCESSED_STAT_KEYS = (
 )
 
 NON_SUCCESS_STATUSES = frozenset(
-    {"no_txt", "read_error", "api_error", "frame_error", "too_short", "skipped_long"}
+    {NO_CAPTION_STATUS, "read_error", "api_error", "frame_error", "too_short", "skipped_long"}
 )
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
@@ -240,15 +241,9 @@ def complete_caption(
 
 
 def _read_draft_caption(media_path: Path) -> tuple[str | None, str]:
-    txt_path = media_path.with_suffix(".txt")
-
-    if not txt_path.exists():
-        return None, "no_txt"
-
-    try:
-        ref_caption = txt_path.read_text(encoding="utf-8").strip()
-    except Exception as exc:
-        return None, f"read_error: {exc}"
+    ref_caption, status = load_reference_caption(media_path)
+    if status != "ok" or ref_caption is None:
+        return None, status
 
     if len(ref_caption) > DRAFT_CAPTION_THRESHOLD:
         return None, "skipped_long"
@@ -322,7 +317,7 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     return {
         "total": total,
         "success": 0,
-        "no_txt": 0,
+        NO_CAPTION_STATUS: 0,
         "read_error": 0,
         "api_error": 0,
         "frame_error": 0,
@@ -382,8 +377,10 @@ def run_auto_caption_job(
                 return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
             try:
-                media_path.with_suffix(".txt").write_text(clean_text, encoding="utf-8")
-            except OSError as exc:
+                # Writes back into the winning sidecar, so a .json caption is
+                # updated in place instead of being shadowed by a new .txt.
+                save_caption(media_path, clean_text)
+            except (OSError, ValueError) as exc:
                 return FileOutcome(
                     status="write_error",
                     stats={"write_error": 1},

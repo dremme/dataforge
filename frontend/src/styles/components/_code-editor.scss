@@ -164,7 +164,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
 
   .cm-lineNumbers .cm-gutterElement {
     text-align: right;
-    font-variant-numeric: tabular-nums;
+    @include tabular-nums;
   }
 
   // Beat CodeMirror base theme (uses .cm-light/.cm-dark + deep focused path).

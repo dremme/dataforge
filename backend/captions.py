@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from constants import CAPTION_JSON_KEYS
+from constants import CAPTION_JSON_KEYS, CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX
 
 
 def _caption_text_from_json_value(value: object) -> str | None:
@@ -214,45 +214,47 @@ def _json_summary_from_data(
     return None, False, "empty"
 
 
+def resolve_caption_file(media_path: Path) -> tuple[Path | None, str | None]:
+    """The caption sidecar that wins for ``media_path``, as ``(path, "json" | "txt")``.
+
+    Sole authority on caption precedence: a ``.json`` sidecar always beats a ``.txt``
+    one, so every caller resolves the same file the gallery shows.
+    """
+    for extension in CAPTION_SIDECAR_EXTENSIONS:
+        candidate = media_path.parent / f"{media_path.stem}{extension}"
+        if candidate.is_file():
+            return candidate, extension.lstrip(".")
+
+    return None, None
+
+
 def _load_caption_bundle(
     media_path: Path,
     *,
     image_width: int | None = None,
     image_height: int | None = None,
 ) -> dict[str, object]:
-    stem = media_path.stem
-    parent = media_path.parent
-    found_caption_file = False
-    caption_path: Path | None = None
-    caption_file_type: str | None = None
     raw_content: str | None = None
     description: str | None = None
     has_bboxes = False
     caption_status = "none"
     bboxes: list[dict[str, object]] = []
 
-    json_path = parent / f"{stem}.json"
-    if json_path.is_file():
-        found_caption_file = True
-        caption_path = json_path
-        caption_file_type = "json"
-        raw_content = _read_caption_text(json_path)
-        data = _parse_json_caption_text(raw_content) if raw_content is not None else None
-        description, has_bboxes, caption_status = _json_summary_from_data(data)
-        if data is not None:
-            bboxes = _extract_bboxes_from_json(data, image_width, image_height)
-    else:
-        txt_path = parent / f"{stem}.txt"
-        if txt_path.is_file():
-            found_caption_file = True
-            caption_path = txt_path
-            caption_file_type = "txt"
-            raw_content = _read_caption_text(txt_path)
-            if raw_content is not None:
-                text = raw_content.strip()
-                if text:
-                    description = text
-                    caption_status = "text"
+    caption_path, caption_file_type = resolve_caption_file(media_path)
+    found_caption_file = caption_path is not None
+
+    if caption_path is not None:
+        raw_content = _read_caption_text(caption_path)
+        if caption_file_type == "json":
+            data = _parse_json_caption_text(raw_content) if raw_content is not None else None
+            description, has_bboxes, caption_status = _json_summary_from_data(data)
+            if data is not None:
+                bboxes = _extract_bboxes_from_json(data, image_width, image_height)
+        elif raw_content is not None:
+            text = raw_content.strip()
+            if text:
+                description = text
+                caption_status = "text"
 
     if found_caption_file and caption_status == "none":
         caption_status = "empty"
@@ -287,20 +289,32 @@ def media_has_caption_text(media_path: Path) -> bool:
 
 DEFAULT_CAPTION_JSON_KEY = "description"
 
+NO_CAPTION_STATUS = "no_caption"
 
-def resolve_caption_file(media_path: Path) -> tuple[Path | None, str | None]:
-    stem = media_path.stem
-    parent = media_path.parent
 
-    json_path = parent / f"{stem}.json"
-    if json_path.is_file():
-        return json_path, "json"
+def load_reference_caption(media_path: Path) -> tuple[str | None, str]:
+    """Caption text for jobs that read an existing caption, honouring precedence.
 
-    txt_path = parent / f"{stem}.txt"
-    if txt_path.is_file():
-        return txt_path, "txt"
+    Returns ``(text, "ok")`` when the winning sidecar holds text, otherwise
+    ``(None, status)`` with ``no_caption`` for a missing or textless sidecar.
+    """
+    caption_path, caption_type = resolve_caption_file(media_path)
+    if caption_path is None:
+        return None, NO_CAPTION_STATUS
 
-    return None, None
+    raw = _read_caption_text(caption_path)
+    if raw is None:
+        return None, f"read_error: could not read {caption_path.name}"
+
+    if caption_type == "json":
+        text = _caption_text_from_json(_parse_json_caption_text(raw))
+    else:
+        text = raw.strip() or None
+
+    if not text:
+        return None, NO_CAPTION_STATUS
+
+    return text, "ok"
 
 
 def _find_caption_location(data: object) -> tuple[dict[str, object], str] | None:
@@ -573,7 +587,7 @@ def save_caption(
 
 
 def issue_file_path(media_path: Path) -> Path:
-    return media_path.with_suffix(".issue.json")
+    return media_path.with_suffix(ISSUE_SIDECAR_SUFFIX)
 
 
 def delete_issue_file(media_path: Path) -> None:

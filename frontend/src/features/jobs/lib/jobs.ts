@@ -81,8 +81,14 @@ function jobVerifyErrorCount(job: Job): number {
   );
 }
 
-function jobNoTxtCount(job: Job): number {
-  return job.stats?.no_txt ?? 0;
+/** Media skipped for having no caption to work from. `no_txt` is the pre-JSON stat name. */
+function jobNoCaptionCount(job: Job): number {
+  const stats = job.stats ?? {};
+  return stats.no_caption ?? stats.no_txt ?? 0;
+}
+
+function jobOrphanedCount(job: Job): number {
+  return job.stats?.orphaned ?? 0;
 }
 
 function jobDetectionErrorCount(job: Job): number {
@@ -125,12 +131,21 @@ export function jobShowsWarningState(job: Job): boolean {
     return jobDetectionErrorCount(job) > 0 || jobNoDetectionsCount(job) > 0;
   }
 
-  if (type === "strip_metadata" || type === "set_captions" || type === "batch_rename") {
+  if (type === "restore_captions") {
+    return jobOrphanedCount(job) > 0;
+  }
+
+  if (
+    type === "strip_metadata" ||
+    type === "set_captions" ||
+    type === "batch_rename" ||
+    type === "backup_captions"
+  ) {
     return false;
   }
 
-  // auto_caption and verify_captions both warn about media skipped for a missing .txt sidecar.
-  return jobNoTxtCount(job) > 0;
+  // auto_caption and verify_captions both warn about media skipped for a missing caption sidecar.
+  return jobNoCaptionCount(job) > 0;
 }
 
 export function jobErrorMessage(job: Job): string | null {
@@ -161,12 +176,20 @@ export function jobWarningMessage(job: Job): string | null {
     return `${noDetections} images had no body parts detected.`;
   }
 
-  const count = jobNoTxtCount(job);
-  if (count === 1) {
-    return "1 file had no caption sidecar (.txt) and was skipped.";
+  if (jobTypeOf(job) === "restore_captions") {
+    const orphaned = jobOrphanedCount(job);
+    if (orphaned === 1) {
+      return "1 backed up caption had no matching media file and was skipped.";
+    }
+    return `${orphaned} backed up captions had no matching media file and were skipped.`;
   }
 
-  return `${count} files had no caption sidecar (.txt) and were skipped.`;
+  const count = jobNoCaptionCount(job);
+  if (count === 1) {
+    return "1 file had no caption sidecar (.json/.txt) and was skipped.";
+  }
+
+  return `${count} files had no caption sidecar (.json/.txt) and were skipped.`;
 }
 
 export function progressPercent(job: Job): number {
@@ -326,17 +349,22 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
     return { fast: stats.cancelled ?? 0, slow };
   }
 
+  // File copies are uniformly cheap, so every handled item counts as fast.
+  if (type === "backup_captions" || type === "restore_captions") {
+    return { fast: job.processed, slow: 0 };
+  }
+
   if (type === "verify_captions") {
     const slow =
       (stats.success ?? 0) +
       (stats.api_error ?? 0) +
       (stats.parse_error ?? 0) +
       (stats.write_error ?? 0);
-    const fast = stats.no_txt ?? 0;
+    const fast = jobNoCaptionCount(job);
     return { fast, slow };
   }
 
-  const fast = (stats.no_txt ?? 0) + (stats.skipped_long ?? 0);
+  const fast = jobNoCaptionCount(job) + (stats.skipped_long ?? 0);
   const slow =
     (stats.success ?? 0) +
     (stats.api_error ?? 0) +

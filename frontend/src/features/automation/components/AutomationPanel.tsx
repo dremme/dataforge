@@ -24,7 +24,12 @@ import {
   progressPercent,
   statusLabel,
 } from "@/features/jobs/lib/jobs";
-import { JOB_TYPE_META, PRIMARY_JOB_TYPE, jobTypeIconFor } from "@/features/jobs/lib/jobMeta";
+import {
+  JOB_TYPE_META,
+  PRIMARY_JOB_TYPE,
+  jobTypeIconFor,
+  type JobAvailability,
+} from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
@@ -61,6 +66,8 @@ export interface AutomationPanelProps {
   canStart: boolean;
   hasSyspromptFile: boolean;
   hasSyspromptContent: boolean;
+  /** Folder state that decides which secondary jobs can be started. */
+  jobAvailability: JobAvailability;
   onEditSysprompt: () => void;
   onRequestStart: (jobType: JobType) => void;
   onCancelJob: () => void;
@@ -76,6 +83,7 @@ export function AutomationPanel({
   canStart,
   hasSyspromptFile,
   hasSyspromptContent,
+  jobAvailability,
   onEditSysprompt,
   onRequestStart,
   onCancelJob,
@@ -217,6 +225,7 @@ export function AutomationPanel({
                   <AutomationMoreJobsMenu
                     disabled={starting || filteredItems.length === 0}
                     startingJobType={startingJobType}
+                    availability={jobAvailability}
                     onRequestStart={onRequestStart}
                   />
                 )}

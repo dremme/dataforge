@@ -10,8 +10,10 @@ import {
 } from "react";
 import {
   startAutoCaptionJob as apiStartAutoCaptionJob,
+  startBackupCaptionsJob as apiStartBackupCaptionsJob,
   startBatchRenameJob as apiStartBatchRenameJob,
   startBodyPartsJob as apiStartBodyPartsJob,
+  startRestoreCaptionsJob as apiStartRestoreCaptionsJob,
   startSetCaptionsJob as apiStartSetCaptionsJob,
   startStripMetadataJob as apiStartStripMetadataJob,
   startVerifyCaptionsJob as apiStartVerifyCaptionsJob,
@@ -79,6 +81,8 @@ interface JobsContextValue {
     paths?: string[],
   ) => Promise<Job | null>;
   startBatchRenameJob: (folderPath: string, stem: string, paths?: string[]) => Promise<Job | null>;
+  startBackupCaptionsJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
+  startRestoreCaptionsJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
   cancelJob: (jobId: string) => Promise<Job | null>;
   stopExternalOstrisJob: (jobId: string) => Promise<boolean>;
   deleteJob: (jobId: string) => Promise<boolean>;
@@ -276,6 +280,22 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     [runJobStart],
   );
 
+  const startBackupCaptionsJob = useCallback(
+    (folderPath: string, paths?: string[]) =>
+      runJobStart(folderPath, "backup_captions", () =>
+        apiStartBackupCaptionsJob(folderPath, paths),
+      ),
+    [runJobStart],
+  );
+
+  const startRestoreCaptionsJob = useCallback(
+    (folderPath: string, paths?: string[]) =>
+      runJobStart(folderPath, "restore_captions", () =>
+        apiStartRestoreCaptionsJob(folderPath, paths),
+      ),
+    [runJobStart],
+  );
+
   const cancelJobImpl = useCallback(
     async (jobId: string) => {
       setCancellingJobId(jobId);
@@ -359,6 +379,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       startAutoCaptionJob,
       startVerifyCaptionsJob,
       startBatchRenameJob,
+      startBackupCaptionsJob,
+      startRestoreCaptionsJob,
       cancelJob: cancelJobImpl,
       stopExternalOstrisJob: stopExternalOstrisJobImpl,
       deleteJob: deleteJobImpl,
@@ -381,6 +403,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       startAutoCaptionJob,
       startVerifyCaptionsJob,
       startBatchRenameJob,
+      startBackupCaptionsJob,
+      startRestoreCaptionsJob,
       cancelJobImpl,
       stopExternalOstrisJobImpl,
       deleteJobImpl,

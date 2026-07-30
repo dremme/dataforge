@@ -15,6 +15,8 @@ export function useFolderAutomation(
     startAutoCaptionJob,
     startVerifyCaptionsJob,
     startBatchRenameJob,
+    startBackupCaptionsJob,
+    startRestoreCaptionsJob,
     cancelJob,
     cancellingJobId,
     startingJob,
@@ -65,5 +67,7 @@ export function useFolderAutomation(
     startAutoCaptionJob,
     startVerifyCaptionsJob,
     startBatchRenameJob,
+    startBackupCaptionsJob,
+    startRestoreCaptionsJob,
   };
 }

@@ -65,6 +65,24 @@ def set_captions_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to write caption for {write_errors} files."
 
 
+def backup_captions_error_message(stats: dict[str, int]) -> str | None:
+    write_errors = int(stats.get("write_error") or 0)
+    if write_errors == 0:
+        return None
+    if write_errors == 1:
+        return "Failed to back up the caption for 1 file."
+    return f"Failed to back up captions for {write_errors} files."
+
+
+def restore_captions_error_message(stats: dict[str, int]) -> str | None:
+    write_errors = int(stats.get("write_error") or 0)
+    if write_errors == 0:
+        return None
+    if write_errors == 1:
+        return "Failed to restore 1 caption file."
+    return f"Failed to restore {write_errors} caption files."
+
+
 def verify_captions_failure_message(stats: dict[str, int]) -> str | None:
     api_errors = int(stats.get("api_error") or 0)
     parse_errors = int(stats.get("parse_error") or 0)
@@ -134,4 +152,8 @@ def resolve_job_error(
         return set_captions_error_message(stats)
     if job_type == "batch_rename":
         return batch_rename_error_message(stats)
+    if job_type == "backup_captions":
+        return backup_captions_error_message(stats)
+    if job_type == "restore_captions":
+        return restore_captions_error_message(stats)
     return None

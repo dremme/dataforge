@@ -13,6 +13,12 @@ from typing import Literal
 
 from automation import jobs_store
 from automation.auto_caption import run_auto_caption_job, validate_auto_caption_folder
+from automation.backup_captions import (
+    run_backup_captions_job,
+    run_restore_captions_job,
+    validate_backup_captions_folder,
+    validate_restore_captions_folder,
+)
 from automation.batch_rename import run_batch_rename_job, validate_batch_rename_folder
 from automation.body_parts import (
     list_body_parts_images,
@@ -21,9 +27,11 @@ from automation.body_parts import (
 )
 from automation.job_messages import (
     auto_caption_error_message,
+    backup_captions_error_message,
     batch_rename_error_message,
     body_parts_error_message,
     resolve_job_error,
+    restore_captions_error_message,
     set_captions_error_message,
     strip_metadata_error_message,
     verify_captions_failure_message,
@@ -41,6 +49,8 @@ JobType = Literal[
     "set_captions",
     "verify_captions",
     "batch_rename",
+    "backup_captions",
+    "restore_captions",
 ]
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
@@ -237,6 +247,18 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_batch_rename_job,
         resolve_status=_resolve_stats_errors(batch_rename_error_message),
         validate=_validate_batch_rename,
+    ),
+    "backup_captions": JobSpec(
+        thread_prefix="backup-captions",
+        run=run_backup_captions_job,
+        resolve_status=_resolve_stats_errors(backup_captions_error_message),
+        validate=_folder_only(validate_backup_captions_folder),
+    ),
+    "restore_captions": JobSpec(
+        thread_prefix="restore-captions",
+        run=run_restore_captions_job,
+        resolve_status=_resolve_stats_errors(restore_captions_error_message),
+        validate=_folder_only(validate_restore_captions_folder),
     ),
     "verify_captions": JobSpec(
         thread_prefix="verify-captions",

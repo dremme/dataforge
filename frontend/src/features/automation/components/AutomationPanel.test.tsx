@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Job, SystemSpecs } from "@/shared/types";
+import type { GalleryItem, Job, SystemSpecs } from "@/shared/types";
 import { AutomationPanel } from "./AutomationPanel";
 
 const finishedJob: Job = {
@@ -20,6 +20,23 @@ const finishedJob: Job = {
   created_at: "2026-01-01T12:00:00.000Z",
   started_at: "2026-01-01T12:00:00.000Z",
   finished_at: "2026-01-01T12:02:30.000Z",
+};
+
+const galleryItem: GalleryItem = {
+  name: "sunset.png",
+  path: "C:\\Photos\\sunset.png",
+  description: null,
+  has_description: false,
+  has_caption_file: false,
+  has_bboxes: false,
+  issue: null,
+  issue_suggestions: null,
+  has_issue_file: false,
+  caption_status: "none",
+  caption_file_type: null,
+  media_type: "image",
+  width: 1920,
+  height: 1080,
 };
 
 const defaultSystemSpecs: SystemSpecs = {
@@ -60,6 +77,7 @@ const baseProps = {
   canStart: false,
   hasSyspromptFile: false,
   hasSyspromptContent: false,
+  jobAvailability: { hasCaptionBackup: false },
   onEditSysprompt: vi.fn(),
   onRequestStart: vi.fn(),
   onCancelJob: vi.fn(),
@@ -146,5 +164,75 @@ describe("AutomationPanel", () => {
       "aria-expanded",
       "true",
     );
+  });
+
+  it("offers caption backup and restore in the more-jobs menu", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+    const onRequestStart = vi.fn();
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: true }}
+        filteredItems={[galleryItem]}
+        onRequestStart={onRequestStart}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    await user.click(screen.getByRole("menuitem", { name: /Backup captions/ }));
+    expect(onRequestStart).toHaveBeenCalledWith("backup_captions");
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Restore captions/ }));
+    expect(onRequestStart).toHaveBeenCalledWith("restore_captions");
+  });
+
+  it("disables restore captions when the folder has no backup", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+    const onRequestStart = vi.fn();
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: false }}
+        filteredItems={[galleryItem]}
+        onRequestStart={onRequestStart}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    const restoreItem = screen.getByRole("menuitem", { name: /Restore captions/ });
+    expect(restoreItem).toBeDisabled();
+
+    await user.click(restoreItem);
+    expect(onRequestStart).not.toHaveBeenCalled();
+  });
+
+  it("leaves backup captions startable when the folder has no backup yet", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+    const onRequestStart = vi.fn();
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: false }}
+        filteredItems={[galleryItem]}
+        onRequestStart={onRequestStart}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    await user.click(screen.getByRole("menuitem", { name: /Backup captions/ }));
+    expect(onRequestStart).toHaveBeenCalledWith("backup_captions");
   });
 });

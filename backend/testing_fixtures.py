@@ -250,6 +250,18 @@ def write_json_caption(media: Path, data: object) -> Path:
     return caption
 
 
+def write_issue_sidecar(media: Path, issues: str, suggestions: str = "") -> Path:
+    from captions import issue_file_path
+
+    issue_path = issue_file_path(media)
+    issue_path.write_text(
+        json.dumps({"correct": False, "issues": issues, "suggestions": suggestions}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    return issue_path
+
+
 def write_sysprompt(folder: Path, text: str) -> Path:
     from constants import SYSPROMPT_FILENAME
 

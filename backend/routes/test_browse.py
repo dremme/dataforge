@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import quote
 
+from automation.backup_captions import run_backup_captions_job
 from constants import LAST_FOLDER_KEY
 from db import get_preference, set_preference
 from folder_fingerprint import folder_browse_fingerprint
@@ -121,6 +122,19 @@ class BrowseEndpointTests(unittest.TestCase):
             ]
 
             self.assertEqual(names, ["alpha.png"])
+
+    def test_reports_caption_backup_presence(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A plain caption.")
+
+            before = client.get(f"/api/browse?path={quote(str(root))}").json()
+            self.assertFalse(before["has_caption_backup"])
+
+            run_backup_captions_job(root)
+
+            after = client.get(f"/api/browse?path={quote(str(root))}").json()
+            self.assertTrue(after["has_caption_backup"])
 
     def test_defaults_to_home_without_path_or_saved_folder(self) -> None:
         set_preference(LAST_FOLDER_KEY, "")

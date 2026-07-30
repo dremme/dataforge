@@ -59,6 +59,7 @@ class BrowseResponse(BaseModel):
     subfolders: list[Subfolder]
     items: list[GalleryItem]
     sysprompt: GalleryItem | None = None
+    has_caption_backup: bool = False
     item_count: int
     subfolder_count: int
     fingerprint: str = ""
@@ -181,6 +182,14 @@ class StripMetadataStartRequest(JobSelectionRequest):
 
 class BatchRenameStartRequest(JobSelectionRequest):
     stem: str = ""
+
+
+class BackupCaptionsStartRequest(JobSelectionRequest):
+    pass
+
+
+class RestoreCaptionsStartRequest(JobSelectionRequest):
+    pass
 
 
 class VerifyCaptionsSettingsResponse(BaseModel):

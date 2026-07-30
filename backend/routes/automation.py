@@ -8,9 +8,11 @@ from body_parts_settings import parse_keywords, update_body_parts_settings
 from routes._helpers import job_response, resolve_folder
 from schemas import (
     AutoCaptionStartRequest,
+    BackupCaptionsStartRequest,
     BatchRenameStartRequest,
     BodyPartsStartRequest,
     JobResponse,
+    RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
     StripMetadataStartRequest,
     VerifyCaptionsStartRequest,
@@ -102,6 +104,22 @@ def start_batch_rename_job(
     body: BatchRenameStartRequest = BatchRenameStartRequest(),
 ) -> JobResponse:
     return _start_job("batch_rename", resolve_folder(path), body.paths, stem=body.stem)
+
+
+@router.post("/automation/backup-captions", response_model=JobResponse)
+def start_backup_captions_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: BackupCaptionsStartRequest = BackupCaptionsStartRequest(),
+) -> JobResponse:
+    return _start_job("backup_captions", resolve_folder(path), body.paths)
+
+
+@router.post("/automation/restore-captions", response_model=JobResponse)
+def start_restore_captions_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: RestoreCaptionsStartRequest = RestoreCaptionsStartRequest(),
+) -> JobResponse:
+    return _start_job("restore_captions", resolve_folder(path), body.paths)
 
 
 @router.post("/automation/verify-captions", response_model=JobResponse)

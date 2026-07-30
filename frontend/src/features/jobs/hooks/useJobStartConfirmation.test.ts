@@ -8,6 +8,7 @@ describe("useJobStartConfirmation", () => {
     const { result } = renderHook(() =>
       useJobStartConfirmation("C:\\Photos", [{ name: "Photos", path: "C:\\Photos" }], {
         strip_metadata: startStripMetadata,
+        restore_captions: vi.fn(),
       }),
     );
 
@@ -35,6 +36,7 @@ describe("useJobStartConfirmation", () => {
         [{ name: "Photos", path: "C:\\Photos" }],
         {
           strip_metadata: startStripMetadata,
+          restore_captions: vi.fn(),
         },
         getJobPaths,
       ),

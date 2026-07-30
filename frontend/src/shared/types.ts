@@ -165,6 +165,7 @@ export interface BrowseResponse {
   subfolders: Subfolder[];
   items: GalleryItem[];
   sysprompt: GalleryItem | null;
+  has_caption_backup: boolean;
   item_count: number;
   subfolder_count: number;
   fingerprint: string;
@@ -176,7 +177,9 @@ export type JobType =
   | "strip_metadata"
   | "set_captions"
   | "verify_captions"
-  | "batch_rename";
+  | "batch_rename"
+  | "backup_captions"
+  | "restore_captions";
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 

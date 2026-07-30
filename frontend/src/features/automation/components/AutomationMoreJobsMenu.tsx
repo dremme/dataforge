@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { JOB_TYPE_META, SECONDARY_JOB_TYPES, jobTypeIconFor } from "@/features/jobs/lib/jobMeta";
+import {
+  JOB_TYPE_META,
+  SECONDARY_JOB_TYPES,
+  isJobAvailable,
+  jobTypeIconFor,
+  type JobAvailability,
+} from "@/features/jobs/lib/jobMeta";
 import type { JobType } from "@/shared/types";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { iconChevronDown, iconLoader2 } from "@/shared/icons";
@@ -9,12 +15,15 @@ import { Icon } from "@/shared/ui/Icon";
 interface AutomationMoreJobsMenuProps {
   disabled: boolean;
   startingJobType: JobType | null;
+  /** Folder state; a job the registry calls unavailable is listed but not startable. */
+  availability: JobAvailability;
   onRequestStart: (jobType: JobType) => void;
 }
 
 export function AutomationMoreJobsMenu({
   disabled,
   startingJobType,
+  availability,
   onRequestStart,
 }: AutomationMoreJobsMenuProps) {
   const menuId = useId();
@@ -40,9 +49,10 @@ export function AutomationMoreJobsMenu({
           description: meta.menuDescription ?? "",
           icon: jobTypeIconFor(type),
           starting: startingJobType === type,
+          unavailable: !isJobAvailable(type, availability),
         };
       }),
-    [startingJobType],
+    [availability, startingJobType],
   );
 
   useEscapeKey(close, open);
@@ -59,8 +69,8 @@ export function AutomationMoreJobsMenu({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [close, open]);
 
-  const handleSelect = (jobType: JobType, starting: boolean) => {
-    if (disabled || starting) return;
+  const handleSelect = (jobType: JobType, starting: boolean, unavailable: boolean) => {
+    if (disabled || starting || unavailable) return;
     close();
     onRequestStart(jobType);
   };
@@ -92,8 +102,8 @@ export function AutomationMoreJobsMenu({
               type="button"
               role="menuitem"
               className="automation__more-item"
-              onClick={() => handleSelect(job.id, job.starting)}
-              disabled={disabled || job.starting}
+              onClick={() => handleSelect(job.id, job.starting, job.unavailable)}
+              disabled={disabled || job.starting || job.unavailable}
             >
               <Icon icon={job.icon} className="automation__more-item-icon" />
               <span className="automation__more-item-text">

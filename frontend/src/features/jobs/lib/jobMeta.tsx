@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { AppIcon } from "@/shared/icons";
 import {
+  iconArchive,
+  iconArchiveRestore,
   iconCircleQuestionMark,
   iconFilePen,
   iconGroup,
@@ -12,7 +14,12 @@ import {
 import type { JobType } from "@/shared/types";
 
 /** How the app asks the user before starting this job type. */
-type JobStartUi = "dialog" | "confirm";
+type JobStartUi = "dialog" | "confirm" | "immediate";
+
+/** Folder state that decides whether a job can run right now. */
+export interface JobAvailability {
+  hasCaptionBackup: boolean;
+}
 
 interface JobTypeMeta {
   type: JobType;
@@ -31,6 +38,8 @@ interface JobTypeMeta {
     description: (folderLabel: string) => ReactNode;
     confirmLabel: string;
   };
+  /** Whether this job can run in the current folder. Omit for jobs that always can. */
+  isAvailable?: (availability: JobAvailability) => boolean;
 }
 
 /**
@@ -91,11 +100,42 @@ export const JOB_TYPE_META = {
     menuLabel: "Detect body parts",
     menuDescription: "Detect body and face; optional SAM keywords.",
   },
+  backup_captions: {
+    type: "backup_captions" as const,
+    label: "Backup captions",
+    icon: iconArchive,
+    startUi: "immediate" as const,
+    menuDescription: "Copy captions and caption issues into the .backup folder.",
+  },
+  restore_captions: {
+    type: "restore_captions" as const,
+    label: "Restore captions",
+    icon: iconArchiveRestore,
+    startUi: "confirm" as const,
+    menuDescription: "Bring captions and caption issues back from the .backup folder.",
+    confirm: {
+      title: "Restore captions from backup?",
+      description: (folderLabel: string) => (
+        <>
+          This overwrites current captions and caption issues in <strong>{folderLabel}</strong> with
+          the copies in <strong>.backup</strong>. Files that are not in the backup are left
+          untouched.
+        </>
+      ),
+      confirmLabel: "Restore captions",
+    },
+    isAvailable: ({ hasCaptionBackup }: JobAvailability) => hasCaptionBackup,
+  },
 } satisfies Record<JobType, JobTypeMeta>;
 
-export type ConfirmableJobType = {
-  [K in JobType]: (typeof JOB_TYPE_META)[K]["startUi"] extends "confirm" ? K : never;
+type JobTypeWithStartUi<Ui extends JobStartUi> = {
+  [K in JobType]: (typeof JOB_TYPE_META)[K]["startUi"] extends Ui ? K : never;
 }[JobType];
+
+export type ConfirmableJobType = JobTypeWithStartUi<"confirm">;
+
+/** Jobs that start straight from the menu, with no dialog or confirmation. */
+export type ImmediateJobType = JobTypeWithStartUi<"immediate">;
 
 const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
 
@@ -132,6 +172,17 @@ export function isConfirmableJobType(type: JobType): type is ConfirmableJobType 
   return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "confirm";
 }
 
+export function isImmediateJobType(type: JobType): type is ImmediateJobType {
+  return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "immediate";
+}
+
+/** Whether ``type`` can be started for a folder in this state. */
+export function isJobAvailable(type: JobType, availability: JobAvailability): boolean {
+  if (!isKnownJobType(type)) return true;
+  return jobTypeMeta(type).isAvailable?.(availability) ?? true;
+}
+
 export const JOB_START_CONFIRM: Record<ConfirmableJobType, NonNullable<JobTypeMeta["confirm"]>> = {
   strip_metadata: JOB_TYPE_META.strip_metadata.confirm!,
+  restore_captions: JOB_TYPE_META.restore_captions.confirm!,
 };

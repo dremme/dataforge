@@ -3,7 +3,12 @@ import type { AutomationPanelProps } from "@/features/automation/components/Auto
 import { useAutomationDialogOverlays } from "@/features/automation/hooks/useAutomationDialogOverlays";
 import type { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useJobStartConfirmation } from "@/features/jobs/hooks/useJobStartConfirmation";
-import { isConfirmableJobType } from "@/features/jobs/lib/jobMeta";
+import {
+  isConfirmableJobType,
+  isImmediateJobType,
+  isJobAvailable,
+  type JobAvailability,
+} from "@/features/jobs/lib/jobMeta";
 import type { Breadcrumb, GalleryItem, JobType } from "@/shared/types";
 
 type FolderAutomation = ReturnType<typeof useFolderAutomation>;
@@ -14,6 +19,7 @@ type UseAutomationHostOptions = {
   items: GalleryItem[];
   filteredItems: GalleryItem[];
   sysprompt: GalleryItem | null;
+  hasCaptionBackup: boolean;
   getJobPaths: () => string[] | undefined;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
@@ -31,6 +37,7 @@ export function useAutomationHost({
   items,
   filteredItems,
   sysprompt,
+  hasCaptionBackup,
   getJobPaths,
   automation,
   onEditSysprompt,
@@ -42,6 +49,7 @@ export function useAutomationHost({
     breadcrumbs,
     {
       strip_metadata: automation.startStripMetadataJob,
+      restore_captions: automation.startRestoreCaptionsJob,
     },
     getJobPaths,
   );
@@ -68,15 +76,41 @@ export function useAutomationHost({
   } = jobStart;
   const { openDialogForJobType, dialogs: automationDialogs } = dialogs;
 
+  const immediateStarters = useMemo(
+    () => ({ backup_captions: automation.startBackupCaptionsJob }),
+    [automation.startBackupCaptionsJob],
+  );
+
+  const jobAvailability = useMemo<JobAvailability>(
+    () => ({ hasCaptionBackup }),
+    [hasCaptionBackup],
+  );
+
   const requestStart = useCallback(
     (jobType: JobType) => {
+      // The menu already disables these; re-checked so a stale flag cannot start a job.
+      if (!isJobAvailable(jobType, jobAvailability)) return;
       if (isConfirmableJobType(jobType)) {
         requestJobStart(jobType);
         return;
       }
+      if (isImmediateJobType(jobType)) {
+        if (!folder) return;
+        immediateStarters[jobType](folder, getJobPaths()).catch(() => {
+          // Errors are stored in jobs context state.
+        });
+        return;
+      }
       openDialogForJobType(jobType);
     },
-    [openDialogForJobType, requestJobStart],
+    [
+      folder,
+      getJobPaths,
+      jobAvailability,
+      immediateStarters,
+      openDialogForJobType,
+      requestJobStart,
+    ],
   );
 
   const panelProps = useMemo<AutomationPanelProps>(
@@ -87,6 +121,7 @@ export function useAutomationHost({
       canStart: !automation.folderHasActiveJob,
       hasSyspromptFile: Boolean(sysprompt),
       hasSyspromptContent: sysprompt?.has_description ?? false,
+      jobAvailability,
       onEditSysprompt,
       onRequestStart: requestStart,
       cancellingJob: automation.cancellingJob,
@@ -101,6 +136,7 @@ export function useAutomationHost({
       automation.folderJob,
       automation.startingJobType,
       filteredItems,
+      jobAvailability,
       issueCount,
       onEditSysprompt,
       onResolveIssues,

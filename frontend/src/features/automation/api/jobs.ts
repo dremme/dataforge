@@ -51,6 +51,14 @@ export async function startStripMetadataJob(folderPath: string, paths?: string[]
   return postJson<Job>(jobUrl("strip-metadata", folderPath), withJobPaths({}, paths));
 }
 
+export async function startBackupCaptionsJob(folderPath: string, paths?: string[]): Promise<Job> {
+  return postJson<Job>(jobUrl("backup-captions", folderPath), withJobPaths({}, paths));
+}
+
+export async function startRestoreCaptionsJob(folderPath: string, paths?: string[]): Promise<Job> {
+  return postJson<Job>(jobUrl("restore-captions", folderPath), withJobPaths({}, paths));
+}
+
 export async function startBatchRenameJob(
   folderPath: string,
   stem: string,

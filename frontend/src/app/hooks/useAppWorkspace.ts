@@ -88,6 +88,7 @@ export function useAppWorkspace() {
     items,
     filteredItems: gallery.query.filteredItems,
     sysprompt,
+    hasCaptionBackup: browse?.has_caption_backup ?? false,
     getJobPaths: gallery.getJobPaths,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from urllib.parse import quote
 
+from automation.backup_captions import run_backup_captions_job
 from automation.jobs import Job, job_manager
 from routes._test_client import client
 from testing_fixtures import (
@@ -188,6 +189,52 @@ class VerifyCaptionsAutomationEndpointTest(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["job_type"], "verify_captions")
+
+
+class CaptionBackupEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def test_backup_requires_a_caption(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = client.post(f"/api/automation/backup-captions?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("No captions found to back up", response.json()["detail"])
+
+    def test_backup_starts_job_and_returns_payload(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A plain caption.")
+
+            response = client.post(f"/api/automation/backup-captions?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["job_type"], "backup_captions")
+
+    def test_restore_requires_an_existing_backup(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A plain caption.")
+
+            response = client.post(f"/api/automation/restore-captions?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("No caption backup found", response.json()["detail"])
+
+    def test_restore_starts_job_and_returns_payload(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A plain caption.")
+            run_backup_captions_job(root)
+            reset_job_manager()
+
+            response = client.post(f"/api/automation/restore-captions?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["job_type"], "restore_captions")
 
 
 if __name__ == "__main__":
