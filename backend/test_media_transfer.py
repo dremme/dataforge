@@ -63,7 +63,7 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
             write_json_caption(media, {"description": "Golden hour."})
-            issue_file_path(media).write_text('{"issues":"old"}', encoding="utf-8")
+            issue_file_path(media).write_text('{"fixes":["old"]}', encoding="utf-8")
 
             result = transfer_media_with_sidecars(media, destination_dir, mode="move")
 
@@ -188,7 +188,7 @@ class AbortedMoveTests(unittest.TestCase):
             write_txt_caption(media, "Golden hour.")
             existing = write_media(destination_dir, "sunset.png")
             write_txt_caption(existing, "Stale.")
-            issue_file_path(existing).write_text('{"issues":"stale"}', encoding="utf-8")
+            issue_file_path(existing).write_text('{"fixes":["stale"]}', encoding="utf-8")
 
             transfer_media_with_sidecars(media, destination_dir, overwrite=True, mode="move")
 
@@ -214,7 +214,7 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
             write_json_caption(media, {"description": "Golden hour."})
-            issue_file_path(media).write_text('{"issues":"old"}', encoding="utf-8")
+            issue_file_path(media).write_text('{"fixes":["old"]}', encoding="utf-8")
 
             result = transfer_media_with_sidecars(media, destination_dir, mode="copy")
 
@@ -285,7 +285,7 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
             existing = write_media(destination_dir, "sunset.png")
-            issue_file_path(existing).write_text('{"issues":"stale"}', encoding="utf-8")
+            issue_file_path(existing).write_text('{"fixes":["stale"]}', encoding="utf-8")
 
             transfer_media_with_sidecars(media, destination_dir, overwrite=True, mode="copy")
 

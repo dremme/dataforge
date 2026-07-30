@@ -168,11 +168,6 @@
     display: flex;
     align-items: flex-start;
     gap: 0.65rem;
-
-    &--suggestion {
-      padding-top: 0.55rem;
-      border-top: 1px solid rgba($color-warning, 0.14);
-    }
   }
 
   &__issue-icon {
@@ -196,6 +191,41 @@
     line-height: 1;
     text-transform: uppercase;
     letter-spacing: var(--tracking-caps);
+  }
+
+  &__issue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0;
+    padding-left: 0;
+    // Native markers cannot be aligned flush nor spaced from their text, so the
+    // numbering is drawn as a baseline-aligned flex item instead.
+    list-style: none;
+    counter-reset: issue-fix;
+
+    li {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      counter-increment: issue-fix;
+
+      &::before {
+        content: counter(issue-fix) ".";
+        flex: none;
+        // Proportional digits vary in width, which would leave the text column ragged.
+        @include tabular-nums;
+        color: $color-warning;
+        font-size: var(--text-xs);
+        font-weight: var(--font-semibold);
+      }
+    }
+
+    // A lone fix reads as a statement; the numbering only earns its place once
+    // there is an order to follow.
+    &:has(li:only-child) li::before {
+      content: none;
+    }
   }
 
   &__issue-text {

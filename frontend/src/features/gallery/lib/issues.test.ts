@@ -9,8 +9,7 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     description: "A caption",
     has_description: true,
     has_caption_file: true,
-    issue: "Wrong color described.",
-    issue_suggestions: "Mention the mountain peak.",
+    issue_fixes: ['Replace "a blue lake" with "a snow-covered mountain peak".'],
     has_issue_file: true,
     has_bboxes: false,
     caption_status: "text",
@@ -26,7 +25,7 @@ describe("listResolvableIssueItems", () => {
       item(),
       item({ name: "clip.mp4", path: "C:\\Photos\\clip.mp4", media_type: "video" }),
       item({ name: ".sysprompt", media_type: "sysprompt", has_issue_file: false }),
-      item({ name: "plain.png", has_issue_file: false, issue: null }),
+      item({ name: "plain.png", has_issue_file: false, issue_fixes: [] }),
     ];
 
     expect(listResolvableIssueItems(items)).toHaveLength(2);

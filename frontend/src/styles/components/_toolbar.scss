@@ -81,7 +81,7 @@ $toolbar-search-width-max: 22rem;
       // it to the cap. The base offset sets that hand-off point.
       width: clamp(
         #{$toolbar-search-width-min},
-        calc(2rem + var(--toolbar-search-length, 0) * 1ch),
+        calc(3rem + var(--toolbar-search-length, 0) * 1ch),
         #{$toolbar-search-width-max}
       );
       min-width: min(100%, 10.5rem);

@@ -31,8 +31,7 @@ class GalleryItem(BaseModel):
     description: str | None
     has_description: bool
     has_caption_file: bool
-    issue: str | None = None
-    issue_suggestions: str | None = None
+    issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
     has_bboxes: bool
     caption_status: str
@@ -125,8 +124,7 @@ class CaptionSaveResponse(BaseModel):
     caption_content: str | None = None
     bboxes: list[CaptionBBox] = Field(default_factory=list)
     has_bboxes: bool
-    issue: str | None = None
-    issue_suggestions: str | None = None
+    issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
 
 

@@ -411,8 +411,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
               })
               .filter((bbox): bbox is NonNullable<typeof bbox> => bbox !== null);
             if (resolveIssue) {
-              item.issue = null;
-              item.issue_suggestions = null;
+              item.issue_fixes = [];
               item.has_issue_file = false;
             }
           } catch {
@@ -444,15 +443,13 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         }
 
         if (resolveIssue) {
-          item.issue = null;
-          item.issue_suggestions = null;
+          item.issue_fixes = [];
           item.has_issue_file = false;
         }
       }
 
       const issueFields = {
-        issue: savedItem?.issue ?? null,
-        issue_suggestions: savedItem?.issue_suggestions ?? null,
+        issue_fixes: savedItem?.issue_fixes ?? [],
         has_issue_file: savedItem?.has_issue_file ?? false,
       };
 

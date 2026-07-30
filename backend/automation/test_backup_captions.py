@@ -280,13 +280,13 @@ class RestoreCaptionsJobTests(unittest.TestCase):
             run_backup_captions_job(root)
 
             issue_file_path(media).unlink()
-            self.assertEqual(load_issue_summary(media), (None, None, False))
+            self.assertEqual(load_issue_summary(media), ([], False))
 
             run_restore_captions_job(root)
 
-            issues, _suggestions, actionable = load_issue_summary(media)
-            self.assertEqual(issues, "The caption omits the mountains.")
-            self.assertTrue(actionable)
+            fixes, has_issue_file = load_issue_summary(media)
+            self.assertEqual(fixes, ["The caption omits the mountains."])
+            self.assertTrue(has_issue_file)
 
     def test_honours_a_selection_for_issue_sidecars(self) -> None:
         with TempMediaFolder() as root:

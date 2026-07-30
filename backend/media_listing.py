@@ -158,7 +158,7 @@ def _read_file_stat(entry: Path) -> tuple[int, str] | None:
 
 def _build_media_item(entry: Path, media_type: str) -> dict:
     description, has_bboxes, caption_status, caption_file_type = load_caption_summary(entry)
-    issue, issue_suggestions, has_issue_file = load_issue_summary(entry)
+    issue_fixes, has_issue_file = load_issue_summary(entry)
 
     item_data = {
         "name": entry.name,
@@ -166,8 +166,7 @@ def _build_media_item(entry: Path, media_type: str) -> dict:
         "description": description,
         "has_description": description is not None,
         "has_caption_file": caption_status != "none",
-        "issue": issue,
-        "issue_suggestions": issue_suggestions,
+        "issue_fixes": issue_fixes,
         "has_issue_file": has_issue_file,
         "has_bboxes": has_bboxes,
         "caption_status": caption_status,

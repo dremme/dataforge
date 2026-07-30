@@ -19,13 +19,7 @@ import {
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { formatMegapixels } from "@/shared/lib/format";
-import {
-  iconArrowUpRight,
-  iconLightbulb,
-  iconLoader2,
-  iconTriangleAlert,
-  iconX,
-} from "@/shared/icons";
+import { iconArrowUpRight, iconLoader2, iconTriangleAlert, iconX } from "@/shared/icons";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -154,8 +148,7 @@ export function IssueResolverModal({
   const resolution = getResolution(item);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
-  const issueText = item.issue?.trim() || "Error in issue file";
-  const suggestionText = item.issue_suggestions?.trim() || null;
+  const fixes = item.issue_fixes.map((fix) => fix.trim()).filter(Boolean);
 
   return createPortal(
     <div
@@ -269,20 +262,22 @@ export function IssueResolverModal({
               <div className="issue-resolver-modal__issue-row">
                 <Icon icon={iconTriangleAlert} className="issue-resolver-modal__issue-icon" />
                 <div className="issue-resolver-modal__issue-content">
-                  <span className="issue-resolver-modal__issue-label">Issue</span>
-                  <p className="issue-resolver-modal__issue-text">{issueText}</p>
+                  <span className="issue-resolver-modal__issue-label">
+                    {fixes.length > 0 ? "Suggested changes" : "Issue"}
+                  </span>
+                  {fixes.length > 0 ? (
+                    <ol className="issue-resolver-modal__issue-list">
+                      {fixes.map((fix) => (
+                        <li key={fix} className="issue-resolver-modal__issue-text">
+                          {fix}
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="issue-resolver-modal__issue-text">Error in issue file</p>
+                  )}
                 </div>
               </div>
-
-              {suggestionText && (
-                <div className="issue-resolver-modal__issue-row issue-resolver-modal__issue-row--suggestion">
-                  <Icon icon={iconLightbulb} className="issue-resolver-modal__issue-icon" />
-                  <div className="issue-resolver-modal__issue-content">
-                    <span className="issue-resolver-modal__issue-label">Suggestion</span>
-                    <p className="issue-resolver-modal__issue-text">{suggestionText}</p>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="issue-resolver-modal__caption-editor">

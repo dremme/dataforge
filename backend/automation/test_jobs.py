@@ -156,13 +156,7 @@ class JobManagerExecutionTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "A blue car.")
 
-            response = json.dumps(
-                {
-                    "correct": False,
-                    "issues": "The car is red.",
-                    "suggestions": "Update color.",
-                }
-            )
+            response = json.dumps({"correct": False, "fixes": ['Replace "blue" with "red".']})
 
             with patch("automation.verify_captions.verify_caption", return_value=response):
                 job = job_manager.queue_job("verify_captions", root, mode="instruct", context="")

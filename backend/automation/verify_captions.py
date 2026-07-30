@@ -24,8 +24,13 @@ from automation.vision import (
     run_vision_completion,
     vision_messages,
 )
-from captions import NO_CAPTION_STATUS, issue_file_path, load_reference_caption
-from constants import IMAGE_EXTENSIONS
+from captions import (
+    NO_CAPTION_STATUS,
+    issue_file_path,
+    load_reference_caption,
+    normalize_issue_fixes,
+)
+from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES
 from openai_settings import create_openai_client, get_max_tokens, get_openai_model
 
 logger = logging.getLogger(__name__)
@@ -44,9 +49,7 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 @dataclass(frozen=True)
 class VerificationResult:
-    correct: bool
-    issues: str
-    suggestions: str
+    fixes: tuple[str, ...]
 
 
 def _strip_json_fences(text: str) -> str:
@@ -109,25 +112,20 @@ def _coerce_bool(value: object) -> bool | None:
     return None
 
 
-def _has_substantive_issues(issues: str) -> bool:
-    return issues.strip().lower() not in {"", "none", "n/a"}
-
-
 def _parse_verification_payload(data: dict) -> VerificationResult | None:
-    correct = _coerce_bool(data.get("correct"))
-    issues = data.get("issues")
-    suggestions = data.get("suggestions")
+    """Let the verdict gate the fix list.
 
+    Asking for the verdict first buys a cheap commitment token before any fix text is
+    generated; without it the model treats the open array as an invitation and flags
+    everything. A stated "correct" therefore outranks any fixes that follow it.
+    """
+    correct = _coerce_bool(data.get("correct"))
     if correct is None:
         return None
-    if not isinstance(issues, str) or not isinstance(suggestions, str):
-        return None
+    if correct:
+        return VerificationResult(fixes=())
 
-    return VerificationResult(
-        correct=correct,
-        issues=issues.strip(),
-        suggestions=suggestions.strip(),
-    )
+    return VerificationResult(fixes=tuple(normalize_issue_fixes(data.get("fixes"))))
 
 
 def parse_verification_response(raw_text: str) -> VerificationResult | None:
@@ -147,25 +145,11 @@ def parse_verification_response(raw_text: str) -> VerificationResult | None:
 
 
 def should_write_issue_file(verification: VerificationResult) -> bool:
-    return not verification.correct and _has_substantive_issues(verification.issues)
+    return bool(verification.fixes)
 
 
 def verification_result_to_dict(verification: VerificationResult) -> dict[str, object]:
-    return {
-        "correct": verification.correct,
-        "issues": verification.issues,
-        "suggestions": verification.suggestions,
-    }
-
-
-def normalize_verification_result(verification: VerificationResult) -> VerificationResult:
-    if verification.correct:
-        return verification
-
-    if not _has_substantive_issues(verification.issues):
-        return VerificationResult(correct=True, issues="None", suggestions="None")
-
-    return verification
+    return {"fixes": list(verification.fixes)}
 
 
 def build_verification_system_prompt(context: str = "") -> str:
@@ -195,23 +179,21 @@ def build_verification_system_prompt(context: str = "") -> str:
 
     sections.append(
         textwrap.dedent(
-            """
+            f"""
             # Rules
             - Set "correct" to true when the caption matches the image, including when it omits
               optional details that do not contradict what is visible.
             - Set "correct" to false only for clear factual contradictions (wrong subject, wrong
               clothing, wrong pose, wrong setting, invented details, incorrect hand/leg positioning).
+            - When you are unsure, set "correct" to true.
             - Do not flag caption style, formatting, or harmless omissions.
-            - When "correct" is false, quote the exact caption phrase that contradicts the image
-              in "issues".
 
             # Output Format
             Respond exclusively with a valid JSON object (no markdown fences):
-            {
+            {{
                 "correct": true or false,
-                "issues": "Specific contradictions with quoted caption phrases, or 'None'.",
-                "suggestions": "Brief fix when correct is false, or 'None'."
-            }
+                "fixes": ["At most {MAX_ISSUE_FIXES} instructions, most important first, each quoting the exact caption phrase that contradicts the image and stating what it should say instead. Empty when correct is true."]
+            }}
             """
         ).strip()
     )
@@ -311,10 +293,7 @@ def process_media(
                 message=f"Model response was not valid JSON: {_response_preview(raw_caption)}",
             )
 
-        return ModelOutcome(
-            status="success",
-            value=normalize_verification_result(verification),
-        )
+        return ModelOutcome(status="success", value=verification)
 
     outcome = call_with_retries(
         attempt,
@@ -425,11 +404,7 @@ def run_verify_captions_job(
 
         if not should_write_issue_file(verification):
             _remove_stale_issue_file(media_path)
-            return FileOutcome(
-                status="success",
-                stats={"success": 1},
-                fields={"description": verification.issues or None},
-            )
+            return FileOutcome(status="success", stats={"success": 1})
 
         try:
             issue_file_path(media_path).write_text(
@@ -446,10 +421,7 @@ def run_verify_captions_job(
         return FileOutcome(
             status="success",
             stats={"issues_found": 1, "success": 1},
-            fields={
-                "description": verification.issues,
-                "preview": verification.suggestions,
-            },
+            fields={"description": "; ".join(verification.fixes)},
         )
 
     # ``processed`` counts each handled file once: issues_found is a sub-stat of

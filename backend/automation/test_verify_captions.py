@@ -16,7 +16,6 @@ from automation.verify_captions import (
     VerificationResult,
     build_verification_system_prompt,
     list_verify_captions_media,
-    normalize_verification_result,
     parse_verification_response,
     process_media,
     run_verify_captions_job,
@@ -26,6 +25,7 @@ from automation.verify_captions import (
 )
 from automation.vision import INSTRUCT_THINK_PREFILL, MAX_MODEL_ATTEMPTS
 from captions import issue_file_path
+from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
     TempMediaFolder,
     write_media,
@@ -33,20 +33,17 @@ from testing_fixtures import (
     write_txt_caption,
 )
 
+DEFAULT_FIX = 'Replace "a blue lake" with "a snow-covered mountain peak".'
 
-def _verification_json(
-    *,
-    correct: bool = False,
-    issues: str = "Wrong subject described.",
-    suggestions: str = "Mention the mountain peak.",
-) -> str:
-    return json.dumps(
-        {
-            "correct": correct,
-            "issues": issues,
-            "suggestions": suggestions,
-        }
-    )
+
+def _rules_section(prompt: str) -> str:
+    return prompt[prompt.index("# Rules") : prompt.index("# Output Format")]
+
+
+def _fixes_json(*fixes: str, correct: bool | None = None) -> str:
+    """Build a model response. ``correct`` defaults to agreeing with the fix list."""
+    verdict = not fixes if correct is None else correct
+    return json.dumps({"correct": verdict, "fixes": list(fixes)})
 
 
 def _make_fake_verify_client(
@@ -59,7 +56,7 @@ def _make_fake_verify_client(
     if captured is None:
         captured = {}
     if content is None and reasoning_content is None:
-        content = _verification_json()
+        content = _fixes_json(DEFAULT_FIX)
     message = type(
         "Message",
         (),
@@ -92,80 +89,90 @@ def _make_fake_verify_client(
 
 class VerifyCaptionsParsingTests(unittest.TestCase):
     def test_parse_valid_json_response(self) -> None:
-        parsed = parse_verification_response(_verification_json())
+        parsed = parse_verification_response(_fixes_json(DEFAULT_FIX))
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertFalse(parsed.correct)
-        self.assertEqual(parsed.issues, "Wrong subject described.")
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
 
     def test_parse_strips_markdown_fences_and_thinking_tags(self) -> None:
-        raw = (
-            "<think>\nmaybe wrong\n</think>\n"
-            "```json\n"
-            + _verification_json(correct=True, issues="None", suggestions="None")
-            + "\n```"
-        )
+        raw = "<think>\nmaybe wrong\n</think>\n```json\n" + _fixes_json(DEFAULT_FIX) + "\n```"
 
         parsed = parse_verification_response(raw)
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertTrue(parsed.correct)
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
 
     def test_parse_rejects_invalid_json(self) -> None:
         self.assertIsNone(parse_verification_response("not json"))
 
+    def test_parse_rejects_payload_without_a_verdict(self) -> None:
+        """An unverdicted response is retried rather than trusted."""
+        self.assertIsNone(parse_verification_response(json.dumps({"fixes": [DEFAULT_FIX]})))
+        self.assertIsNone(parse_verification_response(json.dumps({"correct": "maybe"})))
+
+    def test_parse_coerces_a_string_verdict(self) -> None:
+        raw = json.dumps({"correct": "no", "fixes": [DEFAULT_FIX]})
+
+        parsed = parse_verification_response(raw)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
+
     def test_parse_extracts_json_embedded_in_prose(self) -> None:
-        raw = "Here is my evaluation:\n" + _verification_json(
-            correct=True, issues="None", suggestions="None"
-        )
+        parsed = parse_verification_response("Here is my evaluation:\n" + _fixes_json(DEFAULT_FIX))
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
+
+    def test_parse_reads_a_true_verdict_as_a_matching_caption(self) -> None:
+        parsed = parse_verification_response(_fixes_json())
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed.fixes, ())
+
+    def test_a_true_verdict_outranks_any_fixes_that_follow_it(self) -> None:
+        """Contradictions resolve toward "no issue" - the direction that avoids false flags."""
+        parsed = parse_verification_response(_fixes_json(DEFAULT_FIX, correct=True))
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed.fixes, ())
+
+    def test_parse_drops_sentinel_and_non_string_entries(self) -> None:
+        raw = json.dumps({"correct": False, "fixes": ["None", "  ", 42, None, DEFAULT_FIX, "n/a"]})
 
         parsed = parse_verification_response(raw)
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertTrue(parsed.correct)
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
 
-    def test_parse_ignores_legacy_severity_and_confidence_fields(self) -> None:
+    def test_parse_keeps_only_the_three_most_important_fixes(self) -> None:
         raw = json.dumps(
-            {
-                "correct": False,
-                "issues": "Caption says blue car but image shows red car.",
-                "suggestions": "Change to red car.",
-                "severity": "critical",
-                "confidence": 0.95,
-            }
+            {"correct": False, "fixes": ["first", "second", "third", "fourth", "fifth"]}
         )
 
         parsed = parse_verification_response(raw)
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertFalse(parsed.correct)
+        self.assertEqual(parsed.fixes, ("first", "second", "third"))
 
-    def test_should_write_issue_only_for_incorrect_captions_with_substantive_issues(
-        self,
-    ) -> None:
-        mismatch = VerificationResult(
-            correct=False,
-            issues="Mismatch",
-            suggestions="Fix it",
-        )
-        correct = VerificationResult(
-            correct=True,
-            issues="None",
-            suggestions="None",
-        )
-        empty_issue = VerificationResult(
-            correct=False,
-            issues="None",
-            suggestions="None",
-        )
+    def test_should_write_issue_only_when_fixes_remain(self) -> None:
+        self.assertTrue(should_write_issue_file(VerificationResult(fixes=(DEFAULT_FIX,))))
+        self.assertFalse(should_write_issue_file(VerificationResult(fixes=())))
 
-        self.assertTrue(should_write_issue_file(mismatch))
-        self.assertFalse(should_write_issue_file(correct))
-        self.assertFalse(should_write_issue_file(empty_issue))
+    def test_a_false_verdict_without_fixes_writes_nothing(self) -> None:
+        parsed = parse_verification_response(_fixes_json(correct=False))
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertFalse(should_write_issue_file(parsed))
 
 
 class VerifyCaptionsPromptTests(unittest.TestCase):
@@ -192,38 +199,43 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
 
         self.assertNotIn("# Additional context", prompt)
 
-    def test_build_system_prompt_uses_simplified_json_schema(self) -> None:
+    def test_build_system_prompt_asks_for_a_verdict_and_a_fixes_array(self) -> None:
         prompt = build_verification_system_prompt()
 
         self.assertIn('"correct": true or false', prompt)
-        self.assertIn('"issues":', prompt)
-        self.assertIn('"suggestions":', prompt)
+        self.assertIn('"fixes": [', prompt)
+        for retired_key in ('"issues"', '"suggestions"'):
+            self.assertNotIn(retired_key, prompt)
         self.assertNotIn("confidence", prompt.lower())
         self.assertNotIn("severity", prompt.lower())
 
+    def test_build_system_prompt_leads_with_permission_to_pass(self) -> None:
+        """Leading with the negative case is what made the model flag every caption."""
+        rules = _rules_section(build_verification_system_prompt())
 
-class VerifyCaptionsNormalizeTests(unittest.TestCase):
-    def test_normalize_discards_incorrect_without_substantive_issues(self) -> None:
-        verification = VerificationResult(
-            correct=False,
-            issues="None",
-            suggestions="None",
-        )
+        self.assertLess(rules.index('Set "correct" to true'), rules.index('Set "correct" to false'))
+        self.assertIn("When you are unsure", rules)
 
-        normalized = normalize_verification_result(verification)
+    def test_build_system_prompt_carries_no_sample_fix_text(self) -> None:
+        """A concrete example gets copied; the schema describes the shape instead."""
+        prompt = build_verification_system_prompt()
 
-        self.assertTrue(normalized.correct)
+        self.assertNotIn("hands on her hips", prompt)
+        self.assertNotIn("left hand resting on the railing", prompt)
 
-    def test_normalize_keeps_factual_mismatch(self) -> None:
-        verification = VerificationResult(
-            correct=False,
-            issues='Caption says "blue car" but the image shows a red car.',
-            suggestions='Change to "red car".',
-        )
+    def test_build_system_prompt_states_the_fix_cap(self) -> None:
+        prompt = build_verification_system_prompt()
 
-        normalized = normalize_verification_result(verification)
+        self.assertIn(f"At most {MAX_ISSUE_FIXES} instructions", prompt)
+        self.assertIn("most important first", prompt)
 
-        self.assertFalse(normalized.correct)
+    def test_build_system_prompt_keeps_the_rules_about_judging(self) -> None:
+        """Rules that teach fix-writing shift the prompt's weight from judging to producing."""
+        rules = _rules_section(build_verification_system_prompt())
+
+        self.assertEqual(rules.count("\n- "), 4)
+        for mechanic in ("most important first", "self-contained", "No explanations"):
+            self.assertNotIn(mechanic, rules)
 
 
 class VerifyCaptionsApiTests(unittest.TestCase):
@@ -308,7 +320,7 @@ class VerifyCaptionsApiTests(unittest.TestCase):
             self.assertNotIn("repeat_penalty", captured["extra_body"])
 
     def test_verify_caption_reasoning_fallback_only_in_instruct(self) -> None:
-        payload = _verification_json(correct=True, issues="None", suggestions="None")
+        payload = _fixes_json(DEFAULT_FIX)
         frames = [Image.new("RGB", (128, 128), color="blue")]
         kwargs = {
             "content": "",
@@ -328,7 +340,7 @@ class VerifyCaptionsApiTests(unittest.TestCase):
             parsed = parse_verification_response(instruct_raw or "")
             self.assertIsNotNone(parsed)
             assert parsed is not None
-            self.assertTrue(parsed.correct)
+            self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
 
             thinking_client, _ = _make_fake_verify_client(**kwargs)
             self.assertIsNone(
@@ -370,17 +382,17 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             with patch(
                 "automation.verify_captions.verify_caption",
-                return_value=_verification_json(issues="Car is red, not blue."),
+                return_value=_fixes_json('Replace "blue" with "red".', 'Remove "in the rain".'),
             ):
                 result = run_verify_captions_job(root)
 
             issue_path = issue_file_path(media)
             self.assertTrue(issue_path.is_file())
             issue_data = json.loads(issue_path.read_text(encoding="utf-8"))
-            self.assertFalse(issue_data["correct"])
-            self.assertEqual(issue_data["issues"], "Car is red, not blue.")
-            self.assertNotIn("severity", issue_data)
-            self.assertNotIn("confidence", issue_data)
+            self.assertEqual(
+                issue_data,
+                {"fixes": ['Replace "blue" with "red".', 'Remove "in the rain".']},
+            )
             self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(result["stats"]["issues_found"], 1)
 
@@ -391,11 +403,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             with patch(
                 "automation.verify_captions.verify_caption",
-                return_value=_verification_json(
-                    correct=True,
-                    issues="None",
-                    suggestions="None",
-                ),
+                return_value=_fixes_json(),
             ):
                 result = run_verify_captions_job(root)
 
@@ -409,16 +417,12 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             unselected = write_media(root, "unselected.png")
             write_txt_caption(selected, "Selected caption.")
             write_txt_caption(unselected, "Unselected caption.")
-            issue_file_path(selected).write_text('{"issues":"old-selected"}', encoding="utf-8")
-            issue_file_path(unselected).write_text('{"issues":"old-unselected"}', encoding="utf-8")
+            issue_file_path(selected).write_text('{"fixes":["old-selected"]}', encoding="utf-8")
+            issue_file_path(unselected).write_text('{"fixes":["old-unselected"]}', encoding="utf-8")
 
             with patch(
                 "automation.verify_captions.verify_caption",
-                return_value=_verification_json(
-                    correct=True,
-                    issues="None",
-                    suggestions="None",
-                ),
+                return_value=_fixes_json(),
             ):
                 run_verify_captions_job(root, selected_paths=[selected])
 
@@ -429,15 +433,11 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
             write_txt_caption(media, "A red car.")
-            issue_file_path(media).write_text('{"issues":"old"}', encoding="utf-8")
+            issue_file_path(media).write_text('{"fixes":["old"]}', encoding="utf-8")
 
             with patch(
                 "automation.verify_captions.verify_caption",
-                return_value=_verification_json(
-                    correct=True,
-                    issues="None",
-                    suggestions="None",
-                ),
+                return_value=_fixes_json(),
             ):
                 run_verify_captions_job(root)
 
@@ -479,7 +479,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             responses = [
                 "not valid json",
                 "{broken",
-                _verification_json(correct=True, issues="None", suggestions="None"),
+                _fixes_json(),
             ]
 
             with patch(
@@ -495,7 +495,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(status, "success")
             self.assertIsNone(message)
             self.assertIsNotNone(verification)
-            self.assertTrue(verification.correct)
+            self.assertEqual(verification.fixes, ())
             self.assertEqual(mock_verify.call_count, 3)
 
     def test_process_media_retries_api_errors_then_succeeds(self) -> None:
@@ -506,7 +506,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             responses = [
                 None,
                 None,
-                _verification_json(correct=True, issues="None", suggestions="None"),
+                _fixes_json(),
             ]
 
             with patch(
@@ -533,12 +533,8 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             def fake_verify(_client, media_path, *_args, **_kwargs):
                 if media_path.name == "issue.png":
-                    return _verification_json(issues="Caption does not match.")
-                return _verification_json(
-                    correct=True,
-                    issues="None",
-                    suggestions="None",
-                )
+                    return _fixes_json(DEFAULT_FIX)
+                return _fixes_json()
 
             with patch("automation.verify_captions.verify_caption", side_effect=fake_verify):
                 result = run_verify_captions_job(root, mode="thinking", context="Test context.")

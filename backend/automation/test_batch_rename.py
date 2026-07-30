@@ -21,6 +21,7 @@ from automation.batch_rename import (
 from captions import issue_file_path
 from testing_fixtures import (
     TempMediaFolder,
+    write_issue_sidecar,
     write_json_caption,
     write_media,
     write_mp4_video,
@@ -96,10 +97,7 @@ class BatchRenameJobTests(unittest.TestCase):
             media = write_media(root, "alpha.png")
             write_txt_caption(media, "Caption one.")
             write_json_caption(media, {"description": "Json caption."})
-            issue_file_path(media).write_text(
-                '{"correct": false, "issues": "Wrong pose.", "suggestions": "Fix it."}',
-                encoding="utf-8",
-            )
+            write_issue_sidecar(media, 'Change "standing" to "kneeling".')
 
             result = run_batch_rename_job(root, stem="portugal")
 
@@ -114,7 +112,7 @@ class BatchRenameJobTests(unittest.TestCase):
                 (root / "portugal_001.json").read_text(encoding="utf-8"),
             )
             self.assertIn(
-                "Wrong pose.",
+                'Change \\"standing\\" to \\"kneeling\\".',
                 (root / "portugal_001.issue.json").read_text(encoding="utf-8"),
             )
             self.assertFalse(issue_file_path(media).exists())
@@ -122,7 +120,7 @@ class BatchRenameJobTests(unittest.TestCase):
     def test_renames_issue_sidecar_when_no_json_caption_exists(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "alpha.png")
-            issue_file_path(media).write_text('{"issues": "Wrong pose."}', encoding="utf-8")
+            write_issue_sidecar(media, 'Change "standing" to "kneeling".')
 
             run_batch_rename_job(root, stem="portugal")
 

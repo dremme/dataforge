@@ -10,6 +10,7 @@ from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
     make_png_ztxt_bytes,
+    write_issue_sidecar,
     write_json_caption,
     write_media,
     write_mp4_video,
@@ -185,16 +186,10 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(caption.read_text(encoding="utf-8"), "Updated via API.\n")
 
     def test_resolve_issue_deletes_issue_sidecar(self) -> None:
-        from captions import issue_file_path
-
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "Original.")
-            issue_path = issue_file_path(media)
-            issue_path.write_text(
-                json.dumps({"correct": False, "issues": "Wrong color.", "suggestions": "Fix it."}),
-                encoding="utf-8",
-            )
+            issue_path = write_issue_sidecar(media, 'Replace "blue" with "red".')
 
             response = client.put(
                 f"/api/caption?path={quote(str(media))}",
@@ -205,8 +200,7 @@ class CaptionEndpointTests(unittest.TestCase):
             payload = response.json()
             self.assertEqual(payload["description"], "Corrected caption.")
             self.assertFalse(payload["has_issue_file"])
-            self.assertIsNone(payload["issue"])
-            self.assertIsNone(payload["issue_suggestions"])
+            self.assertEqual(payload["issue_fixes"], [])
             self.assertFalse(issue_path.is_file())
 
     def test_update_json_caption_preserves_elements(self) -> None:

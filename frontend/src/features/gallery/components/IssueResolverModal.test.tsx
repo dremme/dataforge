@@ -22,8 +22,10 @@ function makeIssueItem(name: string, overrides: Partial<GalleryItem> = {}): Gall
     description: "A red car in the street.",
     has_description: true,
     has_caption_file: true,
-    issue: "The caption says the car is blue.",
-    issue_suggestions: "Describe the car as red.",
+    issue_fixes: [
+      'Replace "a blue car" with "a red car".',
+      'Remove "parked at the curb" - the car is moving.',
+    ],
     has_issue_file: true,
     has_bboxes: false,
     caption_status: "text",
@@ -38,7 +40,7 @@ describe("IssueResolverModal", () => {
     installMockBackend();
   });
 
-  it("shows the issue, suggestion, and caption editor", async () => {
+  it("lists the suggested changes in order alongside the caption editor", async () => {
     render(
       <IssueResolverModal
         items={[
@@ -57,14 +59,59 @@ describe("IssueResolverModal", () => {
       name: "Resolve caption issue for sunset.png",
     });
 
-    expect(dialog).toHaveTextContent("The caption says the car is blue.");
-    expect(dialog).toHaveTextContent("Describe the car as red.");
+    expect(within(dialog).getByText("Suggested changes")).toBeInTheDocument();
+    expect(
+      within(dialog)
+        .getAllByRole("listitem")
+        .map((entry) => entry.textContent),
+    ).toEqual([
+      'Replace "a blue car" with "a red car".',
+      'Remove "parked at the curb" - the car is moving.',
+    ]);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Caption for sunset.png")).toHaveValue(
         "Golden hour over the lake",
       );
     });
+  });
+
+  it("renders a single fix without turning it into a list of one", async () => {
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("sunset.png", { issue_fixes: ['Change "seated" to "kneeling".'] })]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+
+    expect(within(dialog).getAllByRole("listitem")).toHaveLength(1);
+    expect(dialog).toHaveTextContent('Change "seated" to "kneeling".');
+  });
+
+  it("falls back to an error line when the issue file carries no fixes", async () => {
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("sunset.png", { issue_fixes: [] })]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+
+    expect(within(dialog).getByText("Error in issue file")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("listitem")).not.toBeInTheDocument();
   });
 
   it("shows resolution and live character count in the meta row", async () => {
@@ -191,8 +238,7 @@ describe("IssueResolverModal", () => {
       makeIssueItem("car.png"),
       makeIssueItem("boat.png", {
         description: "A boat on the lake.",
-        issue: "Missing sail detail.",
-        issue_suggestions: "Mention the white sail.",
+        issue_fixes: ['Add the white sail to "a boat on the lake".'],
       }),
     ];
 
@@ -226,10 +272,10 @@ describe("IssueResolverModal", () => {
     const resolvedPaths: string[] = [];
 
     const initialItems = [
-      makeIssueItem("one.png", { issue: "Issue one." }),
-      makeIssueItem("two.png", { issue: "Issue two." }),
-      makeIssueItem("three.png", { issue: "Issue three." }),
-      makeIssueItem("four.png", { issue: "Issue four." }),
+      makeIssueItem("one.png", { issue_fixes: ["Fix one."] }),
+      makeIssueItem("two.png", { issue_fixes: ["Fix two."] }),
+      makeIssueItem("three.png", { issue_fixes: ["Fix three."] }),
+      makeIssueItem("four.png", { issue_fixes: ["Fix four."] }),
     ];
 
     function Harness() {
@@ -256,24 +302,24 @@ describe("IssueResolverModal", () => {
     render(<Harness />);
 
     expect(screen.getByText("1 / 4")).toBeInTheDocument();
-    expect(screen.getByText("Issue one.")).toBeInTheDocument();
+    expect(screen.getByText("Fix one.")).toBeInTheDocument();
 
     await user.click(await screen.findByRole("button", { name: "Resolve" }));
     await waitFor(() => {
       expect(screen.getByText("2 / 4")).toBeInTheDocument();
-      expect(screen.getByText("Issue two.")).toBeInTheDocument();
+      expect(screen.getByText("Fix two.")).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await waitFor(() => {
       expect(screen.getByText("3 / 4")).toBeInTheDocument();
-      expect(screen.getByText("Issue three.")).toBeInTheDocument();
+      expect(screen.getByText("Fix three.")).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await waitFor(() => {
       expect(screen.getByText("4 / 4")).toBeInTheDocument();
-      expect(screen.getByText("Issue four.")).toBeInTheDocument();
+      expect(screen.getByText("Fix four.")).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Resolve" }));

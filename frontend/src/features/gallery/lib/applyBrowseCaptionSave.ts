@@ -41,8 +41,7 @@ export function applyBrowseCaptionSave(
       has_bboxes: captionUpdate.has_bboxes,
       bboxes: captionUpdate.bboxes !== undefined ? captionUpdate.bboxes : item.bboxes,
       caption_file_type: captionUpdate.caption_file_type,
-      issue: captionUpdate.issue ?? item.issue,
-      issue_suggestions: captionUpdate.issue_suggestions ?? item.issue_suggestions,
+      issue_fixes: captionUpdate.issue_fixes ?? item.issue_fixes,
       has_issue_file: captionUpdate.has_issue_file ?? item.has_issue_file,
     };
   });

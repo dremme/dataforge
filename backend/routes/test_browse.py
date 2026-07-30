@@ -17,6 +17,7 @@ from media_listing import (
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
+    write_issue_sidecar,
     write_json_caption,
     write_media,
     write_mp4_video,
@@ -192,8 +193,24 @@ class BrowseEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "flagged.png")
             write_txt_caption(media, "A red car.")
+            write_issue_sidecar(media, 'Replace "red" with "blue".', 'Remove "parked".')
+
+            response = client.get(f"/api/browse?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 200)
+            item = response.json()["items"][0]
+            self.assertTrue(item["has_issue_file"])
+            self.assertEqual(
+                item["issue_fixes"],
+                ['Replace "red" with "blue".', 'Remove "parked".'],
+            )
+
+    def test_surfaces_superseded_issue_sidecars_as_broken(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "resolved.png")
+            write_txt_caption(media, "A mountain peak.")
             media.with_suffix(".issue.json").write_text(
-                '{"correct": false, "issues": "Car is blue.", "suggestions": "Fix color."}',
+                '{"correct": false, "issues": "Wrong peak.", "suggestions": "Fix it."}',
                 encoding="utf-8",
             )
 
@@ -202,25 +219,7 @@ class BrowseEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             item = response.json()["items"][0]
             self.assertTrue(item["has_issue_file"])
-            self.assertEqual(item["issue"], "Car is blue.")
-            self.assertEqual(item["issue_suggestions"], "Fix color.")
-
-    def test_ignores_stale_issue_sidecars_marked_correct(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "resolved.png")
-            write_txt_caption(media, "A mountain peak.")
-            media.with_suffix(".issue.json").write_text(
-                '{"correct": true, "issues": "None", "suggestions": "None"}',
-                encoding="utf-8",
-            )
-
-            response = client.get(f"/api/browse?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            item = response.json()["items"][0]
-            self.assertFalse(item["has_issue_file"])
-            self.assertIsNone(item["issue"])
-            self.assertIsNone(item["issue_suggestions"])
+            self.assertEqual(item["issue_fixes"], [])
 
     def test_response_includes_matching_fingerprint(self) -> None:
         with TempMediaFolder() as root:

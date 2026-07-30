@@ -12,6 +12,13 @@ IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
 # `Path.suffix` both mis-read it; resolve names against this instead of guessing.
 ISSUE_SIDECAR_SUFFIX = ".issue.json"
 
+# A caption is reviewed by hand, so the model is asked for the few changes that matter
+# most rather than an exhaustive list. The prompt states this cap and the parser enforces it.
+MAX_ISSUE_FIXES = 3
+
+# Models answer "None" instead of returning an empty list often enough to filter for it.
+ISSUE_FIX_SENTINELS = frozenset({"none", "n/a", "no issues", "no changes"})
+
 CAPTION_BACKUP_DIR_NAME = ".backup"
 
 SKIP_DIR_NAMES = {

@@ -19,8 +19,7 @@ export interface GalleryItem {
   description: string | null;
   has_description: boolean;
   has_caption_file: boolean;
-  issue: string | null;
-  issue_suggestions: string | null;
+  issue_fixes: string[];
   has_issue_file: boolean;
   has_bboxes: boolean;
   caption_status: CaptionStatus;
@@ -128,8 +127,7 @@ export interface CaptionSaveResponse {
   caption_content?: string | null;
   bboxes?: CaptionBBox[];
   has_bboxes: boolean;
-  issue?: string | null;
-  issue_suggestions?: string | null;
+  issue_fixes?: string[];
   has_issue_file?: boolean;
 }
 

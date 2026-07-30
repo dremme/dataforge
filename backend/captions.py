@@ -1,7 +1,13 @@
 import json
 from pathlib import Path
 
-from constants import CAPTION_JSON_KEYS, CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX
+from constants import (
+    CAPTION_JSON_KEYS,
+    CAPTION_SIDECAR_EXTENSIONS,
+    ISSUE_FIX_SENTINELS,
+    ISSUE_SIDECAR_SUFFIX,
+    MAX_ISSUE_FIXES,
+)
 
 
 def _caption_text_from_json_value(value: object) -> str | None:
@@ -471,7 +477,7 @@ def build_caption_response(media_path: Path) -> dict[str, object]:
     caption_path = bundle["caption_path"]
     caption_type = bundle["caption_file_type"]
 
-    issue, issue_suggestions, has_issue_file = load_issue_summary(media_path)
+    issue_fixes, has_issue_file = load_issue_summary(media_path)
 
     return {
         "description": description,
@@ -483,8 +489,7 @@ def build_caption_response(media_path: Path) -> dict[str, object]:
         "caption_content": bundle["raw_content"],
         "bboxes": bboxes,
         "has_bboxes": bool(bboxes),
-        "issue": issue,
-        "issue_suggestions": issue_suggestions,
+        "issue_fixes": issue_fixes,
         "has_issue_file": has_issue_file,
     }
 
@@ -597,56 +602,42 @@ def delete_issue_file(media_path: Path) -> None:
     issue_path.unlink()
 
 
-def _normalize_issue_field(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
+def normalize_issue_fixes(value: object) -> list[str]:
+    """Keep the substantive string entries of a fix list, capped at ``MAX_ISSUE_FIXES``."""
+    if not isinstance(value, list):
+        return []
 
-    text = value.strip()
-    if not text or text.lower() in {"none", "n/a"}:
-        return None
+    fixes = []
+    for entry in value:
+        if not isinstance(entry, str):
+            continue
+        text = entry.strip()
+        if not text or text.lower() in ISSUE_FIX_SENTINELS:
+            continue
+        fixes.append(text)
+        if len(fixes) == MAX_ISSUE_FIXES:
+            break
 
-    return text
-
-
-def _coerce_bool(value: object) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"true", "yes"}:
-            return True
-        if normalized in {"false", "no"}:
-            return False
-    return None
+    return fixes
 
 
-def _issue_sidecar_is_actionable(data: dict) -> bool:
-    correct = _coerce_bool(data.get("correct"))
-    issues = _normalize_issue_field(data.get("issues"))
+def load_issue_summary(media_path: Path) -> tuple[list[str], bool]:
+    """Return the sidecar's fixes and whether a sidecar exists at all.
 
-    if correct is True:
-        return False
-    return issues is not None
-
-
-def load_issue_summary(media_path: Path) -> tuple[str | None, str | None, bool]:
+    A sidecar that exists but carries no usable ``fixes`` array - unreadable, malformed,
+    or written in a superseded format - reports no fixes while still counting as present,
+    so the resolver surfaces it as a broken issue file instead of silently hiding it.
+    """
     issue_path = issue_file_path(media_path)
     if not issue_path.is_file():
-        return None, None, False
+        return [], False
 
     try:
         data = json.loads(issue_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return None, None, True
+        return [], True
 
     if not isinstance(data, dict):
-        return None, None, True
+        return [], True
 
-    issues = _normalize_issue_field(data.get("issues"))
-    suggestions = _normalize_issue_field(data.get("suggestions"))
-
-    return (
-        issues,
-        suggestions,
-        _issue_sidecar_is_actionable(data),
-    )
+    return normalize_issue_fixes(data.get("fixes")), True

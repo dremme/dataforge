@@ -14,7 +14,12 @@ from media_listing import (
     folder_summary_fingerprint,
     summarize_folder_contents,
 )
-from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
+from testing_fixtures import (
+    TempMediaFolder,
+    write_issue_sidecar,
+    write_media,
+    write_txt_caption,
+)
 
 
 class FolderSummaryCacheTests(unittest.TestCase):
@@ -60,10 +65,7 @@ class FolderSummaryCacheTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "alpha.png")
             first = summarize_folder_contents(root)
-            media.with_suffix(".issue.json").write_text(
-                '{"correct": false, "issues": "Mismatch.", "suggestions": "None"}',
-                encoding="utf-8",
-            )
+            write_issue_sidecar(media, 'Replace "a lake" with "a harbour".')
             second = summarize_folder_contents(root)
 
             self.assertEqual(first["issue_count"], 0)
