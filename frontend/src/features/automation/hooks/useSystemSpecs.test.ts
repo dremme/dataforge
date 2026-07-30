@@ -8,11 +8,10 @@ const sampleSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7",
   cpu_cores: 8,
   memory_total_bytes: 32 * 1024 ** 3,
-  memory_available_bytes: 16 * 1024 ** 3,
+  memory_used_bytes: 16 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",
   gpu_memory_bytes: 10 * 1024 ** 3,
   gpu_memory_used_bytes: 4 * 1024 ** 3,
-  gpu_memory_available_bytes: 6 * 1024 ** 3,
   gpu_available: true,
 };
 

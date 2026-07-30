@@ -17,11 +17,10 @@ class SystemSpecsEndpointTests(unittest.TestCase):
             cpu_name="Intel Core i7-12700K",
             cpu_cores=16,
             memory_total_bytes=32 * 1024**3,
-            memory_available_bytes=24 * 1024**3,
+            memory_used_bytes=8 * 1024**3,
             gpu_name="NVIDIA GeForce RTX 3080",
             gpu_memory_bytes=10 * 1024**3,
             gpu_memory_used_bytes=4 * 1024**3,
-            gpu_memory_available_bytes=6 * 1024**3,
             gpu_available=True,
         )
 
@@ -34,11 +33,10 @@ class SystemSpecsEndpointTests(unittest.TestCase):
                 "cpu_name": "Intel Core i7-12700K",
                 "cpu_cores": 16,
                 "memory_total_bytes": 32 * 1024**3,
-                "memory_available_bytes": 24 * 1024**3,
+                "memory_used_bytes": 8 * 1024**3,
                 "gpu_name": "NVIDIA GeForce RTX 3080",
                 "gpu_memory_bytes": 10 * 1024**3,
                 "gpu_memory_used_bytes": 4 * 1024**3,
-                "gpu_memory_available_bytes": 6 * 1024**3,
                 "gpu_available": True,
             },
         )

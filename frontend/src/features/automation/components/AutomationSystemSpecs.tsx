@@ -44,10 +44,9 @@ export function AutomationSystemSpecs({ id, open }: AutomationSystemSpecsProps) 
           <Spec icon={iconMemoryStick}>
             RAM
             <MemoryDetail
-              valueBytes={specs.memory_available_bytes}
-              usedBytes={specs.memory_total_bytes - specs.memory_available_bytes}
+              usedBytes={specs.memory_used_bytes}
               totalBytes={specs.memory_total_bytes}
-              title="RAM available / total"
+              title="RAM used / total"
             />
           </Spec>
 
@@ -60,7 +59,6 @@ export function AutomationSystemSpecs({ id, open }: AutomationSystemSpecsProps) 
                 {gpu_memory_bytes !== null &&
                   (gpu_memory_used_bytes !== null ? (
                     <MemoryDetail
-                      valueBytes={gpu_memory_used_bytes}
                       usedBytes={gpu_memory_used_bytes}
                       totalBytes={gpu_memory_bytes}
                       title="VRAM used / total"
@@ -96,16 +94,13 @@ function SpecDivider() {
 }
 
 interface MemoryDetailProps {
-  /** Figure shown before the slash; it carries the warning color when memory runs high. */
-  valueBytes: number;
-  /** Drives the warning color — RAM shows how much is free but warns on how much is used. */
   usedBytes: number;
   totalBytes: number;
   title: string;
 }
 
-/** Renders " · x / y GB", writing the unit only once. */
-function MemoryDetail({ valueBytes, usedBytes, totalBytes, title }: MemoryDetailProps) {
+/** Renders " · used / total GB", writing the unit only once. */
+function MemoryDetail({ usedBytes, totalBytes, title }: MemoryDetailProps) {
   return (
     <span className="automation__spec-detail" title={title}>
       {" "}
@@ -115,7 +110,7 @@ function MemoryDetail({ valueBytes, usedBytes, totalBytes, title }: MemoryDetail
           memoryIsHigh(usedBytes, totalBytes) ? "automation__spec-detail--warning" : undefined
         }
       >
-        {formatBytesValue(valueBytes)}
+        {formatBytesValue(usedBytes)}
       </span>{" "}
       / {formatBytes(totalBytes)}
     </span>

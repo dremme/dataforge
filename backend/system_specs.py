@@ -15,11 +15,10 @@ class SystemSpecs:
     cpu_name: str
     cpu_cores: int
     memory_total_bytes: int
-    memory_available_bytes: int
+    memory_used_bytes: int
     gpu_name: str | None
     gpu_memory_bytes: int | None
     gpu_memory_used_bytes: int | None
-    gpu_memory_available_bytes: int | None
     gpu_available: bool
 
 
@@ -28,7 +27,6 @@ class _GpuInfo:
     name: str
     memory_total_bytes: int
     memory_used_bytes: int | None
-    memory_available_bytes: int | None
 
 
 def _windows_memory_bytes() -> tuple[int, int]:
@@ -82,6 +80,7 @@ def _macos_memory_bytes() -> tuple[int, int]:
 
 
 def _memory_bytes() -> tuple[int, int]:
+    """``(total, available)`` — every platform API reports what is free, not what is used."""
     if sys.platform == "win32":
         return _windows_memory_bytes()
     if sys.platform == "darwin":
@@ -141,7 +140,7 @@ def _gpu_from_nvidia_smi() -> _GpuInfo | None:
         result = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.total,memory.used,memory.free",
+                "--query-gpu=name,memory.total,memory.used",
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
@@ -158,18 +157,14 @@ def _gpu_from_nvidia_smi() -> _GpuInfo | None:
     # Use the first GPU line only (matches prior single-GPU behavior).
     line = result.stdout.strip().splitlines()[0]
     parts = [part.strip() for part in line.split(",")]
-    if len(parts) < 4:
+    if len(parts) < 3:
         return None
 
-    name, total_mb, used_mb, free_mb = parts[0], parts[1], parts[2], parts[3]
-    total_bytes = _mb_to_bytes(total_mb)
-    used_bytes = _mb_to_bytes(used_mb)
-    free_bytes = _mb_to_bytes(free_mb)
+    name, total_mb, used_mb = parts[0], parts[1], parts[2]
     return _GpuInfo(
         name=name,
-        memory_total_bytes=total_bytes,
-        memory_used_bytes=used_bytes,
-        memory_available_bytes=free_bytes,
+        memory_total_bytes=_mb_to_bytes(total_mb),
+        memory_used_bytes=_mb_to_bytes(used_mb),
     )
 
 
@@ -185,12 +180,11 @@ def _gpu_from_torch() -> _GpuInfo | None:
     device = torch.cuda.get_device_properties(0)
     total_bytes = int(device.total_memory)
     used_bytes: int | None = None
-    free_bytes: int | None = None
     try:
         free, total = torch.cuda.mem_get_info(0)
-        free_bytes = int(free)
         total_bytes = int(total)
-        used_bytes = total_bytes - free_bytes
+        # torch reports what is free; the panel shows used.
+        used_bytes = total_bytes - int(free)
     except Exception:
         pass
 
@@ -198,42 +192,29 @@ def _gpu_from_torch() -> _GpuInfo | None:
         name=device.name,
         memory_total_bytes=total_bytes,
         memory_used_bytes=used_bytes,
-        memory_available_bytes=free_bytes,
     )
 
 
-def _gpu_info() -> tuple[str | None, int | None, int | None, int | None, bool]:
+def _gpu_info() -> tuple[str | None, int | None, int | None, bool]:
     # Prefer nvidia-smi so VRAM used by external processes (e.g. LM Studio) is included.
     for resolver in (_gpu_from_nvidia_smi, _gpu_from_torch):
         info = resolver()
         if info is not None:
-            return (
-                info.name,
-                info.memory_total_bytes,
-                info.memory_used_bytes,
-                info.memory_available_bytes,
-                True,
-            )
-    return None, None, None, None, False
+            return info.name, info.memory_total_bytes, info.memory_used_bytes, True
+    return None, None, None, False
 
 
 def get_system_specs() -> SystemSpecs:
     total_bytes, available_bytes = _memory_bytes()
-    (
-        gpu_name,
-        gpu_memory_bytes,
-        gpu_memory_used_bytes,
-        gpu_memory_available_bytes,
-        gpu_available,
-    ) = _gpu_info()
+    gpu_name, gpu_memory_bytes, gpu_memory_used_bytes, gpu_available = _gpu_info()
     return SystemSpecs(
         cpu_name=_sanitize_cpu_name(_cpu_name()),
         cpu_cores=os.cpu_count() or 1,
         memory_total_bytes=total_bytes,
-        memory_available_bytes=available_bytes,
+        # Derived once here so RAM reads "used / total", the same way VRAM does.
+        memory_used_bytes=total_bytes - available_bytes,
         gpu_name=gpu_name,
         gpu_memory_bytes=gpu_memory_bytes,
         gpu_memory_used_bytes=gpu_memory_used_bytes,
-        gpu_memory_available_bytes=gpu_memory_available_bytes,
         gpu_available=gpu_available,
     )

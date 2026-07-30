@@ -96,6 +96,7 @@ export function AppBrowseContent({
                 <FolderGrid
                   folders={filteredSubfolders}
                   totalCount={subfolders.length}
+                  hasCaptionBackup={browse.has_caption_backup}
                   onOpen={onNavigate}
                   onCreateFolder={onCreateFolder}
                   createFolderDisabled={createFolderDisabled}

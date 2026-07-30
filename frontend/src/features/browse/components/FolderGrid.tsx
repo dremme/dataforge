@@ -1,4 +1,5 @@
 import {
+  iconArchive,
   iconFolder,
   iconFolderPlus,
   iconFolderTree,
@@ -8,6 +9,7 @@ import {
 import type { Subfolder } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
+import { Tooltip } from "@/shared/ui/Tooltip";
 
 function FolderCardStats({ folder }: { folder: Subfolder }) {
   const allCaptioned = folder.captioned_count === folder.file_count;
@@ -37,6 +39,8 @@ interface FolderGridProps {
   /** Folders left after the search; `totalCount` carries the unfiltered size. */
   folders: Subfolder[];
   totalCount?: number;
+  /** Whether the folder being browsed has a caption backup, not the folders listed below. */
+  hasCaptionBackup?: boolean;
   onOpen: (path: string) => void;
   onCreateFolder?: () => void;
   createFolderDisabled?: boolean;
@@ -45,6 +49,7 @@ interface FolderGridProps {
 export function FolderGrid({
   folders,
   totalCount,
+  hasCaptionBackup = false,
   onOpen,
   onCreateFolder,
   createFolderDisabled = false,
@@ -58,6 +63,18 @@ export function FolderGrid({
         title="Folders"
         count={folders.length}
         total={totalCount}
+        badge={
+          hasCaptionBackup ? (
+            <Tooltip content="This folder has backed up captions in .backup">
+              <span
+                className="section-header__backup-badge"
+                aria-label="This folder has backed up captions"
+              >
+                <Icon icon={iconArchive} />
+              </span>
+            </Tooltip>
+          ) : undefined
+        }
         actions={
           onCreateFolder ? (
             <div className="folder-controls">

@@ -109,9 +109,9 @@
     align-items: center;
     gap: 0.45rem 0.65rem;
     min-width: 0;
-    padding-top: 0.35rem;
+    padding-top: 0.85rem;
     opacity: 0;
-    transform: translateY(-0.35rem);
+    transform: translateY(-0.85rem);
     transition:
       opacity 0.22s ease,
       transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);

@@ -73,11 +73,10 @@ class SystemSpecsResponse(BaseModel):
     cpu_name: str
     cpu_cores: int
     memory_total_bytes: int
-    memory_available_bytes: int
+    memory_used_bytes: int
     gpu_name: str | None = None
     gpu_memory_bytes: int | None = None
     gpu_memory_used_bytes: int | None = None
-    gpu_memory_available_bytes: int | None = None
     gpu_available: bool = False
 
 

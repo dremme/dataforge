@@ -249,11 +249,10 @@ export interface SystemSpecs {
   cpu_name: string;
   cpu_cores: number;
   memory_total_bytes: number;
-  memory_available_bytes: number;
+  memory_used_bytes: number;
   gpu_name: string | null;
   gpu_memory_bytes: number | null;
   gpu_memory_used_bytes: number | null;
-  gpu_memory_available_bytes: number | null;
   gpu_available: boolean;
 }
 

@@ -14,11 +14,10 @@ def read_system_specs() -> SystemSpecsResponse:
         cpu_name=specs.cpu_name,
         cpu_cores=specs.cpu_cores,
         memory_total_bytes=specs.memory_total_bytes,
-        memory_available_bytes=specs.memory_available_bytes,
+        memory_used_bytes=specs.memory_used_bytes,
         gpu_name=specs.gpu_name,
         gpu_memory_bytes=specs.gpu_memory_bytes,
         gpu_memory_used_bytes=specs.gpu_memory_used_bytes,
-        gpu_memory_available_bytes=specs.gpu_memory_available_bytes,
         gpu_available=specs.gpu_available,
     )
 

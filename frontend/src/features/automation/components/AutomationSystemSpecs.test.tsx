@@ -7,11 +7,10 @@ const defaultSystemSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7-12700K 12-Core Processor",
   cpu_cores: 16,
   memory_total_bytes: 32 * 1024 ** 3,
-  memory_available_bytes: 24 * 1024 ** 3,
+  memory_used_bytes: 8 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",
   gpu_memory_bytes: 10 * 1024 ** 3,
   gpu_memory_used_bytes: 4 * 1024 ** 3,
-  gpu_memory_available_bytes: 6 * 1024 ** 3,
   gpu_available: true,
 };
 
@@ -37,10 +36,10 @@ describe("AutomationSystemSpecs", () => {
     expect(specs).toHaveTextContent("Intel Core i7-12700K");
     expect(specs).toHaveTextContent("16 cores");
     expect(specs).toHaveTextContent("RAM");
-    // The unit is written once, after the total.
-    expect(specs).toHaveTextContent("24 / 32 GB");
+    // Both readouts are used / total (matching Task Manager), never free / total,
+    // and the unit is written once, after the total.
+    expect(specs).toHaveTextContent("8 / 32 GB");
     expect(specs).toHaveTextContent("NVIDIA GeForce RTX 3080");
-    // Used / total (matches Task Manager), not free / total.
     expect(specs).toHaveTextContent("4 / 10 GB");
   });
 
@@ -58,9 +57,8 @@ describe("AutomationSystemSpecs", () => {
   it("warns on the used figure when RAM and VRAM are nearly full", () => {
     mockSystemSpecs = {
       ...defaultSystemSpecs,
-      memory_available_bytes: 2 * 1024 ** 3, // 30 of 32 GB used
+      memory_used_bytes: 30 * 1024 ** 3, // 30 of 32 GB used
       gpu_memory_used_bytes: 9 * 1024 ** 3, // 9 of 10 GB used
-      gpu_memory_available_bytes: 1 * 1024 ** 3,
     };
 
     const { container } = renderSpecs();
@@ -69,7 +67,7 @@ describe("AutomationSystemSpecs", () => {
       (node) => node.textContent,
     );
     // Only the used figures are highlighted — the totals keep their unit and normal colour.
-    expect(warned).toEqual(["2", "9"]);
+    expect(warned).toEqual(["30", "9"]);
   });
 
   it("leaves the memory figures unhighlighted below the warning threshold", () => {
@@ -82,7 +80,6 @@ describe("AutomationSystemSpecs", () => {
     mockSystemSpecs = {
       ...defaultSystemSpecs,
       gpu_memory_used_bytes: null,
-      gpu_memory_available_bytes: null,
     };
 
     renderSpecs();
