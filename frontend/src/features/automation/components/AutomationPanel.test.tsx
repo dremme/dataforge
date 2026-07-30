@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GalleryItem, Job, SystemSpecs } from "@/shared/types";
@@ -188,6 +188,64 @@ describe("AutomationPanel", () => {
     await user.click(screen.getByRole("button", { name: /More/ }));
     await user.click(screen.getByRole("menuitem", { name: /Restore captions/ }));
     expect(onRequestStart).toHaveBeenCalledWith("restore_captions");
+  });
+
+  it("groups the more-jobs menu into labelled sections", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: true }}
+        filteredItems={[galleryItem]}
+        onRequestStart={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    const sections = screen.getAllByRole("group");
+    expect(sections.map((section) => section.getAttribute("aria-label"))).toEqual([
+      "Captions",
+      "Files",
+      "Backup",
+    ]);
+
+    const backup = screen.getByRole("group", { name: "Backup" });
+    expect(
+      within(backup)
+        .getAllByRole("menuitem")
+        .map((item) => item.querySelector(".automation__more-item-title")?.textContent),
+    ).toEqual(["Backup captions", "Restore captions"]);
+  });
+
+  it("keeps every job description visible rather than behind a hover hint", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: true }}
+        filteredItems={[galleryItem]}
+        onRequestStart={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    const item = screen.getByRole("menuitem", { name: /Batch rename/ });
+    expect(item).not.toHaveAttribute("title");
+    expect(item).toHaveTextContent("Rename media files.");
+
+    // Every item carries its own description, not just the one sampled above.
+    const described = screen
+      .getAllByRole("menuitem")
+      .every((menuitem) => menuitem.querySelector(".automation__more-item-desc")?.textContent);
+    expect(described).toBe(true);
   });
 
   it("disables restore captions when the folder has no backup", async () => {

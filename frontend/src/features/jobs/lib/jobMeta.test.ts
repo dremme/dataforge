@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { JobType } from "@/shared/types";
-import { SECONDARY_JOB_TYPES, isJobAvailable } from "./jobMeta";
+import { JOB_GROUPS, SECONDARY_JOB_GROUPS, SECONDARY_JOB_TYPES, isJobAvailable } from "./jobMeta";
 
 const withBackup = { hasCaptionBackup: true };
 const withoutBackup = { hasCaptionBackup: false };
@@ -23,5 +23,31 @@ describe("isJobAvailable", () => {
 
   it("tolerates a job type the registry does not know", () => {
     expect(isJobAvailable("legacy_job" as JobType, withoutBackup)).toBe(true);
+  });
+});
+
+describe("SECONDARY_JOB_GROUPS", () => {
+  it("gives every secondary job exactly one section", () => {
+    const grouped = SECONDARY_JOB_GROUPS.flatMap((group) => group.types);
+
+    // A job missing a section would vanish from the menu entirely.
+    expect([...grouped].sort()).toEqual([...SECONDARY_JOB_TYPES].sort());
+    expect(new Set(grouped).size).toBe(grouped.length);
+  });
+
+  it("keeps sections in registry order and drops empty ones", () => {
+    const declaredOrder = JOB_GROUPS.map((group) => group.id);
+    const rendered = SECONDARY_JOB_GROUPS.map((group) => group.id);
+
+    expect(rendered).toEqual(declaredOrder.filter((id) => rendered.includes(id)));
+    expect(SECONDARY_JOB_GROUPS.every((group) => group.types.length > 0)).toBe(true);
+  });
+
+  it("buckets the caption, file and backup jobs apart", () => {
+    const byId = Object.fromEntries(SECONDARY_JOB_GROUPS.map((group) => [group.id, group.types]));
+
+    expect(byId.captions).toContain("set_captions");
+    expect(byId.files).toContain("batch_rename");
+    expect(byId.backup).toEqual(["backup_captions", "restore_captions"]);
   });
 });

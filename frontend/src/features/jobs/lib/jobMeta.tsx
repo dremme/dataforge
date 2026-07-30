@@ -21,11 +21,22 @@ export interface JobAvailability {
   hasCaptionBackup: boolean;
 }
 
+/** Sections of the secondary jobs menu, in display order. */
+export const JOB_GROUPS = [
+  { id: "captions", label: "Captions" },
+  { id: "files", label: "Files" },
+  { id: "backup", label: "Backup" },
+] as const;
+
+export type JobGroup = (typeof JOB_GROUPS)[number]["id"];
+
 interface JobTypeMeta {
   type: JobType;
   label: string;
   icon: AppIcon;
   startUi: JobStartUi;
+  /** Menu section. Required on every job so a new one cannot land nowhere. */
+  group: JobGroup;
   /** Primary panel CTA (auto-caption). Others appear in the more-jobs menu. */
   primary?: boolean;
   /** Label in the secondary jobs menu (defaults to label). */
@@ -49,6 +60,7 @@ interface JobTypeMeta {
 export const JOB_TYPE_META = {
   auto_caption: {
     type: "auto_caption" as const,
+    group: "captions" as const,
     label: "Auto-caption",
     icon: iconPencilSparkles,
     startUi: "dialog" as const,
@@ -57,6 +69,7 @@ export const JOB_TYPE_META = {
   },
   set_captions: {
     type: "set_captions" as const,
+    group: "captions" as const,
     label: "Set captions",
     icon: iconMessagePlus,
     startUi: "dialog" as const,
@@ -64,6 +77,7 @@ export const JOB_TYPE_META = {
   },
   verify_captions: {
     type: "verify_captions" as const,
+    group: "captions" as const,
     label: "Verify captions",
     icon: iconMessageCheck,
     startUi: "dialog" as const,
@@ -71,6 +85,7 @@ export const JOB_TYPE_META = {
   },
   batch_rename: {
     type: "batch_rename" as const,
+    group: "files" as const,
     label: "Batch rename",
     icon: iconFilePen,
     startUi: "dialog" as const,
@@ -78,6 +93,7 @@ export const JOB_TYPE_META = {
   },
   strip_metadata: {
     type: "strip_metadata" as const,
+    group: "files" as const,
     label: "Strip metadata",
     icon: iconShredder,
     startUi: "confirm" as const,
@@ -94,6 +110,7 @@ export const JOB_TYPE_META = {
   },
   body_parts: {
     type: "body_parts" as const,
+    group: "captions" as const,
     label: "Body parts",
     icon: iconGroup,
     startUi: "dialog" as const,
@@ -102,6 +119,7 @@ export const JOB_TYPE_META = {
   },
   backup_captions: {
     type: "backup_captions" as const,
+    group: "backup" as const,
     label: "Backup captions",
     icon: iconArchive,
     startUi: "immediate" as const,
@@ -109,6 +127,7 @@ export const JOB_TYPE_META = {
   },
   restore_captions: {
     type: "restore_captions" as const,
+    group: "backup" as const,
     label: "Restore captions",
     icon: iconArchiveRestore,
     startUi: "confirm" as const,
@@ -153,6 +172,18 @@ export const PRIMARY_JOB_TYPE: JobType =
 export const SECONDARY_JOB_TYPES: JobType[] = JOB_TYPES.filter(
   (type) => !jobTypeMeta(type).primary,
 );
+
+/**
+ * Secondary jobs bucketed into menu sections, in `JOB_GROUPS` order, with jobs
+ * keeping their registry order inside each. Sections with no jobs are dropped,
+ * so the menu needs no knowledge of which groups are populated.
+ */
+export const SECONDARY_JOB_GROUPS: Array<{ id: JobGroup; label: string; types: JobType[] }> =
+  JOB_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    types: SECONDARY_JOB_TYPES.filter((type) => jobTypeMeta(type).group === group.id),
+  })).filter((group) => group.types.length > 0);
 
 /** Safe for API values that may predate the registry or be unexpected. */
 export function jobTypeLabelFor(type: string | null | undefined): string {
