@@ -251,15 +251,3 @@
     }
   }
 }
-
-@include media(860px) {
-  .issue-resolver-modal__body {
-    grid-template-columns: 1fr;
-  }
-
-  .issue-resolver-modal__stage {
-    min-height: 14rem;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}

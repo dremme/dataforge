@@ -127,5 +127,7 @@ $tracking-tight: -0.025em;
 $tracking-normal: -0.011em;
 $tracking-caps: 0.06em;
 
-// Breakpoints
-$breakpoint-tablet: 720px;
+// Layout
+// Smallest window the desktop layout is designed for. Below this the app keeps
+// its layout and scrolls sideways rather than reflowing.
+$min-app-width: 1024px;

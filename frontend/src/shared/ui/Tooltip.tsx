@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
@@ -11,6 +12,11 @@ import {
   type ReactNode,
 } from "react";
 import { classNames } from "@/shared/lib/classNames";
+
+/** Gap kept between a shifted bubble and the window edge. */
+const VIEWPORT_PADDING = 8;
+/** Keeps the arrow off the bubble's rounded corners when the bubble is shifted. */
+const ARROW_EDGE_PADDING = 12;
 
 interface TooltipChildProps {
   disabled?: boolean;
@@ -37,6 +43,7 @@ export function Tooltip({
 }: TooltipProps) {
   const id = useId();
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
 
   const clearShowTimeout = useCallback(() => {
@@ -58,6 +65,31 @@ export function Tooltip({
   }, [clearShowTimeout]);
 
   useEffect(() => clearShowTimeout, [clearShowTimeout]);
+
+  // A bubble centred on a trigger near the window edge would hang off it, so it
+  // slides back into view and the arrow slides the opposite way to keep pointing
+  // at the trigger — the "shift" behaviour Popper/Floating UI provide.
+  useLayoutEffect(() => {
+    const bubble = bubbleRef.current;
+    if (!visible || !bubble) return;
+
+    // Measure unshifted, so a re-show does not compound the previous correction.
+    bubble.style.setProperty("--tooltip-shift", "0px");
+    const { left, right, width } = bubble.getBoundingClientRect();
+
+    const overflowRight = right - (window.innerWidth - VIEWPORT_PADDING);
+    const overflowLeft = VIEWPORT_PADDING - left;
+    let shift = 0;
+    if (overflowRight > 0) shift = -overflowRight;
+    else if (overflowLeft > 0) shift = overflowLeft;
+
+    // The arrow travels back by the same amount, but never past the bubble's ends.
+    const arrowLimit = Math.max(0, width / 2 - ARROW_EDGE_PADDING);
+    const arrowShift = Math.min(arrowLimit, Math.max(-arrowLimit, -shift));
+
+    bubble.style.setProperty("--tooltip-shift", `${shift}px`);
+    bubble.style.setProperty("--tooltip-arrow-shift", `${arrowShift}px`);
+  }, [visible, content]);
 
   if (!isValidElement(children)) {
     return children;
@@ -106,6 +138,7 @@ export function Tooltip({
       {triggerElement}
       {showBubble && (
         <span
+          ref={bubbleRef}
           id={id}
           role="tooltip"
           className="tooltip__bubble"

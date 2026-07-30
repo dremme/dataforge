@@ -28,10 +28,11 @@
   }
 }
 
-@mixin media($max-width) {
-  @media (max-width: $max-width) {
-    @content;
-  }
+/// Break a child out of `.app`'s centred max-width so it spans the window,
+/// never narrower than the supported minimum.
+@mixin full-bleed {
+  width: max(100vw, #{$min-app-width});
+  margin: 0 calc(50% - max(50vw, #{$min-app-width * 0.5}));
 }
 
 // ---------------------------------------------------------------------------

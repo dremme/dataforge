@@ -12,9 +12,19 @@
   }
 
   &__bubble {
+    // Set by the component when the bubble would hang off the window edge:
+    // the bubble slides by --tooltip-shift, the arrow back by --tooltip-arrow-shift.
+    --tooltip-shift: 0px;
+    --tooltip-arrow-shift: 0px;
+
     position: absolute;
     top: calc(100% + 0.5rem);
     left: 50%;
+    // Deliberately a margin rather than part of `transform`: that is transitioned,
+    // so folding the correction into it would animate the bubble sideways into
+    // place, and the next measurement would then read a still-moving position and
+    // under-correct until the bubble drifted back off screen.
+    margin-left: var(--tooltip-shift);
     z-index: $z-index-tooltip;
     width: max-content;
     max-width: 14rem;
@@ -42,7 +52,7 @@
   &__arrow {
     position: absolute;
     top: -0.3rem;
-    left: 50%;
+    left: calc(50% + var(--tooltip-arrow-shift));
     width: 0.5rem;
     height: 0.5rem;
     background: var(--bg-card);
