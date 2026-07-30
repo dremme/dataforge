@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SORT_OPTIONS,
   type CaptionFilter,
@@ -84,6 +84,8 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
           expanded ? "toolbar__search--expanded" : "toolbar__search--collapsed",
           hasValue && "toolbar__search--filtering",
         )}
+        // Drives how far the expanded field grows; the width itself is clamped in CSS.
+        style={{ "--toolbar-search-length": value.length } as CSSProperties}
         onClick={() => {
           if (!expanded) {
             openSearch();

@@ -22,15 +22,14 @@ These are common instructions for agents across all scenarios.
     If something clearly looks off, even if it is not directly related to what you are doing, try to get it fixed along.
 - Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.
     If you see one, even if it is not caused by what you are working on right now, still get it fixed.
-- When fixing a bug, rather write a test case instead of leaving a comment in the code. Never leave unnecessary comments in the code and remove unnecessary comments if you come across them.
+- When fixing a bug, rather write a test case instead of leaving a comment in the code. Never use unnecessary comments in the code and remove unnecessary comments if you come across them.
     The code should always be written in a way that is self-explanatory.
 - Apply the 'good camper' principle of programming and improve code you come across, if it is a quick win with low effort.
 
 ## Engineering
 
-### Backend
+These are more project specific engineering rules.
 
-### Frontend
-
+- Always format your code according to the linting rules.
 - Never use barrel files (`index.ts`), import directly instead.
 - Use `@/shared/lib/classNames` for toggling HTML classes, when it makes sense.

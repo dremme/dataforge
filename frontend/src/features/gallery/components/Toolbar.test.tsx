@@ -83,6 +83,16 @@ describe("Toolbar", () => {
     expect(search.selectionEnd).toBe("sunset".length);
   });
 
+  it("tracks the query length so the expanded field can grow with it", () => {
+    const { rerender } = renderToolbar({ searchQuery: "sun" });
+
+    const field = () => document.querySelector(".toolbar__search") as HTMLElement;
+    expect(field().style.getPropertyValue("--toolbar-search-length")).toBe("3");
+
+    rerender(<Toolbar {...defaultProps} searchQuery={"a".repeat(40)} />);
+    expect(field().style.getPropertyValue("--toolbar-search-length")).toBe("40");
+  });
+
   it("opens both filter groups from the filter menu", async () => {
     const user = userEvent.setup();
     renderToolbar({ mediaTypeFilter: "video" });
