@@ -14,18 +14,26 @@ import {
   iconLoader2,
 } from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
+import type { MediaTransferMode } from "@/features/gallery/api/media";
 import type { FolderChild } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 
-interface MoveMediaDialogProps {
+interface TransferMediaDialogProps {
+  mode: MediaTransferMode;
   currentFolder: string;
   selectedCount: number;
   busy?: boolean;
   onClose: () => void;
   onSelectDestination: (path: string) => void;
 }
+
+/** Move and copy share this picker; only the wording differs. */
+const MODE_COPY: Record<MediaTransferMode, { title: string; confirm: string; busy: string }> = {
+  move: { title: "Move to folder", confirm: "Move here", busy: "Moving..." },
+  copy: { title: "Copy to folder", confirm: "Copy here", busy: "Copying..." },
+};
 
 interface RootNode {
   name: string;
@@ -119,13 +127,15 @@ function ancestorPathsToExpand(folder: string, roots: RootNode[]): string[] {
   );
 }
 
-export function MoveMediaDialog({
+export function TransferMediaDialog({
+  mode,
   currentFolder,
   selectedCount,
   busy = false,
   onClose,
   onSelectDestination,
-}: MoveMediaDialogProps) {
+}: TransferMediaDialogProps) {
+  const modeCopy = MODE_COPY[mode];
   const treeId = useId();
   const notify = useNotify();
   const treeRef = useRef<HTMLDivElement>(null);
@@ -314,7 +324,7 @@ export function MoveMediaDialog({
   };
 
   const selectedKey = selectedPath ? pathKey(selectedPath) : "";
-  const canMove = Boolean(selectedPath) && !isDisabledDestination(selectedPath) && !busy;
+  const canTransfer = Boolean(selectedPath) && !isDisabledDestination(selectedPath) && !busy;
 
   // After the initial expand+load, scroll the current folder into view once.
   useEffect(() => {
@@ -336,7 +346,7 @@ export function MoveMediaDialog({
 
   return (
     <Dialog
-      title="Move to folder"
+      title={modeCopy.title}
       description={
         <>
           Choose a destination for{" "}
@@ -344,15 +354,15 @@ export function MoveMediaDialog({
         </>
       }
       role="dialog"
-      panelClassName="move-media-dialog"
+      panelClassName="transfer-media-dialog"
       busy={busy}
       onClose={onClose}
       footer={
         <DialogActions
-          confirmLabel="Move here"
-          busyLabel="Moving..."
+          confirmLabel={modeCopy.confirm}
+          busyLabel={modeCopy.busy}
           busy={busy}
-          confirmDisabled={!canMove}
+          confirmDisabled={!canTransfer}
           onConfirm={handleConfirm}
           onCancel={onClose}
         />
@@ -362,8 +372,8 @@ export function MoveMediaDialog({
         <div className="dialog__label">Destination</div>
         <div
           className={classNames(
-            "move-media-dialog__destination",
-            !selectedPath && "move-media-dialog__destination--placeholder",
+            "transfer-media-dialog__destination",
+            !selectedPath && "transfer-media-dialog__destination--placeholder",
           )}
           aria-live="polite"
           title={selectedPath || undefined}
@@ -374,14 +384,19 @@ export function MoveMediaDialog({
 
       <div className="dialog__field">
         <div className="dialog__label">Folders</div>
-        <div ref={treeRef} className="move-media-dialog__tree" data-scroll-lock-allow id={treeId}>
+        <div
+          ref={treeRef}
+          className="transfer-media-dialog__tree"
+          data-scroll-lock-allow
+          id={treeId}
+        >
           {rootsLoading ? (
-            <div className="move-media-dialog__tree-status">
-              <Icon icon={iconLoader2} spin className="move-media-dialog__tree-status-icon" />
+            <div className="transfer-media-dialog__tree-status">
+              <Icon icon={iconLoader2} spin className="transfer-media-dialog__tree-status-icon" />
               Loading folders...
             </div>
           ) : (
-            <ul className="move-media-dialog__tree-list" role="tree" aria-label="Folder tree">
+            <ul className="transfer-media-dialog__tree-list" role="tree" aria-label="Folder tree">
               {entries.map((entry) => {
                 const expanded = expandedKeys.has(entry.key);
                 const loading = loadingKeys.has(entry.key);
@@ -398,9 +413,9 @@ export function MoveMediaDialog({
                   <li
                     key={entry.key}
                     className={classNames(
-                      "move-media-dialog__tree-item",
-                      selected && "move-media-dialog__tree-item--selected",
-                      disabled && "move-media-dialog__tree-item--disabled",
+                      "transfer-media-dialog__tree-item",
+                      selected && "transfer-media-dialog__tree-item--selected",
+                      disabled && "transfer-media-dialog__tree-item--disabled",
                     )}
                     role="treeitem"
                     aria-expanded={canExpand ? expanded : undefined}
@@ -408,11 +423,11 @@ export function MoveMediaDialog({
                     data-current-folder={isCurrent ? "" : undefined}
                     style={{ ["--tree-depth" as string]: entry.depth }}
                   >
-                    <div className="move-media-dialog__tree-row">
+                    <div className="transfer-media-dialog__tree-row">
                       {canExpand ? (
                         <button
                           type="button"
-                          className="move-media-dialog__tree-toggle"
+                          className="transfer-media-dialog__tree-toggle"
                           onClick={(event) => {
                             event.stopPropagation();
                             toggleExpanded(entry.path);
@@ -425,22 +440,22 @@ export function MoveMediaDialog({
                             <Icon
                               icon={iconLoader2}
                               spin
-                              className="move-media-dialog__tree-icon"
+                              className="transfer-media-dialog__tree-icon"
                             />
                           ) : (
                             <Icon
                               icon={expanded ? iconChevronDown : iconChevronRight}
-                              className="move-media-dialog__tree-icon"
+                              className="transfer-media-dialog__tree-icon"
                             />
                           )}
                         </button>
                       ) : (
-                        <span className="move-media-dialog__tree-toggle move-media-dialog__tree-toggle--spacer" />
+                        <span className="transfer-media-dialog__tree-toggle transfer-media-dialog__tree-toggle--spacer" />
                       )}
 
                       <button
                         type="button"
-                        className="move-media-dialog__tree-select"
+                        className="transfer-media-dialog__tree-select"
                         onClick={() => selectPath(entry.path)}
                         onDoubleClick={(event) => {
                           event.preventDefault();
@@ -451,12 +466,14 @@ export function MoveMediaDialog({
                       >
                         <Icon
                           icon={expanded ? iconFolderOpen : iconFolder}
-                          className="move-media-dialog__tree-folder-icon"
+                          className="transfer-media-dialog__tree-folder-icon"
                         />
-                        <span className="move-media-dialog__tree-name">
+                        <span className="transfer-media-dialog__tree-name">
                           {entry.name || folderLeafName(entry.path)}
                         </span>
-                        {disabled && <span className="move-media-dialog__tree-badge">Current</span>}
+                        {disabled && (
+                          <span className="transfer-media-dialog__tree-badge">Current</span>
+                        )}
                       </button>
                     </div>
                   </li>

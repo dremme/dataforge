@@ -1,3 +1,9 @@
+"""Move or copy media files together with the sidecars that belong to them.
+
+Both directions share one path: they differ only in whether the source survives,
+so only the per-file operation and the undo-on-failure step are mode-aware.
+"""
+
 from __future__ import annotations
 
 import errno
@@ -5,6 +11,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
+from typing import Literal
 
 from fastapi import HTTPException
 
@@ -13,6 +20,8 @@ from constants import SIDECAR_EXTENSIONS
 from file_import import _existing_file_names
 
 logger = logging.getLogger(__name__)
+
+TransferMode = Literal["copy", "move"]
 
 
 def related_media_paths(media_path: Path) -> list[Path]:
@@ -40,11 +49,16 @@ def sidecar_suffix(media_path: Path, related: Path) -> str:
     return related.name[len(media_path.stem) :]
 
 
-def preview_media_move(destination: Path, source_paths: list[Path]) -> dict[str, list[str]]:
+def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[str, list[str]]:
+    """Split ``source_paths`` into what can land, what collides, and what has nowhere to go.
+
+    Mode-independent: a file already sitting in the destination can neither be
+    moved there nor copied alongside itself, so both modes skip it.
+    """
     destination = destination.resolve()
     existing_names = _existing_file_names(destination)
 
-    movable: list[str] = []
+    eligible: list[str] = []
     conflicts: list[str] = []
     skipped: list[str] = []
 
@@ -58,10 +72,10 @@ def preview_media_move(destination: Path, source_paths: list[Path]) -> dict[str,
         if name in existing_names:
             conflicts.append(name)
         else:
-            movable.append(name)
+            eligible.append(name)
 
     return {
-        "movable": movable,
+        "eligible": eligible,
         "conflicts": conflicts,
         "skipped": skipped,
     }
@@ -91,9 +105,29 @@ def move_one_file(source: Path, destination: Path) -> None:
         raise
 
 
-def restore_moved_files(moved: list[tuple[Path, Path]]) -> None:
-    """Put a half-moved group back, so a failure never splits media from its sidecars."""
-    for origin, destination in reversed(moved):
+def transfer_one_file(source: Path, destination: Path, mode: TransferMode) -> None:
+    if mode == "copy":
+        shutil.copy2(source, destination)
+        return
+    move_one_file(source, destination)
+
+
+def undo_transfer(done: list[tuple[Path, Path]], mode: TransferMode) -> None:
+    """Unwind a half-finished group, so a failure never splits media from its sidecars.
+
+    A move puts the originals back; a copy leaves them alone and drops what it wrote.
+    """
+    if mode == "copy":
+        for _origin, destination in reversed(done):
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning(
+                    "Failed to remove %s after an aborted copy: %s", destination.name, exc
+                )
+        return
+
+    for origin, destination in reversed(done):
         try:
             os.replace(destination, origin)
         except OSError as exc:
@@ -103,8 +137,8 @@ def restore_moved_files(moved: list[tuple[Path, Path]]) -> None:
 def discard_replaced_sidecars(destination_media: Path, arrived_names: set[str]) -> None:
     """Drop sidecars of the replaced destination file that the source did not bring along.
 
-    Runs only once the whole group has landed, so an aborted move never costs the
-    destination the caption it already had.
+    Runs only once the whole group has landed, so an aborted transfer never costs
+    the destination the caption it already had.
     """
     for path in related_media_paths(destination_media):
         if path.name in arrived_names:
@@ -115,10 +149,11 @@ def discard_replaced_sidecars(destination_media: Path, arrived_names: set[str]) 
             logger.warning("Failed to remove replaced sidecar %s: %s", path.name, exc)
 
 
-def move_media_with_sidecars(
+def transfer_media_with_sidecars(
     source: Path,
     destination_folder: Path,
     *,
+    mode: TransferMode,
     overwrite: bool = False,
 ) -> dict[str, object]:
     source = source.resolve()
@@ -134,41 +169,42 @@ def move_media_with_sidecars(
             detail="File already exists in the destination folder",
         )
 
-    moved: list[tuple[Path, Path]] = []
+    done: list[tuple[Path, Path]] = []
 
     for path in related_media_paths(source):
         destination = destination_folder / path.name
         try:
-            move_one_file(path, destination)
+            transfer_one_file(path, destination, mode)
         except OSError as exc:
-            restore_moved_files(moved)
+            undo_transfer(done, mode)
             raise HTTPException(
-                status_code=500, detail=f"Failed to move {path.name}: {exc}"
+                status_code=500, detail=f"Failed to {mode} {path.name}: {exc}"
             ) from exc
 
-        moved.append((path, destination))
+        done.append((path, destination))
 
-    discard_replaced_sidecars(destination_media, {destination.name for _, destination in moved})
+    discard_replaced_sidecars(destination_media, {destination.name for _, destination in done})
 
     return {
         "source": str(source),
         "destination": str(destination_media),
-        "moved": [origin.name for origin, _ in moved],
+        "files": [origin.name for origin, _ in done],
     }
 
 
-def move_media_batch(
+def transfer_media_batch(
     destination_folder: Path,
     source_paths: list[Path],
     *,
+    mode: TransferMode,
     overwrite: bool = False,
 ) -> dict[str, list[object]]:
-    preview = preview_media_move(destination_folder, source_paths)
-    allowed_names = set(preview["movable"])
+    preview = preview_media_transfer(destination_folder, source_paths)
+    allowed_names = set(preview["eligible"])
     if overwrite:
         allowed_names.update(preview["conflicts"])
 
-    moved: list[dict[str, object]] = []
+    transferred: list[dict[str, object]] = []
     skipped = list(preview["skipped"])
     failed: list[dict[str, str]] = []
 
@@ -178,21 +214,22 @@ def move_media_batch(
             continue
 
         try:
-            moved.append(
-                move_media_with_sidecars(
+            transferred.append(
+                transfer_media_with_sidecars(
                     source,
                     destination_folder,
+                    mode=mode,
                     overwrite=overwrite,
                 )
             )
         except HTTPException as exc:
             failed.append({"path": str(source), "detail": str(exc.detail)})
         except OSError as exc:
-            logger.warning("Failed to move %s: %s", source, exc)
+            logger.warning("Failed to %s %s: %s", mode, source, exc)
             failed.append({"path": str(source), "detail": str(exc)})
 
     return {
-        "moved": moved,
+        "transferred": transferred,
         "skipped": skipped,
         "failed": failed,
     }

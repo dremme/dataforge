@@ -82,27 +82,28 @@ export interface FolderCreateResponse {
   issue_count: number;
 }
 
-export interface MediaMovePreviewResponse {
-  movable: string[];
+/** Shared by move and copy: only the endpoint decides whether the source survives. */
+export interface MediaTransferPreviewResponse {
+  eligible: string[];
   conflicts: string[];
   skipped: string[];
 }
 
-interface MediaMoveItemResponse {
+interface MediaTransferItemResponse {
   source: string;
   destination: string;
-  moved: string[];
+  files: string[];
 }
 
-interface MediaMoveFailure {
+interface MediaTransferFailure {
   path: string;
   detail: string;
 }
 
-export interface MediaMoveResponse {
-  moved: MediaMoveItemResponse[];
+export interface MediaTransferResponse {
+  transferred: MediaTransferItemResponse[];
   skipped: string[];
-  failed: MediaMoveFailure[];
+  failed: MediaTransferFailure[];
 }
 
 export interface Subfolder {

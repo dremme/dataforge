@@ -565,7 +565,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ path });
     }
 
-    if (url.pathname === "/api/media/move/preview" && method === "POST") {
+    if (
+      (url.pathname === "/api/media/move/preview" || url.pathname === "/api/media/copy/preview") &&
+      method === "POST"
+    ) {
       const destination = normalizeBrowseKey(url.searchParams.get("destination"));
       const body = init?.body ? JSON.parse(init.body as string) : { paths: [] };
       const paths = Array.isArray(body.paths) ? body.paths : [];
@@ -576,7 +579,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
       const destinationBrowse = browseResponses[destination];
       const existingNames = new Set(destinationBrowse?.items.map((item) => item.name) ?? []);
-      const movable: string[] = [];
+      const eligible: string[] = [];
       const conflicts: string[] = [];
       const skipped: string[] = [];
 
@@ -594,14 +597,18 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         if (existingNames.has(fileName)) {
           conflicts.push(fileName);
         } else {
-          movable.push(fileName);
+          eligible.push(fileName);
         }
       }
 
-      return jsonResponse({ movable, conflicts, skipped });
+      return jsonResponse({ eligible, conflicts, skipped });
     }
 
-    if (url.pathname === "/api/media/move" && method === "POST") {
+    if (
+      (url.pathname === "/api/media/move" || url.pathname === "/api/media/copy") &&
+      method === "POST"
+    ) {
+      const isCopy = url.pathname === "/api/media/copy";
       const destination = normalizeBrowseKey(url.searchParams.get("destination"));
       const overwrite = url.searchParams.get("overwrite") === "true";
       const body = init?.body ? JSON.parse(init.body as string) : { paths: [] };
@@ -616,7 +623,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
-      const moved: Array<{ source: string; destination: string; moved: string[] }> = [];
+      const transferred: Array<{ source: string; destination: string; files: string[] }> = [];
       const skipped: string[] = [];
       const failed: Array<{ path: string; detail: string }> = [];
 
@@ -645,7 +652,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           const index = browseData.items.findIndex((entry) => entry.path === normalizedPath);
           if (index >= 0) {
             sourceBrowse = browseData;
-            const [item] = browseData.items.splice(index, 1);
+            // A copy leaves the source listing alone; a move takes the item out.
+            const item = isCopy ? browseData.items[index] : browseData.items.splice(index, 1)[0];
             browseData.item_count = browseData.items.length;
 
             if (existingIndex >= 0) {
@@ -656,17 +664,17 @@ export function installMockBackend(options: MockBackendOptions = {}) {
             destinationBrowse.items.push({ ...item, path: destinationPath });
             destinationBrowse.item_count = destinationBrowse.items.length;
 
-            const movedNames = [item.name];
+            const files = [item.name];
             if (item.has_caption_file) {
-              movedNames.push(
+              files.push(
                 item.name.replace(/\.[^.]+$/, item.caption_file_type === "json" ? ".json" : ".txt"),
               );
             }
 
-            moved.push({
+            transferred.push({
               source: normalizedPath,
               destination: destinationPath,
-              moved: movedNames,
+              files,
             });
             break;
           }
@@ -677,7 +685,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         }
       }
 
-      return jsonResponse({ moved, skipped, failed });
+      return jsonResponse({ transferred, skipped, failed });
     }
 
     if (url.pathname === "/api/media") {

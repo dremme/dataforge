@@ -12,12 +12,10 @@ These are common instructions for agents across all scenarios.
     This includes real usernames, home directories, machine-specific paths, secrets, API keys, tokens, passwords, private hostnames, real timestamps from local sessions, or identifiable project or dataset names.
     Use generic placeholders instead (e.g. `C:\Photos`, `C:\datasets\sample`, `sample_train_v1`, `2026-01-01T00:00:00.000Z`).
 - Never manually modify CHANGELOG.md, TODO.md, or any files that are marked as auto-generated.
-- When writing or substantially editing long Markdown files, put each full sentence on its own line.
-    Preserve normal Markdown structure, but avoid wrapping multiple sentences onto one physical line.
 - When making technical decisions, do not give much weight to development cost.
     Instead, prefer quality, simplicity, robustness, scalability, and long term maintainability.
-- When doing bug fixes, always start with reproducing the bug in an E2E setting as closely aligned with how an end user would experience it as possible.
-    This makes sure you find the real problem, so your fix will automatically solve it.
+- When doing bug fixes, always start with reproducing the bug using test driven design (TDD) principles.
+    This makes sure you find the real problem.
 - When end-to-end testing a product, be picky about the UI you see and be obsessed with pixel perfection.
     If something clearly looks off, even if it is not directly related to what you are doing, try to get it fixed along.
 - Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.

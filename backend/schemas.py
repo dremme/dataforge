@@ -347,32 +347,34 @@ class MediaDeleteResponse(BaseModel):
     deleted: list[str] = Field(default_factory=list)
 
 
-class MediaMovePreviewRequest(BaseModel):
+# Move and copy share these shapes: the request and the outcome are identical,
+# only the endpoint decides whether the source survives.
+class MediaTransferPreviewRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)
 
 
-class MediaMovePreviewResponse(BaseModel):
-    movable: list[str] = Field(default_factory=list)
+class MediaTransferPreviewResponse(BaseModel):
+    eligible: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
 
 
-class MediaMoveRequest(BaseModel):
+class MediaTransferRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)
 
 
-class MediaMoveItemResponse(BaseModel):
+class MediaTransferItemResponse(BaseModel):
     source: str
     destination: str
-    moved: list[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
 
 
-class MediaMoveFailure(BaseModel):
+class MediaTransferFailure(BaseModel):
     path: str
     detail: str
 
 
-class MediaMoveResponse(BaseModel):
-    moved: list[MediaMoveItemResponse] = Field(default_factory=list)
+class MediaTransferResponse(BaseModel):
+    transferred: list[MediaTransferItemResponse] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
-    failed: list[MediaMoveFailure] = Field(default_factory=list)
+    failed: list[MediaTransferFailure] = Field(default_factory=list)

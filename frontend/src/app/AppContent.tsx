@@ -36,6 +36,7 @@ export function AppContent() {
     openGalleryItem,
     onGalleryItemsDeleted,
     onGalleryItemsMoved,
+    onGalleryItemsCopied,
   } = gallery;
 
   return (
@@ -50,6 +51,7 @@ export function AppContent() {
       selectAllPaths={handleSelectAllPaths}
       onDeleted={onGalleryItemsDeleted}
       onMoved={onGalleryItemsMoved}
+      onCopied={onGalleryItemsCopied}
     >
       <div className="app">
         {browse && (

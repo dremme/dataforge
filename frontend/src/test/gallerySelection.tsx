@@ -23,6 +23,7 @@ export function withGallerySelection(
       selectAllPaths={noop}
       onDeleted={noop}
       onMoved={noop}
+      onCopied={noop}
       {...overrides}
     >
       {children}

@@ -1,5 +1,8 @@
 import { postJson, requestJson } from "@/shared/api/http";
-import type { MediaMovePreviewResponse, MediaMoveResponse } from "@/shared/types";
+import type { MediaTransferPreviewResponse, MediaTransferResponse } from "@/shared/types";
+
+/** Move takes the files, copy leaves the originals in place. */
+export type MediaTransferMode = "move" | "copy";
 
 export type MediaDeleteResponse = {
   path: string;
@@ -25,7 +28,7 @@ export type DeleteSelectedMediaResult = {
   failed: Array<{ path: string; error: unknown }>;
 };
 
-export type MoveSelectedMediaResult = {
+export type TransferSelectedMediaResult = {
   succeeded: string[];
   skipped: string[];
   failed: Array<{ path: string; error: unknown }>;
@@ -64,28 +67,30 @@ export function mediaUrl(mediaPath: string): string {
   return `/api/media?${params}`;
 }
 
-export async function previewMediaMove(
+export async function previewMediaTransfer(
+  mode: MediaTransferMode,
   destinationFolder: string,
   paths: readonly string[],
-): Promise<MediaMovePreviewResponse> {
+): Promise<MediaTransferPreviewResponse> {
   const params = new URLSearchParams({ destination: destinationFolder });
-  return postJson<MediaMovePreviewResponse>(`/api/media/move/preview?${params}`, { paths });
+  return postJson<MediaTransferPreviewResponse>(`/api/media/${mode}/preview?${params}`, { paths });
 }
 
-export async function moveSelectedMedia(
+export async function transferSelectedMedia(
+  mode: MediaTransferMode,
   destinationFolder: string,
   paths: readonly string[],
   overwrite = false,
-): Promise<MoveSelectedMediaResult> {
+): Promise<TransferSelectedMediaResult> {
   const params = new URLSearchParams({
     destination: destinationFolder,
     overwrite: String(overwrite),
   });
 
-  const response = await postJson<MediaMoveResponse>(`/api/media/move?${params}`, { paths });
+  const response = await postJson<MediaTransferResponse>(`/api/media/${mode}?${params}`, { paths });
 
   return {
-    succeeded: response.moved.map((entry) => entry.source),
+    succeeded: response.transferred.map((entry) => entry.source),
     skipped: response.skipped,
     failed: response.failed.map((entry) => ({ path: entry.path, error: entry.detail })),
   };

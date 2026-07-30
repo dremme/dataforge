@@ -11,7 +11,7 @@ from pathlib import Path
 from automation.selection import filter_media_list, list_folder_media
 from constants import MEDIA_EXTENSIONS
 from logging_config import configure_logging, log_job_summary
-from media_move import related_media_paths, sidecar_suffix
+from media_transfer import related_media_paths, sidecar_suffix
 
 logger = logging.getLogger(__name__)
 

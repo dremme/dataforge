@@ -134,7 +134,7 @@ class MediaMoveEndpointTests(unittest.TestCase):
                 json={"paths": [str(media)]},
             )
             self.assertEqual(preview_response.status_code, 200)
-            self.assertEqual(preview_response.json()["movable"], ["sunset.png"])
+            self.assertEqual(preview_response.json()["eligible"], ["sunset.png"])
 
             move_response = client.post(
                 f"/api/media/move?destination={quote(str(destination_dir))}",
@@ -143,9 +143,9 @@ class MediaMoveEndpointTests(unittest.TestCase):
 
             self.assertEqual(move_response.status_code, 200)
             payload = move_response.json()
-            self.assertEqual(len(payload["moved"]), 1)
+            self.assertEqual(len(payload["transferred"]), 1)
             self.assertEqual(
-                payload["moved"][0]["destination"], str(destination_dir / "sunset.png")
+                payload["transferred"][0]["destination"], str(destination_dir / "sunset.png")
             )
             self.assertFalse(media.exists())
             self.assertTrue((destination_dir / "sunset.png").is_file())
@@ -168,6 +168,73 @@ class MediaMoveEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["conflicts"], ["sunset.png"])
+
+
+class MediaCopyEndpointTests(unittest.TestCase):
+    def test_copies_selected_files_and_keeps_the_originals(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir = root / "Source"
+            destination_dir = root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+
+            preview_response = client.post(
+                f"/api/media/copy/preview?destination={quote(str(destination_dir))}",
+                json={"paths": [str(media)]},
+            )
+            self.assertEqual(preview_response.status_code, 200)
+            self.assertEqual(preview_response.json()["eligible"], ["sunset.png"])
+
+            copy_response = client.post(
+                f"/api/media/copy?destination={quote(str(destination_dir))}",
+                json={"paths": [str(media)]},
+            )
+
+            self.assertEqual(copy_response.status_code, 200)
+            payload = copy_response.json()
+            self.assertEqual(len(payload["transferred"]), 1)
+            self.assertEqual(
+                payload["transferred"][0]["destination"], str(destination_dir / "sunset.png")
+            )
+            self.assertEqual(
+                set(payload["transferred"][0]["files"]),
+                {"sunset.png", "sunset.txt"},
+            )
+
+            self.assertTrue((destination_dir / "sunset.png").is_file())
+            self.assertTrue((destination_dir / "sunset.txt").is_file())
+            self.assertTrue(media.is_file())
+            self.assertTrue(media.with_suffix(".txt").is_file())
+
+    def test_copy_requires_at_least_one_path(self) -> None:
+        with TempMediaFolder() as root:
+            destination_dir = root / "Destination"
+            destination_dir.mkdir()
+
+            response = client.post(
+                f"/api/media/copy?destination={quote(str(destination_dir))}",
+                json={"paths": []},
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json()["detail"], "No files were provided")
+
+    def test_copy_skips_files_already_in_the_destination(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            response = client.post(
+                f"/api/media/copy?destination={quote(str(root))}",
+                json={"paths": [str(media)]},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["transferred"], [])
+            self.assertEqual(payload["skipped"], [str(media.resolve())])
 
 
 class ThumbnailEndpointTests(unittest.TestCase):

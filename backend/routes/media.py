@@ -3,15 +3,15 @@ from fastapi.responses import FileResponse
 
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from media_delete import delete_media_with_sidecars
-from media_move import move_media_batch, preview_media_move
+from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import resolve_folder, resolve_image_file, resolve_media_file
 from schemas import (
     MediaDeleteResponse,
-    MediaMovePreviewRequest,
-    MediaMovePreviewResponse,
-    MediaMoveRequest,
-    MediaMoveResponse,
     MediaOpenResponse,
+    MediaTransferPreviewRequest,
+    MediaTransferPreviewResponse,
+    MediaTransferRequest,
+    MediaTransferResponse,
 )
 from thumbnails import (
     DEFAULT_THUMBNAIL_WIDTH,
@@ -60,34 +60,67 @@ def delete_media(
     return MediaDeleteResponse(**result)
 
 
-@router.post("/media/move/preview", response_model=MediaMovePreviewResponse)
+def _preview_transfer(destination: str, paths: list[str]) -> MediaTransferPreviewResponse:
+    folder = resolve_folder(destination)
+    source_paths = [resolve_media_file(path) for path in paths]
+    return MediaTransferPreviewResponse(**preview_media_transfer(folder, source_paths))
+
+
+def _transfer(
+    destination: str,
+    paths: list[str],
+    *,
+    mode: TransferMode,
+    overwrite: bool,
+) -> MediaTransferResponse:
+    folder = resolve_folder(destination)
+
+    if not paths:
+        raise HTTPException(status_code=400, detail="No files were provided")
+
+    source_paths = [resolve_media_file(path) for path in paths]
+    result = transfer_media_batch(folder, source_paths, mode=mode, overwrite=overwrite)
+    return MediaTransferResponse(**result)
+
+
+@router.post("/media/move/preview", response_model=MediaTransferPreviewResponse)
 def preview_move_media(
     destination: str = Query(..., description="Absolute path to destination folder"),
-    body: MediaMovePreviewRequest = ...,
-) -> MediaMovePreviewResponse:
-    folder = resolve_folder(destination)
-    source_paths = [resolve_media_file(path) for path in body.paths]
-    result = preview_media_move(folder, source_paths)
-    return MediaMovePreviewResponse(**result)
+    body: MediaTransferPreviewRequest = ...,
+) -> MediaTransferPreviewResponse:
+    return _preview_transfer(destination, body.paths)
 
 
-@router.post("/media/move", response_model=MediaMoveResponse)
+@router.post("/media/move", response_model=MediaTransferResponse)
 def move_media(
     destination: str = Query(..., description="Absolute path to destination folder"),
     overwrite: bool = Query(
         False,
         description="Replace files that already exist in the destination folder",
     ),
-    body: MediaMoveRequest = ...,
-) -> MediaMoveResponse:
-    folder = resolve_folder(destination)
+    body: MediaTransferRequest = ...,
+) -> MediaTransferResponse:
+    return _transfer(destination, body.paths, mode="move", overwrite=overwrite)
 
-    if not body.paths:
-        raise HTTPException(status_code=400, detail="No files were provided")
 
-    source_paths = [resolve_media_file(path) for path in body.paths]
-    result = move_media_batch(folder, source_paths, overwrite=overwrite)
-    return MediaMoveResponse(**result)
+@router.post("/media/copy/preview", response_model=MediaTransferPreviewResponse)
+def preview_copy_media(
+    destination: str = Query(..., description="Absolute path to destination folder"),
+    body: MediaTransferPreviewRequest = ...,
+) -> MediaTransferPreviewResponse:
+    return _preview_transfer(destination, body.paths)
+
+
+@router.post("/media/copy", response_model=MediaTransferResponse)
+def copy_media(
+    destination: str = Query(..., description="Absolute path to destination folder"),
+    overwrite: bool = Query(
+        False,
+        description="Replace files that already exist in the destination folder",
+    ),
+    body: MediaTransferRequest = ...,
+) -> MediaTransferResponse:
+    return _transfer(destination, body.paths, mode="copy", overwrite=overwrite)
 
 
 @router.get("/thumbnail")

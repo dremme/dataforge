@@ -19,14 +19,14 @@ vi.mock("@/features/gallery/api/media", async (importOriginal) => {
   return {
     ...actual,
     deleteSelectedMedia: vi.fn(),
-    moveSelectedMedia: vi.fn(),
-    previewMediaMove: vi.fn(),
+    transferSelectedMedia: vi.fn(),
+    previewMediaTransfer: vi.fn(),
   };
 });
 
 const deleteSelectedMediaMock = vi.mocked(mediaApi.deleteSelectedMedia);
-const moveSelectedMediaMock = vi.mocked(mediaApi.moveSelectedMedia);
-const previewMediaMoveMock = vi.mocked(mediaApi.previewMediaMove);
+const transferSelectedMediaMock = vi.mocked(mediaApi.transferSelectedMedia);
+const previewMediaTransferMock = vi.mocked(mediaApi.previewMediaTransfer);
 
 const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
@@ -49,8 +49,8 @@ describe("GallerySelectionControls", () => {
   beforeEach(() => {
     installMockBackend();
     deleteSelectedMediaMock.mockReset();
-    moveSelectedMediaMock.mockReset();
-    previewMediaMoveMock.mockReset();
+    transferSelectedMediaMock.mockReset();
+    previewMediaTransferMock.mockReset();
     resetScrollLockManagerForTests();
   });
 
@@ -205,12 +205,12 @@ describe("GallerySelectionControls", () => {
     const onMoved = vi.fn();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
-    previewMediaMoveMock.mockResolvedValue({
-      movable: ["sunset.png", "beach.jpg"],
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: ["sunset.png", "beach.jpg"],
       conflicts: [],
       skipped: [],
     });
-    moveSelectedMediaMock.mockResolvedValue({
+    transferSelectedMediaMock.mockResolvedValue({
       succeeded: Array.from(selectedPaths),
       skipped: [],
       failed: [],
@@ -225,8 +225,13 @@ describe("GallerySelectionControls", () => {
     await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
     await waitFor(() => {
-      expect(previewMediaMoveMock).toHaveBeenCalledWith(VACATION_PATH, Array.from(selectedPaths));
-      expect(moveSelectedMediaMock).toHaveBeenCalledWith(
+      expect(previewMediaTransferMock).toHaveBeenCalledWith(
+        "move",
+        VACATION_PATH,
+        Array.from(selectedPaths),
+      );
+      expect(transferSelectedMediaMock).toHaveBeenCalledWith(
+        "move",
         VACATION_PATH,
         Array.from(selectedPaths),
         false,
@@ -239,12 +244,12 @@ describe("GallerySelectionControls", () => {
     const user = userEvent.setup();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`]);
 
-    previewMediaMoveMock.mockResolvedValue({
-      movable: [],
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: [],
       conflicts: ["sunset.png"],
       skipped: [],
     });
-    moveSelectedMediaMock.mockResolvedValue({
+    transferSelectedMediaMock.mockResolvedValue({
       succeeded: Array.from(selectedPaths),
       skipped: [],
       failed: [],
@@ -266,7 +271,8 @@ describe("GallerySelectionControls", () => {
     await user.click(within(overwriteDialog).getByRole("button", { name: "Replace existing" }));
 
     await waitFor(() => {
-      expect(moveSelectedMediaMock).toHaveBeenCalledWith(
+      expect(transferSelectedMediaMock).toHaveBeenCalledWith(
+        "move",
         VACATION_PATH,
         Array.from(selectedPaths),
         true,
@@ -279,12 +285,12 @@ describe("GallerySelectionControls", () => {
     const onMoved = vi.fn();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
-    previewMediaMoveMock.mockResolvedValue({
-      movable: ["sunset.png", "beach.jpg"],
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: ["sunset.png", "beach.jpg"],
       conflicts: [],
       skipped: [],
     });
-    moveSelectedMediaMock.mockResolvedValue({
+    transferSelectedMediaMock.mockResolvedValue({
       succeeded: [`${HOME_PATH}\\beach.jpg`],
       skipped: [],
       failed: [
@@ -302,6 +308,121 @@ describe("GallerySelectionControls", () => {
 
     expect(
       await screen.findByText(/Could not move sunset\.png: sunset\.png is used by another process/),
+    ).toBeInTheDocument();
+  });
+
+  it("copies selected files and keeps them in the current folder", async () => {
+    const user = userEvent.setup();
+    const onMoved = vi.fn();
+    const onCopied = vi.fn();
+    const exitSelectionMode = vi.fn();
+    const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
+
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: ["sunset.png", "beach.jpg"],
+      conflicts: [],
+      skipped: [],
+    });
+    transferSelectedMediaMock.mockResolvedValue({
+      succeeded: Array.from(selectedPaths),
+      skipped: [],
+      failed: [],
+    });
+
+    renderControls({ selectedPaths, onMoved, onCopied, exitSelectionMode });
+
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    const picker = await screen.findByRole("dialog", { name: "Copy to folder" });
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Copy here" }));
+
+    await waitFor(() => {
+      expect(previewMediaTransferMock).toHaveBeenCalledWith(
+        "copy",
+        VACATION_PATH,
+        Array.from(selectedPaths),
+      );
+      expect(transferSelectedMediaMock).toHaveBeenCalledWith(
+        "copy",
+        VACATION_PATH,
+        Array.from(selectedPaths),
+        false,
+      );
+      expect(onCopied).toHaveBeenCalled();
+    });
+
+    // The originals stay put, so nothing is dropped and the selection survives.
+    expect(onMoved).not.toHaveBeenCalled();
+    expect(exitSelectionMode).not.toHaveBeenCalled();
+    expect(await screen.findByText("Copied 2 files to Vacation.")).toBeInTheDocument();
+  });
+
+  it("offers to copy only new files when the destination already has conflicts", async () => {
+    const user = userEvent.setup();
+    const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`]);
+
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: [],
+      conflicts: ["sunset.png"],
+      skipped: [],
+    });
+    transferSelectedMediaMock.mockResolvedValue({
+      succeeded: Array.from(selectedPaths),
+      skipped: [],
+      failed: [],
+    });
+
+    renderControls({ selectedCount: 1, selectedPaths });
+
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    const picker = await screen.findByRole("dialog", { name: "Copy to folder" });
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Copy here" }));
+
+    const overwriteDialog = await screen.findByRole("alertdialog", {
+      name: "Replace existing files?",
+    });
+    expect(within(overwriteDialog).getByText(/copy only new files/i)).toBeInTheDocument();
+
+    await user.click(within(overwriteDialog).getByRole("button", { name: "Replace existing" }));
+
+    await waitFor(() => {
+      expect(transferSelectedMediaMock).toHaveBeenCalledWith(
+        "copy",
+        VACATION_PATH,
+        Array.from(selectedPaths),
+        true,
+      );
+    });
+  });
+
+  it("reports files the backend could not copy", async () => {
+    const user = userEvent.setup();
+    const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`]);
+
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: ["sunset.png"],
+      conflicts: [],
+      skipped: [],
+    });
+    transferSelectedMediaMock.mockResolvedValue({
+      succeeded: [],
+      skipped: [],
+      failed: [{ path: `${HOME_PATH}\\sunset.png`, error: "destination is read-only" }],
+    });
+
+    renderControls({ selectedCount: 1, selectedPaths });
+
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    const picker = await screen.findByRole("dialog", { name: "Copy to folder" });
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Copy here" }));
+
+    expect(
+      await screen.findByText(/Could not copy sunset\.png: destination is read-only/),
     ).toBeInTheDocument();
   });
 

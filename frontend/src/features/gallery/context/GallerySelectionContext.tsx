@@ -23,6 +23,8 @@ export interface GallerySelectionValue {
   selectAllPaths: () => void;
   onDeleted: (paths: string[]) => void | Promise<void>;
   onMoved: (paths: string[]) => void | Promise<void>;
+  /** Takes no paths: a copy leaves this folder's items exactly where they were. */
+  onCopied: () => void | Promise<void>;
 }
 
 const GallerySelectionContext = createContext<GallerySelectionValue | null>(null);
@@ -42,6 +44,7 @@ export function GallerySelectionProvider({
     selectAllPaths,
     onDeleted,
     onMoved,
+    onCopied,
   } = value;
 
   const contextValue = useMemo<GallerySelectionValue>(
@@ -56,6 +59,7 @@ export function GallerySelectionProvider({
       selectAllPaths,
       onDeleted,
       onMoved,
+      onCopied,
     }),
     [
       selectionMode,
@@ -68,6 +72,7 @@ export function GallerySelectionProvider({
       selectAllPaths,
       onDeleted,
       onMoved,
+      onCopied,
     ],
   );
 

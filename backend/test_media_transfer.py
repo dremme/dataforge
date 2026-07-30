@@ -1,8 +1,9 @@
-"""Tests for media move helpers."""
+"""Tests for media move and copy helpers."""
 
 from __future__ import annotations
 
 import os
+import shutil
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from captions import issue_file_path
-from media_move import move_media_with_sidecars, preview_media_move
+from media_transfer import preview_media_transfer, transfer_media_with_sidecars
 from testing_fixtures import (
     TempMediaFolder,
     write_json_caption,
@@ -19,8 +20,8 @@ from testing_fixtures import (
 )
 
 
-class PreviewMediaMoveTests(unittest.TestCase):
-    def test_detects_conflicts_and_movable_files(self) -> None:
+class PreviewMediaTransferTests(unittest.TestCase):
+    def test_detects_conflicts_and_eligible_files(self) -> None:
         with TempMediaFolder() as root:
             source_dir = root / "Source"
             destination_dir = root / "Destination"
@@ -31,12 +32,12 @@ class PreviewMediaMoveTests(unittest.TestCase):
             write_media(source_dir, "beach.jpg")
             write_media(destination_dir, "sunset.png")
 
-            preview = preview_media_move(
+            preview = preview_media_transfer(
                 destination_dir,
                 [source_dir / "sunset.png", source_dir / "beach.jpg"],
             )
 
-            self.assertEqual(preview["movable"], ["beach.jpg"])
+            self.assertEqual(preview["eligible"], ["beach.jpg"])
             self.assertEqual(preview["conflicts"], ["sunset.png"])
             self.assertEqual(preview["skipped"], [])
 
@@ -44,9 +45,9 @@ class PreviewMediaMoveTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
 
-            preview = preview_media_move(root, [media])
+            preview = preview_media_transfer(root, [media])
 
-            self.assertEqual(preview["movable"], [])
+            self.assertEqual(preview["eligible"], [])
             self.assertEqual(preview["conflicts"], [])
             self.assertEqual(preview["skipped"], [str(media.resolve())])
 
@@ -64,7 +65,7 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             write_json_caption(media, {"description": "Golden hour."})
             issue_file_path(media).write_text('{"issues":"old"}', encoding="utf-8")
 
-            result = move_media_with_sidecars(media, destination_dir)
+            result = transfer_media_with_sidecars(media, destination_dir, mode="move")
 
             destination_media = destination_dir / "sunset.png"
             self.assertTrue(destination_media.is_file())
@@ -78,7 +79,7 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(result["source"], str(media))
             self.assertEqual(result["destination"], str(destination_media))
             self.assertEqual(
-                set(result["moved"]),
+                set(result["files"]),
                 {"sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"},
             )
 
@@ -93,7 +94,7 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             write_media(destination_dir, "sunset.png")
 
             with self.assertRaises(HTTPException) as ctx:
-                move_media_with_sidecars(source, destination_dir)
+                transfer_media_with_sidecars(source, destination_dir, mode="move")
 
             self.assertEqual(ctx.exception.status_code, 409)
 
@@ -123,9 +124,9 @@ class AbortedMoveTests(unittest.TestCase):
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
 
-            with patch("media_move.os.replace", _blocking_replace("sunset.png")):
+            with patch("media_transfer.os.replace", _blocking_replace("sunset.png")):
                 with self.assertRaises(HTTPException) as ctx:
-                    move_media_with_sidecars(media, destination_dir)
+                    transfer_media_with_sidecars(media, destination_dir, mode="move")
 
             self.assertEqual(ctx.exception.status_code, 500)
             self.assertTrue(media.is_file())
@@ -143,9 +144,9 @@ class AbortedMoveTests(unittest.TestCase):
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
 
-            with patch("media_move.os.replace", _blocking_replace("sunset.txt")):
+            with patch("media_transfer.os.replace", _blocking_replace("sunset.txt")):
                 with self.assertRaises(HTTPException) as ctx:
-                    move_media_with_sidecars(media, destination_dir)
+                    transfer_media_with_sidecars(media, destination_dir, mode="move")
 
             self.assertEqual(ctx.exception.status_code, 500)
             self.assertTrue(media.is_file())
@@ -165,9 +166,11 @@ class AbortedMoveTests(unittest.TestCase):
             existing = write_media(destination_dir, "sunset.png")
             write_txt_caption(existing, "The caption already in the dataset.")
 
-            with patch("media_move.os.replace", _blocking_replace("sunset.png")):
+            with patch("media_transfer.os.replace", _blocking_replace("sunset.png")):
                 with self.assertRaises(HTTPException):
-                    move_media_with_sidecars(media, destination_dir, overwrite=True)
+                    transfer_media_with_sidecars(
+                        media, destination_dir, overwrite=True, mode="move"
+                    )
 
             self.assertEqual(
                 (destination_dir / "sunset.txt").read_text(encoding="utf-8"),
@@ -187,13 +190,111 @@ class AbortedMoveTests(unittest.TestCase):
             write_txt_caption(existing, "Stale.")
             issue_file_path(existing).write_text('{"issues":"stale"}', encoding="utf-8")
 
-            move_media_with_sidecars(media, destination_dir, overwrite=True)
+            transfer_media_with_sidecars(media, destination_dir, overwrite=True, mode="move")
 
             self.assertEqual(
                 (destination_dir / "sunset.txt").read_text(encoding="utf-8"),
                 "Golden hour.",
             )
             self.assertFalse(issue_file_path(destination_dir / "sunset.png").exists())
+
+
+class CopyMediaWithSidecarsTests(unittest.TestCase):
+    def _folders(self, root: Path) -> tuple[Path, Path]:
+        source_dir = root / "Source"
+        destination_dir = root / "Destination"
+        source_dir.mkdir()
+        destination_dir.mkdir()
+        return source_dir, destination_dir
+
+    def test_copies_media_and_sidecars_and_keeps_the_originals(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+            write_json_caption(media, {"description": "Golden hour."})
+            issue_file_path(media).write_text('{"issues":"old"}', encoding="utf-8")
+
+            result = transfer_media_with_sidecars(media, destination_dir, mode="copy")
+
+            for name in ("sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"):
+                self.assertTrue((destination_dir / name).is_file(), name)
+                self.assertTrue((source_dir / name).is_file(), f"original {name} was removed")
+
+            self.assertEqual(
+                (destination_dir / "sunset.txt").read_text(encoding="utf-8"),
+                "Golden hour.",
+            )
+            self.assertEqual(result["destination"], str(destination_dir / "sunset.png"))
+            self.assertEqual(
+                set(result["files"]),
+                {"sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"},
+            )
+
+    def test_rejects_copy_without_overwrite_when_destination_exists(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+
+            media = write_media(source_dir, "sunset.png")
+            write_media(destination_dir, "sunset.png")
+
+            with self.assertRaises(HTTPException) as caught:
+                transfer_media_with_sidecars(media, destination_dir, mode="copy")
+
+            self.assertEqual(caught.exception.status_code, 409)
+            self.assertTrue(media.is_file())
+
+    def test_rejects_copying_into_the_same_folder(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            with self.assertRaises(HTTPException) as caught:
+                transfer_media_with_sidecars(media, root, mode="copy")
+
+            self.assertEqual(caught.exception.status_code, 400)
+
+    def test_a_failed_sidecar_copy_leaves_nothing_behind(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+
+            real_copy = shutil.copy2
+
+            def failing_copy(source, destination, *args, **kwargs):
+                if Path(source).suffix == ".txt":
+                    raise OSError("sidecar is locked")
+                return real_copy(source, destination, *args, **kwargs)
+
+            with patch("media_transfer.shutil.copy2", failing_copy):
+                with self.assertRaises(HTTPException):
+                    transfer_media_with_sidecars(media, destination_dir, mode="copy")
+
+            # The half-written group is rolled back, and the originals are untouched.
+            self.assertFalse((destination_dir / "sunset.png").exists())
+            self.assertFalse((destination_dir / "sunset.txt").exists())
+            self.assertTrue(media.is_file())
+            self.assertTrue(media.with_suffix(".txt").is_file())
+
+    def test_replacing_drops_sidecars_the_source_does_not_have(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "Golden hour.")
+            existing = write_media(destination_dir, "sunset.png")
+            issue_file_path(existing).write_text('{"issues":"stale"}', encoding="utf-8")
+
+            transfer_media_with_sidecars(media, destination_dir, overwrite=True, mode="copy")
+
+            self.assertEqual(
+                (destination_dir / "sunset.txt").read_text(encoding="utf-8"),
+                "Golden hour.",
+            )
+            self.assertFalse(issue_file_path(destination_dir / "sunset.png").exists())
+            self.assertTrue(media.is_file())
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ export function overlayBackdropClass(baseClass: string, nested: boolean): string
  * have run (and before this overlay acquires its own scroll lock, which must
  * use `useLayoutEffect` too). Deciding during render would still see the
  * previous dialog's lock when one confirm replaces another in the same commit
- * (e.g. MoveMediaDialog → FileImportOverwriteDialog), which dropped blur.
+ * (e.g. TransferMediaDialog → FileImportOverwriteDialog), which dropped blur.
  */
 export function useOverlayBackdropClass(baseClass: string): string {
   const [nested, setNested] = useState(false);

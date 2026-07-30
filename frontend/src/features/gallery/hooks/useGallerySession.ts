@@ -117,6 +117,11 @@ export function useGallerySession({
     [removeGalleryItem, removeSelectedPaths, refreshFolder],
   );
 
+  // A copy keeps every item and its selection; only subfolder counts move.
+  const onGalleryItemsCopied = useCallback(async () => {
+    await refreshFolder();
+  }, [refreshFolder]);
+
   const handleSelectAllPaths = useCallback(() => {
     selectAllPaths(query.filteredItems.map((item) => item.path));
   }, [query.filteredItems, selectAllPaths]);
@@ -151,5 +156,6 @@ export function useGallerySession({
     onGalleryItemDeleted,
     onGalleryItemsDeleted,
     onGalleryItemsMoved,
+    onGalleryItemsCopied,
   };
 }

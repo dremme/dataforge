@@ -205,7 +205,7 @@
 }
 
 // Move-media needs extra width + internal flex layout for the folder tree.
-.confirm-dialog__panel.move-media-dialog {
+.confirm-dialog__panel.transfer-media-dialog {
   display: flex;
   flex-direction: column;
   width: min(36rem, 100%);
@@ -270,7 +270,7 @@
 }
 
 // Move media dialog (confirm shell + folder tree body)
-.move-media-dialog {
+.transfer-media-dialog {
   &__destination {
     @include truncate-path-start;
     @include dialog-form-input(2.75rem);
@@ -399,7 +399,7 @@
       background: var(--surface-hover);
     }
 
-    .move-media-dialog__tree-item--selected & {
+    .transfer-media-dialog__tree-item--selected & {
       background: transparent;
     }
   }
