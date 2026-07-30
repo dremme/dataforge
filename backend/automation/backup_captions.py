@@ -62,16 +62,10 @@ def list_backup_sidecars(folder: Path) -> list[Path]:
 def has_caption_backup(folder: Path) -> bool:
     """Whether ``folder`` has anything to restore.
 
-    Stops at the first hit instead of listing the whole backup: every browse
-    response reports this, and a backup can hold thousands of sidecars.
+    Goes through :func:`list_backup_sidecars` so that "a backup exists" and
+    "these are the files to restore" can never disagree.
     """
-    try:
-        entries = caption_backup_dir(folder).iterdir()
-    except OSError:
-        return False
-
-    # Suffix first; it costs nothing, while `is_file` stats the entry.
-    return any(entry.suffix.lower() in SIDECAR_EXTENSIONS and entry.is_file() for entry in entries)
+    return bool(list_backup_sidecars(folder))
 
 
 def backed_up_media_stem(sidecar: Path) -> str:

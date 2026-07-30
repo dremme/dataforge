@@ -95,7 +95,9 @@ def import_uploaded_files(
 def _existing_file_names(folder: Path) -> set[str]:
     names: set[str] = set()
     try:
-        entries = folder.iterdir()
+        # Materialized inside the guard: on Python 3.12 `iterdir` is a generator,
+        # so the listing only fails once iterated, outside any surrounding try.
+        entries = list(folder.iterdir())
     except OSError:
         return names
 

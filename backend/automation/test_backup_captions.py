@@ -8,10 +8,12 @@ isolate_test_database()
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from automation.backup_captions import (
     backed_up_media_stem,
     caption_backup_dir,
+    has_caption_backup,
     list_backup_sidecars,
     media_sidecars,
     run_backup_captions_job,
@@ -172,6 +174,48 @@ class BackupCaptionsJobTests(unittest.TestCase):
 
             names = {entry["name"] for entry in list_subfolders(root)}
             self.assertNotIn(CAPTION_BACKUP_DIR_NAME, names)
+
+
+class HasCaptionBackupTests(unittest.TestCase):
+    def test_false_without_a_backup_folder(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "sunset.png")
+
+            self.assertFalse(has_caption_backup(root))
+
+    def test_true_once_a_caption_is_backed_up(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "A plain caption.")
+            run_backup_captions_job(root)
+
+            self.assertTrue(has_caption_backup(root))
+
+    def test_false_when_the_backup_holds_no_caption_files(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "sunset.png")
+            backup_dir = caption_backup_dir(root)
+            backup_dir.mkdir()
+            backup_dir.joinpath("notes.md").write_text("ignore", encoding="utf-8")
+
+            self.assertFalse(has_caption_backup(root))
+
+    def test_survives_a_listing_that_fails_only_once_iterated(self) -> None:
+        """Python 3.12's ``iterdir`` is a generator, so it raises on iteration.
+
+        Guarding just the ``iterdir()`` call is therefore a no-op on 3.12 while
+        looking correct on 3.13, where the scan happens eagerly.
+        """
+
+        def lazily_failing_iterdir(self: Path):
+            raise FileNotFoundError(2, "No such file or directory", str(self))
+            yield  # pragma: no cover - makes this a generator function
+
+        with TempMediaFolder() as root:
+            write_media(root, "sunset.png")
+
+            with patch.object(Path, "iterdir", lazily_failing_iterdir):
+                self.assertFalse(has_caption_backup(root))
 
 
 class RestoreCaptionsJobTests(unittest.TestCase):
