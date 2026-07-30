@@ -1,7 +1,10 @@
 """Run backend and frontend linting, formatting checks, and tests.
 
 Run from the project root:
-  backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only]
+  backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only] [--scope SCOPE]
+
+``--scope`` exists for CI, which matrixes the backend over Python versions and so
+would otherwise repeat the (version-independent) frontend checks for each one.
 """
 
 from __future__ import annotations
@@ -98,25 +101,33 @@ def _run_fix_step(label: str, command: list[str], *, cwd: Path) -> None:
     subprocess.run(command, cwd=cwd, check=False)
 
 
-def _run_fix_steps(python: Path, npm: str) -> None:
-    _run_fix_step(
-        "Auto-fix backend format + lint",
-        [str(python), str(SCRIPTS / "run_lint.py"), "--fix"],
-        cwd=ROOT,
-    )
-    _run_fix_step("Auto-fix frontend ESLint", [npm, "run", "lint:fix"], cwd=FRONTEND)
-    _run_fix_step("Auto-fix frontend Prettier", [npm, "run", "format"], cwd=FRONTEND)
+def _run_fix_steps(python: Path | None, npm: str | None) -> None:
+    """``None`` for either tool means that side of the stack is out of scope."""
+    if python is not None:
+        _run_fix_step(
+            "Auto-fix backend format + lint",
+            [str(python), str(SCRIPTS / "run_lint.py"), "--fix"],
+            cwd=ROOT,
+        )
+    if npm is not None:
+        _run_fix_step("Auto-fix frontend ESLint", [npm, "run", "lint:fix"], cwd=FRONTEND)
+        _run_fix_step("Auto-fix frontend Prettier", [npm, "run", "format"], cwd=FRONTEND)
 
 
-def _run_check_steps(python: Path, npm: str, *, lint_only: bool = False) -> None:
-    _run_step("Backend format + lint", [str(python), str(SCRIPTS / "run_lint.py")], cwd=ROOT)
-    _run_step("Frontend ESLint", [npm, "run", "lint"], cwd=FRONTEND)
-    _run_step("Frontend Prettier", [npm, "run", "format:check"], cwd=FRONTEND)
+def _run_check_steps(python: Path | None, npm: str | None, *, lint_only: bool = False) -> None:
+    """``None`` for either tool means that side of the stack is out of scope."""
+    if python is not None:
+        _run_step("Backend format + lint", [str(python), str(SCRIPTS / "run_lint.py")], cwd=ROOT)
+    if npm is not None:
+        _run_step("Frontend ESLint", [npm, "run", "lint"], cwd=FRONTEND)
+        _run_step("Frontend Prettier", [npm, "run", "format:check"], cwd=FRONTEND)
     if lint_only:
         return
 
-    _run_step("Backend tests", [str(python), str(SCRIPTS / "run_tests.py")], cwd=ROOT)
-    _run_step("Frontend tests", [npm, "test"], cwd=FRONTEND)
+    if python is not None:
+        _run_step("Backend tests", [str(python), str(SCRIPTS / "run_tests.py")], cwd=ROOT)
+    if npm is not None:
+        _run_step("Frontend tests", [npm, "test"], cwd=FRONTEND)
 
 
 def main() -> int:
@@ -131,10 +142,18 @@ def main() -> int:
         action="store_true",
         help="Run lint and formatting checks only (skip tests).",
     )
+    parser.add_argument(
+        "--scope",
+        choices=("all", "backend", "frontend"),
+        default="all",
+        help="Limit the checks to one side of the stack (default: all).",
+    )
     args = parser.parse_args()
 
-    python = _resolve_python()
-    npm = _resolve_npm()
+    # Each tool is resolved only when in scope, so a backend-only run needs no
+    # Node and a frontend-only run needs no backend venv.
+    python = _resolve_python() if args.scope != "frontend" else None
+    npm = _resolve_npm() if args.scope != "backend" else None
     auto_fixed = False
 
     if args.fix:
@@ -158,7 +177,8 @@ def main() -> int:
         )
         return 1
 
-    print("\nAll checks passed.")
+    scope_label = "" if args.scope == "all" else f" ({args.scope})"
+    print(f"\nAll checks passed{scope_label}.")
     return 0
 
 
