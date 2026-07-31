@@ -377,18 +377,25 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
       background-color: transparent;
       border-right-color: var(--border);
       color: var(--text-muted);
-      // Do not remove these !important flags — all three are load-bearing, and the
-      // gutter rule collapses on short/empty captions without any one of them:
-      //   height    - CM's base theme sets `height: 100%`, which cannot resolve here
-      //               (no definite height up the chain) and therefore falls back to
-      //               content height. `stretch` below is ignored unless this is auto.
-      //   min-height - CM writes an inline `minHeight = contentHeight` on every
-      //               geometry update; only !important beats an inline style.
+      // Two cases to satisfy, and they need different mechanisms:
+      //   short caption  - CM's inline `minHeight = contentHeight` stops the gutter
+      //                    rule at the last line, so stretch it to the visible box.
+      //   scrolled caption - the gutter rule must span the whole scroll height, which
+      //                    is exactly CM's inline contentHeight, so leave it alone.
+      // Hence the !important flags on height/align-self but NOT on min-height:
+      //   height     - CM's base theme sets `height: 100%`, which cannot resolve here
+      //                (no definite height up the chain) and therefore falls back to
+      //                content height. `stretch` below is ignored unless this is auto.
       //   align-self - guards against losing the specificity tie with CM's base
-      //               theme, which sets `align-items: flex-start !important` on the
-      //               scroller (same specificity as ours, so order would decide).
+      //                theme, which sets `align-items: flex-start !important` on the
+      //                scroller (same specificity as ours, so order would decide).
+      //   min-height - a plain floor for the first paint, before CM has written its
+      //                inline value. It must stay non-!important: an !important
+      //                percentage beats the inline contentHeight and caps the gutter
+      //                at one viewport, which truncates the rule as soon as you
+      //                scroll a long caption.
       height: auto !important;
-      min-height: 100% !important;
+      min-height: 100%;
       align-self: stretch !important;
     }
 
