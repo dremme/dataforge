@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -112,20 +113,64 @@ def _coerce_bool(value: object) -> bool | None:
     return None
 
 
-def _parse_verification_payload(data: dict) -> VerificationResult | None:
-    """Let the verdict gate the fix list.
+def _has_substantive_issues(issues: str) -> bool:
+    return issues.strip().lower() not in {"", "none", "n/a"}
 
-    Asking for the verdict first buys a cheap commitment token before any fix text is
-    generated; without it the model treats the open array as an invitation and flags
-    everything. A stated "correct" therefore outranks any fixes that follow it.
+
+_ENUMERATION_MARKER = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+")
+# "1." is indistinguishable from a sentence end, so it splits off on its own.
+_MARKER_ONLY = re.compile(r"^\s*(?:[-*]|\d+[.)])\s*$")
+# No semicolon: Qwen uses it to continue one finding, so splitting there fragments it.
+_SENTENCE_TERMINATORS = frozenset(".!?")
+
+
+def split_fix_sentences(text: str) -> list[str]:
+    """Split prose into sentences, treating double-quoted spans as atomic.
+
+    The model quotes caption phrases verbatim, so a terminator inside quotes
+    (``Replace "a blue car." with ...``) must not split. A terminator only ends a
+    sentence when followed by whitespace or the end of the text, which also protects
+    decimals like "5.5 inch".
+    """
+    sentences: list[str] = []
+    start = 0
+    in_quote = False
+    for index, char in enumerate(text):
+        if char == '"':
+            in_quote = not in_quote
+        elif char in _SENTENCE_TERMINATORS and not in_quote:
+            next_char = text[index + 1 : index + 2]
+            if not next_char or next_char.isspace():
+                sentences.append(text[start : index + 1])
+                start = index + 1
+
+    sentences.append(text[start:])
+    cleaned = (
+        _ENUMERATION_MARKER.sub("", sentence).strip()
+        for sentence in sentences
+        if not _MARKER_ONLY.match(sentence)
+    )
+    return [sentence for sentence in cleaned if sentence]
+
+
+def _parse_verification_payload(data: dict) -> VerificationResult | None:
+    """Let the verdict gate the issue prose.
+
+    Asking for the verdict first buys a cheap commitment token before any issue text is
+    generated; without it the model flags everything. The issues come back as prose rather
+    than an array because short units are cheap to enumerate: an array element, and equally
+    a terse "Replace X with Y.", invites another one. Pushing this field toward imperative
+    phrasing was measured at 2.3 findings per caption against 1.3 for descriptive prose,
+    so the wording here is deliberately declarative.
     """
     correct = _coerce_bool(data.get("correct"))
-    if correct is None:
+    issues = data.get("issues")
+    if correct is None or not isinstance(issues, str):
         return None
-    if correct:
+    if correct or not _has_substantive_issues(issues):
         return VerificationResult(fixes=())
 
-    return VerificationResult(fixes=tuple(normalize_issue_fixes(data.get("fixes"))))
+    return VerificationResult(fixes=tuple(normalize_issue_fixes(split_fix_sentences(issues))))
 
 
 def parse_verification_response(raw_text: str) -> VerificationResult | None:
@@ -187,12 +232,14 @@ def build_verification_system_prompt(context: str = "") -> str:
               clothing, wrong pose, wrong setting, invented details, incorrect hand/leg positioning).
             - When you are unsure, set "correct" to true.
             - Do not flag caption style, formatting, or harmless omissions.
+            - When "correct" is false, quote the exact caption phrase that contradicts the image
+              in "issues".
 
             # Output Format
             Respond exclusively with a valid JSON object (no markdown fences):
             {{
                 "correct": true or false,
-                "fixes": ["At most {MAX_ISSUE_FIXES} instructions, most important first, each quoting the exact caption phrase that contradicts the image and stating what it should say instead. Empty when correct is true."]
+                "issues": "Up to {MAX_ISSUE_FIXES} sentences, most important first, each quoting the exact caption phrase that contradicts the image and stating what it should say instead, or 'None'."
             }}
             """
         ).strip()

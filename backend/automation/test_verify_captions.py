@@ -20,6 +20,7 @@ from automation.verify_captions import (
     process_media,
     run_verify_captions_job,
     should_write_issue_file,
+    split_fix_sentences,
     validate_verify_captions_folder,
     verify_caption,
 )
@@ -41,9 +42,12 @@ def _rules_section(prompt: str) -> str:
 
 
 def _fixes_json(*fixes: str, correct: bool | None = None) -> str:
-    """Build a model response. ``correct`` defaults to agreeing with the fix list."""
+    """Build a model response: fixes become the sentences of the ``issues`` prose.
+
+    ``correct`` defaults to agreeing with whether any issue was described.
+    """
     verdict = not fixes if correct is None else correct
-    return json.dumps({"correct": verdict, "fixes": list(fixes)})
+    return json.dumps({"correct": verdict, "issues": " ".join(fixes) if fixes else "None"})
 
 
 def _make_fake_verify_client(
@@ -109,11 +113,16 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
 
     def test_parse_rejects_payload_without_a_verdict(self) -> None:
         """An unverdicted response is retried rather than trusted."""
-        self.assertIsNone(parse_verification_response(json.dumps({"fixes": [DEFAULT_FIX]})))
+        self.assertIsNone(parse_verification_response(json.dumps({"issues": DEFAULT_FIX})))
         self.assertIsNone(parse_verification_response(json.dumps({"correct": "maybe"})))
 
+    def test_parse_rejects_non_string_issues(self) -> None:
+        raw = json.dumps({"correct": False, "issues": [DEFAULT_FIX]})
+
+        self.assertIsNone(parse_verification_response(raw))
+
     def test_parse_coerces_a_string_verdict(self) -> None:
-        raw = json.dumps({"correct": "no", "fixes": [DEFAULT_FIX]})
+        raw = json.dumps({"correct": "no", "issues": DEFAULT_FIX})
 
         parsed = parse_verification_response(raw)
 
@@ -135,7 +144,7 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
         assert parsed is not None
         self.assertEqual(parsed.fixes, ())
 
-    def test_a_true_verdict_outranks_any_fixes_that_follow_it(self) -> None:
+    def test_a_true_verdict_outranks_any_issues_that_follow_it(self) -> None:
         """Contradictions resolve toward "no issue" - the direction that avoids false flags."""
         parsed = parse_verification_response(_fixes_json(DEFAULT_FIX, correct=True))
 
@@ -143,25 +152,32 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
         assert parsed is not None
         self.assertEqual(parsed.fixes, ())
 
-    def test_parse_drops_sentinel_and_non_string_entries(self) -> None:
-        raw = json.dumps({"correct": False, "fixes": ["None", "  ", 42, None, DEFAULT_FIX, "n/a"]})
+    def test_a_false_verdict_with_sentinel_issues_reads_as_a_match(self) -> None:
+        raw = json.dumps({"correct": False, "issues": "None"})
 
         parsed = parse_verification_response(raw)
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
+        self.assertEqual(parsed.fixes, ())
+
+    def test_parse_splits_issue_prose_into_separate_fixes(self) -> None:
+        raw = json.dumps({"correct": False, "issues": f"{DEFAULT_FIX} Remove “at dusk”."})
+
+        parsed = parse_verification_response(raw)
+
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX, "Remove “at dusk”."))
 
     def test_parse_keeps_only_the_three_most_important_fixes(self) -> None:
-        raw = json.dumps(
-            {"correct": False, "fixes": ["first", "second", "third", "fourth", "fifth"]}
-        )
+        raw = json.dumps({"correct": False, "issues": "First. Second. Third. Fourth. Fifth."})
 
         parsed = parse_verification_response(raw)
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertEqual(parsed.fixes, ("first", "second", "third"))
+        self.assertEqual(parsed.fixes, ("First.", "Second.", "Third."))
 
     def test_should_write_issue_only_when_fixes_remain(self) -> None:
         self.assertTrue(should_write_issue_file(VerificationResult(fixes=(DEFAULT_FIX,))))
@@ -173,6 +189,49 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
         self.assertIsNotNone(parsed)
         assert parsed is not None
         self.assertFalse(should_write_issue_file(parsed))
+
+
+class SplitFixSentencesTests(unittest.TestCase):
+    def test_splits_on_sentence_terminators(self) -> None:
+        self.assertEqual(
+            split_fix_sentences("Change the hair colour. Remove the scarf! Is it dusk?"),
+            ["Change the hair colour.", "Remove the scarf!", "Is it dusk?"],
+        )
+
+    def test_a_terminator_inside_quotes_never_splits(self) -> None:
+        """The model quotes caption phrases verbatim, punctuation included."""
+        text = 'Replace "a blue car. parked outside" with "a red car".'
+
+        self.assertEqual(split_fix_sentences(text), [text])
+
+    def test_decimals_stay_intact(self) -> None:
+        text = "Change the height to 5.5 metres."
+
+        self.assertEqual(split_fix_sentences(text), [text])
+
+    def test_a_semicolon_keeps_one_finding_together(self) -> None:
+        """Qwen joins the observation and its correction with a semicolon."""
+        text = "The caption says the hair is blonde; it is brown in the image"
+
+        self.assertEqual(split_fix_sentences(text), [text])
+
+    def test_enumeration_markers_are_stripped(self) -> None:
+        self.assertEqual(
+            split_fix_sentences("1. Change the hair colour. 2) Remove the scarf."),
+            ["Change the hair colour.", "Remove the scarf."],
+        )
+        self.assertEqual(
+            split_fix_sentences("- Change the hair colour. * Remove the scarf."),
+            ["Change the hair colour.", "Remove the scarf."],
+        )
+
+    def test_a_single_unterminated_sentence_passes_through(self) -> None:
+        self.assertEqual(
+            split_fix_sentences("  Change the hair colour  "), ["Change the hair colour"]
+        )
+
+    def test_blank_prose_yields_nothing(self) -> None:
+        self.assertEqual(split_fix_sentences("   "), [])
 
 
 class VerifyCaptionsPromptTests(unittest.TestCase):
@@ -199,15 +258,23 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
 
         self.assertNotIn("# Additional context", prompt)
 
-    def test_build_system_prompt_asks_for_a_verdict_and_a_fixes_array(self) -> None:
+    def test_build_system_prompt_asks_for_a_verdict_and_issue_prose(self) -> None:
+        """An array invites enumeration; the issues field must stay prose."""
         prompt = build_verification_system_prompt()
 
         self.assertIn('"correct": true or false', prompt)
-        self.assertIn('"fixes": [', prompt)
-        for retired_key in ('"issues"', '"suggestions"'):
+        self.assertIn('"issues": "Up to', prompt)
+        for retired_key in ('"fixes"', '"corrections"', '"suggestions"'):
             self.assertNotIn(retired_key, prompt)
         self.assertNotIn("confidence", prompt.lower())
         self.assertNotIn("severity", prompt.lower())
+
+    def test_build_system_prompt_keeps_the_issue_wording_declarative(self) -> None:
+        """Terse imperatives are cheap to enumerate: 2.3 findings per caption against 1.3."""
+        prompt = build_verification_system_prompt()
+
+        self.assertNotIn("Replace, Remove, or Change", prompt)
+        self.assertIn("stating what it should say instead", prompt)
 
     def test_build_system_prompt_leads_with_permission_to_pass(self) -> None:
         """Leading with the negative case is what made the model flag every caption."""
@@ -226,15 +293,15 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
     def test_build_system_prompt_states_the_fix_cap(self) -> None:
         prompt = build_verification_system_prompt()
 
-        self.assertIn(f"At most {MAX_ISSUE_FIXES} instructions", prompt)
+        self.assertIn(f"Up to {MAX_ISSUE_FIXES} sentences", prompt)
         self.assertIn("most important first", prompt)
 
     def test_build_system_prompt_keeps_the_rules_about_judging(self) -> None:
         """Rules that teach fix-writing shift the prompt's weight from judging to producing."""
         rules = _rules_section(build_verification_system_prompt())
 
-        self.assertEqual(rules.count("\n- "), 4)
-        for mechanic in ("most important first", "self-contained", "No explanations"):
+        self.assertEqual(rules.count("\n- "), 5)
+        for mechanic in ("most important first", "sentences"):
             self.assertNotIn(mechanic, rules)
 
 

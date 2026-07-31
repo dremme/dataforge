@@ -156,7 +156,12 @@ class JobManagerExecutionTests(unittest.TestCase):
             media = write_media(root, "photo.png")
             write_txt_caption(media, "A blue car.")
 
-            response = json.dumps({"correct": False, "fixes": ['Replace "blue" with "red".']})
+            response = json.dumps(
+                {
+                    "correct": False,
+                    "issues": 'Replace "blue" with "red". Remove "in the rain".',
+                }
+            )
 
             with patch("automation.verify_captions.verify_caption", return_value=response):
                 job = job_manager.queue_job("verify_captions", root, mode="instruct", context="")
@@ -164,7 +169,12 @@ class JobManagerExecutionTests(unittest.TestCase):
 
             self.assertEqual(finished.status, "completed")
             self.assertEqual(finished.stats.get("issues_found"), 1)
-            self.assertTrue(issue_file_path(media).is_file())
+            issue_path = issue_file_path(media)
+            self.assertTrue(issue_path.is_file())
+            self.assertEqual(
+                json.loads(issue_path.read_text(encoding="utf-8")),
+                {"fixes": ['Replace "blue" with "red".', 'Remove "in the rain".']},
+            )
 
     def test_body_parts_job_completes_with_mocked_detection(self) -> None:
         with TempMediaFolder() as root:
