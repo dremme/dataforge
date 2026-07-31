@@ -1,4 +1,4 @@
-import { iconBan, iconBrain, iconLoader2 } from "@/shared/icons";
+import { iconBan, iconBrain, iconHourglass, iconLoader2 } from "@/shared/icons";
 import type { ExternalOstrisJob } from "@/shared/types";
 import {
   externalJobModelLabel,
@@ -28,6 +28,8 @@ export function ExternalJobCard({
   const remainingTime = externalJobRemainingTimeLabel(job);
   const datasetFolder = job.dataset_folder;
   const canOpenDataset = Boolean(datasetFolder && onOpenFolder);
+  // A queued run can sit in AI-Toolkit's queue for a long time with nothing happening yet.
+  const waiting = job.status === "queued" && !stopping;
 
   return (
     <article
@@ -57,7 +59,13 @@ export function ExternalJobCard({
 
         <div className="job-card__header-actions">
           <span className="job-card__badge job-card__badge--active">
-            <Icon icon={iconLoader2} className="job-card__badge-icon job-card__badge-icon--spin" />
+            <Icon
+              icon={waiting ? iconHourglass : iconLoader2}
+              className={classNames(
+                "job-card__badge-icon",
+                !waiting && "job-card__badge-icon--spin",
+              )}
+            />
             <span className="job-card__badge-label">{externalJobStatusLabel(job, stopping)}</span>
           </span>
 

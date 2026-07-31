@@ -214,10 +214,7 @@ def _prepare_body_parts(job: Job, folder: Path, params: dict[str, object]) -> No
     job.current_name = "Loading models..."
 
 
-def _external_ref(job_type: JobType, params: dict[str, object]) -> str | None:
-    """The external job a new job co-tracks. Known at queue time, so no runner callback."""
-    if job_type != "train_lora":
-        return None
+def _train_lora_external_ref(params: dict[str, object]) -> str | None:
     return str(params.get("lora_name", "")).strip() or None
 
 
@@ -225,6 +222,10 @@ def _resume_train_lora(job: Job) -> dict[str, object] | None:
     if not job.external_ref:
         return None
     return {"lora_name": job.external_ref, "attach_only": True}
+
+
+def _auto_caption_mode(params: dict[str, object]) -> str | None:
+    return str(params.get("mode", "thinking"))
 
 
 @dataclass(frozen=True)
@@ -237,6 +238,9 @@ class JobSpec:
     ``resume`` returns the params to pick a job back up with after a restart, or None
     when it cannot be resumed. Only jobs whose real work outlives this process (an
     external service doing the work) define it; everything else stays interrupted.
+
+    ``external_ref`` and ``caption_mode`` derive their stored ``Job`` columns from the
+    queue-time params, so ``JobManager`` never has to know which type it is handling.
     """
 
     thread_prefix: str
@@ -245,6 +249,8 @@ class JobSpec:
     validate: Callable[..., None]
     prepare: Callable[[Job, Path, dict[str, object]], None] | None = None
     resume: Callable[[Job], dict[str, object] | None] | None = None
+    external_ref: Callable[[dict[str, object]], str | None] | None = None
+    caption_mode: Callable[[dict[str, object]], str | None] | None = None
 
 
 JOB_SPECS: dict[JobType, JobSpec] = {
@@ -253,6 +259,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_auto_caption_job,
         resolve_status=_resolve_api_errors("api_error", auto_caption_error_message),
         validate=_folder_only(validate_auto_caption_folder),
+        caption_mode=_auto_caption_mode,
     ),
     "body_parts": JobSpec(
         thread_prefix="body-parts",
@@ -303,6 +310,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         resolve_status=_resolve_train_lora_status,
         validate=validate_train_lora_folder,
         resume=_resume_train_lora,
+        external_ref=_train_lora_external_ref,
     ),
 }
 
@@ -395,13 +403,7 @@ class JobManager:
         spec.validate(folder, **params)
 
         job, cancel_event = self._register_job(folder, job_type, params)
-
-        thread = threading.Thread(
-            target=lambda: self._run_managed_job(spec, job.id, folder, cancel_event, params),
-            name=f"{spec.thread_prefix}-{job.id[:8]}",
-            daemon=True,
-        )
-        thread.start()
+        self._spawn_worker(spec, job, folder, cancel_event, params)
         return job
 
     def cancel_job(self, job_id: str) -> Job | None:
@@ -483,8 +485,6 @@ class JobManager:
 
     def _resume_job(self, job: Job, params: dict[str, object]) -> None:
         """Re-attach to a job whose real work outlived the last process, keeping its row."""
-        spec = JOB_SPECS[job.job_type]
-        folder = Path(job.folder)
         cancel_event = threading.Event()
 
         job.status = "queued"
@@ -496,7 +496,16 @@ class JobManager:
             self._cancel_flags[job.id] = cancel_event
 
         self._persist(job)
+        self._spawn_worker(JOB_SPECS[job.job_type], job, Path(job.folder), cancel_event, params)
 
+    def _spawn_worker(
+        self,
+        spec: JobSpec,
+        job: Job,
+        folder: Path,
+        cancel_event: threading.Event,
+        params: dict[str, object],
+    ) -> None:
         thread = threading.Thread(
             target=lambda: self._run_managed_job(spec, job.id, folder, cancel_event, params),
             name=f"{spec.thread_prefix}-{job.id[:8]}",
@@ -511,6 +520,8 @@ class JobManager:
         params: dict[str, object],
     ) -> tuple[Job, threading.Event]:
         """Create the job, evict any earlier job for the same folder and type, persist it."""
+        spec = JOB_SPECS[job_type]
+
         with self._lock:
             active = self._memory_job_for_folder_unlocked(str(folder), active_only=True)
             if active is not None:
@@ -521,10 +532,8 @@ class JobManager:
                 id=job_id,
                 folder=str(folder),
                 job_type=job_type,
-                auto_caption_mode=(
-                    str(params.get("mode", "thinking")) if job_type == "auto_caption" else None
-                ),
-                external_ref=_external_ref(job_type, params),
+                auto_caption_mode=spec.caption_mode(params) if spec.caption_mode else None,
+                external_ref=spec.external_ref(params) if spec.external_ref else None,
             )
             self._jobs[job_id] = job
             cancel_event = threading.Event()

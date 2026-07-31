@@ -1,5 +1,5 @@
 import type { ExternalOstrisJob } from "@/shared/types";
-import { formatDuration } from "./jobs";
+import { trainingRemainingTimeLabel } from "./jobs";
 
 // Labels aligned with AI-Toolkit ui/src/app/jobs/new/options.ts (modelArchs).
 const OSTRIS_MODEL_LABELS: Record<string, string> = {
@@ -65,29 +65,6 @@ export function parseSpeedSecondsPerStep(speedString: string | null | undefined)
 
   const seconds = Number.parseFloat(match[1]);
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
-}
-
-/** Remaining-time label from step progress and seconds-per-step (Ostris sec/iter). */
-export function trainingRemainingTimeLabel(
-  step: number,
-  totalSteps: number | null | undefined,
-  secondsPerStep: number | null | undefined,
-): string {
-  if (!totalSteps || totalSteps <= 0 || !secondsPerStep || secondsPerStep <= 0) {
-    return "Estimating...";
-  }
-
-  const remainingSteps = totalSteps - step;
-  if (remainingSteps <= 0) {
-    return "<1 min left";
-  }
-
-  const remainingSeconds = remainingSteps * secondsPerStep;
-  if (remainingSeconds <= 60) {
-    return "<1 min left";
-  }
-
-  return `~${formatDuration(remainingSeconds)} left`;
 }
 
 export function externalJobRemainingTimeLabel(job: ExternalOstrisJob): string | null {

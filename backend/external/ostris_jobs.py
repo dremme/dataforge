@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -17,6 +18,7 @@ OSTRIS_SETTINGS_URL = f"{OSTRIS_BASE_URL}/api/settings"
 OSTRIS_GPU_URL = f"{OSTRIS_BASE_URL}/api/gpu"
 OSTRIS_QUEUE_URL = f"{OSTRIS_BASE_URL}/api/queue"
 OSTRIS_REQUEST_TIMEOUT_SECONDS = 3.0
+OSTRIS_TRAINING_TIMEOUT_SECONDS = 30.0
 OSTRIS_STOP_OPERATION_TIMEOUT_SECONDS = 600.0
 OSTRIS_SAVE_POLL_INTERVAL_SECONDS = 1.0
 OSTRIS_STOP_POLL_INTERVAL_SECONDS = 1.0
@@ -102,6 +104,27 @@ def _total_steps(raw_job: dict[str, Any], process_config: dict[str, Any]) -> int
 def ostris_job_total_steps(raw_job: dict[str, Any]) -> int | None:
     """Total training steps from the job row, falling back to the job config."""
     return _total_steps(raw_job, _first_process_config(_parse_job_config(raw_job)))
+
+
+_SPEED_SEC_PER_ITER = re.compile(r"([\d.]+)\s*sec/iter", re.IGNORECASE)
+
+
+def ostris_job_speed_seconds_per_step(raw_job: dict[str, Any]) -> float | None:
+    """Seconds per training step, parsed out of the job's ``speed_string``."""
+    raw = raw_job.get("speed_string")
+    if not isinstance(raw, str):
+        return None
+
+    match = _SPEED_SEC_PER_ITER.search(raw)
+    if match is None:
+        return None
+
+    try:
+        seconds = float(match.group(1))
+    except ValueError:
+        return None
+
+    return seconds if seconds > 0 else None
 
 
 def _folder_name(folder_path: str | None) -> str:

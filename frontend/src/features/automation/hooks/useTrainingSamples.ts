@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import { isActiveJobStatus } from "@/features/jobs/lib/jobs";
 import type { Job, OstrisTrainingSample } from "@/shared/types";
@@ -18,7 +18,6 @@ export function useTrainingSamples(job: Job | null): OstrisTrainingSample[] {
   }, [trainingName]);
 
   useEffect(() => {
-    // A finished run carries its final samples in the job itself; nothing to poll.
     if (!trainingName || !active) return;
 
     let cancelled = false;
@@ -42,15 +41,20 @@ export function useTrainingSamples(job: Job | null): OstrisTrainingSample[] {
     };
   }, [active, trainingName]);
 
-  if (!trainingName) return [];
-  if (active) return samples;
+  // A finished run carries its final samples in the job itself; nothing to poll.
+  const finalSamples = useMemo(
+    () =>
+      (job?.results ?? [])
+        .filter((result) => result.status === "sample")
+        .map((result) => ({
+          path: result.path,
+          name: result.name,
+          step: job?.processed ?? 0,
+          prompt: result.description ?? null,
+        })),
+    [job?.processed, job?.results],
+  );
 
-  return (job?.results ?? [])
-    .filter((result) => result.status === "sample")
-    .map((result) => ({
-      path: result.path,
-      name: result.name,
-      step: job?.processed ?? 0,
-      prompt: result.description ?? null,
-    }));
+  if (!trainingName) return [];
+  return active ? samples : finalSamples;
 }

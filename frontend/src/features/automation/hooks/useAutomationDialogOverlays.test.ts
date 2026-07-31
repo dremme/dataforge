@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { JobType } from "@/shared/types";
 import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
 vi.mock("@/features/automation/preferences/bodyPartsPreferences", () => ({
@@ -19,34 +20,28 @@ vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
   })),
 }));
 
-const baseDialogOverlayProps = {
-  startingJobType: null as null,
-  itemCount: 3,
-  startBatchRenameJob: vi.fn(),
-  startTrainLoraJob: vi.fn(),
-};
+function setupOverlays(startingJobType: JobType | null = null) {
+  const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+
+  const { result } = renderHook(() =>
+    useAutomationDialogOverlays({
+      folderPath: "C:\\Photos",
+      folderLabel: "Photos",
+      startingJobType,
+      itemCount: 3,
+      startJob,
+    }),
+  );
+
+  return { result, startJob };
+}
 
 describe("useAutomationDialogOverlays", () => {
   it("opens dialogs and starts jobs after confirm", async () => {
-    const startSetCaptionsJob = vi.fn().mockResolvedValue({ id: "job-1" });
-    const startBodyPartsJob = vi.fn().mockResolvedValue({ id: "job-2" });
-    const startAutoCaptionJob = vi.fn().mockResolvedValue({ id: "job-3" });
-    const startVerifyCaptionsJob = vi.fn().mockResolvedValue({ id: "job-4" });
-
-    const { result } = renderHook(() =>
-      useAutomationDialogOverlays({
-        folderPath: "C:\\Photos",
-        folderLabel: "Photos",
-        ...baseDialogOverlayProps,
-        startSetCaptionsJob,
-        startBodyPartsJob,
-        startAutoCaptionJob,
-        startVerifyCaptionsJob,
-      }),
-    );
+    const { result, startJob } = setupOverlays();
 
     act(() => {
-      result.current.openSetCaptionsDialog();
+      result.current.openDialogForJobType("set_captions");
     });
     expect(result.current.dialogs.setCaptions.open).toBe(true);
 
@@ -55,26 +50,19 @@ describe("useAutomationDialogOverlays", () => {
     });
 
     expect(result.current.dialogs.setCaptions.open).toBe(false);
-    expect(startSetCaptionsJob).toHaveBeenCalledWith("C:\\Photos", "A sunny day", true, undefined);
+    expect(startJob).toHaveBeenCalledWith(
+      "set_captions",
+      "C:\\Photos",
+      { caption: "A sunny day", overwrite: true },
+      undefined,
+    );
   });
 
   it("fetches preferences before opening verify captions dialog", async () => {
-    const startVerifyCaptionsJob = vi.fn().mockResolvedValue({ id: "job-5" });
-
-    const { result } = renderHook(() =>
-      useAutomationDialogOverlays({
-        folderPath: "C:\\Photos",
-        folderLabel: "Photos",
-        ...baseDialogOverlayProps,
-        startSetCaptionsJob: vi.fn(),
-        startBodyPartsJob: vi.fn(),
-        startAutoCaptionJob: vi.fn(),
-        startVerifyCaptionsJob,
-      }),
-    );
+    const { result, startJob } = setupOverlays();
 
     await act(async () => {
-      result.current.openVerifyCaptionsDialog();
+      result.current.openDialogForJobType("verify_captions");
     });
     expect(result.current.dialogs.verifyCaptions.open).toBe(true);
     expect(result.current.dialogs.verifyCaptions.initialSettings).toEqual({
@@ -88,29 +76,19 @@ describe("useAutomationDialogOverlays", () => {
     });
 
     expect(result.current.dialogs.verifyCaptions.open).toBe(false);
-    expect(startVerifyCaptionsJob).toHaveBeenCalledWith(
+    expect(startJob).toHaveBeenCalledWith(
+      "verify_captions",
       "C:\\Photos",
-      "thinking",
-      "Outdoor portraits.",
+      { mode: "thinking", context: "Outdoor portraits." },
       undefined,
     );
   });
 
   it("fetches preferences before opening body parts dialog", async () => {
-    const { result } = renderHook(() =>
-      useAutomationDialogOverlays({
-        folderPath: "C:\\Photos",
-        folderLabel: "Photos",
-        ...baseDialogOverlayProps,
-        startSetCaptionsJob: vi.fn(),
-        startBodyPartsJob: vi.fn(),
-        startAutoCaptionJob: vi.fn(),
-        startVerifyCaptionsJob: vi.fn(),
-      }),
-    );
+    const { result } = setupOverlays();
 
     await act(async () => {
-      result.current.openBodyPartsDialog();
+      result.current.openDialogForJobType("body_parts");
     });
 
     expect(result.current.dialogs.bodyParts.open).toBe(true);
@@ -122,77 +100,54 @@ describe("useAutomationDialogOverlays", () => {
     });
   });
 
-  it("opens dialog by job type via openDialogForJobType", async () => {
-    const { result } = renderHook(() =>
-      useAutomationDialogOverlays({
-        folderPath: "C:\\Photos",
-        folderLabel: "Photos",
-        ...baseDialogOverlayProps,
-        startSetCaptionsJob: vi.fn(),
-        startBodyPartsJob: vi.fn(),
-        startAutoCaptionJob: vi.fn(),
-        startVerifyCaptionsJob: vi.fn(),
-      }),
-    );
+  it("keeps at most one dialog open", () => {
+    const { result } = setupOverlays();
 
     act(() => {
       result.current.openDialogForJobType("batch_rename");
     });
     expect(result.current.dialogs.batchRename.open).toBe(true);
+
+    act(() => {
+      result.current.openDialogForJobType("auto_caption");
+    });
+    expect(result.current.dialogs.autoCaption.open).toBe(true);
+    expect(result.current.dialogs.batchRename.open).toBe(false);
   });
 
   it("marks dialog busy from startingJobType", () => {
-    const { result } = renderHook(() =>
-      useAutomationDialogOverlays({
-        folderPath: "C:\\Photos",
-        folderLabel: "Photos",
-        startingJobType: "set_captions",
-        itemCount: 1,
-        startBatchRenameJob: vi.fn(),
-        startTrainLoraJob: vi.fn(),
-        startSetCaptionsJob: vi.fn(),
-        startBodyPartsJob: vi.fn(),
-        startAutoCaptionJob: vi.fn(),
-        startVerifyCaptionsJob: vi.fn(),
-      }),
-    );
+    const { result } = setupOverlays("set_captions");
 
     expect(result.current.dialogs.setCaptions.busy).toBe(true);
     expect(result.current.dialogs.bodyParts.busy).toBe(false);
   });
 
   it("opens the LoRA training dialog and starts the job after confirm", async () => {
-    const startTrainLoraJob = vi.fn().mockResolvedValue({ id: "job-5" });
-
-    const { result } = renderHook(() =>
-      useAutomationDialogOverlays({
-        folderPath: "C:\\Photos",
-        folderLabel: "Photos",
-        ...baseDialogOverlayProps,
-        startTrainLoraJob,
-        startSetCaptionsJob: vi.fn(),
-        startBodyPartsJob: vi.fn(),
-        startAutoCaptionJob: vi.fn(),
-        startVerifyCaptionsJob: vi.fn(),
-      }),
-    );
+    const { result, startJob } = setupOverlays();
 
     act(() => {
       result.current.openDialogForJobType("train_lora");
     });
     expect(result.current.dialogs.trainLora.open).toBe(true);
 
-    const settings = {
-      loraName: "sample_train_v1",
-      triggerWord: "",
-      prompts: ["a mountain lake at sunrise"],
-    };
-
     await act(async () => {
-      result.current.dialogs.trainLora.onConfirm(settings);
+      result.current.dialogs.trainLora.onConfirm({
+        loraName: "sample_train_v1",
+        triggerWord: "",
+        prompts: ["a mountain lake at sunrise"],
+      });
     });
 
     expect(result.current.dialogs.trainLora.open).toBe(false);
-    expect(startTrainLoraJob).toHaveBeenCalledWith("C:\\Photos", settings, undefined);
+    expect(startJob).toHaveBeenCalledWith(
+      "train_lora",
+      "C:\\Photos",
+      {
+        lora_name: "sample_train_v1",
+        trigger_word: "",
+        prompts: ["a mountain lake at sunrise"],
+      },
+      undefined,
+    );
   });
 });

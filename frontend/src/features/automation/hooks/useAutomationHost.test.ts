@@ -21,8 +21,7 @@ vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
 }));
 
 function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: boolean } = {}) {
-  const startBackupCaptionsJob = vi.fn().mockResolvedValue({ id: "job-backup" });
-  const startRestoreCaptionsJob = vi.fn().mockResolvedValue({ id: "job-restore" });
+  const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
 
   const automation = {
     folderJob: null,
@@ -32,15 +31,7 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
     isStartingType: vi.fn(() => false),
     cancellingJob: false,
     cancelFolderJob: vi.fn(),
-    startBodyPartsJob: vi.fn(),
-    startStripMetadataJob: vi.fn(),
-    startSetCaptionsJob: vi.fn(),
-    startAutoCaptionJob: vi.fn(),
-    startVerifyCaptionsJob: vi.fn(),
-    startBatchRenameJob: vi.fn(),
-    startBackupCaptionsJob,
-    startRestoreCaptionsJob,
-    startTrainLoraJob: vi.fn(),
+    startJob,
   };
 
   const { result } = renderHook(() =>
@@ -60,41 +51,41 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
     }),
   );
 
-  return { result, startBackupCaptionsJob, startRestoreCaptionsJob };
+  return { result, startJob };
 }
 
 describe("useAutomationHost", () => {
   it("starts a caption backup straight away, with no confirmation", async () => {
-    const { result, startBackupCaptionsJob } = setupHost();
+    const { result, startJob } = setupHost();
 
     await act(async () => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 
-    expect(startBackupCaptionsJob).toHaveBeenCalledWith("C:\\Photos", undefined);
+    expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
     expect(result.current.jobStartConfirm.pending).toBeNull();
   });
 
   it("waits for confirmation before restoring captions", async () => {
-    const { result, startRestoreCaptionsJob } = setupHost();
+    const { result, startJob } = setupHost();
 
     act(() => {
       result.current.panelProps.onRequestStart("restore_captions");
     });
 
     expect(result.current.jobStartConfirm.pending).toBe("restore_captions");
-    expect(startRestoreCaptionsJob).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
 
     await act(async () => {
       result.current.jobStartConfirm.onConfirm();
     });
 
-    expect(startRestoreCaptionsJob).toHaveBeenCalledWith("C:\\Photos", undefined);
+    expect(startJob).toHaveBeenCalledWith("restore_captions", "C:\\Photos", undefined, undefined);
     expect(result.current.jobStartConfirm.pending).toBeNull();
   });
 
   it("does not restore captions when the confirmation is dismissed", () => {
-    const { result, startRestoreCaptionsJob } = setupHost();
+    const { result, startJob } = setupHost();
 
     act(() => {
       result.current.panelProps.onRequestStart("restore_captions");
@@ -105,27 +96,27 @@ describe("useAutomationHost", () => {
     });
 
     expect(result.current.jobStartConfirm.pending).toBeNull();
-    expect(startRestoreCaptionsJob).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
   });
 
   it("does not open restore confirmation when the folder has no backup", () => {
-    const { result, startRestoreCaptionsJob } = setupHost({ hasCaptionBackup: false });
+    const { result, startJob } = setupHost({ hasCaptionBackup: false });
 
     act(() => {
       result.current.panelProps.onRequestStart("restore_captions");
     });
 
     expect(result.current.jobStartConfirm.pending).toBeNull();
-    expect(startRestoreCaptionsJob).not.toHaveBeenCalled();
+    expect(startJob).not.toHaveBeenCalled();
   });
 
   it("still allows a backup when the folder has no backup yet", async () => {
-    const { result, startBackupCaptionsJob } = setupHost({ hasCaptionBackup: false });
+    const { result, startJob } = setupHost({ hasCaptionBackup: false });
 
     await act(async () => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 
-    expect(startBackupCaptionsJob).toHaveBeenCalledWith("C:\\Photos", undefined);
+    expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
   });
 });

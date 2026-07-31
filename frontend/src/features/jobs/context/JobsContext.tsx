@@ -8,18 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  startAutoCaptionJob as apiStartAutoCaptionJob,
-  startBackupCaptionsJob as apiStartBackupCaptionsJob,
-  startBatchRenameJob as apiStartBatchRenameJob,
-  startBodyPartsJob as apiStartBodyPartsJob,
-  startRestoreCaptionsJob as apiStartRestoreCaptionsJob,
-  startSetCaptionsJob as apiStartSetCaptionsJob,
-  startStripMetadataJob as apiStartStripMetadataJob,
-  startTrainLoraJob as apiStartTrainLoraJob,
-  startVerifyCaptionsJob as apiStartVerifyCaptionsJob,
-  type TrainLoraSettings,
-} from "@/features/automation/api/jobs";
+import { startAutomationJob, type JobStartBody } from "@/features/automation/api/jobs";
 import {
   cancelJob,
   deleteAllJobs,
@@ -28,7 +17,6 @@ import {
   fetchLatestFolderJob,
 } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs";
-import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { ExternalOstrisJob, Job, JobType } from "@/shared/types";
@@ -59,35 +47,11 @@ interface JobsContextValue {
   stoppingOstrisJobId: string | null;
   closeDrawer: () => void;
   toggleDrawer: () => void;
-  startBodyPartsJob: (
+  /** Starts any job type; ``body`` carries whatever that type's route expects. */
+  startJob: (
+    jobType: JobType,
     folderPath: string,
-    settings: BodyPartsSettings,
-    paths?: string[],
-  ) => Promise<Job | null>;
-  startStripMetadataJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
-  startSetCaptionsJob: (
-    folderPath: string,
-    caption: string,
-    overwrite?: boolean,
-    paths?: string[],
-  ) => Promise<Job | null>;
-  startAutoCaptionJob: (
-    folderPath: string,
-    mode?: "thinking" | "instruct",
-    paths?: string[],
-  ) => Promise<Job | null>;
-  startVerifyCaptionsJob: (
-    folderPath: string,
-    mode?: "thinking" | "instruct",
-    context?: string,
-    paths?: string[],
-  ) => Promise<Job | null>;
-  startBatchRenameJob: (folderPath: string, stem: string, paths?: string[]) => Promise<Job | null>;
-  startBackupCaptionsJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
-  startRestoreCaptionsJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
-  startTrainLoraJob: (
-    folderPath: string,
-    settings: TrainLoraSettings,
+    body?: JobStartBody,
     paths?: string[],
   ) => Promise<Job | null>;
   cancelJob: (jobId: string) => Promise<Job | null>;
@@ -236,78 +200,9 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     [notify, refreshAllJobs],
   );
 
-  const startBodyPartsJob = useCallback(
-    (folderPath: string, settings: BodyPartsSettings, paths?: string[]) =>
-      runJobStart(folderPath, "body_parts", () =>
-        apiStartBodyPartsJob(folderPath, settings, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startStripMetadataJob = useCallback(
-    (folderPath: string, paths?: string[]) =>
-      runJobStart(folderPath, "strip_metadata", () => apiStartStripMetadataJob(folderPath, paths)),
-    [runJobStart],
-  );
-
-  const startSetCaptionsJob = useCallback(
-    (folderPath: string, caption: string, overwrite = false, paths?: string[]) =>
-      runJobStart(folderPath, "set_captions", () =>
-        apiStartSetCaptionsJob(folderPath, caption, overwrite, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startAutoCaptionJob = useCallback(
-    (folderPath: string, mode: "thinking" | "instruct" = "thinking", paths?: string[]) =>
-      runJobStart(folderPath, "auto_caption", () =>
-        apiStartAutoCaptionJob(folderPath, mode, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startVerifyCaptionsJob = useCallback(
-    (
-      folderPath: string,
-      mode: "thinking" | "instruct" = "instruct",
-      context = "",
-      paths?: string[],
-    ) =>
-      runJobStart(folderPath, "verify_captions", () =>
-        apiStartVerifyCaptionsJob(folderPath, mode, context, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startBatchRenameJob = useCallback(
-    (folderPath: string, stem: string, paths?: string[]) =>
-      runJobStart(folderPath, "batch_rename", () =>
-        apiStartBatchRenameJob(folderPath, stem, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startBackupCaptionsJob = useCallback(
-    (folderPath: string, paths?: string[]) =>
-      runJobStart(folderPath, "backup_captions", () =>
-        apiStartBackupCaptionsJob(folderPath, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startRestoreCaptionsJob = useCallback(
-    (folderPath: string, paths?: string[]) =>
-      runJobStart(folderPath, "restore_captions", () =>
-        apiStartRestoreCaptionsJob(folderPath, paths),
-      ),
-    [runJobStart],
-  );
-
-  const startTrainLoraJob = useCallback(
-    (folderPath: string, settings: TrainLoraSettings, paths?: string[]) =>
-      runJobStart(folderPath, "train_lora", () =>
-        apiStartTrainLoraJob(folderPath, settings, paths),
-      ),
+  const startJob = useCallback(
+    (jobType: JobType, folderPath: string, body?: JobStartBody, paths?: string[]) =>
+      runJobStart(folderPath, jobType, () => startAutomationJob(jobType, folderPath, body, paths)),
     [runJobStart],
   );
 
@@ -388,15 +283,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       stoppingOstrisJobId,
       closeDrawer,
       toggleDrawer,
-      startBodyPartsJob,
-      startStripMetadataJob,
-      startSetCaptionsJob,
-      startAutoCaptionJob,
-      startVerifyCaptionsJob,
-      startBatchRenameJob,
-      startBackupCaptionsJob,
-      startRestoreCaptionsJob,
-      startTrainLoraJob,
+      startJob,
       cancelJob: cancelJobImpl,
       stopExternalOstrisJob: stopExternalOstrisJobImpl,
       deleteJob: deleteJobImpl,
@@ -413,15 +300,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       stoppingOstrisJobId,
       closeDrawer,
       toggleDrawer,
-      startBodyPartsJob,
-      startStripMetadataJob,
-      startSetCaptionsJob,
-      startAutoCaptionJob,
-      startVerifyCaptionsJob,
-      startBatchRenameJob,
-      startBackupCaptionsJob,
-      startRestoreCaptionsJob,
-      startTrainLoraJob,
+      startJob,
       cancelJobImpl,
       stopExternalOstrisJobImpl,
       deleteJobImpl,

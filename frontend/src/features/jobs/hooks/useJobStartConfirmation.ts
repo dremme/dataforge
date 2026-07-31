@@ -1,15 +1,18 @@
 import { useCallback, useState } from "react";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
-import type { Breadcrumb } from "@/shared/types";
+import type { Breadcrumb, JobType } from "@/shared/types";
 
-export type ConfirmableJobStarters = {
-  [K in ConfirmableJobType]: (folder: string, paths?: string[]) => Promise<unknown>;
-};
+type StartJob = (
+  jobType: JobType,
+  folder: string,
+  body?: undefined,
+  paths?: string[],
+) => Promise<unknown>;
 
 export function useJobStartConfirmation(
   folder: string | undefined,
   breadcrumbs: Breadcrumb[],
-  starters: ConfirmableJobStarters,
+  startJob: StartJob,
   getJobPaths?: () => string[] | undefined,
 ) {
   const [pendingJobStart, setPendingJobStart] = useState<ConfirmableJobType | null>(null);
@@ -30,10 +33,10 @@ export function useJobStartConfirmation(
     const jobType = pendingJobStart;
     const paths = getJobPaths?.();
     setPendingJobStart(null);
-    starters[jobType](folder, paths).catch(() => {
+    startJob(jobType, folder, undefined, paths).catch(() => {
       // Errors are stored in jobs context state.
     });
-  }, [folder, getJobPaths, pendingJobStart, starters]);
+  }, [folder, getJobPaths, pendingJobStart, startJob]);
 
   return {
     pendingJobStart,

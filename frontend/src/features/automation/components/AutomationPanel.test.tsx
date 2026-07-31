@@ -68,12 +68,6 @@ vi.mock("@/features/automation/hooks/useAutomationSpecsVisible", () => ({
   }),
 }));
 
-vi.mock("@/features/jobs/context/JobsContext", () => ({
-  useJobs: () => ({
-    externalJobs: [],
-  }),
-}));
-
 const baseProps = {
   filteredItems: [],
   job: null,

@@ -4,7 +4,7 @@ import {
   DEFAULT_TRAINING_PROMPTS,
   cleanTrainingPrompts,
   validateLoraName,
-} from "@/features/automation/lib/trainingPrompts";
+} from "@/features/automation/lib/training";
 import { iconPlus, iconTrash2 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";

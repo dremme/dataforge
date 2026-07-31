@@ -32,7 +32,6 @@ import {
 } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
 import { useTrainingSamples } from "@/features/automation/hooks/useTrainingSamples";
-import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
@@ -104,14 +103,12 @@ export function AutomationPanel({
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
   const specsPanelId = useId();
 
-  const { externalJobs } = useJobs();
   const showJobError = job ? jobShowsErrorState(job) : false;
   const showJobWarning = job ? jobShowsWarningState(job) : false;
   const showCancelled = job ? jobIsCancelled(job) : false;
   const errorMessage = job ? jobErrorMessage(job) : null;
   const warningMessage = job ? jobWarningMessage(job) : null;
-  // Training remaining time comes from the co-tracked Ostris job (same as ExternalJobCard).
-  const timeLabel = useJobTimeLabel(job, externalJobs);
+  const timeLabel = useJobTimeLabel(job);
   const statusIcon = job ? jobStatusIcon(job) : null;
   const trainingSamples = useTrainingSamples(job);
   const issueLabel = `${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`;

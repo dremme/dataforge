@@ -1,5 +1,5 @@
 import { useJobs } from "@/features/jobs/context/JobsContext";
-import { iconSettings } from "@/shared/icons";
+import { iconActivity } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -20,7 +20,7 @@ export function JobsButton() {
         aria-expanded={drawerOpen}
         aria-controls={drawerOpen ? "jobs-drawer-panel" : undefined}
       >
-        <Icon icon={iconSettings} className="jobs-button__icon" />
+        <Icon icon={iconActivity} className="jobs-button__icon" />
         {running && <span className="jobs-button__dot" aria-hidden="true" />}
       </button>
     </Tooltip>

@@ -8,20 +8,7 @@ export function useFolderAutomation(
   folder: string | undefined,
   reloadFolder: () => Promise<unknown>,
 ) {
-  const {
-    startBodyPartsJob,
-    startStripMetadataJob,
-    startSetCaptionsJob,
-    startAutoCaptionJob,
-    startVerifyCaptionsJob,
-    startBatchRenameJob,
-    startBackupCaptionsJob,
-    startRestoreCaptionsJob,
-    startTrainLoraJob,
-    cancelJob,
-    cancellingJobId,
-    startingJob,
-  } = useJobs();
+  const { startJob, cancelJob, cancellingJobId, startingJob } = useJobs();
   const { job: folderJob, folderHasActiveJob } = useFolderJob(folder);
 
   const handleTerminalJob = useCallback(
@@ -62,14 +49,6 @@ export function useFolderAutomation(
     isStartingType,
     cancellingJob: folderJob ? cancellingJobId === folderJob.id : false,
     cancelFolderJob,
-    startBodyPartsJob,
-    startStripMetadataJob,
-    startSetCaptionsJob,
-    startAutoCaptionJob,
-    startVerifyCaptionsJob,
-    startBatchRenameJob,
-    startBackupCaptionsJob,
-    startRestoreCaptionsJob,
-    startTrainLoraJob,
+    startJob,
   };
 }

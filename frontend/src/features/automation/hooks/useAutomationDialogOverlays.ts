@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import type { TrainLoraSettings } from "@/features/automation/api/jobs";
+import {
+  bodyPartsBody,
+  trainLoraBody,
+  type JobStartBody,
+  type TrainLoraSettings,
+} from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import {
@@ -18,32 +23,10 @@ type UseAutomationDialogOverlaysOptions = {
   folderLabel: string;
   startingJobType: JobType | null;
   itemCount: number;
-  startSetCaptionsJob: (
+  startJob: (
+    jobType: JobType,
     folder: string,
-    caption: string,
-    overwrite: boolean,
-    paths?: string[],
-  ) => Promise<unknown>;
-  startBodyPartsJob: (
-    folder: string,
-    settings: BodyPartsSettings,
-    paths?: string[],
-  ) => Promise<unknown>;
-  startAutoCaptionJob: (
-    folder: string,
-    mode: AutoCaptionMode,
-    paths?: string[],
-  ) => Promise<unknown>;
-  startVerifyCaptionsJob: (
-    folder: string,
-    mode: VerifyCaptionsMode,
-    context: string,
-    paths?: string[],
-  ) => Promise<unknown>;
-  startBatchRenameJob: (folder: string, stem: string, paths?: string[]) => Promise<unknown>;
-  startTrainLoraJob: (
-    folder: string,
-    settings: TrainLoraSettings,
+    body?: JobStartBody,
     paths?: string[],
   ) => Promise<unknown>;
   getJobPaths?: () => string[] | undefined;
@@ -54,183 +37,109 @@ export function useAutomationDialogOverlays({
   folderLabel,
   startingJobType,
   itemCount,
-  startSetCaptionsJob,
-  startBodyPartsJob,
-  startAutoCaptionJob,
-  startVerifyCaptionsJob,
-  startBatchRenameJob,
-  startTrainLoraJob,
+  startJob,
   getJobPaths,
 }: UseAutomationDialogOverlaysOptions) {
-  const [setCaptionsOpen, setSetCaptionsOpen] = useState(false);
-  const [bodyPartsOpen, setBodyPartsOpen] = useState(false);
+  // At most one dialog is ever open, so one job type beats a boolean per dialog.
+  const [openJobType, setOpenJobType] = useState<JobType | null>(null);
   const [bodyPartsSettings, setBodyPartsSettings] = useState<BodyPartsSettings | null>(null);
-  const [autoCaptionOpen, setAutoCaptionOpen] = useState(false);
-  const [verifyCaptionsOpen, setVerifyCaptionsOpen] = useState(false);
   const [verifyCaptionsSettings, setVerifyCaptionsSettings] =
     useState<VerifyCaptionsSettings | null>(null);
-  const [batchRenameOpen, setBatchRenameOpen] = useState(false);
-  const [trainLoraOpen, setTrainLoraOpen] = useState(false);
 
-  const startJobFromDialog = useCallback(
-    (closeDialog: () => void, start: () => Promise<unknown>) => {
-      if (!folderPath) return;
-      closeDialog();
-      start().catch(() => {
-        // Errors are stored in jobs context state.
-      });
-    },
-    [folderPath],
-  );
-
-  const closeBodyPartsDialog = useCallback(() => {
-    setBodyPartsOpen(false);
+  const closeDialog = useCallback(() => {
+    setOpenJobType(null);
     setBodyPartsSettings(null);
-  }, []);
-
-  const closeVerifyCaptionsDialog = useCallback(() => {
-    setVerifyCaptionsOpen(false);
     setVerifyCaptionsSettings(null);
   }, []);
+
+  /** Closes the dialog, then starts its job; a rejection is already reported by the context. */
+  const startJobFromDialog = useCallback(
+    (jobType: JobType, body?: JobStartBody) => {
+      if (!folderPath) return;
+      closeDialog();
+      startJob(jobType, folderPath, body, getJobPaths?.()).catch(() => {});
+    },
+    [closeDialog, folderPath, getJobPaths, startJob],
+  );
 
   const openBodyPartsDialog = useCallback(async () => {
     if (!folderPath) return;
     const settings = await loadBodyPartsSettings();
     setBodyPartsSettings(settings);
-    setBodyPartsOpen(true);
+    setOpenJobType("body_parts");
   }, [folderPath]);
 
   const openVerifyCaptionsDialog = useCallback(async () => {
     if (!folderPath) return;
     const settings = await loadVerifyCaptionsSettings(folderPath);
     setVerifyCaptionsSettings(settings);
-    setVerifyCaptionsOpen(true);
+    setOpenJobType("verify_captions");
   }, [folderPath]);
 
-  const dialogs = useMemo<AutomationDialogsState>(
-    () => ({
+  const dialogs = useMemo<AutomationDialogsState>(() => {
+    const shared = (jobType: JobType) => ({
+      open: openJobType === jobType,
+      folderLabel,
+      busy: startingJobType === jobType,
+      onCancel: closeDialog,
+    });
+
+    return {
       setCaptions: {
-        open: setCaptionsOpen,
-        folderLabel,
-        busy: startingJobType === "set_captions",
-        onConfirm: (caption, overwrite) => {
-          startJobFromDialog(
-            () => setSetCaptionsOpen(false),
-            () => startSetCaptionsJob(folderPath!, caption, overwrite, getJobPaths?.()),
-          );
-        },
-        onCancel: () => setSetCaptionsOpen(false),
+        ...shared("set_captions"),
+        onConfirm: (caption: string, overwrite: boolean) =>
+          startJobFromDialog("set_captions", { caption, overwrite }),
       },
       bodyParts: {
-        open: bodyPartsOpen,
-        folderLabel,
+        ...shared("body_parts"),
         initialSettings: bodyPartsSettings,
-        busy: startingJobType === "body_parts",
-        onConfirm: (settings) => {
-          startJobFromDialog(closeBodyPartsDialog, () =>
-            startBodyPartsJob(folderPath!, settings, getJobPaths?.()),
-          );
-        },
-        onCancel: closeBodyPartsDialog,
+        onConfirm: (settings: BodyPartsSettings) =>
+          startJobFromDialog("body_parts", bodyPartsBody(settings)),
       },
       autoCaption: {
-        open: autoCaptionOpen,
-        folderLabel,
-        busy: startingJobType === "auto_caption",
-        onConfirm: (mode) => {
-          startJobFromDialog(
-            () => setAutoCaptionOpen(false),
-            () => startAutoCaptionJob(folderPath!, mode, getJobPaths?.()),
-          );
-        },
-        onCancel: () => setAutoCaptionOpen(false),
+        ...shared("auto_caption"),
+        onConfirm: (mode: AutoCaptionMode) => startJobFromDialog("auto_caption", { mode }),
       },
       verifyCaptions: {
-        open: verifyCaptionsOpen,
+        ...shared("verify_captions"),
         folderPath: folderPath ?? "",
-        folderLabel,
         initialSettings: verifyCaptionsSettings,
-        busy: startingJobType === "verify_captions",
-        onConfirm: (mode, context) => {
-          startJobFromDialog(closeVerifyCaptionsDialog, () =>
-            startVerifyCaptionsJob(folderPath!, mode, context, getJobPaths?.()),
-          );
-        },
-        onCancel: closeVerifyCaptionsDialog,
+        onConfirm: (mode: VerifyCaptionsMode, context: string) =>
+          startJobFromDialog("verify_captions", { mode, context }),
       },
       batchRename: {
-        open: batchRenameOpen,
-        folderLabel,
+        ...shared("batch_rename"),
         itemCount,
-        busy: startingJobType === "batch_rename",
-        onConfirm: (stem) => {
-          startJobFromDialog(
-            () => setBatchRenameOpen(false),
-            () => startBatchRenameJob(folderPath!, stem, getJobPaths?.()),
-          );
-        },
-        onCancel: () => setBatchRenameOpen(false),
+        onConfirm: (stem: string) => startJobFromDialog("batch_rename", { stem }),
       },
       trainLora: {
-        open: trainLoraOpen,
-        folderLabel,
+        ...shared("train_lora"),
         itemCount,
-        busy: startingJobType === "train_lora",
-        onConfirm: (settings) => {
-          startJobFromDialog(
-            () => setTrainLoraOpen(false),
-            () => startTrainLoraJob(folderPath!, settings, getJobPaths?.()),
-          );
-        },
-        onCancel: () => setTrainLoraOpen(false),
+        onConfirm: (settings: TrainLoraSettings) =>
+          startJobFromDialog("train_lora", trainLoraBody(settings)),
       },
-    }),
-    [
-      autoCaptionOpen,
-      batchRenameOpen,
-      bodyPartsOpen,
-      bodyPartsSettings,
-      closeBodyPartsDialog,
-      closeVerifyCaptionsDialog,
-      folderLabel,
-      folderPath,
-      getJobPaths,
-      itemCount,
-      setCaptionsOpen,
-      startAutoCaptionJob,
-      startBatchRenameJob,
-      startBodyPartsJob,
-      startJobFromDialog,
-      startSetCaptionsJob,
-      startTrainLoraJob,
-      startVerifyCaptionsJob,
-      startingJobType,
-      trainLoraOpen,
-      verifyCaptionsOpen,
-      verifyCaptionsSettings,
-    ],
-  );
+    };
+  }, [
+    bodyPartsSettings,
+    closeDialog,
+    folderLabel,
+    folderPath,
+    itemCount,
+    openJobType,
+    startJobFromDialog,
+    startingJobType,
+    verifyCaptionsSettings,
+  ]);
 
+  /** Shows a job type's dialog, loading its saved settings first when it has any. */
   const openDialogForJobType = useCallback(
     (jobType: JobType) => {
-      if (jobType === "set_captions") setSetCaptionsOpen(true);
-      else if (jobType === "body_parts") void openBodyPartsDialog();
-      else if (jobType === "auto_caption") setAutoCaptionOpen(true);
+      if (jobType === "body_parts") void openBodyPartsDialog();
       else if (jobType === "verify_captions") void openVerifyCaptionsDialog();
-      else if (jobType === "batch_rename") setBatchRenameOpen(true);
-      else if (jobType === "train_lora") setTrainLoraOpen(true);
+      else setOpenJobType(jobType);
     },
     [openBodyPartsDialog, openVerifyCaptionsDialog],
   );
 
-  return {
-    dialogs,
-    openDialogForJobType,
-    openSetCaptionsDialog: () => setSetCaptionsOpen(true),
-    openBodyPartsDialog: () => void openBodyPartsDialog(),
-    openAutoCaptionDialog: () => setAutoCaptionOpen(true),
-    openVerifyCaptionsDialog: () => void openVerifyCaptionsDialog(),
-    openBatchRenameDialog: () => setBatchRenameOpen(true),
-    openTrainLoraDialog: () => setTrainLoraOpen(true),
-  };
+  return { dialogs, openDialogForJobType };
 }

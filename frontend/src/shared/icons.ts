@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 export type AppIcon = LucideIcon;
 
 export {
+  Activity as iconActivity,
   AlertTriangle as iconAlertTriangle,
   ArrowDownWideNarrow as iconArrowDownWideNarrow,
   ArrowUp as iconArrowUp,
@@ -39,6 +40,7 @@ export {
   Heading1 as iconHeading1,
   Heading2 as iconHeading2,
   Heading3 as iconHeading3,
+  Hourglass as iconHourglass,
   Image as iconImage,
   Images as iconImages,
   Info as iconInfo,
@@ -46,7 +48,6 @@ export {
   Lightbulb as iconLightbulb,
   Link as iconLink,
   List as iconList,
-  ListChecks as iconListChecks,
   ListOrdered as iconListOrdered,
   Loader2 as iconLoader2,
   MemoryStick as iconMemoryStick,
@@ -60,7 +61,6 @@ export {
   Quote as iconQuote,
   RemoveFormatting as iconRemoveFormatting,
   Search as iconSearch,
-  Settings as iconSettings,
   Shredder as iconShredder,
   Star as iconStar,
   StarPlusIcon as iconStarPlusIcon,

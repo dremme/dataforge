@@ -14,11 +14,29 @@ from external.ostris_jobs import (
     OstrisJobStopError,
     fetch_active_ostris_jobs,
     normalize_ostris_job,
+    ostris_job_speed_seconds_per_step,
     request_graceful_stop,
     resolve_sqlite_db_path,
     stop_ostris_job_with_checkpoint,
     wait_for_save_next_step,
 )
+
+
+class OstrisJobSpeedTests(unittest.TestCase):
+    def test_parses_seconds_per_step_from_the_speed_string(self) -> None:
+        self.assertEqual(ostris_job_speed_seconds_per_step({"speed_string": "2.15 sec/iter"}), 2.15)
+        self.assertEqual(ostris_job_speed_seconds_per_step({"speed_string": "3 SEC/ITER"}), 3.0)
+
+    def test_returns_none_when_no_usable_speed_is_reported(self) -> None:
+        for raw_job in (
+            {},
+            {"speed_string": None},
+            {"speed_string": 2.15},
+            {"speed_string": "1.20 it/sec"},
+            {"speed_string": "0 sec/iter"},
+        ):
+            with self.subTest(raw_job=raw_job):
+                self.assertIsNone(ostris_job_speed_seconds_per_step(raw_job))
 
 
 def _sample_job_config(*, steps: int = 100, dataset_folder: str = "C:\\datasets\\photos") -> str:

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
+import type { JobType } from "@/shared/types";
 
 const { postJsonMock } = vi.hoisted(() => ({
   postJsonMock: vi.fn(),
@@ -9,14 +10,7 @@ vi.mock("@/shared/api/http", () => ({
   postJson: postJsonMock,
 }));
 
-import {
-  startAutoCaptionJob,
-  startBatchRenameJob,
-  startBodyPartsJob,
-  startSetCaptionsJob,
-  startStripMetadataJob,
-  startVerifyCaptionsJob,
-} from "./jobs";
+import { bodyPartsBody, startAutomationJob, trainLoraBody } from "./jobs";
 
 const bodyPartsSettings: BodyPartsSettings = {
   bodyDescription: "torso",
@@ -30,33 +24,37 @@ describe("automation API", () => {
     postJsonMock.mockReset();
   });
 
-  it("starts an auto-caption job", async () => {
+  it("routes every job type to its dashed endpoint", async () => {
     postJsonMock.mockResolvedValue({ id: "job-1", status: "queued" });
 
-    await startAutoCaptionJob("C:\\Photos", "instruct");
+    const routes: Array<[JobType, string]> = [
+      ["auto_caption", "auto-caption"],
+      ["body_parts", "body-parts"],
+      ["strip_metadata", "strip-metadata"],
+      ["set_captions", "set-captions"],
+      ["verify_captions", "verify-captions"],
+      ["batch_rename", "batch-rename"],
+      ["backup_captions", "backup-captions"],
+      ["restore_captions", "restore-captions"],
+      ["train_lora", "train-lora"],
+    ];
 
-    expect(postJsonMock).toHaveBeenCalledWith("/api/automation/auto-caption?path=C%3A%5CPhotos", {
-      mode: "instruct",
-    });
+    for (const [jobType, path] of routes) {
+      await startAutomationJob(jobType, "C:\\Photos");
+      expect(postJsonMock).toHaveBeenLastCalledWith(
+        `/api/automation/${path}?path=C%3A%5CPhotos`,
+        {},
+      );
+    }
   });
 
-  it("starts a body-parts job", async () => {
+  it("passes the job body through", async () => {
     postJsonMock.mockResolvedValue({ id: "job-2", status: "queued" });
 
-    await startBodyPartsJob("C:\\Photos", bodyPartsSettings);
-
-    expect(postJsonMock).toHaveBeenCalledWith("/api/automation/body-parts?path=C%3A%5CPhotos", {
-      body_description: "torso",
-      face_description: "face",
-      keywords: "bag",
-      element_description: "accessory",
+    await startAutomationJob("set_captions", "C:\\Photos", {
+      caption: "Shared caption",
+      overwrite: true,
     });
-  });
-
-  it("starts a set-captions job", async () => {
-    postJsonMock.mockResolvedValue({ id: "job-3", status: "queued" });
-
-    await startSetCaptionsJob("C:\\Photos", "Shared caption", true);
 
     expect(postJsonMock).toHaveBeenCalledWith("/api/automation/set-captions?path=C%3A%5CPhotos", {
       caption: "Shared caption",
@@ -64,52 +62,37 @@ describe("automation API", () => {
     });
   });
 
-  it("starts a verify-captions job", async () => {
-    postJsonMock.mockResolvedValue({
-      id: "job-5",
-      status: "queued",
-      job_type: "verify_captions",
-    });
-
-    await startVerifyCaptionsJob("C:\\Photos", "thinking", "Outdoor portraits.");
-
-    expect(postJsonMock).toHaveBeenCalledWith(
-      "/api/automation/verify-captions?path=C%3A%5CPhotos",
-      {
-        mode: "thinking",
-        context: "Outdoor portraits.",
-      },
-    );
-  });
-
   it("includes selected paths when starting a scoped job", async () => {
-    postJsonMock.mockResolvedValue({ id: "job-6", status: "queued" });
+    postJsonMock.mockResolvedValue({ id: "job-3", status: "queued" });
 
-    await startStripMetadataJob("C:\\Photos", ["C:\\Photos\\one.png", "C:\\Photos\\two.png"]);
+    await startAutomationJob("strip_metadata", "C:\\Photos", undefined, [
+      "C:\\Photos\\one.png",
+      "C:\\Photos\\two.png",
+    ]);
 
     expect(postJsonMock).toHaveBeenCalledWith("/api/automation/strip-metadata?path=C%3A%5CPhotos", {
       paths: ["C:\\Photos\\one.png", "C:\\Photos\\two.png"],
     });
   });
 
-  it("starts a batch-rename job", async () => {
-    postJsonMock.mockResolvedValue({ id: "job-7", status: "queued", job_type: "batch_rename" });
-
-    await startBatchRenameJob("C:\\Photos", "portugal");
-
-    expect(postJsonMock).toHaveBeenCalledWith("/api/automation/batch-rename?path=C%3A%5CPhotos", {
-      stem: "portugal",
+  it("maps the settings dialogs onto their wire fields", () => {
+    expect(bodyPartsBody(bodyPartsSettings)).toEqual({
+      body_description: "torso",
+      face_description: "face",
+      keywords: "bag",
+      element_description: "accessory",
     });
-  });
 
-  it("starts a strip-metadata job", async () => {
-    postJsonMock.mockResolvedValue({ id: "job-4", status: "queued" });
-
-    await startStripMetadataJob("C:\\Photos");
-
-    expect(postJsonMock).toHaveBeenCalledWith(
-      "/api/automation/strip-metadata?path=C%3A%5CPhotos",
-      {},
-    );
+    expect(
+      trainLoraBody({
+        loraName: "sample_train_v1",
+        triggerWord: "sampletoken",
+        prompts: ["a mountain lake at sunrise"],
+      }),
+    ).toEqual({
+      lora_name: "sample_train_v1",
+      trigger_word: "sampletoken",
+      prompts: ["a mountain lake at sunrise"],
+    });
   });
 });

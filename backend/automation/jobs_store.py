@@ -8,34 +8,39 @@ import sqlite3
 from db import get_connection
 from filesystem import normalize_user_path, path_leaf_name
 
-_JOB_COLUMNS = """
-    id, folder, job_type, status, total, processed, current_file, current_name,
-    stats_json, results_json, error, created_at, started_at, finished_at,
-    auto_caption_mode, external_ref
-"""
+# The single source of truth for the jobs table: the CREATE statements, the SELECT
+# column list, the row mapping, the INSERT, and the add-missing-column migration are
+# all derived from it. Adding a column means adding one line here.
+_JOB_SCHEMA: tuple[tuple[str, str], ...] = (
+    ("id", "TEXT PRIMARY KEY"),
+    ("folder", "TEXT NOT NULL"),
+    ("job_type", "TEXT NOT NULL DEFAULT 'auto_caption'"),
+    ("status", "TEXT NOT NULL"),
+    ("total", "INTEGER NOT NULL DEFAULT 0"),
+    ("processed", "INTEGER NOT NULL DEFAULT 0"),
+    ("current_file", "TEXT"),
+    ("current_name", "TEXT"),
+    ("stats_json", "TEXT NOT NULL DEFAULT '{}'"),
+    ("results_json", "TEXT NOT NULL DEFAULT '[]'"),
+    ("error", "TEXT"),
+    ("created_at", "TEXT NOT NULL"),
+    ("started_at", "TEXT"),
+    ("finished_at", "TEXT"),
+    ("auto_caption_mode", "TEXT"),
+    ("external_ref", "TEXT"),
+)
 
-_JOB_COLUMN_COUNT = 16
+_JOB_COLUMN_NAMES = tuple(name for name, _ in _JOB_SCHEMA)
+_JOB_COLUMNS = ", ".join(_JOB_COLUMN_NAMES)
 
-_CREATE_JOBS_TABLE = """
-    CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY,
-        folder TEXT NOT NULL,
-        job_type TEXT NOT NULL DEFAULT 'auto_caption',
-        status TEXT NOT NULL,
-        total INTEGER NOT NULL DEFAULT 0,
-        processed INTEGER NOT NULL DEFAULT 0,
-        current_file TEXT,
-        current_name TEXT,
-        stats_json TEXT NOT NULL DEFAULT '{}',
-        results_json TEXT NOT NULL DEFAULT '[]',
-        error TEXT,
-        created_at TEXT NOT NULL,
-        started_at TEXT,
-        finished_at TEXT,
-        auto_caption_mode TEXT,
-        external_ref TEXT
-    )
-"""
+# Never overwritten by an update: the id identifies the row and the creation time is fixed.
+_IMMUTABLE_JOB_COLUMNS = frozenset({"id", "created_at"})
+
+
+def _create_jobs_table_sql(table: str, *, if_not_exists: bool = False) -> str:
+    exists_clause = "IF NOT EXISTS " if if_not_exists else ""
+    columns = ", ".join(f"{name} {definition}" for name, definition in _JOB_SCHEMA)
+    return f"CREATE TABLE {exists_clause}{table} ({columns})"
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -75,58 +80,27 @@ def _migrate_legacy_auto_caption_jobs_table(conn: sqlite3.Connection) -> None:
     conn.execute("DROP INDEX IF EXISTS idx_auto_caption_jobs_status")
 
 
-def _migrate_add_auto_caption_mode_column(conn: sqlite3.Connection) -> None:
-    columns = _column_names(conn, "jobs")
-    if "auto_caption_mode" not in columns:
-        conn.execute("ALTER TABLE jobs ADD COLUMN auto_caption_mode TEXT")
+def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
+    """Add any schema column the live table lacks, so the rebuild below can SELECT them all.
 
-
-def _migrate_add_external_ref_column(conn: sqlite3.Connection) -> None:
-    columns = _column_names(conn, "jobs")
-    if "external_ref" not in columns:
-        conn.execute("ALTER TABLE jobs ADD COLUMN external_ref TEXT")
+    SQLite only accepts an added column that is nullable or carries a default, which every
+    column added since the original table has been. A new one that is neither fails loudly
+    here at startup rather than corrupting anything.
+    """
+    existing = _column_names(conn, "jobs")
+    for name, definition in _JOB_SCHEMA:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
 
 
 def _migrate_rebuild_jobs_table_if_needed(conn: sqlite3.Connection) -> None:
-    columns = _column_names(conn, "jobs")
-    if len(columns) == _JOB_COLUMN_COUNT and {"auto_caption_mode", "external_ref"} <= columns:
+    """Drop columns the schema no longer declares. SQLite cannot ALTER them away."""
+    if _column_names(conn, "jobs") == set(_JOB_COLUMN_NAMES):
         return
 
+    conn.execute(_create_jobs_table_sql("jobs_new"))
     conn.execute(
-        """
-        CREATE TABLE jobs_new (
-            id TEXT PRIMARY KEY,
-            folder TEXT NOT NULL,
-            job_type TEXT NOT NULL DEFAULT 'auto_caption',
-            status TEXT NOT NULL,
-            total INTEGER NOT NULL DEFAULT 0,
-            processed INTEGER NOT NULL DEFAULT 0,
-            current_file TEXT,
-            current_name TEXT,
-            stats_json TEXT NOT NULL DEFAULT '{}',
-            results_json TEXT NOT NULL DEFAULT '[]',
-            error TEXT,
-            created_at TEXT NOT NULL,
-            started_at TEXT,
-            finished_at TEXT,
-            auto_caption_mode TEXT,
-            external_ref TEXT
-        )
-        """
-    )
-    conn.execute(
-        """
-        INSERT INTO jobs_new (
-            id, folder, job_type, status, total, processed, current_file, current_name,
-            stats_json, results_json, error, created_at, started_at, finished_at,
-            auto_caption_mode, external_ref
-        )
-        SELECT
-            id, folder, job_type, status, total, processed, current_file, current_name,
-            stats_json, results_json, error, created_at, started_at, finished_at,
-            auto_caption_mode, external_ref
-        FROM jobs
-        """
+        f"INSERT INTO jobs_new ({_JOB_COLUMNS}) SELECT {_JOB_COLUMNS} FROM jobs",
     )
     conn.execute("DROP TABLE jobs")
     conn.execute("ALTER TABLE jobs_new RENAME TO jobs")
@@ -146,7 +120,7 @@ def _migrate_rebuild_jobs_table_if_needed(conn: sqlite3.Connection) -> None:
 
 def init_jobs_table() -> None:
     with get_connection() as conn:
-        conn.execute(_CREATE_JOBS_TABLE)
+        conn.execute(_create_jobs_table_sql("jobs", if_not_exists=True))
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_jobs_folder
@@ -160,8 +134,7 @@ def init_jobs_table() -> None:
             """
         )
         _migrate_legacy_auto_caption_jobs_table(conn)
-        _migrate_add_auto_caption_mode_column(conn)
-        _migrate_add_external_ref_column(conn)
+        _migrate_add_missing_columns(conn)
         _migrate_rebuild_jobs_table_if_needed(conn)
         conn.commit()
 
@@ -199,108 +172,74 @@ def _normalize_folder(folder: str) -> str:
     return str(normalize_user_path(folder))
 
 
+def _decode_json_object(raw: object) -> dict:
+    try:
+        decoded = json.loads(raw) if raw else {}  # type: ignore[arg-type]
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def _decode_json_array(raw: object) -> list:
+    try:
+        decoded = json.loads(raw) if raw else []  # type: ignore[arg-type]
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return decoded if isinstance(decoded, list) else []
+
+
 def _row_to_dict(row: tuple) -> dict[str, object]:
-    (
-        job_id,
-        folder,
-        job_type,
-        status,
-        total,
-        processed,
-        current_file,
-        current_name,
-        stats_json,
-        results_json,
-        error,
-        created_at,
-        started_at,
-        finished_at,
-        auto_caption_mode,
-        external_ref,
-    ) = row + (None,) * (_JOB_COLUMN_COUNT - len(row))  # tolerate rows missing a newer column
+    # Tolerate rows missing a newer column during a transition.
+    padded = tuple(row) + (None,) * (len(_JOB_COLUMN_NAMES) - len(row))
+    values = dict(zip(_JOB_COLUMN_NAMES, padded, strict=True))
 
-    try:
-        stats = json.loads(stats_json) if stats_json else {}
-    except json.JSONDecodeError:
-        stats = {}
-
-    try:
-        results = json.loads(results_json) if results_json else []
-    except json.JSONDecodeError:
-        results = []
-
-    if not isinstance(stats, dict):
-        stats = {}
-    if not isinstance(results, list):
-        results = []
+    stats = _decode_json_object(values.pop("stats_json"))
+    results = _decode_json_array(values.pop("results_json"))
 
     return {
-        "id": job_id,
-        "folder": folder,
-        "folder_name": path_leaf_name(str(folder or "")),
-        "job_type": str(job_type or "auto_caption"),
-        "status": status,
-        "total": int(total or 0),
-        "processed": int(processed or 0),
-        "current_file": current_file,
-        "current_name": current_name,
+        **values,
+        "folder_name": path_leaf_name(str(values["folder"] or "")),
+        "job_type": str(values["job_type"] or "auto_caption"),
+        "total": int(values["total"] or 0),
+        "processed": int(values["processed"] or 0),
         "stats": {key: int(value) for key, value in stats.items()},
         "results": results,
-        "error": error,
-        "created_at": created_at,
-        "started_at": started_at,
-        "finished_at": finished_at,
-        "auto_caption_mode": auto_caption_mode,
-        "external_ref": external_ref,
     }
 
 
+_SAVE_JOB_SQL = f"""
+    INSERT INTO jobs ({_JOB_COLUMNS})
+    VALUES ({", ".join("?" for _ in _JOB_COLUMN_NAMES)})
+    ON CONFLICT(id) DO UPDATE SET {
+    ", ".join(
+        f"{name} = excluded.{name}"
+        for name in _JOB_COLUMN_NAMES
+        if name not in _IMMUTABLE_JOB_COLUMNS
+    )
+}
+"""
+
+
+def _job_column_value(job: dict[str, object], column: str) -> object:
+    """The stored value for one column, applying the few per-column conversions."""
+    if column == "folder":
+        return _normalize_folder(str(job["folder"]))
+    if column == "job_type":
+        return job.get("job_type") or "auto_caption"
+    if column in {"total", "processed"}:
+        return int(job.get(column) or 0)
+    if column == "stats_json":
+        return json.dumps(job.get("stats") or {})
+    if column == "results_json":
+        return json.dumps(job.get("results") or [])
+    return job.get(column)
+
+
 def save_job(job: dict[str, object]) -> None:
-    folder = _normalize_folder(str(job["folder"]))
+    values = tuple(_job_column_value(job, column) for column in _JOB_COLUMN_NAMES)
 
     with get_connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO jobs (
-                id, folder, job_type, status, total, processed, current_file, current_name,
-                stats_json, results_json, error, created_at, started_at, finished_at,
-                auto_caption_mode, external_ref
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                folder = excluded.folder,
-                job_type = excluded.job_type,
-                status = excluded.status,
-                total = excluded.total,
-                processed = excluded.processed,
-                current_file = excluded.current_file,
-                current_name = excluded.current_name,
-                stats_json = excluded.stats_json,
-                results_json = excluded.results_json,
-                error = excluded.error,
-                started_at = excluded.started_at,
-                finished_at = excluded.finished_at,
-                auto_caption_mode = excluded.auto_caption_mode,
-                external_ref = excluded.external_ref
-            """,
-            (
-                job["id"],
-                folder,
-                job.get("job_type") or "auto_caption",
-                job["status"],
-                int(job.get("total") or 0),
-                int(job.get("processed") or 0),
-                job.get("current_file"),
-                job.get("current_name"),
-                json.dumps(job.get("stats") or {}),
-                json.dumps(job.get("results") or []),
-                job.get("error"),
-                job["created_at"],
-                job.get("started_at"),
-                job.get("finished_at"),
-                job.get("auto_caption_mode"),
-                job.get("external_ref"),
-            ),
-        )
+        conn.execute(_SAVE_JOB_SQL, values)
         conn.commit()
 
 

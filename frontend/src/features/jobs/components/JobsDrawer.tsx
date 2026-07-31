@@ -4,7 +4,7 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { iconSettings, iconTrash2, iconX } from "@/shared/icons";
+import { iconActivity, iconTrash2, iconX } from "@/shared/icons";
 import { foldersMatch } from "@/features/browse/lib/folderPath";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -86,7 +86,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
           >
             <header className="jobs-drawer__header">
               <div className="jobs-drawer__title">
-                <Icon icon={iconSettings} className="jobs-drawer__title-icon" />
+                <Icon icon={iconActivity} className="jobs-drawer__title-icon" />
                 <div>
                   <h2 id="jobs-drawer-title">Background jobs</h2>
                 </div>

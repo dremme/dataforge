@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { Job } from "@/shared/types";
 import {
   classifyProcessedBatch,
-  coTrackedExternalTrainingJob,
   createJobTimingTracker,
   formatDuration,
   formatElapsed,
@@ -571,7 +570,6 @@ describe("isTrainLoraCoTrackedByExternal", () => {
       isTrainLoraCoTrackedByExternal(trainingJob, [{ ...externalJob, name: "other_train" }]),
     ).toBe(false);
     expect(isTrainLoraCoTrackedByExternal(trainingJob, [])).toBe(false);
-    expect(coTrackedExternalTrainingJob(trainingJob, [externalJob])?.id).toBe("ostris-1");
   });
 
   it("ignores non-training jobs and missing external refs", () => {

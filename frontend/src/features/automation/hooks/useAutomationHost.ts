@@ -46,27 +46,15 @@ export function useAutomationHost({
   issueCount,
   onResolveIssues,
 }: UseAutomationHostOptions) {
-  const jobStart = useJobStartConfirmation(
-    folder,
-    breadcrumbs,
-    {
-      strip_metadata: automation.startStripMetadataJob,
-      restore_captions: automation.startRestoreCaptionsJob,
-    },
-    getJobPaths,
-  );
+  const { startJob } = automation;
+  const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
 
   const dialogs = useAutomationDialogOverlays({
     folderPath: folder,
     folderLabel: jobStart.folderLabel,
     startingJobType: automation.startingJobType,
     itemCount: getJobPaths()?.length ?? items.length,
-    startSetCaptionsJob: automation.startSetCaptionsJob,
-    startBodyPartsJob: automation.startBodyPartsJob,
-    startAutoCaptionJob: automation.startAutoCaptionJob,
-    startVerifyCaptionsJob: automation.startVerifyCaptionsJob,
-    startBatchRenameJob: automation.startBatchRenameJob,
-    startTrainLoraJob: automation.startTrainLoraJob,
+    startJob,
     getJobPaths,
   });
 
@@ -78,11 +66,6 @@ export function useAutomationHost({
     cancelPendingJobStart,
   } = jobStart;
   const { openDialogForJobType, dialogs: automationDialogs } = dialogs;
-
-  const immediateStarters = useMemo(
-    () => ({ backup_captions: automation.startBackupCaptionsJob }),
-    [automation.startBackupCaptionsJob],
-  );
 
   const jobAvailability = useMemo<JobAvailability>(
     () => ({ hasCaptionBackup, ostrisAvailable }),
@@ -99,21 +82,14 @@ export function useAutomationHost({
       }
       if (isImmediateJobType(jobType)) {
         if (!folder) return;
-        immediateStarters[jobType](folder, getJobPaths()).catch(() => {
+        startJob(jobType, folder, undefined, getJobPaths()).catch(() => {
           // Errors are stored in jobs context state.
         });
         return;
       }
       openDialogForJobType(jobType);
     },
-    [
-      folder,
-      getJobPaths,
-      jobAvailability,
-      immediateStarters,
-      openDialogForJobType,
-      requestJobStart,
-    ],
+    [folder, getJobPaths, jobAvailability, openDialogForJobType, requestJobStart, startJob],
   );
 
   const panelProps = useMemo<AutomationPanelProps>(

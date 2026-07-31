@@ -6,8 +6,8 @@ import {
   externalJobRemainingTimeLabel,
   externalJobStatusLabel,
   parseSpeedSecondsPerStep,
-  trainingRemainingTimeLabel,
 } from "./externalJobs";
+import { trainingRemainingTimeLabel } from "./jobs";
 
 const runningJob: ExternalOstrisJob = {
   id: "job-1",
