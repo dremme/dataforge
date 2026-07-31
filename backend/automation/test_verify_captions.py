@@ -209,6 +209,23 @@ class SplitFixSentencesTests(unittest.TestCase):
 
         self.assertEqual(split_fix_sentences(text), [text])
 
+    def test_an_ellipsis_keeps_one_finding_together(self) -> None:
+        """Qwen shortens sentences with an ellipsis, which is not a sentence end."""
+        text = "The caption says the arm is raised... it hangs at the side in the image."
+
+        self.assertEqual(split_fix_sentences(text), [text])
+
+    def test_a_sentence_after_an_ellipsis_still_splits(self) -> None:
+        self.assertEqual(
+            split_fix_sentences("The arm is raised... not lowered. Remove the scarf."),
+            ["The arm is raised... not lowered.", "Remove the scarf."],
+        )
+
+    def test_a_trailing_ellipsis_ends_the_prose(self) -> None:
+        text = "The caption trails off here..."
+
+        self.assertEqual(split_fix_sentences(text), [text])
+
     def test_a_semicolon_keeps_one_finding_together(self) -> None:
         """Qwen joins the observation and its correction with a semicolon."""
         text = "The caption says the hair is blonde; it is brown in the image"

@@ -124,13 +124,26 @@ _MARKER_ONLY = re.compile(r"^\s*(?:[-*]|\d+[.)])\s*$")
 _SENTENCE_TERMINATORS = frozenset(".!?")
 
 
+def _ends_sentence(text: str, index: int) -> bool:
+    """Whether the terminator at ``index`` closes a sentence rather than sitting inside one.
+
+    Qwen shortens sentences with an ellipsis mid-thought ("the arm is raised... not
+    lowered"), so the closing dot of a run of dots continues the sentence. Otherwise a
+    terminator ends one only at the end of the text or before whitespace, which also
+    keeps decimals like "5.5 inch" together.
+    """
+    if text[index] == "." and index > 0 and text[index - 1] == ".":
+        return False
+
+    next_char = text[index + 1 : index + 2]
+    return not next_char or next_char.isspace()
+
+
 def split_fix_sentences(text: str) -> list[str]:
     """Split prose into sentences, treating double-quoted spans as atomic.
 
     The model quotes caption phrases verbatim, so a terminator inside quotes
-    (``Replace "a blue car." with ...``) must not split. A terminator only ends a
-    sentence when followed by whitespace or the end of the text, which also protects
-    decimals like "5.5 inch".
+    (``Replace "a blue car." with ...``) must not split.
     """
     sentences: list[str] = []
     start = 0
@@ -138,11 +151,9 @@ def split_fix_sentences(text: str) -> list[str]:
     for index, char in enumerate(text):
         if char == '"':
             in_quote = not in_quote
-        elif char in _SENTENCE_TERMINATORS and not in_quote:
-            next_char = text[index + 1 : index + 2]
-            if not next_char or next_char.isspace():
-                sentences.append(text[start : index + 1])
-                start = index + 1
+        elif char in _SENTENCE_TERMINATORS and not in_quote and _ends_sentence(text, index):
+            sentences.append(text[start : index + 1])
+            start = index + 1
 
     sentences.append(text[start:])
     cleaned = (
