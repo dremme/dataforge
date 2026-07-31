@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import type { TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import {
@@ -40,6 +41,11 @@ type UseAutomationDialogOverlaysOptions = {
     paths?: string[],
   ) => Promise<unknown>;
   startBatchRenameJob: (folder: string, stem: string, paths?: string[]) => Promise<unknown>;
+  startTrainLoraJob: (
+    folder: string,
+    settings: TrainLoraSettings,
+    paths?: string[],
+  ) => Promise<unknown>;
   getJobPaths?: () => string[] | undefined;
 };
 
@@ -53,6 +59,7 @@ export function useAutomationDialogOverlays({
   startAutoCaptionJob,
   startVerifyCaptionsJob,
   startBatchRenameJob,
+  startTrainLoraJob,
   getJobPaths,
 }: UseAutomationDialogOverlaysOptions) {
   const [setCaptionsOpen, setSetCaptionsOpen] = useState(false);
@@ -63,6 +70,7 @@ export function useAutomationDialogOverlays({
   const [verifyCaptionsSettings, setVerifyCaptionsSettings] =
     useState<VerifyCaptionsSettings | null>(null);
   const [batchRenameOpen, setBatchRenameOpen] = useState(false);
+  const [trainLoraOpen, setTrainLoraOpen] = useState(false);
 
   const startJobFromDialog = useCallback(
     (closeDialog: () => void, start: () => Promise<unknown>) => {
@@ -163,6 +171,19 @@ export function useAutomationDialogOverlays({
         },
         onCancel: () => setBatchRenameOpen(false),
       },
+      trainLora: {
+        open: trainLoraOpen,
+        folderLabel,
+        itemCount,
+        busy: startingJobType === "train_lora",
+        onConfirm: (settings) => {
+          startJobFromDialog(
+            () => setTrainLoraOpen(false),
+            () => startTrainLoraJob(folderPath!, settings, getJobPaths?.()),
+          );
+        },
+        onCancel: () => setTrainLoraOpen(false),
+      },
     }),
     [
       autoCaptionOpen,
@@ -181,8 +202,10 @@ export function useAutomationDialogOverlays({
       startBodyPartsJob,
       startJobFromDialog,
       startSetCaptionsJob,
+      startTrainLoraJob,
       startVerifyCaptionsJob,
       startingJobType,
+      trainLoraOpen,
       verifyCaptionsOpen,
       verifyCaptionsSettings,
     ],
@@ -195,6 +218,7 @@ export function useAutomationDialogOverlays({
       else if (jobType === "auto_caption") setAutoCaptionOpen(true);
       else if (jobType === "verify_captions") void openVerifyCaptionsDialog();
       else if (jobType === "batch_rename") setBatchRenameOpen(true);
+      else if (jobType === "train_lora") setTrainLoraOpen(true);
     },
     [openBodyPartsDialog, openVerifyCaptionsDialog],
   );
@@ -207,5 +231,6 @@ export function useAutomationDialogOverlays({
     openAutoCaptionDialog: () => setAutoCaptionOpen(true),
     openVerifyCaptionsDialog: () => void openVerifyCaptionsDialog(),
     openBatchRenameDialog: () => setBatchRenameOpen(true),
+    openTrainLoraDialog: () => setTrainLoraOpen(true),
   };
 }

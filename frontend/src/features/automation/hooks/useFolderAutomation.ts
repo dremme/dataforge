@@ -17,6 +17,7 @@ export function useFolderAutomation(
     startBatchRenameJob,
     startBackupCaptionsJob,
     startRestoreCaptionsJob,
+    startTrainLoraJob,
     cancelJob,
     cancellingJobId,
     startingJob,
@@ -69,5 +70,6 @@ export function useFolderAutomation(
     startBatchRenameJob,
     startBackupCaptionsJob,
     startRestoreCaptionsJob,
+    startTrainLoraJob,
   };
 }

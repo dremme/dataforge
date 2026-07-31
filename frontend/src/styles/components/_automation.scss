@@ -434,4 +434,39 @@
       @include progress-bar-fill;
     }
   }
+
+  // Training sample images, shown under the progress bar for LoRA training jobs.
+  &__samples {
+    margin-top: 0.75rem;
+
+    &-label {
+      @include section-label;
+      margin-bottom: 0.45rem;
+    }
+
+    &-list {
+      @include app-scrollbar;
+      display: flex;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0 0 0.25rem;
+      list-style: none;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    &-item {
+      flex: 0 0 auto;
+    }
+
+    &-image {
+      display: block;
+      width: 6rem;
+      height: 6rem;
+      object-fit: cover;
+      background: var(--bg-sunken);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+  }
 }

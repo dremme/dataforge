@@ -8,7 +8,7 @@ vi.mock("@/shared/api/http", () => ({
   requestJson: requestJsonMock,
 }));
 
-import { fetchOstrisJobs, stopOstrisJob } from "./externalJobs";
+import { fetchOstrisJobs, fetchOstrisTrainingSamples, stopOstrisJob } from "./externalJobs";
 
 describe("externalJobs API", () => {
   beforeEach(() => {
@@ -34,5 +34,15 @@ describe("externalJobs API", () => {
     expect(requestJsonMock).toHaveBeenCalledWith("/api/external/ostris/jobs/job-1/stop", {
       method: "POST",
     });
+  });
+
+  it("escapes the training name when fetching samples", async () => {
+    requestJsonMock.mockResolvedValue({ samples: [], step: null, available: true });
+
+    await fetchOstrisTrainingSamples("sample train v1");
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      "/api/external/ostris/training/sample%20train%20v1/samples",
+    );
   });
 });

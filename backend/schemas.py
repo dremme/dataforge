@@ -206,6 +206,12 @@ class VerifyCaptionsStartRequest(JobSelectionRequest):
     context: str = ""
 
 
+class TrainLoraStartRequest(JobSelectionRequest):
+    lora_name: str = ""
+    trigger_word: str = ""
+    prompts: list[str] = Field(default_factory=list)
+
+
 class JobFileResult(BaseModel):
     path: str
     name: str
@@ -232,6 +238,7 @@ class JobResponse(BaseModel):
     started_at: str | None = None
     finished_at: str | None = None
     auto_caption_mode: str | None = None
+    external_ref: str | None = None
 
 
 class JobsResponse(BaseModel):
@@ -269,6 +276,19 @@ class ExternalOstrisJobsResponse(BaseModel):
 class ExternalOstrisJobStopResponse(BaseModel):
     success: bool
     message: str | None = None
+
+
+class OstrisTrainingSample(BaseModel):
+    path: str
+    name: str
+    step: int
+    prompt: str | None = None
+
+
+class OstrisTrainingSamplesResponse(BaseModel):
+    samples: list[OstrisTrainingSample] = Field(default_factory=list)
+    step: int | None = None
+    available: bool = False
 
 
 class FolderRoot(BaseModel):

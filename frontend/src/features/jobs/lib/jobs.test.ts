@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { Job } from "@/shared/types";
 import {
   classifyProcessedBatch,
+  coTrackedExternalTrainingJob,
   createJobTimingTracker,
   formatDuration,
   formatElapsed,
+  isTrainLoraCoTrackedByExternal,
   jobCompletionNotification,
   jobElapsedSeconds,
   jobErrorMessage,
@@ -24,6 +26,7 @@ import {
   statusTone,
   updateJobTimingTracker,
 } from "./jobs";
+import type { ExternalOstrisJob } from "@/shared/types";
 import { iconCircleQuestionMark, iconPencilSparkles } from "@/shared/icons";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
@@ -535,5 +538,80 @@ describe("cancelled presentation", () => {
     expect(jobIsCancelled(makeJob({ status: "completed" }))).toBe(false);
     expect(statusTone("cancelled")).toBe("warning");
     expect(jobStatusTone(makeJob({ status: "cancelled" }))).toBe("warning");
+  });
+});
+
+describe("isTrainLoraCoTrackedByExternal", () => {
+  const trainingJob = makeJob({
+    job_type: "train_lora",
+    external_ref: "sample_train_v1",
+    status: "running",
+  });
+
+  const externalJob: ExternalOstrisJob = {
+    id: "ostris-1",
+    name: "sample_train_v1",
+    status: "running",
+    step: 100,
+    total_steps: 200,
+    info: "Training",
+    speed_string: "2.00 sec/iter",
+    job_type: "train",
+    dataset_folder: "C:\\datasets\\landscapes",
+    dataset_folder_name: "landscapes",
+    model: "krea/Krea-2-Turbo",
+    created_at: "2026-01-01T00:00:00.000Z",
+    save_now: false,
+    stop_requested: false,
+  };
+
+  it("matches a train_lora job to an Ostris run by external_ref name", () => {
+    expect(isTrainLoraCoTrackedByExternal(trainingJob, [externalJob])).toBe(true);
+    expect(
+      isTrainLoraCoTrackedByExternal(trainingJob, [{ ...externalJob, name: "other_train" }]),
+    ).toBe(false);
+    expect(isTrainLoraCoTrackedByExternal(trainingJob, [])).toBe(false);
+    expect(coTrackedExternalTrainingJob(trainingJob, [externalJob])?.id).toBe("ostris-1");
+  });
+
+  it("ignores non-training jobs and missing external refs", () => {
+    expect(
+      isTrainLoraCoTrackedByExternal(makeJob({ job_type: "auto_caption" }), [externalJob]),
+    ).toBe(false);
+    expect(
+      isTrainLoraCoTrackedByExternal(makeJob({ job_type: "train_lora", external_ref: null }), [
+        externalJob,
+      ]),
+    ).toBe(false);
+  });
+});
+
+describe("train_lora remaining time", () => {
+  it("uses Ostris sec/iter from stats with the same thresholds as the external card", () => {
+    const job = makeJob({
+      job_type: "train_lora",
+      external_ref: "sample_train_v1",
+      status: "running",
+      processed: 100,
+      total: 200,
+      stats: { step: 100, total_steps: 200, speed_ms_per_step: 2000 },
+      started_at: "2026-01-01T12:00:00.000Z",
+    });
+
+    // 100 steps left * 2s = 200s → ~4 min left (matches ExternalJobCard).
+    expect(jobRemainingTimeLabel(job, Date.parse("2026-01-01T12:10:00.000Z"))).toBe("~4 min left");
+  });
+
+  it("shows under a minute left when less than 60 seconds remain at the Ostris rate", () => {
+    const job = makeJob({
+      job_type: "train_lora",
+      status: "running",
+      processed: 190,
+      total: 200,
+      stats: { speed_ms_per_step: 2000 },
+      started_at: "2026-01-01T12:00:00.000Z",
+    });
+
+    expect(jobRemainingTimeLabel(job)).toBe("<1 min left");
   });
 });

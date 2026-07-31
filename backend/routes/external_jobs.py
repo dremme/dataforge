@@ -5,10 +5,13 @@ from external.ostris_jobs import (
     fetch_active_ostris_jobs,
     stop_ostris_job_with_checkpoint,
 )
+from external.ostris_training import fetch_training_samples, validate_lora_name
 from schemas import (
     ExternalOstrisJobResponse,
     ExternalOstrisJobsResponse,
     ExternalOstrisJobStopResponse,
+    OstrisTrainingSample,
+    OstrisTrainingSamplesResponse,
 )
 
 router = APIRouter()
@@ -34,4 +37,22 @@ def stop_active_ostris_job(job_id: str) -> ExternalOstrisJobStopResponse:
     return ExternalOstrisJobStopResponse(
         success=True,
         message="Checkpoint saved and job stopped.",
+    )
+
+
+@router.get(
+    "/external/ostris/training/{name}/samples",
+    response_model=OstrisTrainingSamplesResponse,
+)
+def list_ostris_training_samples(name: str) -> OstrisTrainingSamplesResponse:
+    try:
+        validate_lora_name(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    samples, step, available = fetch_training_samples(name)
+    return OstrisTrainingSamplesResponse(
+        samples=[OstrisTrainingSample.model_validate(sample) for sample in samples],
+        step=step,
+        available=available,
     )

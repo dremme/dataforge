@@ -16,7 +16,9 @@ import {
   startRestoreCaptionsJob as apiStartRestoreCaptionsJob,
   startSetCaptionsJob as apiStartSetCaptionsJob,
   startStripMetadataJob as apiStartStripMetadataJob,
+  startTrainLoraJob as apiStartTrainLoraJob,
   startVerifyCaptionsJob as apiStartVerifyCaptionsJob,
+  type TrainLoraSettings,
 } from "@/features/automation/api/jobs";
 import {
   cancelJob,
@@ -83,6 +85,11 @@ interface JobsContextValue {
   startBatchRenameJob: (folderPath: string, stem: string, paths?: string[]) => Promise<Job | null>;
   startBackupCaptionsJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
   startRestoreCaptionsJob: (folderPath: string, paths?: string[]) => Promise<Job | null>;
+  startTrainLoraJob: (
+    folderPath: string,
+    settings: TrainLoraSettings,
+    paths?: string[],
+  ) => Promise<Job | null>;
   cancelJob: (jobId: string) => Promise<Job | null>;
   stopExternalOstrisJob: (jobId: string) => Promise<boolean>;
   deleteJob: (jobId: string) => Promise<boolean>;
@@ -296,6 +303,14 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     [runJobStart],
   );
 
+  const startTrainLoraJob = useCallback(
+    (folderPath: string, settings: TrainLoraSettings, paths?: string[]) =>
+      runJobStart(folderPath, "train_lora", () =>
+        apiStartTrainLoraJob(folderPath, settings, paths),
+      ),
+    [runJobStart],
+  );
+
   const cancelJobImpl = useCallback(
     async (jobId: string) => {
       setCancellingJobId(jobId);
@@ -381,6 +396,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       startBatchRenameJob,
       startBackupCaptionsJob,
       startRestoreCaptionsJob,
+      startTrainLoraJob,
       cancelJob: cancelJobImpl,
       stopExternalOstrisJob: stopExternalOstrisJobImpl,
       deleteJob: deleteJobImpl,
@@ -405,6 +421,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       startBatchRenameJob,
       startBackupCaptionsJob,
       startRestoreCaptionsJob,
+      startTrainLoraJob,
       cancelJobImpl,
       stopExternalOstrisJobImpl,
       deleteJobImpl,

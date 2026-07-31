@@ -31,11 +31,14 @@ import {
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
+import { useTrainingSamples } from "@/features/automation/hooks/useTrainingSamples";
+import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
 import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
 import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
+import { TrainingSamples } from "./TrainingSamples";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
@@ -101,13 +104,16 @@ export function AutomationPanel({
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
   const specsPanelId = useId();
 
+  const { externalJobs } = useJobs();
   const showJobError = job ? jobShowsErrorState(job) : false;
   const showJobWarning = job ? jobShowsWarningState(job) : false;
   const showCancelled = job ? jobIsCancelled(job) : false;
   const errorMessage = job ? jobErrorMessage(job) : null;
   const warningMessage = job ? jobWarningMessage(job) : null;
-  const timeLabel = useJobTimeLabel(job);
+  // Training remaining time comes from the co-tracked Ostris job (same as ExternalJobCard).
+  const timeLabel = useJobTimeLabel(job, externalJobs);
   const statusIcon = job ? jobStatusIcon(job) : null;
+  const trainingSamples = useTrainingSamples(job);
   const issueLabel = `${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`;
   const jobLabel = job ? jobTypeLabel(job).toLowerCase() : "";
 
@@ -302,6 +308,8 @@ export function AutomationPanel({
                 style={{ width: `${progressPercent(job)}%` }}
               />
             </div>
+
+            <TrainingSamples samples={trainingSamples} />
 
             {errorMessage && (
               <div className="automation__message automation__message--error" role="alert">

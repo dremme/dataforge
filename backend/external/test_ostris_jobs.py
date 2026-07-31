@@ -296,7 +296,7 @@ class StopOstrisJobTests(unittest.TestCase):
         self.assertEqual(len(save_now_calls), 1)
         stop_mock.assert_called_once_with(db_path, "job-1")
 
-    def test_stop_ostris_job_with_checkpoint_rejects_non_running_jobs(self) -> None:
+    def test_stop_ostris_job_with_checkpoint_rejects_finished_jobs(self) -> None:
         client = Mock()
         client.get.return_value = Mock(
             raise_for_status=Mock(),
@@ -307,3 +307,25 @@ class StopOstrisJobTests(unittest.TestCase):
             client_cls.return_value.__enter__.return_value = client
             with self.assertRaises(OstrisJobStopError):
                 stop_ostris_job_with_checkpoint("job-1")
+
+    def test_stop_drops_a_queued_job_without_asking_for_a_checkpoint(self) -> None:
+        client = Mock()
+        client.get.side_effect = [
+            Mock(
+                raise_for_status=Mock(), json=Mock(return_value={"id": "job-1", "status": "queued"})
+            ),
+            Mock(raise_for_status=Mock(), json=Mock(return_value={"id": "job-1"})),
+            Mock(
+                raise_for_status=Mock(),
+                json=Mock(return_value={"id": "job-1", "status": "stopped"}),
+            ),
+        ]
+
+        with patch("external.ostris_jobs.httpx.Client") as client_cls:
+            client_cls.return_value.__enter__.return_value = client
+            result = stop_ostris_job_with_checkpoint("job-1")
+
+        self.assertEqual(result["status"], "stopped")
+        requested = [str(call.args[0]) for call in client.get.call_args_list if call.args]
+        self.assertTrue(any(url.endswith("/mark_stopped") for url in requested))
+        self.assertFalse(any(url.endswith("/save_now") for url in requested))

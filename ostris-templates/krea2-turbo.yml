@@ -1,0 +1,85 @@
+---
+job: "extension"
+config:
+  name: ""
+  process:
+    - type: "diffusion_trainer"
+      training_folder: ""
+      device: "cuda"
+      trigger_word: null
+      performance_log_every: 10
+      network:
+        type: "lora"
+        linear: 32
+        linear_alpha: 32
+      save:
+        dtype: "bf16"
+        save_every: 1000
+        max_step_saves_to_keep: 4
+        save_format: "diffusers"
+        push_to_hub: false
+      datasets:
+        - folder_path: ""
+          default_caption: ""
+          caption_ext: "txt"
+          caption_dropout_rate: 0.1
+          cache_latents_to_disk: true
+          network_weight: 1
+          num_repeats: 1
+          resolution:
+            - 512
+      train:
+        batch_size: 1
+        bypass_guidance_embedding: false
+        steps: 1000
+        gradient_accumulation: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
+        optimizer: "automagic3"
+        timestep_type: "shift"
+        content_or_style: "balanced"
+        optimizer_params:
+          weight_decay: 0.0001
+        unload_text_encoder: false
+        cache_text_embeddings: false
+        lr: 0.0001
+        ema_config:
+          use_ema: false
+          ema_decay: 0.99
+        skip_first_sample: false
+        force_first_sample: false
+        disable_sampling: false
+        dtype: "bf16"
+        loss_type: "mse"
+        do_differential_guidance: true
+        differential_guidance_scale: 3
+      logging:
+        log_every: 1
+        use_ui_logger: true
+      model:
+        name_or_path: "krea/Krea-2-Turbo"
+        quantize: true
+        qtype: "convrot8"
+        quantize_te: true
+        qtype_te: "convrot8"
+        arch: "krea2:turbo"
+        low_vram: true
+        assistant_lora_path: "ostris/krea2_turbo_training_adapter/krea2_turbo_training_adapter_v1.safetensors"
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        sample_start_step: 0
+        width: 1024
+        height: 1024
+        samples:
+          - prompt: "example prompt"
+        neg: ""
+        seed: 42
+        walk_seed: true
+        guidance_scale: 1
+        sample_steps: 9
+meta:
+  name: "[name]"
+  version: "1.0"

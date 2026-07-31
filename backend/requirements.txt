@@ -6,6 +6,7 @@ httpx==0.28.1
 openai==1.59.6
 Pillow==11.1.0
 imageio-ffmpeg==0.6.0
+PyYAML==6.0.2
 # Install a recent CUDA build of torch + torchvision first (CPU wheels break GPU inference).
 # For RTX 40/50-series (Ada/Blackwell), use a current PyTorch with CUDA 12.6 or newer, e.g.:
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128

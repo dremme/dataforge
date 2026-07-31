@@ -54,6 +54,33 @@ export function selectFolderJob(
   }, null);
 }
 
+/**
+ * True when this DataForge train_lora row is already represented by an Ostris
+ * external card (same LoRA name). The jobs drawer hides those to avoid listing
+ * the same active run twice; finished runs reappear once Ostris drops them.
+ */
+export function isTrainLoraCoTrackedByExternal(
+  job: Job,
+  externalJobs: ReadonlyArray<{ name: string }>,
+): boolean {
+  return coTrackedExternalTrainingJob(job, externalJobs) !== null;
+}
+
+/** The Ostris run that co-tracks this DataForge train_lora job, if listed. */
+export function coTrackedExternalTrainingJob<T extends { name: string }>(
+  job: Job,
+  externalJobs: ReadonlyArray<T>,
+): T | null {
+  if (jobTypeOf(job) !== "train_lora") {
+    return null;
+  }
+  const ref = job.external_ref?.trim();
+  if (!ref) {
+    return null;
+  }
+  return externalJobs.find((external) => external.name === ref) ?? null;
+}
+
 export function isActiveJobStatus(status: JobStatus): boolean {
   return status === "queued" || status === "running";
 }
@@ -139,7 +166,8 @@ export function jobShowsWarningState(job: Job): boolean {
     type === "strip_metadata" ||
     type === "set_captions" ||
     type === "batch_rename" ||
-    type === "backup_captions"
+    type === "backup_captions" ||
+    type === "train_lora"
   ) {
     return false;
   }
@@ -354,6 +382,11 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
     return { fast: job.processed, slow: 0 };
   }
 
+  // Training steps all cost the same, so a plain elapsed-per-step rate is accurate.
+  if (type === "train_lora") {
+    return { fast: 0, slow: job.processed };
+  }
+
   if (type === "verify_captions") {
     const slow =
       (stats.success ?? 0) +
@@ -527,6 +560,30 @@ export function jobCompletionNotification(job: Job): JobCompletionNotification |
   };
 }
 
+function trainLoraSpeedRemainingTimeLabel(job: Job): string | null {
+  if (jobTypeOf(job) !== "train_lora" || !job.total || job.total <= 0) {
+    return null;
+  }
+
+  const speedMs = job.stats?.speed_ms_per_step;
+  if (typeof speedMs !== "number" || speedMs <= 0) {
+    return null;
+  }
+
+  const remainingSteps = job.total - job.processed;
+  if (remainingSteps <= 0) {
+    return "<1 min left";
+  }
+
+  // Same thresholds as externalJobRemainingTimeLabel (Ostris sec/iter estimate).
+  const remainingSeconds = remainingSteps * (speedMs / 1000);
+  if (remainingSeconds <= 60) {
+    return "<1 min left";
+  }
+
+  return `~${formatDuration(remainingSeconds)} left`;
+}
+
 export function jobRemainingTimeLabel(
   job: Job,
   nowMs = Date.now(),
@@ -538,6 +595,12 @@ export function jobRemainingTimeLabel(
 
   if (job.status === "queued") {
     return null;
+  }
+
+  // Prefer Ostris sec/iter when the runner recorded it (matches ExternalJobCard).
+  const trainLoraSpeedLabel = trainLoraSpeedRemainingTimeLabel(job);
+  if (trainLoraSpeedLabel !== null) {
+    return trainLoraSpeedLabel;
   }
 
   const remainingSeconds = jobRemainingSeconds(job, nowMs, tracker);

@@ -2,6 +2,7 @@ import { AutoCaptionDialog } from "./AutoCaptionDialog";
 import { BodyPartsDialog } from "./BodyPartsDialog";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
+import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
 import type { AutomationDialogsState } from "@/features/automation/types";
 
@@ -10,7 +11,7 @@ type AutomationDialogOverlaysProps = {
 };
 
 export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysProps) {
-  const { setCaptions, bodyParts, autoCaption, verifyCaptions, batchRename } = dialogs;
+  const { setCaptions, bodyParts, autoCaption, verifyCaptions, batchRename, trainLora } = dialogs;
 
   return (
     <>
@@ -60,6 +61,16 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={batchRename.busy}
           onConfirm={batchRename.onConfirm}
           onCancel={batchRename.onCancel}
+        />
+      )}
+
+      {trainLora.open && (
+        <TrainLoraDialog
+          folderLabel={trainLora.folderLabel}
+          itemCount={trainLora.itemCount}
+          busy={trainLora.busy}
+          onConfirm={trainLora.onConfirm}
+          onCancel={trainLora.onCancel}
         />
       )}
     </>

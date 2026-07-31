@@ -3,6 +3,7 @@ import type { AppIcon } from "@/shared/icons";
 import {
   iconArchive,
   iconArchiveRestore,
+  iconBrain,
   iconCircleQuestionMark,
   iconFilePen,
   iconGroup,
@@ -19,11 +20,12 @@ type JobStartUi = "dialog" | "confirm" | "immediate";
 /** Folder state that decides whether a job can run right now. */
 export interface JobAvailability {
   hasCaptionBackup: boolean;
+  ostrisAvailable: boolean;
 }
 
 /** Sections of the secondary jobs menu, in display order. */
 export const JOB_GROUPS = [
-  { id: "captions", label: "Captions" },
+  { id: "datasets", label: "Datasets" },
   { id: "files", label: "Files" },
   { id: "backup", label: "Backup" },
 ] as const;
@@ -60,7 +62,7 @@ interface JobTypeMeta {
 export const JOB_TYPE_META = {
   auto_caption: {
     type: "auto_caption" as const,
-    group: "captions" as const,
+    group: "datasets" as const,
     label: "Auto-caption",
     icon: iconPencilSparkles,
     startUi: "dialog" as const,
@@ -69,7 +71,7 @@ export const JOB_TYPE_META = {
   },
   set_captions: {
     type: "set_captions" as const,
-    group: "captions" as const,
+    group: "datasets" as const,
     label: "Set captions",
     icon: iconMessagePlus,
     startUi: "dialog" as const,
@@ -77,7 +79,7 @@ export const JOB_TYPE_META = {
   },
   verify_captions: {
     type: "verify_captions" as const,
-    group: "captions" as const,
+    group: "datasets" as const,
     label: "Verify captions",
     icon: iconMessageCheck,
     startUi: "dialog" as const,
@@ -110,7 +112,7 @@ export const JOB_TYPE_META = {
   },
   body_parts: {
     type: "body_parts" as const,
-    group: "captions" as const,
+    group: "datasets" as const,
     label: "Body parts",
     icon: iconGroup,
     startUi: "dialog" as const,
@@ -144,6 +146,16 @@ export const JOB_TYPE_META = {
       confirmLabel: "Restore captions",
     },
     isAvailable: ({ hasCaptionBackup }: JobAvailability) => hasCaptionBackup,
+  },
+  train_lora: {
+    type: "train_lora" as const,
+    group: "datasets" as const,
+    label: "LoRA training",
+    icon: iconBrain,
+    startUi: "dialog" as const,
+    menuLabel: "Quick LoRA training",
+    menuDescription: "Train a Krea 2 Turbo LoRA on this folder with AI-Toolkit.",
+    isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
   },
 } satisfies Record<JobType, JobTypeMeta>;
 

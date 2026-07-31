@@ -3,6 +3,12 @@ import { withJobPaths } from "@/features/jobs/api/jobPaths";
 import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import type { Job } from "@/shared/types";
 
+export interface TrainLoraSettings {
+  loraName: string;
+  triggerWord: string;
+  prompts: string[];
+}
+
 function jobUrl(jobPath: string, folderPath: string): string {
   const params = new URLSearchParams({ path: folderPath });
   return `/api/automation/${jobPath}?${params}`;
@@ -76,5 +82,23 @@ export async function startVerifyCaptionsJob(
   return postJson<Job>(
     jobUrl("verify-captions", folderPath),
     withJobPaths({ mode, context }, paths),
+  );
+}
+
+export async function startTrainLoraJob(
+  folderPath: string,
+  settings: TrainLoraSettings,
+  paths?: string[],
+): Promise<Job> {
+  return postJson<Job>(
+    jobUrl("train-lora", folderPath),
+    withJobPaths(
+      {
+        lora_name: settings.loraName,
+        trigger_word: settings.triggerWord,
+        prompts: settings.prompts,
+      },
+      paths,
+    ),
   );
 }

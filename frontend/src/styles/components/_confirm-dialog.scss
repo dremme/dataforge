@@ -200,7 +200,8 @@
 .body-parts-dialog,
 .set-captions-dialog,
 .verify-captions-dialog,
-.auto-caption-dialog {
+.auto-caption-dialog,
+.train-lora-dialog {
   width: min(32rem, 100%);
 }
 
@@ -267,6 +268,62 @@
 // Body parts keywords field is shorter than the default multiline height.
 .body-parts-dialog__keywords {
   min-height: 3.25rem;
+}
+
+// LoRA training: an editable list of sample prompts, each with a remove button.
+// The prompt list makes this the tallest form dialog, so the fields scroll inside
+// a bounded panel and the title and actions stay put.
+.confirm-dialog__panel.train-lora-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: min(85vh, 50rem);
+}
+
+.train-lora-dialog {
+  &__body {
+    @include app-scrollbar;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  &__prompts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.45rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__prompt {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  &__prompt-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__prompt-remove {
+    @include icon-btn-sm;
+
+    &:hover:not(:disabled) {
+      color: var(--danger);
+      border-color: var(--danger-border);
+    }
+  }
+
+  &__add-prompt {
+    @include pill-btn-ghost;
+    margin-top: 0.5rem;
+
+    &-icon {
+      @include icon-size(var(--icon-size-sm));
+    }
+  }
 }
 
 // Move media dialog (confirm shell + folder tree body)

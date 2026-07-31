@@ -15,6 +15,7 @@ from schemas import (
     RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
     StripMetadataStartRequest,
+    TrainLoraStartRequest,
     VerifyCaptionsStartRequest,
 )
 from verify_captions_settings import update_verify_captions_settings
@@ -141,4 +142,19 @@ def start_verify_captions_job(
         body.paths,
         mode=body.mode,
         context=body.context,
+    )
+
+
+@router.post("/automation/train-lora", response_model=JobResponse)
+def start_train_lora_job(
+    path: str = Query(..., description="Absolute path to the folder to train on"),
+    body: TrainLoraStartRequest = TrainLoraStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "train_lora",
+        resolve_folder(path),
+        body.paths,
+        lora_name=body.lora_name,
+        trigger_word=body.trigger_word,
+        prompts=body.prompts,
     )

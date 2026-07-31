@@ -3,18 +3,33 @@
 from __future__ import annotations
 
 import unittest
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
-from automation.jobs import Job, job_manager
+from automation.jobs import JOB_SPECS, Job, job_manager
+from external.ostris_training import OstrisTrainingError
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
     reset_job_manager,
+    wait_for_job,
     write_media,
     write_sysprompt,
     write_txt_caption,
 )
+
+
+@contextmanager
+def _patched_job_runner(job_type: str, run: Callable[..., object]) -> Iterator[None]:
+    """Swap a job type's runner. JOB_SPECS holds the function, so patching the module cannot."""
+    patched = replace(JOB_SPECS[job_type], run=run)  # type: ignore[index]
+    with patch.dict(JOB_SPECS, {job_type: patched}):
+        yield
 
 
 class AutoCaptionAutomationEndpointTests(unittest.TestCase):
@@ -235,6 +250,99 @@ class CaptionBackupEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["job_type"], "restore_captions")
+
+
+class TrainLoraAutomationEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def _start(self, folder: Path, **body: object) -> object:
+        payload = {
+            "lora_name": "sample_train_v1",
+            "trigger_word": "",
+            "prompts": ["a mountain lake at sunrise"],
+            **body,
+        }
+        return client.post(f"/api/automation/train-lora?path={quote(str(folder))}", json=payload)
+
+    def test_requires_supported_media(self) -> None:
+        with TempMediaFolder() as root:
+            response = self._start(root)
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("No supported images or videos", response.json()["detail"])
+
+    def test_requires_a_lora_name(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, lora_name="  ")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("name", response.json()["detail"])
+
+    def test_requires_at_least_one_prompt(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, prompts=[])
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("prompt", response.json()["detail"])
+
+    def test_rejects_a_name_that_would_escape_the_training_folder(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, lora_name="..\\secrets")
+
+            self.assertEqual(response.status_code, 400)
+
+    def test_starts_job_and_co_tracks_the_external_run(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            def finished(folder: Path, **_params: object) -> dict[str, object]:
+                return {
+                    "folder": str(folder),
+                    "total": 1000,
+                    "processed": 1000,
+                    "stats": {"step": 1000, "stopped": 0},
+                    "results": [],
+                }
+
+            with _patched_job_runner("train_lora", finished):
+                response = self._start(root)
+                job_id = response.json()["id"]
+                wait_for_job(job_id)
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["job_type"], "train_lora")
+            self.assertEqual(payload["external_ref"], "sample_train_v1")
+
+            job = job_manager.get_job(job_id)
+            assert job is not None
+            self.assertEqual(job.status, "completed")
+
+    def test_reports_a_duplicate_training_name(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            def duplicate(_folder: Path, **_params: object) -> dict[str, object]:
+                raise OstrisTrainingError(
+                    'A training job named "sample_train_v1" already exists in AI-Toolkit.'
+                )
+
+            with _patched_job_runner("train_lora", duplicate):
+                response = self._start(root)
+                job_id = response.json()["id"]
+                wait_for_job(job_id)
+
+            job = job_manager.get_job(job_id)
+            assert job is not None
+            self.assertEqual(job.status, "failed")
+            self.assertIn("already exists", job.error or "")
 
 
 if __name__ == "__main__":

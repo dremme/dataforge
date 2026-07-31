@@ -38,6 +38,7 @@ from automation.job_messages import (
 )
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
+from automation.train_lora import run_train_lora_job, validate_train_lora_folder
 from automation.verify_captions import run_verify_captions_job, validate_verify_captions_folder
 from filesystem import normalize_user_path, path_leaf_name
 
@@ -51,6 +52,7 @@ JobType = Literal[
     "batch_rename",
     "backup_captions",
     "restore_captions",
+    "train_lora",
 ]
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
@@ -88,6 +90,13 @@ def _resolve_api_errors(stat_key: str, message: Callable[[int], str]) -> StatusR
     return resolve
 
 
+def _resolve_train_lora_status(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
+    # A failed training run raises out of the runner, so it never reaches here.
+    if cancelled or job.stats.get("stopped"):
+        return "cancelled", None
+    return "completed", None
+
+
 def _resolve_stats_errors(message: Callable[[dict[str, int]], str | None]) -> StatusResolver:
     def resolve(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
         if cancelled:
@@ -117,6 +126,8 @@ class Job:
     finished_at: str | None = None
     job_type: JobType = "auto_caption"
     auto_caption_mode: str | None = None
+    # Names the external job this one co-tracks (the AI-Toolkit job name).
+    external_ref: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Job:
@@ -138,6 +149,7 @@ class Job:
             finished_at=data.get("finished_at"),  # type: ignore[arg-type]
             job_type=data.get("job_type", "auto_caption"),  # type: ignore[arg-type]
             auto_caption_mode=data.get("auto_caption_mode"),  # type: ignore[arg-type]
+            external_ref=data.get("external_ref"),  # type: ignore[arg-type]
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -162,6 +174,7 @@ class Job:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "auto_caption_mode": self.auto_caption_mode,
+            "external_ref": self.external_ref,
         }
 
 
@@ -201,12 +214,29 @@ def _prepare_body_parts(job: Job, folder: Path, params: dict[str, object]) -> No
     job.current_name = "Loading models..."
 
 
+def _external_ref(job_type: JobType, params: dict[str, object]) -> str | None:
+    """The external job a new job co-tracks. Known at queue time, so no runner callback."""
+    if job_type != "train_lora":
+        return None
+    return str(params.get("lora_name", "")).strip() or None
+
+
+def _resume_train_lora(job: Job) -> dict[str, object] | None:
+    if not job.external_ref:
+        return None
+    return {"lora_name": job.external_ref, "attach_only": True}
+
+
 @dataclass(frozen=True)
 class JobSpec:
     """Everything that differs between job types; JobManager handles the rest.
 
     ``run`` is called as ``run(folder, on_progress=..., should_cancel=..., **params)``,
     so a job's queue-time parameters must match its runner's keyword arguments.
+
+    ``resume`` returns the params to pick a job back up with after a restart, or None
+    when it cannot be resumed. Only jobs whose real work outlives this process (an
+    external service doing the work) define it; everything else stays interrupted.
     """
 
     thread_prefix: str
@@ -214,6 +244,7 @@ class JobSpec:
     resolve_status: StatusResolver
     validate: Callable[..., None]
     prepare: Callable[[Job, Path, dict[str, object]], None] | None = None
+    resume: Callable[[Job], dict[str, object] | None] | None = None
 
 
 JOB_SPECS: dict[JobType, JobSpec] = {
@@ -266,6 +297,13 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         resolve_status=_resolve_verify_captions_status,
         validate=_folder_only(validate_verify_captions_folder),
     ),
+    "train_lora": JobSpec(
+        thread_prefix="train-lora",
+        run=run_train_lora_job,
+        resolve_status=_resolve_train_lora_status,
+        validate=validate_train_lora_folder,
+        resume=_resume_train_lora,
+    ),
 }
 
 
@@ -277,9 +315,15 @@ class JobManager:
         self._deleted_ids: set[str] = set()
 
     def initialize(self) -> None:
+        # Collected before recovery, which is what marks the rows interrupted.
+        resumable = self._resumable_jobs()
+
         jobs_store.recover_stale_jobs()
         with suppress(Exception):
             jobs_store.prune_duplicate_jobs()
+
+        for job, params in resumable:
+            self._resume_job(job, params)
 
     def get_job(self, job_id: str) -> Job | None:
         with self._lock:
@@ -420,6 +464,46 @@ class JobManager:
 
         return max(deleted_count, stored_count)
 
+    def _resumable_jobs(self) -> list[tuple[Job, dict[str, object]]]:
+        """Jobs left active by a previous process whose spec knows how to pick them back up."""
+        stored_jobs: list[dict[str, object]] = []
+        with suppress(Exception):
+            stored_jobs = jobs_store.list_active_jobs()
+
+        resumable: list[tuple[Job, dict[str, object]]] = []
+        for stored in stored_jobs:
+            job = Job.from_dict(stored)
+            spec = JOB_SPECS.get(job.job_type)
+            if spec is None or spec.resume is None:
+                continue
+            params = spec.resume(job)
+            if params is not None:
+                resumable.append((job, params))
+        return resumable
+
+    def _resume_job(self, job: Job, params: dict[str, object]) -> None:
+        """Re-attach to a job whose real work outlived the last process, keeping its row."""
+        spec = JOB_SPECS[job.job_type]
+        folder = Path(job.folder)
+        cancel_event = threading.Event()
+
+        job.status = "queued"
+        job.error = None
+        job.finished_at = None
+
+        with self._lock:
+            self._jobs[job.id] = job
+            self._cancel_flags[job.id] = cancel_event
+
+        self._persist(job)
+
+        thread = threading.Thread(
+            target=lambda: self._run_managed_job(spec, job.id, folder, cancel_event, params),
+            name=f"{spec.thread_prefix}-{job.id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+
     def _register_job(
         self,
         folder: Path,
@@ -440,6 +524,7 @@ class JobManager:
                 auto_caption_mode=(
                     str(params.get("mode", "thinking")) if job_type == "auto_caption" else None
                 ),
+                external_ref=_external_ref(job_type, params),
             )
             self._jobs[job_id] = job
             cancel_event = threading.Event()
@@ -503,7 +588,8 @@ class JobManager:
                 snapshot = job.to_dict()
             else:
                 job.status = "running"
-                job.started_at = _utc_now()
+                # Kept when set, so a resumed job's elapsed time stays true.
+                job.started_at = job.started_at or _utc_now()
                 if prepare is not None:
                     prepare(job)
                 snapshot = job.to_dict()

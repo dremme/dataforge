@@ -71,3 +71,44 @@ class ExternalOstrisJobsEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Only running Ostris jobs can be stopped.")
+
+
+class ExternalOstrisTrainingSamplesEndpointTests(unittest.TestCase):
+    def test_returns_the_latest_samples(self) -> None:
+        samples = [
+            {
+                "path": "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1_000000500_0.jpg",
+                "name": "1_000000500_0.jpg",
+                "step": 500,
+                "prompt": "a mountain lake at sunrise",
+            }
+        ]
+
+        with patch(
+            "routes.external_jobs.fetch_training_samples",
+            return_value=(samples, 500, True),
+        ):
+            response = client.get("/api/external/ostris/training/sample_train_v1/samples")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["step"], 500)
+        self.assertEqual(payload["samples"][0]["prompt"], "a mountain lake at sunrise")
+
+    def test_reports_unavailable_when_ostris_is_unreachable(self) -> None:
+        with patch(
+            "routes.external_jobs.fetch_training_samples",
+            return_value=([], None, False),
+        ):
+            response = client.get("/api/external/ostris/training/sample_train_v1/samples")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["samples"], [])
+
+    def test_rejects_a_name_that_would_escape_the_training_folder(self) -> None:
+        response = client.get("/api/external/ostris/training/..%5Csecrets/samples")
+
+        self.assertEqual(response.status_code, 400)

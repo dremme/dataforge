@@ -23,6 +23,7 @@ const baseDialogOverlayProps = {
   startingJobType: null as null,
   itemCount: 3,
   startBatchRenameJob: vi.fn(),
+  startTrainLoraJob: vi.fn(),
 };
 
 describe("useAutomationDialogOverlays", () => {
@@ -148,6 +149,7 @@ describe("useAutomationDialogOverlays", () => {
         startingJobType: "set_captions",
         itemCount: 1,
         startBatchRenameJob: vi.fn(),
+        startTrainLoraJob: vi.fn(),
         startSetCaptionsJob: vi.fn(),
         startBodyPartsJob: vi.fn(),
         startAutoCaptionJob: vi.fn(),
@@ -157,5 +159,40 @@ describe("useAutomationDialogOverlays", () => {
 
     expect(result.current.dialogs.setCaptions.busy).toBe(true);
     expect(result.current.dialogs.bodyParts.busy).toBe(false);
+  });
+
+  it("opens the LoRA training dialog and starts the job after confirm", async () => {
+    const startTrainLoraJob = vi.fn().mockResolvedValue({ id: "job-5" });
+
+    const { result } = renderHook(() =>
+      useAutomationDialogOverlays({
+        folderPath: "C:\\Photos",
+        folderLabel: "Photos",
+        ...baseDialogOverlayProps,
+        startTrainLoraJob,
+        startSetCaptionsJob: vi.fn(),
+        startBodyPartsJob: vi.fn(),
+        startAutoCaptionJob: vi.fn(),
+        startVerifyCaptionsJob: vi.fn(),
+      }),
+    );
+
+    act(() => {
+      result.current.openDialogForJobType("train_lora");
+    });
+    expect(result.current.dialogs.trainLora.open).toBe(true);
+
+    const settings = {
+      loraName: "sample_train_v1",
+      triggerWord: "",
+      prompts: ["a mountain lake at sunrise"],
+    };
+
+    await act(async () => {
+      result.current.dialogs.trainLora.onConfirm(settings);
+    });
+
+    expect(result.current.dialogs.trainLora.open).toBe(false);
+    expect(startTrainLoraJob).toHaveBeenCalledWith("C:\\Photos", settings, undefined);
   });
 });

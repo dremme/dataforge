@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Job } from "@/shared/types";
+import type { ExternalOstrisJob, Job } from "@/shared/types";
 import { useJobTimeLabel } from "./useJobTimeLabel";
 
 const START_MS = Date.parse("2026-01-01T12:00:00.000Z");
@@ -104,5 +104,36 @@ describe("useJobTimeLabel", () => {
     expect(clearInterval.mock.calls.length).toBe(callsBefore);
 
     clearInterval.mockRestore();
+  });
+
+  it("uses the co-tracked Ostris remaining estimate for train_lora jobs", () => {
+    const trainingJob = makeJob({
+      job_type: "train_lora",
+      external_ref: "sample_train_v1",
+      processed: 50,
+      total: 1000,
+      stats: { step: 50, total_steps: 1000, speed_ms_per_step: 9999 },
+    });
+    const externalJob: ExternalOstrisJob = {
+      id: "ostris-1",
+      name: "sample_train_v1",
+      status: "running",
+      step: 100,
+      total_steps: 200,
+      info: "Training",
+      speed_string: "2.00 sec/iter",
+      job_type: "train",
+      dataset_folder: "C:\\datasets\\landscapes",
+      dataset_folder_name: "landscapes",
+      model: "krea/Krea-2-Turbo",
+      created_at: "2026-01-01T00:00:00.000Z",
+      save_now: false,
+      stop_requested: false,
+    };
+
+    const { result } = renderHook(() => useJobTimeLabel(trainingJob, [externalJob]));
+
+    // Prefer the external card's step/speed (100 remaining * 2s = ~4 min), not the DF stats.
+    expect(result.current).toBe("~4 min left");
   });
 });

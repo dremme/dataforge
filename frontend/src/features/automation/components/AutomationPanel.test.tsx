@@ -68,6 +68,12 @@ vi.mock("@/features/automation/hooks/useAutomationSpecsVisible", () => ({
   }),
 }));
 
+vi.mock("@/features/jobs/context/JobsContext", () => ({
+  useJobs: () => ({
+    externalJobs: [],
+  }),
+}));
+
 const baseProps = {
   filteredItems: [],
   job: null,
@@ -75,7 +81,7 @@ const baseProps = {
   canStart: false,
   hasSyspromptFile: false,
   hasSyspromptContent: false,
-  jobAvailability: { hasCaptionBackup: false },
+  jobAvailability: { hasCaptionBackup: false, ostrisAvailable: false },
   onEditSysprompt: vi.fn(),
   onRequestStart: vi.fn(),
   onCancelJob: vi.fn(),
@@ -173,7 +179,7 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true }}
+        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,
@@ -197,7 +203,7 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true }}
+        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
         filteredItems={[galleryItem]}
         onRequestStart={vi.fn()}
       />,
@@ -207,7 +213,7 @@ describe("AutomationPanel", () => {
 
     const sections = screen.getAllByRole("group");
     expect(sections.map((section) => section.getAttribute("aria-label"))).toEqual([
-      "Captions",
+      "Datasets",
       "Files",
       "Backup",
     ]);
@@ -228,7 +234,7 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true }}
+        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
         filteredItems={[galleryItem]}
         onRequestStart={vi.fn()}
       />,
@@ -256,7 +262,7 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: false }}
+        jobAvailability={{ hasCaptionBackup: false, ostrisAvailable: false }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,
@@ -280,7 +286,7 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: false }}
+        jobAvailability={{ hasCaptionBackup: false, ostrisAvailable: false }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,
@@ -290,5 +296,66 @@ describe("AutomationPanel", () => {
 
     await user.click(screen.getByRole("menuitem", { name: /Backup captions/ }));
     expect(onRequestStart).toHaveBeenCalledWith("backup_captions");
+  });
+
+  it("disables LoRA training while AI-Toolkit is unreachable", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+    const onRequestStart = vi.fn();
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: false, ostrisAvailable: false }}
+        filteredItems={[galleryItem]}
+        onRequestStart={onRequestStart}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    const trainItem = screen.getByRole("menuitem", { name: /Quick LoRA training/ });
+    expect(trainItem).toBeDisabled();
+
+    await user.click(trainItem);
+    expect(onRequestStart).not.toHaveBeenCalled();
+  });
+
+  it("shows the training samples under the progress bar", () => {
+    mockShowSpecs = false;
+    const trainingJob: Job = {
+      ...finishedJob,
+      job_type: "train_lora",
+      external_ref: "sample_train_v1",
+      total: 1000,
+      processed: 1000,
+      stats: { step: 1000, stopped: 0 },
+      results: [
+        {
+          path: "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000001000_0.jpg",
+          name: "1__000001000_0.jpg",
+          status: "sample",
+          description: "a mountain lake at sunrise",
+        },
+      ],
+    };
+
+    const { container } = render(<AutomationPanel {...baseProps} job={trainingJob} />);
+
+    const samples = container.querySelector(".automation__samples");
+    expect(samples).toBeInTheDocument();
+    expect(screen.getByAltText("a mountain lake at sunrise")).toBeInTheDocument();
+
+    // The strip belongs below the progress bar, not above it.
+    const progress = container.querySelector(".automation__progress");
+    expect(progress?.compareDocumentPosition(samples!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("shows no samples strip for other job types", () => {
+    mockShowSpecs = false;
+    const { container } = render(<AutomationPanel {...baseProps} job={finishedJob} />);
+
+    expect(container.querySelector(".automation__samples")).not.toBeInTheDocument();
   });
 });

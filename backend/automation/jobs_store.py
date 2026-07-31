@@ -11,8 +11,10 @@ from filesystem import normalize_user_path, path_leaf_name
 _JOB_COLUMNS = """
     id, folder, job_type, status, total, processed, current_file, current_name,
     stats_json, results_json, error, created_at, started_at, finished_at,
-    auto_caption_mode
+    auto_caption_mode, external_ref
 """
+
+_JOB_COLUMN_COUNT = 16
 
 _CREATE_JOBS_TABLE = """
     CREATE TABLE IF NOT EXISTS jobs (
@@ -30,7 +32,8 @@ _CREATE_JOBS_TABLE = """
         created_at TEXT NOT NULL,
         started_at TEXT,
         finished_at TEXT,
-        auto_caption_mode TEXT
+        auto_caption_mode TEXT,
+        external_ref TEXT
     )
 """
 
@@ -78,9 +81,15 @@ def _migrate_add_auto_caption_mode_column(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE jobs ADD COLUMN auto_caption_mode TEXT")
 
 
+def _migrate_add_external_ref_column(conn: sqlite3.Connection) -> None:
+    columns = _column_names(conn, "jobs")
+    if "external_ref" not in columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN external_ref TEXT")
+
+
 def _migrate_rebuild_jobs_table_if_needed(conn: sqlite3.Connection) -> None:
     columns = _column_names(conn, "jobs")
-    if len(columns) == 15 and "auto_caption_mode" in columns:
+    if len(columns) == _JOB_COLUMN_COUNT and {"auto_caption_mode", "external_ref"} <= columns:
         return
 
     conn.execute(
@@ -100,7 +109,8 @@ def _migrate_rebuild_jobs_table_if_needed(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL,
             started_at TEXT,
             finished_at TEXT,
-            auto_caption_mode TEXT
+            auto_caption_mode TEXT,
+            external_ref TEXT
         )
         """
     )
@@ -109,12 +119,12 @@ def _migrate_rebuild_jobs_table_if_needed(conn: sqlite3.Connection) -> None:
         INSERT INTO jobs_new (
             id, folder, job_type, status, total, processed, current_file, current_name,
             stats_json, results_json, error, created_at, started_at, finished_at,
-            auto_caption_mode
+            auto_caption_mode, external_ref
         )
         SELECT
             id, folder, job_type, status, total, processed, current_file, current_name,
             stats_json, results_json, error, created_at, started_at, finished_at,
-            auto_caption_mode
+            auto_caption_mode, external_ref
         FROM jobs
         """
     )
@@ -151,8 +161,23 @@ def init_jobs_table() -> None:
         )
         _migrate_legacy_auto_caption_jobs_table(conn)
         _migrate_add_auto_caption_mode_column(conn)
+        _migrate_add_external_ref_column(conn)
         _migrate_rebuild_jobs_table_if_needed(conn)
         conn.commit()
+
+
+def list_active_jobs() -> list[dict[str, object]]:
+    """Jobs still marked queued or running. Read before recovery to find resumable work."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT {_JOB_COLUMNS} FROM jobs
+            WHERE status IN ('queued', 'running')
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+
+    return [_row_to_dict(row) for row in rows]
 
 
 def recover_stale_jobs() -> int:
@@ -191,7 +216,8 @@ def _row_to_dict(row: tuple) -> dict[str, object]:
         started_at,
         finished_at,
         auto_caption_mode,
-    ) = row + (None,) * (15 - len(row))  # tolerate old rows missing column during transition
+        external_ref,
+    ) = row + (None,) * (_JOB_COLUMN_COUNT - len(row))  # tolerate rows missing a newer column
 
     try:
         stats = json.loads(stats_json) if stats_json else {}
@@ -225,6 +251,7 @@ def _row_to_dict(row: tuple) -> dict[str, object]:
         "started_at": started_at,
         "finished_at": finished_at,
         "auto_caption_mode": auto_caption_mode,
+        "external_ref": external_ref,
     }
 
 
@@ -237,8 +264,8 @@ def save_job(job: dict[str, object]) -> None:
             INSERT INTO jobs (
                 id, folder, job_type, status, total, processed, current_file, current_name,
                 stats_json, results_json, error, created_at, started_at, finished_at,
-                auto_caption_mode
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                auto_caption_mode, external_ref
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 folder = excluded.folder,
                 job_type = excluded.job_type,
@@ -252,7 +279,8 @@ def save_job(job: dict[str, object]) -> None:
                 error = excluded.error,
                 started_at = excluded.started_at,
                 finished_at = excluded.finished_at,
-                auto_caption_mode = excluded.auto_caption_mode
+                auto_caption_mode = excluded.auto_caption_mode,
+                external_ref = excluded.external_ref
             """,
             (
                 job["id"],
@@ -270,6 +298,7 @@ def save_job(job: dict[str, object]) -> None:
                 job.get("started_at"),
                 job.get("finished_at"),
                 job.get("auto_caption_mode"),
+                job.get("external_ref"),
             ),
         )
         conn.commit()

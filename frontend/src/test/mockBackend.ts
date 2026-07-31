@@ -763,6 +763,18 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse(createMockJob(folderPath, "restore_captions"));
     }
 
+    if (url.pathname === "/api/automation/train-lora" && method === "POST") {
+      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      return jsonResponse(createMockJob(folderPath, "train_lora"));
+    }
+
+    if (
+      url.pathname.startsWith("/api/external/ostris/training/") &&
+      url.pathname.endsWith("/samples")
+    ) {
+      return jsonResponse({ samples: [], step: null, available: true });
+    }
+
     if (url.pathname === "/api/jobs") {
       if (method === "DELETE") {
         return jsonResponse({ deleted_count: 0 });

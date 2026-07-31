@@ -7,6 +7,7 @@ import { useFolderFileDrop } from "@/features/browse/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/browse/hooks/useFolderNavigation";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
+import { useJobs } from "@/features/jobs/context/JobsContext";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 
@@ -16,6 +17,7 @@ import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 export function useAppWorkspace() {
   const mainRef = useRef<HTMLElement>(null);
   const selection = useGallerySelection();
+  const { ostrisAvailable } = useJobs();
 
   const { browse, loading, refreshing, error, navigateTo, setBrowse, reloadFolder } =
     useFolderNavigation(selection.clearSelection);
@@ -89,6 +91,7 @@ export function useAppWorkspace() {
     filteredItems: gallery.query.filteredItems,
     sysprompt,
     hasCaptionBackup: browse?.has_caption_backup ?? false,
+    ostrisAvailable,
     getJobPaths: gallery.getJobPaths,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,

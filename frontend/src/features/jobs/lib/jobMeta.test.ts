@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { JobType } from "@/shared/types";
 import { JOB_GROUPS, SECONDARY_JOB_GROUPS, SECONDARY_JOB_TYPES, isJobAvailable } from "./jobMeta";
 
-const withBackup = { hasCaptionBackup: true };
-const withoutBackup = { hasCaptionBackup: false };
+const withBackup = { hasCaptionBackup: true, ostrisAvailable: true };
+const withoutBackup = { hasCaptionBackup: false, ostrisAvailable: true };
 
 describe("isJobAvailable", () => {
   it("blocks restore captions until a backup exists", () => {
@@ -11,8 +11,15 @@ describe("isJobAvailable", () => {
     expect(isJobAvailable("restore_captions", withBackup)).toBe(true);
   });
 
+  it("blocks LoRA training until AI-Toolkit is reachable", () => {
+    expect(isJobAvailable("train_lora", { ...withBackup, ostrisAvailable: false })).toBe(false);
+    expect(isJobAvailable("train_lora", withBackup)).toBe(true);
+  });
+
   it("leaves every other job available either way", () => {
-    const others = SECONDARY_JOB_TYPES.filter((type) => type !== "restore_captions");
+    const others = SECONDARY_JOB_TYPES.filter(
+      (type) => type !== "restore_captions" && type !== "train_lora",
+    );
     expect(others.length).toBeGreaterThan(0);
 
     for (const type of others) {
@@ -43,10 +50,11 @@ describe("SECONDARY_JOB_GROUPS", () => {
     expect(SECONDARY_JOB_GROUPS.every((group) => group.types.length > 0)).toBe(true);
   });
 
-  it("buckets the caption, file and backup jobs apart", () => {
+  it("buckets the dataset, file and backup jobs apart", () => {
     const byId = Object.fromEntries(SECONDARY_JOB_GROUPS.map((group) => [group.id, group.types]));
 
-    expect(byId.captions).toContain("set_captions");
+    expect(byId.datasets).toContain("set_captions");
+    expect(byId.datasets).toContain("train_lora");
     expect(byId.files).toContain("batch_rename");
     expect(byId.backup).toEqual(["backup_captions", "restore_captions"]);
   });

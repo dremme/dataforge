@@ -13,13 +13,20 @@ from filesystem import path_leaf_name
 
 OSTRIS_BASE_URL = "http://127.0.0.1:8675"
 OSTRIS_JOBS_URL = f"{OSTRIS_BASE_URL}/api/jobs"
+OSTRIS_SETTINGS_URL = f"{OSTRIS_BASE_URL}/api/settings"
+OSTRIS_GPU_URL = f"{OSTRIS_BASE_URL}/api/gpu"
+OSTRIS_QUEUE_URL = f"{OSTRIS_BASE_URL}/api/queue"
 OSTRIS_REQUEST_TIMEOUT_SECONDS = 3.0
 OSTRIS_STOP_OPERATION_TIMEOUT_SECONDS = 600.0
 OSTRIS_SAVE_POLL_INTERVAL_SECONDS = 1.0
 OSTRIS_STOP_POLL_INTERVAL_SECONDS = 1.0
+OSTRIS_TRAIN_POLL_INTERVAL_SECONDS = 3.0
 OSTRIS_SAVE_MAX_WAIT_SECONDS = 1800.0
 OSTRIS_STOP_MAX_WAIT_SECONDS = 300.0
-ACTIVE_OSTRIS_STATUSES = frozenset({"running"})
+DEFAULT_OSTRIS_GPU_IDS = "0"
+# Queued and stopping runs matter now that DataForge creates jobs: a run has to be
+# visible from the moment it is queued, not only once training actually starts.
+ACTIVE_OSTRIS_STATUSES = frozenset({"running", "queued", "stopping"})
 TERMINAL_OSTRIS_STATUSES = frozenset({"stopped", "completed", "error"})
 
 
@@ -62,6 +69,23 @@ def _dataset_folder(process_config: dict[str, Any]) -> str | None:
     return folder_path if isinstance(folder_path, str) and folder_path else None
 
 
+def job_sample_prompts(raw_job: dict[str, Any]) -> list[str]:
+    """The sample prompts a job was configured with, in the order its samples are numbered."""
+    sample = _first_process_config(_parse_job_config(raw_job)).get("sample")
+    if not isinstance(sample, dict):
+        return []
+
+    samples = sample.get("samples")
+    if not isinstance(samples, list):
+        return []
+
+    prompts: list[str] = []
+    for item in samples:
+        prompt = item.get("prompt") if isinstance(item, dict) else None
+        prompts.append(prompt if isinstance(prompt, str) else "")
+    return prompts
+
+
 def _total_steps(raw_job: dict[str, Any], process_config: dict[str, Any]) -> int | None:
     total_steps = raw_job.get("total_steps")
     if isinstance(total_steps, int) and total_steps > 0:
@@ -73,6 +97,11 @@ def _total_steps(raw_job: dict[str, Any], process_config: dict[str, Any]) -> int
 
     steps = train.get("steps")
     return steps if isinstance(steps, int) and steps > 0 else None
+
+
+def ostris_job_total_steps(raw_job: dict[str, Any]) -> int | None:
+    """Total training steps from the job row, falling back to the job config."""
+    return _total_steps(raw_job, _first_process_config(_parse_job_config(raw_job)))
 
 
 def _folder_name(folder_path: str | None) -> str:
@@ -128,6 +157,82 @@ def fetch_ostris_job(client: httpx.Client, job_id: str) -> dict[str, Any] | None
     response.raise_for_status()
     payload = response.json()
     return payload if isinstance(payload, dict) else None
+
+
+def fetch_ostris_job_by_name(client: httpx.Client, name: str) -> dict[str, Any] | None:
+    """Look up a job by its unique name, which Ostris enforces on creation."""
+    response = client.get(OSTRIS_JOBS_URL)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        return None
+
+    raw_jobs = payload.get("jobs")
+    if not isinstance(raw_jobs, list):
+        return None
+
+    for raw_job in raw_jobs:
+        if isinstance(raw_job, dict) and raw_job.get("name") == name:
+            return raw_job
+    return None
+
+
+def fetch_ostris_training_folder(client: httpx.Client) -> str | None:
+    response = client.get(OSTRIS_SETTINGS_URL)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        return None
+
+    training_folder = payload.get("TRAINING_FOLDER")
+    return training_folder if isinstance(training_folder, str) and training_folder else None
+
+
+def fetch_ostris_gpu_ids(client: httpx.Client) -> str:
+    """The GPU the job is queued on. Ostris rewrites this to "mps" on macOS itself."""
+    response = client.get(OSTRIS_GPU_URL)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        return DEFAULT_OSTRIS_GPU_IDS
+
+    gpus = payload.get("gpus")
+    if not isinstance(gpus, list) or not gpus:
+        return DEFAULT_OSTRIS_GPU_IDS
+
+    first = gpus[0]
+    index = first.get("index") if isinstance(first, dict) else None
+    return str(index) if isinstance(index, int) else DEFAULT_OSTRIS_GPU_IDS
+
+
+def create_ostris_job(
+    client: httpx.Client,
+    *,
+    name: str,
+    gpu_ids: str,
+    job_config: dict[str, Any],
+) -> httpx.Response:
+    return client.post(
+        OSTRIS_JOBS_URL,
+        json={"name": name, "gpu_ids": gpu_ids, "job_config": job_config},
+    )
+
+
+def queue_ostris_job(client: httpx.Client, job_id: str) -> None:
+    response = client.get(f"{_ostris_job_url(job_id)}/start")
+    response.raise_for_status()
+
+
+def start_ostris_queue(client: httpx.Client, gpu_ids: str) -> None:
+    """Queueing a job is not enough; its GPU queue has to be running to pick it up."""
+    response = client.get(f"{OSTRIS_QUEUE_URL}/{gpu_ids}/start")
+    response.raise_for_status()
+
+
+def mark_ostris_job_stopped(client: httpx.Client, job_id: str) -> None:
+    """Drop a job that is still queued. The checkpoint stop only accepts running jobs."""
+    response = client.get(f"{_ostris_job_url(job_id)}/mark_stopped")
+    response.raise_for_status()
 
 
 def request_save_next_step(client: httpx.Client, job_id: str) -> None:
@@ -206,8 +311,13 @@ def stop_ostris_job_with_checkpoint(job_id: str) -> dict[str, Any]:
             raise OstrisJobStopError("Ostris job not found.")
 
         status = job.get("status")
+        if status == "queued":
+            # Nothing has been trained yet, so there is no checkpoint to save.
+            mark_ostris_job_stopped(client, job_id)
+            return wait_for_job_stop(client, job_id)
+
         if status != "running":
-            raise OstrisJobStopError("Only running Ostris jobs can be stopped.")
+            raise OstrisJobStopError("Only running or queued Ostris jobs can be stopped.")
 
         if _as_bool(job.get("save_now")):
             wait_for_save_next_step(client, job_id, save_was_requested=False)
@@ -255,7 +365,7 @@ def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
         "name": name,
         "status": status,
         "step": normalized_step,
-        "total_steps": _total_steps(raw_job, process_config),
+        "total_steps": ostris_job_total_steps(raw_job),
         "info": raw_job.get("info") if isinstance(raw_job.get("info"), str) else None,
         "speed_string": raw_job.get("speed_string")
         if isinstance(raw_job.get("speed_string"), str)

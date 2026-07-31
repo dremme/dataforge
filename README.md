@@ -65,8 +65,13 @@ Jobs run in the background with a drawer for progress, cancel, and history:
 | **Strip metadata** | Strip embedded data from PNGs and MP4s |
 | **Set captions** | Apply the same text to many files |
 | **Batch rename** | Numbered rename of media + related sidecars |
+| **Quick LoRA training** | Starts a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 
 External **Ostris / AI-Toolkit** training jobs can also appear in the jobs drawer when configured.
+
+Quick LoRA training needs AI-Toolkit running on `http://127.0.0.1:8675`; the menu entry stays disabled otherwise.
+AI-Toolkit owns the run and its training folder, while DataForge tracks it like any other job —
+progress and sample images in the automation panel, and an external card in the jobs drawer.
 
 ### Local-first data model
 

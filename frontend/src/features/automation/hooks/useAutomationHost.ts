@@ -20,6 +20,7 @@ type UseAutomationHostOptions = {
   filteredItems: GalleryItem[];
   sysprompt: GalleryItem | null;
   hasCaptionBackup: boolean;
+  ostrisAvailable: boolean;
   getJobPaths: () => string[] | undefined;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
@@ -38,6 +39,7 @@ export function useAutomationHost({
   filteredItems,
   sysprompt,
   hasCaptionBackup,
+  ostrisAvailable,
   getJobPaths,
   automation,
   onEditSysprompt,
@@ -64,6 +66,7 @@ export function useAutomationHost({
     startAutoCaptionJob: automation.startAutoCaptionJob,
     startVerifyCaptionsJob: automation.startVerifyCaptionsJob,
     startBatchRenameJob: automation.startBatchRenameJob,
+    startTrainLoraJob: automation.startTrainLoraJob,
     getJobPaths,
   });
 
@@ -82,8 +85,8 @@ export function useAutomationHost({
   );
 
   const jobAvailability = useMemo<JobAvailability>(
-    () => ({ hasCaptionBackup }),
-    [hasCaptionBackup],
+    () => ({ hasCaptionBackup, ostrisAvailable }),
+    [hasCaptionBackup, ostrisAvailable],
   );
 
   const requestStart = useCallback(

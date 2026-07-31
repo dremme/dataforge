@@ -20,7 +20,7 @@ vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
   })),
 }));
 
-function setupHost(options: { hasCaptionBackup?: boolean } = {}) {
+function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: boolean } = {}) {
   const startBackupCaptionsJob = vi.fn().mockResolvedValue({ id: "job-backup" });
   const startRestoreCaptionsJob = vi.fn().mockResolvedValue({ id: "job-restore" });
 
@@ -40,6 +40,7 @@ function setupHost(options: { hasCaptionBackup?: boolean } = {}) {
     startBatchRenameJob: vi.fn(),
     startBackupCaptionsJob,
     startRestoreCaptionsJob,
+    startTrainLoraJob: vi.fn(),
   };
 
   const { result } = renderHook(() =>
@@ -50,6 +51,7 @@ function setupHost(options: { hasCaptionBackup?: boolean } = {}) {
       filteredItems: [] as GalleryItem[],
       sysprompt: null,
       hasCaptionBackup: options.hasCaptionBackup ?? true,
+      ostrisAvailable: options.ostrisAvailable ?? false,
       getJobPaths: () => undefined,
       // The hook only reads the fields asserted here.
       automation: automation as never,

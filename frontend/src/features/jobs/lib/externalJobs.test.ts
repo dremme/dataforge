@@ -4,7 +4,9 @@ import {
   externalJobModelLabel,
   externalJobProgressPercent,
   externalJobRemainingTimeLabel,
+  externalJobStatusLabel,
   parseSpeedSecondsPerStep,
+  trainingRemainingTimeLabel,
 } from "./externalJobs";
 
 const runningJob: ExternalOstrisJob = {
@@ -85,5 +87,15 @@ describe("externalJobs utils", () => {
 
   it("estimates remaining time from speed and steps", () => {
     expect(externalJobRemainingTimeLabel(runningJob)).toBe("~4 min left");
+    expect(trainingRemainingTimeLabel(100, 200, 2)).toBe("~4 min left");
+    expect(trainingRemainingTimeLabel(190, 200, 2)).toBe("<1 min left");
+  });
+
+  it("gives every status a readable label, not the raw value", () => {
+    expect(externalJobStatusLabel(runningJob)).toBe("Running");
+    expect(externalJobStatusLabel({ ...runningJob, status: "queued" })).toBe("Queued");
+    expect(externalJobStatusLabel({ ...runningJob, status: "stopping" })).toBe("Stopping");
+    expect(externalJobStatusLabel({ ...runningJob, status: "error" })).toBe("Failed");
+    expect(externalJobStatusLabel(runningJob, true)).toBe("Saving checkpoint");
   });
 });

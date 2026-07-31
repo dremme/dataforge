@@ -178,7 +178,8 @@ export type JobType =
   | "verify_captions"
   | "batch_rename"
   | "backup_captions"
-  | "restore_captions";
+  | "restore_captions"
+  | "train_lora";
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
@@ -208,6 +209,8 @@ export interface Job {
   started_at?: string | null;
   finished_at?: string | null;
   auto_caption_mode?: string | null;
+  /** The external job this one co-tracks (the AI-Toolkit training name). */
+  external_ref?: string | null;
 }
 
 export interface JobsResponse {
@@ -240,6 +243,19 @@ export interface ExternalOstrisJobStopResponse {
 export interface ExternalOstrisJobsResponse {
   jobs: ExternalOstrisJob[];
   active_count: number;
+  available: boolean;
+}
+
+export interface OstrisTrainingSample {
+  path: string;
+  name: string;
+  step: number;
+  prompt: string | null;
+}
+
+export interface OstrisTrainingSamplesResponse {
+  samples: OstrisTrainingSample[];
+  step: number | null;
   available: boolean;
 }
 

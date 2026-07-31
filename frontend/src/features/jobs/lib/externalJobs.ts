@@ -67,15 +67,17 @@ export function parseSpeedSecondsPerStep(speedString: string | null | undefined)
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }
 
-export function externalJobRemainingTimeLabel(job: ExternalOstrisJob): string | null {
-  if (job.status !== "running") return null;
-
-  const secondsPerStep = parseSpeedSecondsPerStep(job.speed_string);
-  if (!job.total_steps || !secondsPerStep) {
+/** Remaining-time label from step progress and seconds-per-step (Ostris sec/iter). */
+export function trainingRemainingTimeLabel(
+  step: number,
+  totalSteps: number | null | undefined,
+  secondsPerStep: number | null | undefined,
+): string {
+  if (!totalSteps || totalSteps <= 0 || !secondsPerStep || secondsPerStep <= 0) {
     return "Estimating...";
   }
 
-  const remainingSteps = job.total_steps - job.step;
+  const remainingSteps = totalSteps - step;
   if (remainingSteps <= 0) {
     return "<1 min left";
   }
@@ -87,6 +89,25 @@ export function externalJobRemainingTimeLabel(job: ExternalOstrisJob): string | 
 
   return `~${formatDuration(remainingSeconds)} left`;
 }
+
+export function externalJobRemainingTimeLabel(job: ExternalOstrisJob): string | null {
+  if (job.status !== "running") return null;
+
+  return trainingRemainingTimeLabel(
+    job.step,
+    job.total_steps,
+    parseSpeedSecondsPerStep(job.speed_string),
+  );
+}
+
+const OSTRIS_STATUS_LABELS: Record<string, string> = {
+  queued: "Queued",
+  running: "Running",
+  stopping: "Stopping",
+  stopped: "Stopped",
+  completed: "Completed",
+  error: "Failed",
+};
 
 export function externalJobStatusLabel(job: ExternalOstrisJob, stopping = false): string {
   if (stopping) {
@@ -101,5 +122,5 @@ export function externalJobStatusLabel(job: ExternalOstrisJob, stopping = false)
     return "Running";
   }
 
-  return job.status;
+  return OSTRIS_STATUS_LABELS[job.status] ?? job.status;
 }

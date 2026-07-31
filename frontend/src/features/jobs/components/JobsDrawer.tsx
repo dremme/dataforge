@@ -4,10 +4,11 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { iconListChecks, iconTrash2, iconX } from "@/shared/icons";
+import { iconSettings, iconTrash2, iconX } from "@/shared/icons";
 import { foldersMatch } from "@/features/browse/lib/folderPath";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { isTrainLoraCoTrackedByExternal } from "@/features/jobs/lib/jobs";
 import { ExternalJobCard } from "./ExternalJobCard";
 import { Icon } from "@/shared/ui/Icon";
 import { JobCard } from "./JobCard";
@@ -42,7 +43,10 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
 
   if (!drawerOpen) return null;
 
-  const hasLocalJobs = jobs.length > 0;
+  // While Ostris still lists the run, show only the external card. Once training
+  // finishes (or Ostris is offline), the DataForge train_lora job stays visible.
+  const localJobs = jobs.filter((job) => !isTrainLoraCoTrackedByExternal(job, externalJobs));
+  const hasLocalJobs = localJobs.length > 0;
   const hasExternalJobs = externalJobs.length > 0;
   const hasAnyJobs = hasLocalJobs || hasExternalJobs;
 
@@ -82,14 +86,14 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
           >
             <header className="jobs-drawer__header">
               <div className="jobs-drawer__title">
-                <Icon icon={iconListChecks} className="jobs-drawer__title-icon" />
+                <Icon icon={iconSettings} className="jobs-drawer__title-icon" />
                 <div>
                   <h2 id="jobs-drawer-title">Background jobs</h2>
                 </div>
               </div>
 
               <div className="jobs-drawer__header-actions">
-                {jobs.length > 0 && (
+                {hasLocalJobs && (
                   <button
                     type="button"
                     className="jobs-drawer__clear-all"
@@ -157,7 +161,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                     >
                       {hasExternalJobs && <h3 className="jobs-drawer__section-title">DataForge</h3>}
                       <div className="jobs-drawer__list">
-                        {jobs.map((job) => (
+                        {localJobs.map((job) => (
                           <JobCard
                             key={job.id}
                             job={job}

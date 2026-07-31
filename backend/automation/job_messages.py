@@ -134,7 +134,11 @@ def resolve_job_error(
     stats: dict[str, int],
     stored_error: str | None,
 ) -> str | None:
-    """Return the persisted job error, or reconstruct one from stats when missing."""
+    """Return the persisted job error, or reconstruct one from stats when missing.
+
+    ``train_lora`` has no branch on purpose: a failed training run raises out of its
+    runner, so its message is always stored and never has to be rebuilt from stats.
+    """
     if stored_error:
         return stored_error
 

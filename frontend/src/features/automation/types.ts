@@ -1,3 +1,4 @@
+import type { TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
@@ -22,4 +23,5 @@ export type AutomationDialogsState = {
     initialSettings: VerifyCaptionsSettings | null;
   };
   batchRename: FolderBusyDialogState<(stem: string) => void> & { itemCount: number };
+  trainLora: FolderBusyDialogState<(settings: TrainLoraSettings) => void> & { itemCount: number };
 };
