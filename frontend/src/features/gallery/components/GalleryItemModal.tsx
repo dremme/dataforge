@@ -11,6 +11,7 @@ import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowF
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
+import { useNotify } from "@/shared/notifications/notifications";
 import {
   iconArrowUpRight,
   iconBraces,
@@ -72,6 +73,7 @@ export function GalleryItemModal({
   const item = items[index];
   const { recordResolution, getResolution } = useMediaResolution();
   const hasComfyWorkflow = useComfyWorkflowFlag(item?.path);
+  const notify = useNotify();
 
   const {
     caption,
@@ -199,12 +201,16 @@ export function GalleryItemModal({
       await deleteMedia(item.path);
       setDeleteConfirmOpen(false);
       onDeleted?.(item.path);
-    } catch {
+    } catch (error) {
       setDeleteConfirmOpen(false);
+      notify({
+        variant: "danger",
+        message: `Could not delete ${item.name}: ${formatApiError(error)}`,
+      });
     } finally {
       setDeleting(false);
     }
-  }, [deleting, flushPendingSave, item, onDeleted]);
+  }, [deleting, flushPendingSave, item, notify, onDeleted]);
 
   useEscapeKey(closeModal, !childOverlayOpen);
 

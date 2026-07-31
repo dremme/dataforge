@@ -1,11 +1,13 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HOME_PATH, homeBrowse } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
+import { renderWithProviders } from "@/test/renderWithProviders";
 import type { GalleryItem } from "@/shared/types";
 import { formatModifiedAt } from "@/shared/lib/format";
 import * as useCopyFeedbackModule from "@/shared/hooks/useCopyFeedback";
+import * as mediaApi from "@/features/gallery/api/media";
 import { GalleryItemModal } from "./GalleryItemModal";
 
 vi.mock("@/shared/lib/defer", () => ({
@@ -14,6 +16,16 @@ vi.mock("@/shared/lib/defer", () => ({
     return () => {};
   },
 }));
+
+vi.mock("@/features/gallery/api/media", async (importOriginal) => {
+  const actual = await importOriginal<typeof mediaApi>();
+  return {
+    ...actual,
+    deleteMedia: vi.fn(actual.deleteMedia),
+  };
+});
+
+const deleteMediaMock = vi.mocked(mediaApi.deleteMedia);
 
 function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryItem {
   return {
@@ -38,10 +50,11 @@ function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryIt
 describe("GalleryItemModal", () => {
   beforeEach(() => {
     installMockBackend();
+    deleteMediaMock.mockClear();
   });
 
   it("shows the modified date in the media meta section", async () => {
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
@@ -70,7 +83,7 @@ describe("GalleryItemModal", () => {
       copyText,
     });
 
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
@@ -104,7 +117,7 @@ describe("GalleryItemModal", () => {
       description: "Updated by a background folder refresh",
     };
 
-    const { rerender } = render(
+    const { rerender } = renderWithProviders(
       <GalleryItemModal
         items={[initialItem]}
         index={0}
@@ -161,7 +174,7 @@ describe("GalleryItemModal", () => {
       },
     });
 
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={[jsonItem]}
         index={0}
@@ -198,7 +211,7 @@ describe("GalleryItemModal", () => {
       makeItem("beach.jpg", { name: "beach.jpg", path: `${HOME_PATH}\\beach.jpg` }),
     ];
 
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={items}
         index={0}
@@ -221,10 +234,40 @@ describe("GalleryItemModal", () => {
     });
   });
 
+  it("notifies when the file cannot be deleted", async () => {
+    const user = userEvent.setup();
+    const onDeleted = vi.fn();
+    deleteMediaMock.mockRejectedValueOnce(new Error("Permission denied"));
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+        onDeleted={onDeleted}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
+
+    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText("Could not delete sunset.png: Permission denied"),
+    ).toBeInTheDocument();
+  });
+
   it("opens images in the image preview", async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={[makeItem("sunset.png")]}
         index={0}
@@ -246,7 +289,7 @@ describe("GalleryItemModal", () => {
   });
 
   it("does not offer image preview for videos", async () => {
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={[
           makeItem("clip.mp4", {
@@ -282,7 +325,7 @@ describe("GalleryItemModal", () => {
       }),
     ];
 
-    render(
+    renderWithProviders(
       <GalleryItemModal
         items={items}
         index={0}
