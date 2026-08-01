@@ -11,6 +11,8 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+from PIL import Image
+
 from automation.vision import (
     API_ERROR,
     CANCEL_POLL_SECONDS,
@@ -19,6 +21,7 @@ from automation.vision import (
     ModelOutcome,
     call_with_retries,
     close_vision_client,
+    load_image_rgb,
 )
 from testing_fixtures import (
     TempMediaFolder,
@@ -309,6 +312,69 @@ class CallWithRetriesTests(unittest.TestCase):
                 media_name="photo.png",
                 should_cancel=lambda: False,
             )
+
+
+class LoadImageRgbTests(unittest.TestCase):
+    """The job must not sit on an open handle: on Windows that locks the media."""
+
+    def _handles_from(self, path) -> list[object]:
+        """Run ``load_image_rgb``, returning the file objects Pillow opened for it."""
+        opened: list[object] = []
+        real_open = Image.open
+
+        def spy(*args: object, **kwargs: object) -> Image.Image:
+            image = real_open(*args, **kwargs)
+            opened.append(image.fp)
+            return image
+
+        with patch("automation.vision.Image.open", spy):
+            images, error = load_image_rgb(path)
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(images)
+        self.assertTrue(opened, "expected load_image_rgb to open the media")
+        return opened
+
+    def test_closes_the_file_for_a_single_frame_image(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+
+            for handle in self._handles_from(media):
+                self.assertTrue(handle is None or handle.closed)
+
+    def test_closes_the_file_for_a_multi_frame_image(self) -> None:
+        # Pillow keeps the handle open past load() so later frames stay seekable,
+        # so an APNG (still a plain .png to the rest of the app) is what catches a
+        # regression here; a single-frame PNG closes itself either way.
+        with TempMediaFolder() as root:
+            media = root / "animated.png"
+            frames = [Image.new("RGB", (32, 32), color=tone) for tone in ("red", "green")]
+            frames[0].save(media, save_all=True, append_images=frames[1:], duration=100)
+
+            for handle in self._handles_from(media):
+                self.assertTrue(handle is None or handle.closed)
+
+    def test_returns_usable_pixels_after_the_source_is_closed(self) -> None:
+        with TempMediaFolder() as root:
+            media = root / "swatch.png"
+            Image.new("RGB", (8, 8), color="red").save(media)
+
+            images, error = load_image_rgb(media)
+
+            self.assertIsNone(error)
+            assert images is not None
+            self.assertEqual(images[0].mode, "RGB")
+            self.assertEqual(images[0].getpixel((0, 0)), (255, 0, 0))
+
+    def test_reports_a_read_error_without_raising(self) -> None:
+        with TempMediaFolder() as root:
+            broken = root / "broken.png"
+            broken.write_bytes(b"not an image")
+
+            images, error = load_image_rgb(broken)
+
+            self.assertIsNone(images)
+            self.assertIsNotNone(error)
 
 
 class CloseVisionClientTests(unittest.TestCase):

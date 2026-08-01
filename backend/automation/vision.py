@@ -92,9 +92,20 @@ def prepare_images_for_api(
 
 
 def load_image_rgb(media_path: Path) -> tuple[list[Image.Image] | None, str | None]:
-    """Open a single image as a one-frame list, or report why it could not be read."""
+    """Open a single image as a one-frame list, or report why it could not be read.
+
+    Closing the source is deliberate rather than left to the garbage collector.
+    Pillow drops the file handle inside ``load()`` only for single-frame formats;
+    a multi-frame one holds it open for the lifetime of the image so later frames
+    stay seekable, and both variants reach us under the supported extensions (an
+    MPO ``.jpg``, an APNG ``.png``). On Windows that open handle locks the file,
+    which is what stops the media from being moved, deleted or edited while the
+    job is still running - or after it, whenever anything still references the
+    image. ``convert`` returns a fully loaded copy, so it outlives the handle.
+    """
     try:
-        return [Image.open(media_path).convert("RGB")], None
+        with Image.open(media_path) as image:
+            return [image.convert("RGB")], None
     except Exception as exc:
         logger.error("Image read error for %s: %s", media_path.name, exc)
         return None, str(exc)

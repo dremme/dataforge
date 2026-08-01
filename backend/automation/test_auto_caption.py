@@ -244,6 +244,28 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
 
         self.assertIsNone(extracted)
 
+    def test_extract_video_keyframes_releases_a_capture_that_never_opened(self) -> None:
+        # An unreleased capture holds the .mp4 open on Windows, which locks the
+        # video against being moved or deleted for as long as the server runs.
+        released: list[bool] = []
+
+        class FakeCapture:
+            def isOpened(self) -> bool:  # mirrors the cv2 API
+                return False
+
+            def release(self) -> None:
+                released.append(True)
+
+        fake_cv2 = type("cv2", (), {"VideoCapture": staticmethod(lambda _path: FakeCapture())})
+
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+            with patch.dict("sys.modules", {"cv2": fake_cv2}):
+                extracted = extract_video_keyframes(video)
+
+        self.assertIsNone(extracted)
+        self.assertEqual(released, [True])
+
 
 class AutoCaptionFolderValidationTests(unittest.TestCase):
     def test_validate_requires_sysprompt(self) -> None:
