@@ -50,7 +50,7 @@ Ideal when you already keep datasets on disk and want a fast, visual workflow.
 - Detection of embedded ComfyUI workflows in PNGs
 - Drag-and-drop import (media, sidecars, `.sysprompt`)
 - Delete media (and matching sidecars, including `.issue.json`)
-- Move selected files; create subfolders
+- Move or copy selected files; create subfolders
 
 ### Automation jobs
 
@@ -65,6 +65,8 @@ Jobs run in the background with a drawer for progress, cancel, and history:
 | **Strip metadata** | Strip embedded data from PNGs and MP4s |
 | **Set captions** | Apply the same text to many files |
 | **Batch rename** | Numbered rename of media + related sidecars |
+| **Backup captions** | Copy captions and caption issues into `.backup` |
+| **Restore captions** | Restore captions and issues from `.backup` |
 | **Quick LoRA training** | Starts a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 
 External **Ostris / AI-Toolkit** training jobs can also appear in the jobs drawer when configured.
