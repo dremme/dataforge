@@ -20,8 +20,10 @@ import {
   iconCopy,
   iconLoader2,
   iconTrash2,
+  iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
+import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import {
   collectAdjacentModalMediaTargets,
@@ -55,6 +57,8 @@ interface GalleryItemModalProps {
   onNext: () => void;
   onCaptionSaved: (path: string, update: CaptionSaveResponse) => void;
   onDeleted?: (path: string) => void;
+  /** Hands the item off to the issue resolver; this modal closes in the same commit. */
+  onResolveIssue?: (item: GalleryItem) => void;
   onJsonEditorOpenChange?: (open: boolean) => void;
 }
 
@@ -68,6 +72,7 @@ export function GalleryItemModal({
   onNext,
   onCaptionSaved,
   onDeleted,
+  onResolveIssue,
   onJsonEditorOpenChange,
 }: GalleryItemModalProps) {
   const item = items[index];
@@ -176,6 +181,14 @@ export function GalleryItemModal({
     setDeleteConfirmOpen(false);
   }, [deleting]);
 
+  const handleResolveIssue = useCallback(() => {
+    if (!item || deleting || !onResolveIssue) return;
+    flushPendingSave();
+    // Hand over what the editor shows, not the browse snapshot: the flushed save
+    // has not reached disk yet when the resolver seeds itself from this item.
+    onResolveIssue({ ...item, description: caption });
+  }, [caption, deleting, flushPendingSave, item, onResolveIssue]);
+
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer) return;
 
@@ -237,6 +250,7 @@ export function GalleryItemModal({
   const copyContent = hasJsonCaption ? (captionContent ?? "") : caption;
   const canCopyCaption = copyContent.length > 0;
   const canEditJson = hasJsonCaption && (jsonEditorContent?.length ?? 0) > 0;
+  const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
@@ -385,6 +399,21 @@ export function GalleryItemModal({
                   Caption
                 </label>
                 <div className="gallery-item-modal__caption-actions">
+                  {canResolveIssue && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
+                      onClick={handleResolveIssue}
+                      disabled={deleting}
+                      aria-label={`Resolve caption issue for ${item.name}`}
+                    >
+                      <Icon
+                        icon={iconTriangleAlert}
+                        className="gallery-item-modal__caption-action-icon"
+                      />
+                      Resolve issue
+                    </button>
+                  )}
                   {hasJsonCaption && (
                     <button
                       type="button"

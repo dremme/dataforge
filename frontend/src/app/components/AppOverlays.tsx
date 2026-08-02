@@ -52,6 +52,7 @@ export function AppOverlays({
           onNext={gallery.onNext}
           onCaptionSaved={onCaptionSaved}
           onDeleted={gallery.onDeleted}
+          onResolveIssue={gallery.onResolveIssue}
           onJsonEditorOpenChange={gallery.onJsonEditorOpenChange}
         />
       )}

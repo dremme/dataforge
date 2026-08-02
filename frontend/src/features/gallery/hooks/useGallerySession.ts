@@ -55,6 +55,7 @@ export function useGallerySession({
   const issueCount = countResolvableIssues(items);
   const handleCaptionSaved = useBrowseCaptionPatch(setBrowse);
   const issueResolver = useIssueResolverOverlay();
+  const { openIssueResolver } = issueResolver;
 
   const {
     selectedPath,
@@ -85,6 +86,16 @@ export function useGallerySession({
       void syncBaseline();
     },
     [handleCaptionSaved, syncBaseline],
+  );
+
+  // Hands a single item to the issue resolver as a queue of one. Both state
+  // updates land in the same commit, so the item modal never overlaps it.
+  const onResolveGalleryItemIssue = useCallback(
+    (item: GalleryItem) => {
+      closeGalleryItem();
+      openIssueResolver([item]);
+    },
+    [closeGalleryItem, openIssueResolver],
   );
 
   const onGalleryItemDeleted = useCallback(
@@ -152,6 +163,7 @@ export function useGallerySession({
     goToNext,
     onJsonEditorOpenChange,
     issueResolver,
+    onResolveGalleryItemIssue,
     onCaptionSaved,
     onGalleryItemDeleted,
     onGalleryItemsDeleted,

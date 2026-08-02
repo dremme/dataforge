@@ -144,6 +144,7 @@ export function AppContent() {
             onPrevious: gallery.goToPrevious,
             onNext: gallery.goToNext,
             onDeleted: gallery.onGalleryItemDeleted,
+            onResolveIssue: gallery.onResolveGalleryItemIssue,
             onJsonEditorOpenChange: gallery.onJsonEditorOpenChange,
           }}
           issueResolver={gallery.issueResolver.overlay}

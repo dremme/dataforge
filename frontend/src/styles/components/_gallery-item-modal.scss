@@ -280,6 +280,11 @@ $json-color: #fcd34d;
       border-color: $color-caption-error;
       background: rgba($color-caption-error, 0.12);
     }
+
+    // Matches the automation panel's "Resolve issues" button surface.
+    &--issue {
+      @include btn-surface-warning;
+    }
   }
 
   &__caption-action-icon {
