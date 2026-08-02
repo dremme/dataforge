@@ -17,20 +17,16 @@ config:
         save_every: 1000
         max_step_saves_to_keep: 4
         save_format: "diffusers"
-        push_to_hub: false
       datasets:
         - folder_path: ""
           default_caption: ""
           caption_ext: "txt"
           caption_dropout_rate: 0.1
           cache_latents_to_disk: true
-          network_weight: 1
-          num_repeats: 1
           resolution:
             - 512
       train:
         batch_size: 1
-        bypass_guidance_embedding: false
         steps: 1000
         gradient_accumulation: 1
         train_unet: true
@@ -42,15 +38,8 @@ config:
         content_or_style: "balanced"
         optimizer_params:
           weight_decay: 0.0001
-        unload_text_encoder: false
-        cache_text_embeddings: false
         lr: 0.0001
-        ema_config:
-          use_ema: false
-          ema_decay: 0.99
         skip_first_sample: false
-        force_first_sample: false
-        disable_sampling: false
         dtype: "bf16"
         loss_type: "mse"
         do_differential_guidance: true

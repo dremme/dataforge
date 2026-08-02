@@ -161,7 +161,7 @@ export function TrainLoraDialog({
             Example prompts
           </span>
           <p className="dialog__hint">
-            AI-Toolkit renders these every 250 steps so you can watch the LoRA take shape.
+            AI-Toolkit renders these every 200 steps so you can watch the LoRA take shape.
           </p>
           <ul className="train-lora-dialog__prompts" aria-labelledby={promptsId}>
             {prompts.map((row, index) => (
