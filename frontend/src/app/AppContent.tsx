@@ -58,6 +58,7 @@ export function AppContent() {
           <AppHeader
             browse={browse}
             folderNotFound={folderNotFound}
+            refreshing={refreshing}
             onNavigate={navigateTo}
             onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
             toolbarProps={{

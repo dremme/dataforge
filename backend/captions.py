@@ -1,6 +1,8 @@
 import json
+from collections.abc import Callable
 from pathlib import Path
 
+from caption_cache import cached_by_stat
 from constants import (
     CAPTION_JSON_KEYS,
     CAPTION_SIDECAR_EXTENSIONS,
@@ -220,18 +222,80 @@ def _json_summary_from_data(
     return None, False, "empty"
 
 
-def resolve_caption_file(media_path: Path) -> tuple[Path | None, str | None]:
-    """The caption sidecar that wins for ``media_path``, as ``(path, "json" | "txt")``.
+def resolve_caption_file_name(
+    stem: str, exists: Callable[[str], bool]
+) -> tuple[str | None, str | None]:
+    """Winning sidecar name + type for ``stem``, given a name-existence check.
 
     Sole authority on caption precedence: a ``.json`` sidecar always beats a ``.txt``
-    one, so every caller resolves the same file the gallery shows.
+    one. Taking an ``exists`` callback lets a caller that has already enumerated the
+    directory answer from that listing instead of probing the filesystem again.
     """
     for extension in CAPTION_SIDECAR_EXTENSIONS:
-        candidate = media_path.parent / f"{media_path.stem}{extension}"
-        if candidate.is_file():
-            return candidate, extension.lstrip(".")
+        name = f"{stem}{extension}"
+        if exists(name):
+            return name, extension.lstrip(".")
 
     return None, None
+
+
+def resolve_caption_file(media_path: Path) -> tuple[Path | None, str | None]:
+    """The caption sidecar that wins for ``media_path``, as ``(path, "json" | "txt")``."""
+    folder = media_path.parent
+    name, caption_file_type = resolve_caption_file_name(
+        media_path.stem,
+        lambda candidate: (folder / candidate).is_file(),
+    )
+    if name is None:
+        return None, None
+    return folder / name, caption_file_type
+
+
+def _caption_summary_from_raw(
+    raw_content: str | None,
+    caption_file_type: str | None,
+) -> tuple[str | None, bool, str, object | None]:
+    """Summarize sidecar text that has already been read off disk.
+
+    Returns ``(description, has_bboxes, caption_status, json_data)``; the parsed
+    JSON rides along so callers needing bboxes do not have to parse a second time.
+    Assumes a sidecar exists, so an unusable one reports ``"empty"`` rather than
+    ``"none"``.
+    """
+    if caption_file_type == "json":
+        data = _parse_json_caption_text(raw_content) if raw_content is not None else None
+        description, has_bboxes, caption_status = _json_summary_from_data(data)
+        return description, has_bboxes, caption_status, data
+
+    if raw_content is not None:
+        text = raw_content.strip()
+        if text:
+            return text, False, "text", None
+
+    return None, False, "empty", None
+
+
+def caption_summary_from_sidecar(
+    sidecar_path: Path,
+    caption_file_type: str,
+    mtime_ns: int,
+    size: int,
+) -> tuple[str | None, bool, str, str | None]:
+    """:func:`load_caption_summary` for a sidecar the caller has already stat'ed.
+
+    Memoized on the stat signature, so an unchanged folder re-browses without
+    touching a single caption file.
+    """
+
+    def load() -> tuple[str | None, bool, str, str | None]:
+        raw_content = _read_caption_text(sidecar_path)
+        description, has_bboxes, caption_status, _ = _caption_summary_from_raw(
+            raw_content,
+            caption_file_type,
+        )
+        return description, has_bboxes, caption_status, caption_file_type
+
+    return cached_by_stat("caption", sidecar_path, mtime_ns, size, load)
 
 
 def _load_caption_bundle(
@@ -247,23 +311,15 @@ def _load_caption_bundle(
     bboxes: list[dict[str, object]] = []
 
     caption_path, caption_file_type = resolve_caption_file(media_path)
-    found_caption_file = caption_path is not None
 
     if caption_path is not None:
         raw_content = _read_caption_text(caption_path)
-        if caption_file_type == "json":
-            data = _parse_json_caption_text(raw_content) if raw_content is not None else None
-            description, has_bboxes, caption_status = _json_summary_from_data(data)
-            if data is not None:
-                bboxes = _extract_bboxes_from_json(data, image_width, image_height)
-        elif raw_content is not None:
-            text = raw_content.strip()
-            if text:
-                description = text
-                caption_status = "text"
-
-    if found_caption_file and caption_status == "none":
-        caption_status = "empty"
+        description, has_bboxes, caption_status, data = _caption_summary_from_raw(
+            raw_content,
+            caption_file_type,
+        )
+        if data is not None:
+            bboxes = _extract_bboxes_from_json(data, image_width, image_height)
 
     return {
         "description": description,
@@ -621,23 +677,46 @@ def normalize_issue_fixes(value: object) -> list[str]:
     return fixes
 
 
-def load_issue_summary(media_path: Path) -> tuple[list[str], bool]:
-    """Return the sidecar's fixes and whether a sidecar exists at all.
+def _issue_fixes_from_file(issue_path: Path) -> tuple[str, ...]:
+    """Fixes held by an issue sidecar known to exist.
 
-    A sidecar that exists but carries no usable ``fixes`` array - unreadable, malformed,
-    or written in a superseded format - reports no fixes while still counting as present,
-    so the resolver surfaces it as a broken issue file instead of silently hiding it.
+    A sidecar that carries no usable ``fixes`` array - unreadable, malformed, or
+    written in a superseded format - yields no fixes while still counting as
+    present, so the resolver surfaces it as a broken issue file instead of
+    silently hiding it.
     """
+    try:
+        data = json.loads(issue_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ()
+
+    if not isinstance(data, dict):
+        return ()
+
+    return tuple(normalize_issue_fixes(data.get("fixes")))
+
+
+def issue_summary_from_sidecar(
+    issue_path: Path,
+    mtime_ns: int,
+    size: int,
+) -> tuple[list[str], bool]:
+    """:func:`load_issue_summary` for a sidecar the caller has already stat'ed."""
+    fixes = cached_by_stat(
+        "issue",
+        issue_path,
+        mtime_ns,
+        size,
+        lambda: _issue_fixes_from_file(issue_path),
+    )
+    # A fresh list per call - the cache hands back the same tuple every time.
+    return list(fixes), True
+
+
+def load_issue_summary(media_path: Path) -> tuple[list[str], bool]:
+    """Return the sidecar's fixes and whether a sidecar exists at all."""
     issue_path = issue_file_path(media_path)
     if not issue_path.is_file():
         return [], False
 
-    try:
-        data = json.loads(issue_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return [], True
-
-    if not isinstance(data, dict):
-        return [], True
-
-    return normalize_issue_fixes(data.get("fixes")), True
+    return list(_issue_fixes_from_file(issue_path)), True

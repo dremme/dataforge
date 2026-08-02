@@ -10,14 +10,31 @@ import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
 
 function FolderCardStats({ folder }: { folder: Subfolder }) {
-  const allCaptioned = folder.captioned_count === folder.file_count;
+  const {
+    file_count: fileCount,
+    captioned_count: captionedCount,
+    issue_count: issueCount,
+  } = folder;
+
+  // Counts arrive after the cards do. The slot keeps its height either way, so
+  // nothing reflows underneath the pointer once the numbers land.
+  if (fileCount === null || captionedCount === null) {
+    return (
+      <span className="folder-card__stat folder-card__stat--pending" aria-hidden="true">
+        <Icon icon={iconImages} className="folder-card__stat-icon" />
+        <span className="folder-card__stat-placeholder" />
+      </span>
+    );
+  }
+
+  const allCaptioned = captionedCount === fileCount;
   return (
     <span
       className={`folder-card__stat folder-card__stat--${allCaptioned ? "success" : "warning"}`}
     >
       <Icon icon={iconImages} className="folder-card__stat-icon" />
-      <strong>{folder.captioned_count}</strong> / {folder.file_count} captioned
-      {folder.issue_count > 0 && (
+      <strong>{captionedCount}</strong> / {fileCount} captioned
+      {issueCount != null && issueCount > 0 && (
         <Icon icon={iconTriangleAlert} className="folder-card__issue-icon" aria-hidden="true" />
       )}
     </span>
@@ -25,9 +42,9 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
 }
 
 function folderCardLabel(folder: Subfolder): string {
-  if (folder.issue_count > 0) {
-    const issueLabel =
-      folder.issue_count === 1 ? "1 caption issue" : `${folder.issue_count} caption issues`;
+  const issueCount = folder.issue_count;
+  if (issueCount != null && issueCount > 0) {
+    const issueLabel = issueCount === 1 ? "1 caption issue" : `${issueCount} caption issues`;
     return `${folder.name} (${issueLabel})`;
   }
   return folder.name;
@@ -88,7 +105,7 @@ export function FolderGrid({
               <Icon icon={iconFolder} className="folder-card__icon" />
               <span className="folder-card__body">
                 <span className="folder-card__name">{folder.name}</span>
-                {folder.file_count > 0 && <FolderCardStats folder={folder} />}
+                {folder.file_count !== 0 && <FolderCardStats folder={folder} />}
               </span>
             </button>
           ))}

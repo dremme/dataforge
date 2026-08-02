@@ -9,11 +9,30 @@ class Breadcrumb(BaseModel):
 
 
 class Subfolder(BaseModel):
+    """A child folder card.
+
+    The counts are ``None`` in a ``/api/browse`` response: computing them means
+    reading every caption sidecar in every child, so they are served separately
+    by ``/api/browse/subfolder-stats`` and merged in once they arrive.
+    """
+
     name: str
+    path: str
+    file_count: int | None = None
+    captioned_count: int | None = None
+    issue_count: int | None = None
+
+
+class SubfolderStats(BaseModel):
     path: str
     file_count: int
     captioned_count: int
     issue_count: int = 0
+
+
+class SubfolderStatsResponse(BaseModel):
+    folder: str
+    subfolders: list[SubfolderStats]
 
 
 class CaptionBBox(BaseModel):

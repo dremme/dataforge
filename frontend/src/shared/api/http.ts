@@ -65,6 +65,11 @@ export function isFolderNotFoundError(error: unknown): boolean {
   return resolveBrowseError(error)?.kind === "folder-not-found";
 }
 
+/** True for a request the caller itself cancelled — never a real failure to report. */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 /** User-facing single-line message for tooltips and inline errors. */
 export function formatApiError(error: unknown): string {
   const resolved = resolveBrowseError(error);
@@ -96,6 +101,9 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   try {
     response = await fetch(url, init);
   } catch (error) {
+    // A cancelled request must stay recognizable as such: wrapping it in a
+    // generic Error would surface a superseded navigation as a backend failure.
+    if (isAbortError(error)) throw error;
     throw new Error(formatApiError(error), { cause: error });
   }
 

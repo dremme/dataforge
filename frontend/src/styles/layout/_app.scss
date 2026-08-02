@@ -12,6 +12,7 @@
 }
 
 .app-nav {
+  position: relative;
   flex-shrink: 0;
   z-index: 20;
   @include full-bleed;
@@ -26,6 +27,25 @@
     display: flex;
     flex-direction: column;
     gap: 0.875rem;
+  }
+
+  // Sits on the bottom border so a background reload reads as activity without
+  // taking any layout space or shifting the header.
+  &__refresh {
+    position: absolute;
+    inset: auto 0 -1px 0;
+    height: 2px;
+    overflow: hidden;
+    background: transparent;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 35%;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: nav-refresh-sweep 1.1s ease-in-out infinite;
+    }
   }
 }
 

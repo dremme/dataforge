@@ -8,7 +8,7 @@ vi.mock("@/shared/api/http", () => ({
   requestJson: requestJsonMock,
 }));
 
-import { fetchBrowse, fetchBrowseFingerprint } from "./browse";
+import { fetchBrowse, fetchBrowseFingerprint, fetchSubfolderStats } from "./browse";
 
 describe("browse API", () => {
   afterEach(() => {
@@ -20,7 +20,7 @@ describe("browse API", () => {
 
     await fetchBrowse();
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse", { signal: undefined });
   });
 
   it("fetches a specific folder", async () => {
@@ -28,7 +28,9 @@ describe("browse API", () => {
 
     await fetchBrowse("C:\\Photos\\Vacation");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse?path=C%3A%5CPhotos%5CVacation");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse?path=C%3A%5CPhotos%5CVacation", {
+      signal: undefined,
+    });
   });
 
   it("fetches a browse fingerprint", async () => {
@@ -36,6 +38,29 @@ describe("browse API", () => {
 
     await fetchBrowseFingerprint("C:\\Photos");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse/fingerprint?path=C%3A%5CPhotos");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse/fingerprint?path=C%3A%5CPhotos", {
+      signal: undefined,
+    });
+  });
+
+  it("fetches subfolder stats for a folder", async () => {
+    requestJsonMock.mockResolvedValue({ folder: "C:\\Photos", subfolders: [] });
+
+    await fetchSubfolderStats("C:\\Photos");
+
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse/subfolder-stats?path=C%3A%5CPhotos", {
+      signal: undefined,
+    });
+  });
+
+  it("passes an abort signal through to the request", async () => {
+    const controller = new AbortController();
+    requestJsonMock.mockResolvedValue({ folder: "C:\\Photos", items: [] });
+
+    await fetchBrowse("C:\\Photos", controller.signal);
+
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/browse?path=C%3A%5CPhotos", {
+      signal: controller.signal,
+    });
   });
 });

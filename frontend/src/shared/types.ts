@@ -105,12 +105,31 @@ export interface MediaTransferResponse {
   failed: MediaTransferFailure[];
 }
 
+/**
+ * A child folder card.
+ *
+ * The counts are `null` in a browse response — computing them means reading every
+ * caption sidecar in every child folder, so they arrive separately from
+ * `/api/browse/subfolder-stats` and are merged in once they land.
+ */
 export interface Subfolder {
   name: string;
+  path: string;
+  file_count: number | null;
+  captioned_count: number | null;
+  issue_count: number | null;
+}
+
+export interface SubfolderStats {
   path: string;
   file_count: number;
   captioned_count: number;
   issue_count: number;
+}
+
+export interface SubfolderStatsResponse {
+  folder: string;
+  subfolders: SubfolderStats[];
 }
 
 export interface PngWorkflowResponse {

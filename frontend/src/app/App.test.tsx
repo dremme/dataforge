@@ -91,6 +91,64 @@ describe("App", () => {
     ).toBe(true);
   });
 
+  it("shows a revisited folder from cache without refetching it or wiping the grid", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: /Vacation/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
+    });
+
+    const pathsBrowsed = () =>
+      fetchMock.mock.calls
+        .map(([input]) =>
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+        )
+        .map((requestUrl) => new URL(requestUrl, "http://localhost"))
+        .filter((parsed) => parsed.pathname === "/api/browse")
+        .map((parsed) => parsed.searchParams.get("path"));
+
+    const browsesBeforeReturn = pathsBrowsed().length;
+
+    await user.click(screen.getByRole("button", { name: /Photos/ }));
+
+    // The cached payload paints immediately - no skeleton in between.
+    expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+    expect(document.querySelector(".folder-card--skeleton")).toBeNull();
+
+    // The fingerprint check confirms nothing moved, so no second full browse.
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) => {
+          const requestUrl =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          return new URL(requestUrl, "http://localhost").pathname === "/api/browse/fingerprint";
+        }),
+      ).toBe(true);
+    });
+    expect(pathsBrowsed()).toHaveLength(browsesBeforeReturn);
+  });
+
+  it("fills in subfolder counts after the folder cards have rendered", async () => {
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const card = screen.getByRole("button", { name: /Vacation/ });
+      expect(card.querySelector(".folder-card__stat-placeholder")).toBeNull();
+      expect(card.textContent).toContain("captioned");
+    });
+  });
+
   it("shows an empty-folder message when a folder has no content", async () => {
     const user = userEvent.setup();
     installMockBackend();

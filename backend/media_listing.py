@@ -5,12 +5,23 @@ from pathlib import Path
 from typing import NamedTuple
 
 from captions import (
-    issue_file_path,
-    load_caption_summary,
-    load_issue_summary,
-    media_has_caption_text,
+    caption_summary_from_sidecar,
+    issue_summary_from_sidecar,
+    resolve_caption_file_name,
 )
-from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
+from constants import CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX
+from folder_scan import FolderScan, ScannedEntry, get_media_type, scan_folder
+
+__all__ = [
+    "clear_folder_summary_cache_for_tests",
+    "folder_summary_fingerprint",
+    "get_media_type",
+    "list_media_from_scan",
+    "list_media_in_folder",
+    "summarize_folder_contents",
+]
+
+_EMPTY_SUMMARY = {"file_count": 0, "captioned_count": 0, "issue_count": 0}
 
 
 class _SummaryCacheEntry(NamedTuple):
@@ -22,147 +33,155 @@ _summary_cache: dict[str, _SummaryCacheEntry] = {}
 _summary_cache_lock = threading.Lock()
 
 
-def get_media_type(path: Path) -> str | None:
-    suffix = path.suffix.lower()
-    if suffix in IMAGE_EXTENSIONS:
-        return "image"
-    if suffix in VIDEO_EXTENSIONS:
-        return "video"
-    return None
-
-
 def clear_folder_summary_cache_for_tests() -> None:
     with _summary_cache_lock:
         _summary_cache.clear()
 
 
-def _file_stat_signature(path: Path) -> tuple[str, int, int] | None:
-    try:
-        stat = path.stat()
-        return (path.name, stat.st_mtime_ns, stat.st_size)
-    except OSError:
+# ---------------------------------------------------------------------------
+# Sidecar lookup against an already-enumerated directory
+# ---------------------------------------------------------------------------
+
+
+def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> tuple[ScannedEntry, str] | None:
+    """Winning caption sidecar for ``media``, resolved from the scan (no syscalls)."""
+    name, caption_file_type = resolve_caption_file_name(
+        media.path.stem,
+        lambda candidate: candidate in scan.files,
+    )
+    if name is None or caption_file_type is None:
         return None
 
+    sidecar = scan.files.get(name)
+    return None if sidecar is None else (sidecar, caption_file_type)
 
-def folder_summary_fingerprint(folder: Path) -> tuple | None:
-    """Lightweight directory signature used to invalidate summary caches."""
+
+def _issue_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
+    return scan.files.get(f"{media.path.stem}{ISSUE_SIDECAR_SUFFIX}")
+
+
+# ---------------------------------------------------------------------------
+# Per-folder counts (the subfolder cards)
+# ---------------------------------------------------------------------------
+
+
+def _summary_signature(scan: FolderScan) -> tuple:
+    """Directory signature used to invalidate the summary cache.
+
+    Media files and their sidecars only - unlike the browse fingerprint, a child
+    directory appearing under this folder does not change its own counts.
+    """
     signatures: list[tuple[str, int, int]] = []
 
-    try:
-        entries = list(folder.iterdir())
-    except OSError:
-        return None
+    for media in scan.media:
+        signatures.append((media.name, media.mtime_ns, media.size))
 
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.name == SYSPROMPT_FILENAME:
-            continue
-
-        if get_media_type(entry) is None:
-            continue
-
-        media_signature = _file_stat_signature(entry)
-        if media_signature is not None:
-            signatures.append(media_signature)
-
-        stem = entry.stem
-        for sidecar_name in (f"{stem}.json", f"{stem}.txt", f"{stem}.issue.json"):
-            sidecar = folder / sidecar_name
-            if not sidecar.is_file():
-                continue
-            sidecar_signature = _file_stat_signature(sidecar)
-            if sidecar_signature is not None:
-                signatures.append(sidecar_signature)
+        stem = media.path.stem
+        for extension in (*CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX):
+            sidecar = scan.files.get(f"{stem}{extension}")
+            if sidecar is not None:
+                signatures.append((sidecar.name, sidecar.mtime_ns, sidecar.size))
 
     return tuple(sorted(signatures))
 
 
-def _summarize_folder_contents_uncached(folder: Path) -> dict[str, int]:
-    file_count = 0
+def folder_summary_fingerprint(folder: Path) -> tuple | None:
+    """Lightweight directory signature used to invalidate summary caches."""
+    scan = scan_folder(folder)
+    return None if scan is None else _summary_signature(scan)
+
+
+def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
     captioned_count = 0
     issue_count = 0
 
-    try:
-        entries = list(folder.iterdir())
-    except OSError:
-        return {
-            "file_count": 0,
-            "captioned_count": 0,
-            "issue_count": 0,
-        }
+    for media in scan.media:
+        caption = _caption_sidecar(scan, media)
+        if caption is not None:
+            sidecar, caption_file_type = caption
+            description, _, caption_status, _ = caption_summary_from_sidecar(
+                sidecar.path,
+                caption_file_type,
+                sidecar.mtime_ns,
+                sidecar.size,
+            )
+            if description is not None and caption_status == "text":
+                captioned_count += 1
 
-    for entry in entries:
-        try:
-            if not entry.is_file():
-                continue
-        except OSError:
-            continue
-
-        if entry.name == SYSPROMPT_FILENAME:
-            continue
-
-        media_type = get_media_type(entry)
-        if media_type is None:
-            continue
-
-        file_count += 1
-        if media_has_caption_text(entry):
-            captioned_count += 1
-        try:
-            if issue_file_path(entry).is_file():
-                issue_count += 1
-        except OSError:
-            pass
+        if _issue_sidecar(scan, media) is not None:
+            issue_count += 1
 
     return {
-        "file_count": file_count,
+        "file_count": len(scan.media),
         "captioned_count": captioned_count,
         "issue_count": issue_count,
     }
 
 
+def _summarize_folder_contents_uncached(folder: Path) -> dict[str, int]:
+    scan = scan_folder(folder)
+    if scan is None:
+        return dict(_EMPTY_SUMMARY)
+    return _summarize_scan_uncached(scan)
+
+
 def summarize_folder_contents(folder: Path) -> dict[str, int]:
+    scan = scan_folder(folder)
+    if scan is None:
+        return dict(_EMPTY_SUMMARY)
+
     folder_key = str(folder.resolve())
-    fingerprint = folder_summary_fingerprint(folder)
+    fingerprint = _summary_signature(scan)
 
-    if fingerprint is not None:
-        with _summary_cache_lock:
-            cached = _summary_cache.get(folder_key)
-            if cached is not None and cached.fingerprint == fingerprint:
-                return dict(cached.result)
+    with _summary_cache_lock:
+        cached = _summary_cache.get(folder_key)
+        if cached is not None and cached.fingerprint == fingerprint:
+            return dict(cached.result)
 
+    # Routed through the module-level name so tests can patch the uncached path.
     result = _summarize_folder_contents_uncached(folder)
 
-    if fingerprint is not None:
-        with _summary_cache_lock:
-            _summary_cache[folder_key] = _SummaryCacheEntry(fingerprint, dict(result))
+    with _summary_cache_lock:
+        _summary_cache[folder_key] = _SummaryCacheEntry(fingerprint, dict(result))
 
     return result
 
 
-def _read_file_stat(entry: Path) -> tuple[int, str] | None:
-    try:
-        file_stat = entry.stat()
-        return file_stat.st_size, datetime.fromtimestamp(
-            file_stat.st_mtime,
-            tz=UTC,
-        ).isoformat()
-    except OSError:
-        return None
+# ---------------------------------------------------------------------------
+# Media items (the gallery grid)
+# ---------------------------------------------------------------------------
 
 
-def _build_media_item(entry: Path, media_type: str) -> dict:
-    description, has_bboxes, caption_status, caption_file_type = load_caption_summary(entry)
-    issue_fixes, has_issue_file = load_issue_summary(entry)
+def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) -> dict:
+    description: str | None = None
+    has_bboxes = False
+    caption_status = "none"
+    caption_file_type: str | None = None
 
-    item_data = {
-        "name": entry.name,
-        "path": str(entry),
+    caption = _caption_sidecar(scan, media)
+    if caption is not None:
+        sidecar, caption_file_type = caption
+        description, has_bboxes, caption_status, caption_file_type = caption_summary_from_sidecar(
+            sidecar.path,
+            caption_file_type,
+            sidecar.mtime_ns,
+            sidecar.size,
+        )
+
+    issue_sidecar = _issue_sidecar(scan, media)
+    if issue_sidecar is None:
+        issue_fixes: list[str] = []
+        has_issue_file = False
+    else:
+        issue_fixes, has_issue_file = issue_summary_from_sidecar(
+            issue_sidecar.path,
+            issue_sidecar.mtime_ns,
+            issue_sidecar.size,
+        )
+
+    return {
+        "name": media.name,
+        "path": str(media.path),
         "description": description,
         "has_description": description is not None,
         "has_caption_file": caption_status != "none",
@@ -172,43 +191,29 @@ def _build_media_item(entry: Path, media_type: str) -> dict:
         "caption_status": caption_status,
         "caption_file_type": caption_file_type,
         "media_type": media_type,
+        "size": media.size,
+        "modified_at": datetime.fromtimestamp(media.mtime, tz=UTC).isoformat(),
     }
 
-    file_stat = _read_file_stat(entry)
-    if file_stat:
-        item_data["size"], item_data["modified_at"] = file_stat
 
-    return item_data
+def list_media_from_scan(scan: FolderScan) -> list[dict]:
+    if not scan.media:
+        return []
+
+    max_workers = min(16, len(scan.media))
+
+    def build(media: ScannedEntry) -> dict:
+        return _build_media_item(scan, media, get_media_type(media.path) or "image")
+
+    if max_workers <= 1:
+        return [build(media) for media in scan.media]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        return list(pool.map(build, scan.media))
 
 
 def list_media_in_folder(folder: Path) -> list[dict]:
-    try:
-        entries: list[Path] = []
-        for entry in sorted(folder.iterdir(), key=lambda path: path.name.lower()):
-            try:
-                if not entry.is_file():
-                    continue
-            except OSError:
-                continue
-            if entry.name == SYSPROMPT_FILENAME:
-                continue
-            if get_media_type(entry) is not None:
-                entries.append(entry)
-    except OSError:
+    scan = scan_folder(folder)
+    if scan is None:
         return []
-
-    if not entries:
-        return []
-
-    max_workers = min(16, len(entries))
-
-    if max_workers <= 1:
-        return [_build_media_item(entry, get_media_type(entry) or "image") for entry in entries]
-
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        results = pool.map(
-            lambda entry: _build_media_item(entry, get_media_type(entry) or "image"),
-            entries,
-        )
-
-    return list(results)
+    return list_media_from_scan(scan)

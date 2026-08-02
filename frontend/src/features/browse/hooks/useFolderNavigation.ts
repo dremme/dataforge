@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchBrowseFingerprint } from "@/features/browse/api/browse";
 import { buildBreadcrumbs } from "@/features/browse/lib/breadcrumbs";
+import { evictCachedBrowse, readCachedBrowse } from "@/features/browse/lib/browseCache";
 import {
   getFolderFromHistoryEvent,
   getFolderFromUrl,
@@ -7,8 +9,27 @@ import {
   type HistoryMode,
 } from "@/features/browse/lib/folderHistory";
 import { getCachedLastFolder, loadBrowseFolder } from "@/features/browse/lib/folderPreferences";
-import { resolveBrowseError, type BrowseError } from "@/shared/api/http";
+import { isAbortError, resolveBrowseError, type BrowseError } from "@/shared/api/http";
 import type { BrowseResponse } from "@/shared/types";
+
+/**
+ * Whether a cached payload is still current, via the cheap fingerprint endpoint.
+ *
+ * Saves refetching a whole folder to discover nothing moved. Any doubt — a
+ * missing fingerprint, a failed check — answers `false` so the caller does the
+ * full load rather than trusting stale content.
+ */
+async function isFolderUnchanged(cached: BrowseResponse, signal: AbortSignal): Promise<boolean> {
+  if (!cached.fingerprint) return false;
+
+  try {
+    const { fingerprint } = await fetchBrowseFingerprint(cached.folder, signal);
+    return fingerprint === cached.fingerprint;
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    return false;
+  }
+}
 
 function applyOptimisticBrowse(browse: BrowseResponse, folderPath: string): BrowseResponse {
   return {
@@ -56,6 +77,7 @@ export function useFolderNavigation(onFolderChange?: () => void) {
   const [error, setError] = useState<BrowseError | null>(null);
   const initialLoadDone = useRef(false);
   const loadGenerationRef = useRef(0);
+  const inFlightRef = useRef<AbortController | null>(null);
   const lastRequestedPathRef = useRef<string | undefined>(undefined);
 
   const loadFolder = useCallback(
@@ -67,28 +89,50 @@ export function useFolderNavigation(onFolderChange?: () => void) {
       const generation = ++loadGenerationRef.current;
       setError(null);
 
-      if (silent) {
-        setRefreshing(true);
-      } else {
+      // Drop the superseded request rather than parsing a payload we discard.
+      inFlightRef.current?.abort();
+      const controller = new AbortController();
+      inFlightRef.current = controller;
+
+      // A folder we already hold can paint now and revalidate underneath, so
+      // only an uncached one is worth blanking the grid for. Silent reloads opt
+      // out: the caller already has content up and is asking for fresh data, so
+      // replaying a cached payload would only flash something staler.
+      const cached = silent ? null : readCachedBrowse(path);
+      const showSkeleton = !silent && !cached;
+
+      if (cached) {
+        setBrowse(cached);
+      }
+
+      if (showSkeleton) {
         setLoading(true);
-        if (!preserveSelection) {
-          onFolderChange?.();
-        }
+      } else {
+        setRefreshing(true);
+      }
+
+      if (!silent && !preserveSelection) {
+        onFolderChange?.();
       }
 
       try {
-        const data = await loadBrowseFolder(path, { updateRecent });
+        if (cached && (await isFolderUnchanged(cached, controller.signal))) {
+          return cached;
+        }
+
+        const data = await loadBrowseFolder(path, { updateRecent, signal: controller.signal });
         if (generation !== loadGenerationRef.current) {
           return null;
         }
         setBrowse(data);
         return data;
       } catch (err) {
-        if (generation !== loadGenerationRef.current) {
+        if (generation !== loadGenerationRef.current || isAbortError(err)) {
           return null;
         }
         const resolved = resolveBrowseError(err);
         if (resolved?.kind === "folder-not-found") {
+          evictCachedBrowse(path);
           setBrowse((current) => {
             const folderPath =
               path ?? current?.folder ?? lastRequestedPathRef.current ?? getCachedLastFolder();
@@ -104,10 +148,10 @@ export function useFolderNavigation(onFolderChange?: () => void) {
         return null;
       } finally {
         if (generation === loadGenerationRef.current) {
-          if (silent) {
-            setRefreshing(false);
-          } else {
+          if (showSkeleton) {
             setLoading(false);
+          } else {
+            setRefreshing(false);
           }
         }
       }

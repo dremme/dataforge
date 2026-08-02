@@ -66,10 +66,20 @@ class BrowseEndpointTests(unittest.TestCase):
             self.assertEqual(payload["breadcrumbs"][-1]["name"], root.name)
             self.assertEqual(payload["subfolder_count"], 1)
 
+            # Counts are deferred to /api/browse/subfolder-stats so the grid can
+            # render before every child folder's captions have been read.
             album = payload["subfolders"][0]
             self.assertEqual(album["name"], "album")
-            self.assertEqual(album["file_count"], 2)
-            self.assertEqual(album["captioned_count"], 1)
+            self.assertIsNone(album["file_count"])
+            self.assertIsNone(album["captioned_count"])
+
+            stats = client.get(f"/api/browse/subfolder-stats?path={quote(str(root))}")
+
+            self.assertEqual(stats.status_code, 200)
+            counted = stats.json()["subfolders"][0]
+            self.assertEqual(counted["path"], album["path"])
+            self.assertEqual(counted["file_count"], 2)
+            self.assertEqual(counted["captioned_count"], 1)
 
     def test_includes_file_stats_without_dimensions(self) -> None:
         with TempMediaFolder() as root:
@@ -243,14 +253,15 @@ class BrowseEndpointTests(unittest.TestCase):
                 uncached_calls["count"] += 1
                 return original(folder)
 
+            url = f"/api/browse/subfolder-stats?path={quote(str(root))}"
             clear_folder_summary_cache_for_tests()
             try:
                 with patch(
                     "media_listing._summarize_folder_contents_uncached",
                     side_effect=counting_uncached,
                 ):
-                    first = client.get(f"/api/browse?path={quote(str(root))}")
-                    second = client.get(f"/api/browse?path={quote(str(root))}")
+                    first = client.get(url)
+                    second = client.get(url)
             finally:
                 clear_folder_summary_cache_for_tests()
 
@@ -258,6 +269,33 @@ class BrowseEndpointTests(unittest.TestCase):
             self.assertEqual(second.status_code, 200)
             self.assertEqual(first.json()["subfolders"][0]["file_count"], 1)
             self.assertEqual(uncached_calls["count"], 1)
+
+    def test_browse_skips_subfolder_counting_entirely(self) -> None:
+        with TempMediaFolder() as root:
+            album = root / "Album"
+            album.mkdir()
+            write_media(album, "one.png")
+
+            clear_folder_summary_cache_for_tests()
+            try:
+                with patch(
+                    "media_listing._summarize_folder_contents_uncached",
+                    side_effect=AssertionError("browse must not count subfolder contents"),
+                ):
+                    response = client.get(f"/api/browse?path={quote(str(root))}")
+            finally:
+                clear_folder_summary_cache_for_tests()
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["subfolders"][0]["name"], "Album")
+
+    def test_subfolder_stats_rejects_missing_folder(self) -> None:
+        with TempMediaFolder() as root:
+            missing = root / "does-not-exist"
+
+            response = client.get(f"/api/browse/subfolder-stats?path={quote(str(missing))}")
+
+            self.assertEqual(response.status_code, 404)
 
     def test_remains_available_with_folder_summary_cache(self) -> None:
         with TempMediaFolder() as root:

@@ -5,6 +5,7 @@ import { useCreateFolderDialog } from "@/features/browse/hooks/useCreateFolderDi
 import { useFolderChangeDetection } from "@/features/browse/hooks/useFolderChangeDetection";
 import { useFolderFileDrop } from "@/features/browse/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/browse/hooks/useFolderNavigation";
+import { useSubfolderStats } from "@/features/browse/hooks/useSubfolderStats";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useJobs } from "@/features/jobs/context/JobsContext";
@@ -63,6 +64,8 @@ export function useAppWorkspace() {
   const subfolders = useMemo(() => browse?.subfolders ?? [], [browse?.subfolders]);
   const items = useMemo(() => browse?.items ?? [], [browse?.items]);
   const sysprompt = browse?.sysprompt ?? null;
+
+  useSubfolderStats(browse?.folder, subfolders, setBrowse, !folderNotFound);
 
   useDocumentTitle(browse?.folder, browse?.breadcrumbs ?? []);
 

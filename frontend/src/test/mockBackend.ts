@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { clearBrowseCache } from "@/features/browse/lib/browseCache";
 import type { CaptionBBox, Job, BrowseResponse } from "@/shared/types";
 import { emptyBrowse, homeBrowse, vacationBrowse } from "./fixtures";
 
@@ -54,6 +55,10 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
 
 export function installMockBackend(options: MockBackendOptions = {}) {
   let folderFavorites: string[] | null = null;
+
+  // The browse cache is a module singleton, so a payload left over from an
+  // earlier test would otherwise be served instead of hitting this mock.
+  clearBrowseCache();
 
   const browseByPath = Object.fromEntries(
     Object.entries(options.browseByPath ?? {}).map(([key, value]) => [
@@ -224,6 +229,24 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
 
       return jsonResponse({ fingerprint: data.fingerprint });
+    }
+
+    if (url.pathname === "/api/browse/subfolder-stats") {
+      const pathKey = normalizeBrowseKey(url.searchParams.get("path"));
+      const data = pathKey ? browseResponses[pathKey] : undefined;
+      if (!data) {
+        return jsonResponse({ detail: "Folder not found" }, 404);
+      }
+
+      return jsonResponse({
+        folder: data.folder,
+        subfolders: data.subfolders.map((entry) => ({
+          path: entry.path,
+          file_count: entry.file_count ?? 0,
+          captioned_count: entry.captioned_count ?? 0,
+          issue_count: entry.issue_count ?? 0,
+        })),
+      });
     }
 
     if (url.pathname === "/api/browse") {

@@ -6,6 +6,8 @@ import type { BrowseResponse } from "@/shared/types";
 type AppHeaderProps = {
   browse: BrowseResponse;
   folderNotFound?: boolean;
+  /** A reload running underneath content that stays on screen. */
+  refreshing?: boolean;
   onNavigate: (path?: string) => void;
   onCreateFolder?: () => void;
   toolbarProps: ComponentProps<typeof Toolbar>;
@@ -14,6 +16,7 @@ type AppHeaderProps = {
 export function AppHeader({
   browse,
   folderNotFound,
+  refreshing = false,
   onNavigate,
   onCreateFolder,
   toolbarProps,
@@ -30,6 +33,11 @@ export function AppHeader({
         />
         <Toolbar {...toolbarProps} />
       </div>
+      {/* Background reloads used to be entirely invisible - content simply
+          changed under the user with no hint that anything had been fetched. */}
+      {refreshing && (
+        <div className="app-nav__refresh" role="status" aria-label="Refreshing folder" />
+      )}
     </header>
   );
 }

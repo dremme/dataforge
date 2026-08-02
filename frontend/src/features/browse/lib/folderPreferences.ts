@@ -1,6 +1,7 @@
 import { fetchBrowse } from "@/features/browse/api/browse";
-import { isFolderNotFoundError } from "@/shared/api/http";
+import { resolveBrowseError } from "@/shared/api/http";
 import type { BrowseResponse } from "@/shared/types";
+import { writeCachedBrowse } from "./browseCache";
 import { folderPathsEqual, normalizeFolderPath } from "./folderPath";
 import { LOAD_RETRY_DELAYS_MS, withRetry } from "@/shared/lib/retry";
 import { readStored, readStoredJson, writeStored, writeStoredJson } from "@/shared/lib/storage";
@@ -106,24 +107,37 @@ function cacheFolderPreference(path: string): void {
 
 interface BrowseLoadOptions {
   updateRecent?: boolean;
+  signal?: AbortSignal;
+}
+
+/**
+ * Retry only while the API server has yet to come up.
+ *
+ * The ladder exists for cold start, when the frontend is served before the
+ * backend is listening. Retrying anything else — a 500, a folder the backend
+ * choked on — just piles more heavy browses onto a struggling server.
+ */
+function shouldRetryBrowse(error: unknown): boolean {
+  return resolveBrowseError(error)?.kind === "backend-unreachable";
 }
 
 export async function fetchBrowseWithRetry(
   folderPath?: string,
-  { updateRecent = true }: BrowseLoadOptions = {},
+  { updateRecent = true, signal }: BrowseLoadOptions = {},
 ): Promise<BrowseResponse> {
   return withRetry(
     async () => {
-      const data = await fetchBrowse(folderPath);
+      const data = await fetchBrowse(folderPath, signal);
       if (updateRecent) {
         cacheFolderPreference(data.folder);
       } else {
         cacheLastFolder(data.folder);
       }
+      writeCachedBrowse(data);
       return data;
     },
     LOAD_RETRY_DELAYS_MS,
-    (error) => !isFolderNotFoundError(error),
+    shouldRetryBrowse,
   );
 }
 

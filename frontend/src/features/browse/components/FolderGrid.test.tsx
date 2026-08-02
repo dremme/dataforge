@@ -58,4 +58,37 @@ describe("FolderGrid", () => {
     expect(issueIcon?.parentElement).toHaveClass("folder-card__stat");
     expect(issueIcon?.previousSibling?.textContent).toContain("captioned");
   });
+
+  it("holds the stat slot with a placeholder until counts arrive", () => {
+    render(
+      <FolderGrid
+        folders={[
+          makeFolder({
+            file_count: null,
+            captioned_count: null,
+            issue_count: null,
+          }),
+        ]}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const card = screen.getByRole("button", { name: "Album" });
+
+    expect(card.querySelector(".folder-card__stat--pending")).not.toBeNull();
+    expect(card.querySelector(".folder-card__stat-placeholder")).not.toBeNull();
+    expect(card.textContent).not.toContain("captioned");
+  });
+
+  it("renders counts once they replace the placeholder", () => {
+    render(
+      <FolderGrid folders={[makeFolder({ file_count: 5, captioned_count: 5 })]} onOpen={vi.fn()} />,
+    );
+
+    const card = screen.getByRole("button", { name: "Album" });
+
+    expect(card.querySelector(".folder-card__stat--pending")).toBeNull();
+    expect(card.querySelector(".folder-card__stat")).toHaveClass("folder-card__stat--success");
+    expect(card.textContent).toContain("captioned");
+  });
 });

@@ -8,8 +8,9 @@ from pathlib import Path, PureWindowsPath
 
 from fastapi import HTTPException
 
-from constants import LAST_FOLDER_KEY, SKIP_DIR_NAMES
+from constants import LAST_FOLDER_KEY
 from db import get_preference
+from folder_scan import scan_folder
 from media_listing import summarize_folder_contents
 
 _INVALID_FOLDER_NAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -153,13 +154,6 @@ def resolve_folder(path: str) -> Path:
     return folder.resolve()
 
 
-def is_listable_dir(entry: Path) -> bool:
-    name = entry.name
-    if name in SKIP_DIR_NAMES:
-        return False
-    return name not in {".", ".."}
-
-
 def build_breadcrumbs(folder: Path) -> list[dict[str, str]]:
     folder = folder.resolve()
     chain: list[Path] = []
@@ -181,38 +175,22 @@ def build_breadcrumbs(folder: Path) -> list[dict[str, str]]:
 def _subfolder_with_stats(entry: Path) -> dict[str, str | int]:
     return {
         "name": entry.name,
-        "path": str(entry.resolve()),
+        "path": str(entry),
         **summarize_folder_contents(entry),
     }
 
 
 def _iter_child_directories(folder: Path) -> list[Path]:
     """Immediate listable child directories, sorted by name (no content stats)."""
-    try:
-        entries = [
-            entry
-            for entry in sorted(folder.iterdir(), key=lambda path: path.name.lower())
-            if is_listable_dir(entry)
-        ]
-    except OSError:
+    scan = scan_folder(folder)
+    if scan is None:
         return []
-
-    child_dirs: list[Path] = []
-    for entry in entries:
-        try:
-            if entry.is_dir():
-                child_dirs.append(entry)
-        except OSError:
-            continue
-    return child_dirs
+    return [entry.path for entry in scan.dirs]
 
 
 def list_child_folders(folder: Path) -> list[dict[str, str]]:
     """Lightweight child folder list: name + path only (no media/caption scans)."""
-    return [
-        {"name": entry.name, "path": str(entry.resolve())}
-        for entry in _iter_child_directories(folder)
-    ]
+    return [{"name": entry.name, "path": str(entry)} for entry in _iter_child_directories(folder)]
 
 
 def sanitize_folder_name(name: str) -> str | None:

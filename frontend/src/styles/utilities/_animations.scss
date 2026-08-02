@@ -14,6 +14,16 @@
   }
 }
 
+@keyframes nav-refresh-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(386%);
+  }
+}
+
 @keyframes browse-skeleton-enter {
   from {
     opacity: 0;

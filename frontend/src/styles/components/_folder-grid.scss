@@ -131,6 +131,16 @@
       @include icon-muted;
       @include icon-size(var(--icon-size-xs));
     }
+
+    // Counts arrive on a second request; the slot holds its size until they do.
+    &--pending {
+      opacity: 0.55;
+    }
+  }
+
+  &__stat-placeholder {
+    @include skeleton-line(0.5rem, 5.5rem);
+    @include skeleton-shimmer;
   }
 
   &__issue-icon {
