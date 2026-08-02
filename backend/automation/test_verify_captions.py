@@ -313,6 +313,13 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         self.assertIn(f"Up to {MAX_ISSUE_FIXES} sentences", prompt)
         self.assertIn("most important first", prompt)
 
+    def test_build_system_prompt_confines_an_issue_to_one_sentence(self) -> None:
+        """The parser splits on terminators, so a second sentence becomes a second fix."""
+        prompt = build_verification_system_prompt()
+
+        self.assertIn("Each issue is a single sentence", prompt)
+        self.assertNotIn("single sentence", _rules_section(prompt))
+
     def test_build_system_prompt_keeps_the_rules_about_judging(self) -> None:
         """Rules that teach fix-writing shift the prompt's weight from judging to producing."""
         rules = _rules_section(build_verification_system_prompt())

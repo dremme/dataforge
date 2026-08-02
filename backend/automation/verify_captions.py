@@ -248,10 +248,17 @@ def build_verification_system_prompt(context: str = "") -> str:
 
             # Output Format
             Respond exclusively with a valid JSON object (no markdown fences):
+            ```json
             {{
                 "correct": true or false,
                 "issues": "Up to {MAX_ISSUE_FIXES} sentences, most important first, each quoting the exact caption phrase that contradicts the image and stating what it should say instead, or 'None'."
             }}
+            ```
+
+            ## Important Output Rule
+            Each issue is a single sentence. Everything about one contradiction stays inside
+            that one sentence, the quoted caption phrase and what it should say instead joined
+            with a comma or a semicolon; a new sentence is read as a separate issue.
             """
         ).strip()
     )
