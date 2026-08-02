@@ -109,7 +109,7 @@ describe("JobsDrawer", () => {
     renderDrawer([finished], []);
 
     expect(screen.getByLabelText("LoRA training job for landscapes")).toBeInTheDocument();
-    expect(screen.queryByText("No background jobs yet.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No automation jobs yet.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete all jobs" })).toBeInTheDocument();
   });
 

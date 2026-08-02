@@ -342,4 +342,61 @@ describe("GalleryItemModal", () => {
     await user.click(within(dialog).getByRole("button", { name: "Next item" }));
     expect(onNext).toHaveBeenCalledTimes(1);
   });
+
+  it("drops a caption selection when moving to another item", async () => {
+    const items = [makeItem("sunset.png"), makeItem("beach.jpg", { description: "A quiet shore" })];
+
+    // The caption is fetched, so the second item needs its text in the browse fixture too.
+    installMockBackend({
+      browseByPath: {
+        [HOME_PATH]: {
+          ...homeBrowse,
+          items: homeBrowse.items.map((entry) =>
+            entry.name === "beach.jpg"
+              ? {
+                  ...entry,
+                  description: "A quiet shore",
+                  has_description: true,
+                  has_caption_file: true,
+                  caption_status: "text",
+                  caption_file_type: "txt",
+                }
+              : entry,
+          ),
+        },
+      },
+    });
+
+    const { rerender } = renderWithProviders(
+      <GalleryItemModal
+        items={items}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+    await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
+
+    rerender(
+      <GalleryItemModal
+        items={items}
+        index={1}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const nextCaption = await screen.findByRole("textbox", { name: "Caption for beach.jpg" });
+    await waitFor(() => expect(nextCaption).toHaveValue("A quiet shore"));
+
+    // A reused editor carries the old item's selection into the new caption.
+    expect(nextCaption).not.toBe(caption);
+  });
 });

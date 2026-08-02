@@ -288,6 +288,9 @@ export function IssueResolverModal({
                 Caption
               </label>
               <CaptionEditor
+                // A fresh editor per item: CodeMirror maps its selection through the
+                // document swap, so a reused one lands selected on the next caption.
+                key={item.path}
                 id="issue-resolver-caption"
                 value={caption}
                 placeholder={placeholder}

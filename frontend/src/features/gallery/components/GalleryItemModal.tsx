@@ -445,6 +445,9 @@ export function GalleryItemModal({
                 </div>
               </div>
               <CaptionEditor
+                // A fresh editor per item: CodeMirror maps its selection through the
+                // document swap, so a reused one lands selected on the next caption.
+                key={item.path}
                 id="gallery-item-caption"
                 value={caption}
                 placeholder={placeholder}

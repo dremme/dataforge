@@ -3,7 +3,6 @@ import type { LucideIcon } from "lucide-react";
 export type AppIcon = LucideIcon;
 
 export {
-  Activity as iconActivity,
   AlertTriangle as iconAlertTriangle,
   ArrowDownWideNarrow as iconArrowDownWideNarrow,
   ArrowUp as iconArrowUp,
@@ -62,6 +61,7 @@ export {
   RemoveFormatting as iconRemoveFormatting,
   Search as iconSearch,
   Shredder as iconShredder,
+  Sparkles as iconSparkles,
   Star as iconStar,
   StarPlusIcon as iconStarPlusIcon,
   Strikethrough as iconStrikethrough,

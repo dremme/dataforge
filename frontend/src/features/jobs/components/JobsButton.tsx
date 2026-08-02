@@ -1,5 +1,5 @@
 import { useJobs } from "@/features/jobs/context/JobsContext";
-import { iconActivity } from "@/shared/icons";
+import { iconSparkles } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -8,7 +8,7 @@ export function JobsButton() {
   const { activeCount, drawerOpen, toggleDrawer } = useJobs();
 
   const running = activeCount > 0;
-  const tooltip = running ? "Background jobs are running" : "Background jobs";
+  const tooltip = running ? "Automation jobs are running" : "Automation jobs";
 
   return (
     <Tooltip content={tooltip}>
@@ -16,11 +16,11 @@ export function JobsButton() {
         type="button"
         className={classNames("jobs-button", running && "jobs-button--running")}
         onClick={toggleDrawer}
-        aria-label={running ? "Open background jobs (running)" : "Open background jobs"}
+        aria-label={running ? "Open automation jobs (running)" : "Open automation jobs"}
         aria-expanded={drawerOpen}
         aria-controls={drawerOpen ? "jobs-drawer-panel" : undefined}
       >
-        <Icon icon={iconActivity} className="jobs-button__icon" />
+        <Icon icon={iconSparkles} className="jobs-button__icon" />
         {running && <span className="jobs-button__dot" aria-hidden="true" />}
       </button>
     </Tooltip>

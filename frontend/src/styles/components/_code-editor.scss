@@ -170,7 +170,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   // Beat CodeMirror base theme (uses .cm-light/.cm-dark + deep focused path).
   .cm-editor.cm-light .cm-selectionBackground,
   .cm-editor.cm-dark .cm-selectionBackground,
-  .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  .cm-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
     background: $code-editor-selection;
   }
 

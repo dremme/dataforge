@@ -4,7 +4,7 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { iconActivity, iconTrash2, iconX } from "@/shared/icons";
+import { iconSparkles, iconTrash2, iconX } from "@/shared/icons";
 import { foldersMatch } from "@/features/browse/lib/folderPath";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -91,9 +91,9 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
           >
             <header className="jobs-drawer__header">
               <div className="jobs-drawer__title">
-                <Icon icon={iconActivity} className="jobs-drawer__title-icon" />
+                <Icon icon={iconSparkles} className="jobs-drawer__title-icon" />
                 <div>
-                  <h2 id="jobs-drawer-title">Background jobs</h2>
+                  <h2 id="jobs-drawer-title">Automation jobs</h2>
                 </div>
               </div>
 
@@ -125,7 +125,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
             <div className="jobs-drawer__content" data-scroll-lock-allow>
               {!hasAnyJobs ? (
                 <div className="jobs-drawer__empty">
-                  <p>No background jobs yet.</p>
+                  <p>No automation jobs yet.</p>
                   <p className="jobs-drawer__empty-hint">
                     Start one from a folder with media files using the automation panel.
                   </p>

@@ -330,6 +330,38 @@ describe("IssueResolverModal", () => {
     expect(resolvedPaths).toHaveLength(4);
   });
 
+  it("drops a caption selection when skipping to the next issue", async () => {
+    const user = userEvent.setup();
+    const items = [
+      makeIssueItem("car.png"),
+      makeIssueItem("boat.png", { description: "A boat on the lake." }),
+    ];
+
+    function Host() {
+      const [index, setIndex] = useState(0);
+      return (
+        <IssueResolverModal
+          items={items}
+          index={index}
+          onClose={vi.fn()}
+          onIndexChange={setIndex}
+          onCaptionSaved={vi.fn()}
+        />
+      );
+    }
+
+    render(<Host />);
+
+    const caption = await screen.findByLabelText("Caption for car.png");
+
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+
+    const nextCaption = await screen.findByLabelText("Caption for boat.png");
+
+    // A reused editor carries the old item's selection into the new caption.
+    expect(nextCaption).not.toBe(caption);
+  });
+
   it("closes after resolving the final issue", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
