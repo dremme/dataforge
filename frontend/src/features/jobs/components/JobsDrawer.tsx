@@ -33,13 +33,18 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
   } = useJobs();
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // `inert` alone does not stop the trap: it keys off aria-hidden on the element itself,
+  // so a nested overlay would have its Tab swallowed by this capture-phase handler.
+  const overlayAbove = clearAllOpen || lightboxOpen;
 
   const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, drawerOpen);
+  useFocusTrap(panelRef, drawerOpen && !overlayAbove);
 
   useScrollLock(drawerOpen, "jobs-drawer-open");
 
-  useEscapeKey(closeDrawer, drawerOpen && !clearAllOpen);
+  useEscapeKey(closeDrawer, drawerOpen && !overlayAbove);
 
   if (!drawerOpen) return null;
 
@@ -81,8 +86,8 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="jobs-drawer-title"
-            aria-hidden={clearAllOpen ? true : undefined}
-            inert={clearAllOpen}
+            aria-hidden={overlayAbove ? true : undefined}
+            inert={overlayAbove}
           >
             <header className="jobs-drawer__header">
               <div className="jobs-drawer__title">
@@ -146,6 +151,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                                 // Errors surface in drawer state.
                               });
                             }}
+                            onLightboxOpenChange={setLightboxOpen}
                           />
                         ))}
                       </div>
@@ -181,6 +187,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                                 // Errors surface in drawer state.
                               });
                             }}
+                            onLightboxOpenChange={setLightboxOpen}
                           />
                         ))}
                       </div>

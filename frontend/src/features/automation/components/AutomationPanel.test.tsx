@@ -337,7 +337,7 @@ describe("AutomationPanel", () => {
 
     const { container } = render(<AutomationPanel {...baseProps} job={trainingJob} />);
 
-    const samples = container.querySelector(".automation__samples");
+    const samples = container.querySelector(".training-samples");
     expect(samples).toBeInTheDocument();
     expect(screen.getByAltText("a mountain lake at sunrise")).toBeInTheDocument();
 
@@ -350,6 +350,6 @@ describe("AutomationPanel", () => {
     mockShowSpecs = false;
     const { container } = render(<AutomationPanel {...baseProps} job={finishedJob} />);
 
-    expect(container.querySelector(".automation__samples")).not.toBeInTheDocument();
+    expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
   });
 });

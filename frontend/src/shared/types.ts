@@ -269,7 +269,7 @@ export interface OstrisTrainingSample {
   path: string;
   name: string;
   step: number;
-  prompt: string | null;
+  prompt: string;
 }
 
 export interface OstrisTrainingSamplesResponse {

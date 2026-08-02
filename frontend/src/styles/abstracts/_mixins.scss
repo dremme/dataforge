@@ -728,6 +728,27 @@
   box-shadow: var(--shadow);
 }
 
+@mixin modal-stage($padding: 1.25rem) {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: $padding;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 50%, $color-modal-stage-glow, transparent),
+    var(--bg-media);
+}
+
+@mixin modal-nav-btn {
+  @include icon-btn-round;
+  --icon-size: var(--icon-size-xl);
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
 @mixin modal-editor-header {
   display: flex;
   flex-shrink: 0;

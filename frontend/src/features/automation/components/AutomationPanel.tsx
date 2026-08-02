@@ -31,13 +31,13 @@ import {
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
-import { useTrainingSamples } from "@/features/automation/hooks/useTrainingSamples";
+import { useTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
 import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
 import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
-import { TrainingSamples } from "./TrainingSamples";
+import { TrainingSamples } from "@/features/jobs/components/TrainingSamples";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 

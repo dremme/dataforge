@@ -69,7 +69,7 @@ config:
         assistant_lora_path: "ostris/krea2_turbo_training_adapter/krea2_turbo_training_adapter_v1.safetensors"
       sample:
         sampler: "flowmatch"
-        sample_every: 250
+        sample_every: 200
         sample_start_step: 0
         width: 1024
         height: 1024

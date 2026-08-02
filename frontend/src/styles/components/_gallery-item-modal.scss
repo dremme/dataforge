@@ -89,25 +89,12 @@ $json-color: #fcd34d;
 
   // Stage & media
   &__stage {
-    position: relative;
-    display: flex;
+    @include modal-stage(1.25rem 3.75rem);
     flex: 1;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-    padding: 1.25rem 3.75rem;
-    background:
-      radial-gradient(ellipse 70% 60% at 50% 50%, $color-modal-stage-glow, transparent),
-      var(--bg-media);
   }
 
   &__nav {
-    @include icon-btn-round;
-    --icon-size: var(--icon-size-xl);
-    position: absolute;
-    top: 50%;
-    z-index: 1;
-    transform: translateY(-50%);
+    @include modal-nav-btn;
 
     &--prev {
       left: 0.85rem;
@@ -120,21 +107,21 @@ $json-color: #fcd34d;
 
   &__media-wrap {
     max-width: 100%;
-    max-height: min(36vh, 500px);
+    max-height: $modal-media-max-height;
   }
 
   &__img,
   &__video {
     display: block;
     width: 100%;
-    max-height: min(36vh, 500px);
+    max-height: $modal-media-max-height;
     border-radius: var(--radius-sm);
     object-fit: contain;
   }
 
   &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {
     width: 100%;
-    max-height: min(36vh, 500px);
+    max-height: $modal-media-max-height;
   }
 
   &__media-wrap.zoomable-image--zoomed .zoomable-image__img {

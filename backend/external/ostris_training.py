@@ -175,7 +175,7 @@ def list_training_samples(
             "path": str(path),
             "name": path.name,
             "step": step,
-            "prompt": prompt_list[index] if index < len(prompt_list) else None,
+            "prompt": prompt_list[index] if index < len(prompt_list) else "",
         }
         for step, index, path in latest
     ]

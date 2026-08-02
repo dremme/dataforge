@@ -44,6 +44,7 @@ class LoadTrainingTemplateTests(unittest.TestCase):
         self.assertEqual(process["type"], "diffusion_trainer")
         self.assertEqual(process["model"]["name_or_path"], "krea/Krea-2-Turbo")
         self.assertEqual(process["train"]["steps"], 1000)
+        self.assertEqual(process["sample"]["sample_every"], 200)
 
     def test_rejects_an_unknown_model(self) -> None:
         with self.assertRaises(OstrisTrainingError):
@@ -162,6 +163,16 @@ class ListTrainingSamplesTests(unittest.TestCase):
         )
         self.assertEqual(samples[0]["prompt"], "a mountain lake at sunrise")
         self.assertEqual(samples[1]["prompt"], "a red hatchback on a wet street")
+
+    def test_uses_a_blank_prompt_when_the_job_config_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            samples_folder = Path(tmp) / "sample_train_v1" / "samples"
+            samples_folder.mkdir(parents=True)
+            (samples_folder / "1780000600000__000000500_0.jpg").write_text("", encoding="utf-8")
+
+            samples, _ = list_training_samples(tmp, "sample_train_v1", [])
+
+        self.assertEqual(samples[0]["prompt"], "")
 
     def test_returns_nothing_before_the_first_sample(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

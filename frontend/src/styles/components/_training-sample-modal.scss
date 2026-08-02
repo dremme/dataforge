@@ -1,0 +1,118 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .training-sample-modal
+// ---------------------------------------------------------------------------
+
+.training-sample-modal {
+  @include modal-shell($z-index-lightbox);
+
+  &__backdrop {
+    @include modal-backdrop;
+  }
+
+  &__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(960px, 100%);
+    max-height: 92vh;
+    overflow: hidden;
+    @include modal-panel-surface;
+  }
+
+  &__header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.15rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  &__header-text {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+    @include truncate;
+  }
+
+  &__counter {
+    @include count-pill-muted;
+    flex-shrink: 0;
+  }
+
+  &__close {
+    @include modal-close-btn;
+    line-height: 1;
+  }
+
+  &__stage {
+    @include modal-stage(1.25rem 3.75rem);
+    flex: 1;
+  }
+
+  &__nav {
+    @include modal-nav-btn;
+
+    &--prev {
+      left: 0.85rem;
+    }
+
+    &--next {
+      right: 0.85rem;
+    }
+  }
+
+  &__media-wrap {
+    max-width: 100%;
+    max-height: $modal-media-max-height;
+  }
+
+  &__img {
+    display: block;
+    width: 100%;
+    max-height: $modal-media-max-height;
+    border-radius: var(--radius-sm);
+    object-fit: contain;
+  }
+
+  &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {
+    width: 100%;
+    max-height: $modal-media-max-height;
+  }
+
+  &__media-wrap.zoomable-image--zoomed .zoomable-image__img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+  }
+
+  &__footer {
+    flex-shrink: 0;
+    padding: 0.85rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  &__prompt {
+    @include app-scrollbar;
+    margin: 0;
+    max-height: 12vh;
+    overflow-y: auto;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    text-align: center;
+  }
+}

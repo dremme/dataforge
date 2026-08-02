@@ -82,34 +82,27 @@
   }
 
   &__stage {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-    padding: 1.25rem;
-    background:
-      radial-gradient(ellipse 70% 60% at 50% 50%, $color-modal-stage-glow, transparent),
-      var(--bg-media);
+    @include modal-stage;
     border-right: 1px solid var(--border);
   }
 
   &__media-wrap {
     max-width: 100%;
-    max-height: min(36vh, 500px);
+    max-height: $modal-media-max-height;
   }
 
   &__img,
   &__video {
     display: block;
     max-width: 100%;
-    max-height: min(36vh, 500px);
+    max-height: $modal-media-max-height;
     border-radius: var(--radius-sm);
     object-fit: contain;
   }
 
   &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {
     max-width: 100%;
-    max-height: min(36vh, 500px);
+    max-height: $modal-media-max-height;
   }
 
   &__media-wrap.zoomable-image--zoomed .zoomable-image__img {

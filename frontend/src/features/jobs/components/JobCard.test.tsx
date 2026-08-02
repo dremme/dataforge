@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import type { Job } from "@/shared/types";
 import { JobCard } from "./JobCard";
+
+vi.mock("@/features/jobs/api/externalJobs", () => ({
+  fetchOstrisTrainingSamples: vi.fn(),
+}));
+
+const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
 
 const runningJob: Job = {
   id: "job-1",
@@ -20,6 +27,14 @@ const runningJob: Job = {
   started_at: "2026-01-01T00:00:01Z",
   finished_at: null,
 };
+
+beforeEach(() => {
+  fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("JobCard", () => {
   it("shows a spinner on the cancel button while cancellation is in flight", () => {
@@ -41,5 +56,37 @@ describe("JobCard", () => {
     const { container } = render(<JobCard job={cancelledJob} />);
 
     expect(container.querySelector(".job-card__remaining")).toHaveTextContent("Took 1 min 15s");
+  });
+
+  it("keeps showing a finished training run's samples", () => {
+    const finishedTrainingJob: Job = {
+      ...runningJob,
+      job_type: "train_lora",
+      external_ref: "sample_train_v1",
+      status: "completed",
+      total: 1000,
+      processed: 1000,
+      results: [
+        {
+          path: "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000001000_0.jpg",
+          name: "1__000001000_0.jpg",
+          status: "sample",
+          description: "a mountain lake at sunrise",
+        },
+      ],
+    };
+
+    const { container } = render(<JobCard job={finishedTrainingJob} />);
+
+    expect(container.querySelector(".training-samples--compact")).toBeInTheDocument();
+    expect(screen.getByAltText("a mountain lake at sunrise")).toBeInTheDocument();
+    expect(fetchSamples).not.toHaveBeenCalled();
+  });
+
+  it("shows no samples strip for other job types", () => {
+    const { container } = render(<JobCard job={runningJob} />);
+
+    expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
+    expect(fetchSamples).not.toHaveBeenCalled();
   });
 });

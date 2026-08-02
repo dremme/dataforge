@@ -21,8 +21,10 @@ import {
   statusLabel,
 } from "@/features/jobs/lib/jobs";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
+import { useTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
+import { TrainingSamples } from "./TrainingSamples";
 
 interface JobCardProps {
   job: Job;
@@ -31,6 +33,7 @@ interface JobCardProps {
   onCancel?: (jobId: string) => void;
   onDelete?: (jobId: string) => void;
   cancelling?: boolean;
+  onLightboxOpenChange?: (open: boolean) => void;
 }
 
 export function JobCard({
@@ -40,6 +43,7 @@ export function JobCard({
   onCancel,
   onDelete,
   cancelling = false,
+  onLightboxOpenChange,
 }: JobCardProps) {
   const tone = jobStatusTone(job);
   const active = isActiveJobStatus(job.status);
@@ -51,6 +55,7 @@ export function JobCard({
   const folderLabel = job.folder_name || job.folder;
   const timeLabel = useJobTimeLabel(job);
   const jobTypeIcon = jobIcon(job);
+  const samples = useTrainingSamples(job);
 
   return (
     <article
@@ -150,6 +155,8 @@ export function JobCard({
           style={{ width: `${progressPercent(job)}%` }}
         />
       </div>
+
+      <TrainingSamples samples={samples} compact onLightboxOpenChange={onLightboxOpenChange} />
 
       {warningMessage && (
         <div className="job-card__warning" role="status">

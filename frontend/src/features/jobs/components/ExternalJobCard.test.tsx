@@ -1,7 +1,14 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import type { ExternalOstrisJob } from "@/shared/types";
 import { ExternalJobCard } from "./ExternalJobCard";
+
+vi.mock("@/features/jobs/api/externalJobs", () => ({
+  fetchOstrisTrainingSamples: vi.fn(),
+}));
+
+const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
 
 const runningJob: ExternalOstrisJob = {
   id: "ostris-1",
@@ -26,6 +33,14 @@ function badgeIcon(container: HTMLElement) {
   return container.querySelector(".job-card__badge-icon");
 }
 
+beforeEach(() => {
+  fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
 describe("ExternalJobCard", () => {
   it("spins the badge while the run is training", () => {
     const { container } = render(<ExternalJobCard job={runningJob} />);
@@ -45,5 +60,35 @@ describe("ExternalJobCard", () => {
     const { container } = render(<ExternalJobCard job={queuedJob} onStop={vi.fn()} stopping />);
 
     expect(badgeIcon(container)).toHaveClass("job-card__badge-icon--spin");
+  });
+
+  it("shows the run's samples as a compact strip", async () => {
+    fetchSamples.mockResolvedValue({
+      samples: [
+        {
+          path: "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000000200_0.jpg",
+          name: "1__000000200_0.jpg",
+          step: 200,
+          prompt: "a mountain lake at sunrise",
+        },
+      ],
+      step: 200,
+      available: true,
+    });
+
+    const { container } = render(<ExternalJobCard job={runningJob} />);
+
+    await waitFor(() => expect(container.querySelector(".training-samples")).toBeInTheDocument());
+    expect(container.querySelector(".training-samples")).toHaveClass("training-samples--compact");
+    expect(fetchSamples).toHaveBeenCalledWith("sample_train_v1");
+  });
+
+  it("shows no strip before the run has any samples", async () => {
+    fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
+
+    const { container } = render(<ExternalJobCard job={runningJob} />);
+
+    await waitFor(() => expect(fetchSamples).toHaveBeenCalled());
+    expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
   });
 });

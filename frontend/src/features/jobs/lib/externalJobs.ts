@@ -77,6 +77,12 @@ export function externalJobRemainingTimeLabel(job: ExternalOstrisJob): string | 
   );
 }
 
+const ACTIVE_OSTRIS_STATUSES = new Set(["queued", "running", "stopping"]);
+
+export function isActiveExternalJobStatus(status: string): boolean {
+  return ACTIVE_OSTRIS_STATUSES.has(status);
+}
+
 const OSTRIS_STATUS_LABELS: Record<string, string> = {
   queued: "Queued",
   running: "Running",

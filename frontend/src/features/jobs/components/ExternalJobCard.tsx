@@ -6,8 +6,10 @@ import {
   externalJobRemainingTimeLabel,
   externalJobStatusLabel,
 } from "@/features/jobs/lib/externalJobs";
+import { useExternalTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
+import { TrainingSamples } from "./TrainingSamples";
 
 interface ExternalJobCardProps {
   job: ExternalOstrisJob;
@@ -15,6 +17,7 @@ interface ExternalJobCardProps {
   onOpenFolder?: (folderPath: string) => void;
   onStop?: (jobId: string) => void;
   stopping?: boolean;
+  onLightboxOpenChange?: (open: boolean) => void;
 }
 
 export function ExternalJobCard({
@@ -23,8 +26,10 @@ export function ExternalJobCard({
   onOpenFolder,
   onStop,
   stopping = false,
+  onLightboxOpenChange,
 }: ExternalJobCardProps) {
   const progress = externalJobProgressPercent(job);
+  const samples = useExternalTrainingSamples(job);
   const remainingTime = externalJobRemainingTimeLabel(job);
   const datasetFolder = job.dataset_folder;
   const canOpenDataset = Boolean(datasetFolder && onOpenFolder);
@@ -118,6 +123,8 @@ export function ExternalJobCard({
       >
         <div className="job-card__progress-bar" style={{ width: `${progress}%` }} />
       </div>
+
+      <TrainingSamples samples={samples} compact onLightboxOpenChange={onLightboxOpenChange} />
     </article>
   );
 }

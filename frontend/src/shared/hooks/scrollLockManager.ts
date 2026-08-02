@@ -10,6 +10,7 @@ const SCROLL_LOCK_CLASSES = [
   "confirm-dialog-open",
   "open-folder-modal-open",
   "jobs-drawer-open",
+  "training-sample-modal-open",
 ] as const;
 
 export type ScrollLockClass = (typeof SCROLL_LOCK_CLASSES)[number];

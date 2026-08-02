@@ -301,7 +301,7 @@ class OstrisTrainingSample(BaseModel):
     path: str
     name: str
     step: int
-    prompt: str | None = None
+    prompt: str = ""
 
 
 class OstrisTrainingSamplesResponse(BaseModel):
