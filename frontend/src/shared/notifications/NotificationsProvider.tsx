@@ -21,24 +21,40 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const autoDismissTimeoutIdsRef = useRef(new Map<string, number>());
   const exitTimeoutIdsRef = useRef(new Map<string, number>());
+  /** Remaining auto-dismiss time while a toast is paused (pointer hover). */
+  const remainingMsRef = useRef(new Map<string, number>());
+  /** Absolute deadline (`performance.now()`) for the active auto-dismiss timer. */
+  const deadlineMsRef = useRef(new Map<string, number>());
 
-  const removeNotification = useCallback((id: string) => {
-    const exitTimeoutId = exitTimeoutIdsRef.current.get(id);
-    if (exitTimeoutId !== undefined) {
-      window.clearTimeout(exitTimeoutId);
-      exitTimeoutIdsRef.current.delete(id);
+  const clearAutoDismiss = useCallback((id: string) => {
+    const autoDismissTimeoutId = autoDismissTimeoutIdsRef.current.get(id);
+    if (autoDismissTimeoutId !== undefined) {
+      window.clearTimeout(autoDismissTimeoutId);
+      autoDismissTimeoutIdsRef.current.delete(id);
     }
-
-    setNotifications((current) => current.filter((notification) => notification.id !== id));
+    deadlineMsRef.current.delete(id);
   }, []);
+
+  const removeNotification = useCallback(
+    (id: string) => {
+      clearAutoDismiss(id);
+      remainingMsRef.current.delete(id);
+
+      const exitTimeoutId = exitTimeoutIdsRef.current.get(id);
+      if (exitTimeoutId !== undefined) {
+        window.clearTimeout(exitTimeoutId);
+        exitTimeoutIdsRef.current.delete(id);
+      }
+
+      setNotifications((current) => current.filter((notification) => notification.id !== id));
+    },
+    [clearAutoDismiss],
+  );
 
   const dismiss = useCallback(
     (id: string) => {
-      const autoDismissTimeoutId = autoDismissTimeoutIdsRef.current.get(id);
-      if (autoDismissTimeoutId !== undefined) {
-        window.clearTimeout(autoDismissTimeoutId);
-        autoDismissTimeoutIdsRef.current.delete(id);
-      }
+      clearAutoDismiss(id);
+      remainingMsRef.current.delete(id);
 
       setNotifications((current) => {
         const target = current.find((notification) => notification.id === id);
@@ -58,7 +74,65 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         );
       });
     },
-    [removeNotification],
+    [clearAutoDismiss, removeNotification],
+  );
+
+  const scheduleAutoDismiss = useCallback(
+    (id: string, durationMs: number) => {
+      clearAutoDismiss(id);
+
+      const remainingMs = Math.max(0, durationMs);
+      remainingMsRef.current.set(id, remainingMs);
+
+      if (remainingMs === 0) {
+        dismiss(id);
+        return;
+      }
+
+      deadlineMsRef.current.set(id, performance.now() + remainingMs);
+      const timeoutId = window.setTimeout(() => {
+        autoDismissTimeoutIdsRef.current.delete(id);
+        deadlineMsRef.current.delete(id);
+        remainingMsRef.current.delete(id);
+        dismiss(id);
+      }, remainingMs);
+      autoDismissTimeoutIdsRef.current.set(id, timeoutId);
+    },
+    [clearAutoDismiss, dismiss],
+  );
+
+  const pauseAutoDismiss = useCallback(
+    (id: string) => {
+      const autoDismissTimeoutId = autoDismissTimeoutIdsRef.current.get(id);
+      if (autoDismissTimeoutId === undefined) {
+        return;
+      }
+
+      const deadlineMs = deadlineMsRef.current.get(id);
+      const remainingMs =
+        deadlineMs === undefined
+          ? (remainingMsRef.current.get(id) ?? 0)
+          : deadlineMs - performance.now();
+
+      clearAutoDismiss(id);
+      remainingMsRef.current.set(id, Math.max(0, remainingMs));
+    },
+    [clearAutoDismiss],
+  );
+
+  const resumeAutoDismiss = useCallback(
+    (id: string) => {
+      if (autoDismissTimeoutIdsRef.current.has(id)) {
+        return;
+      }
+
+      if (!remainingMsRef.current.has(id)) {
+        return;
+      }
+
+      scheduleAutoDismiss(id, remainingMsRef.current.get(id) ?? 0);
+    },
+    [scheduleAutoDismiss],
   );
 
   const notify = useCallback(
@@ -68,18 +142,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       const id = createNotificationId();
       setNotifications((current) => [...current, { id, message: trimmed, variant }]);
-
-      const timeoutId = window.setTimeout(() => {
-        dismiss(id);
-      }, duration);
-      autoDismissTimeoutIdsRef.current.set(id, timeoutId);
+      scheduleAutoDismiss(id, duration);
     },
-    [dismiss],
+    [scheduleAutoDismiss],
   );
 
   useEffect(() => {
     const autoDismissTimeoutIds = autoDismissTimeoutIdsRef.current;
     const exitTimeoutIds = exitTimeoutIdsRef.current;
+    const remainingMs = remainingMsRef.current;
+    const deadlineMs = deadlineMsRef.current;
     return () => {
       for (const timeoutId of autoDismissTimeoutIds.values()) {
         window.clearTimeout(timeoutId);
@@ -90,6 +162,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(timeoutId);
       }
       exitTimeoutIds.clear();
+
+      remainingMs.clear();
+      deadlineMs.clear();
     };
   }, []);
 
@@ -102,6 +177,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         notifications={notifications}
         onDismiss={dismiss}
         onRemove={removeNotification}
+        onPauseAutoDismiss={pauseAutoDismiss}
+        onResumeAutoDismiss={resumeAutoDismiss}
       />
     </NotificationsContext.Provider>
   );

@@ -8,6 +8,8 @@ interface NotificationContainerProps {
   notifications: Notification[];
   onDismiss: (id: string) => void;
   onRemove: (id: string) => void;
+  onPauseAutoDismiss: (id: string) => void;
+  onResumeAutoDismiss: (id: string) => void;
 }
 
 const variantIcons: Record<NotificationVariant, typeof iconCircleAlert> = {
@@ -24,6 +26,8 @@ export function NotificationContainer({
   notifications,
   onDismiss,
   onRemove,
+  onPauseAutoDismiss,
+  onResumeAutoDismiss,
 }: NotificationContainerProps) {
   if (notifications.length === 0) {
     return null;
@@ -40,6 +44,14 @@ export function NotificationContainer({
             notification.exiting && "notifications__toast--exiting",
           )}
           role={notificationRole(notification.variant)}
+          onMouseEnter={() => {
+            if (notification.exiting) return;
+            onPauseAutoDismiss(notification.id);
+          }}
+          onMouseLeave={() => {
+            if (notification.exiting) return;
+            onResumeAutoDismiss(notification.id);
+          }}
           onAnimationEnd={(event) => {
             if (event.currentTarget !== event.target) {
               return;
