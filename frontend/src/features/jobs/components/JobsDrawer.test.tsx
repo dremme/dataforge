@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
@@ -78,6 +78,7 @@ function renderDrawer(jobs: Job[], externalJobs: ExternalOstrisJob[] = []) {
 }
 
 beforeEach(() => {
+  jobsContext.drawerOpen = true;
   fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
 });
 
@@ -87,6 +88,22 @@ afterEach(() => {
 });
 
 describe("JobsDrawer", () => {
+  it("slides out before leaving the DOM", () => {
+    const { rerender } = renderDrawer([captionJob]);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // Must re-render the same tree: a fresh mount would start with
+    // `drawerOpen` already false and never enter the closing phase.
+    jobsContext.drawerOpen = false;
+    rerender(<JobsDrawer currentFolder="C:\\datasets\\landscapes" onOpenFolder={vi.fn()} />);
+
+    const panel = screen.getByRole("dialog");
+    expect(panel).toHaveClass("modal-panel--exit");
+
+    fireEvent.animationEnd(panel);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("shows a co-tracked training run only as an external card, never twice", () => {
     const { baseElement } = renderDrawer([trainingJob], [externalJob]);
 

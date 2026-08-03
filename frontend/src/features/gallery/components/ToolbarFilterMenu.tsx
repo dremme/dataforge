@@ -126,7 +126,7 @@ export function ToolbarFilterMenu({
 
   const filtering = activeLabels.length > 0;
   const tooltip = filtering
-    ? `Filtering by ${activeLabels.join(" · ")}`
+    ? `Filtering by ${activeLabels.join(" & ")}`
     : "Filter by media type and caption status";
 
   return (

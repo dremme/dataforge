@@ -8,16 +8,23 @@ import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
  * get first refusal on Escape, and a parent overlay must not close alongside
  * this one. `enabled` gates only the close — the find panel still closes and
  * propagation still stops while a save is in flight.
+ *
+ * `active` is the coarser switch: it decides whether to listen at all. Callers
+ * that pick an Escape strategy at runtime need it, because leaving the listener
+ * attached would stop propagation and starve a bubble-phase handler.
  */
 export function useEditorOverlayEscape(
   overlayRef: RefObject<HTMLElement | null>,
   onEscape: () => void,
   enabled = true,
+  active = true,
 ): void {
   const onEscapeRef = useRef(onEscape);
   onEscapeRef.current = onEscape;
 
   useEffect(() => {
+    if (!active) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
 
@@ -35,5 +42,5 @@ export function useEditorOverlayEscape(
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [enabled, overlayRef]);
+  }, [active, enabled, overlayRef]);
 }

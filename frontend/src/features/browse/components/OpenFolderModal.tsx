@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
@@ -17,9 +16,7 @@ import {
   readRecentFolderPaths,
   restoreRecentFolders,
 } from "@/features/browse/lib/folderPreferences";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconFolder, iconStar, iconStarPlusIcon, iconX } from "@/shared/icons";
 import type { FolderFavorite } from "@/shared/types";
 import {
@@ -110,16 +107,12 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
   const syncingFavoritePathsRef = useRef(new Set<string>());
   const favoritesEpochRef = useRef(0);
 
-  useScrollLock(true, "open-folder-modal-open");
-
   const panelRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(panelRef, true);
+  const pathInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setRecentRevision((revision) => revision + 1);
   }, []);
-
-  useEscapeKey(onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,116 +198,110 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
       });
   };
 
-  return createPortal(
-    <div className="open-folder-modal" role="presentation">
-      <button
-        type="button"
-        className="open-folder-modal__backdrop"
-        aria-label="Close folder picker"
-        onClick={onClose}
-        tabIndex={-1}
-      />
+  return (
+    <ModalShell
+      block="open-folder-modal"
+      labelledById="open-folder-modal-title"
+      onClose={onClose}
+      scrollLock="open-folder-modal-open"
+      backdropLabel="Close folder picker"
+      panelRef={panelRef}
+      // The path field is what the picker is for; the lists below are a
+      // shortcut, not the primary input.
+      initialFocusRef={pathInputRef}
+    >
+      <header className="open-folder-modal__header">
+        <h2 id="open-folder-modal-title" className="open-folder-modal__title">
+          Open folder
+        </h2>
+        <button
+          type="button"
+          className="open-folder-modal__close"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <Icon icon={iconX} />
+        </button>
+      </header>
 
-      <div
-        ref={panelRef}
-        className="open-folder-modal__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="open-folder-modal-title"
-      >
-        <header className="open-folder-modal__header">
-          <h2 id="open-folder-modal-title" className="open-folder-modal__title">
-            Open folder
-          </h2>
-          <button
-            type="button"
-            className="open-folder-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <Icon icon={iconX} />
-          </button>
-        </header>
-
-        <div className="open-folder-modal__composer">
-          <form
-            className="open-folder-modal__form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitPath(draftPath);
-            }}
-          >
-            <label htmlFor={inputId} className="open-folder-modal__label">
-              Folder path
-            </label>
-            <div className="open-folder-modal__input-row">
-              <input
-                id={inputId}
-                type="text"
-                className="open-folder-modal__input"
-                value={draftPath}
-                onChange={(event) => setDraftPath(event.target.value)}
-                placeholder="C:\Users\you\Pictures"
-                spellCheck={false}
-                autoComplete="off"
-              />
-              <button
-                type="submit"
-                className="open-folder-modal__submit"
-                disabled={!draftPath.trim()}
-                tabIndex={-1}
-              >
-                Open
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div className="open-folder-modal__body" data-scroll-lock-allow>
-          {favorites.length > 0 && (
-            <section className="open-folder-modal__section" aria-labelledby={favoritesTitleId}>
-              <h3 id={favoritesTitleId} className="open-folder-modal__section-title">
-                Favorites
-              </h3>
-              <ul className="open-folder-modal__list">
-                {favorites.map((favorite) => (
-                  <FolderRow
-                    key={favorite.path}
-                    path={favorite.path}
-                    name={favorite.name}
-                    isFavorite
-                    isCurrent={folderPathsEqual(favorite.path, currentFolder)}
-                    onOpen={submitPath}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {recentFolders.length > 0 && (
-            <section className="open-folder-modal__section" aria-labelledby={recentTitleId}>
-              <h3 id={recentTitleId} className="open-folder-modal__section-title">
-                Recent folders
-              </h3>
-              <ul className="open-folder-modal__list">
-                {recentFolders.map((path) => (
-                  <FolderRow
-                    key={path}
-                    path={path}
-                    name={folderLeafName(path)}
-                    isFavorite={false}
-                    isCurrent={folderPathsEqual(path, currentFolder)}
-                    onOpen={submitPath}
-                    onToggleFavorite={toggleFavorite}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
+      <div className="open-folder-modal__composer">
+        <form
+          className="open-folder-modal__form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitPath(draftPath);
+          }}
+        >
+          <label htmlFor={inputId} className="open-folder-modal__label">
+            Folder path
+          </label>
+          <div className="open-folder-modal__input-row">
+            <input
+              ref={pathInputRef}
+              id={inputId}
+              type="text"
+              className="open-folder-modal__input"
+              value={draftPath}
+              onChange={(event) => setDraftPath(event.target.value)}
+              placeholder="C:\Users\you\Pictures"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              className="open-folder-modal__submit"
+              disabled={!draftPath.trim()}
+              tabIndex={-1}
+            >
+              Open
+            </button>
+          </div>
+        </form>
       </div>
-    </div>,
-    document.body,
+
+      <div className="open-folder-modal__body" data-scroll-lock-allow>
+        {favorites.length > 0 && (
+          <section className="open-folder-modal__section" aria-labelledby={favoritesTitleId}>
+            <h3 id={favoritesTitleId} className="open-folder-modal__section-title">
+              Favorites
+            </h3>
+            <ul className="open-folder-modal__list">
+              {favorites.map((favorite) => (
+                <FolderRow
+                  key={favorite.path}
+                  path={favorite.path}
+                  name={favorite.name}
+                  isFavorite
+                  isCurrent={folderPathsEqual(favorite.path, currentFolder)}
+                  onOpen={submitPath}
+                  onToggleFavorite={toggleFavorite}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {recentFolders.length > 0 && (
+          <section className="open-folder-modal__section" aria-labelledby={recentTitleId}>
+            <h3 id={recentTitleId} className="open-folder-modal__section-title">
+              Recent folders
+            </h3>
+            <ul className="open-folder-modal__list">
+              {recentFolders.map((path) => (
+                <FolderRow
+                  key={path}
+                  path={path}
+                  name={folderLeafName(path)}
+                  isFavorite={false}
+                  isCurrent={folderPathsEqual(path, currentFolder)}
+                  onOpen={submitPath}
+                  onToggleFavorite={toggleFavorite}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </ModalShell>
   );
 }

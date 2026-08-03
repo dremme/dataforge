@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetScrollLockManagerForTests } from "@/shared/hooks/scrollLockManager";
@@ -26,7 +26,7 @@ function renderModal(overrides: { index?: number; count?: number } = {}) {
   const onIndexChange = vi.fn();
   const onClose = vi.fn();
 
-  render(
+  const { unmount } = render(
     <TrainingSampleModal
       samples={makeSamples(overrides.count ?? 3)}
       index={overrides.index ?? 1}
@@ -35,7 +35,7 @@ function renderModal(overrides: { index?: number; count?: number } = {}) {
     />,
   );
 
-  return { onIndexChange, onClose };
+  return { onIndexChange, onClose, unmount };
 }
 
 afterEach(() => {
@@ -130,12 +130,36 @@ describe("TrainingSampleModal", () => {
       .map((button) => button.getAttribute("aria-label"));
 
     expect(labels).toEqual([
-      "Close sample viewer",
       "Close",
       "Previous sample",
       "Zoom in a red hatchback on a wet street",
       "Next sample",
     ]);
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps the backdrop outside the dialog", () => {
+    renderModal();
+
+    // The backdrop is a sibling of the panel, not part of the dialog's content:
+    // announcing it as such would put a bare "Close sample viewer" button at the
+    // top of every screen-reader pass over the lightbox.
+    const dialog = screen.getByRole("dialog");
+    expect(screen.getByRole("button", { name: "Close sample viewer" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Close sample viewer" })).toBeNull();
+  });
+
+  it("returns focus to the trigger when it closes", async () => {
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+
+    const { unmount } = renderModal();
+    expect(trigger).not.toHaveFocus();
+
+    unmount();
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    trigger.remove();
   });
 });

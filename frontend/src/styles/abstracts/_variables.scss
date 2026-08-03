@@ -79,7 +79,11 @@ $icon-size-sm: 0.875rem;
 $icon-size-base: 1rem;
 $icon-size-xl: 2rem;
 
-// Stacking
+// Stacking.
+// Not monotone with the visual hierarchy, deliberately: the drawer outranks the
+// base modals even though it can never appear over one. Its trigger sits in the
+// app header, which is already behind every 1000-level backdrop, so the pairing
+// is unreachable and the ordering only has to satisfy the stacks below.
 $z-index-sticky-panel: 15;
 $z-index-tooltip: 50;
 $z-index-drawer: 1050;

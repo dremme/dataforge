@@ -23,13 +23,7 @@
   }
 
   &__header {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1.15rem;
-    border-bottom: 1px solid var(--border);
+    @include modal-chrome-header;
   }
 
   &__header-text {
@@ -71,7 +65,6 @@
 
   &__close {
     @include modal-close-btn;
-    line-height: 1;
   }
 
   &__body {
@@ -112,6 +105,7 @@
   }
 
   &__details {
+    @include app-scrollbar;
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
@@ -244,33 +238,8 @@
   }
 
   &__footer {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: flex-end;
+    @include modal-chrome-footer;
+    // Tighter than the chrome default: this is a button pair, not a meta row.
     gap: 0.55rem;
-    padding: 0.85rem 1.15rem;
-    border-top: 1px solid var(--border);
-    background: var(--bg-elevated);
-  }
-
-  &__btn {
-    @include dialog-btn;
-
-    &--secondary {
-      @include btn-surface-default;
-    }
-
-    &--primary {
-      @include btn-surface-accent;
-    }
-
-    &-icon {
-      @include icon-size(var(--icon-size-base));
-
-      &--spin {
-        @include spin;
-      }
-    }
   }
 }

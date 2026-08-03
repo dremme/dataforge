@@ -13,9 +13,14 @@
   }
 
   &__panel {
+    @include app-scrollbar;
     position: relative;
     z-index: 1;
     width: min(28rem, 100%);
+    // A long description or file list must not run off the viewport with no way
+    // to reach the actions. Dialogs that bound themselves override this below.
+    max-height: min(88vh, 44rem);
+    overflow-y: auto;
     padding: var(--panel-padding);
     @include modal-panel-surface;
   }
@@ -277,6 +282,9 @@
   display: flex;
   flex-direction: column;
   max-height: min(85vh, 50rem);
+  // The `__body` below is the scroller; without this the panel's own default
+  // overflow would add a second, redundant scrollbar around it.
+  overflow: hidden;
 }
 
 .train-lora-dialog {
@@ -344,6 +352,7 @@
   }
 
   &__tree {
+    @include app-scrollbar;
     display: flex;
     flex: 1;
     flex-direction: column;

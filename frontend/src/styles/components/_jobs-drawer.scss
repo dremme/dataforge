@@ -56,6 +56,12 @@
     box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
     pointer-events: auto;
     animation: jobs-drawer-slide-in 0.22s ease;
+
+    // A sheet leaves the way it arrived. Two classes beat the generic
+    // `.modal-panel--exit` fade on specificity, so load order does not matter.
+    &.modal-panel--exit {
+      animation: jobs-drawer-slide-out 0.18s ease-in both;
+    }
   }
 
   &__header {
@@ -115,6 +121,7 @@
   }
 
   &__content {
+    @include app-scrollbar;
     flex: 1;
     overflow-y: auto;
     padding: 0.9rem var(--panel-padding) 1.25rem;

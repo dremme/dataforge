@@ -1,17 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useState } from "react";
 import { saveCaption } from "@/features/gallery/api/captions";
 import { openMediaInViewer } from "@/features/gallery/api/media";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
-import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import {
   collectAdjacentModalMediaTargets,
@@ -21,7 +16,9 @@ import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { formatMegapixels } from "@/shared/lib/format";
 import { iconArrowUpRight, iconLoader2, iconTriangleAlert, iconX } from "@/shared/icons";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
+import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
+import { ModalShell } from "@/shared/ui/ModalShell";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 
@@ -43,12 +40,6 @@ export function IssueResolverModal({
   const [queue] = useState(() => items);
   const item = queue[index];
   const { recordResolution, getResolution } = useMediaResolution();
-  const backdropClass = useOverlayBackdropClass("issue-resolver-modal__backdrop");
-  useScrollLock(true, "gallery-item-modal-open");
-
-  const modalRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(modalRef, true);
-
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<boolean>(false);
   const [openingInViewer, setOpeningInViewer] = useState(false);
@@ -124,8 +115,7 @@ export function IssueResolverModal({
     }
   }, [caption, index, item, onCaptionSaved, onClose, onIndexChange, queue.length, saving]);
 
-  useEscapeKey(closeModal, !saving);
-
+  // Escape is `ModalShell`'s, via the `busy={saving}` gate below.
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (saving || isEditableTarget(event.target)) return;
@@ -150,195 +140,165 @@ export function IssueResolverModal({
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
   const fixes = item.issue_fixes.map((fix) => fix.trim()).filter(Boolean);
 
-  return createPortal(
-    <div
-      ref={modalRef}
-      className="issue-resolver-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Resolve caption issue for ${item.name}`}
+  return (
+    <ModalShell
+      block="issue-resolver-modal"
+      label={`Resolve caption issue for ${item.name}`}
+      onClose={closeModal}
+      busy={saving}
+      scrollLock="issue-resolver-modal-open"
     >
-      <button
-        type="button"
-        className={backdropClass}
-        onClick={closeModal}
-        aria-label="Close"
-        disabled={saving}
-        tabIndex={-1}
-      />
-
-      <div className="issue-resolver-modal__panel">
-        <header className="issue-resolver-modal__header">
-          <div className="issue-resolver-modal__header-text">
-            <h2 className="issue-resolver-modal__title">Resolve caption issues</h2>
-            <span className="issue-resolver-modal__counter">
-              {index + 1} / {queue.length}
-            </span>
-          </div>
-          <div className="issue-resolver-modal__header-actions">
-            {!itemIsVideo && (
-              <Tooltip content={viewerError ?? "Open in image preview"}>
-                <button
-                  type="button"
-                  className="issue-resolver-modal__preview"
-                  onClick={() => {
-                    void handleOpenInViewer();
-                  }}
-                  disabled={openingInViewer || saving}
-                  aria-label="Open in image preview"
-                >
-                  <Icon
-                    icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
-                    spin={openingInViewer}
-                  />
-                </button>
-              </Tooltip>
-            )}
-            <button
-              type="button"
-              className="issue-resolver-modal__close"
-              onClick={closeModal}
-              disabled={saving}
-              aria-label="Close"
-            >
-              <Icon icon={iconX} />
-            </button>
-          </div>
-        </header>
-
-        <div className="issue-resolver-modal__body">
-          <div className="issue-resolver-modal__stage">
-            {itemIsVideo ? (
-              <video
-                key={item.path}
-                className="issue-resolver-modal__video"
-                src={galleryItemMediaUrl(item)}
-                controls
-                muted
-                playsInline
-                onLoadedMetadata={(event) => {
-                  const video = event.currentTarget;
-                  recordResolution(video.videoWidth, video.videoHeight, item.path);
+      <header className="issue-resolver-modal__header">
+        <div className="issue-resolver-modal__header-text">
+          <h2 className="issue-resolver-modal__title">Resolve caption issues</h2>
+          <span className="issue-resolver-modal__counter">
+            {index + 1} / {queue.length}
+          </span>
+        </div>
+        <div className="issue-resolver-modal__header-actions">
+          {!itemIsVideo && (
+            <Tooltip content={viewerError ?? "Open in image preview"}>
+              <button
+                type="button"
+                className="issue-resolver-modal__preview"
+                onClick={() => {
+                  void handleOpenInViewer();
                 }}
-              />
-            ) : (
-              <ZoomableImage
-                key={item.path}
-                className="issue-resolver-modal__media-wrap"
-                imgClassName="issue-resolver-modal__img"
-                src={galleryItemMediaUrl(item)}
-                alt={item.name}
-                onLoad={(event) => {
-                  const img = event.currentTarget;
-                  recordResolution(img.naturalWidth, img.naturalHeight, item.path);
-                }}
-              />
-            )}
-          </div>
-
-          <div className="issue-resolver-modal__details">
-            <p className="issue-resolver-modal__file-name" title={item.name}>
-              {item.name}
-            </p>
-            <div className="issue-resolver-modal__meta">
-              {resolution && (
-                <>
-                  <div className="issue-resolver-modal__meta-value">
-                    {formatMegapixels(resolution.width, resolution.height)}
-                  </div>
-                  <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
-                  <div className="issue-resolver-modal__meta-value">
-                    {resolution.width} × {resolution.height}
-                  </div>
-                  <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
-                </>
-              )}
-              <div className="issue-resolver-modal__meta-value">
-                {caption.length.toLocaleString()} characters
-              </div>
-            </div>
-
-            <div className="issue-resolver-modal__issue-card">
-              <div className="issue-resolver-modal__issue-row">
-                <Icon icon={iconTriangleAlert} className="issue-resolver-modal__issue-icon" />
-                <div className="issue-resolver-modal__issue-content">
-                  <span className="issue-resolver-modal__issue-label">
-                    {fixes.length > 0 ? "Suggested changes" : "Issue"}
-                  </span>
-                  {fixes.length > 0 ? (
-                    <ol className="issue-resolver-modal__issue-list">
-                      {fixes.map((fix) => (
-                        <li key={fix} className="issue-resolver-modal__issue-text">
-                          {fix}
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="issue-resolver-modal__issue-text">Error in issue file</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="issue-resolver-modal__caption-editor">
-              <label
-                htmlFor="issue-resolver-caption"
-                className="issue-resolver-modal__caption-label"
+                disabled={openingInViewer || saving}
+                aria-label="Open in image preview"
               >
-                Caption
-              </label>
-              <CaptionEditor
-                // A fresh editor per item: CodeMirror maps its selection through the
-                // document swap, so a reused one lands selected on the next caption.
-                key={item.path}
-                id="issue-resolver-caption"
-                value={caption}
-                placeholder={placeholder}
-                variant={captionDisplay.variant}
-                saveState={saveError ? "error" : "idle"}
-                aria-label={`Caption for ${item.name}`}
-                aria-invalid={saveError}
-                title={saveError ? "Save failed" : undefined}
-                editable={!saving}
-                onChange={handleCaptionChange}
-              />
-            </div>
-          </div>
+                <Icon
+                  icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
+                  spin={openingInViewer}
+                />
+              </button>
+            </Tooltip>
+          )}
+          <button
+            type="button"
+            className="issue-resolver-modal__close"
+            onClick={closeModal}
+            disabled={saving}
+            aria-label="Close"
+          >
+            <Icon icon={iconX} />
+          </button>
+        </div>
+      </header>
+
+      <div className="issue-resolver-modal__body">
+        <div className="issue-resolver-modal__stage">
+          {itemIsVideo ? (
+            <video
+              key={item.path}
+              className="issue-resolver-modal__video"
+              src={galleryItemMediaUrl(item)}
+              controls
+              muted
+              playsInline
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                recordResolution(video.videoWidth, video.videoHeight, item.path);
+              }}
+            />
+          ) : (
+            <ZoomableImage
+              key={item.path}
+              className="issue-resolver-modal__media-wrap"
+              imgClassName="issue-resolver-modal__img"
+              src={galleryItemMediaUrl(item)}
+              alt={item.name}
+              onLoad={(event) => {
+                const img = event.currentTarget;
+                recordResolution(img.naturalWidth, img.naturalHeight, item.path);
+              }}
+            />
+          )}
         </div>
 
-        <footer className="issue-resolver-modal__footer">
-          <button
-            type="button"
-            className="issue-resolver-modal__btn issue-resolver-modal__btn--secondary"
-            onClick={handleNext}
-            disabled={saving || index === queue.length - 1}
-          >
-            Skip
-          </button>
-          <button
-            type="button"
-            className="issue-resolver-modal__btn issue-resolver-modal__btn--primary"
-            onClick={() => {
-              void handleResolve();
-            }}
-            disabled={saving}
-            aria-busy={saving || undefined}
-          >
-            {saving ? (
+        <div className="issue-resolver-modal__details" data-scroll-lock-allow>
+          <p className="issue-resolver-modal__file-name" title={item.name}>
+            {item.name}
+          </p>
+          <div className="issue-resolver-modal__meta">
+            {resolution && (
               <>
-                <Icon
-                  icon={iconLoader2}
-                  className="issue-resolver-modal__btn-icon issue-resolver-modal__btn-icon--spin"
-                />
-                Resolving...
+                <div className="issue-resolver-modal__meta-value">
+                  {formatMegapixels(resolution.width, resolution.height)}
+                </div>
+                <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
+                <div className="issue-resolver-modal__meta-value">
+                  {resolution.width} × {resolution.height}
+                </div>
+                <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
               </>
-            ) : (
-              "Resolve"
             )}
-          </button>
-        </footer>
+            <div className="issue-resolver-modal__meta-value">
+              {caption.length.toLocaleString()} characters
+            </div>
+          </div>
+
+          <div className="issue-resolver-modal__issue-card">
+            <div className="issue-resolver-modal__issue-row">
+              <Icon icon={iconTriangleAlert} className="issue-resolver-modal__issue-icon" />
+              <div className="issue-resolver-modal__issue-content">
+                <span className="issue-resolver-modal__issue-label">
+                  {fixes.length > 0 ? "Suggested changes" : "Issue"}
+                </span>
+                {fixes.length > 0 ? (
+                  <ol className="issue-resolver-modal__issue-list">
+                    {fixes.map((fix) => (
+                      <li key={fix} className="issue-resolver-modal__issue-text">
+                        {fix}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="issue-resolver-modal__issue-text">Error in issue file</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="issue-resolver-modal__caption-editor">
+            <label htmlFor="issue-resolver-caption" className="issue-resolver-modal__caption-label">
+              Caption
+            </label>
+            <CaptionEditor
+              // A fresh editor per item: CodeMirror maps its selection through the
+              // document swap, so a reused one lands selected on the next caption.
+              key={item.path}
+              id="issue-resolver-caption"
+              value={caption}
+              placeholder={placeholder}
+              variant={captionDisplay.variant}
+              saveState={saveError ? "error" : "idle"}
+              aria-label={`Caption for ${item.name}`}
+              aria-invalid={saveError}
+              title={saveError ? "Save failed" : undefined}
+              editable={!saving}
+              onChange={handleCaptionChange}
+            />
+          </div>
+        </div>
       </div>
-    </div>,
-    document.body,
+
+      <footer className="issue-resolver-modal__footer">
+        <DialogButton
+          label="Skip"
+          variant="secondary"
+          disabled={saving || index === queue.length - 1}
+          onClick={handleNext}
+        />
+        <DialogButton
+          label={saving ? "Resolving..." : "Resolve"}
+          variant="primary"
+          busy={saving}
+          onClick={() => {
+            void handleResolve();
+          }}
+        />
+      </footer>
+    </ModalShell>
   );
 }

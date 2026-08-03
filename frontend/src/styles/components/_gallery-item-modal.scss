@@ -26,13 +26,7 @@ $json-color: #fcd34d;
 
   // Header
   &__header {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1.15rem;
-    border-bottom: 1px solid var(--border);
+    @include modal-chrome-header;
   }
 
   &__header-text {
@@ -84,7 +78,6 @@ $json-color: #fcd34d;
 
   &__close {
     @include modal-close-btn;
-    line-height: 1;
   }
 
   // Stage & media
@@ -307,6 +300,7 @@ $json-color: #fcd34d;
     }
 
     &-list {
+      @include app-scrollbar;
       display: flex;
       flex-direction: column;
       gap: 0.45rem;

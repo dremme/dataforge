@@ -46,7 +46,7 @@
 }
 
 // Single-line path: ellipsis on the start so the leaf end stays visible
-// (…\Photos\Deep\Nested\Folder). Uses RTL overflow without reversing glyphs.
+// (...\Photos\Deep\Nested\Folder). Uses RTL overflow without reversing glyphs.
 @mixin truncate-path-start {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -442,7 +442,7 @@
   font-weight: var(--font-semibold);
   color: var(--text-muted);
   margin-bottom: 0.35rem;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
 
@@ -714,6 +714,7 @@
   backdrop-filter: blur($modal-backdrop-blur);
   -webkit-backdrop-filter: blur($modal-backdrop-blur);
   cursor: pointer;
+  animation: modal-backdrop-enter 0.16s ease-out;
 
   &--nested {
     backdrop-filter: none;
@@ -749,15 +750,39 @@
   transform: translateY(-50%);
 }
 
-@mixin modal-editor-header {
+// ---------------------------------------------------------------------------
+// Modal chrome
+//
+// The bordered header/footer bars shared by every full-panel overlay. Not used
+// by `.confirm-dialog`, which is a padded card: its header is a margin, not a
+// bar, and that difference is deliberate.
+// ---------------------------------------------------------------------------
+
+@mixin modal-chrome-frame {
   display: flex;
   flex-shrink: 0;
-  align-items: flex-start;
-  justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.15rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.15rem;
   background: var(--bg-card);
+}
+
+@mixin modal-chrome-header($align: center) {
+  @include modal-chrome-frame;
+  align-items: $align;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+@mixin modal-chrome-footer($justify: flex-end) {
+  @include modal-chrome-frame;
+  align-items: center;
+  justify-content: $justify;
+  border-top: 1px solid var(--border);
+}
+
+// The editor overlays' header sits its title above a subtitle, so it top-aligns.
+@mixin modal-editor-header {
+  @include modal-chrome-header(flex-start);
 }
 
 @mixin modal-editor-header-text {
@@ -805,12 +830,7 @@
 }
 
 @mixin modal-editor-footer {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  padding: 0.85rem 1.15rem;
-  border-top: 1px solid var(--border);
-  background: var(--bg-card);
+  @include modal-chrome-footer(flex-start);
 }
 
 @mixin modal-meta-item {

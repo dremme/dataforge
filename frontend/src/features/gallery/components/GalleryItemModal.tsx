@@ -1,7 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { ModalShell } from "@/shared/ui/ModalShell";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { deleteMedia, openMediaInViewer } from "@/features/gallery/api/media";
@@ -108,7 +106,6 @@ export function GalleryItemModal({
 
   const modalRef = useRef<HTMLDivElement>(null);
   const childOverlayOpen = deleteConfirmOpen || jsonEditorOpen;
-  useFocusTrap(modalRef, !childOverlayOpen);
 
   const jsonEditorContent = useMemo(
     () => (captionContent ? captionContent.trimEnd() : null),
@@ -225,8 +222,6 @@ export function GalleryItemModal({
     }
   }, [deleting, flushPendingSave, item, notify, onDeleted]);
 
-  useEscapeKey(closeModal, !childOverlayOpen);
-
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
@@ -254,223 +249,216 @@ export function GalleryItemModal({
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
-  return createPortal(
+  return (
     <>
-      <div
-        ref={modalRef}
-        className="gallery-item-modal"
-        role="dialog"
-        aria-modal={childOverlayOpen ? undefined : true}
-        aria-hidden={childOverlayOpen ? true : undefined}
-        aria-label={`Viewing ${item.name}`}
-        inert={childOverlayOpen}
+      <ModalShell
+        block="gallery-item-modal"
+        label={`Viewing ${item.name}`}
+        onClose={closeModal}
+        suspended={childOverlayOpen}
+        // The scroll lock belongs to `useGalleryOverlays`, which holds it across
+        // the whole overlay session. That leaves the depth non-zero here, so the
+        // nesting decision has to be stated rather than measured.
+        nested={false}
+        panelRef={modalRef}
       >
-        <button
-          type="button"
-          className="gallery-item-modal__backdrop"
-          onClick={closeModal}
-          aria-label="Close"
-          tabIndex={-1}
-        />
-        <div className="gallery-item-modal__panel">
-          <header className="gallery-item-modal__header">
-            <div className="gallery-item-modal__header-text">
-              <h2 className="gallery-item-modal__title">{item.name}</h2>
-              <span className="gallery-item-modal__counter">
-                {index + 1} / {items.length}
-              </span>
-            </div>
-            <div className="gallery-item-modal__header-actions">
-              {!itemIsVideo && (
-                <Tooltip content={viewerError ?? "Open in image preview"}>
-                  <button
-                    type="button"
-                    className="gallery-item-modal__preview"
-                    onClick={() => {
-                      void handleOpenInViewer();
-                    }}
-                    disabled={openingInViewer || deleting}
-                    aria-label="Open in image preview"
-                  >
-                    <Icon
-                      icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
-                      spin={openingInViewer}
-                    />
-                  </button>
-                </Tooltip>
-              )}
-              <Tooltip content={"Delete file"}>
+        <header className="gallery-item-modal__header">
+          <div className="gallery-item-modal__header-text">
+            <h2 className="gallery-item-modal__title">{item.name}</h2>
+            <span className="gallery-item-modal__counter">
+              {index + 1} / {items.length}
+            </span>
+          </div>
+          <div className="gallery-item-modal__header-actions">
+            {!itemIsVideo && (
+              <Tooltip content={viewerError ?? "Open in image preview"}>
                 <button
                   type="button"
-                  className="gallery-item-modal__delete"
-                  onClick={openDeleteConfirm}
-                  disabled={deleting}
-                  aria-label={`Delete ${item.name}`}
+                  className="gallery-item-modal__preview"
+                  onClick={() => {
+                    void handleOpenInViewer();
+                  }}
+                  disabled={openingInViewer || deleting}
+                  aria-label="Open in image preview"
                 >
-                  <Icon icon={iconTrash2} />
+                  <Icon
+                    icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
+                    spin={openingInViewer}
+                  />
                 </button>
               </Tooltip>
+            )}
+            <Tooltip content={"Delete file"}>
               <button
                 type="button"
-                className="gallery-item-modal__close"
-                onClick={closeModal}
+                className="gallery-item-modal__delete"
+                onClick={openDeleteConfirm}
                 disabled={deleting}
-                aria-label="Close"
+                aria-label={`Delete ${item.name}`}
               >
-                <Icon icon={iconX} />
+                <Icon icon={iconTrash2} />
               </button>
-            </div>
-          </header>
-
-          <div className="gallery-item-modal__stage">
+            </Tooltip>
             <button
               type="button"
-              className="gallery-item-modal__nav gallery-item-modal__nav--prev"
-              onClick={onPrevious}
-              aria-label="Previous item"
+              className="gallery-item-modal__close"
+              onClick={closeModal}
+              disabled={deleting}
+              aria-label="Close"
             >
-              <Icon icon={iconChevronLeft} />
-            </button>
-
-            {itemIsVideo ? (
-              <video
-                key={item.path}
-                className="gallery-item-modal__video"
-                src={galleryItemMediaUrl(item)}
-                controls
-                autoPlay
-                muted
-                playsInline
-                onLoadedMetadata={(event) => {
-                  const video = event.currentTarget;
-                  recordResolution(video.videoWidth, video.videoHeight, item.path);
-                }}
-              />
-            ) : (
-              <ZoomableImage
-                key={item.path}
-                className="gallery-item-modal__media-wrap"
-                imgClassName="gallery-item-modal__img"
-                src={galleryItemMediaUrl(item)}
-                alt={item.name}
-                zoomable={bboxes.length === 0}
-                onLoad={(event) => {
-                  const img = event.currentTarget;
-                  recordResolution(img.naturalWidth, img.naturalHeight, item.path);
-                }}
-              >
-                {bboxes.length > 0 && resolution && (
-                  <BboxOverlay
-                    bboxes={bboxes}
-                    imageWidth={resolution.width}
-                    imageHeight={resolution.height}
-                    editable={bboxesEditable}
-                    selectedIndex={selectedBboxIndex}
-                    onSelectedIndexChange={bboxesEditable ? setSelectedBboxIndex : undefined}
-                    onBboxesChange={bboxesEditable ? handleBboxesChange : undefined}
-                  />
-                )}
-              </ZoomableImage>
-            )}
-
-            <button
-              type="button"
-              className="gallery-item-modal__nav gallery-item-modal__nav--next"
-              onClick={onNext}
-              aria-label="Next item"
-            >
-              <Icon icon={iconChevronRight} />
+              <Icon icon={iconX} />
             </button>
           </div>
+        </header>
 
-          <footer className="gallery-item-modal__footer">
-            <GalleryItemModalMeta
-              item={item}
-              itemIsVideo={itemIsVideo}
-              resolution={resolution}
-              hasJsonCaption={hasJsonCaption}
-              hasComfyWorkflow={hasComfyWorkflow}
-              captionCharacterCount={captionCharacterCount}
+        <div className="gallery-item-modal__stage">
+          <button
+            type="button"
+            className="gallery-item-modal__nav gallery-item-modal__nav--prev"
+            onClick={onPrevious}
+            aria-label="Previous item"
+          >
+            <Icon icon={iconChevronLeft} />
+          </button>
+
+          {itemIsVideo ? (
+            <video
+              key={item.path}
+              className="gallery-item-modal__video"
+              src={galleryItemMediaUrl(item)}
+              controls
+              autoPlay
+              muted
+              playsInline
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                recordResolution(video.videoWidth, video.videoHeight, item.path);
+              }}
             />
+          ) : (
+            <ZoomableImage
+              key={item.path}
+              className="gallery-item-modal__media-wrap"
+              imgClassName="gallery-item-modal__img"
+              src={galleryItemMediaUrl(item)}
+              alt={item.name}
+              zoomable={bboxes.length === 0}
+              onLoad={(event) => {
+                const img = event.currentTarget;
+                recordResolution(img.naturalWidth, img.naturalHeight, item.path);
+              }}
+            >
+              {bboxes.length > 0 && resolution && (
+                <BboxOverlay
+                  bboxes={bboxes}
+                  imageWidth={resolution.width}
+                  imageHeight={resolution.height}
+                  editable={bboxesEditable}
+                  selectedIndex={selectedBboxIndex}
+                  onSelectedIndexChange={bboxesEditable ? setSelectedBboxIndex : undefined}
+                  onBboxesChange={bboxesEditable ? handleBboxesChange : undefined}
+                />
+              )}
+            </ZoomableImage>
+          )}
 
-            <div className="gallery-item-modal__caption-editor">
-              <div className="gallery-item-modal__caption-toolbar">
-                <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
-                  Caption
-                </label>
-                <div className="gallery-item-modal__caption-actions">
-                  {canResolveIssue && (
-                    <button
-                      type="button"
-                      className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
-                      onClick={handleResolveIssue}
-                      disabled={deleting}
-                      aria-label={`Resolve caption issue for ${item.name}`}
-                    >
-                      <Icon
-                        icon={iconTriangleAlert}
-                        className="gallery-item-modal__caption-action-icon"
-                      />
-                      Resolve issue
-                    </button>
-                  )}
-                  {hasJsonCaption && (
-                    <button
-                      type="button"
-                      className="gallery-item-modal__caption-action"
-                      onClick={openJsonEditor}
-                      disabled={!canEditJson}
-                      aria-label="Edit .json caption"
-                    >
-                      <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
-                      Edit .json
-                    </button>
-                  )}
+          <button
+            type="button"
+            className="gallery-item-modal__nav gallery-item-modal__nav--next"
+            onClick={onNext}
+            aria-label="Next item"
+          >
+            <Icon icon={iconChevronRight} />
+          </button>
+        </div>
+
+        <footer className="gallery-item-modal__footer">
+          <GalleryItemModalMeta
+            item={item}
+            itemIsVideo={itemIsVideo}
+            resolution={resolution}
+            hasJsonCaption={hasJsonCaption}
+            hasComfyWorkflow={hasComfyWorkflow}
+            captionCharacterCount={captionCharacterCount}
+          />
+
+          <div className="gallery-item-modal__caption-editor">
+            <div className="gallery-item-modal__caption-toolbar">
+              <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
+                Caption
+              </label>
+              <div className="gallery-item-modal__caption-actions">
+                {canResolveIssue && (
                   <button
                     type="button"
-                    className={classNames(
-                      "gallery-item-modal__caption-action",
-                      copyState === "copied" && "gallery-item-modal__caption-action--copied",
-                      copyState === "error" && "gallery-item-modal__caption-action--error",
-                    )}
-                    onClick={() => {
-                      void copyText(copyContent);
-                    }}
-                    disabled={!canCopyCaption}
-                    aria-label={copyLabel}
+                    className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
+                    onClick={handleResolveIssue}
+                    disabled={deleting}
+                    aria-label={`Resolve caption issue for ${item.name}`}
                   >
-                    <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
-                    {copyLabel}
+                    <Icon
+                      icon={iconTriangleAlert}
+                      className="gallery-item-modal__caption-action-icon"
+                    />
+                    Resolve issue
                   </button>
-                </div>
+                )}
+                {hasJsonCaption && (
+                  <button
+                    type="button"
+                    className="gallery-item-modal__caption-action"
+                    onClick={openJsonEditor}
+                    disabled={!canEditJson}
+                    aria-label="Edit .json caption"
+                  >
+                    <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
+                    Edit .json
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={classNames(
+                    "gallery-item-modal__caption-action",
+                    copyState === "copied" && "gallery-item-modal__caption-action--copied",
+                    copyState === "error" && "gallery-item-modal__caption-action--error",
+                  )}
+                  onClick={() => {
+                    void copyText(copyContent);
+                  }}
+                  disabled={!canCopyCaption}
+                  aria-label={copyLabel}
+                >
+                  <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
+                  {copyLabel}
+                </button>
               </div>
-              <CaptionEditor
-                // A fresh editor per item: CodeMirror maps its selection through the
-                // document swap, so a reused one lands selected on the next caption.
-                key={item.path}
-                id="gallery-item-caption"
-                value={caption}
-                placeholder={placeholder}
-                variant={captionDisplay.variant}
-                saveState={saveState}
-                searchQuery={searchQuery}
-                searchRegex={searchRegex}
-                aria-label={`Caption for ${item.name}`}
-                aria-invalid={saveState === "error"}
-                title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
-                onChange={handleCaptionChange}
-              />
             </div>
-
-            <GalleryItemModalBboxList
-              bboxes={bboxes}
-              bboxesEditable={bboxesEditable}
-              selectedBboxIndex={selectedBboxIndex}
-              onSelectedBboxIndexChange={setSelectedBboxIndex}
+            <CaptionEditor
+              // A fresh editor per item: CodeMirror maps its selection through the
+              // document swap, so a reused one lands selected on the next caption.
+              key={item.path}
+              id="gallery-item-caption"
+              value={caption}
+              placeholder={placeholder}
+              variant={captionDisplay.variant}
+              saveState={saveState}
+              searchQuery={searchQuery}
+              searchRegex={searchRegex}
+              aria-label={`Caption for ${item.name}`}
+              aria-invalid={saveState === "error"}
+              title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
+              onChange={handleCaptionChange}
             />
-          </footer>
-        </div>
-      </div>
+          </div>
+
+          <GalleryItemModalBboxList
+            bboxes={bboxes}
+            bboxesEditable={bboxesEditable}
+            selectedBboxIndex={selectedBboxIndex}
+            onSelectedBboxIndexChange={setSelectedBboxIndex}
+          />
+        </footer>
+      </ModalShell>
 
       {deleteConfirmOpen && (
         <ConfirmDialog
@@ -504,7 +492,6 @@ export function GalleryItemModal({
           />
         </Suspense>
       )}
-    </>,
-    document.body,
+    </>
   );
 }

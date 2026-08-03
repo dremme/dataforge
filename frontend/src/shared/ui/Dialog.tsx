@@ -1,12 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
-import { createPortal } from "react-dom";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
-import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
-import { useOverlayBackdropClass } from "@/shared/hooks/useOverlayBackdropClass";
-import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import { iconLoader2, iconX } from "@/shared/icons";
-import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "./Icon";
+import { ModalShell } from "./ModalShell";
 
 /**
  * Enter must not confirm a dialog that only just opened: the keypress that
@@ -61,16 +56,9 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   const openedAtRef = useRef(0);
 
-  const backdropClass = useOverlayBackdropClass("confirm-dialog__backdrop");
-  useScrollLock(true, "confirm-dialog-open");
-  useFocusTrap(panelRef, true);
-  useEscapeKey(onClose, !busy);
-
+  // Stamped once, on open: the Enter grace period below measures from here.
   useLayoutEffect(() => {
     openedAtRef.current = performance.now();
-    (initialFocusRef?.current ?? panelRef.current)?.focus();
-    // Focus targets are stable for a dialog session; re-running would steal focus.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per dialog
   }, []);
 
   const confirmRef = useRef(onConfirm);
@@ -92,53 +80,46 @@ export function Dialog({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [busy, onConfirm]);
 
-  return createPortal(
-    <div className="confirm-dialog" role="presentation">
-      <button
-        type="button"
-        className={backdropClass}
-        aria-label="Close dialog"
-        onClick={onClose}
-        disabled={busy}
-        tabIndex={-1}
-      />
+  return (
+    <ModalShell
+      block="confirm-dialog"
+      role={role}
+      panelClassName={panelClassName}
+      labelledById={titleId}
+      describedById={describedById ?? (description ? descriptionId : undefined)}
+      onClose={onClose}
+      busy={busy}
+      scrollLock="confirm-dialog-open"
+      // Long-standing label; several tests reach for the backdrop by this name.
+      backdropLabel="Close dialog"
+      initialFocusRef={initialFocusRef}
+      panelRef={panelRef}
+    >
+      <header className="confirm-dialog__header">
+        <h2 id={titleId} className="confirm-dialog__title">
+          {title}
+        </h2>
+        <button
+          type="button"
+          className="confirm-dialog__close"
+          onClick={onClose}
+          aria-label="Close"
+          disabled={busy}
+        >
+          <Icon icon={iconX} />
+        </button>
+      </header>
 
-      <div
-        ref={panelRef}
-        className={classNames("confirm-dialog__panel", panelClassName)}
-        role={role}
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={describedById ?? (description ? descriptionId : undefined)}
-        tabIndex={-1}
-      >
-        <header className="confirm-dialog__header">
-          <h2 id={titleId} className="confirm-dialog__title">
-            {title}
-          </h2>
-          <button
-            type="button"
-            className="confirm-dialog__close"
-            onClick={onClose}
-            aria-label="Close"
-            disabled={busy}
-          >
-            <Icon icon={iconX} />
-          </button>
-        </header>
+      {description && (
+        <p id={descriptionId} className="confirm-dialog__description">
+          {description}
+        </p>
+      )}
 
-        {description && (
-          <p id={descriptionId} className="confirm-dialog__description">
-            {description}
-          </p>
-        )}
+      {children}
 
-        {children}
-
-        <footer className="confirm-dialog__actions">{footer}</footer>
-      </div>
-    </div>,
-    document.body,
+      <footer className="confirm-dialog__actions">{footer}</footer>
+    </ModalShell>
   );
 }
 

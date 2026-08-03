@@ -31,6 +31,7 @@
 @use "components/issue-resolver-modal";
 @use "components/jobs-drawer";
 @use "components/messages";
+@use "components/modal-panel";
 @use "components/notifications";
 @use "components/sections";
 @use "components/sysprompt-modal";
@@ -39,3 +40,6 @@
 @use "components/training-sample-modal";
 @use "components/training-samples";
 @use "components/zoomable-image";
+
+// 6. Overrides that must outrank the component layer
+@use "utilities/reduced-motion";

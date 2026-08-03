@@ -389,4 +389,25 @@ describe("IssueResolverModal", () => {
       expect(onClose).toHaveBeenCalled();
     });
   });
+
+  it("closes once per Escape press", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("car.png")]}
+        index={0}
+        onClose={onClose}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    await user.keyboard("{Escape}");
+
+    // Escape belongs to ModalShell alone. This modal used to register its own
+    // handler as well, which fired the close path twice on one keypress.
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
