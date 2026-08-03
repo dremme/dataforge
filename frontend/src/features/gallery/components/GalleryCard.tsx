@@ -11,6 +11,7 @@ import {
 } from "@/shared/icons";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
+import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { classNames } from "@/shared/lib/classNames";
 import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
@@ -84,7 +85,11 @@ export const GalleryCard = memo(function GalleryCard({
           <CardBadge icon={iconTriangleAlert} label="Issue" variant="issue" />
         )}
         {item.caption_file_type === "json" && (
-          <CardBadge icon={iconBraces} label="JSON" variant="json" />
+          <CardBadge
+            icon={iconBraces}
+            label={captionFileTypeLabel(item.caption_file_type)}
+            variant="json"
+          />
         )}
       </div>
       <div className="card__body">

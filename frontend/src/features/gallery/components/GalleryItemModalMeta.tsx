@@ -1,12 +1,12 @@
 import type { GalleryItem } from "@/shared/types";
 import type { MediaResolution } from "@/features/gallery/hooks/useMediaResolution";
+import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { formatFps, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
 
 interface GalleryItemModalMetaProps {
   item: GalleryItem;
   itemIsVideo: boolean;
   resolution: MediaResolution | undefined;
-  hasJsonCaption: boolean;
   hasComfyWorkflow: boolean;
   captionCharacterCount: number;
 }
@@ -20,14 +20,15 @@ export function GalleryItemModalMeta({
   item,
   itemIsVideo,
   resolution,
-  hasJsonCaption,
   hasComfyWorkflow,
   captionCharacterCount,
 }: GalleryItemModalMetaProps) {
   const modifiedLabel = item.modified_at ? formatModifiedAt(item.modified_at) : null;
   const hasVideoStats = itemIsVideo && (item.frame_count != null || item.fps != null);
+  const jsonCaptionLabel =
+    item.caption_file_type === "json" ? captionFileTypeLabel(item.caption_file_type) : null;
   const hasFollowingMeta =
-    Boolean(resolution) || hasJsonCaption || hasVideoStats || hasComfyWorkflow;
+    Boolean(resolution) || jsonCaptionLabel != null || hasVideoStats || hasComfyWorkflow;
   const hasMediaMeta = Boolean(modifiedLabel) || hasFollowingMeta;
 
   return (
@@ -83,7 +84,7 @@ export function GalleryItemModalMeta({
       )}
       {hasComfyWorkflow && (
         <>
-          <MetaDivider show={Boolean(resolution || hasVideoStats || hasJsonCaption)} />
+          <MetaDivider show={Boolean(resolution || hasVideoStats) || jsonCaptionLabel != null} />
           <div className="gallery-item-modal__meta-item">
             <span className="gallery-item-modal__meta-badge" title="Embedded ComfyUI workflow">
               ComfyUI
@@ -92,12 +93,12 @@ export function GalleryItemModalMeta({
           </div>
         </>
       )}
-      {hasJsonCaption && (
+      {jsonCaptionLabel && (
         <>
           <MetaDivider show={Boolean(resolution || hasVideoStats)} />
           <div className="gallery-item-modal__meta-item">
-            <span className="gallery-item-modal__meta-badge" title=".json caption">
-              JSON
+            <span className="gallery-item-modal__meta-badge" title={`${jsonCaptionLabel} caption`}>
+              {jsonCaptionLabel}
             </span>
             <span className="gallery-item-modal__meta-label">Caption</span>
           </div>

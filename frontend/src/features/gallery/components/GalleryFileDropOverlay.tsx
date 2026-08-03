@@ -1,3 +1,4 @@
+import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { iconFileDown } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 
@@ -17,8 +18,8 @@ export function GalleryFileDropOverlay({ visible, folderLabel }: GalleryFileDrop
         <Icon icon={iconFileDown} className="gallery-drop-overlay__icon" />
         <p className="gallery-drop-overlay__title">Drop files to import</p>
         <p className="gallery-drop-overlay__description">
-          Compatible images, videos, .txt/.json captions, and .sysprompt files will be imported into{" "}
-          <span className="gallery-drop-overlay__folder">{folderLabel}</span>.
+          Compatible images, videos, {CAPTION_SIDECAR_EXTENSION_LIST} captions, and .sysprompt files
+          will be imported into <span className="gallery-drop-overlay__folder">{folderLabel}</span>.
         </p>
       </div>
     </div>

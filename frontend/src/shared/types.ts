@@ -2,7 +2,7 @@ type MediaType = "image" | "video" | "sysprompt";
 
 export type CaptionStatus = "none" | "empty" | "text";
 
-type CaptionFileType = "json" | "txt";
+export type CaptionFileType = "json" | "txt";
 
 export interface GalleryItem {
   name: string;

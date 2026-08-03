@@ -1,5 +1,6 @@
 import type { AppIcon } from "@/shared/icons";
 import type { Job, JobStatus, JobType } from "@/shared/types";
+import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { folderLeafName, foldersMatch } from "@/features/browse/lib/folderPath";
 import { isKnownJobType, jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
 
@@ -173,10 +174,10 @@ export function jobWarningMessage(job: Job): string | null {
 
   const count = jobNoCaptionCount(job);
   if (count === 1) {
-    return "1 file had no caption sidecar (.json/.txt) and was skipped.";
+    return `1 file had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and was skipped.`;
   }
 
-  return `${count} files had no caption sidecar (.json/.txt) and were skipped.`;
+  return `${count} files had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and were skipped.`;
 }
 
 export function progressPercent(job: Job): number {

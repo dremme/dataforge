@@ -241,7 +241,7 @@ export function useGalleryItemCaption({
         setJsonSaveState("idle");
         return true;
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to save .json caption";
+        const message = error instanceof Error ? error.message : "Failed to save JSON caption";
         setJsonSaveState("error");
         setJsonSaveError(message);
         return false;

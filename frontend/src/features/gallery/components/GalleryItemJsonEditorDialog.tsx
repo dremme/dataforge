@@ -59,7 +59,7 @@ export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDi
   return (
     <ModalShell
       block="gallery-item-json-editor"
-      label={`Edit .json caption for ${itemName}`}
+      label={`Edit JSON caption for ${itemName}`}
       onClose={close}
       busy={saving}
       escape="editor"
@@ -72,7 +72,7 @@ export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDi
           <div className="gallery-item-json-editor__header-copy">
             <h2 className="gallery-item-json-editor__title">{itemName}</h2>
             <p className="gallery-item-json-editor__subtitle">
-              Edit the full .json caption file for this image.
+              Edit the full JSON caption file for this image.
             </p>
           </div>
         </div>
@@ -95,8 +95,8 @@ export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDi
           id="gallery-item-json-editor"
           className={classNames(validationError && "code-editor--error")}
           value={draft}
-          placeholder="Enter .json caption content..."
-          aria-label={`.json caption for ${itemName}`}
+          placeholder="Enter JSON caption content..."
+          aria-label={`JSON caption for ${itemName}`}
           aria-invalid={validationError != null}
           title={validationError ?? undefined}
           onChange={(value) => {
@@ -115,7 +115,7 @@ export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDi
       )}
 
       <footer className="gallery-item-json-editor__footer">
-        <div className="gallery-item-json-editor__footer-meta" aria-label=".json statistics">
+        <div className="gallery-item-json-editor__footer-meta" aria-label="JSON statistics">
           <div className="gallery-item-json-editor__meta-item">
             <span className="gallery-item-json-editor__meta-value">
               {characterCount.toLocaleString()}
@@ -132,7 +132,7 @@ export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDi
         </div>
         <div className="confirm-dialog__actions gallery-item-json-editor__footer-actions">
           <DialogActions
-            confirmLabel="Save .json"
+            confirmLabel="Save JSON"
             busyLabel="Saving..."
             busy={saving}
             onConfirm={handleSave}

@@ -29,5 +29,16 @@ These are common instructions for agents across all scenarios.
 These are more project specific engineering rules.
 
 - Always format your code according to the linting rules.
+- Verify your work with `backend/.venv/Scripts/python scripts/run_checks.py --fix`, run from the project root.
+    This covers lint, formatting, and tests for both halves of the stack, and is what CI and the pre-commit hook run.
+    Narrow it with `--lint-only` to skip tests, or `--scope backend` / `--scope frontend` when you touched only one side.
+    Per-tool commands such as `npm test` or `ruff check` cover half the project at best, so never finish on those alone.
+- `backend/schemas.py` and `frontend/src/shared/types.ts` mirror each other by hand; there is no codegen or generated client.
+    Changing an API response shape means editing both, otherwise the frontend silently misdescribes the wire format.
 - Never use barrel files (`index.ts`), import directly instead.
 - Use `@/shared/lib/classNames` for toggling HTML classes, when it makes sense.
+- Spell file formats by register. Wire values and type unions are bare lowercase (`"json"`, `"txt"`),
+    filesystem constants are dotted lowercase (`".json"`, `".txt"`), user-facing text naming the
+    format is uppercase (`Edit JSON`, `Invalid JSON`), and user-facing text naming a literal filename
+    suffix stays dotted lowercase (`written as .txt sidecars`).
+    List caption sidecars in precedence order via `CAPTION_SIDECAR_EXTENSION_LIST`, never as a literal.

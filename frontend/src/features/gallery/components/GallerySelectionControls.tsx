@@ -4,6 +4,7 @@ import { useGallerySelectionContext } from "@/features/gallery/context/GallerySe
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { failureMessage, pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
 import { useNotify } from "@/shared/notifications/notifications";
+import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import { iconCopy, iconFolderInput, iconLoader2, iconTrash2, type AppIcon } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -176,12 +177,12 @@ export function GallerySelectionControls({
     selectedCount === 1 ? (
       <span>
         This will permanently delete <strong>{pathBaseName(Array.from(selectedPaths)[0])}</strong>{" "}
-        and any matching caption sidecars (.txt/.json) in this folder.
+        and any matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
       </span>
     ) : (
       <span>
         This will permanently delete <strong>{selectedCount} selected files</strong> and any
-        matching caption sidecars (.txt/.json) in this folder.
+        matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
       </span>
     );
 

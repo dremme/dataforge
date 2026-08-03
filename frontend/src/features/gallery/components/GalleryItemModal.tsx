@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import {
@@ -443,7 +444,6 @@ export function GalleryItemModal({
             item={item}
             itemIsVideo={itemIsVideo}
             resolution={resolution}
-            hasJsonCaption={hasJsonCaption}
             hasComfyWorkflow={hasComfyWorkflow}
             captionCharacterCount={captionCharacterCount}
           />
@@ -475,10 +475,10 @@ export function GalleryItemModal({
                     className="gallery-item-modal__caption-action"
                     onClick={openJsonEditor}
                     disabled={!canEditJson}
-                    aria-label="Edit .json caption"
+                    aria-label="Edit JSON caption"
                   >
                     <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
-                    Edit .json
+                    Edit JSON
                   </button>
                 )}
                 <button
@@ -525,7 +525,7 @@ export function GalleryItemModal({
           description={
             <span>
               This will permanently delete <strong>{item.name}</strong> and any matching caption
-              sidecars (.txt/.json) in this folder.
+              sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
             </span>
           }
           confirmLabel="Delete"

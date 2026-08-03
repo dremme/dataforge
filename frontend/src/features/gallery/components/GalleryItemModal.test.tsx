@@ -193,16 +193,16 @@ describe("GalleryItemModal", () => {
     const dialog = await screen.findByRole("dialog", { name: "Viewing scene.png" });
 
     await waitFor(() => {
-      expect(within(dialog).getByRole("button", { name: "Edit .json caption" })).not.toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Edit JSON caption" })).not.toBeDisabled();
     });
 
-    await user.click(within(dialog).getByRole("button", { name: "Edit .json caption" }));
+    await user.click(within(dialog).getByRole("button", { name: "Edit JSON caption" }));
 
     const jsonEditor = await screen.findByRole("dialog", {
-      name: "Edit .json caption for scene.png",
+      name: "Edit JSON caption for scene.png",
     });
     const jsonInput = within(jsonEditor).getByRole("textbox", {
-      name: ".json caption for scene.png",
+      name: "JSON caption for scene.png",
     });
 
     expect(jsonInput).toHaveValue(jsonContent);

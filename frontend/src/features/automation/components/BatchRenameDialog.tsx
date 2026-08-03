@@ -1,4 +1,5 @@
 import { useCallback, useId, useState } from "react";
+import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 
 const INVALID_STEM_PATTERN = /[<>:"/\\|?*]/;
@@ -50,8 +51,8 @@ export function BatchRenameDialog({
       description={
         <>
           Rename <strong>{itemCount}</strong> supported media {itemCount === 1 ? "file" : "files"}{" "}
-          in <strong>{folderLabel}</strong>. Caption sidecars (.txt/.json) move with each file. This
-          action cannot be undone.
+          in <strong>{folderLabel}</strong>. Caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST})
+          move with each file. This action cannot be undone.
         </>
       }
       panelClassName="batch-rename-dialog"

@@ -18,7 +18,7 @@ Most dataset tools either push you into a cloud UI or leave you juggling scripts
 DataForge is a **desktop web app** you run locally:
 
 - Your media and sidecars stay in **your** folder structure
-- Captions save as standard `.txt` / `.json` next to each file
+- Captions save as standard `.json` / `.txt` next to each file
 - Optional vision LLMs talk to a **local** OpenAI-compatible server
 - Jobs run in the background with progress, cancel, and history
 
@@ -41,7 +41,7 @@ Ideal when you already keep datasets on disk and want a fast, visual workflow.
 
 ### Captions and metadata
 
-- In-place caption editing (`.txt` and `.json` sidecars)
+- In-place caption editing (`.json` and `.txt` sidecars)
 - JSON caption editor and bounding-box overlay (view and edit when present)
 - Click-to-zoom on images in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
@@ -166,7 +166,7 @@ Windows PowerShell helpers (`start-backend.ps1`, `start-frontend.ps1`) prefer `.
 
 ### Try the sample dataset
 
-Point the app at `sample-images/` in this repo for a tiny folder with mixed caption states (`.txt`, `.json`, and uncaptioned).
+Point the app at `sample-images/` in this repo for a tiny folder with mixed caption states (`.json`, `.txt`, and uncaptioned).
 
 ---
 
