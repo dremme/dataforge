@@ -343,6 +343,37 @@ describe("GalleryItemModal", () => {
     expect(onNext).toHaveBeenCalledTimes(1);
   });
 
+  it("does not navigate with arrow keys while a child overlay is open", async () => {
+    const user = userEvent.setup();
+    const onNext = vi.fn();
+    const onPrevious = vi.fn();
+    const items = [
+      makeItem("sunset.png"),
+      makeItem("beach.jpg", { name: "beach.jpg", path: `${HOME_PATH}\\beach.jpg` }),
+    ];
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={items}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={onPrevious}
+        onNext={onNext}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
+    await screen.findByRole("alertdialog", { name: "Delete file?" });
+
+    await user.keyboard("{ArrowRight}");
+    await user.keyboard("{ArrowLeft}");
+
+    expect(onNext).not.toHaveBeenCalled();
+    expect(onPrevious).not.toHaveBeenCalled();
+  });
+
   it("drops a caption selection when moving to another item", async () => {
     const items = [makeItem("sunset.png"), makeItem("beach.jpg", { description: "A quiet shore" })];
 

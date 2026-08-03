@@ -224,6 +224,7 @@ export function GalleryItemModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
+      if (childOverlayOpen || deleting) return;
       if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft") onPrevious();
       if (event.key === "ArrowRight") onNext();
@@ -233,7 +234,7 @@ export function GalleryItemModal({
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [onPrevious, onNext]);
+  }, [childOverlayOpen, deleting, onPrevious, onNext]);
 
   if (!item) return null;
 
