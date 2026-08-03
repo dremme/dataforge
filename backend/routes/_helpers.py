@@ -12,17 +12,28 @@ __all__ = [
     "resolve_folder",
     "resolve_image_file",
     "resolve_media_file",
+    "resolve_optional_media_file",
     "resolve_sysprompt_target",
 ]
 
 
-def resolve_media_file(path: str) -> Path:
+def resolve_optional_media_file(path: str) -> Path | None:
+    """Like `resolve_media_file`, but a missing file is an expected outcome, not an error."""
     file_path = normalize_user_path(path)
 
     if not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Media file not found")
+        return None
     if file_path.suffix.lower() not in MEDIA_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Not a supported media file")
+
+    return file_path
+
+
+def resolve_media_file(path: str) -> Path:
+    file_path = resolve_optional_media_file(path)
+
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="Media file not found")
 
     return file_path
 

@@ -41,6 +41,15 @@ describe("TrainingSamples", () => {
     expect(screen.getByAltText("a mountain lake at sunrise")).toBeInTheDocument();
   });
 
+  it("requests thumbnails as optional so a pruned sample does not log a 404", () => {
+    render(<TrainingSamples samples={makeSamples(1)} />);
+
+    expect(screen.getByAltText("a mountain lake at sunrise")).toHaveAttribute(
+      "src",
+      expect.stringContaining("optional=1"),
+    );
+  });
+
   it("reveals a thumbnail only once it has decoded", () => {
     render(<TrainingSamples samples={makeSamples(1)} />);
 

@@ -1,10 +1,15 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from media_delete import delete_media_with_sidecars
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
-from routes._helpers import resolve_folder, resolve_image_file, resolve_media_file
+from routes._helpers import (
+    resolve_folder,
+    resolve_image_file,
+    resolve_media_file,
+    resolve_optional_media_file,
+)
 from schemas import (
     MediaDeleteResponse,
     MediaOpenResponse,
@@ -24,6 +29,22 @@ from thumbnails import (
 
 router = APIRouter()
 
+_OPTIONAL_DESCRIPTION = (
+    "Treat a file that is gone as normal: answer 204 rather than 404, "
+    "so the browser does not log the failed load"
+)
+
+
+def _gone() -> Response:
+    """The answer for an `optional` request whose file is no longer there.
+
+    A 404 on an `<img>` is logged by the browser itself and cannot be silenced from
+    JavaScript, which spams the console for callers that expect files to disappear
+    (AI-Toolkit prunes training samples). A bodyless 204 still fires the image's
+    error handler, so those callers drop the sample exactly as they did before.
+    """
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
 
 @router.get("/media")
 def serve_media(
@@ -32,13 +53,21 @@ def serve_media(
         None,
         description="Client cache-busting token derived from file metadata",
     ),
-) -> FileResponse:
+    optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
+) -> Response:
+    if optional:
+        file_path = resolve_optional_media_file(path)
+        if file_path is None:
+            return _gone()
+    else:
+        file_path = resolve_media_file(path)
+
     # A versioned URL names one revision of the file, so it can be cached hard.
     # Without one, the response must be revalidated: browsers otherwise apply
     # heuristic freshness and keep serving an edited file's old bytes.
     cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
     return FileResponse(
-        resolve_media_file(path),
+        file_path,
         headers={"Cache-Control": cache_control},
     )
 
@@ -147,13 +176,23 @@ def serve_thumbnail(
         None,
         description="Client cache-busting token derived from file metadata",
     ),
-) -> FileResponse:
+    optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
+) -> Response:
     del v
-    file_path = resolve_media_file(path)
+
+    if optional:
+        file_path = resolve_optional_media_file(path)
+        if file_path is None:
+            return _gone()
+    else:
+        file_path = resolve_media_file(path)
 
     try:
         thumbnail_path = get_or_create_thumbnail(file_path, w)
     except ThumbnailUnavailableError as exc:
+        # Same bargain as a missing file: the caller opted out of being told loudly.
+        if optional:
+            return _gone()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ThumbnailError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

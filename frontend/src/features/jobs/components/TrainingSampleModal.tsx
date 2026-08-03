@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { mediaUrl } from "@/features/gallery/api/media";
+import { optionalMediaUrl } from "@/features/gallery/api/media";
 import { ZoomableImage } from "@/features/gallery/components/ZoomableImage";
 import {
   schedulePrefetchModalMedia,
@@ -58,7 +58,7 @@ export function TrainingSampleModal({
       if (neighbour.path === current.path) continue;
       targets.set(neighbour.path, {
         path: neighbour.path,
-        url: mediaUrl(neighbour.path, neighbour.name),
+        url: optionalMediaUrl(neighbour.path, neighbour.name),
         kind: "image",
       });
     }
@@ -112,7 +112,7 @@ export function TrainingSampleModal({
           key={sample.path}
           className="training-sample-modal__media-wrap"
           imgClassName="training-sample-modal__img"
-          src={mediaUrl(sample.path, sample.name)}
+          src={optionalMediaUrl(sample.path, sample.name)}
           alt={sample.prompt}
         />
 

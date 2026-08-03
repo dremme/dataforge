@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { thumbnailUrl } from "@/features/gallery/api/media";
+import { optionalThumbnailUrl } from "@/features/gallery/api/media";
 import { classNames } from "@/shared/lib/classNames";
 import type { OstrisTrainingSample } from "@/shared/types";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -84,7 +84,7 @@ export function TrainingSamples({
                     "training-samples__image",
                     loadedPaths.has(sample.path) && "training-samples__image--ready",
                   )}
-                  src={thumbnailUrl(sample.path, SAMPLE_THUMBNAIL_WIDTH, sample.name)}
+                  src={optionalThumbnailUrl(sample.path, SAMPLE_THUMBNAIL_WIDTH, sample.name)}
                   alt={sample.prompt}
                   loading="lazy"
                   decoding="async"

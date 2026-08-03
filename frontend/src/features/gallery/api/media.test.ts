@@ -4,6 +4,8 @@ import {
   deleteSelectedMedia,
   mediaUrl,
   openMediaInViewer,
+  optionalMediaUrl,
+  optionalThumbnailUrl,
   thumbnailUrl,
 } from "./media";
 import { requestJson } from "@/shared/api/http";
@@ -108,5 +110,22 @@ describe("thumbnailUrl", () => {
     const url = thumbnailUrl("C:\\Photos\\sunset.png");
     expect(url).toContain("w=400");
     expect(url).not.toContain("v=");
+  });
+});
+
+describe("optional media URLs", () => {
+  it("flags a media URL so a vanished file answers 204 instead of a logged 404", () => {
+    const url = optionalMediaUrl("C:\\Photos\\sunset.png", "1718798400000-4096");
+    expect(url).toContain("path=C%3A%5CPhotos%5Csunset.png");
+    expect(url).toContain("v=1718798400000-4096");
+    expect(url).toContain("optional=1");
+  });
+
+  it("flags a thumbnail URL and keeps the width and cache token", () => {
+    const url = optionalThumbnailUrl("C:\\Photos\\sunset.png", 240, "1718798400000-4096");
+    expect(url).toContain("/api/thumbnail?");
+    expect(url).toContain("w=240");
+    expect(url).toContain("v=1718798400000-4096");
+    expect(url).toContain("optional=1");
   });
 });

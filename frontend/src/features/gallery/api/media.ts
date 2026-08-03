@@ -72,6 +72,25 @@ export function mediaUrl(mediaPath: string, cacheKey?: string): string {
   return `/api/media?${params}`;
 }
 
+/**
+ * Marks a URL whose file may legitimately be gone by the time it is requested.
+ *
+ * The browser logs a failed `<img>` load itself, and no JavaScript handler can
+ * suppress it, so a caller that expects misses would spam the console. The flag
+ * asks the API for a silent 204 instead; `onError` still fires either way.
+ */
+function asOptional(url: string): string {
+  return `${url}&optional=1`;
+}
+
+export function optionalMediaUrl(mediaPath: string, cacheKey?: string): string {
+  return asOptional(mediaUrl(mediaPath, cacheKey));
+}
+
+export function optionalThumbnailUrl(mediaPath: string, width?: number, cacheKey?: string): string {
+  return asOptional(thumbnailUrl(mediaPath, width, cacheKey));
+}
+
 export async function previewMediaTransfer(
   mode: MediaTransferMode,
   destinationFolder: string,

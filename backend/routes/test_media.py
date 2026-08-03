@@ -49,6 +49,26 @@ class MediaEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 404)
 
+    def test_optional_request_returns_204_for_missing_media(self) -> None:
+        with TempMediaFolder() as root:
+            missing = root / "missing.png"
+
+            response = client.get(f"/api/media?path={quote(str(missing))}&optional=1")
+
+            # A browser logs a 404 on an <img> itself, which JavaScript cannot suppress.
+            self.assertEqual(response.status_code, 204)
+            self.assertEqual(response.content, b"")
+            self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_optional_request_still_serves_a_file_that_is_there(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+
+            response = client.get(f"/api/media?path={quote(str(media))}&optional=1")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.content.startswith(b"\x89PNG"))
+
     def test_returns_400_for_unsupported_extension(self) -> None:
         with TempMediaFolder() as root:
             file_path = root / "notes.md"
@@ -297,6 +317,34 @@ class ThumbnailEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 404)
             self.assertIn("ffmpeg", response.json()["detail"].lower())
+
+    def test_optional_request_returns_204_for_missing_media(self) -> None:
+        with TempMediaFolder() as root:
+            missing = root / "missing.png"
+
+            response = client.get(f"/api/thumbnail?path={quote(str(missing))}&optional=1")
+
+            self.assertEqual(response.status_code, 204)
+            self.assertEqual(response.content, b"")
+            self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_optional_request_returns_204_when_video_thumbnail_is_unavailable(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root)
+
+            with patch("thumbnails._ffmpeg_path", return_value=None):
+                response = client.get(f"/api/thumbnail?path={quote(str(video))}&optional=1")
+
+            self.assertEqual(response.status_code, 204)
+
+    def test_optional_request_still_serves_a_file_that_is_there(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png", width=320, height=240)
+
+            response = client.get(f"/api/thumbnail?path={quote(str(media))}&w=180&optional=1")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-type"], "image/webp")
 
     def test_ignores_client_cache_busting_token(self) -> None:
         with TempMediaFolder() as root:
