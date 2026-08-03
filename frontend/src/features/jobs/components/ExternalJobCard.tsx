@@ -1,4 +1,4 @@
-import { iconBan, iconBrain, iconHourglass, iconLoader2 } from "@/shared/icons";
+import { iconBan, iconBrain, iconDot, iconHourglass, iconLoader2 } from "@/shared/icons";
 import type { ExternalOstrisJob } from "@/shared/types";
 import {
   externalJobModelLabel,
@@ -99,11 +99,9 @@ export function ExternalJobCard({
       </div>
 
       <div className="job-card__source">
-        <span>{externalJobModelLabel(job)}</span>
-        <span className="job-card__source-separator" aria-hidden="true">
-          ·
-        </span>
-        <span>{job.info}</span>
+        {externalJobModelLabel(job)}
+        <Icon icon={iconDot} className="job-card__source-separator app-icon--dot" />
+        {job.info}
       </div>
 
       <div className="job-card__meta">

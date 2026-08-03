@@ -5,6 +5,7 @@ import {
   iconBan,
   iconCircleCheck,
   iconCircleAlert,
+  iconDot,
   iconFilePen,
   iconFilePlus,
   iconHammer,
@@ -277,7 +278,12 @@ export function AutomationPanel({
               </span>
               <span className="automation__counts">
                 {job.processed}/{job.total || "..."}
-                {timeLabel && <span className="automation__remaining"> · {timeLabel}</span>}
+                {timeLabel && (
+                  <span className="automation__remaining">
+                    <Icon icon={iconDot} className="app-icon--dot" />
+                    {timeLabel}
+                  </span>
+                )}
               </span>
             </div>
 

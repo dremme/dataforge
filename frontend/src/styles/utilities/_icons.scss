@@ -13,3 +13,10 @@
 .app-icon--spin {
   @include spin;
 }
+
+// Separator dot between inline metadata bits, in place of a "·" character.
+.app-icon--dot {
+  display: inline-block;
+  vertical-align: middle;
+  transform: translateY(-0.1em);
+}

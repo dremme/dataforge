@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { iconCpu, iconGpu, iconMemoryStick } from "@/shared/icons";
+import { iconCpu, iconDot, iconGpu, iconMemoryStick } from "@/shared/icons";
 import { useSystemSpecs } from "@/features/automation/hooks/useSystemSpecs";
 import { classNames } from "@/shared/lib/classNames";
 import { formatBytes, formatBytesValue } from "@/shared/lib/format";
@@ -36,7 +36,10 @@ export function AutomationSystemSpecs({ id, open }: AutomationSystemSpecsProps) 
         <div className="automation__specs" role="region" aria-label="System specifications">
           <Spec icon={iconCpu}>
             {specs.cpu_name}
-            <span className="automation__spec-detail"> · {specs.cpu_cores} cores</span>
+            <span className="automation__spec-detail">
+              <Icon icon={iconDot} className="app-icon--dot" />
+              {specs.cpu_cores} cores
+            </span>
           </Spec>
 
           <SpecDivider />
@@ -65,8 +68,8 @@ export function AutomationSystemSpecs({ id, open }: AutomationSystemSpecsProps) 
                     />
                   ) : (
                     <span className="automation__spec-detail" title="VRAM total">
-                      {" "}
-                      · {formatBytes(gpu_memory_bytes)}
+                      <Icon icon={iconDot} className="app-icon--dot" />
+                      {formatBytes(gpu_memory_bytes)}
                     </span>
                   ))}
               </>
@@ -99,12 +102,11 @@ interface MemoryDetailProps {
   title: string;
 }
 
-/** Renders " · used / total GB", writing the unit only once. */
+/** Renders a separator dot then "used / total GB", writing the unit only once. */
 function MemoryDetail({ usedBytes, totalBytes, title }: MemoryDetailProps) {
   return (
     <span className="automation__spec-detail" title={title}>
-      {" "}
-      ·{" "}
+      <Icon icon={iconDot} className="app-icon--dot" />
       <span
         className={
           memoryIsHigh(usedBytes, totalBytes) ? "automation__spec-detail--warning" : undefined

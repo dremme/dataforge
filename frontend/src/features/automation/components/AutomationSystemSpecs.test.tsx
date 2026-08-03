@@ -85,7 +85,8 @@ describe("AutomationSystemSpecs", () => {
     renderSpecs();
 
     const specs = screen.getByLabelText("System specifications");
-    expect(specs).toHaveTextContent("NVIDIA GeForce RTX 3080 · 10 GB");
+    expect(specs).toHaveTextContent("NVIDIA GeForce RTX 3080");
+    expect(specs.querySelector('[title="VRAM total"]')).toHaveTextContent("10 GB");
   });
 
   it("falls back to No GPU when none is available", () => {

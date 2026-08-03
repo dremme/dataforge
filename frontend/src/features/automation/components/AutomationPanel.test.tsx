@@ -115,9 +115,9 @@ describe("AutomationPanel", () => {
     mockShowSpecs = false;
     const { container } = render(<AutomationPanel {...baseProps} job={finishedJob} />);
 
-    expect(container.querySelector(".automation__counts")).toHaveTextContent(
-      "10/10 · Took 2 min 30s",
-    );
+    const counts = container.querySelector(".automation__counts");
+    expect(counts).toHaveTextContent("10/10");
+    expect(counts?.querySelector(".automation__remaining")).toHaveTextContent("Took 2 min 30s");
   });
 
   it("shows the time taken for a cancelled job", () => {

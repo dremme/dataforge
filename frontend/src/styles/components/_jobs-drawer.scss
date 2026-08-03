@@ -382,6 +382,8 @@
 
     &-separator {
       color: var(--text-muted);
+      margin: 0 -0.35rem;
+      transform: translateY(0);
     }
   }
 }

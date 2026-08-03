@@ -23,6 +23,7 @@ export {
   Code as iconCode,
   Copy as iconCopy,
   Cpu as iconCpu,
+  Dot as iconDot,
   Expand as iconExpand,
   FileDown as iconFileDown,
   FilePen as iconFilePen,
