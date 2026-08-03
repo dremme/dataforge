@@ -1,6 +1,5 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import type {
-  CaptionBBox,
   CaptionSaveResponse,
   PngWorkflowResponse,
   SysPromptSaveResponse,
@@ -19,14 +18,10 @@ export async function fetchComfyWorkflow(mediaPath: string): Promise<PngWorkflow
 export async function saveCaption(
   mediaPath: string,
   text: string,
-  bboxes?: CaptionBBox[],
   options?: { resolveIssue?: boolean },
 ): Promise<CaptionSaveResponse> {
   const params = new URLSearchParams({ path: mediaPath });
-  const body: { text: string; bboxes?: CaptionBBox[]; resolve_issue?: boolean } = { text };
-  if (bboxes) {
-    body.bboxes = bboxes;
-  }
+  const body: { text: string; resolve_issue?: boolean } = { text };
   if (options?.resolveIssue) {
     body.resolve_issue = true;
   }

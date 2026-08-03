@@ -88,42 +88,6 @@ class AutoCaptionAutomationEndpointTests(unittest.TestCase):
             self.assertIn("id", payload)
 
 
-class BodyPartsAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_requires_supported_images(self) -> None:
-        with TempMediaFolder() as root:
-            response = client.post(f"/api/automation/body-parts?path={quote(str(root))}")
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No supported images", response.json()["detail"])
-
-    def test_rejects_when_any_job_is_active_for_folder(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-            folder = str(root.resolve())
-
-            with job_manager._lock:
-                job_manager._jobs["running-auto"] = Job(
-                    id="running-auto",
-                    folder=folder,
-                    status="running",
-                )
-
-            response = client.post(f"/api/automation/body-parts?path={quote(folder)}")
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("already running", response.json()["detail"])
-
-    def test_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(f"/api/automation/body-parts?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "body_parts")
-
-
 class StripMetadataAutomationEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_job_manager()

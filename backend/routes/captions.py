@@ -44,7 +44,6 @@ def update_caption(
         result = save_caption(
             file_path,
             body.text,
-            [bbox.model_dump() for bbox in body.bboxes] if body.bboxes is not None else None,
             json_content=body.json_content,
             resolve_issue=body.resolve_issue,
         )

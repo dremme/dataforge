@@ -1,16 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  bodyPartsBody,
   trainLoraBody,
   type JobStartBody,
   type TrainLoraSettings,
 } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
-import {
-  loadBodyPartsSettings,
-  type BodyPartsSettings,
-} from "@/features/automation/preferences/bodyPartsPreferences";
 import {
   loadVerifyCaptionsSettings,
   type VerifyCaptionsSettings,
@@ -42,13 +37,11 @@ export function useAutomationDialogOverlays({
 }: UseAutomationDialogOverlaysOptions) {
   // At most one dialog is ever open, so one job type beats a boolean per dialog.
   const [openJobType, setOpenJobType] = useState<JobType | null>(null);
-  const [bodyPartsSettings, setBodyPartsSettings] = useState<BodyPartsSettings | null>(null);
   const [verifyCaptionsSettings, setVerifyCaptionsSettings] =
     useState<VerifyCaptionsSettings | null>(null);
 
   const closeDialog = useCallback(() => {
     setOpenJobType(null);
-    setBodyPartsSettings(null);
     setVerifyCaptionsSettings(null);
   }, []);
 
@@ -61,13 +54,6 @@ export function useAutomationDialogOverlays({
     },
     [closeDialog, folderPath, getJobPaths, startJob],
   );
-
-  const openBodyPartsDialog = useCallback(async () => {
-    if (!folderPath) return;
-    const settings = await loadBodyPartsSettings();
-    setBodyPartsSettings(settings);
-    setOpenJobType("body_parts");
-  }, [folderPath]);
 
   const openVerifyCaptionsDialog = useCallback(async () => {
     if (!folderPath) return;
@@ -89,12 +75,6 @@ export function useAutomationDialogOverlays({
         ...shared("set_captions"),
         onConfirm: (caption: string, overwrite: boolean) =>
           startJobFromDialog("set_captions", { caption, overwrite }),
-      },
-      bodyParts: {
-        ...shared("body_parts"),
-        initialSettings: bodyPartsSettings,
-        onConfirm: (settings: BodyPartsSettings) =>
-          startJobFromDialog("body_parts", bodyPartsBody(settings)),
       },
       autoCaption: {
         ...shared("auto_caption"),
@@ -120,7 +100,6 @@ export function useAutomationDialogOverlays({
       },
     };
   }, [
-    bodyPartsSettings,
     closeDialog,
     folderLabel,
     folderPath,
@@ -134,11 +113,10 @@ export function useAutomationDialogOverlays({
   /** Shows a job type's dialog, loading its saved settings first when it has any. */
   const openDialogForJobType = useCallback(
     (jobType: JobType) => {
-      if (jobType === "body_parts") void openBodyPartsDialog();
-      else if (jobType === "verify_captions") void openVerifyCaptionsDialog();
+      if (jobType === "verify_captions") void openVerifyCaptionsDialog();
       else setOpenJobType(jobType);
     },
-    [openBodyPartsDialog, openVerifyCaptionsDialog],
+    [openVerifyCaptionsDialog],
   );
 
   return { dialogs, openDialogForJobType };

@@ -108,14 +108,6 @@ function jobOrphanedCount(job: Job): number {
   return job.stats?.orphaned ?? 0;
 }
 
-function jobDetectionErrorCount(job: Job): number {
-  return job.stats?.detection_error ?? 0;
-}
-
-function jobNoDetectionsCount(job: Job): number {
-  return job.stats?.no_detections ?? 0;
-}
-
 function effectiveJobStatus(job: Job): JobStatus {
   if (job.status === "completed") {
     if (jobTypeOf(job) === "verify_captions" && jobVerifyErrorCount(job) > 0) {
@@ -144,10 +136,6 @@ export function jobShowsWarningState(job: Job): boolean {
 
   const type = jobTypeOf(job);
 
-  if (type === "body_parts") {
-    return jobDetectionErrorCount(job) > 0 || jobNoDetectionsCount(job) > 0;
-  }
-
   if (type === "restore_captions") {
     return jobOrphanedCount(job) > 0;
   }
@@ -173,25 +161,6 @@ export function jobErrorMessage(job: Job): string | null {
 export function jobWarningMessage(job: Job): string | null {
   if (!jobShowsWarningState(job)) {
     return null;
-  }
-
-  if (jobTypeOf(job) === "body_parts") {
-    const detectionErrors = jobDetectionErrorCount(job);
-    const noDetections = jobNoDetectionsCount(job);
-
-    if (detectionErrors > 0 && noDetections > 0) {
-      return `${detectionErrors} image${detectionErrors === 1 ? "" : "s"} failed detection; ${noDetections} had no body parts detected.`;
-    }
-    if (detectionErrors === 1) {
-      return "1 image failed body-parts detection.";
-    }
-    if (detectionErrors > 1) {
-      return `${detectionErrors} images failed body-parts detection.`;
-    }
-    if (noDetections === 1) {
-      return "1 image had no body parts detected.";
-    }
-    return `${noDetections} images had no body parts detected.`;
   }
 
   if (jobTypeOf(job) === "restore_captions") {
@@ -343,12 +312,6 @@ export function updateJobTimingTracker(
 function jobTimingCounts(job: Job): { fast: number; slow: number } {
   const stats = job.stats ?? {};
   const type = jobTypeOf(job);
-
-  if (type === "body_parts") {
-    const fast = (stats.no_detections ?? 0) + (stats.read_error ?? 0);
-    const slow = (stats.success ?? 0) + (stats.detection_error ?? 0) + (stats.write_error ?? 0);
-    return { fast, slow };
-  }
 
   if (type === "strip_metadata") {
     const slow = (stats.success ?? 0) + (stats.write_error ?? 0) + (stats.ffmpeg_error ?? 0);

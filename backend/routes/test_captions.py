@@ -210,7 +210,7 @@ class CaptionEndpointTests(unittest.TestCase):
                 media,
                 {
                     "description": "Before.",
-                    "elements": [{"desc": "Lamp", "bbox": [1500, 1600, 1700, 1800]}],
+                    "elements": [{"desc": "Lamp"}],
                 },
             )
 
@@ -223,7 +223,6 @@ class CaptionEndpointTests(unittest.TestCase):
             data = json.loads(caption.read_text(encoding="utf-8"))
             self.assertEqual(data["description"], "After.")
             self.assertEqual(data["elements"][0]["desc"], "Lamp")
-            self.assertTrue(response.json()["has_bboxes"])
 
     def test_update_json_caption_key(self) -> None:
         with TempMediaFolder() as root:
@@ -247,7 +246,7 @@ class CaptionEndpointTests(unittest.TestCase):
                 {
                     "compositional_deconstruction": {
                         "high_level_description": "Old text.",
-                        "elements": [{"desc": "Chair", "bbox": [1500, 1600, 1700, 1800]}],
+                        "elements": [{"desc": "Chair"}],
                     }
                 },
             )
@@ -263,12 +262,12 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(decon["high_level_description"], "Updated nested text.")
             self.assertEqual(decon["elements"][0]["desc"], "Chair")
 
-    def test_adds_description_to_bbox_only_json(self) -> None:
+    def test_adds_description_to_json_without_description(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root)
             caption = write_json_caption(
                 media,
-                {"elements": [{"desc": "Tree", "bbox": [10, 20, 30, 40]}]},
+                {"elements": [{"desc": "Tree"}]},
             )
 
             response = client.put(
@@ -288,7 +287,7 @@ class CaptionEndpointTests(unittest.TestCase):
                 media,
                 {
                     "description": "Before.",
-                    "elements": [{"desc": "Lamp", "bbox": [1500, 1600, 1700, 1800]}],
+                    "elements": [{"desc": "Lamp"}],
                 },
             )
 
@@ -296,8 +295,8 @@ class CaptionEndpointTests(unittest.TestCase):
                 {
                     "description": "After full edit.",
                     "elements": [
-                        {"desc": "Chair", "bbox": [100, 200, 300, 400]},
-                        {"desc": "Table", "bbox": [500, 600, 700, 800]},
+                        {"desc": "Chair"},
+                        {"desc": "Table"},
                     ],
                     "custom_field": "preserved",
                 },
@@ -317,8 +316,6 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(data["elements"][0]["desc"], "Chair")
             payload = response.json()
             self.assertEqual(payload["description"], "After full edit.")
-            self.assertTrue(payload["has_bboxes"])
-            self.assertEqual(len(payload["bboxes"]), 2)
 
     def test_update_json_caption_rejects_invalid_json(self) -> None:
         with TempMediaFolder() as root:
@@ -332,56 +329,6 @@ class CaptionEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 400)
             self.assertIn("Invalid JSON", response.json()["detail"])
-
-    def test_update_json_caption_bboxes(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, width=1000, height=800)
-            caption = write_json_caption(
-                media,
-                {
-                    "description": "Scene.",
-                    "elements": [{"desc": "Sign", "bbox": [1500, 1600, 1700, 1800]}],
-                },
-            )
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={
-                    "text": "Scene.",
-                    "bboxes": [{"x1": 200, "y1": 220, "x2": 340, "y2": 360, "label": "Sign"}],
-                },
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            self.assertEqual(data["elements"][0]["bbox"], [275, 200, 450, 340])
-            payload = response.json()
-            self.assertEqual(len(payload["bboxes"]), 1)
-            self.assertEqual(payload["bboxes"][0]["x1"], 200)
-            self.assertEqual(payload["bboxes"][0]["y2"], 360)
-
-    def test_update_normalized_json_caption_bboxes(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, width=1000, height=800)
-            caption = write_json_caption(
-                media,
-                {
-                    "description": "Scene.",
-                    "elements": [{"desc": "Tree", "bbox": [100, 200, 300, 400]}],
-                },
-            )
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={
-                    "text": "Scene.",
-                    "bboxes": [{"x1": 250, "y1": 120, "x2": 450, "y2": 320, "label": "Tree"}],
-                },
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            self.assertEqual(data["elements"][0]["bbox"], [150, 250, 400, 450])
 
     def test_create_caption_for_uncaptioned_media(self) -> None:
         with TempMediaFolder() as root:

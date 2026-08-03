@@ -4,13 +4,11 @@ from fastapi import APIRouter, HTTPException, Query
 
 from automation.jobs import JobType, job_manager
 from automation.selection import resolve_selected_media
-from body_parts_settings import parse_keywords, update_body_parts_settings
 from routes._helpers import job_response, resolve_folder
 from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
-    BodyPartsStartRequest,
     JobResponse,
     RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
@@ -50,31 +48,6 @@ def start_auto_caption(
     body: AutoCaptionStartRequest = AutoCaptionStartRequest(),
 ) -> JobResponse:
     return _start_job("auto_caption", resolve_folder(path), body.paths, mode=body.mode)
-
-
-@router.post("/automation/body-parts", response_model=JobResponse)
-def start_body_parts_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: BodyPartsStartRequest = BodyPartsStartRequest(),
-) -> JobResponse:
-    folder = resolve_folder(path)
-
-    update_body_parts_settings(
-        body_description=body.body_description,
-        face_description=body.face_description,
-        keywords=body.keywords,
-        element_description=body.element_description,
-    )
-
-    return _start_job(
-        "body_parts",
-        folder,
-        body.paths,
-        body_description=body.body_description,
-        face_description=body.face_description,
-        keywords=parse_keywords(body.keywords),
-        element_description=body.element_description,
-    )
 
 
 @router.post("/automation/set-captions", response_model=JobResponse)

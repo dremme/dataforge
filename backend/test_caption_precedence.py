@@ -51,7 +51,7 @@ class CaptionPrecedenceTests(unittest.TestCase):
             write_txt_caption(media, "From the text sidecar.")
             write_json_caption(media, {"description": "From the JSON sidecar."})
 
-            description, _has_bboxes, status, caption_type = load_caption_summary(media)
+            description, status, caption_type = load_caption_summary(media)
 
             self.assertEqual(description, "From the JSON sidecar.")
             self.assertEqual(status, "text")
@@ -87,9 +87,9 @@ class CaptionPrecedenceTests(unittest.TestCase):
             write_txt_caption(blank, "   ")
             self.assertEqual(load_reference_caption(blank), (None, "no_caption"))
 
-            bboxes_only = write_media(root, "boxes.png")
-            write_json_caption(bboxes_only, {"elements": [{"bbox": [1, 2, 3, 4]}]})
-            self.assertEqual(load_reference_caption(bboxes_only), (None, "no_caption"))
+            no_description = write_media(root, "elements.png")
+            write_json_caption(no_description, {"elements": [{"size": [1, 2]}]})
+            self.assertEqual(load_reference_caption(no_description), (None, "no_caption"))
 
     def test_saving_updates_the_json_sidecar_and_leaves_txt_alone(self) -> None:
         with TempMediaFolder() as root:

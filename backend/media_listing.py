@@ -99,7 +99,7 @@ def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
         caption = _caption_sidecar(scan, media)
         if caption is not None:
             sidecar, caption_file_type = caption
-            description, _, caption_status, _ = caption_summary_from_sidecar(
+            description, caption_status, _ = caption_summary_from_sidecar(
                 sidecar.path,
                 caption_file_type,
                 sidecar.mtime_ns,
@@ -154,14 +154,13 @@ def summarize_folder_contents(folder: Path) -> dict[str, int]:
 
 def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) -> dict:
     description: str | None = None
-    has_bboxes = False
     caption_status = "none"
     caption_file_type: str | None = None
 
     caption = _caption_sidecar(scan, media)
     if caption is not None:
         sidecar, caption_file_type = caption
-        description, has_bboxes, caption_status, caption_file_type = caption_summary_from_sidecar(
+        description, caption_status, caption_file_type = caption_summary_from_sidecar(
             sidecar.path,
             caption_file_type,
             sidecar.mtime_ns,
@@ -187,7 +186,6 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "has_caption_file": caption_status != "none",
         "issue_fixes": issue_fixes,
         "has_issue_file": has_issue_file,
-        "has_bboxes": has_bboxes,
         "caption_status": caption_status,
         "caption_file_type": caption_file_type,
         "media_type": media_type,

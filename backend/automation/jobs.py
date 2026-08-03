@@ -20,16 +20,10 @@ from automation.backup_captions import (
     validate_restore_captions_folder,
 )
 from automation.batch_rename import run_batch_rename_job, validate_batch_rename_folder
-from automation.body_parts import (
-    list_body_parts_images,
-    run_body_parts_job,
-    validate_body_parts_folder,
-)
 from automation.job_messages import (
     auto_caption_error_message,
     backup_captions_error_message,
     batch_rename_error_message,
-    body_parts_error_message,
     resolve_job_error,
     restore_captions_error_message,
     set_captions_error_message,
@@ -45,7 +39,6 @@ from filesystem import normalize_user_path, path_leaf_name
 JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
 JobType = Literal[
     "auto_caption",
-    "body_parts",
     "strip_metadata",
     "set_captions",
     "verify_captions",
@@ -205,15 +198,6 @@ def _validate_batch_rename(folder: Path, **params: object) -> None:
     )
 
 
-def _prepare_body_parts(job: Job, folder: Path, params: dict[str, object]) -> None:
-    """Show the real file count while the (slow) model load blocks the first progress tick."""
-    from automation.selection import filter_media_list
-
-    image_files = filter_media_list(list_body_parts_images(folder), _selected_paths(params))
-    job.total = len(image_files)
-    job.current_name = "Loading models..."
-
-
 def _train_lora_external_ref(params: dict[str, object]) -> str | None:
     return str(params.get("lora_name", "")).strip() or None
 
@@ -260,13 +244,6 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         resolve_status=_resolve_api_errors("api_error", auto_caption_error_message),
         validate=_folder_only(validate_auto_caption_folder),
         caption_mode=_auto_caption_mode,
-    ),
-    "body_parts": JobSpec(
-        thread_prefix="body-parts",
-        run=run_body_parts_job,
-        resolve_status=_resolve_stats_errors(body_parts_error_message),
-        validate=_folder_only(validate_body_parts_folder),
-        prepare=_prepare_body_parts,
     ),
     "strip_metadata": JobSpec(
         thread_prefix="strip-metadata",

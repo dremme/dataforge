@@ -14,11 +14,7 @@ function resolveCaptionStatus(item: GalleryItem): CaptionStatus {
 
 const CARD_STATUS_MESSAGES: Partial<Record<CaptionStatus, CaptionStatusDisplay>> = {
   empty: {
-    message: "Caption file is empty or unreadable",
-    variant: "warning",
-  },
-  bboxes_only: {
-    message: "Regions only — no description text",
+    message: "Caption file has no description text",
     variant: "warning",
   },
   none: {
@@ -41,9 +37,7 @@ const SYSPROMPT_STATUS_MESSAGES: Partial<Record<CaptionStatus, CaptionStatusDisp
 function galleryItemStatusMessage(status: CaptionStatus, mediaLabel: string): string {
   switch (status) {
     case "empty":
-      return `Caption file exists but has no usable text for this ${mediaLabel}.`;
-    case "bboxes_only":
-      return `Caption has region data only — no description text for this ${mediaLabel}.`;
+      return `Caption file exists but has no description text for this ${mediaLabel}.`;
     default:
       return `No caption available for this ${mediaLabel}.`;
   }
@@ -79,7 +73,7 @@ export function getGalleryItemCaptionDisplay(
     };
   }
 
-  const variant = status === "empty" || status === "bboxes_only" ? "warning" : "muted";
+  const variant = status === "empty" ? "warning" : "muted";
   return { message: galleryItemStatusMessage(status, mediaLabel), variant };
 }
 
@@ -88,6 +82,6 @@ export function getCardModifierClass(item: GalleryItem): string {
   if (item.has_description) return "card--captioned";
 
   const status = resolveCaptionStatus(item);
-  if (status === "bboxes_only" || status === "empty") return "card--partial";
+  if (status === "empty") return "card--partial";
   return "card--plain";
 }

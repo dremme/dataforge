@@ -1,17 +1,8 @@
 type MediaType = "image" | "video" | "sysprompt";
 
-export type CaptionStatus = "none" | "empty" | "text" | "bboxes_only";
+export type CaptionStatus = "none" | "empty" | "text";
 
 type CaptionFileType = "json" | "txt";
-
-export interface CaptionBBox {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  type?: string;
-  label?: string;
-}
 
 export interface GalleryItem {
   name: string;
@@ -21,7 +12,6 @@ export interface GalleryItem {
   has_caption_file: boolean;
   issue_fixes: string[];
   has_issue_file: boolean;
-  has_bboxes: boolean;
   caption_status: CaptionStatus;
   caption_file_type: CaptionFileType | null;
   media_type: MediaType;
@@ -31,7 +21,6 @@ export interface GalleryItem {
   fps?: number;
   size?: number;
   modified_at?: string;
-  bboxes?: CaptionBBox[];
 }
 
 export interface Breadcrumb {
@@ -144,8 +133,6 @@ export interface CaptionSaveResponse {
   caption_file: string;
   caption_file_type: CaptionFileType | null;
   caption_content?: string | null;
-  bboxes?: CaptionBBox[];
-  has_bboxes: boolean;
   issue_fixes?: string[];
   has_issue_file?: boolean;
 }
@@ -191,7 +178,6 @@ export interface BrowseResponse {
 
 export type JobType =
   | "auto_caption"
-  | "body_parts"
   | "strip_metadata"
   | "set_captions"
   | "verify_captions"

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import type { JobType } from "@/shared/types";
 
 const { postJsonMock } = vi.hoisted(() => ({
@@ -10,14 +9,7 @@ vi.mock("@/shared/api/http", () => ({
   postJson: postJsonMock,
 }));
 
-import { bodyPartsBody, startAutomationJob, trainLoraBody } from "./jobs";
-
-const bodyPartsSettings: BodyPartsSettings = {
-  bodyDescription: "torso",
-  faceDescription: "face",
-  keywords: "bag",
-  elementDescription: "accessory",
-};
+import { startAutomationJob, trainLoraBody } from "./jobs";
 
 describe("automation API", () => {
   afterEach(() => {
@@ -29,7 +21,6 @@ describe("automation API", () => {
 
     const routes: Array<[JobType, string]> = [
       ["auto_caption", "auto-caption"],
-      ["body_parts", "body-parts"],
       ["strip_metadata", "strip-metadata"],
       ["set_captions", "set-captions"],
       ["verify_captions", "verify-captions"],
@@ -76,13 +67,6 @@ describe("automation API", () => {
   });
 
   it("maps the settings dialogs onto their wire fields", () => {
-    expect(bodyPartsBody(bodyPartsSettings)).toEqual({
-      body_description: "torso",
-      face_description: "face",
-      keywords: "bag",
-      element_description: "accessory",
-    });
-
     expect(
       trainLoraBody({
         loraName: "sample_train_v1",

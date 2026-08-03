@@ -11,7 +11,6 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_caption_file: true,
     issue_fixes: ['Replace "a blue lake" with "a snow-covered mountain peak".'],
     has_issue_file: true,
-    has_bboxes: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",

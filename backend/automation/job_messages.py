@@ -9,15 +9,6 @@ def auto_caption_error_message(count: int) -> str:
     return f"Failed auto-caption for {count} files. Check that the local model server is running."
 
 
-def body_parts_error_message(stats: dict[str, int]) -> str | None:
-    write_errors = int(stats.get("write_error") or 0)
-    if write_errors == 1:
-        return "Failed to write .json sidecar for 1 image."
-    if write_errors > 1:
-        return f"Failed to write .json sidecar for {write_errors} images."
-    return None
-
-
 def strip_metadata_error_message(stats: dict[str, int]) -> str | None:
     ffmpeg_errors = int(stats.get("ffmpeg_error") or 0)
     write_errors = int(stats.get("write_error") or 0)
@@ -148,8 +139,6 @@ def resolve_job_error(
         count = int(stats.get("api_error") or 0)
         if count > 0:
             return auto_caption_error_message(count)
-    if job_type == "body_parts":
-        return body_parts_error_message(stats)
     if job_type == "strip_metadata":
         return strip_metadata_error_message(stats)
     if job_type == "set_captions":

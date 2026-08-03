@@ -98,9 +98,7 @@ export function IssueResolverModal({
     setSaveError(false);
 
     try {
-      const result = await saveCaption(item.path, caption.trim(), undefined, {
-        resolveIssue: true,
-      });
+      const result = await saveCaption(item.path, caption.trim(), { resolveIssue: true });
       onCaptionSaved(item.path, result);
 
       if (index < queue.length - 1) {

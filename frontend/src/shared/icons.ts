@@ -34,7 +34,6 @@ export {
   FolderOpen as iconFolderOpen,
   FolderPlus as iconFolderPlus,
   FolderTree as iconFolderTree,
-  Group as iconGroup,
   Gpu as iconGpu,
   Hammer as iconHammer,
   Heading1 as iconHeading1,

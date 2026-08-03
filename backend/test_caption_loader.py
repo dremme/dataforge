@@ -22,7 +22,7 @@ class CaptionLoaderTests(unittest.TestCase):
                 media,
                 {
                     "description": "Shared caption.",
-                    "elements": [{"desc": "Sign", "bbox": [1500, 1600, 1700, 1800]}],
+                    "elements": [{"desc": "Sign"}],
                 },
             )
             read_calls = {"count": 0}
@@ -39,7 +39,6 @@ class CaptionLoaderTests(unittest.TestCase):
 
             self.assertEqual(summary[0], "Shared caption.")
             self.assertEqual(response["description"], "Shared caption.")
-            self.assertTrue(response["has_bboxes"])
             self.assertEqual(read_calls["count"], 2)
 
 

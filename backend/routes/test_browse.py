@@ -93,14 +93,14 @@ class BrowseEndpointTests(unittest.TestCase):
             self.assertIn("size", item)
             self.assertIn("modified_at", item)
 
-    def test_includes_json_caption_bboxes(self) -> None:
+    def test_includes_the_json_caption_description(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root)
             write_json_caption(
                 media,
                 {
                     "description": "A labeled scene.",
-                    "elements": [{"desc": "Sign", "bbox": [1500, 1600, 1700, 1800]}],
+                    "elements": [{"desc": "Sign"}],
                 },
             )
 
@@ -108,8 +108,7 @@ class BrowseEndpointTests(unittest.TestCase):
             item = next(image for image in items if image["media_type"] == "image")
 
             self.assertEqual(item["description"], "A labeled scene.")
-            self.assertTrue(item["has_bboxes"])
-            self.assertIsNone(item.get("bboxes"))
+            self.assertEqual(item["caption_file_type"], "json")
 
     def test_lists_video_without_parsing_frame_stats(self) -> None:
         with TempMediaFolder() as root:

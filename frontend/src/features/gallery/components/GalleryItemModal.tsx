@@ -36,11 +36,9 @@ import {
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
-import { BboxOverlay } from "./BboxOverlay";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
-import { GalleryItemModalBboxList } from "./GalleryItemModalBboxList";
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -102,16 +100,11 @@ export function GalleryItemModal({
 
   const {
     caption,
-    bboxes,
-    selectedBboxIndex,
-    setSelectedBboxIndex,
     captionContent,
     hasJsonCaption,
-    bboxesEditable,
     saveState,
     saveError,
     handleCaptionChange,
-    handleBboxesChange,
     handleJsonContentSave,
     jsonSaveState,
     jsonSaveError,
@@ -428,24 +421,11 @@ export function GalleryItemModal({
               imgClassName="gallery-item-modal__img"
               src={galleryItemMediaUrl(item)}
               alt={item.name}
-              zoomable={bboxes.length === 0}
               onLoad={(event) => {
                 const img = event.currentTarget;
                 recordResolution(img.naturalWidth, img.naturalHeight, item.path);
               }}
-            >
-              {bboxes.length > 0 && resolution && (
-                <BboxOverlay
-                  bboxes={bboxes}
-                  imageWidth={resolution.width}
-                  imageHeight={resolution.height}
-                  editable={bboxesEditable}
-                  selectedIndex={selectedBboxIndex}
-                  onSelectedIndexChange={bboxesEditable ? setSelectedBboxIndex : undefined}
-                  onBboxesChange={bboxesEditable ? handleBboxesChange : undefined}
-                />
-              )}
-            </ZoomableImage>
+            />
           )}
 
           <button
@@ -536,13 +516,6 @@ export function GalleryItemModal({
               onChange={handleCaptionChange}
             />
           </div>
-
-          <GalleryItemModalBboxList
-            bboxes={bboxes}
-            bboxesEditable={bboxesEditable}
-            selectedBboxIndex={selectedBboxIndex}
-            onSelectedBboxIndexChange={setSelectedBboxIndex}
-          />
         </footer>
       </ModalShell>
 

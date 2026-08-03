@@ -72,7 +72,7 @@ export const GalleryItemJsonEditorDialog = memo(function GalleryItemJsonEditorDi
           <div className="gallery-item-json-editor__header-copy">
             <h2 className="gallery-item-json-editor__title">{itemName}</h2>
             <p className="gallery-item-json-editor__subtitle">
-              Edit the full Ideogram 4 .json caption file for this image.
+              Edit the full .json caption file for this image.
             </p>
           </div>
         </div>

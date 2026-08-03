@@ -63,136 +63,6 @@ def _caption_text_from_json(data: object) -> str | None:
     return None
 
 
-def _element_label(element: dict) -> str | None:
-    for key in ("desc", "text", "label", "name"):
-        value = element.get(key)
-        if isinstance(value, str):
-            text = value.strip()
-            if text:
-                return text
-    return None
-
-
-def _raw_bbox_values(raw_bbox: object) -> tuple[float, float, float, float] | None:
-    if not isinstance(raw_bbox, (list, tuple)) or len(raw_bbox) != 4:
-        return None
-
-    try:
-        return tuple(float(value) for value in raw_bbox)
-    except (TypeError, ValueError):
-        return None
-
-
-def _bbox_uses_pixel_coords(raw_bboxes: list[tuple[float, float, float, float]]) -> bool:
-    return any(max(coords) > 1000 for coords in raw_bboxes)
-
-
-def _parse_bbox_coords(
-    coords: tuple[float, float, float, float],
-    *,
-    use_pixel_coords: bool,
-    image_width: int | None = None,
-    image_height: int | None = None,
-) -> tuple[float, float, float, float] | None:
-    a, b, c, d = coords
-
-    if use_pixel_coords:
-        x1, x2 = sorted((a, c))
-        y1, y2 = sorted((b, d))
-    else:
-        # ai-toolkit Ideogram4 captions store normalized boxes as [y1, x1, y2, x2].
-        y1, x1, y2, x2 = a, b, c, d
-        y1, y2 = sorted((y1, y2))
-        x1, x2 = sorted((x1, x2))
-        if image_width and image_height:
-            x1 = x1 / 1000 * image_width
-            x2 = x2 / 1000 * image_width
-            y1 = y1 / 1000 * image_height
-            y2 = y2 / 1000 * image_height
-
-    if x2 <= x1 or y2 <= y1:
-        return None
-
-    return x1, y1, x2, y2
-
-
-def _iter_json_bbox_elements(data: object) -> list[dict]:
-    if not isinstance(data, dict):
-        return []
-
-    elements: list[object] = []
-    decon = data.get("compositional_deconstruction")
-    if isinstance(decon, dict) and isinstance(decon.get("elements"), list):
-        elements.extend(decon["elements"])
-    if isinstance(data.get("elements"), list):
-        elements.extend(data["elements"])
-
-    return [element for element in elements if isinstance(element, dict) and "bbox" in element]
-
-
-def _json_has_bboxes(data: object) -> bool:
-    for element in _iter_json_bbox_elements(data):
-        if _raw_bbox_values(element["bbox"]) is not None:
-            return True
-    return False
-
-
-def _extract_bboxes_from_json(
-    data: object,
-    image_width: int | None = None,
-    image_height: int | None = None,
-) -> list[dict[str, object]]:
-    if not isinstance(data, dict):
-        return []
-
-    elements = _iter_json_bbox_elements(data)
-
-    raw_bboxes: list[tuple[float, float, float, float]] = []
-    parsed_elements: list[dict] = []
-    for element in elements:
-        coords = _raw_bbox_values(element["bbox"])
-        if coords is None:
-            continue
-
-        raw_bboxes.append(coords)
-        parsed_elements.append(element)
-
-    if not parsed_elements:
-        return []
-
-    use_pixel_coords = _bbox_uses_pixel_coords(raw_bboxes)
-    bboxes: list[dict[str, object]] = []
-    for element, coords in zip(parsed_elements, raw_bboxes, strict=True):
-        parsed_coords = _parse_bbox_coords(
-            coords,
-            use_pixel_coords=use_pixel_coords,
-            image_width=image_width,
-            image_height=image_height,
-        )
-        if parsed_coords is None:
-            continue
-
-        x1, y1, x2, y2 = parsed_coords
-        bbox_item: dict[str, object] = {
-            "x1": round(x1, 2),
-            "y1": round(y1, 2),
-            "x2": round(x2, 2),
-            "y2": round(y2, 2),
-        }
-
-        element_type = element.get("type")
-        if isinstance(element_type, str) and element_type.strip():
-            bbox_item["type"] = element_type.strip()
-
-        label = _element_label(element)
-        if label:
-            bbox_item["label"] = label
-
-        bboxes.append(bbox_item)
-
-    return bboxes
-
-
 def _read_caption_text(path: Path) -> str | None:
     try:
         return path.read_text(encoding="utf-8-sig")
@@ -207,19 +77,14 @@ def _parse_json_caption_text(raw: str) -> object | None:
         return None
 
 
-def _json_summary_from_data(
-    data: object | None,
-) -> tuple[str | None, bool, str]:
+def _json_summary_from_data(data: object | None) -> tuple[str | None, str]:
     if data is None:
-        return None, False, "empty"
+        return None, "empty"
 
     description = _caption_text_from_json(data)
-    has_bboxes = _json_has_bboxes(data)
     if description:
-        return description, has_bboxes, "text"
-    if has_bboxes:
-        return None, True, "bboxes_only"
-    return None, False, "empty"
+        return description, "text"
+    return None, "empty"
 
 
 def resolve_caption_file_name(
@@ -254,25 +119,25 @@ def resolve_caption_file(media_path: Path) -> tuple[Path | None, str | None]:
 def _caption_summary_from_raw(
     raw_content: str | None,
     caption_file_type: str | None,
-) -> tuple[str | None, bool, str, object | None]:
+) -> tuple[str | None, str, object | None]:
     """Summarize sidecar text that has already been read off disk.
 
-    Returns ``(description, has_bboxes, caption_status, json_data)``; the parsed
-    JSON rides along so callers needing bboxes do not have to parse a second time.
+    Returns ``(description, caption_status, json_data)``; the parsed JSON rides
+    along so callers needing the structure do not have to parse a second time.
     Assumes a sidecar exists, so an unusable one reports ``"empty"`` rather than
     ``"none"``.
     """
     if caption_file_type == "json":
         data = _parse_json_caption_text(raw_content) if raw_content is not None else None
-        description, has_bboxes, caption_status = _json_summary_from_data(data)
-        return description, has_bboxes, caption_status, data
+        description, caption_status = _json_summary_from_data(data)
+        return description, caption_status, data
 
     if raw_content is not None:
         text = raw_content.strip()
         if text:
-            return text, False, "text", None
+            return text, "text", None
 
-    return None, False, "empty", None
+    return None, "empty", None
 
 
 def caption_summary_from_sidecar(
@@ -280,72 +145,60 @@ def caption_summary_from_sidecar(
     caption_file_type: str,
     mtime_ns: int,
     size: int,
-) -> tuple[str | None, bool, str, str | None]:
+) -> tuple[str | None, str, str | None]:
     """:func:`load_caption_summary` for a sidecar the caller has already stat'ed.
 
     Memoized on the stat signature, so an unchanged folder re-browses without
     touching a single caption file.
     """
 
-    def load() -> tuple[str | None, bool, str, str | None]:
+    def load() -> tuple[str | None, str, str | None]:
         raw_content = _read_caption_text(sidecar_path)
-        description, has_bboxes, caption_status, _ = _caption_summary_from_raw(
+        description, caption_status, _ = _caption_summary_from_raw(
             raw_content,
             caption_file_type,
         )
-        return description, has_bboxes, caption_status, caption_file_type
+        return description, caption_status, caption_file_type
 
     return cached_by_stat("caption", sidecar_path, mtime_ns, size, load)
 
 
-def _load_caption_bundle(
-    media_path: Path,
-    *,
-    image_width: int | None = None,
-    image_height: int | None = None,
-) -> dict[str, object]:
+def _load_caption_bundle(media_path: Path) -> dict[str, object]:
     raw_content: str | None = None
     description: str | None = None
-    has_bboxes = False
     caption_status = "none"
-    bboxes: list[dict[str, object]] = []
 
     caption_path, caption_file_type = resolve_caption_file(media_path)
 
     if caption_path is not None:
         raw_content = _read_caption_text(caption_path)
-        description, has_bboxes, caption_status, data = _caption_summary_from_raw(
+        description, caption_status, _ = _caption_summary_from_raw(
             raw_content,
             caption_file_type,
         )
-        if data is not None:
-            bboxes = _extract_bboxes_from_json(data, image_width, image_height)
 
     return {
         "description": description,
-        "has_bboxes": has_bboxes,
         "caption_status": caption_status,
         "caption_file_type": caption_file_type,
         "caption_path": caption_path,
         "raw_content": raw_content,
-        "bboxes": bboxes,
     }
 
 
 def load_caption_summary(
     media_path: Path,
-) -> tuple[str | None, bool, str, str | None]:
+) -> tuple[str | None, str, str | None]:
     bundle = _load_caption_bundle(media_path)
     return (
         bundle["description"],  # type: ignore[return-value]
-        bundle["has_bboxes"],  # type: ignore[return-value]
         bundle["caption_status"],  # type: ignore[return-value]
         bundle["caption_file_type"],  # type: ignore[return-value]
     )
 
 
 def media_has_caption_text(media_path: Path) -> bool:
-    description, _, caption_status, _ = load_caption_summary(media_path)
+    description, caption_status, _ = load_caption_summary(media_path)
     return description is not None and caption_status == "text"
 
 
@@ -418,83 +271,6 @@ def _find_caption_location(data: object) -> tuple[dict[str, object], str] | None
     return None
 
 
-def _pixel_bbox_to_raw(
-    bbox: dict[str, object],
-    *,
-    use_pixel_coords: bool,
-    image_width: int | None = None,
-    image_height: int | None = None,
-) -> list[float]:
-    x1 = float(bbox["x1"])
-    y1 = float(bbox["y1"])
-    x2 = float(bbox["x2"])
-    y2 = float(bbox["y2"])
-
-    if use_pixel_coords:
-        return [round(x1), round(y1), round(x2), round(y2)]
-
-    if not image_width or not image_height:
-        raise ValueError("Image dimensions required to save normalized bounding boxes")
-
-    return [
-        round(y1 / image_height * 1000),
-        round(x1 / image_width * 1000),
-        round(y2 / image_height * 1000),
-        round(x2 / image_width * 1000),
-    ]
-
-
-def _resolve_bbox_save_format(
-    raw_bboxes: list[tuple[float, float, float, float]],
-    bboxes: list[dict[str, object]],
-) -> bool:
-    if not raw_bboxes or not _bbox_uses_pixel_coords(raw_bboxes):
-        return False
-
-    return any(
-        max(
-            float(bbox["x1"]),
-            float(bbox["y1"]),
-            float(bbox["x2"]),
-            float(bbox["y2"]),
-        )
-        > 1000
-        for bbox in bboxes
-    )
-
-
-def _update_json_bboxes(
-    data: dict[str, object],
-    bboxes: list[dict[str, object]],
-    *,
-    image_width: int | None = None,
-    image_height: int | None = None,
-) -> dict[str, object]:
-    elements = _iter_json_bbox_elements(data)
-    if not elements:
-        return data
-
-    raw_bboxes: list[tuple[float, float, float, float]] = []
-    for element in elements:
-        coords = _raw_bbox_values(element["bbox"])
-        if coords is not None:
-            raw_bboxes.append(coords)
-
-    use_pixel_coords = _resolve_bbox_save_format(raw_bboxes, bboxes)
-
-    for index, element in enumerate(elements):
-        if index >= len(bboxes):
-            break
-        element["bbox"] = _pixel_bbox_to_raw(
-            bboxes[index],
-            use_pixel_coords=use_pixel_coords,
-            image_width=image_width,
-            image_height=image_height,
-        )
-
-    return data
-
-
 def _update_json_caption(data: object, text: str) -> dict[str, object]:
     if not isinstance(data, dict):
         data = {}
@@ -509,26 +285,9 @@ def _update_json_caption(data: object, text: str) -> dict[str, object]:
     return data
 
 
-def _caption_media_dimensions(media_path: Path) -> tuple[int | None, int | None]:
-    from media_listing import get_media_type
-    from media_metadata import get_media_dimensions
-
-    media_type = get_media_type(media_path) or "image"
-    dimensions = get_media_dimensions(media_path, media_type)
-    if not dimensions:
-        return None, None
-    return dimensions
-
-
 def build_caption_response(media_path: Path) -> dict[str, object]:
-    image_width, image_height = _caption_media_dimensions(media_path)
-    bundle = _load_caption_bundle(
-        media_path,
-        image_width=image_width,
-        image_height=image_height,
-    )
+    bundle = _load_caption_bundle(media_path)
     description = bundle["description"]
-    bboxes = bundle["bboxes"]
     caption_status = bundle["caption_status"]
     caption_path = bundle["caption_path"]
     caption_type = bundle["caption_file_type"]
@@ -543,8 +302,6 @@ def build_caption_response(media_path: Path) -> dict[str, object]:
         "caption_file": str(caption_path) if caption_path else "",
         "caption_file_type": caption_type,
         "caption_content": bundle["raw_content"],
-        "bboxes": bboxes,
-        "has_bboxes": bool(bboxes),
         "issue_fixes": issue_fixes,
         "has_issue_file": has_issue_file,
     }
@@ -585,14 +342,12 @@ def _complete_save_response(
 def save_caption(
     media_path: Path,
     text: str,
-    bboxes: list[dict[str, object]] | None = None,
     json_content: str | None = None,
     *,
     resolve_issue: bool = False,
 ) -> dict[str, object]:
     caption_path, caption_type = resolve_caption_file(media_path)
     normalized = text.strip()
-    image_width, image_height = _caption_media_dimensions(media_path)
 
     if json_content is not None:
         if caption_type != "json":
@@ -617,15 +372,6 @@ def save_caption(
             raise ValueError("Caption JSON file is unreadable") from exc
 
         updated = _update_json_caption(data, normalized)
-        if bboxes is not None:
-            if not isinstance(updated, dict):
-                updated = {}
-            updated = _update_json_bboxes(
-                updated,
-                bboxes,
-                image_width=image_width,
-                image_height=image_height,
-            )
         caption_path.write_text(
             json.dumps(updated, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",

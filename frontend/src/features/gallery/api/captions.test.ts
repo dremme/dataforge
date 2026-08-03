@@ -52,18 +52,6 @@ describe("captions API", () => {
     });
   });
 
-  it("includes bboxes when saving a caption", async () => {
-    putJsonMock.mockResolvedValue({ description: "Updated." });
-    const bboxes = [{ x1: 1, y1: 2, x2: 3, y2: 4, label: "Sign" }];
-
-    await saveCaption("C:\\Photos\\sunset.png", "Updated.", bboxes);
-
-    expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
-      text: "Updated.",
-      bboxes,
-    });
-  });
-
   it("saves raw JSON caption content", async () => {
     putJsonMock.mockResolvedValue({ description: "Updated." });
 

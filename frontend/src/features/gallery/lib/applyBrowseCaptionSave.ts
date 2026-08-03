@@ -38,8 +38,6 @@ export function applyBrowseCaptionSave(
       has_description: captionUpdate.has_description,
       has_caption_file: captionUpdate.has_caption_file,
       caption_status: captionUpdate.caption_status,
-      has_bboxes: captionUpdate.has_bboxes,
-      bboxes: captionUpdate.bboxes !== undefined ? captionUpdate.bboxes : item.bboxes,
       caption_file_type: captionUpdate.caption_file_type,
       issue_fixes: captionUpdate.issue_fixes ?? item.issue_fixes,
       has_issue_file: captionUpdate.has_issue_file ?? item.has_issue_file,

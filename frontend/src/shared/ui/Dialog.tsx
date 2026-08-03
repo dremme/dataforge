@@ -23,7 +23,7 @@ interface DialogProps {
   description?: ReactNode;
   /** `alertdialog` interrupts the user; use `dialog` for pickers and browsers. */
   role?: "alertdialog" | "dialog";
-  /** Extra class on the panel, e.g. `body-parts-dialog`. */
+  /** Extra class on the panel, e.g. `batch-rename-dialog`. */
   panelClassName?: string;
   /** Disables every dismiss affordance and the Enter shortcut. */
   busy?: boolean;

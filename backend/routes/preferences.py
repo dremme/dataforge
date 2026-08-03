@@ -1,9 +1,6 @@
 from fastapi import APIRouter, Query
 
-from body_parts_settings import get_body_parts_settings, update_body_parts_settings
 from schemas import (
-    BodyPartsSettingsResponse,
-    BodyPartsSettingsUpdate,
     UiSettingsResponse,
     UiSettingsUpdate,
     VerifyCaptionsSettingsResponse,
@@ -25,21 +22,6 @@ def write_ui_settings(body: UiSettingsUpdate) -> UiSettingsResponse:
     return update_ui_settings(
         sort=body.sort,
         show_automation_specs=body.show_automation_specs,
-    )
-
-
-@router.get("/preferences/body-parts", response_model=BodyPartsSettingsResponse)
-def read_body_parts_settings() -> BodyPartsSettingsResponse:
-    return get_body_parts_settings()
-
-
-@router.put("/preferences/body-parts", response_model=BodyPartsSettingsResponse)
-def write_body_parts_settings(body: BodyPartsSettingsUpdate) -> BodyPartsSettingsResponse:
-    return update_body_parts_settings(
-        body_description=body.body_description,
-        face_description=body.face_description,
-        keywords=body.keywords,
-        element_description=body.element_description,
     )
 
 

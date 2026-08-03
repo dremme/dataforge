@@ -3,15 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { GalleryItem } from "@/shared/types";
 import { useAutomationHost } from "./useAutomationHost";
 
-vi.mock("@/features/automation/preferences/bodyPartsPreferences", () => ({
-  loadBodyPartsSettings: vi.fn(async () => ({
-    bodyDescription: "body",
-    faceDescription: "face",
-    keywords: "hat",
-    elementDescription: "part",
-  })),
-}));
-
 vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
   loadVerifyCaptionsSettings: vi.fn(async (folderPath: string) => ({
     mode: "instruct" as const,

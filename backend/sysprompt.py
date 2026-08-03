@@ -38,7 +38,6 @@ def load_sysprompt_item(folder: Path) -> dict | None:
         "description": description,
         "has_description": description is not None,
         "has_caption_file": has_file,
-        "has_bboxes": False,
         "caption_status": caption_status,
         "caption_file_type": None,
         "media_type": "sysprompt",

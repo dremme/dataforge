@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { clearBrowseCache } from "@/features/browse/lib/browseCache";
-import type { CaptionBBox, Job, BrowseResponse } from "@/shared/types";
+import type { Job, BrowseResponse } from "@/shared/types";
 import { emptyBrowse, homeBrowse, vacationBrowse } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
@@ -295,26 +295,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ sort: "name-asc" });
     }
 
-    if (url.pathname === "/api/preferences/body-parts") {
-      if (method === "PUT") {
-        const body = init?.body ? JSON.parse(init.body as string) : {};
-        return jsonResponse({
-          body_description: typeof body.body_description === "string" ? body.body_description : "",
-          face_description: typeof body.face_description === "string" ? body.face_description : "",
-          keywords: typeof body.keywords === "string" ? body.keywords : "",
-          element_description:
-            typeof body.element_description === "string" ? body.element_description : "",
-        });
-      }
-
-      return jsonResponse({
-        body_description: "",
-        face_description: "",
-        keywords: "",
-        element_description: "",
-      });
-    }
-
     if (url.pathname === "/api/preferences/verify-captions") {
       if (method === "PUT") {
         const body = init?.body ? JSON.parse(init.body as string) : {};
@@ -360,21 +340,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const captionFileType = item?.caption_file_type ?? null;
       const captionContent =
         captionFileType === "json" && captionText.length > 0
-          ? `${JSON.stringify(
-              {
-                description: captionText,
-                ...((item?.bboxes ?? []).length > 0
-                  ? {
-                      elements: (item?.bboxes ?? []).map((bbox) => ({
-                        desc: bbox.label ?? "Element",
-                        bbox: [bbox.y1, bbox.x1, bbox.y2, bbox.x2],
-                      })),
-                    }
-                  : {}),
-              },
-              null,
-              2,
-            )}\n`
+          ? `${JSON.stringify({ description: captionText }, null, 2)}\n`
           : captionText.length > 0
             ? `${captionText}\n`
             : null;
@@ -387,8 +353,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         caption_file: path.replace(/\.[^.]+$/, captionFileType === "json" ? ".json" : ".txt"),
         caption_file_type: captionFileType,
         caption_content: captionContent,
-        has_bboxes: item?.has_bboxes ?? false,
-        bboxes: item?.bboxes ?? [],
       });
     }
 
@@ -409,30 +373,13 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
         if (jsonContent) {
           try {
-            const parsed = JSON.parse(jsonContent) as {
-              description?: string;
-              elements?: Array<{ desc?: string; bbox?: number[] }>;
-            };
+            const parsed = JSON.parse(jsonContent) as { description?: string };
             const description = typeof parsed.description === "string" ? parsed.description : null;
             item.description = description;
             item.has_description = Boolean(description);
             item.has_caption_file = true;
             item.caption_status = description ? "text" : "empty";
             item.caption_file_type = "json";
-            item.has_bboxes = Array.isArray(parsed.elements) && parsed.elements.length > 0;
-            item.bboxes = (parsed.elements ?? [])
-              .map((element) => {
-                const bbox = element.bbox;
-                if (!Array.isArray(bbox) || bbox.length !== 4) return null;
-                return {
-                  x1: bbox[1],
-                  y1: bbox[0],
-                  x2: bbox[3],
-                  y2: bbox[2],
-                  label: element.desc,
-                };
-              })
-              .filter((bbox): bbox is NonNullable<typeof bbox> => bbox !== null);
             if (resolveIssue) {
               item.issue_fixes = [];
               item.has_issue_file = false;
@@ -443,27 +390,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           continue;
         }
 
-        const bodyBboxes = Array.isArray(body.bboxes) ? body.bboxes : null;
-        const keepJson =
-          item.caption_file_type === "json" || (bodyBboxes !== null && bodyBboxes.length > 0);
-
         item.description = hasDescription ? text : null;
         item.has_description = hasDescription;
         item.has_caption_file = true;
-        item.caption_status = hasDescription
-          ? "text"
-          : keepJson && !hasDescription
-            ? "bboxes_only"
-            : "empty";
-        if (keepJson) {
-          item.caption_file_type = "json";
-          if (bodyBboxes) {
-            item.bboxes = bodyBboxes;
-            item.has_bboxes = bodyBboxes.length > 0;
-          }
-        } else {
-          item.caption_file_type = "txt";
-        }
+        item.caption_status = hasDescription ? "text" : "empty";
+        item.caption_file_type = item.caption_file_type === "json" ? "json" : "txt";
 
         if (resolveIssue) {
           item.issue_fixes = [];
@@ -477,10 +408,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       };
 
       if (jsonContent) {
-        let parsed: {
-          description?: string;
-          elements?: Array<{ desc?: string; bbox?: number[] }>;
-        };
+        let parsed: { description?: string };
         try {
           parsed = JSON.parse(jsonContent);
         } catch {
@@ -488,19 +416,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         }
 
         const description = typeof parsed.description === "string" ? parsed.description : null;
-        const bboxes = (parsed.elements ?? [])
-          .map((element) => {
-            const bbox = element.bbox;
-            if (!Array.isArray(bbox) || bbox.length !== 4) return null;
-            return {
-              x1: bbox[1],
-              y1: bbox[0],
-              x2: bbox[3],
-              y2: bbox[2],
-              label: element.desc,
-            };
-          })
-          .filter((bbox): bbox is NonNullable<typeof bbox> => bbox !== null);
 
         return jsonResponse({
           description,
@@ -510,47 +425,22 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           caption_file: path.replace(/\.[^.]+$/, ".json"),
           caption_file_type: "json",
           caption_content: `${jsonContent.trim()}\n`,
-          has_bboxes: bboxes.length > 0,
-          bboxes,
           ...issueFields,
         });
       }
 
-      const bodyBboxes = Array.isArray(body.bboxes) ? (body.bboxes as CaptionBBox[]) : null;
-      const responseIsJson =
-        savedItem?.caption_file_type === "json" || (bodyBboxes !== null && bodyBboxes.length > 0);
-      const responseBboxes: CaptionBBox[] = bodyBboxes ?? savedItem?.bboxes ?? [];
-
-      if (responseIsJson) {
+      if (savedItem?.caption_file_type === "json") {
         const jsonCaptionContent =
-          typeof savedItem?.description === "string"
-            ? JSON.stringify(
-                {
-                  description: text || savedItem.description,
-                  elements: responseBboxes.map((bbox) => ({
-                    desc: bbox.label ?? "Element",
-                    bbox: [bbox.y1, bbox.x1, bbox.y2, bbox.x2],
-                  })),
-                },
-                null,
-                2,
-              ) + "\n"
-            : JSON.stringify({ description: text, elements: [] }, null, 2) + "\n";
+          JSON.stringify({ description: text || savedItem.description }, null, 2) + "\n";
 
         return jsonResponse({
           description: text || null,
           has_description: hasDescription,
           has_caption_file: true,
-          caption_status: hasDescription
-            ? "text"
-            : responseBboxes.length > 0
-              ? "bboxes_only"
-              : "empty",
+          caption_status: hasDescription ? "text" : "empty",
           caption_file: path.replace(/\.[^.]+$/, ".json"),
           caption_file_type: "json",
           caption_content: jsonCaptionContent,
-          has_bboxes: responseBboxes.length > 0,
-          bboxes: responseBboxes,
           ...issueFields,
         });
       }
@@ -563,7 +453,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         caption_file: path.replace(/\.[^.]+$/, ".txt"),
         caption_file_type: "txt",
         caption_content: text.length > 0 ? `${text}\n` : "",
-        has_bboxes: false,
         ...issueFields,
       });
     }
@@ -749,11 +638,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/auto-caption" && method === "POST") {
       const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
       return jsonResponse(createMockJob(folderPath, "auto_caption"));
-    }
-
-    if (url.pathname === "/api/automation/body-parts" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
-      return jsonResponse(createMockJob(folderPath, "body_parts"));
     }
 
     if (url.pathname === "/api/automation/strip-metadata" && method === "POST") {

@@ -7,13 +7,6 @@ openai==1.59.6
 Pillow==11.1.0
 imageio-ffmpeg==0.6.0
 PyYAML==6.0.2
-# Install a recent CUDA build of torch + torchvision first (CPU wheels break GPU inference).
-# For RTX 40/50-series (Ada/Blackwell), use a current PyTorch with CUDA 12.6 or newer, e.g.:
-#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-# Older pinned versions (e.g. 2.1) lack proper support for newer GPUs and drivers.
-#
-# YOLO/SAM weights for body-parts are auto-downloaded from upstream sources on startup /
-# first use if missing from backend/ (see body_parts.py ensure_body_parts_models).
+# torch is optional: it is only a fallback for GPU name/VRAM in the automation
+# panel (see system_specs.py), and nvidia-smi is tried first. No CUDA build needed.
 opencv-python-headless>=4.8.0
-numpy>=1.26.0
-ultralytics>=8.3.0

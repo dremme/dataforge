@@ -35,15 +35,6 @@ class SubfolderStatsResponse(BaseModel):
     subfolders: list[SubfolderStats]
 
 
-class CaptionBBox(BaseModel):
-    x1: float
-    y1: float
-    x2: float
-    y2: float
-    type: str | None = None
-    label: str | None = None
-
-
 class GalleryItem(BaseModel):
     name: str
     path: str
@@ -52,7 +43,6 @@ class GalleryItem(BaseModel):
     has_caption_file: bool
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
-    has_bboxes: bool
     caption_status: str
     caption_file_type: str | None
     media_type: str
@@ -62,7 +52,6 @@ class GalleryItem(BaseModel):
     fps: float | None = None
     size: int | None = None
     modified_at: str | None = None
-    bboxes: list[CaptionBBox] | None = None
 
 
 class BrowseFingerprintResponse(BaseModel):
@@ -128,7 +117,6 @@ class UiSettingsUpdate(BaseModel):
 
 class CaptionUpdate(BaseModel):
     text: str = ""
-    bboxes: list[CaptionBBox] | None = None
     json_content: str | None = None
     resolve_issue: bool = False
 
@@ -141,8 +129,6 @@ class CaptionSaveResponse(BaseModel):
     caption_file: str = ""
     caption_file_type: str | None = None
     caption_content: str | None = None
-    bboxes: list[CaptionBBox] = Field(default_factory=list)
-    has_bboxes: bool
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
 
@@ -169,27 +155,6 @@ class AutoCaptionStartRequest(JobSelectionRequest):
 class SetCaptionsStartRequest(JobSelectionRequest):
     caption: str = ""
     overwrite: bool = False
-
-
-class BodyPartsSettingsResponse(BaseModel):
-    body_description: str = ""
-    face_description: str = ""
-    keywords: str = ""
-    element_description: str = ""
-
-
-class BodyPartsSettingsUpdate(BaseModel):
-    body_description: str | None = None
-    face_description: str | None = None
-    keywords: str | None = None
-    element_description: str | None = None
-
-
-class BodyPartsStartRequest(JobSelectionRequest):
-    body_description: str = ""
-    face_description: str = ""
-    keywords: str = ""
-    element_description: str = ""
 
 
 class StripMetadataStartRequest(JobSelectionRequest):

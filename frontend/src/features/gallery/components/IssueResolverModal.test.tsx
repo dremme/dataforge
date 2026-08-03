@@ -27,7 +27,6 @@ function makeIssueItem(name: string, overrides: Partial<GalleryItem> = {}): Gall
       'Remove "parked at the curb" - the car is moving.',
     ],
     has_issue_file: true,
-    has_bboxes: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",
@@ -383,7 +382,6 @@ describe("IssueResolverModal", () => {
       expect(saveCaption).toHaveBeenCalledWith(
         expect.stringContaining("car.png"),
         expect.any(String),
-        undefined,
         { resolveIssue: true },
       );
       expect(onClose).toHaveBeenCalled();

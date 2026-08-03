@@ -40,7 +40,6 @@ function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryIt
     has_caption_file: true,
     issue_fixes: [],
     has_issue_file: false,
-    has_bboxes: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",
@@ -157,7 +156,7 @@ describe("GalleryItemModal", () => {
     });
   });
 
-  it("opens the JSON editor for Ideogram captions", async () => {
+  it("opens the editor for .json captions", async () => {
     const user = userEvent.setup();
     const jsonItem = makeItem("scene.png", {
       description: "JSON scene caption",

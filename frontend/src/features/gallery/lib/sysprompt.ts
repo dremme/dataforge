@@ -13,7 +13,6 @@ export function buildSyspromptItem(folder: string, existing?: GalleryItem | null
     has_caption_file: false,
     issue_fixes: [],
     has_issue_file: false,
-    has_bboxes: false,
     caption_status: "none",
     caption_file_type: null,
     media_type: "sysprompt",

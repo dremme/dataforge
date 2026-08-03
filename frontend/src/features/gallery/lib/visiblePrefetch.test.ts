@@ -19,7 +19,6 @@ function makeItem(name: string): GalleryItem {
     has_caption_file: false,
     issue_fixes: [],
     has_issue_file: false,
-    has_bboxes: false,
     caption_file_type: null,
     caption_status: "none",
     media_type: "image",

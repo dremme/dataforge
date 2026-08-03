@@ -6,7 +6,6 @@ import {
   iconBrain,
   iconCircleQuestionMark,
   iconFilePen,
-  iconGroup,
   iconMessageCheck,
   iconMessagePlus,
   iconPencilSparkles,
@@ -109,15 +108,6 @@ export const JOB_TYPE_META = {
       ),
       confirmLabel: "Start strip metadata",
     },
-  },
-  body_parts: {
-    type: "body_parts" as const,
-    group: "datasets" as const,
-    label: "Body parts",
-    icon: iconGroup,
-    startUi: "dialog" as const,
-    menuLabel: "Detect body parts",
-    menuDescription: "Detect body and face; optional SAM keywords.",
   },
   backup_captions: {
     type: "backup_captions" as const,

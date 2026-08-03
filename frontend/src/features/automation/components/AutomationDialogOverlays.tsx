@@ -1,5 +1,4 @@
 import { AutoCaptionDialog } from "./AutoCaptionDialog";
-import { BodyPartsDialog } from "./BodyPartsDialog";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
@@ -11,7 +10,7 @@ type AutomationDialogOverlaysProps = {
 };
 
 export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysProps) {
-  const { setCaptions, bodyParts, autoCaption, verifyCaptions, batchRename, trainLora } = dialogs;
+  const { setCaptions, autoCaption, verifyCaptions, batchRename, trainLora } = dialogs;
 
   return (
     <>
@@ -21,16 +20,6 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={setCaptions.busy}
           onConfirm={setCaptions.onConfirm}
           onCancel={setCaptions.onCancel}
-        />
-      )}
-
-      {bodyParts.open && bodyParts.initialSettings && (
-        <BodyPartsDialog
-          folderLabel={bodyParts.folderLabel}
-          initialSettings={bodyParts.initialSettings}
-          busy={bodyParts.busy}
-          onConfirm={bodyParts.onConfirm}
-          onCancel={bodyParts.onCancel}
         />
       )}
 

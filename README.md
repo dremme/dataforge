@@ -2,7 +2,7 @@
 
 **Local-first gallery and automation for image/video caption datasets.**
 
-Browse folders of media, edit captions and bounding boxes, run background AI jobs, and keep every sidecar next to your files.
+Browse folders of media, edit captions, run automated AI jobs, and keep every sidecar next to your files.
 Built for people who curate training data for generative models (LoRAs, fine-tunes, and similar workflows).
 
 No cloud account is required.
@@ -61,7 +61,6 @@ Jobs run in the background with a drawer for progress, cancel, and history:
 | **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode) |
 | **Verify captions** | Checks captions against images; writes `.issue.json` when something is wrong |
 | **Issue resolver** | Step through flagged files, edit captions, resolve or skip |
-| **Body parts** | YOLO + SAM → Ideogram-style JSON elements (weights auto-download if missing) |
 | **Strip metadata** | Strip embedded data from PNGs and MP4s |
 | **Set captions** | Apply the same text to many files |
 | **Batch rename** | Numbered rename of media + related sidecars |
@@ -84,7 +83,7 @@ progress and sample images in the automation panel, and an external card in the 
 | UI session state (search, gallery filters) | Browser session storage |
 
 Verify-captions **additional context** is stored **per folder** in the app database.
-Body-parts dialog fields and UI prefs (sort, automation specs visibility) are also stored server-side.
+UI prefs (sort, automation specs visibility) are also stored server-side.
 
 ---
 
@@ -104,7 +103,7 @@ Enough for gallery browsing, caption editing, strip metadata, set captions, and 
 
 ### Vision LLM jobs (auto-caption / verify)
 
-Hardware is driven by the **model you load** in LM Studio, llama.cpp, vLLM, or similar—not by DataForge itself.
+Hardware is driven by the **model you load** in llama.cpp, LM Studio, vLLM, or similar—not by DataForge itself.
 DataForge only calls an OpenAI-compatible HTTP endpoint.
 
 | | Minimum (lighter models) | Optimal (recommended models) |
@@ -114,17 +113,6 @@ DataForge only calls an OpenAI-compatible HTTP endpoint.
 | **Storage** | Fast SSD; room for model weights (several GB to tens of GB per quant) | NVMe SSD |
 | **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B), [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) (dense alternative) |
 | **Software** | Local OpenAI-compatible vision server with a vision model loaded | Same, with enough VRAM for quality quants and longer contexts |
-
-### Body-parts job (YOLO + SAM)
-
-Default `pip install` uses **CPU** PyTorch.
-Install a CUDA torch build before relying on body-parts on GPU.
-
-Body-parts weights when missing:
-
-- `yolo26x.pt` — [Ultralytics assets](https://github.com/ultralytics/assets)
-- `yolov8n-face.pt` — [yolov8-face](https://github.com/derronqi/yolov8-face)
-- `sam3.1.pt` — [Meta SAM 3.1](https://huggingface.co/facebook/sam3.1) (gated; set `HF_TOKEN` if needed)
 
 ---
 
@@ -196,7 +184,7 @@ OS / shell env vars are not overwritten. `.env` is gitignored — copy [`.env.ex
 ### Vision LLM (auto-caption / verify)
 
 DataForge talks to any **OpenAI-compatible** vision endpoint.
-Load one of the models below (or an equivalent quant) in LM Studio / llama.cpp / vLLM before running AI jobs.
+Load one of the models below (or an equivalent quant) in llama.cpp / LM Studio / vLLM before running AI jobs.
 Set `OPENAI_MODEL` to the **id your server exposes** (not necessarily the Hugging Face repo name).
 Values can live in `.env` or the OS environment.
 
@@ -262,7 +250,7 @@ Multi-model servers need the id to match the loaded model.
 | `DATAFORGE_DB_PATH` | Override SQLite path (default under `backend/data/`) |
 | `DATAFORGE_THUMBNAIL_CACHE` | Override thumbnail cache directory |
 
-Preferences (UI sort, body-parts fields, verify mode, **per-folder verify context**, etc.) live in the SQLite app DB, not only in the browser.
+Preferences (UI sort, verify mode, **per-folder verify context**, etc.) live in the SQLite app DB, not only in the browser.
 
 ---
 

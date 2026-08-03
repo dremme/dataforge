@@ -15,7 +15,6 @@ function makeSyspromptItem(description: string): GalleryItem {
     has_caption_file: true,
     issue_fixes: [],
     has_issue_file: false,
-    has_bboxes: false,
     caption_status: "text",
     caption_file_type: null,
     media_type: "sysprompt",

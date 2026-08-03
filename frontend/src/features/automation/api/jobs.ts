@@ -1,6 +1,5 @@
 import { postJson } from "@/shared/api/http";
 import { withJobPaths } from "@/features/jobs/api/jobPaths";
-import type { BodyPartsSettings } from "@/features/automation/preferences/bodyPartsPreferences";
 import type { Job, JobType } from "@/shared/types";
 
 export interface TrainLoraSettings {
@@ -25,15 +24,6 @@ export async function startAutomationJob(
   paths?: string[],
 ): Promise<Job> {
   return postJson<Job>(jobUrl(jobType, folderPath), withJobPaths(body, paths));
-}
-
-export function bodyPartsBody(settings: BodyPartsSettings): JobStartBody {
-  return {
-    body_description: settings.bodyDescription,
-    face_description: settings.faceDescription,
-    keywords: settings.keywords,
-    element_description: settings.elementDescription,
-  };
 }
 
 export function trainLoraBody(settings: TrainLoraSettings): JobStartBody {

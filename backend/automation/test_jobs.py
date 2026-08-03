@@ -9,7 +9,6 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-from automation.body_parts import BodyPartsModels, build_body_part_elements
 from automation.jobs import Job, _resolve_verify_captions_status, job_manager
 from automation.jobs_store import get_job as get_job_from_store
 from testing_fixtures import (
@@ -66,7 +65,7 @@ class JobManagerQueueTests(unittest.TestCase):
     def test_get_active_job_for_folder_prefers_memory(self) -> None:
         with TempMediaFolder() as root:
             folder = str(root.resolve())
-            active = Job(id="active-1", folder=folder, status="running", job_type="body_parts")
+            active = Job(id="active-1", folder=folder, status="running", job_type="strip_metadata")
 
             with job_manager._lock:
                 job_manager._jobs[active.id] = active
@@ -175,49 +174,6 @@ class JobManagerExecutionTests(unittest.TestCase):
                 json.loads(issue_path.read_text(encoding="utf-8")),
                 {"fixes": ['Replace "blue" with "red".', 'Remove "in the rain".']},
             )
-
-    def test_body_parts_job_completes_with_mocked_detection(self) -> None:
-        with TempMediaFolder() as root:
-            first = write_media(root, "one.png")
-            second = write_media(root, "two.png")
-            second.with_suffix(".json").write_text(
-                '{"high_level_description":"existing"}', encoding="utf-8"
-            )
-
-            def fake_loader() -> BodyPartsModels:
-                return BodyPartsModels(
-                    body_model=object(),
-                    face_model=object(),
-                    semantic_predictor=None,
-                )
-
-            def fake_detect(_models: BodyPartsModels, img_path, **_kwargs):
-                if img_path.name == "one.png":
-                    return build_body_part_elements(
-                        body_bbox=[0, 0, 1, 1], face_bbox=None, semantic_bbox=None
-                    )
-                return build_body_part_elements(
-                    body_bbox=[2, 2, 3, 3], face_bbox=[4, 4, 5, 5], semantic_bbox=None
-                )
-
-            with patch("automation.body_parts.load_body_parts_models", fake_loader):
-                with patch("automation.body_parts.detect_body_parts_for_image", fake_detect):
-                    job = job_manager.queue_job(
-                        "body_parts",
-                        root,
-                        body_description="",
-                        face_description="",
-                        keywords=[],
-                        element_description="",
-                    )
-                    finished = wait_for_job(job.id)
-
-            self.assertEqual(finished.status, "completed")
-            self.assertEqual(finished.total, 2)
-            self.assertEqual(finished.processed, 2)
-            self.assertEqual(finished.stats.get("created"), 1)
-            self.assertEqual(finished.stats.get("updated"), 1)
-            self.assertTrue(first.with_suffix(".json").exists())
 
 
 class JobManagerLifecycleTests(unittest.TestCase):

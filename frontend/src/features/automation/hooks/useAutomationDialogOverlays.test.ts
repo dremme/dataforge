@@ -3,15 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { JobType } from "@/shared/types";
 import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
-vi.mock("@/features/automation/preferences/bodyPartsPreferences", () => ({
-  loadBodyPartsSettings: vi.fn(async () => ({
-    bodyDescription: "body",
-    faceDescription: "face",
-    keywords: "hat",
-    elementDescription: "part",
-  })),
-}));
-
 vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
   loadVerifyCaptionsSettings: vi.fn(async (folderPath: string) => ({
     mode: "instruct" as const,
@@ -84,22 +75,6 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
-  it("fetches preferences before opening body parts dialog", async () => {
-    const { result } = setupOverlays();
-
-    await act(async () => {
-      result.current.openDialogForJobType("body_parts");
-    });
-
-    expect(result.current.dialogs.bodyParts.open).toBe(true);
-    expect(result.current.dialogs.bodyParts.initialSettings).toEqual({
-      bodyDescription: "body",
-      faceDescription: "face",
-      keywords: "hat",
-      elementDescription: "part",
-    });
-  });
-
   it("keeps at most one dialog open", () => {
     const { result } = setupOverlays();
 
@@ -119,7 +94,7 @@ describe("useAutomationDialogOverlays", () => {
     const { result } = setupOverlays("set_captions");
 
     expect(result.current.dialogs.setCaptions.busy).toBe(true);
-    expect(result.current.dialogs.bodyParts.busy).toBe(false);
+    expect(result.current.dialogs.batchRename.busy).toBe(false);
   });
 
   it("opens the LoRA training dialog and starts the job after confirm", async () => {

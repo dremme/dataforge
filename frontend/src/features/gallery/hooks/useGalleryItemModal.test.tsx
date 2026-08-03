@@ -11,7 +11,6 @@ function item(name: string): GalleryItem {
     description: null,
     has_description: false,
     has_caption_file: false,
-    has_bboxes: false,
     issue_fixes: [],
     has_issue_file: false,
     caption_status: "none",

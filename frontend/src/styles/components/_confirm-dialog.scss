@@ -202,7 +202,6 @@
 // Form-style dialogs share a slightly wider panel than the basic confirm.
 .batch-rename-dialog,
 .create-folder-dialog,
-.body-parts-dialog,
 .set-captions-dialog,
 .verify-captions-dialog,
 .auto-caption-dialog,
@@ -268,11 +267,6 @@
   &__checkbox-input:disabled ~ &__checkbox-label {
     opacity: var(--disabled-opacity);
   }
-}
-
-// Body parts keywords field is shorter than the default multiline height.
-.body-parts-dialog__keywords {
-  min-height: 3.25rem;
 }
 
 // LoRA training: an editable list of sample prompts, each with a remove button.

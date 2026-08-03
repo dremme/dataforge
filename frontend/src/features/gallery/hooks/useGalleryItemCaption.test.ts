@@ -21,7 +21,6 @@ function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryIt
     has_caption_file: true,
     issue_fixes: [],
     has_issue_file: false,
-    has_bboxes: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",
@@ -41,8 +40,6 @@ function captionResponse(
     caption_file: `${HOME_PATH}\\file.txt`,
     caption_file_type: "txt",
     caption_content: `${description}\n`,
-    has_bboxes: false,
-    bboxes: [],
     ...overrides,
   };
 }
@@ -279,7 +276,7 @@ describe("useGalleryItemCaption", () => {
     });
 
     await waitFor(() => {
-      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Hello", undefined);
+      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Hello");
     });
 
     // The round trip is still open while the user keeps typing.
@@ -409,37 +406,25 @@ describe("useGalleryItemCaption", () => {
     });
 
     await waitFor(() => {
-      expect(saveCaption).toHaveBeenCalledWith(
-        `${HOME_PATH}\\sunset.png`,
-        "Edited caption",
-        undefined,
-      );
+      expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Edited caption");
     });
   });
 
-  it("keeps caption content and bbox selection after saving bbox edits", async () => {
-    const bboxes = [
-      { x1: 10, y1: 10, x2: 40, y2: 40, label: "Car" },
-      { x1: 50, y1: 50, x2: 90, y2: 90, label: "Tree" },
-    ];
-    const jsonContent = '{\n  "description": "Scene with regions",\n  "elements": []\n}\n';
+  it("keeps caption content after saving a .json caption", async () => {
+    const jsonContent = '{\n  "description": "Scene"\n}\n';
 
     vi.spyOn(api, "fetchCaption").mockResolvedValue(
-      captionResponse("Scene with regions", {
+      captionResponse("Scene", {
         caption_file_type: "json",
         caption_file: `${HOME_PATH}\\scene.json`,
         caption_content: jsonContent,
-        has_bboxes: true,
-        bboxes,
       }),
     );
-    vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text, nextBboxes) =>
+    vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text) =>
       captionResponse(text, {
         caption_file_type: "json",
         caption_file: `${HOME_PATH}\\scene.json`,
         caption_content: jsonContent,
-        has_bboxes: true,
-        bboxes: nextBboxes ?? bboxes,
       }),
     );
     const onCaptionSaved = vi.fn();
@@ -453,10 +438,8 @@ describe("useGalleryItemCaption", () => {
       {
         initialProps: {
           item: makeItem("scene.png", {
-            description: "Scene with regions",
+            description: "Scene",
             caption_file_type: "json",
-            has_bboxes: true,
-            bboxes,
           }),
         },
       },
@@ -464,18 +447,10 @@ describe("useGalleryItemCaption", () => {
 
     await waitFor(() => {
       expect(result.current.captionContent).toBe(jsonContent);
-      expect(result.current.bboxes).toHaveLength(2);
     });
 
     act(() => {
-      result.current.setSelectedBboxIndex(0);
-    });
-    expect(result.current.selectedBboxIndex).toBe(0);
-
-    const moved = [{ ...bboxes[0], x1: 12, x2: 42 }, bboxes[1]];
-
-    act(() => {
-      result.current.handleBboxesChange(moved);
+      result.current.handleCaptionChange("Scene, edited");
     });
 
     await waitFor(() => {
@@ -484,10 +459,8 @@ describe("useGalleryItemCaption", () => {
 
     rerender({
       item: makeItem("scene.png", {
-        description: "Scene with regions",
+        description: "Scene, edited",
         caption_file_type: "json",
-        has_bboxes: true,
-        bboxes: moved,
       }),
     });
 
@@ -495,7 +468,8 @@ describe("useGalleryItemCaption", () => {
       await Promise.resolve();
     });
 
-    expect(result.current.selectedBboxIndex).toBe(0);
+    // Browse items never carry caption_content, so the .json editor depends on it
+    // surviving the browse-driven reconciliation that follows a save.
     expect(result.current.captionContent).toBe(jsonContent);
     expect(result.current.hasJsonCaption).toBe(true);
   });

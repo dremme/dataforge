@@ -81,17 +81,6 @@ export function GalleryItemModalMeta({
           </div>
         </>
       )}
-      {hasJsonCaption && (
-        <>
-          <MetaDivider show={Boolean(resolution || hasVideoStats)} />
-          <div className="gallery-item-modal__meta-item">
-            <span className="gallery-item-modal__meta-badge" title="Ideogram 4 .json caption">
-              Ideogram 4
-            </span>
-            <span className="gallery-item-modal__meta-label">Caption</span>
-          </div>
-        </>
-      )}
       {hasComfyWorkflow && (
         <>
           <MetaDivider show={Boolean(resolution || hasVideoStats || hasJsonCaption)} />
@@ -100,6 +89,17 @@ export function GalleryItemModalMeta({
               ComfyUI
             </span>
             <span className="gallery-item-modal__meta-label">Workflow</span>
+          </div>
+        </>
+      )}
+      {hasJsonCaption && (
+        <>
+          <MetaDivider show={Boolean(resolution || hasVideoStats)} />
+          <div className="gallery-item-modal__meta-item">
+            <span className="gallery-item-modal__meta-badge" title=".json caption">
+              JSON
+            </span>
+            <span className="gallery-item-modal__meta-label">Caption</span>
           </div>
         </>
       )}

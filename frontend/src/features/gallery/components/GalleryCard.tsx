@@ -4,7 +4,6 @@ import {
   iconBraces,
   iconCheck,
   iconExpand,
-  iconGroup,
   iconMessageDashed,
   iconPlay,
   iconTriangleAlert,
@@ -85,7 +84,7 @@ export const GalleryCard = memo(function GalleryCard({
           <CardBadge icon={iconTriangleAlert} label="Issue" variant="issue" />
         )}
         {item.caption_file_type === "json" && (
-          <CardBadge icon={iconBraces} label="ID4" variant="json" />
+          <CardBadge icon={iconBraces} label="JSON" variant="json" />
         )}
       </div>
       <div className="card__body">
@@ -96,12 +95,7 @@ export const GalleryCard = memo(function GalleryCard({
           <p className="card__description">{item.description}</p>
         ) : captionDisplay ? (
           <div className={`card__caption-status card__caption-status--${captionDisplay.variant}`}>
-            <Icon
-              icon={
-                captionDisplay.variant === "warning" && item.has_bboxes ? iconGroup : statusIcon
-              }
-              className="card__caption-status__icon"
-            />
+            <Icon icon={statusIcon} className="card__caption-status__icon" />
             <span>{captionDisplay.message}</span>
           </div>
         ) : null}

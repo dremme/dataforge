@@ -1,21 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchCaption, saveCaption, saveCaptionJson } from "@/features/gallery/api/captions";
-import type { CaptionBBox, CaptionSaveResponse, GalleryItem } from "@/shared/types";
-import { bboxesEqual } from "@/features/gallery/lib/bbox";
+import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { deferNonCriticalWork } from "@/shared/lib/defer";
 import { useDebouncedSave } from "@/shared/hooks/useDebouncedSave";
 import { useStaleRequest } from "@/shared/hooks/useStaleRequest";
 
 function itemCaptionRevision(item: {
   description: string | null;
-  bboxes?: CaptionBBox[] | null;
   caption_status: GalleryItem["caption_status"];
   has_description: boolean;
   caption_file_type: GalleryItem["caption_file_type"];
 }): string {
   return JSON.stringify({
     description: item.description,
-    bboxes: item.bboxes ?? [],
     caption_status: item.caption_status,
     has_description: item.has_description,
     caption_file_type: item.caption_file_type,
@@ -25,29 +22,15 @@ function itemCaptionRevision(item: {
 function revisionFromSaveResult(result: CaptionSaveResponse): string {
   return itemCaptionRevision({
     description: result.description,
-    bboxes: result.bboxes,
     caption_status: result.caption_status,
     has_description: result.has_description,
     caption_file_type: result.caption_file_type,
   });
 }
 
-function nextSelectedBboxIndex(
-  current: number | null,
-  bboxCount: number,
-  preserveSelection: boolean,
-): number | null {
-  if (bboxCount === 0) return null;
-  if (preserveSelection && current != null && current < bboxCount) {
-    return current;
-  }
-  return bboxCount - 1;
-}
-
 type CaptionSavePayload = {
   path: string;
   text: string;
-  bboxes?: CaptionBBox[];
 };
 
 interface UseGalleryItemCaptionOptions {
@@ -63,14 +46,11 @@ export function useGalleryItemCaption({
   autoSave = true,
 }: UseGalleryItemCaptionOptions) {
   const [caption, setCaption] = useState("");
-  const [bboxes, setBboxes] = useState<CaptionBBox[]>([]);
-  const [selectedBboxIndex, setSelectedBboxIndex] = useState<number | null>(null);
   const [captionContent, setCaptionContent] = useState<string | null>(null);
   const [jsonSaveState, setJsonSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [jsonSaveError, setJsonSaveError] = useState<string | null>(null);
   const { next, isCurrent } = useStaleRequest();
   const captionRef = useRef(caption);
-  const bboxesRef = useRef(bboxes);
   const captionRevisionRef = useRef<string | null>(null);
   // Every caption state this hook has already shown for the open item. The folder
   // poller reloads browse ~1.5s after a save, and that reload can be answered from
@@ -78,7 +58,6 @@ export function useGalleryItemCaption({
   const seenRevisionsRef = useRef(new Set<string>());
 
   captionRef.current = caption;
-  bboxesRef.current = bboxes;
 
   const markRevision = useCallback((revision: string) => {
     captionRevisionRef.current = revision;
@@ -88,19 +67,10 @@ export function useGalleryItemCaption({
   const itemPath = item?.path;
   const itemRevision = item ? itemCaptionRevision(item) : null;
   const hasJsonCaption = item?.caption_file_type === "json";
-  const bboxesEditable = hasJsonCaption && bboxes.length > 0;
 
   const persistCaption = useCallback(
     async (payload: CaptionSavePayload) => {
-      const result = await saveCaption(payload.path, payload.text, payload.bboxes);
-      const localBboxes = bboxesRef.current;
-      // Edits made during the round trip are newer than anything the response
-      // carries, so they win over both the echo and a superseded save's result.
-      const bboxesEditedDuringSave =
-        payload.bboxes != null && !bboxesEqual(localBboxes, payload.bboxes);
-      const nextBboxes = bboxesEditedDuringSave
-        ? localBboxes
-        : (result.bboxes ?? payload.bboxes ?? localBboxes);
+      const result = await saveCaption(payload.path, payload.text);
 
       setCaption((current) => {
         // Characters typed while the request was open are not in the response.
@@ -111,22 +81,12 @@ export function useGalleryItemCaption({
         }
         return result.description ?? "";
       });
-      setBboxes(nextBboxes);
-      setSelectedBboxIndex((current) => nextSelectedBboxIndex(current, nextBboxes.length, true));
       if (result.caption_content != null) {
         setCaptionContent(result.caption_content);
       }
       // Match the browse revision produced by onCaptionSaved so background sync
-      // does not wipe caption_content / selection after a bbox save.
-      markRevision(
-        itemCaptionRevision({
-          description: result.description,
-          bboxes: nextBboxes,
-          caption_status: result.caption_status,
-          has_description: result.has_description,
-          caption_file_type: result.caption_file_type,
-        }),
-      );
+      // does not wipe caption_content after a save.
+      markRevision(revisionFromSaveResult(result));
       onCaptionSaved(payload.path, result);
     },
     [markRevision, onCaptionSaved],
@@ -143,33 +103,19 @@ export function useGalleryItemCaption({
   } = useDebouncedSave<CaptionSavePayload>({
     errorMessage: "Failed to save caption",
     save: persistCaption,
-    isUnchanged: (pending, lastSaved) => {
-      const captionUnchanged = pending.text === lastSaved.text;
-      const bboxesUnchanged =
-        !pending.bboxes || bboxesEqual(pending.bboxes, lastSaved.bboxes ?? []);
-      return captionUnchanged && bboxesUnchanged;
-    },
+    isUnchanged: (pending, lastSaved) => pending.text === lastSaved.text,
   });
 
   const applyCaptionFromItem = useCallback(
-    (
-      source: GalleryItem,
-      options: { resetCaptionContent?: boolean; preserveSelection?: boolean } = {},
-    ) => {
+    (source: GalleryItem, options: { resetCaptionContent?: boolean } = {}) => {
       const cachedCaption = source.description ?? "";
-      const cachedBboxes = source.bboxes ?? [];
-      const preserveSelection = options.preserveSelection ?? true;
 
       setCaption(cachedCaption);
-      setBboxes(cachedBboxes);
-      setSelectedBboxIndex((current) =>
-        nextSelectedBboxIndex(current, cachedBboxes.length, preserveSelection),
-      );
       // Browse items do not carry caption_content; only clear it on full item reload.
       if (options.resetCaptionContent) {
         setCaptionContent(null);
       }
-      setBaseline({ path: source.path, text: cachedCaption, bboxes: cachedBboxes });
+      setBaseline({ path: source.path, text: cachedCaption });
       markRevision(itemCaptionRevision(source));
     },
     [markRevision, setBaseline],
@@ -183,7 +129,7 @@ export function useGalleryItemCaption({
     }
     invalidateInFlight();
     seenRevisionsRef.current.clear();
-    applyCaptionFromItem(item, { resetCaptionContent: true, preserveSelection: false });
+    applyCaptionFromItem(item, { resetCaptionContent: true });
 
     const requestId = next();
 
@@ -194,24 +140,15 @@ export function useGalleryItemCaption({
 
           // Typing can start before this lands; the editor buffer wins over the
           // file on disk, and the pending save carries it to the server.
-          if (
-            hasUnsavedChanges({
-              path: itemPath,
-              text: captionRef.current,
-              bboxes: bboxesRef.current,
-            })
-          ) {
+          if (hasUnsavedChanges({ path: itemPath, text: captionRef.current })) {
             // Independent of the text buffer, and the .json editor needs it.
             setCaptionContent(fresh.caption_content ?? null);
             return;
           }
 
           const caption = fresh.description ?? "";
-          const bboxes = fresh.bboxes ?? [];
           setCaption(caption);
-          setBboxes(bboxes);
-          setSelectedBboxIndex((current) => nextSelectedBboxIndex(current, bboxes.length, true));
-          setBaseline({ path: itemPath, text: caption, bboxes });
+          setBaseline({ path: itemPath, text: caption });
           setCaptionContent(fresh.caption_content ?? null);
           markRevision(revisionFromSaveResult(fresh));
           onCaptionSaved(itemPath, fresh);
@@ -253,30 +190,20 @@ export function useGalleryItemCaption({
 
     if (!hadPreviousRevision) return;
 
-    if (
-      hasUnsavedChanges({
-        path: itemPath,
-        text: captionRef.current,
-        bboxes: bboxesRef.current,
-      })
-    ) {
+    if (hasUnsavedChanges({ path: itemPath, text: captionRef.current })) {
       return;
     }
 
     const incomingCaption = item.description ?? "";
-    const incomingBboxes = item.bboxes ?? [];
     const current = captionRef.current;
-    if (
-      (current === incomingCaption || current.trim() === incomingCaption) &&
-      bboxesEqual(bboxesRef.current, incomingBboxes)
-    ) {
+    if (current === incomingCaption || current.trim() === incomingCaption) {
       // Browse echoed our own save (possibly after server-side whitespace normalization).
       // Keep the editor's exact buffer (e.g. trailing spaces while typing) and baseline.
       return;
     }
 
     // Keep caption_content from the last fetch/save — browse items never include it.
-    applyCaptionFromItem(item, { resetCaptionContent: false, preserveSelection: true });
+    applyCaptionFromItem(item, { resetCaptionContent: false });
   }, [applyCaptionFromItem, hasUnsavedChanges, item, itemPath, itemRevision, markRevision]);
 
   const handleCaptionChange = useCallback(
@@ -288,24 +215,9 @@ export function useGalleryItemCaption({
       // value and server echoes match the backend normalization. The local
       // `caption` buffer retains the user's exact input (including temporary
       // trailing whitespace) for a smooth typing experience.
-      scheduleSave({
-        path: item.path,
-        text: value.trim(),
-        bboxes: bboxesEditable ? bboxes : undefined,
-      });
+      scheduleSave({ path: item.path, text: value.trim() });
     },
-    [autoSave, bboxesEditable, bboxes, item, scheduleSave],
-  );
-
-  const handleBboxesChange = useCallback(
-    (nextBboxes: CaptionBBox[]) => {
-      if (!item) return;
-      setBboxes(nextBboxes);
-      if (!autoSave) return;
-      // Normalize caption text for the save payload (see handleCaptionChange).
-      scheduleSave({ path: item.path, text: caption.trim(), bboxes: nextBboxes });
-    },
-    [autoSave, caption, item, scheduleSave],
+    [autoSave, item, scheduleSave],
   );
 
   const handleJsonContentSave = useCallback(
@@ -320,13 +232,10 @@ export function useGalleryItemCaption({
       try {
         const result = await saveCaptionJson(item.path, jsonContent);
         const nextCaption = result.description ?? "";
-        const nextBboxes = result.bboxes ?? [];
 
         setCaption(nextCaption);
-        setBboxes(nextBboxes);
-        setSelectedBboxIndex((current) => nextSelectedBboxIndex(current, nextBboxes.length, true));
         setCaptionContent(result.caption_content ?? null);
-        setBaseline({ path: item.path, text: nextCaption, bboxes: nextBboxes });
+        setBaseline({ path: item.path, text: nextCaption });
         markRevision(revisionFromSaveResult(result));
         onCaptionSaved(item.path, result);
         setJsonSaveState("idle");
@@ -348,16 +257,11 @@ export function useGalleryItemCaption({
 
   return {
     caption,
-    bboxes,
-    selectedBboxIndex,
-    setSelectedBboxIndex,
     captionContent,
     hasJsonCaption,
-    bboxesEditable,
     saveState,
     saveError,
     handleCaptionChange,
-    handleBboxesChange,
     handleJsonContentSave,
     jsonSaveState,
     jsonSaveError,
