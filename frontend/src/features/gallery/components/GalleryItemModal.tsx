@@ -2,13 +2,18 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
-import { deleteMedia, openMediaInViewer } from "@/features/gallery/api/media";
+import {
+  deleteMedia,
+  openMediaInViewer,
+  type MediaTransferMode,
+} from "@/features/gallery/api/media";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
+import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
   iconArrowUpRight,
@@ -16,6 +21,7 @@ import {
   iconChevronLeft,
   iconChevronRight,
   iconCopy,
+  iconFolderInput,
   iconLoader2,
   iconTrash2,
   iconTriangleAlert,
@@ -23,6 +29,7 @@ import {
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isVideo } from "@/features/gallery/lib/itemKind";
+import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
 import {
   collectAdjacentModalMediaTargets,
   schedulePrefetchModalMedia,
@@ -32,11 +39,16 @@ import { classNames } from "@/shared/lib/classNames";
 import { BboxOverlay } from "./BboxOverlay";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
 import { GalleryItemModalBboxList } from "./GalleryItemModalBboxList";
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
+import { TransferMediaDialog } from "./TransferMediaDialog";
 import { ZoomableImage } from "./ZoomableImage";
+
+/** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
+const noop = () => {};
 
 const GalleryItemJsonEditorDialog = lazy(() =>
   import("./GalleryItemJsonEditorDialog").then((module) => ({
@@ -50,11 +62,18 @@ interface GalleryItemModalProps {
   /** Active gallery toolbar search — highlighted in the caption field. */
   searchQuery?: string;
   searchRegex?: boolean;
+  /** Folder the viewed item lives in — the transfer picker's origin. Move/copy
+   *  stay hidden without it, since the picker reads it during render. */
+  currentFolder?: string;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onCaptionSaved: (path: string, update: CaptionSaveResponse) => void;
   onDeleted?: (path: string) => void;
+  /** Takes the moved path so the owner can drop it and advance this modal. */
+  onMoved?: (paths: string[]) => void | Promise<void>;
+  /** A copy leaves the item here, so only folder stats change. */
+  onCopied?: () => void | Promise<void>;
   /** Hands the item off to the issue resolver; this modal closes in the same commit. */
   onResolveIssue?: (item: GalleryItem) => void;
   onJsonEditorOpenChange?: (open: boolean) => void;
@@ -65,11 +84,14 @@ export function GalleryItemModal({
   index,
   searchQuery = "",
   searchRegex = false,
+  currentFolder,
   onClose,
   onPrevious,
   onNext,
   onCaptionSaved,
   onDeleted,
+  onMoved,
+  onCopied,
   onResolveIssue,
   onJsonEditorOpenChange,
 }: GalleryItemModalProps) {
@@ -105,13 +127,41 @@ export function GalleryItemModal({
   const [viewerError, setViewerError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
-  const childOverlayOpen = deleteConfirmOpen || jsonEditorOpen;
+
+  const transferPaths = useMemo(() => (item ? [item.path] : []), [item]);
+
+  const emptyPreviewMessage = useCallback((mode: MediaTransferMode, paths: string[]) => {
+    const verb = mode === "move" ? "moved" : "copied";
+    return `${pathBaseName(paths[0])} cannot be ${verb} to that folder.`;
+  }, []);
+
+  const copySuccessMessage = useCallback(
+    (succeeded: string[], destinationLabel: string) =>
+      `Copied ${pathBaseName(succeeded[0])} to ${destinationLabel}.`,
+    [],
+  );
+
+  const transfer = useMediaTransfer({
+    paths: transferPaths,
+    onMoved: onMoved ?? noop,
+    onCopied: onCopied ?? noop,
+    emptyPreviewMessage,
+    copySuccessMessage,
+  });
+
+  const { transferPicker, overwritePrompt, transferring } = transfer;
+  const busy = deleting || transferring !== null;
+  const childOverlayOpen = deleteConfirmOpen || jsonEditorOpen || transfer.transferDialogOpen;
+  const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
   const jsonEditorContent = useMemo(
     () => (captionContent ? captionContent.trimEnd() : null),
     [captionContent],
   );
 
+  // Transfer state is deliberately absent here. A successful move advances this
+  // modal to the next item while the flow's own `finally` is still pending, so
+  // clearing it on the swap would race the hook and re-enable the buttons early.
   useEffect(() => {
     setJsonEditorOpen(false);
     setJsonEditorSession(0);
@@ -163,15 +213,15 @@ export function GalleryItemModal({
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
   const closeModal = useCallback(() => {
-    if (deleting) return;
+    if (busy) return;
     flushPendingSave();
     onClose();
-  }, [deleting, flushPendingSave, onClose]);
+  }, [busy, flushPendingSave, onClose]);
 
   const openDeleteConfirm = useCallback(() => {
-    if (deleting) return;
+    if (busy) return;
     setDeleteConfirmOpen(true);
-  }, [deleting]);
+  }, [busy]);
 
   const cancelDeleteConfirm = useCallback(() => {
     if (deleting) return;
@@ -179,12 +229,12 @@ export function GalleryItemModal({
   }, [deleting]);
 
   const handleResolveIssue = useCallback(() => {
-    if (!item || deleting || !onResolveIssue) return;
+    if (!item || busy || !onResolveIssue) return;
     flushPendingSave();
     // Hand over what the editor shows, not the browse snapshot: the flushed save
     // has not reached disk yet when the resolver seeds itself from this item.
     onResolveIssue({ ...item, description: caption });
-  }, [caption, deleting, flushPendingSave, item, onResolveIssue]);
+  }, [busy, caption, flushPendingSave, item, onResolveIssue]);
 
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer) return;
@@ -224,7 +274,7 @@ export function GalleryItemModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (childOverlayOpen || deleting) return;
+      if (childOverlayOpen || busy) return;
       if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft") onPrevious();
       if (event.key === "ArrowRight") onNext();
@@ -234,7 +284,7 @@ export function GalleryItemModal({
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [childOverlayOpen, deleting, onPrevious, onNext]);
+  }, [busy, childOverlayOpen, onPrevious, onNext]);
 
   if (!item) return null;
 
@@ -256,6 +306,7 @@ export function GalleryItemModal({
         block="gallery-item-modal"
         label={`Viewing ${item.name}`}
         onClose={closeModal}
+        busy={busy}
         suspended={childOverlayOpen}
         // The scroll lock belongs to `useGalleryOverlays`, which holds it across
         // the whole overlay session. That leaves the depth non-zero here, so the
@@ -279,7 +330,7 @@ export function GalleryItemModal({
                   onClick={() => {
                     void handleOpenInViewer();
                   }}
-                  disabled={openingInViewer || deleting}
+                  disabled={openingInViewer || busy}
                   aria-label="Open in image preview"
                 >
                   <Icon
@@ -289,12 +340,46 @@ export function GalleryItemModal({
                 </button>
               </Tooltip>
             )}
+            {canTransfer && (
+              <>
+                <Tooltip content={"Copy file"}>
+                  <button
+                    type="button"
+                    className="gallery-item-modal__copy"
+                    onClick={() => transfer.openTransferPicker("copy")}
+                    disabled={busy}
+                    aria-busy={transferring === "copy" || undefined}
+                    aria-label={`Copy ${item.name} to another folder`}
+                  >
+                    <Icon
+                      icon={transferring === "copy" ? iconLoader2 : iconCopy}
+                      spin={transferring === "copy"}
+                    />
+                  </button>
+                </Tooltip>
+                <Tooltip content={"Move file"}>
+                  <button
+                    type="button"
+                    className="gallery-item-modal__move"
+                    onClick={() => transfer.openTransferPicker("move")}
+                    disabled={busy}
+                    aria-busy={transferring === "move" || undefined}
+                    aria-label={`Move ${item.name} to another folder`}
+                  >
+                    <Icon
+                      icon={transferring === "move" ? iconLoader2 : iconFolderInput}
+                      spin={transferring === "move"}
+                    />
+                  </button>
+                </Tooltip>
+              </>
+            )}
             <Tooltip content={"Delete file"}>
               <button
                 type="button"
                 className="gallery-item-modal__delete"
                 onClick={openDeleteConfirm}
-                disabled={deleting}
+                disabled={busy}
                 aria-label={`Delete ${item.name}`}
               >
                 <Icon icon={iconTrash2} />
@@ -304,7 +389,7 @@ export function GalleryItemModal({
               type="button"
               className="gallery-item-modal__close"
               onClick={closeModal}
-              disabled={deleting}
+              disabled={busy}
               aria-label="Close"
             >
               <Icon icon={iconX} />
@@ -394,7 +479,7 @@ export function GalleryItemModal({
                     type="button"
                     className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
                     onClick={handleResolveIssue}
-                    disabled={deleting}
+                    disabled={busy}
                     aria-label={`Resolve caption issue for ${item.name}`}
                   >
                     <Icon
@@ -477,6 +562,39 @@ export function GalleryItemModal({
             void confirmDelete();
           }}
           onCancel={cancelDeleteConfirm}
+        />
+      )}
+
+      {transferPicker && currentFolder && (
+        <TransferMediaDialog
+          mode={transferPicker}
+          currentFolder={currentFolder}
+          selectedCount={1}
+          description={
+            <>
+              Choose a destination for <strong>{item.name}</strong>.
+            </>
+          }
+          busy={transferring !== null}
+          onClose={transfer.closeTransferPicker}
+          onSelectDestination={(path) => {
+            transfer.selectDestination(transferPicker, path);
+          }}
+        />
+      )}
+
+      {overwritePrompt && (
+        <FileImportOverwriteDialog
+          conflicts={overwritePrompt.conflicts}
+          busy={transferring !== null}
+          descriptionSuffix={
+            overwritePrompt.mode === "move"
+              ? "Choose whether to replace them or move only new files."
+              : "Choose whether to replace them or copy only new files."
+          }
+          onReplaceExisting={() => transfer.confirmOverwrite(true)}
+          onCopyNewOnly={() => transfer.confirmOverwrite(false)}
+          onCancel={transfer.closeOverwritePrompt}
         />
       )}
 

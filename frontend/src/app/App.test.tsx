@@ -461,6 +461,31 @@ describe("App", () => {
     expect(within(confirmDialog).getByText("sunset.png")).toBeVisible();
   });
 
+  it("moves a file to another folder from the gallery item modal", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "View sunset.png" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Move sunset.png to another folder" }),
+    );
+
+    const picker = await screen.findByRole("dialog", { name: "Move to folder" });
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Move here" }));
+
+    // The grid sorts name-asc, so sunset.png sits at index 1 and waves.mp4 slides
+    // into the slot it vacates. The modal follows the slot, it does not close.
+    await screen.findByRole("dialog", { name: "Viewing waves.mp4" });
+  });
+
   it("opens and closes the gallery item modal", async () => {
     const user = userEvent.setup();
     installMockBackend();

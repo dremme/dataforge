@@ -47,11 +47,14 @@ export function AppOverlays({
           index={gallery.selectedIndex}
           searchQuery={gallery.searchQuery}
           searchRegex={gallery.searchRegex}
+          currentFolder={currentFolder}
           onClose={gallery.onClose}
           onPrevious={gallery.onPrevious}
           onNext={gallery.onNext}
           onCaptionSaved={onCaptionSaved}
           onDeleted={gallery.onDeleted}
+          onMoved={gallery.onMoved}
+          onCopied={gallery.onCopied}
           onResolveIssue={gallery.onResolveIssue}
           onJsonEditorOpenChange={gallery.onJsonEditorOpenChange}
         />

@@ -1,13 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  deleteSelectedMedia,
-  previewMediaTransfer,
-  transferSelectedMedia,
-  type MediaTransferMode,
-} from "@/features/gallery/api/media";
-import { folderLeafName } from "@/features/browse/lib/folderPath";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { deleteSelectedMedia, type MediaTransferMode } from "@/features/gallery/api/media";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
-import { formatApiError } from "@/shared/api/http";
+import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
+import { failureMessage, pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
 import { useNotify } from "@/shared/notifications/notifications";
 import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import { iconCopy, iconFolderInput, iconLoader2, iconTrash2, type AppIcon } from "@/shared/icons";
@@ -15,16 +10,14 @@ import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
 import { TransferMediaDialog } from "@/features/gallery/components/TransferMediaDialog";
 import { Icon } from "@/shared/ui/Icon";
-
-function pathBaseName(path: string): string {
-  return path.split(/[/\\]/).pop() ?? path;
-}
+import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface TransferButtonProps {
   mode: MediaTransferMode;
   icon: AppIcon;
+  /** Names the action for the tooltip and, since the button is icon-only, for
+   *  its accessible name too. The spinner is what reports the busy state. */
   label: string;
-  busyLabel: string;
   /** Which transfer is running, so only that button shows its spinner. */
   transferring: MediaTransferMode | null;
   disabled: boolean;
@@ -35,7 +28,6 @@ function TransferButton({
   mode,
   icon,
   label,
-  busyLabel,
   transferring,
   disabled,
   onClick,
@@ -43,42 +35,23 @@ function TransferButton({
   const active = transferring === mode;
 
   return (
-    <button
-      type="button"
-      className="gallery-controls__btn"
-      onClick={onClick}
-      disabled={disabled}
-      aria-busy={active || undefined}
-    >
-      {active ? (
-        <>
-          <Icon icon={iconLoader2} spin className="gallery-controls__btn-icon" />
-          {busyLabel}
-        </>
-      ) : (
-        <>
-          <Icon icon={icon} className="gallery-controls__btn-icon" />
-          {label}
-        </>
-      )}
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        className="gallery-controls__btn gallery-controls__btn--icon"
+        onClick={onClick}
+        disabled={disabled}
+        aria-busy={active || undefined}
+        aria-label={label}
+      >
+        <Icon
+          icon={active ? iconLoader2 : icon}
+          spin={active}
+          className="gallery-controls__btn-icon"
+        />
+      </button>
+    </Tooltip>
   );
-}
-
-/** Names the first casualty and the count, since a batch can fail one file at a time. */
-function failureMessage(
-  verb: string,
-  failed: ReadonlyArray<{ path: string; error: unknown }>,
-): string {
-  const [first] = failed;
-  // Moves carry the backend's `detail` string; deletes carry the thrown request error.
-  const reason = typeof first.error === "string" ? first.error : formatApiError(first.error);
-
-  if (failed.length === 1) {
-    return `Could not ${verb} ${pathBaseName(first.path)}: ${reason}`;
-  }
-
-  return `Could not ${verb} ${failed.length} files. ${pathBaseName(first.path)}: ${reason}`;
 }
 
 interface GallerySelectionControlsProps {
@@ -106,16 +79,27 @@ export function GallerySelectionControls({
   } = useGallerySelectionContext();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  /** Non-null while the destination picker is open, and says which action it is for. */
-  const [transferPicker, setTransferPicker] = useState<MediaTransferMode | null>(null);
-  const [overwritePrompt, setOverwritePrompt] = useState<{
-    mode: MediaTransferMode;
-    destination: string;
-    conflicts: string[];
-  } | null>(null);
-  const [transferring, setTransferring] = useState<MediaTransferMode | null>(null);
   const notify = useNotify();
 
+  const transferPaths = useMemo(() => Array.from(selectedPaths), [selectedPaths]);
+
+  const onMoveSettled = useCallback(
+    (succeeded: string[]) => {
+      if (succeeded.length === totalCount) {
+        exitSelectionMode();
+      }
+    },
+    [exitSelectionMode, totalCount],
+  );
+
+  const transfer = useMediaTransfer({
+    paths: transferPaths,
+    onMoved,
+    onCopied,
+    onMoveSettled,
+  });
+
+  const { transferPicker, overwritePrompt, transferring } = transfer;
   const busy = deleting || transferring !== null;
 
   const openDeleteConfirm = useCallback(() => {
@@ -127,24 +111,6 @@ export function GallerySelectionControls({
     if (deleting) return;
     setDeleteConfirmOpen(false);
   }, [deleting]);
-
-  const openTransferPicker = useCallback(
-    (mode: MediaTransferMode) => {
-      if (busy || selectedCount === 0) return;
-      setTransferPicker(mode);
-    },
-    [busy, selectedCount],
-  );
-
-  const closeTransferPicker = useCallback(() => {
-    if (transferring) return;
-    setTransferPicker(null);
-  }, [transferring]);
-
-  const closeOverwritePrompt = useCallback(() => {
-    if (transferring) return;
-    setOverwritePrompt(null);
-  }, [transferring]);
 
   useEffect(() => {
     if (!selectionMode) {
@@ -195,95 +161,6 @@ export function GallerySelectionControls({
       setDeleting(false);
     }
   }, [totalCount, deleting, notify, onDeleted, exitSelectionMode, selectedPaths]);
-
-  const executeTransfer = useCallback(
-    async (mode: MediaTransferMode, destinationFolder: string, overwrite: boolean) => {
-      const paths = Array.from(selectedPaths);
-      if (paths.length === 0 || transferring) return;
-
-      setTransferring(mode);
-
-      try {
-        const { succeeded, failed } = await transferSelectedMedia(
-          mode,
-          destinationFolder,
-          paths,
-          overwrite,
-        );
-
-        if (succeeded.length > 0) {
-          // A move empties the source folder; a copy only changes folder stats.
-          await (mode === "move" ? onMoved(succeeded) : onCopied());
-        }
-
-        setTransferPicker(null);
-        setOverwritePrompt(null);
-
-        // The backend reports per-file failures in its 200 response, so nothing throws here.
-        if (failed.length > 0) {
-          notify({ variant: "danger", message: failureMessage(mode, failed) });
-        }
-
-        if (mode === "copy") {
-          // Nothing changes in this folder, so say so rather than leaving it silent.
-          if (succeeded.length > 0) {
-            const target = folderLeafName(destinationFolder) || destinationFolder;
-            const count =
-              succeeded.length === 1 ? "1 file" : `${succeeded.length.toLocaleString()} files`;
-            notify({ variant: "success", message: `Copied ${count} to ${target}.` });
-          }
-          return;
-        }
-
-        if (succeeded.length === totalCount) {
-          exitSelectionMode();
-        }
-      } catch (error) {
-        notify({ variant: "danger", message: formatApiError(error) });
-      } finally {
-        setTransferring(null);
-      }
-    },
-    [transferring, notify, exitSelectionMode, onCopied, onMoved, selectedPaths, totalCount],
-  );
-
-  const handleDestinationSelected = useCallback(
-    async (mode: MediaTransferMode, destinationFolder: string) => {
-      const paths = Array.from(selectedPaths);
-      if (paths.length === 0 || transferring) return;
-
-      setTransferring(mode);
-
-      try {
-        const preview = await previewMediaTransfer(mode, destinationFolder, paths);
-        setTransferPicker(null);
-
-        if (preview.eligible.length === 0 && preview.conflicts.length === 0) {
-          notify({
-            variant: "warning",
-            message: `No selected files can be ${mode === "move" ? "moved" : "copied"} to that folder.`,
-          });
-          return;
-        }
-
-        if (preview.conflicts.length > 0) {
-          setOverwritePrompt({
-            mode,
-            destination: destinationFolder,
-            conflicts: preview.conflicts,
-          });
-          return;
-        }
-
-        await executeTransfer(mode, destinationFolder, false);
-      } catch (error) {
-        notify({ variant: "danger", message: formatApiError(error) });
-      } finally {
-        setTransferring(null);
-      }
-    },
-    [executeTransfer, transferring, notify, selectedPaths],
-  );
 
   if (!selectionMode) {
     return (
@@ -339,40 +216,35 @@ export function GallerySelectionControls({
         <TransferButton
           mode="copy"
           icon={iconCopy}
-          label="Copy"
-          busyLabel="Copying..."
+          label="Copy selected files"
           transferring={transferring}
           disabled={selectedCount === 0 || busy}
-          onClick={() => openTransferPicker("copy")}
+          onClick={() => transfer.openTransferPicker("copy")}
         />
         <TransferButton
           mode="move"
           icon={iconFolderInput}
-          label="Move"
-          busyLabel="Moving..."
+          label="Move selected files"
           transferring={transferring}
           disabled={selectedCount === 0 || busy}
-          onClick={() => openTransferPicker("move")}
+          onClick={() => transfer.openTransferPicker("move")}
         />
-        <button
-          type="button"
-          className="gallery-controls__btn gallery-controls__btn--danger"
-          onClick={openDeleteConfirm}
-          disabled={selectedCount === 0 || busy}
-          aria-busy={deleting || undefined}
-        >
-          {deleting ? (
-            <>
-              <Icon icon={iconLoader2} spin className="gallery-controls__btn-icon" />
-              Deleting...
-            </>
-          ) : (
-            <>
-              <Icon icon={iconTrash2} className="gallery-controls__btn-icon" />
-              Delete
-            </>
-          )}
-        </button>
+        <Tooltip content="Delete selected files">
+          <button
+            type="button"
+            className="gallery-controls__btn gallery-controls__btn--icon gallery-controls__btn--danger"
+            onClick={openDeleteConfirm}
+            disabled={selectedCount === 0 || busy}
+            aria-busy={deleting || undefined}
+            aria-label="Delete selected files"
+          >
+            <Icon
+              icon={deleting ? iconLoader2 : iconTrash2}
+              spin={deleting}
+              className="gallery-controls__btn-icon"
+            />
+          </button>
+        </Tooltip>
       </div>
 
       {transferPicker && (
@@ -381,9 +253,9 @@ export function GallerySelectionControls({
           currentFolder={currentFolder}
           selectedCount={selectedCount}
           busy={transferring !== null}
-          onClose={closeTransferPicker}
+          onClose={transfer.closeTransferPicker}
           onSelectDestination={(path) => {
-            void handleDestinationSelected(transferPicker, path);
+            transfer.selectDestination(transferPicker, path);
           }}
         />
       )}
@@ -397,13 +269,9 @@ export function GallerySelectionControls({
               ? "Choose whether to replace them or move only new files."
               : "Choose whether to replace them or copy only new files."
           }
-          onReplaceExisting={() => {
-            void executeTransfer(overwritePrompt.mode, overwritePrompt.destination, true);
-          }}
-          onCopyNewOnly={() => {
-            void executeTransfer(overwritePrompt.mode, overwritePrompt.destination, false);
-          }}
-          onCancel={closeOverwritePrompt}
+          onReplaceExisting={() => transfer.confirmOverwrite(true)}
+          onCopyNewOnly={() => transfer.confirmOverwrite(false)}
+          onCancel={transfer.closeOverwritePrompt}
         />
       )}
 

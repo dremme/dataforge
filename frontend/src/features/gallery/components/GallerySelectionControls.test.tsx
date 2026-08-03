@@ -73,6 +73,22 @@ describe("GallerySelectionControls", () => {
     expect(onEnterSelectionMode).toHaveBeenCalledTimes(1);
   });
 
+  it("carries the transfer and delete actions as labelled icons", () => {
+    renderControls();
+
+    for (const name of ["Copy to folder", "Move to folder", "Delete selected files"]) {
+      const button = screen.getByRole("button", { name });
+      // Icon-only: the accessible name is the label, not rendered text.
+      expect(button).toHaveTextContent("");
+      expect(button).toHaveAttribute("aria-label", name);
+      expect(screen.getByText(name)).toHaveRole("tooltip");
+    }
+
+    // The selection verbs keep their text, so the row still reads as a toolbar.
+    expect(screen.getByRole("button", { name: "All" })).toHaveTextContent("All");
+    expect(screen.getByRole("button", { name: "None" })).toHaveTextContent("None");
+  });
+
   it("deletes selected files after confirmation", async () => {
     const user = userEvent.setup();
     const onDeleted = vi.fn();
@@ -86,7 +102,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedPaths, onDeleted, exitSelectionMode });
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
     const confirmDialog = await screen.findByRole("alertdialog", {
       name: "Delete selected files?",
@@ -114,7 +130,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedCount: 1, selectedPaths });
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
     const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
     expect(within(confirmDialog).getByText("sunset.png")).toBeInTheDocument();
@@ -142,7 +158,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedCount: 1, selectedPaths, onDeleted });
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
     const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
     await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
@@ -192,7 +208,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ exitSelectionMode });
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
     await screen.findByRole("alertdialog", { name: "Delete selected files?" });
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -218,7 +234,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedPaths, onMoved });
 
-    await user.click(screen.getByRole("button", { name: "Move" }));
+    await user.click(screen.getByRole("button", { name: "Move to folder" }));
 
     const picker = await screen.findByRole("dialog", { name: "Move to folder" });
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
@@ -257,7 +273,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedCount: 1, selectedPaths });
 
-    await user.click(screen.getByRole("button", { name: "Move" }));
+    await user.click(screen.getByRole("button", { name: "Move to folder" }));
 
     const picker = await screen.findByRole("dialog", { name: "Move to folder" });
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
@@ -300,7 +316,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedPaths, onMoved });
 
-    await user.click(screen.getByRole("button", { name: "Move" }));
+    await user.click(screen.getByRole("button", { name: "Move to folder" }));
 
     const picker = await screen.findByRole("dialog", { name: "Move to folder" });
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
@@ -331,7 +347,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedPaths, onMoved, onCopied, exitSelectionMode });
 
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copy to folder" }));
 
     const picker = await screen.findByRole("dialog", { name: "Copy to folder" });
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
@@ -375,7 +391,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedCount: 1, selectedPaths });
 
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copy to folder" }));
 
     const picker = await screen.findByRole("dialog", { name: "Copy to folder" });
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
@@ -415,7 +431,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedCount: 1, selectedPaths });
 
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copy to folder" }));
 
     const picker = await screen.findByRole("dialog", { name: "Copy to folder" });
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
@@ -439,7 +455,7 @@ describe("GallerySelectionControls", () => {
 
     renderControls({ selectedPaths, onDeleted, exitSelectionMode });
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
     const confirmDialog = await screen.findByRole("alertdialog", {
       name: "Delete selected files?",

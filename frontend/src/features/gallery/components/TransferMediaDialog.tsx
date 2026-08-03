@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { fetchFolderChildren, fetchFolderRoots } from "@/features/browse/api/folders";
 import {
   folderLeafName,
@@ -24,6 +24,8 @@ interface TransferMediaDialogProps {
   mode: MediaTransferMode;
   currentFolder: string;
   selectedCount: number;
+  /** Replaces the default "N selected files" phrasing — the item modal names the file. */
+  description?: ReactNode;
   busy?: boolean;
   onClose: () => void;
   onSelectDestination: (path: string) => void;
@@ -131,6 +133,7 @@ export function TransferMediaDialog({
   mode,
   currentFolder,
   selectedCount,
+  description,
   busy = false,
   onClose,
   onSelectDestination,
@@ -348,10 +351,12 @@ export function TransferMediaDialog({
     <Dialog
       title={modeCopy.title}
       description={
-        <>
-          Choose a destination for{" "}
-          {selectedCount === 1 ? "1 selected file" : `${selectedCount} selected files`}.
-        </>
+        description ?? (
+          <>
+            Choose a destination for{" "}
+            {selectedCount === 1 ? "1 selected file" : `${selectedCount} selected files`}.
+          </>
+        )
       }
       role="dialog"
       panelClassName="transfer-media-dialog"

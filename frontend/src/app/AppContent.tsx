@@ -145,6 +145,8 @@ export function AppContent() {
             onPrevious: gallery.goToPrevious,
             onNext: gallery.goToNext,
             onDeleted: gallery.onGalleryItemDeleted,
+            onMoved: onGalleryItemsMoved,
+            onCopied: onGalleryItemsCopied,
             onResolveIssue: gallery.onResolveGalleryItemIssue,
             onJsonEditorOpenChange: gallery.onJsonEditorOpenChange,
           }}

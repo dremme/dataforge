@@ -17,6 +17,8 @@ type GalleryOverlayState = {
   onPrevious: () => void;
   onNext: () => void;
   onDeleted?: (path: string) => void;
+  onMoved?: (paths: string[]) => void | Promise<void>;
+  onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
   onJsonEditorOpenChange?: (open: boolean) => void;
 };

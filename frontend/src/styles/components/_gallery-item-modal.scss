@@ -56,7 +56,9 @@ $json-color: #fcd34d;
     gap: 0.35rem;
   }
 
-  &__preview {
+  &__preview,
+  &__copy,
+  &__move {
     @include modal-close-btn;
 
     &:hover:not(:disabled) {
