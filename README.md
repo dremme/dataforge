@@ -126,9 +126,11 @@ DataForge only calls an OpenAI-compatible HTTP endpoint.
 
 2. **Run**  
    Double-click `start.bat` (or run `.\start.ps1` in PowerShell).  
+   - Frees ports 8080/8081 first if a previous run left a server behind  
    - Backend and frontend open in separate consoles  
-   - Browser opens **http://localhost:8081**  
-   - API listens on **http://localhost:8080** (Vite proxies `/api`)
+   - Waits until the API answers `/api/health` and Vite is listening, *then* opens **http://localhost:8081**  
+   - API listens on **http://localhost:8080** (Vite proxies `/api`)  
+   - The launcher window stays open and supervises both — press any key in it to stop them
 
 3. **Optional AI config**  
    Copy `.env.example` to `.env` in the project root and set `OPENAI_*` (and other) variables.  
@@ -138,7 +140,18 @@ DataForge only calls an OpenAI-compatible HTTP endpoint.
    After the first setup, only `start.bat` is needed.  
    Re-run `setup.bat` when you want to refresh dependencies.
 
-Stop servers with **Ctrl+C** in each console window, or by closing those windows.
+Stop servers by pressing a key in the launcher window, with **Ctrl+C** in each console, or by
+running `stop.bat` (which also clears a uvicorn reload child left behind by closing a window
+with the X button).
+
+`start.bat` passes flags through to `start.ps1`:
+
+| Flag | Effect |
+| --- | --- |
+| `-BackendOnly` / `-FrontendOnly` | Start just one server |
+| `-NoBrowser` | Do not open the browser |
+| `-NoReload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
+| `-Detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` |
 
 ### Linux / macOS (or global Python/Node)
 
@@ -162,7 +175,10 @@ cd frontend && npm run dev
 
 Open **http://localhost:8081**.
 
-Windows PowerShell helpers (`start-backend.ps1`, `start-frontend.ps1`) prefer `.python` / `.node` when present.
+Windows PowerShell helpers (`start-backend.ps1`, `start-frontend.ps1`) run one server in the
+current terminal and prefer `.python` / `.node` when present. They share `scripts/dev-common.ps1`
+with `start.ps1` / `stop.ps1`, so port cleanup and the dependency-drift warning behave the same
+everywhere.
 
 ### Try the sample dataset
 
@@ -263,13 +279,14 @@ DataForge/
 │   ├── data/          # Local SQLite + thumbnails (gitignored)
 │   └── routes/        # HTTP API
 ├── frontend/          # React + TypeScript + Vite UI
-├── scripts/           # Dev server, lint, tests, git hooks
+├── scripts/           # Dev server, launcher helpers, lint, tests, git hooks
 ├── .github/workflows/ # CI (run_checks.py)
 ├── sample-images/     # Tiny example dataset
 ├── .env.example       # Sample backend env vars (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
 ├── setup.bat          # Windows self-contained install
 ├── start.bat / .ps1   # Launchers
+├── stop.bat / .ps1    # Frees ports 8080/8081
 ├── SECURITY.md
 └── LICENSE            # Apache-2.0
 ```
@@ -282,7 +299,7 @@ Run tooling from the **project root** with the backend venv:
 
 | Task | Command |
 | --- | --- |
-| API (hot reload) | `backend/.venv/.../python scripts/dev_server.py` |
+| API (hot reload) | `backend/.venv/.../python scripts/dev_server.py` (`--no-reload`, `--port`, `--host`) |
 | Full checks | `python scripts/run_checks.py` (also runs on GitHub Actions via `.github/workflows/checks.yml`) |
 | Backend lint | `python scripts/run_lint.py` (`--fix` to auto-fix) |
 | Backend tests | `python scripts/run_tests.py` |

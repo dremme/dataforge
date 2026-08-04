@@ -108,6 +108,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Dates the install so start.ps1 can warn when requirements.txt has moved on.
+>"%ROOT%backend\.venv\.dataforge-deps-stamp" echo %DATE% %TIME%
+
 echo.
 echo Installing frontend dependencies using the downloaded npm...
 pushd "%ROOT%frontend"
