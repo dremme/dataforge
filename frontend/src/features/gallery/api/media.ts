@@ -1,5 +1,9 @@
 import { postJson, requestJson } from "@/shared/api/http";
-import type { MediaTransferPreviewResponse, MediaTransferResponse } from "@/shared/types";
+import type {
+  MediaTransferPreviewResponse,
+  MediaTransferRequest,
+  MediaTransferResponse,
+} from "@/shared/types";
 
 /** Move takes the files, copy leaves the originals in place. */
 export type MediaTransferMode = "move" | "copy";
@@ -97,7 +101,8 @@ export async function previewMediaTransfer(
   paths: readonly string[],
 ): Promise<MediaTransferPreviewResponse> {
   const params = new URLSearchParams({ destination: destinationFolder });
-  return postJson<MediaTransferPreviewResponse>(`/api/media/${mode}/preview?${params}`, { paths });
+  const body: MediaTransferRequest = { paths };
+  return postJson<MediaTransferPreviewResponse>(`/api/media/${mode}/preview?${params}`, body);
 }
 
 export async function transferSelectedMedia(
@@ -111,7 +116,8 @@ export async function transferSelectedMedia(
     overwrite: String(overwrite),
   });
 
-  const response = await postJson<MediaTransferResponse>(`/api/media/${mode}?${params}`, { paths });
+  const body: MediaTransferRequest = { paths };
+  const response = await postJson<MediaTransferResponse>(`/api/media/${mode}?${params}`, body);
 
   return {
     succeeded: response.transferred.map((entry) => entry.source),

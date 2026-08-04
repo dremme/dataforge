@@ -1,12 +1,17 @@
 import { postJson, requestJson } from "@/shared/api/http";
-import type { FileImportPreviewResponse, FileImportResponse } from "@/shared/types";
+import type {
+  FileImportPreviewRequest,
+  FileImportPreviewResponse,
+  FileImportResponse,
+} from "@/shared/types";
 
 export async function previewFileImport(
   folderPath: string,
   filenames: string[],
 ): Promise<FileImportPreviewResponse> {
   const params = new URLSearchParams({ path: folderPath });
-  return postJson<FileImportPreviewResponse>(`/api/files/import/preview?${params}`, { filenames });
+  const body: FileImportPreviewRequest = { filenames };
+  return postJson<FileImportPreviewResponse>(`/api/files/import/preview?${params}`, body);
 }
 
 export async function importFiles(

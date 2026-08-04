@@ -1,7 +1,8 @@
 import { useId } from "react";
 import { classNames } from "@/shared/lib/classNames";
+import type { AutomationMode } from "@/shared/types";
 
-export type AutomationMode = "thinking" | "instruct";
+export type { AutomationMode };
 
 const MODES: ReadonlyArray<{ value: AutomationMode; title: string; description: string }> = [
   { value: "thinking", title: "Reasoning", description: "Slower, but better overall outcome" },

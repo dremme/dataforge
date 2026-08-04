@@ -33,7 +33,7 @@ config:
         train_text_encoder: false
         gradient_checkpointing: true
         noise_scheduler: "flowmatch"
-        optimizer: "automagic3"
+        optimizer: "adamw8bit"
         timestep_type: "shift"
         content_or_style: "balanced"
         optimizer_params:

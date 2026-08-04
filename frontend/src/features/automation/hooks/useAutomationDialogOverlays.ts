@@ -1,9 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import {
-  trainLoraBody,
-  type JobStartBody,
-  type TrainLoraSettings,
-} from "@/features/automation/api/jobs";
+import { trainLoraBody, type TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import {
@@ -11,7 +7,7 @@ import {
   type VerifyCaptionsSettings,
 } from "@/features/automation/preferences/verifyCaptionsPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
-import type { JobType } from "@/shared/types";
+import type { JobStartBodies, JobStartBody, JobType } from "@/shared/types";
 
 type UseAutomationDialogOverlaysOptions = {
   folderPath: string | undefined;
@@ -47,7 +43,7 @@ export function useAutomationDialogOverlays({
 
   /** Closes the dialog, then starts its job; a rejection is already reported by the context. */
   const startJobFromDialog = useCallback(
-    (jobType: JobType, body?: JobStartBody) => {
+    <T extends JobType>(jobType: T, body?: JobStartBodies[T]) => {
       if (!folderPath) return;
       closeDialog();
       startJob(jobType, folderPath, body, getJobPaths?.()).catch(() => {});

@@ -1,8 +1,9 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
 import { normalizeFolderPath } from "@/features/browse/lib/folderPath";
+import type { AutomationMode, VerifyCaptionsSettingsUpdate } from "@/shared/types";
 
-export type VerifyCaptionsMode = "thinking" | "instruct";
+export type VerifyCaptionsMode = AutomationMode;
 
 export interface VerifyCaptionsSettings {
   mode: VerifyCaptionsMode;
@@ -69,10 +70,11 @@ export async function updateVerifyCaptionsSettings(
   folderPath: string,
   partial: { mode?: VerifyCaptionsMode; context?: string },
 ): Promise<VerifyCaptionsSettings> {
-  const data = await putJson<VerifyCaptionsSettingsApi>("/api/preferences/verify-captions", {
+  const body: VerifyCaptionsSettingsUpdate = {
     mode: partial.mode,
     context: partial.context,
     folder_path: folderPath,
-  });
+  };
+  const data = await putJson<VerifyCaptionsSettingsApi>("/api/preferences/verify-captions", body);
   return parseSettings(data, folderPath);
 }

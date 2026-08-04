@@ -278,3 +278,82 @@ export interface SystemSpecs {
 export interface JobDeleteResponse {
   deleted_count: number;
 }
+
+/**
+ * Request bodies, mirroring the models in `backend/schemas.py` by hand.
+ *
+ * Optional here wherever the backend declares a default, so omitting a field is the
+ * same "use the default" the API already means. Field names stay snake_case: these
+ * cross the wire verbatim.
+ */
+
+export type AutomationMode = "thinking" | "instruct";
+
+/** Base of every job start: omit `paths` to process the whole folder. */
+export interface JobSelectionRequest {
+  paths?: string[];
+}
+
+export interface AutoCaptionStartRequest extends JobSelectionRequest {
+  mode?: AutomationMode;
+}
+
+export interface SetCaptionsStartRequest extends JobSelectionRequest {
+  caption?: string;
+  overwrite?: boolean;
+}
+
+export interface BatchRenameStartRequest extends JobSelectionRequest {
+  stem?: string;
+}
+
+export interface VerifyCaptionsStartRequest extends JobSelectionRequest {
+  mode?: AutomationMode;
+  context?: string;
+}
+
+export interface TrainLoraStartRequest extends JobSelectionRequest {
+  lora_name?: string;
+  trigger_word?: string;
+  prompts?: string[];
+}
+
+/** Selects the body shape for a given job type. */
+export interface JobStartBodies {
+  auto_caption: AutoCaptionStartRequest;
+  set_captions: SetCaptionsStartRequest;
+  verify_captions: VerifyCaptionsStartRequest;
+  batch_rename: BatchRenameStartRequest;
+  train_lora: TrainLoraStartRequest;
+  strip_metadata: JobSelectionRequest;
+  backup_captions: JobSelectionRequest;
+  restore_captions: JobSelectionRequest;
+}
+
+/** Any job's body, for callers whose job type is only known at runtime. */
+export type JobStartBody = JobStartBodies[JobType];
+
+export interface CaptionUpdate {
+  text?: string;
+  json_content?: string | null;
+  resolve_issue?: boolean;
+}
+
+export interface FileImportPreviewRequest {
+  filenames?: string[];
+}
+
+export interface MediaTransferRequest {
+  paths?: readonly string[];
+}
+
+export interface UiSettingsUpdate {
+  sort?: string;
+  show_automation_specs?: boolean;
+}
+
+export interface VerifyCaptionsSettingsUpdate {
+  mode?: AutomationMode;
+  context?: string;
+  folder_path: string;
+}

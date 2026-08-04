@@ -66,6 +66,32 @@ describe("automation API", () => {
     });
   });
 
+  it("rejects a body field the job type does not accept", async () => {
+    postJsonMock.mockResolvedValue({ id: "job-4", status: "queued" });
+
+    // The job type selects its body shape, so a camelCase slip or a field
+    // borrowed from another job type fails to compile rather than silently
+    // reaching the API and being dropped.
+    await startAutomationJob("train_lora", "C:\\Photos", {
+      // @ts-expect-error -- the wire field is lora_name
+      loraName: "sample_train_v1",
+    });
+    await startAutomationJob("batch_rename", "C:\\Photos", {
+      // @ts-expect-error -- overwrite belongs to set_captions
+      overwrite: true,
+    });
+
+    // The bodies still go out verbatim: the guarantee is the compile error above,
+    // not a runtime filter. Without it the backend would silently ignore both.
+    expect(postJsonMock).toHaveBeenCalledTimes(2);
+    expect(postJsonMock).toHaveBeenLastCalledWith(
+      "/api/automation/batch-rename?path=C%3A%5CPhotos",
+      {
+        overwrite: true,
+      },
+    );
+  });
+
   it("maps the settings dialogs onto their wire fields", () => {
     expect(
       trainLoraBody({

@@ -1,4 +1,4 @@
-"""Run backend and frontend linting, formatting checks, and tests.
+"""Run backend and frontend linting, formatting checks, typechecking, and tests.
 
 Run from the project root:
   backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only] [--scope SCOPE]
@@ -121,6 +121,10 @@ def _run_check_steps(python: Path | None, npm: str | None, *, lint_only: bool = 
     if npm is not None:
         _run_step("Frontend ESLint", [npm, "run", "lint"], cwd=FRONTEND)
         _run_step("Frontend Prettier", [npm, "run", "format:check"], cwd=FRONTEND)
+        # Grouped with the static checks rather than the tests, so ``--lint-only``
+        # (what the pre-commit hook runs) still catches type errors. Vitest does not
+        # typecheck, so nothing else here would.
+        _run_step("Frontend typecheck", [npm, "run", "typecheck"], cwd=FRONTEND)
     if lint_only:
         return
 

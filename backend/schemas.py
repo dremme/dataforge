@@ -2,6 +2,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# Caption resolution states from ``captions.py``. ``no_caption`` is a job stat key,
+# not one of these, so do not fold it in.
+CaptionStatus = Literal["none", "empty", "text"]
+CaptionFileType = Literal["json", "txt"]
+
+# Wider than ``auto_caption.MediaKind``: a sysprompt entry is listed as media too.
+MediaType = Literal["image", "video", "sysprompt"]
+
 
 class Breadcrumb(BaseModel):
     name: str
@@ -43,9 +51,9 @@ class GalleryItem(BaseModel):
     has_caption_file: bool
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
-    caption_status: str
-    caption_file_type: str | None
-    media_type: str
+    caption_status: CaptionStatus
+    caption_file_type: CaptionFileType | None
+    media_type: MediaType
     width: int | None = None
     height: int | None = None
     frame_count: int | None = None
@@ -125,9 +133,9 @@ class CaptionSaveResponse(BaseModel):
     description: str | None
     has_description: bool
     has_caption_file: bool
-    caption_status: str
+    caption_status: CaptionStatus
     caption_file: str = ""
-    caption_file_type: str | None = None
+    caption_file_type: CaptionFileType | None = None
     caption_content: str | None = None
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
@@ -137,7 +145,7 @@ class SysPromptSaveResponse(BaseModel):
     description: str | None
     has_description: bool
     has_caption_file: bool
-    caption_status: str
+    caption_status: CaptionStatus
     path: str
 
 
@@ -209,6 +217,10 @@ class JobResponse(BaseModel):
     id: str
     folder: str
     folder_name: str = ""
+    # Deliberately not ``JobType``/``JobStatus``: job history is persisted
+    # (``automation/jobs_store.py``) and can hold values retired since the row was
+    # written, so narrowing here would fail the whole list on one legacy row. The
+    # frontend narrows instead and falls back via ``isKnownJobType``.
     job_type: str = "auto_caption"
     status: str
     total: int

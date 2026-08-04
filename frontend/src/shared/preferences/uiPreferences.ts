@@ -1,6 +1,7 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
 import { readStored, writeStored } from "@/shared/lib/storage";
+import type { UiSettingsUpdate } from "@/shared/types";
 
 /**
  * UI preferences shared across features via a single backend endpoint.
@@ -65,7 +66,7 @@ export async function updateUiSettings(partial: Partial<UiSettings>): Promise<Ui
     cacheAutomationSpecsPreference(partial.showAutomationSpecs);
   }
 
-  const body: { sort?: string; show_automation_specs?: boolean } = {};
+  const body: UiSettingsUpdate = {};
   if (partial.sort !== undefined) {
     body.sort = partial.sort;
   }

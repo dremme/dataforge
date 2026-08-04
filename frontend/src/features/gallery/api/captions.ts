@@ -1,6 +1,7 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import type {
   CaptionSaveResponse,
+  CaptionUpdate,
   PngWorkflowResponse,
   SysPromptSaveResponse,
 } from "@/shared/types";
@@ -21,7 +22,7 @@ export async function saveCaption(
   options?: { resolveIssue?: boolean },
 ): Promise<CaptionSaveResponse> {
   const params = new URLSearchParams({ path: mediaPath });
-  const body: { text: string; resolve_issue?: boolean } = { text };
+  const body: CaptionUpdate = { text };
   if (options?.resolveIssue) {
     body.resolve_issue = true;
   }
@@ -34,7 +35,8 @@ export async function saveCaptionJson(
   jsonContent: string,
 ): Promise<CaptionSaveResponse> {
   const params = new URLSearchParams({ path: mediaPath });
-  return putJson<CaptionSaveResponse>(`/api/caption?${params}`, { json_content: jsonContent });
+  const body: CaptionUpdate = { json_content: jsonContent };
+  return putJson<CaptionSaveResponse>(`/api/caption?${params}`, body);
 }
 
 export async function saveSysPrompt(
