@@ -58,7 +58,8 @@ $json-color: #fcd34d;
 
   &__preview,
   &__copy,
-  &__move {
+  &__move,
+  &__frame-toggle {
     @include modal-close-btn;
 
     &:hover:not(:disabled) {
@@ -66,6 +67,11 @@ $json-color: #fcd34d;
       border-color: var(--accent-border);
       background: var(--accent-soft);
     }
+  }
+
+  &__frame-toggle--active {
+    @include btn-surface-active;
+    border-color: var(--accent-border);
   }
 
   &__delete {

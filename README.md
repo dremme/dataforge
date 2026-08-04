@@ -45,6 +45,7 @@ Ideal when you already keep datasets on disk and want a fast, visual workflow.
 - JSON caption editor and bounding-box overlay (view and edit when present)
 - Click-to-zoom on images in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
+- Save any video frame as a JPG beside the video (scrub to the frame; the name carries its timestamp, so each frame is its own file)
 - Per-folder `.sysprompt` (markdown) to guide AI captioning
 - Caption status on cards and in the detail view
 - Detection of embedded ComfyUI workflows in PNGs

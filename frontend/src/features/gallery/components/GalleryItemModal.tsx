@@ -15,10 +15,13 @@ import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
+import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapture";
+import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
   iconArrowUpRight,
   iconBraces,
+  iconCamera,
   iconChevronLeft,
   iconChevronRight,
   iconCopy,
@@ -44,6 +47,7 @@ import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { TransferMediaDialog } from "./TransferMediaDialog";
+import { VideoFrameCaptureBar } from "./VideoFrameCaptureBar";
 import { ZoomableImage } from "./ZoomableImage";
 
 /** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
@@ -71,7 +75,7 @@ interface GalleryItemModalProps {
   onDeleted?: (path: string) => void;
   /** Takes the moved path so the owner can drop it and advance this modal. */
   onMoved?: (paths: string[]) => void | Promise<void>;
-  /** A copy leaves the item here, so only folder stats change. */
+  /** A copy or a saved video frame leaves the item here, so only folder stats change. */
   onCopied?: () => void | Promise<void>;
   /** Hands the item off to the issue resolver; this modal closes in the same commit. */
   onResolveIssue?: (item: GalleryItem) => void;
@@ -143,8 +147,18 @@ export function GalleryItemModal({
     copySuccessMessage,
   });
 
+  const frameCapture = useVideoFrameCapture({
+    item,
+    folderPath: currentFolder,
+    onSaved: onCopied,
+  });
+
   const { transferPicker, overwritePrompt, transferring } = transfer;
-  const busy = deleting || transferring !== null;
+  /** Modal work other than a frame save — the capture bar locks itself on this. */
+  const otherWorkBusy = deleting || transferring !== null;
+  const busy = otherWorkBusy || frameCapture.saving;
+  // Frame mode stays out of this flag: it feeds `ModalShell`'s `suspended`, which
+  // makes the panel inert, and the slider has to stay reachable.
   const childOverlayOpen = deleteConfirmOpen || jsonEditorOpen || transfer.transferDialogOpen;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
@@ -268,7 +282,9 @@ export function GalleryItemModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (childOverlayOpen || busy) return;
+      // A focused slider is already exempt via `isEditableTarget`; the guard here is
+      // for focus anywhere else, where nav would throw away the frame being lined up.
+      if (childOverlayOpen || busy || frameCapture.frameMode) return;
       if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft") onPrevious();
       if (event.key === "ArrowRight") onNext();
@@ -278,7 +294,11 @@ export function GalleryItemModal({
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [busy, childOverlayOpen, onPrevious, onNext]);
+  }, [busy, childOverlayOpen, frameCapture.frameMode, onPrevious, onNext]);
+
+  // In frame mode Escape steps back to plain viewing instead of closing outright.
+  // `ModalShell` stands down for the duration via its `escape` prop below.
+  useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);
 
   if (!item) return null;
 
@@ -291,6 +311,9 @@ export function GalleryItemModal({
   const canCopyCaption = copyContent.length > 0;
   const canEditJson = hasJsonCaption && (jsonEditorContent?.length ?? 0) > 0;
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
+  // Only the destination folder is required; a missing `onCopied` costs the refresh,
+  // not the save, so it must not gate the toggle the way `canTransfer` does.
+  const canCaptureFrame = itemIsVideo && Boolean(currentFolder);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
@@ -306,6 +329,7 @@ export function GalleryItemModal({
         // the whole overlay session. That leaves the depth non-zero here, so the
         // nesting decision has to be stated rather than measured.
         nested={false}
+        escape={frameCapture.frameMode ? "none" : "bubble"}
         panelRef={modalRef}
       >
         <header className="gallery-item-modal__header">
@@ -331,6 +355,29 @@ export function GalleryItemModal({
                     icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
                     spin={openingInViewer}
                   />
+                </button>
+              </Tooltip>
+            )}
+            {canCaptureFrame && (
+              <Tooltip
+                content={frameCapture.frameMode ? "Exit frame capture" : "Save a frame as JPG"}
+              >
+                <button
+                  type="button"
+                  className={classNames(
+                    "gallery-item-modal__frame-toggle",
+                    frameCapture.frameMode && "gallery-item-modal__frame-toggle--active",
+                  )}
+                  onClick={frameCapture.toggleFrameMode}
+                  disabled={busy}
+                  aria-pressed={frameCapture.frameMode}
+                  aria-label={
+                    frameCapture.frameMode
+                      ? `Exit frame capture for ${item.name}`
+                      : `Save a frame from ${item.name}`
+                  }
+                >
+                  <Icon icon={iconCamera} />
                 </button>
               </Tooltip>
             )}
@@ -396,6 +443,7 @@ export function GalleryItemModal({
             type="button"
             className="gallery-item-modal__nav gallery-item-modal__nav--prev"
             onClick={onPrevious}
+            disabled={frameCapture.frameMode}
             aria-label="Previous item"
           >
             <Icon icon={iconChevronLeft} />
@@ -404,16 +452,23 @@ export function GalleryItemModal({
           {itemIsVideo ? (
             <video
               key={item.path}
+              ref={frameCapture.videoRef}
               className="gallery-item-modal__video"
               src={galleryItemMediaUrl(item)}
-              controls
+              // The native timeline would let the user seek behind the capture
+              // slider's back, so frame mode owns scrubbing outright.
+              controls={!frameCapture.frameMode}
               autoPlay
               muted
               playsInline
               onLoadedMetadata={(event) => {
                 const video = event.currentTarget;
                 recordResolution(video.videoWidth, video.videoHeight, item.path);
+                frameCapture.handleLoadedMetadata(video);
               }}
+              // Streamed MP4s report `Infinity` at `loadedmetadata` and only settle
+              // on a real duration later, which would strand the slider without this.
+              onDurationChange={(event) => frameCapture.handleLoadedMetadata(event.currentTarget)}
             />
           ) : (
             <ZoomableImage
@@ -433,11 +488,28 @@ export function GalleryItemModal({
             type="button"
             className="gallery-item-modal__nav gallery-item-modal__nav--next"
             onClick={onNext}
+            disabled={frameCapture.frameMode}
             aria-label="Next item"
           >
             <Icon icon={iconChevronRight} />
           </button>
         </div>
+
+        {/* Outside the stage on purpose: that block centres its content and hangs
+            the nav buttons over it, so a strip inside would fight both. */}
+        {frameCapture.frameMode && (
+          <VideoFrameCaptureBar
+            duration={frameCapture.duration}
+            ready={frameCapture.ready}
+            sliderTime={frameCapture.sliderTime}
+            displayTime={frameCapture.displayTime}
+            saving={frameCapture.saving}
+            busy={otherWorkBusy}
+            onSliderTimeChange={frameCapture.setSliderTime}
+            onStepFrame={frameCapture.stepFrame}
+            onSave={frameCapture.saveFrame}
+          />
+        )}
 
         <footer className="gallery-item-modal__footer">
           <GalleryItemModalMeta

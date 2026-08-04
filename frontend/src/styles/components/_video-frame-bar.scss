@@ -1,0 +1,133 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+$track-height: 4px;
+$thumb-size: 0.85rem;
+
+// The vendor pseudo-elements below cannot share a selector list: an engine that
+// does not recognise one of them discards the whole rule, and the slider silently
+// falls back to its native look. Hence two mixins and four separate blocks.
+@mixin frame-slider-track {
+  height: $track-height;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--frame-progress, 0%),
+    var(--border) var(--frame-progress, 0%) 100%
+  );
+}
+
+@mixin frame-slider-thumb {
+  width: $thumb-size;
+  height: $thumb-size;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+
+.video-frame-bar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 0.65rem 1.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+
+  &__scrubber {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__step {
+    @include icon-btn-sm;
+  }
+
+  &__meta {
+    display: flex;
+    justify-content: center;
+  }
+
+  &__time {
+    @include tabular-nums;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  &__time-current {
+    color: var(--text);
+    font-weight: var(--font-semibold);
+  }
+
+  &__time-divider {
+    color: var(--text-subtle);
+  }
+
+  &__hint {
+    @include truncate;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--text-xs);
+    font-style: italic;
+    color: var(--text-muted);
+  }
+
+  &__save {
+    @include pill-btn-compact(accent);
+    flex-shrink: 0;
+    --icon-size: #{$icon-size-sm};
+    width: 6.25rem;
+  }
+
+  &__slider {
+    flex: 1;
+    min-width: 0;
+    height: var(--control-height-sm);
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    accent-color: var(--accent);
+    -webkit-appearance: none;
+    appearance: none;
+    @include focus-ring;
+
+    &:disabled {
+      @include disabled-state;
+    }
+  }
+}
+
+.video-frame-bar__slider::-webkit-slider-runnable-track {
+  @include frame-slider-track;
+}
+
+.video-frame-bar__slider::-moz-range-track {
+  @include frame-slider-track;
+}
+
+.video-frame-bar__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  // Webkit lays the thumb on the track's top edge; Firefox centres it for us.
+  margin-top: calc((#{$track-height} - #{$thumb-size}) / 2);
+  @include frame-slider-thumb;
+}
+
+.video-frame-bar__slider::-moz-range-thumb {
+  @include frame-slider-thumb;
+}
+
+.video-frame-bar__slider:hover:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.video-frame-bar__slider:hover:not(:disabled)::-moz-range-thumb {
+  transform: scale(1.15);
+}
