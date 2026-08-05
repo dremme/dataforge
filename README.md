@@ -1,149 +1,55 @@
 # DataForge
 
-**Local-first gallery and automation for image/video caption datasets.**
+**Local-first gallery and automation for image and video caption datasets.**
 
 Browse folders of media, edit captions, run automated AI jobs, and keep every sidecar next to your files.
-Built for people who curate training data for generative models (LoRAs, fine-tunes, and similar workflows).
+Built for people who curate training data for generative models — LoRAs, fine-tunes, and similar workflows.
 
-No cloud account is required.
-Processing stays on your machine.
+[![Checks](https://github.com/dremme/dataforge/actions/workflows/checks.yml/badge.svg)](https://github.com/dremme/dataforge/actions/workflows/checks.yml)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/node-20%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#system-requirements)
 
-[Features](#features) · [System requirements](#system-requirements) · [Quick start](#quick-start) · [Configuration](#configuration) · [Development](#development) · [Security](SECURITY.md) · [License](#license)
+[Quick start](#quick-start) · [Features](#features) · [Requirements](#system-requirements) · [Configuration](#configuration) · [Development](#development) · [Security](SECURITY.md) · [License](#license)
 
----
+<!-- A screenshot or short GIF of the gallery belongs here once one is available. -->
 
-## Why DataForge?
+## Overview
 
 Most dataset tools either push you into a cloud UI or leave you juggling scripts and folders.
-DataForge is a **desktop web app** you run locally:
+DataForge is a **desktop web app** you run locally — no cloud account, no upload step, nothing leaves your machine.
 
 - Your media and sidecars stay in **your** folder structure
-- Captions save as standard `.json` / `.txt` next to each file
+- Captions save as standard `.json` / `.txt` files next to each image or video
 - Optional vision LLMs talk to a **local** OpenAI-compatible server
 - Jobs run in the background with progress, cancel, and history
 
-Ideal when you already keep datasets on disk and want a fast, visual workflow.
-
----
-
-## Features
-
-### Gallery and navigation
-
-- Virtualized grid for large folders
-- Subfolders, breadcrumbs, favorites, and recent history
-- Drive / folder picker
-- Search by file name, folder name, or caption (regex optional; **Ctrl+K** / **⌘K** focuses search)
-- Filters: all / captioned / issues / missing caption · images / videos
-- Sort: name, modified date, caption length, megapixels
-- WebP thumbnails and responsive layout
-- Folder cards show a warning when the folder has caption issues
-
-### Captions and metadata
-
-- In-place caption editing (`.json` and `.txt` sidecars)
-- JSON caption editor and bounding-box overlay (view and edit when present)
-- Click-to-zoom on images in the detail and issue-resolver views
-- Open the current image in the OS image viewer (Windows)
-- Save any video frame as a JPG beside the video (scrub to the frame; the name carries its timestamp, so each frame is its own file)
-- Per-folder `.sysprompt` (markdown) to guide AI captioning
-- Caption status on cards and in the detail view
-- Detection of embedded ComfyUI workflows in PNGs
-- Drag-and-drop import (media, sidecars, `.sysprompt`)
-- Delete media (and matching sidecars, including `.issue.json`)
-- Move or copy selected files; create subfolders
-
-### Automation jobs
-
-Jobs run in the background with a drawer for progress, cancel, and history:
-
-| Job | What it does |
-| --- | --- |
-| **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode) |
-| **Verify captions** | Checks captions against images; writes `.issue.json` when something is wrong |
-| **Issue resolver** | Step through flagged files, edit captions, resolve or skip |
-| **Strip metadata** | Strip embedded data from PNGs and MP4s |
-| **Set captions** | Apply the same text to many files |
-| **Batch rename** | Numbered rename of media + related sidecars |
-| **Backup captions** | Copy captions and caption issues into `.backup` |
-| **Restore captions** | Restore captions and issues from `.backup` |
-| **Quick LoRA training** | Starts a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
-
-External **Ostris / AI-Toolkit** training jobs can also appear in the jobs drawer when configured.
-
-Quick LoRA training needs AI-Toolkit running on `http://127.0.0.1:8675`; the menu entry stays disabled otherwise.
-AI-Toolkit owns the run and its training folder, while DataForge tracks it like any other job —
-progress and sample images in the automation panel, and an external card in the jobs drawer.
-
-### Local-first data model
-
-| Kind | Where it lives |
-| --- | --- |
-| Captions, issues, `.sysprompt` | Next to media (portable with the dataset) |
-| App preferences, job history, thumbnails | `backend/data/` (gitignored SQLite + cache) |
-| UI session state (search, gallery filters) | Browser session storage |
-
-Verify-captions **additional context** is stored **per folder** in the app database.
-UI prefs (sort, automation specs visibility) are also stored server-side.
-
----
-
-## System requirements
-
-### App only (browse, edit captions, non-AI jobs)
-
-Enough for gallery browsing, caption editing, strip metadata, set captions, and batch rename.
-
-| | Minimum | Recommended |
-| --- | --- | --- |
-| **OS** | Windows 10/11, Linux, or macOS | Windows 11 or recent Linux |
-| **CPU** | Dual-core, 64-bit | Quad-core or better |
-| **RAM** | 8 GB | 16 GB |
-| **Disk** | ~2 GB free for app + deps | SSD; more free space for datasets and thumbnails |
-| **Software** | See [Quick start](#quick-start) (Python / Node, or Windows `setup.bat`) | Same |
-
-### Vision LLM jobs (auto-caption / verify)
-
-Hardware is driven by the **model you load** in llama.cpp, LM Studio, vLLM, or similar—not by DataForge itself.
-DataForge only calls an OpenAI-compatible HTTP endpoint.
-
-| | Minimum (lighter models) | Optimal (recommended models) |
-| --- | --- | --- |
-| **GPU** | NVIDIA with **8–12 GB** VRAM | NVIDIA with **24 GB** VRAM (e.g. RTX 3090 / 4090 class) |
-| **System RAM** | **16 GB** | **32 GB** or more |
-| **Storage** | Fast SSD; room for model weights (several GB to tens of GB per quant) | NVMe SSD |
-| **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B), [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) (dense alternative) |
-| **Software** | Local OpenAI-compatible vision server with a vision model loaded | Same, with enough VRAM for quality quants and longer contexts |
-
----
+Ideal when you already keep datasets on disk and want a fast, visual workflow over them.
 
 ## Quick start
 
 ### Windows
 
-1. **Setup (once)**  
-   Double-click `setup.bat` in the project root.  
-   This downloads Python 3.12.6 → `.python/`, Node 20.19.0 → `.node/`, creates `backend/.venv`, and installs dependencies.
+**1. Setup (once)** — double-click `setup.bat` in the project root.
+It downloads Python 3.12.6 → `.python/` and Node 20.19.0 → `.node/`, creates `backend/.venv`, and installs all dependencies.
 
-2. **Run**  
-   Double-click `start.bat` (or run `.\start.ps1` in PowerShell).  
-   - Frees ports 8080/8081 first if a previous run left a server behind  
-   - Backend and frontend open in separate consoles  
-   - Waits until the API answers `/api/health` and Vite is listening, *then* opens **http://localhost:8081**  
-   - API listens on **http://localhost:8080** (Vite proxies `/api`)  
-   - The launcher window stays open and supervises both — press any key in it to stop them
+**2. Run** — double-click `start.bat`, or run `.\start.ps1` in PowerShell. The launcher:
 
-3. **Optional AI config**  
-   Copy `.env.example` to `.env` in the project root and set `OPENAI_*` (and other) variables.  
-   The backend loads `.env` automatically on startup (see [Configuration](#configuration)).
+- Frees the dev ports first, if a previous run left a server behind
+- Opens the backend and frontend in separate consoles
+- Waits until the API answers `/api/health` and Vite is listening, *then* opens **http://localhost:8081**
+- Stays open as a supervisor — press any key in it to stop both servers
 
-4. **Daily use**  
-   After the first setup, only `start.bat` is needed.  
-   Re-run `setup.bat` when you want to refresh dependencies.
+The API listens on **http://localhost:8080** and Vite proxies `/api` to it. Both ports are configurable; see [Dev server ports](#dev-server-ports).
 
-Stop servers by pressing a key in the launcher window, with **Ctrl+C** in each console, or by
-running `stop.bat` (which also clears a uvicorn reload child left behind by closing a window
-with the X button).
+**3. Optional AI config** — copy `.env.example` to `.env` in the project root and set the `OPENAI_*` variables.
+The backend loads `.env` automatically on startup. See [Configuration](#configuration).
+
+**4. Daily use** — only `start.bat` is needed from then on. Re-run `setup.bat` to refresh dependencies.
+
+To stop the servers: press any key in the launcher window, hit **Ctrl+C** in each console, or run `stop.bat`.
+`stop.bat` also clears a uvicorn reload child left behind by closing a console with the X button.
 
 `start.bat` passes flags through to `start.ps1`:
 
@@ -154,12 +60,9 @@ with the X button).
 | `-NoReload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
 | `-Detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` |
 
-### Linux / macOS (or global Python/Node)
+### Linux, macOS, or a global Python/Node
 
-- Python **3.11+** (venv)
-- Node.js + npm (Node **20+** recommended)
-
-From the **project root**:
+Requires Python **3.11+** and Node **20+** with npm. From the **project root**:
 
 ```bash
 # One-time setup
@@ -174,62 +77,166 @@ backend/.venv/bin/python scripts/dev_server.py
 cd frontend && npm run dev
 ```
 
-Open **http://localhost:8081**.
+Then open **http://localhost:8081**.
 
-Windows PowerShell helpers (`start-backend.ps1`, `start-frontend.ps1`) run one server in the
-current terminal and prefer `.python` / `.node` when present. They share `scripts/dev-common.ps1`
-with `start.ps1` / `stop.ps1`, so port cleanup and the dependency-drift warning behave the same
-everywhere.
+On Windows, `start-backend.ps1` and `start-frontend.ps1` run a single server in the current terminal and prefer
+`.python` / `.node` when present. They share `scripts/dev-common.ps1` with `start.ps1` / `stop.ps1`, so port cleanup
+and the dependency-drift warning behave identically everywhere.
 
 ### Try the sample dataset
 
-Point the app at `sample-images/` in this repo for a tiny folder with mixed caption states (`.json`, `.txt`, and uncaptioned).
+Point the app at [`sample-images/`](sample-images/) in this repo — a tiny folder with mixed caption states (`.json`, `.txt`, and uncaptioned).
 
----
+## Features
+
+### Gallery and navigation
+
+- Virtualized grid that stays smooth on large folders
+- Subfolders, breadcrumbs, favorites, and recent history
+- Drive and folder picker
+- Search by file name, folder name, or caption, with optional regex (**Ctrl+K** / **⌘K** focuses search)
+- Filters for all / captioned / issues / missing caption, and images / videos
+- Sort by name, modified date, caption length, or megapixels
+- WebP thumbnails and a responsive layout
+- Folder cards flag when a folder has caption issues
+
+### Captions and metadata
+
+- In-place caption editing for `.json` and `.txt` sidecars
+- JSON caption editor with a bounding-box overlay — view and edit when present
+- Click-to-zoom in the detail and issue-resolver views
+- Open the current image in the OS image viewer (Windows)
+- Save any video frame as a JPG beside the video; scrub to the frame and the filename carries its timestamp, so each frame is its own file
+- Per-folder `.sysprompt` (markdown) to steer AI captioning
+- Caption status on cards and in the detail view
+- Detection of embedded ComfyUI workflows in PNGs
+- Drag-and-drop import for media, sidecars, and `.sysprompt`
+- Delete media along with matching sidecars, including `.issue.json`
+- Move or copy selected files, and create subfolders
+
+### Automation jobs
+
+Jobs run in the background, with a drawer for progress, cancel, and history:
+
+| Job | What it does |
+| --- | --- |
+| **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode) |
+| **Verify captions** | Checks captions against images and writes `.issue.json` when something is wrong |
+| **Issue resolver** | Step through flagged files to edit, resolve, or skip |
+| **Strip metadata** | Remove embedded data from PNGs and MP4s |
+| **Set captions** | Apply the same text to many files |
+| **Batch rename** | Numbered rename of media plus related sidecars |
+| **Backup captions** | Copy captions and caption issues into `.backup` |
+| **Restore captions** | Restore captions and issues from `.backup` |
+| **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
+
+External **Ostris / AI-Toolkit** training jobs also appear in the jobs drawer once [configured](#paths-integrations-and-logging).
+
+Quick LoRA training needs AI-Toolkit running on `http://127.0.0.1:8675`; the menu entry stays disabled otherwise.
+AI-Toolkit owns the run and its training folder, while DataForge tracks it like any other job — progress and sample
+images in the automation panel, and an external card in the jobs drawer.
+
+### Where your data lives
+
+| Kind | Location |
+| --- | --- |
+| Captions, issues, `.sysprompt` | Next to your media, so they travel with the dataset |
+| App preferences, job history, thumbnails | `backend/data/` — gitignored SQLite plus cache |
+| UI session state (search, gallery filters) | Browser session storage |
+
+Verify-captions **additional context** is stored **per folder** in the app database, and UI preferences
+(sort order, automation spec visibility) are stored server-side rather than only in the browser.
+
+## System requirements
+
+### App only
+
+Enough for gallery browsing, caption editing, strip metadata, set captions, and batch rename.
+
+| | Minimum | Recommended |
+| --- | --- | --- |
+| **OS** | Windows 10/11, Linux, or macOS | Windows 11 or a recent Linux |
+| **CPU** | Dual-core, 64-bit | Quad-core or better |
+| **RAM** | 8 GB | 16 GB |
+| **Disk** | ~2 GB free for app and dependencies | SSD, with room for datasets and thumbnails |
+| **Software** | Python / Node, or Windows `setup.bat` — see [Quick start](#quick-start) | Same |
+
+### Vision LLM jobs
+
+Hardware here is driven by **the model you load** in llama.cpp, LM Studio, vLLM, or similar — not by DataForge,
+which only calls an OpenAI-compatible HTTP endpoint.
+
+| | Minimum (lighter models) | Optimal (recommended models) |
+| --- | --- | --- |
+| **GPU** | NVIDIA with **8–12 GB** VRAM | NVIDIA with **24 GB** VRAM (RTX 3090 / 4090 class) |
+| **System RAM** | **16 GB** | **32 GB** or more |
+| **Storage** | Fast SSD with room for weights (several GB to tens of GB per quant) | NVMe SSD |
+| **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B), [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) |
+| **Software** | A local OpenAI-compatible vision server with a vision model loaded | Same, with VRAM for quality quants and longer contexts |
 
 ## Configuration
 
-### Local `.env` file (recommended with `start.bat`)
+### The `.env` file
 
-On startup the backend loads the first existing file:
+On startup the backend loads the **first** file that exists:
 
-1. Project root `.env` (next to `start.bat`)
+1. Project root `.env` — next to `start.bat`
 2. `backend/.env`
 
-OS / shell env vars are not overwritten. `.env` is gitignored — copy [`.env.example`](.env.example) and restart the backend after edits.
+OS and shell environment variables always win over the file. `.env` is gitignored — copy
+[`.env.example`](.env.example) to get started, and restart the backend after editing.
 
-### Vision LLM (auto-caption / verify)
+### Dev server ports
 
-DataForge talks to any **OpenAI-compatible** vision endpoint.
-Load one of the models below (or an equivalent quant) in llama.cpp / LM Studio / vLLM before running AI jobs.
-Set `OPENAI_MODEL` to the **id your server exposes** (not necessarily the Hugging Face repo name).
-Values can live in `.env` or the OS environment.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DATAFORGE_API_PORT` | `8080` | Port the API binds. Also the Vite `/api` proxy target, and the port the launchers free and probe |
+| `DATAFORGE_UI_PORT` | `8081` | Port the Vite dev server binds. Also drives the backend CORS allowlist |
+| `DATAFORGE_API_HOST` | `127.0.0.1` | Interface the API binds (`scripts/dev_server.py` only) |
 
-**Suggested models (best first):**
+All four readers — [`frontend/vite.config.ts`](frontend/vite.config.ts), [`backend/server_settings.py`](backend/server_settings.py),
+[`scripts/dev_server.py`](scripts/dev_server.py), and [`scripts/dev-common.ps1`](scripts/dev-common.ps1) — resolve these
+from the same project-root `.env`, and an OS environment variable overrides the file in each.
+Restart both servers after a change; Vite reads its port once at startup.
 
-- [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) — recommended MoE default
-- [Qwen3.6 35B A3B Uncensored by HauhauCS](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) — uncensored MoE alternative with fewer refusals and quantization
-- [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) — dense alternative
-- [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) — lighter VLM for smaller GPUs
-- [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) — weak; usable only when VRAM is tight
+### Vision LLM
 
-**Also workable with some prompt/server tweaks:**
+DataForge talks to any **OpenAI-compatible** vision endpoint. Load a model in llama.cpp, LM Studio, or vLLM before
+running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — not necessarily the Hugging Face repo name.
 
-- [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it)
-- [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
+**Suggested models, best first:**
 
-Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`; the Qwen3.6 defaults leave it disabled.
-These models have no thinking mode, so run them in instruct mode and leave the `OPENAI_THINKING_*` values alone.
+| Model | Notes |
+| --- | --- |
+| [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Recommended MoE default |
+| [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) | MoE alternative with fewer refusals |
+| [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) | Dense alternative |
+| [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) | Lighter VLM for smaller GPUs |
+| [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) | Weak; usable only when VRAM is tight |
 
-**Environment variables** (optional; defaults target a local server; set in `.env` or the OS environment):
+[Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it) and [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
+also work with some tuning. Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`, where the
+Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in instruct mode and leave `OPENAI_THINKING_*` alone.
+
+**Connection settings** — defaults target a local server:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OPENAI_API_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base URL |
-| `OPENAI_API_KEY` | `sk-1234` | Placeholder key for local servers |
-| `OPENAI_MODEL` | `qwen35moe` | Chat `model` id (must match the id your server exposes) |
+| `OPENAI_API_KEY` | `sk-1234` | Placeholder key; most local servers ignore it |
+| `OPENAI_MODEL` | `qwen35moe` | Chat `model` id, matching what your server exposes |
 | `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
-| `OPENAI_TIMEOUT` | `600` | Seconds to wait for a model response before giving up |
+| `OPENAI_TIMEOUT` | `600` | Seconds to wait for a response before giving up |
+
+Many single-model servers answer even with a wrong `OPENAI_MODEL`. Multi-model servers need the id to match.
+
+<details>
+<summary><b>Sampling knobs</b> — per-mode temperature, penalties, and top-p/k</summary>
+
+<br>
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
 | `OPENAI_THINKING_TEMPERATURE` | `1.0` | Sampling temperature in thinking mode |
 | `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0` | Presence penalty in thinking mode |
 | `OPENAI_THINKING_TOP_P` | `0.95` | Top-p in thinking mode |
@@ -242,36 +249,31 @@ These models have no thinking mode, so run them in instruct mode and leave the `
 | `OPENAI_INSTRUCT_REPEAT_PENALTY` | `1.0` | Repetition penalty in instruct mode (via `extra_body`) |
 | `OPENAI_TOP_K` | `20` | Top-k (via `extra_body`) |
 
-`repeat_penalty` uses llama.cpp / LM Studio naming.
-Hugging Face and vLLM call the same knob `repetition_penalty`, which is the spelling you will see on model cards — rename it if you point DataForge at one of those servers.
+`repeat_penalty` follows llama.cpp / LM Studio naming. Hugging Face and vLLM call the same knob
+`repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
+DataForge at one of those servers.
 
-Many single-model local servers ignore a wrong `OPENAI_MODEL` string and still answer.
-Multi-model servers need the id to match the loaded model.
+</details>
 
-### Hugging Face (SAM download)
+### Paths, integrations, and logging
 
 | Variable | Purpose |
 | --- | --- |
 | `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` | Auth for gated SAM weights |
+| `OSTRIS_TOOLKIT_ROOT` | Path to an AI-Toolkit install, so external train jobs can be listed |
+| `DATAFORGE_DB_PATH` | Override the SQLite path (default is under `backend/data/`) |
+| `DATAFORGE_THUMBNAIL_CACHE` | Override the thumbnail cache directory |
+| `DATAFORGE_LOG_LEVEL` | Backend log level (default `INFO`) |
 
-### Ostris / AI-Toolkit jobs (optional)
+## Development
 
-| Variable | Purpose |
-| --- | --- |
-| `OSTRIS_TOOLKIT_ROOT` | Path to an AI-Toolkit install so external train jobs can be listed |
+### Tech stack
 
-### App database
+- **Backend** — Python 3.11+, FastAPI, SQLite, Pillow, with an optional OpenAI client and Ultralytics
+- **Frontend** — React 19, TypeScript, Vite, SCSS
+- **Local AI** — any OpenAI-compatible vision endpoint
 
-| Variable | Purpose |
-| --- | --- |
-| `DATAFORGE_DB_PATH` | Override SQLite path (default under `backend/data/`) |
-| `DATAFORGE_THUMBNAIL_CACHE` | Override thumbnail cache directory |
-
-Preferences (UI sort, verify mode, **per-folder verify context**, etc.) live in the SQLite app DB, not only in the browser.
-
----
-
-## Project layout
+### Project layout
 
 ```text
 DataForge/
@@ -283,57 +285,44 @@ DataForge/
 ├── scripts/           # Dev server, launcher helpers, lint, tests, git hooks
 ├── .github/workflows/ # CI (run_checks.py)
 ├── sample-images/     # Tiny example dataset
-├── .env.example       # Sample backend env vars (copy to .env)
+├── .env.example       # Sample env vars: ports, AI config (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
 ├── setup.bat          # Windows self-contained install
 ├── start.bat / .ps1   # Launchers
-├── stop.bat / .ps1    # Frees ports 8080/8081
+├── stop.bat / .ps1    # Frees the dev ports
 ├── SECURITY.md
 └── LICENSE            # Apache-2.0
 ```
 
----
+### Commands
 
-## Development
-
-Run tooling from the **project root** with the backend venv:
+Run these from the **project root** using the backend venv Python — `backend\.venv\Scripts\python.exe` on
+Windows, `backend/.venv/bin/python` on Unix:
 
 | Task | Command |
 | --- | --- |
-| API (hot reload) | `backend/.venv/.../python scripts/dev_server.py` (`--no-reload`, `--port`, `--host`) |
-| Full checks | `python scripts/run_checks.py` (also runs on GitHub Actions via `.github/workflows/checks.yml`) |
-| Backend lint | `python scripts/run_lint.py` (`--fix` to auto-fix) |
+| API with hot reload | `python scripts/dev_server.py` — accepts `--no-reload`, `--port`, `--host` |
+| Full checks | `python scripts/run_checks.py` — the same suite CI runs |
+| Backend lint | `python scripts/run_lint.py` — add `--fix` to auto-fix |
 | Backend tests | `python scripts/run_tests.py` |
 | Frontend tests | `cd frontend && npm test` |
 | Frontend lint / format | `cd frontend && npm run lint` / `npm run format` |
-| Git hooks | `scripts/install-git-hooks.ps1` or `.sh` |
-
-Windows venv Python: `backend\.venv\Scripts\python.exe`  
-Unix venv Python: `backend/.venv/bin/python`
-
----
-
-## Stack
-
-- **Backend:** Python 3.11+, FastAPI, SQLite, Pillow, optional OpenAI client + Ultralytics  
-- **Frontend:** React 19, TypeScript, Vite, SCSS  
-- **Local AI:** Any OpenAI-compatible vision endpoint  
-
----
+| Install git hooks | `scripts/install-git-hooks.ps1` or `.sh` |
 
 ## Security and privacy
 
-- Sidecars live with your datasets; app state stays under gitignored `backend/data/`
-- Do not commit real API keys, personal paths, or local caches  
-- See **[SECURITY.md](SECURITY.md)** for reporting issues and local-data guidance  
+- Sidecars live alongside your datasets; app state stays under gitignored `backend/data/`
+- Do not commit real API keys, personal paths, or local caches
+- See **[SECURITY.md](SECURITY.md)** for reporting issues and local-data guidance
 
----
+## Contributing
+
+Issues and pull requests are welcome — open one if something is missing or broken.
+
+Before submitting, run `python scripts/run_checks.py` from the project root; it runs the same lint, typecheck,
+and test suite as [CI](.github/workflows/checks.yml). Installing the git hooks with `scripts/install-git-hooks.ps1`
+(or `.sh`) does this automatically. Coding conventions live in [AGENTS.md](AGENTS.md).
 
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).
-
----
-
-Feedback and contributions are welcome.
-Open an issue or pull request if something is missing or broken.

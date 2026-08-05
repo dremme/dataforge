@@ -12,10 +12,10 @@
   Use this directly, or double-click start.bat for the same behavior.
 
 .PARAMETER BackendOnly
-  Start only the API on 8080.
+  Start only the API (port from DATAFORGE_API_PORT, default 8080).
 
 .PARAMETER FrontendOnly
-  Start only the Vite dev server on 8081.
+  Start only the Vite dev server (port from DATAFORGE_UI_PORT, default 8081).
 
 .PARAMETER NoBrowser
   Do not open the browser once the servers are ready.
@@ -101,7 +101,7 @@ if (-not (Test-DevPrerequisites -SkipBackend:(-not $startBackend) -SkipFrontend:
 Test-DependencyDrift -SkipBackend:(-not $startBackend) -SkipFrontend:(-not $startFrontend) | Out-Null
 
 # Clear stale listeners before launching. Vite runs with strictPort, so a
-# leftover node.exe on 8081 kills the frontend window the moment it starts.
+# leftover node.exe on the UI port kills the frontend window the moment it starts.
 if ($startBackend -and -not (Clear-DevPort -Port $DevApiPort -Label 'backend')) { Exit-Launcher }
 if ($startFrontend -and -not (Clear-DevPort -Port $DevUiPort -Label 'frontend')) { Exit-Launcher }
 
@@ -113,7 +113,7 @@ $leaveRunning = $false
 
 try {
     if ($startBackend) {
-        Write-Host 'Starting backend on port 8080...'
+        Write-Host ('Starting backend on port {0}...' -f $DevApiPort)
         $reloadLabel = 'Hot reload: uvicorn reloader'
         $backendCommand = "`"$($paths.VenvPy)`" `"$($paths.DevServer)`""
         if ($NoReload) {
@@ -128,7 +128,7 @@ try {
     }
 
     if ($startFrontend) {
-        Write-Host 'Starting frontend on port 8081...'
+        Write-Host ('Starting frontend on port {0}...' -f $DevUiPort)
         $frontendProc = Start-DevConsole `
             -Title 'DataForge - Frontend' `
             -WorkingDirectory $paths.Frontend `
@@ -148,7 +148,7 @@ try {
     }
 
     if ($startFrontend) {
-        Write-Host '  Waiting for Vite to accept connections on 8081...' -NoNewline
+        Write-Host ('  Waiting for Vite to accept connections on {0}...' -f $DevUiPort) -NoNewline
         $frontendReady = Wait-TcpReady -Port $DevUiPort -TimeoutSec 90 -Process $frontendProc
         if ($frontendReady) { Write-Host ' ready.' -ForegroundColor Green } else { Write-Host ' FAILED.' -ForegroundColor Red }
     }

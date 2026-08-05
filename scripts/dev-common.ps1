@@ -6,11 +6,91 @@
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less scripts as
 # ANSI, so non-ASCII characters would be mangled.
 
-$DevApiPort = 8080
-$DevUiPort = 8081
-$DevApiUrl = 'http://127.0.0.1:8080'
-$DevUiUrl = 'http://127.0.0.1:8081'
-$DevHealthUrl = 'http://127.0.0.1:8080/api/health'
+function Get-DevEnvMap {
+    <#
+    .SYNOPSIS
+      KEY=VALUE pairs from the project .env, mirroring backend/env_file.py.
+
+    .DESCRIPTION
+      Same candidate order as env_file.py - project root first, then backend\ -
+      and the first existing file wins. Nothing here touches the process
+      environment; these are fallbacks that a real environment variable
+      overrides, the way python-dotenv loads with override=$false.
+
+      The root comes from this file's own location rather than Get-DevPaths: a
+      dot-sourced script runs top to bottom, so nothing defined below is
+      callable yet.
+    #>
+    $root = Split-Path -Parent $PSScriptRoot
+    $map = @{}
+
+    foreach ($candidate in @((Join-Path $root '.env'), (Join-Path $root 'backend\.env'))) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+
+        # -ErrorAction beats the callers' $ErrorActionPreference = 'Stop', so an
+        # unreadable .env degrades to defaults instead of killing the launcher.
+        foreach ($line in (Get-Content -LiteralPath $candidate -ErrorAction SilentlyContinue)) {
+            $text = $line.Trim()
+            if ($text.Length -eq 0 -or $text.StartsWith('#')) { continue }
+            if ($text.StartsWith('export ')) { $text = $text.Substring(7).Trim() }
+
+            # The operator form, not .Split('=', 2): .NET Framework has no
+            # String.Split(char, int) overload.
+            $parts = $text -split '=', 2
+            if ($parts.Count -ne 2) { continue }
+
+            $key = $parts[0].Trim()
+            if ($key.Length -eq 0) { continue }
+
+            $value = $parts[1].Trim()
+            if ($value.Length -ge 2) {
+                $quote = [string]$value[0]
+                if (($quote -eq '"' -or $quote -eq "'") -and ([string]$value[$value.Length - 1] -eq $quote)) {
+                    $value = $value.Substring(1, $value.Length - 2)
+                }
+            }
+            $map[$key] = $value
+        }
+        break
+    }
+
+    return $map
+}
+
+function Get-DevPort {
+    <#
+    .SYNOPSIS
+      A port setting, with a real environment variable winning over the .env file.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][hashtable]$EnvMap,
+        [Parameter(Mandatory = $true)][int]$Default
+    )
+
+    # $null -eq distinguishes unset from empty, so an explicitly blank OS var
+    # still wins and then falls back - same as _env_port in dev_server.py.
+    $raw = [System.Environment]::GetEnvironmentVariable($Name)
+    if ($null -eq $raw -and $EnvMap.ContainsKey($Name)) { $raw = $EnvMap[$Name] }
+    if ([string]::IsNullOrWhiteSpace($raw)) { return $Default }
+
+    $port = 0
+    if (-not [int]::TryParse($raw.Trim(), [ref]$port) -or $port -lt 1 -or $port -gt 65535) {
+        Write-Host ('[WARN] Ignoring {0}={1}: not a port number. Using {2}.' -f $Name, $raw, $Default) -ForegroundColor Yellow
+        return $Default
+    }
+    return $port
+}
+
+# Read once on dot-source. These land in the caller's scope, which is what the
+# launchers use. frontend/vite.config.ts and backend/server_settings.py resolve
+# the same two variables from the same .env.
+$DevEnvMap = Get-DevEnvMap
+$DevApiPort = Get-DevPort -Name 'DATAFORGE_API_PORT' -EnvMap $DevEnvMap -Default 8080
+$DevUiPort = Get-DevPort -Name 'DATAFORGE_UI_PORT' -EnvMap $DevEnvMap -Default 8081
+$DevApiUrl = 'http://127.0.0.1:{0}' -f $DevApiPort
+$DevUiUrl = 'http://127.0.0.1:{0}' -f $DevUiPort
+$DevHealthUrl = '{0}/api/health' -f $DevApiUrl
 
 function Get-DevPaths {
     <#
@@ -178,8 +258,8 @@ function Clear-DevPort {
 
     .DESCRIPTION
       Only our own runtimes are killed. Anything else gets named and left alone -
-      force-killing an unrelated process because it happens to sit on 8080 is a
-      far worse outcome than refusing to start.
+      force-killing an unrelated process because it happens to sit on a dev port
+      is a far worse outcome than refusing to start.
 
       Returns $true when the port is free afterwards.
     #>

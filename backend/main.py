@@ -12,8 +12,9 @@ from automation.jobs import job_manager
 from db import init_db
 from logging_config import configure_logging
 from routes import router
+from server_settings import get_cors_origins
 
-CORS_ORIGINS = ("http://localhost:8081", "http://127.0.0.1:8081")
+CORS_ORIGINS = get_cors_origins()
 
 
 @asynccontextmanager

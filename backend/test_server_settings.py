@@ -1,0 +1,55 @@
+"""Tests for server_settings."""
+
+from __future__ import annotations
+
+import os
+import unittest
+from unittest.mock import patch
+
+from server_settings import (
+    DEFAULT_API_PORT,
+    DEFAULT_UI_PORT,
+    get_api_port,
+    get_cors_origins,
+    get_ui_port,
+)
+
+
+class ServerSettingsTests(unittest.TestCase):
+    def test_defaults_when_env_unset(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(get_api_port(), DEFAULT_API_PORT)
+            self.assertEqual(get_ui_port(), DEFAULT_UI_PORT)
+
+    def test_reads_environment_overrides(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"DATAFORGE_API_PORT": "9080", "DATAFORGE_UI_PORT": " 9081 "},
+            clear=True,
+        ):
+            self.assertEqual(get_api_port(), 9080)
+            self.assertEqual(get_ui_port(), 9081)
+
+    def test_invalid_values_fall_back_to_defaults(self) -> None:
+        for raw in ("abc", "0", "65536", "-1", "80.5", ""):
+            with self.subTest(raw=raw):
+                with patch.dict(os.environ, {"DATAFORGE_UI_PORT": raw}, clear=True):
+                    self.assertEqual(get_ui_port(), DEFAULT_UI_PORT)
+
+    def test_cors_origins_cover_both_loopback_spellings(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                get_cors_origins(),
+                (f"http://localhost:{DEFAULT_UI_PORT}", f"http://127.0.0.1:{DEFAULT_UI_PORT}"),
+            )
+
+    def test_cors_origins_follow_the_ui_port(self) -> None:
+        with patch.dict(os.environ, {"DATAFORGE_UI_PORT": "9000"}, clear=True):
+            self.assertEqual(
+                get_cors_origins(),
+                ("http://localhost:9000", "http://127.0.0.1:9000"),
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

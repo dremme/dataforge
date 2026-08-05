@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Stops the DataForge dev servers by freeing ports 8080 and 8081.
+  Stops the DataForge dev servers by freeing the configured dev ports.
 
 .DESCRIPTION
   The escape hatch for when the supervising start.ps1 window is already gone and
