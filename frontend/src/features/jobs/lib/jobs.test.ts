@@ -24,6 +24,7 @@ import {
   statusLabel,
   statusTone,
   updateJobTimingTracker,
+  upsertJob,
 } from "./jobs";
 import type { ExternalOstrisJob } from "@/shared/types";
 import { iconCircleQuestionMark, iconPencilSparkles } from "@/shared/icons";
@@ -39,11 +40,40 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     current_name: null,
     error: null,
     stats: {},
-    results: [],
     created_at: "2026-01-01T12:00:00.000Z",
     ...overrides,
   };
 }
+
+describe("upsertJob", () => {
+  it("replaces a known job in place so the server's ordering survives", () => {
+    const first = makeJob({ id: "job-1" });
+    const second = makeJob({ id: "job-2", folder: "C:\\Other" });
+    const updated = makeJob({ id: "job-2", folder: "C:\\Other", processed: 7 });
+
+    const merged = upsertJob([first, second], updated);
+
+    expect(merged.map((job) => job.id)).toEqual(["job-1", "job-2"]);
+    expect(merged[1].processed).toBe(7);
+  });
+
+  it("puts an unseen job at the front", () => {
+    const existing = makeJob({ id: "job-1", folder: "C:\\Other" });
+    const fresh = makeJob({ id: "job-2" });
+
+    expect(upsertJob([existing], fresh).map((job) => job.id)).toEqual(["job-2", "job-1"]);
+  });
+
+  it("evicts the previous job for the same folder and type, as the server does", () => {
+    const previous = makeJob({ id: "job-1", job_type: "auto_caption", status: "completed" });
+    const other = makeJob({ id: "job-2", job_type: "strip_metadata" });
+    const replacement = makeJob({ id: "job-3", job_type: "auto_caption" });
+
+    const merged = upsertJob([previous, other], replacement);
+
+    expect(merged.map((job) => job.id)).toEqual(["job-3", "job-2"]);
+  });
+});
 
 describe("job type display", () => {
   it("uses registry metadata for known job types", () => {

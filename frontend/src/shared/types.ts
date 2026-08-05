@@ -149,6 +149,20 @@ export interface BrowseFingerprintResponse {
   fingerprint: string;
 }
 
+/**
+ * What changed in a folder since a given fingerprint.
+ *
+ * `changed` covers both new and edited items — the client upserts by path, so telling
+ * the two apart would be work neither side needs. `full` means the server could not
+ * produce a delta and the whole folder should be refetched.
+ */
+export interface BrowseChangesResponse {
+  full: boolean;
+  fingerprint: string;
+  changed: GalleryItem[];
+  removed: string[];
+}
+
 export interface FileImportPreviewResponse {
   importable: string[];
   new_files: string[];
@@ -188,7 +202,7 @@ export type JobType =
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
-interface JobFileResult {
+export interface JobFileResult {
   path: string;
   name: string;
   status: string;
@@ -208,7 +222,6 @@ export interface Job {
   current_file?: string | null;
   current_name?: string | null;
   stats: Record<string, number>;
-  results: JobFileResult[];
   error?: string | null;
   created_at: string;
   started_at?: string | null;
@@ -216,6 +229,18 @@ export interface Job {
   auto_caption_mode?: string | null;
   /** The external job this one co-tracks (the AI-Toolkit training name). */
   external_ref?: string | null;
+}
+
+/**
+ * One job's per-file results, fetched only when something displays them.
+ *
+ * A job holds one result per processed file and an auto-caption result carries the
+ * whole generated caption, so these are deliberately not part of `Job`: the job list
+ * is polled while work runs and would otherwise carry megabytes nothing reads.
+ */
+export interface JobResultsResponse {
+  job_id: string;
+  results: JobFileResult[];
 }
 
 export interface JobsResponse {

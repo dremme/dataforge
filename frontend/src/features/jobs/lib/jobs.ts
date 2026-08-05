@@ -56,6 +56,32 @@ export function selectFolderJob(
 }
 
 /**
+ * Merge a pushed job snapshot into the list.
+ *
+ * A snapshot for a job already listed replaces it in place, so the order the server
+ * sorted the list into survives live updates. A snapshot for a job we have never seen
+ * goes to the front and evicts any other job for the same folder and type — the server
+ * keeps only the latest of those, so keeping the older one here would show a job that
+ * no longer exists.
+ */
+export function upsertJob(jobs: Job[], job: Job): Job[] {
+  const index = jobs.findIndex((entry) => entry.id === job.id);
+  if (index !== -1) {
+    const merged = [...jobs];
+    merged[index] = job;
+    return merged;
+  }
+
+  const jobType = jobTypeOf(job);
+  return [
+    job,
+    ...jobs.filter(
+      (entry) => !(foldersMatch(entry.folder, job.folder) && jobTypeOf(entry) === jobType),
+    ),
+  ];
+}
+
+/**
  * True when this DataForge train_lora row is already represented by an Ostris
  * external card (same LoRA name). The jobs drawer hides those to avoid listing
  * the same active run twice; finished runs reappear once Ostris drops them.

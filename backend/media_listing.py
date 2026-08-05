@@ -18,6 +18,7 @@ __all__ = [
     "get_media_type",
     "list_media_from_scan",
     "list_media_in_folder",
+    "media_items_named",
     "summarize_folder_contents",
 ]
 
@@ -208,6 +209,19 @@ def list_media_from_scan(scan: FolderScan) -> list[dict]:
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         return list(pool.map(build, scan.media))
+
+
+def media_items_named(scan: FolderScan, names: set[str]) -> list[dict]:
+    """Just the named media entries, resolved exactly as a full listing would.
+
+    Used by the browse delta so a changed item is built by the same code that built it
+    the first time, rather than by a second, drifting implementation.
+    """
+    return [
+        _build_media_item(scan, media, get_media_type(media.path) or "image")
+        for media in scan.media
+        if media.name in names
+    ]
 
 
 def list_media_in_folder(folder: Path) -> list[dict]:

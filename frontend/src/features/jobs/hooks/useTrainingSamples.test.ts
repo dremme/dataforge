@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
+import { fetchJobResults } from "@/features/jobs/api/jobs";
 import type { ExternalOstrisJob, Job } from "@/shared/types";
 import {
   useExternalTrainingSamples,
@@ -12,7 +13,12 @@ vi.mock("@/features/jobs/api/externalJobs", () => ({
   fetchOstrisTrainingSamples: vi.fn(),
 }));
 
+vi.mock("@/features/jobs/api/jobs", () => ({
+  fetchJobResults: vi.fn(),
+}));
+
 const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
+const fetchResults = vi.mocked(fetchJobResults);
 
 const SAMPLE_PATH = "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000000500_0.jpg";
 
@@ -27,7 +33,6 @@ function trainingJob(overrides: Partial<Job> = {}): Job {
     total: 1000,
     processed: 500,
     stats: { step: 500 },
-    results: [],
     created_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
@@ -63,6 +68,10 @@ function sampleResponse(prompt = "a mountain lake") {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+beforeEach(() => {
+  fetchResults.mockResolvedValue([]);
 });
 
 describe("useOstrisTrainingSamples", () => {
@@ -130,29 +139,48 @@ describe("useTrainingSamples", () => {
     expect(result.current[0].prompt).toBe("a mountain lake");
   });
 
-  it("reads the final samples off a finished job instead of polling", async () => {
+  it("fetches the final samples for a finished job instead of polling", async () => {
+    fetchResults.mockResolvedValue([
+      {
+        path: SAMPLE_PATH,
+        name: "1__000000500_0.jpg",
+        status: "sample",
+        description: "a mountain lake",
+      },
+      { path: "C:\\other.txt", name: "other.txt", status: "skipped" },
+    ]);
+
     const { result } = renderHook(() =>
-      useTrainingSamples(
-        trainingJob({
-          status: "completed",
-          processed: 1000,
-          results: [
-            {
-              path: SAMPLE_PATH,
-              name: "1__000000500_0.jpg",
-              status: "sample",
-              description: "a mountain lake",
-            },
-            { path: "C:\\other.txt", name: "other.txt", status: "skipped" },
-          ],
-        }),
-      ),
+      useTrainingSamples(trainingJob({ status: "completed", processed: 1000 })),
     );
 
-    expect(result.current).toEqual([
-      { path: SAMPLE_PATH, name: "1__000000500_0.jpg", step: 1000, prompt: "a mountain lake" },
-    ]);
+    await waitFor(() =>
+      expect(result.current).toEqual([
+        { path: SAMPLE_PATH, name: "1__000000500_0.jpg", step: 1000, prompt: "a mountain lake" },
+      ]),
+    );
+    expect(fetchResults).toHaveBeenCalledExactlyOnceWith("job-1");
     expect(fetchSamples).not.toHaveBeenCalled();
+  });
+
+  it("never fetches results while the run is still going", async () => {
+    fetchSamples.mockResolvedValue(sampleResponse());
+
+    renderHook(() => useTrainingSamples(trainingJob()));
+
+    await waitFor(() => expect(fetchSamples).toHaveBeenCalled());
+    expect(fetchResults).not.toHaveBeenCalled();
+  });
+
+  it("shows no samples when a finished job's results are already pruned", async () => {
+    fetchResults.mockRejectedValue(new Error("Job not found"));
+
+    const { result } = renderHook(() =>
+      useTrainingSamples(trainingJob({ status: "completed", processed: 1000 })),
+    );
+
+    await waitFor(() => expect(fetchResults).toHaveBeenCalled());
+    expect(result.current).toEqual([]);
   });
 
   it("stays empty for jobs that are not training runs", () => {

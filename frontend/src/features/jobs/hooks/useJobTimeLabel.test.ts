@@ -17,7 +17,6 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     current_file: null,
     current_name: null,
     stats: { success: 2 },
-    results: [],
     error: null,
     created_at: "2026-01-01T12:00:00.000Z",
     started_at: "2026-01-01T12:00:00.000Z",

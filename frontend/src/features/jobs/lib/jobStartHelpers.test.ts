@@ -15,7 +15,6 @@ function job(id: string, folder: string, jobType: Job["job_type"]): Job {
     total: 0,
     processed: 0,
     stats: {},
-    results: [],
     created_at: "2026-01-01T00:00:00.000Z",
   };
 }

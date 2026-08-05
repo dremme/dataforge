@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
-import { fetchBrowseFingerprint } from "@/features/browse/api/browse";
+import { fetchBrowseChanges, fetchBrowseFingerprint } from "@/features/browse/api/browse";
 import { isFolderNotFoundError } from "@/shared/api/http";
+import type { BrowseChangesResponse } from "@/shared/types";
 
 const VISIBLE_POLL_MS = 3000;
 const HIDDEN_POLL_MS = 30000;
@@ -11,13 +12,21 @@ export type UseFolderChangeDetectionOptions = {
   suspendReloads?: boolean;
   /** Stop polling when the current folder is already known to be missing. */
   enabled?: boolean;
+  /**
+   * Patch the open folder from a delta.
+   *
+   * Given one, a change that the server can describe item by item never reaches
+   * `reloadFolder` — the common case of a caption being rewritten costs one item
+   * instead of the whole folder. Everything else still falls back to a full reload.
+   */
+  applyDelta?: (delta: BrowseChangesResponse) => void;
 };
 
 export function useFolderChangeDetection(
   folderPath: string | undefined,
   knownFingerprint: string | undefined,
   reloadFolder: () => Promise<unknown>,
-  { suspendReloads = false, enabled = true }: UseFolderChangeDetectionOptions = {},
+  { suspendReloads = false, enabled = true, applyDelta }: UseFolderChangeDetectionOptions = {},
 ) {
   const fingerprintRef = useRef<string | null>(null);
   const reloadInFlightRef = useRef(false);
@@ -98,39 +107,73 @@ export function useFolderChangeDetection(
     [runReload],
   );
 
+  /**
+   * The folder's current fingerprint, with a delta whenever one is both available
+   * and usable. Without a baseline to diff against, or without somewhere to apply a
+   * delta, asking for the cheaper fingerprint alone is the whole answer.
+   */
+  const fetchChangeReport = useCallback(
+    async (path: string, previous: string | null): Promise<BrowseChangesResponse> => {
+      if (previous && applyDelta) {
+        return fetchBrowseChanges(path, previous);
+      }
+
+      const { fingerprint } = await fetchBrowseFingerprint(path);
+      return { full: true, fingerprint, changed: [], removed: [] };
+    },
+    [applyDelta],
+  );
+
   const checkForChanges = useCallback(async () => {
     if (!folderPath || !enabled) return;
 
+    const previous = fingerprintRef.current;
+
     try {
-      const { fingerprint } = await fetchBrowseFingerprint(folderPath);
-      const previous = fingerprintRef.current;
+      const report = await fetchChangeReport(folderPath, previous);
 
       if (!previous) {
-        fingerprintRef.current = fingerprint;
+        fingerprintRef.current = report.fingerprint;
         return;
       }
 
-      if (fingerprint === previous) {
+      if (report.fingerprint === previous) {
         return;
       }
 
       if (suspendReloads) {
-        fingerprintRef.current = fingerprint;
+        fingerprintRef.current = report.fingerprint;
         return;
       }
 
       if (reloadInFlightRef.current) {
-        pendingFingerprintRef.current = fingerprint;
+        pendingFingerprintRef.current = report.fingerprint;
         return;
       }
 
-      scheduleReload(fingerprint);
+      // A described change is applied straight away: patching costs nothing, so
+      // the debounce that protects a full reload would only add latency.
+      if (!report.full && applyDelta) {
+        fingerprintRef.current = report.fingerprint;
+        applyDelta(report);
+        return;
+      }
+
+      scheduleReload(report.fingerprint);
     } catch (error) {
       if (isFolderNotFoundError(error)) {
         reportMissingFolder();
       }
     }
-  }, [enabled, folderPath, reportMissingFolder, scheduleReload, suspendReloads]);
+  }, [
+    applyDelta,
+    enabled,
+    fetchChangeReport,
+    folderPath,
+    reportMissingFolder,
+    scheduleReload,
+    suspendReloads,
+  ]);
 
   useEffect(() => {
     missingFolderHandledRef.current = false;

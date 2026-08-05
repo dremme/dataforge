@@ -68,4 +68,4 @@ def resolve_sysprompt_target(path: str) -> Path:
 
 
 def job_response(job) -> JobResponse:
-    return JobResponse(**job.to_dict())
+    return JobResponse(**job.to_summary_dict())

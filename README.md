@@ -263,6 +263,7 @@ DataForge at one of those servers.
 | `OSTRIS_TOOLKIT_ROOT` | Path to an AI-Toolkit install, so external train jobs can be listed |
 | `DATAFORGE_DB_PATH` | Override the SQLite path (default is under `backend/data/`) |
 | `DATAFORGE_THUMBNAIL_CACHE` | Override the thumbnail cache directory |
+| `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | Thumbnail cache size ceiling (default `2048`). Least recently used entries are dropped past it; `0` never deletes |
 | `DATAFORGE_LOG_LEVEL` | Backend log level (default `INFO`) |
 
 ## Development

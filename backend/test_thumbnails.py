@@ -6,6 +6,7 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,8 +18,10 @@ from testing_fixtures import TempMediaFolder, make_png_bytes, write_media, write
 from thumbnails import (
     _video_thumbnail_commands,
     get_or_create_thumbnail,
+    get_thumbnail_cache_budget_bytes,
     get_thumbnail_cache_dir,
     legacy_thumbnail_cache_path,
+    prune_thumbnail_cache,
     thumbnail_cache_path,
 )
 
@@ -126,6 +129,70 @@ class ThumbnailGenerationTests(unittest.TestCase):
 
             self.assertTrue(thumbnail.is_file())
             self.assertGreater(thumbnail.stat().st_size, 0)
+
+
+class ThumbnailCachePruneTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._cache_dir = tempfile.TemporaryDirectory(prefix="dataforge-thumb-cache-")
+        self._cache_env = patch.dict(
+            "os.environ",
+            {"DATAFORGE_THUMBNAIL_CACHE": self._cache_dir.name},
+        )
+        self._cache_env.start()
+
+    def tearDown(self) -> None:
+        self._cache_env.stop()
+        self._cache_dir.cleanup()
+
+    def _write_entry(self, name: str, size: int, used_at: float) -> Path:
+        path = get_thumbnail_cache_dir() / name[:2] / f"{name}.webp"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\x00" * size)
+        os.utime(path, (used_at, used_at))
+        return path
+
+    def test_keeps_everything_while_the_cache_fits(self) -> None:
+        kept = self._write_entry("aa" * 8, 100, used_at=1_000)
+
+        self.assertEqual(prune_thumbnail_cache(budget_bytes=1000), 0)
+        self.assertTrue(kept.is_file())
+
+    def test_evicts_least_recently_used_until_the_budget_is_met(self) -> None:
+        oldest = self._write_entry("aa" * 8, 100, used_at=1_000)
+        middle = self._write_entry("bb" * 8, 100, used_at=2_000)
+        newest = self._write_entry("cc" * 8, 100, used_at=3_000)
+
+        reclaimed = prune_thumbnail_cache(budget_bytes=150)
+
+        self.assertEqual(reclaimed, 200)
+        self.assertFalse(oldest.is_file())
+        self.assertFalse(middle.is_file())
+        self.assertTrue(newest.is_file())
+
+    def test_a_budget_of_zero_turns_pruning_off(self) -> None:
+        """An explicit 0 means "never delete my thumbnails", not "delete them all"."""
+        kept = self._write_entry("aa" * 8, 100, used_at=1_000)
+
+        self.assertEqual(prune_thumbnail_cache(budget_bytes=0), 0)
+        self.assertTrue(kept.is_file())
+
+    def test_pruning_an_empty_cache_is_harmless(self) -> None:
+        self.assertEqual(prune_thumbnail_cache(budget_bytes=10), 0)
+
+
+class ThumbnailCacheBudgetTests(unittest.TestCase):
+    def test_defaults_when_unset(self) -> None:
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("DATAFORGE_THUMBNAIL_CACHE_MAX_MB", None)
+            self.assertEqual(get_thumbnail_cache_budget_bytes(), 2048 * 1024 * 1024)
+
+    def test_reads_the_environment_override(self) -> None:
+        with patch.dict("os.environ", {"DATAFORGE_THUMBNAIL_CACHE_MAX_MB": "64"}):
+            self.assertEqual(get_thumbnail_cache_budget_bytes(), 64 * 1024 * 1024)
+
+    def test_an_unusable_value_falls_back_to_the_default(self) -> None:
+        with patch.dict("os.environ", {"DATAFORGE_THUMBNAIL_CACHE_MAX_MB": "lots"}):
+            self.assertEqual(get_thumbnail_cache_budget_bytes(), 2048 * 1024 * 1024)
 
 
 if __name__ == "__main__":

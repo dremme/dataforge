@@ -1,8 +1,19 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchJobResults } from "@/features/jobs/api/jobs";
 import type { GalleryItem, Job, SystemSpecs } from "@/shared/types";
 import { AutomationPanel } from "./AutomationPanel";
+
+vi.mock("@/features/jobs/api/jobs", () => ({
+  fetchJobResults: vi.fn(),
+}));
+
+const fetchResults = vi.mocked(fetchJobResults);
+
+beforeEach(() => {
+  fetchResults.mockResolvedValue([]);
+});
 
 const finishedJob: Job = {
   id: "job-1",
@@ -15,7 +26,6 @@ const finishedJob: Job = {
   current_file: null,
   current_name: null,
   stats: { success: 10 },
-  results: [],
   error: null,
   created_at: "2026-01-01T12:00:00.000Z",
   started_at: "2026-01-01T12:00:00.000Z",
@@ -315,8 +325,17 @@ describe("AutomationPanel", () => {
     expect(onRequestStart).not.toHaveBeenCalled();
   });
 
-  it("shows the training samples under the progress bar", () => {
+  it("shows the training samples under the progress bar", async () => {
     mockShowSpecs = false;
+    fetchResults.mockResolvedValue([
+      {
+        path: "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000001000_0.jpg",
+        name: "1__000001000_0.jpg",
+        status: "sample",
+        description: "a mountain lake at sunrise",
+      },
+    ]);
+
     const trainingJob: Job = {
       ...finishedJob,
       job_type: "train_lora",
@@ -324,21 +343,13 @@ describe("AutomationPanel", () => {
       total: 1000,
       processed: 1000,
       stats: { step: 1000, stopped: 0 },
-      results: [
-        {
-          path: "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000001000_0.jpg",
-          name: "1__000001000_0.jpg",
-          status: "sample",
-          description: "a mountain lake at sunrise",
-        },
-      ],
     };
 
     const { container } = render(<AutomationPanel {...baseProps} job={trainingJob} />);
 
+    expect(await screen.findByAltText("a mountain lake at sunrise")).toBeInTheDocument();
     const samples = container.querySelector(".training-samples");
     expect(samples).toBeInTheDocument();
-    expect(screen.getByAltText("a mountain lake at sunrise")).toBeInTheDocument();
 
     // The strip belongs below the progress bar, not above it.
     const progress = container.querySelector(".automation__progress");

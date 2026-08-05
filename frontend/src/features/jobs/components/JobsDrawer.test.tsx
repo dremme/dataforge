@@ -22,7 +22,6 @@ const trainingJob: Job = {
   total: 1000,
   processed: 500,
   stats: { step: 500 },
-  results: [],
   created_at: "2026-01-01T00:00:00.000Z",
   started_at: "2026-01-01T00:00:01.000Z",
 };

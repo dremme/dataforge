@@ -20,8 +20,21 @@ MIN_THUMBNAIL_WIDTH = 64
 MAX_THUMBNAIL_WIDTH = 1200
 WEBP_QUALITY = 80
 
+#: A cache entry is keyed by the source's path, size, and mtime, so anything that
+#: rewrites media — ``batch_rename``, ``strip_metadata``, or an edit outside the app —
+#: orphans every thumbnail it had. Nothing else ever deletes them, so the cache is
+#: trimmed back to this budget instead of growing for the life of the install.
+DEFAULT_CACHE_BUDGET_MB = 2048
+
+#: Checked this often rather than on every write: a prune walks the whole cache tree,
+#: and a gallery scrolling through a new folder generates thumbnails in bursts.
+PRUNE_EVERY_N_THUMBNAILS = 200
+
 _lock_guard = threading.Lock()
 _generation_locks: dict[str, threading.Lock] = {}
+
+_prune_guard = threading.Lock()
+_thumbnails_since_prune = 0
 
 
 class ThumbnailError(Exception):
@@ -37,6 +50,21 @@ def get_thumbnail_cache_dir() -> Path:
     if override:
         return Path(override)
     return Path(__file__).resolve().parent / "data" / "thumbnails"
+
+
+def get_thumbnail_cache_budget_bytes() -> int:
+    """The cache's size ceiling. ``0`` or less turns pruning off."""
+    raw = os.environ.get("DATAFORGE_THUMBNAIL_CACHE_MAX_MB", "").strip()
+    if not raw:
+        return DEFAULT_CACHE_BUDGET_MB * 1024 * 1024
+
+    try:
+        megabytes = int(raw)
+    except ValueError:
+        logger.warning("Ignoring DATAFORGE_THUMBNAIL_CACHE_MAX_MB=%r: not a number", raw)
+        return DEFAULT_CACHE_BUDGET_MB * 1024 * 1024
+
+    return max(0, megabytes) * 1024 * 1024
 
 
 def normalize_thumbnail_width(width: int) -> int:
@@ -243,6 +271,78 @@ def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None
     raise ThumbnailUnavailableError(detail)
 
 
+def _cached_thumbnails() -> list[tuple[float, int, Path]]:
+    """Every cache entry as ``(last use, size, path)``, oldest use first.
+
+    Access time is what "least recently used" means here, but plenty of systems mount
+    with ``relatime`` or ``noatime``, where it barely moves. Modification time is the
+    honest fallback: for a file this cache only ever writes once, it is the time the
+    thumbnail was generated, so the worst case degrades to least-recently-generated.
+    """
+    entries: list[tuple[float, int, Path]] = []
+
+    for path in get_thumbnail_cache_dir().rglob("*"):
+        try:
+            if not path.is_file():
+                continue
+            stat = path.stat()
+        except OSError:
+            continue
+        entries.append((max(stat.st_atime, stat.st_mtime), stat.st_size, path))
+
+    entries.sort(key=lambda entry: entry[0])
+    return entries
+
+
+def prune_thumbnail_cache(budget_bytes: int | None = None) -> int:
+    """Delete least-recently-used thumbnails until the cache fits its budget.
+
+    Returns the number of bytes reclaimed. Safe to call at any time: a thumbnail that
+    is deleted while still wanted is simply generated again.
+    """
+    budget = get_thumbnail_cache_budget_bytes() if budget_bytes is None else budget_bytes
+    if budget <= 0:
+        return 0
+
+    entries = _cached_thumbnails()
+    total = sum(size for _, size, _ in entries)
+    if total <= budget:
+        return 0
+
+    reclaimed = 0
+    for _, size, path in entries:
+        if total - reclaimed <= budget:
+            break
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        reclaimed += size
+
+    logger.info(
+        "Pruned %.1f MB from the thumbnail cache (budget %.0f MB)",
+        reclaimed / (1024 * 1024),
+        budget / (1024 * 1024),
+    )
+    return reclaimed
+
+
+def _prune_thumbnail_cache_periodically() -> None:
+    """Prune every ``PRUNE_EVERY_N_THUMBNAILS`` generations, never on the hot path twice."""
+    global _thumbnails_since_prune
+
+    with _prune_guard:
+        _thumbnails_since_prune += 1
+        if _thumbnails_since_prune < PRUNE_EVERY_N_THUMBNAILS:
+            return
+        _thumbnails_since_prune = 0
+
+    try:
+        prune_thumbnail_cache()
+    except OSError:
+        logger.debug("Thumbnail cache prune failed", exc_info=True)
+
+
 def get_or_create_thumbnail(source: Path, width: int) -> Path:
     source = source.resolve()
     normalized_width = normalize_thumbnail_width(width)
@@ -283,4 +383,5 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
                 temp_path.unlink(missing_ok=True)
             raise
 
+    _prune_thumbnail_cache_periodically()
     return cached

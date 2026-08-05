@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from automation.jobs import job_manager
 from routes._helpers import job_response, resolve_folder
-from schemas import JobDeleteResponse, JobResponse, JobsResponse
+from schemas import JobDeleteResponse, JobResponse, JobResultsResponse, JobsResponse
 
 router = APIRouter()
 
@@ -34,6 +34,14 @@ def read_latest_job_for_folder(
     if job is None:
         return None
     return job_response(job)
+
+
+@router.get("/jobs/{job_id}/results", response_model=JobResultsResponse)
+def read_job_results(job_id: str) -> JobResultsResponse:
+    results = job_manager.get_job_results(job_id)
+    if results is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobResultsResponse(job_id=job_id, results=results)
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)

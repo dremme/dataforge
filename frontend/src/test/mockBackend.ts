@@ -48,7 +48,6 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
     total: 0,
     processed: 0,
     stats: {},
-    results: [],
     created_at: now,
   };
 }
@@ -229,6 +228,24 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
 
       return jsonResponse({ fingerprint: data.fingerprint });
+    }
+
+    if (url.pathname === "/api/browse/changes") {
+      const pathKey = normalizeBrowseKey(url.searchParams.get("path"));
+      const data = pathKey ? browseResponses[pathKey] : undefined;
+      if (!data) {
+        return jsonResponse({ detail: "Folder not found" }, 404);
+      }
+
+      // The mock has no per-entry history, so it answers the way the real backend
+      // does for an unknown baseline: reload in full.
+      const since = url.searchParams.get("since") ?? "";
+      return jsonResponse({
+        full: since !== data.fingerprint,
+        fingerprint: data.fingerprint,
+        changed: [],
+        removed: [],
+      });
     }
 
     if (url.pathname === "/api/browse/subfolder-stats") {

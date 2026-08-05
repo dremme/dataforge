@@ -1,5 +1,11 @@
 import { requestJson } from "@/shared/api/http";
-import type { Job, JobDeleteResponse, JobsResponse } from "@/shared/types";
+import type {
+  Job,
+  JobDeleteResponse,
+  JobFileResult,
+  JobResultsResponse,
+  JobsResponse,
+} from "@/shared/types";
 
 export async function fetchLatestFolderJob(folderPath: string): Promise<Job | null> {
   const params = new URLSearchParams({ path: folderPath });
@@ -9,6 +15,12 @@ export async function fetchLatestFolderJob(folderPath: string): Promise<Job | nu
 export async function fetchJobs(limit = 100): Promise<JobsResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
   return requestJson<JobsResponse>(`/api/jobs?${params}`);
+}
+
+/** A job's per-file results. Kept off the job list, which is polled while work runs. */
+export async function fetchJobResults(jobId: string): Promise<JobFileResult[]> {
+  const response = await requestJson<JobResultsResponse>(`/api/jobs/${jobId}/results`);
+  return response.results;
 }
 
 export async function cancelJob(jobId: string): Promise<Job> {

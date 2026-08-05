@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from file_import import import_uploaded_files, preview_import
@@ -38,7 +40,11 @@ async def import_files(
         raise HTTPException(status_code=400, detail="No valid files were provided")
 
     try:
-        result = import_uploaded_files(folder, uploads, overwrite=overwrite)
+        # Copying gigabytes must not sit on the event loop: the gallery behind this
+        # import is still asking for thumbnails, and they would all wait for it.
+        result = await asyncio.to_thread(
+            import_uploaded_files, folder, uploads, overwrite=overwrite
+        )
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Failed to import files: {exc}") from exc
 

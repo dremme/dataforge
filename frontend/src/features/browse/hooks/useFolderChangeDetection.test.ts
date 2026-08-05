@@ -118,6 +118,70 @@ describe("useFolderChangeDetection", () => {
     expect(reloadFolder).not.toHaveBeenCalled();
   });
 
+  it("patches from a delta instead of reloading the folder", async () => {
+    const reloadFolder = vi.fn().mockResolvedValue(null);
+    const applyDelta = vi.fn();
+    const changes = {
+      full: false,
+      fingerprint: "fp-v2",
+      changed: [],
+      removed: ["C:\\Photos\\gone.png"],
+    };
+    vi.spyOn(api, "fetchBrowseChanges").mockResolvedValue(changes);
+
+    renderHook(() => useFolderChangeDetection("C:\\Photos", "fp-v1", reloadFolder, { applyDelta }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(api.fetchBrowseChanges).toHaveBeenCalledWith("C:\\Photos", "fp-v1");
+    // Applied straight away: patching needs no debounce.
+    expect(applyDelta).toHaveBeenCalledExactlyOnceWith(changes);
+    expect(reloadFolder).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a full reload when the server cannot describe the change", async () => {
+    const reloadFolder = vi.fn().mockResolvedValue(null);
+    const applyDelta = vi.fn();
+    vi.spyOn(api, "fetchBrowseChanges").mockResolvedValue({
+      full: true,
+      fingerprint: "fp-v2",
+      changed: [],
+      removed: [],
+    });
+
+    renderHook(() => useFolderChangeDetection("C:\\Photos", "fp-v1", reloadFolder, { applyDelta }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+
+    expect(applyDelta).not.toHaveBeenCalled();
+    expect(reloadFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks only for the cheap fingerprint when there is nowhere to apply a delta", async () => {
+    const reloadFolder = vi.fn().mockResolvedValue(null);
+    vi.spyOn(api, "fetchBrowseChanges").mockResolvedValue({
+      full: false,
+      fingerprint: "fp-v2",
+      changed: [],
+      removed: [],
+    });
+    vi.spyOn(api, "fetchBrowseFingerprint").mockResolvedValue({ fingerprint: "fp-v1" });
+
+    renderHook(() => useFolderChangeDetection("C:\\Photos", "fp-v1", reloadFolder));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(api.fetchBrowseChanges).not.toHaveBeenCalled();
+    expect(api.fetchBrowseFingerprint).toHaveBeenCalled();
+  });
+
   it("syncBaseline updates the known fingerprint without reloading", async () => {
     const reloadFolder = vi.fn().mockResolvedValue(null);
     vi.spyOn(api, "fetchBrowseFingerprint")

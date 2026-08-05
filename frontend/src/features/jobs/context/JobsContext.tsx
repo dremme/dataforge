@@ -17,6 +17,7 @@ import {
   fetchLatestFolderJob,
 } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs";
+import { subscribeToServerEvents } from "@/shared/api/eventStream";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { ExternalOstrisJob, Job, JobType } from "@/shared/types";
@@ -26,6 +27,7 @@ import {
   isTerminalJobStatus,
   jobCompletionNotification,
   selectFolderJob,
+  upsertJob,
 } from "@/features/jobs/lib/jobs";
 import {
   clearStartingJobIfMatch,
@@ -33,6 +35,8 @@ import {
   type StartingJob,
 } from "@/features/jobs/lib/jobStartHelpers";
 
+// Only used while the push stream is down — the server otherwise tells us when
+// something changes, so there is nothing to ask for on a timer.
 const ACTIVE_POLL_MS = 1000;
 const IDLE_POLL_MS = 8000;
 
@@ -67,7 +71,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [externalJobs, setExternalJobs] = useState<ExternalOstrisJob[]>([]);
   const [ostrisAvailable, setOstrisAvailable] = useState(false);
-  const [activeCount, setActiveCount] = useState(0);
+  const [streamConnected, setStreamConnected] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [startingJob, setStartingJob] = useState<StartingJob | null>(null);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
@@ -98,14 +102,54 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       refreshJobs(),
       refreshExternalJobs(),
     ]);
-    setActiveCount(internalResponse.active_count + externalResponse.active_count);
     return {
       internal: internalResponse,
       external: externalResponse,
     };
   }, [refreshJobs, refreshExternalJobs]);
 
+  // `/api/external/ostris/jobs` only ever lists runs that are still going, so its
+  // length is the external active count.
+  const activeCount = useMemo(
+    () => jobs.filter((job) => isActiveJobStatus(job.status)).length + externalJobs.length,
+    [jobs, externalJobs],
+  );
+
   useEffect(() => {
+    let cancelled = false;
+
+    const unsubscribe = subscribeToServerEvents({
+      onEvent: (event) => {
+        if (cancelled) return;
+
+        if (event.type === "job") {
+          setJobs((current) => upsertJob(current, event.job));
+          return;
+        }
+
+        setExternalJobs(event.jobs);
+        setOstrisAvailable(event.available);
+      },
+      onConnectedChange: (connected) => {
+        if (cancelled) return;
+        setStreamConnected(connected);
+        // A fresh connection may have missed changes while it was down, and the
+        // stream carries no history, so start again from the full state.
+        if (connected) void refreshAllJobs();
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [refreshAllJobs]);
+
+  // The fallback path: without a stream nothing would arrive at all, so poll until
+  // one is back. Also the initial load, since the stream only opens after mount.
+  useEffect(() => {
+    if (streamConnected) return;
+
     let cancelled = false;
     let timeoutId = 0;
 
@@ -128,7 +172,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [refreshAllJobs]);
+  }, [streamConnected, refreshAllJobs]);
 
   useEffect(() => {
     const currentJobIds = new Set(jobs.map((job) => job.id));

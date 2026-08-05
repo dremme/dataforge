@@ -66,6 +66,20 @@ class BrowseFingerprintResponse(BaseModel):
     fingerprint: str
 
 
+class BrowseChangesResponse(BaseModel):
+    """What changed in a folder since a given fingerprint.
+
+    ``changed`` covers both new and edited items: the client upserts by path, so
+    telling the two apart would only be work neither side needs. ``full`` means the
+    delta could not be computed and the client should refetch the whole folder.
+    """
+
+    full: bool = False
+    fingerprint: str
+    changed: list[GalleryItem] = Field(default_factory=list)
+    removed: list[str] = Field(default_factory=list)
+
+
 class BrowseResponse(BaseModel):
     folder: str
     home: str
@@ -228,13 +242,25 @@ class JobResponse(BaseModel):
     current_file: str | None = None
     current_name: str | None = None
     stats: dict[str, int] = Field(default_factory=dict)
-    results: list[JobFileResult] = Field(default_factory=list)
     error: str | None = None
     created_at: str
     started_at: str | None = None
     finished_at: str | None = None
     auto_caption_mode: str | None = None
     external_ref: str | None = None
+
+
+class JobResultsResponse(BaseModel):
+    """One job's per-file results, served separately from the job itself.
+
+    A job holds one result per processed file and an auto-caption result carries the
+    whole generated caption, so a finished run over a large folder is megabytes. The
+    job list is polled while work runs; these are fetched only when something
+    displays them.
+    """
+
+    job_id: str
+    results: list[JobFileResult] = Field(default_factory=list)
 
 
 class JobsResponse(BaseModel):

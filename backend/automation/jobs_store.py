@@ -33,6 +33,13 @@ _JOB_SCHEMA: tuple[tuple[str, str], ...] = (
 _JOB_COLUMN_NAMES = tuple(name for name, _ in _JOB_SCHEMA)
 _JOB_COLUMNS = ", ".join(_JOB_COLUMN_NAMES)
 
+# ``results_json`` holds one entry per processed file, and an auto-caption entry carries
+# the whole generated caption, so a finished run over a large folder is megabytes in a
+# single cell. Queries that feed the job list read this narrower set and leave the blob
+# on disk; ``get_job`` still reads it whole for ``/api/jobs/{id}/results``.
+_JOB_SUMMARY_COLUMN_NAMES = tuple(name for name in _JOB_COLUMN_NAMES if name != "results_json")
+_JOB_SUMMARY_COLUMNS = ", ".join(_JOB_SUMMARY_COLUMN_NAMES)
+
 # Never overwritten by an update: the id identifies the row and the creation time is fixed.
 _IMMUTABLE_JOB_COLUMNS = frozenset({"id", "created_at"})
 
@@ -140,7 +147,11 @@ def init_jobs_table() -> None:
 
 
 def list_active_jobs() -> list[dict[str, object]]:
-    """Jobs still marked queued or running. Read before recovery to find resumable work."""
+    """Jobs still marked queued or running. Read before recovery to find resumable work.
+
+    Reads the full column set: a resumed job is put back under management and saved
+    again, so it has to carry the results it already accumulated.
+    """
     with get_connection() as conn:
         rows = conn.execute(
             f"""
@@ -188,23 +199,30 @@ def _decode_json_array(raw: object) -> list:
     return decoded if isinstance(decoded, list) else []
 
 
-def _row_to_dict(row: tuple) -> dict[str, object]:
+def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> dict[str, object]:
+    """Map one row to a job dict. ``results`` is absent when ``columns`` omits the blob.
+
+    Absent rather than empty on purpose: an empty list would look like a job that
+    produced no results, and re-saving such a job would erase what is on disk.
+    """
     # Tolerate rows missing a newer column during a transition.
-    padded = tuple(row) + (None,) * (len(_JOB_COLUMN_NAMES) - len(row))
-    values = dict(zip(_JOB_COLUMN_NAMES, padded, strict=True))
+    padded = tuple(row) + (None,) * (len(columns) - len(row))
+    values = dict(zip(columns, padded, strict=True))
 
     stats = _decode_json_object(values.pop("stats_json"))
-    results = _decode_json_array(values.pop("results_json"))
+    results = _decode_json_array(values.pop("results_json")) if "results_json" in values else None
 
-    return {
+    job: dict[str, object] = {
         **values,
         "folder_name": path_leaf_name(str(values["folder"] or "")),
         "job_type": str(values["job_type"] or "auto_caption"),
         "total": int(values["total"] or 0),
         "processed": int(values["processed"] or 0),
         "stats": {key: int(value) for key, value in stats.items()},
-        "results": results,
     }
+    if results is not None:
+        job["results"] = results
+    return job
 
 
 _SAVE_JOB_SQL = f"""
@@ -254,12 +272,13 @@ def get_job(job_id: str) -> dict[str, object] | None:
 
 
 def list_jobs(*, limit: int = 100) -> list[dict[str, object]]:
+    """Job summaries, newest and most active first. Carries no per-file results."""
     safe_limit = max(1, min(limit, 100))
 
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT {_JOB_COLUMNS} FROM jobs
+            SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
             ORDER BY
                 CASE status
                     WHEN 'running' THEN 0
@@ -272,7 +291,7 @@ def list_jobs(*, limit: int = 100) -> list[dict[str, object]]:
             (safe_limit,),
         ).fetchall()
 
-    return [_row_to_dict(row) for row in rows]
+    return [_row_to_dict(row, _JOB_SUMMARY_COLUMN_NAMES) for row in rows]
 
 
 def get_latest_job_for_folder(
@@ -283,7 +302,7 @@ def get_latest_job_for_folder(
     normalized = _normalize_folder(folder)
 
     query = f"""
-        SELECT {_JOB_COLUMNS} FROM jobs
+        SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
         WHERE folder = ?
     """
     params: list[object] = [normalized]
@@ -296,7 +315,7 @@ def get_latest_job_for_folder(
     with get_connection() as conn:
         row = conn.execute(query, params).fetchone()
 
-    return _row_to_dict(row) if row else None
+    return _row_to_dict(row, _JOB_SUMMARY_COLUMN_NAMES) if row else None
 
 
 def get_active_job_for_folder(
@@ -307,7 +326,7 @@ def get_active_job_for_folder(
     normalized = _normalize_folder(folder)
 
     query = f"""
-        SELECT {_JOB_COLUMNS} FROM jobs
+        SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
         WHERE folder = ? AND status IN ('queued', 'running')
     """
     params: list[object] = [normalized]
@@ -320,7 +339,7 @@ def get_active_job_for_folder(
     with get_connection() as conn:
         row = conn.execute(query, params).fetchone()
 
-    return _row_to_dict(row) if row else None
+    return _row_to_dict(row, _JOB_SUMMARY_COLUMN_NAMES) if row else None
 
 
 def delete_job(job_id: str) -> bool:

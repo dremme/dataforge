@@ -4,6 +4,7 @@ from routes import (
     automation,
     browse,
     captions,
+    events,
     external_jobs,
     files,
     folders,
@@ -28,5 +29,6 @@ for module in (
     preferences,
     jobs,
     external_jobs,
+    events,
 ):
     router.include_router(module.router)

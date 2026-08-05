@@ -9,8 +9,10 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from time import monotonic
 from typing import Literal
 
+import events
 from automation import jobs_store
 from automation.auto_caption import run_auto_caption_job, validate_auto_caption_folder
 from automation.backup_captions import (
@@ -48,6 +50,11 @@ JobType = Literal[
     "train_lora",
 ]
 ACTIVE_STATUSES = frozenset({"queued", "running"})
+
+#: A per-file job saves a snapshot before and after every file, which for a fast job is
+#: far more than a UI can use. Mid-run frames are thinned to this cadence; a status
+#: change always goes out immediately, so nothing that matters is delayed.
+JOB_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
 def _utc_now() -> str:
@@ -145,7 +152,14 @@ class Job:
             external_ref=data.get("external_ref"),  # type: ignore[arg-type]
         )
 
-    def to_dict(self) -> dict[str, object]:
+    def to_summary_dict(self) -> dict[str, object]:
+        """Everything about the job except its per-file results.
+
+        This is the wire shape. ``results`` holds one entry per processed file and an
+        auto-caption entry carries the whole generated caption, so it would dominate
+        every response of a list that is polled while work runs; it is served on
+        demand by ``/api/jobs/{id}/results`` instead.
+        """
         return {
             "id": self.id,
             "folder": self.folder,
@@ -157,7 +171,6 @@ class Job:
             "current_file": self.current_file,
             "current_name": self.current_name,
             "stats": self.stats,
-            "results": self.results,
             "error": resolve_job_error(
                 job_type=self.job_type,
                 stats=self.stats,
@@ -169,6 +182,10 @@ class Job:
             "auto_caption_mode": self.auto_caption_mode,
             "external_ref": self.external_ref,
         }
+
+    def to_dict(self) -> dict[str, object]:
+        """The persistence shape: the summary plus the per-file results."""
+        return {**self.to_summary_dict(), "results": self.results}
 
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
@@ -298,6 +315,8 @@ class JobManager:
         self._lock = threading.Lock()
         self._cancel_flags: dict[str, threading.Event] = {}
         self._deleted_ids: set[str] = set()
+        #: job id -> (last publish time, status published) for event thinning.
+        self._published: dict[str, tuple[float, str]] = {}
 
     def initialize(self) -> None:
         # Collected before recovery, which is what marks the rows interrupted.
@@ -316,6 +335,20 @@ class JobManager:
             if job is not None:
                 return job
         return self._job_from_store(job_id)
+
+    def get_job_results(self, job_id: str) -> list[dict[str, object]] | None:
+        """Per-file results for one job, or ``None`` when no such job exists."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                return list(job.results)
+
+        stored = jobs_store.get_job(job_id)
+        if stored is None:
+            return None
+
+        results = stored.get("results")
+        return list(results) if isinstance(results, list) else []
 
     def list_jobs(self, *, limit: int = 100) -> list[Job]:
         stored_jobs = jobs_store.list_jobs(limit=limit)
@@ -413,6 +446,7 @@ class JobManager:
         with self._lock:
             self._jobs.pop(job_id, None)
             self._cancel_flags.pop(job_id, None)
+            self._published.pop(job_id, None)
             self._deleted_ids.add(job_id)
             deleted_store = jobs_store.delete_job(job_id)
 
@@ -436,6 +470,7 @@ class JobManager:
 
             self._jobs.clear()
             self._cancel_flags.clear()
+            self._published.clear()
 
             # Delete while holding the lock so a worker cannot pass the
             # not-deleted check and re-insert a ``running`` row after we clear.
@@ -523,6 +558,7 @@ class JobManager:
                 if existing.folder == job.folder and existing.job_type == job_type:
                     self._jobs.pop(jid, None)
                     self._cancel_flags.pop(jid, None)
+                    self._published.pop(jid, None)
 
         self._persist(job)
 
@@ -675,7 +711,7 @@ class JobManager:
             self._save_snapshot(job.id, job.to_dict())
 
     def _save_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
-        """Write a snapshot. Caller must hold ``self._lock``.
+        """Write a snapshot and push it to connected clients. Caller must hold ``self._lock``.
 
         Requires the job to still be in memory and not deleted so a worker
         cannot re-insert a row after ``delete_job`` / ``delete_all_jobs``.
@@ -683,6 +719,30 @@ class JobManager:
         if job_id in self._deleted_ids or job_id not in self._jobs:
             return
         jobs_store.save_job(snapshot)
+        self._publish_snapshot(job_id, snapshot)
+
+    def _publish_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
+        """Push a job snapshot to connected clients. Caller must hold ``self._lock``.
+
+        Every status change goes out; the progress frames between them are thinned to
+        ``JOB_EVENT_MIN_INTERVAL_SECONDS``. Dropping one costs nothing because each
+        frame carries the job's whole state, so the next one restores the truth.
+        """
+        status = str(snapshot.get("status") or "")
+        now = monotonic()
+        published = self._published.get(job_id)
+
+        if (
+            published is not None
+            and published[1] == status
+            and now - published[0] < JOB_EVENT_MIN_INTERVAL_SECONDS
+        ):
+            return
+
+        self._published[job_id] = (now, status)
+        # ``results`` is deliberately not on the wire; see ``Job.to_summary_dict``.
+        job = {key: value for key, value in snapshot.items() if key != "results"}
+        events.publish({"type": "job", "job": job})
 
 
 job_manager = JobManager()

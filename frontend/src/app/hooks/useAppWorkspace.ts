@@ -3,6 +3,7 @@ import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useCreateFolderDialog } from "@/features/browse/hooks/useCreateFolderDialog";
 import { useFolderChangeDetection } from "@/features/browse/hooks/useFolderChangeDetection";
+import { applyBrowseDelta } from "@/features/browse/lib/applyBrowseDelta";
 import { useFolderFileDrop } from "@/features/browse/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/browse/hooks/useFolderNavigation";
 import { useSubfolderStats } from "@/features/browse/hooks/useSubfolderStats";
@@ -11,6 +12,7 @@ import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
+import type { BrowseChangesResponse } from "@/shared/types";
 
 /**
  * Top-level composition: selection → folder → automation core → gallery → automation host.
@@ -30,6 +32,13 @@ export function useAppWorkspace() {
 
   const folderAutomation = useFolderAutomation(browse?.folder, reloadFolderSilently);
 
+  const applyDelta = useCallback(
+    (delta: BrowseChangesResponse) => {
+      setBrowse((current) => (current ? applyBrowseDelta(current, delta) : current));
+    },
+    [setBrowse],
+  );
+
   const { syncBaseline } = useFolderChangeDetection(
     browse?.folder,
     browse?.fingerprint,
@@ -37,6 +46,7 @@ export function useAppWorkspace() {
     {
       suspendReloads: folderAutomation.folderHasActiveJob,
       enabled: !folderNotFound,
+      applyDelta,
     },
   );
 

@@ -3,11 +3,16 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from browse import build_browse_response, build_subfolder_stats_response
+from browse import build_browse_changes, build_browse_response, build_subfolder_stats_response
 from filesystem import resolve_initial_folder
 from folder_fingerprint import folder_browse_fingerprint
 from routes._helpers import resolve_folder
-from schemas import BrowseFingerprintResponse, BrowseResponse, SubfolderStatsResponse
+from schemas import (
+    BrowseChangesResponse,
+    BrowseFingerprintResponse,
+    BrowseResponse,
+    SubfolderStatsResponse,
+)
 
 router = APIRouter()
 
@@ -51,3 +56,15 @@ async def browse_fingerprint(
     if fingerprint is None:
         raise HTTPException(status_code=500, detail="Failed to fingerprint folder")
     return BrowseFingerprintResponse(fingerprint=fingerprint)
+
+
+@router.get("/browse/changes", response_model=BrowseChangesResponse)
+async def browse_changes(
+    path: str = Query(..., description="Folder to check"),
+    since: str = Query(
+        "",
+        description="Fingerprint of the browse to diff against; an unknown one answers full",
+    ),
+) -> BrowseChangesResponse:
+    folder = resolve_folder(path)
+    return await asyncio.to_thread(build_browse_changes, folder, since)

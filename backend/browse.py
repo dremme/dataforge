@@ -8,10 +8,14 @@ from automation.backup_captions import has_caption_backup
 from constants import LAST_FOLDER_KEY
 from db import get_preference, set_preference
 from filesystem import build_breadcrumbs, get_home_folder, list_subfolders
-from folder_fingerprint import browse_fingerprint_from_scan
+from folder_fingerprint import (
+    browse_signature_from_scan,
+    recall_browse_signature,
+    remember_browse_signature,
+)
 from folder_scan import scan_folder
-from media_listing import list_media_from_scan
-from schemas import BrowseResponse, SubfolderStats, SubfolderStatsResponse
+from media_listing import list_media_from_scan, media_items_named
+from schemas import BrowseChangesResponse, BrowseResponse, SubfolderStats, SubfolderStatsResponse
 from sysprompt import load_sysprompt_item
 
 logger = logging.getLogger(__name__)
@@ -49,7 +53,11 @@ def build_browse_response(folder: Path) -> BrowseResponse:
         # Names only: the counts come from /api/browse/subfolder-stats.
         subfolders = [{"name": entry.name, "path": str(entry.path)} for entry in scan.dirs]
         items = list_media_from_scan(scan)
-        fingerprint = browse_fingerprint_from_scan(scan)
+        # Remembered so the next change-detection poll can answer with a delta
+        # against this exact response rather than sending the client back for all of it.
+        signature = browse_signature_from_scan(scan)
+        remember_browse_signature(folder, signature)
+        fingerprint = signature.fingerprint
     listed = perf_counter()
 
     response = BrowseResponse(
@@ -76,6 +84,36 @@ def build_browse_response(folder: Path) -> BrowseResponse:
         perf_counter() - listed,
     )
     return response
+
+
+def build_browse_changes(folder: Path, since: str) -> BrowseChangesResponse:
+    """What changed in ``folder`` since the browse that produced ``since``.
+
+    Answers ``full`` when there is nothing to diff against — an unknown baseline, an
+    unreadable folder, or a change to the folder's shell (its child directories or
+    sysprompt), which brings in data a delta does not carry. The client then reloads
+    exactly as it did before this endpoint existed.
+    """
+    scan = scan_folder(folder)
+    if scan is None:
+        return BrowseChangesResponse(full=True, fingerprint="")
+
+    signature = browse_signature_from_scan(scan)
+    remember_browse_signature(folder, signature)
+
+    baseline = recall_browse_signature(folder, since)
+    if baseline is None or baseline.shell != signature.shell:
+        return BrowseChangesResponse(full=True, fingerprint=signature.fingerprint)
+
+    changed = {name for name, item in signature.items.items() if baseline.items.get(name) != item}
+    removed = sorted(baseline.items.keys() - signature.items.keys())
+
+    return BrowseChangesResponse(
+        full=False,
+        fingerprint=signature.fingerprint,
+        changed=media_items_named(scan, changed),
+        removed=[str(folder / name) for name in removed],
+    )
 
 
 def build_subfolder_stats_response(folder: Path) -> SubfolderStatsResponse:
