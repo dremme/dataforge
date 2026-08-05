@@ -14,13 +14,26 @@ import {
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { formatMegapixels } from "@/shared/lib/format";
-import { iconArrowUpRight, iconLoader2, iconTriangleAlert, iconX } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
+import {
+  iconArrowUpRight,
+  iconCircleCheck,
+  iconLoader2,
+  iconTriangleAlert,
+  iconX,
+} from "@/shared/icons";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
+
+/** What the card's list is, once the item's state in this session is known. */
+function issueCardLabel(fixCount: number, resolved: boolean): string {
+  if (fixCount === 0) return resolved ? "Resolved" : "Issue";
+  return resolved ? "Applied changes" : "Suggested changes";
+}
 
 interface IssueResolverModalProps {
   items: GalleryItem[];
@@ -42,6 +55,10 @@ export function IssueResolverModal({
   const { recordResolution, getResolution } = useMediaResolution();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<boolean>(false);
+  // The queue is frozen at mount, so a resolved entry still carries its issue
+  // fixes. Stepping back to it would present settled work as outstanding
+  // without this record of what the session has already put right.
+  const [resolvedPaths, setResolvedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
 
@@ -58,12 +75,10 @@ export function IssueResolverModal({
     setViewerError(null);
   }, [item?.path]);
 
-  // Warm the next queue item only (forward flow). Idle + low priority so the
-  // current stage media is not starved.
+  // Warm both queue neighbours — the walk goes backwards as well. Idle + low
+  // priority so the current stage media is not starved.
   useEffect(() => {
-    return schedulePrefetchModalMedia(
-      collectAdjacentModalMediaTargets(queue, index, { offsets: [1] }),
-    );
+    return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(queue, index));
   }, [index, queue]);
 
   const closeModal = useCallback(() => {
@@ -75,6 +90,13 @@ export function IssueResolverModal({
     if (saving) return;
     if (index < queue.length - 1) onIndexChange(index + 1);
   }, [index, onIndexChange, queue.length, saving]);
+
+  // Skipped or already resolved, an earlier item stays reachable: the queue keeps
+  // every entry it started with, so the index is all that has to move.
+  const handlePrevious = useCallback(() => {
+    if (saving) return;
+    if (index > 0) onIndexChange(index - 1);
+  }, [index, onIndexChange, saving]);
 
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer || saving) return;
@@ -100,6 +122,7 @@ export function IssueResolverModal({
     try {
       const result = await saveCaption(item.path, caption.trim(), { resolveIssue: true });
       onCaptionSaved(item.path, result);
+      setResolvedPaths((current) => new Set(current).add(item.path));
 
       if (index < queue.length - 1) {
         onIndexChange(index + 1);
@@ -137,6 +160,7 @@ export function IssueResolverModal({
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
   const fixes = item.issue_fixes.map((fix) => fix.trim()).filter(Boolean);
+  const alreadyResolved = resolvedPaths.has(item.path);
 
   return (
     <ModalShell
@@ -236,12 +260,20 @@ export function IssueResolverModal({
             </div>
           </div>
 
-          <div className="issue-resolver-modal__issue-card">
+          <div
+            className={classNames(
+              "issue-resolver-modal__issue-card",
+              alreadyResolved && "issue-resolver-modal__issue-card--resolved",
+            )}
+          >
             <div className="issue-resolver-modal__issue-row">
-              <Icon icon={iconTriangleAlert} className="issue-resolver-modal__issue-icon" />
+              <Icon
+                icon={alreadyResolved ? iconCircleCheck : iconTriangleAlert}
+                className="issue-resolver-modal__issue-icon"
+              />
               <div className="issue-resolver-modal__issue-content">
                 <span className="issue-resolver-modal__issue-label">
-                  {fixes.length > 0 ? "Suggested changes" : "Issue"}
+                  {issueCardLabel(fixes.length, alreadyResolved)}
                 </span>
                 {fixes.length > 0 ? (
                   <ol className="issue-resolver-modal__issue-list">
@@ -252,7 +284,9 @@ export function IssueResolverModal({
                     ))}
                   </ol>
                 ) : (
-                  <p className="issue-resolver-modal__issue-text">Error in issue file</p>
+                  <p className="issue-resolver-modal__issue-text">
+                    {alreadyResolved ? "The caption was saved." : "Error in issue file"}
+                  </p>
                 )}
               </div>
             </div>
@@ -282,6 +316,12 @@ export function IssueResolverModal({
       </div>
 
       <footer className="issue-resolver-modal__footer">
+        <DialogButton
+          label="Back"
+          variant="secondary"
+          disabled={saving || index === 0}
+          onClick={handlePrevious}
+        />
         <DialogButton
           label="Skip"
           variant="secondary"

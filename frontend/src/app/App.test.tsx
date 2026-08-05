@@ -4,6 +4,24 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_PATH, HOME_PATH, VACATION_PATH, homeBrowse } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
+import type { BrowseResponse } from "@/shared/types";
+
+/** Home, with sunset.png carrying a caption issue the resolver can act on. */
+const issueBrowse: BrowseResponse = {
+  ...homeBrowse,
+  items: homeBrowse.items.map((item) =>
+    item.name === "sunset.png"
+      ? { ...item, has_issue_file: true, issue_fixes: ['Replace "lake" with "river".'] }
+      : item,
+  ),
+};
+
+/** The first load asks for no path, so both keys have to carry the payload. */
+function installIssueBackend() {
+  return installMockBackend({
+    browseByPath: { undefined: issueBrowse, [HOME_PATH]: issueBrowse },
+  });
+}
 
 describe("App", () => {
   it("shows folder not found when the current folder is deleted in the background", async () => {
@@ -459,6 +477,80 @@ describe("App", () => {
     const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
     expect(confirmDialog).toBeVisible();
     expect(within(confirmDialog).getByText("sunset.png")).toBeVisible();
+  });
+
+  it("returns to the gallery item modal after resolving that file's issue", async () => {
+    const user = userEvent.setup();
+    installIssueBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
+
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(
+      within(modal).getByRole("button", { name: "Resolve caption issue for sunset.png" }),
+    );
+
+    const resolver = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+    const caption = within(resolver).getByLabelText("Caption for sunset.png");
+    await user.clear(caption);
+    await user.type(caption, "Golden hour over the river");
+    await user.click(within(resolver).getByRole("button", { name: "Resolve" }));
+
+    // The detour ends where it started, not on the grid: same file, saved
+    // caption, and the issue button gone now that the flag is cleared.
+    const reopened = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await waitFor(() => {
+      expect(within(reopened).getByLabelText("Caption for sunset.png")).toHaveValue(
+        "Golden hour over the river",
+      );
+    });
+    expect(
+      within(reopened).queryByRole("button", { name: "Resolve caption issue for sunset.png" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("returns to the gallery item modal when the resolver is dismissed unresolved", async () => {
+    const user = userEvent.setup();
+    installIssueBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
+
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(
+      within(modal).getByRole("button", { name: "Resolve caption issue for sunset.png" }),
+    );
+
+    const resolver = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+    await user.click(within(resolver).getByRole("button", { name: "Close" }));
+
+    const reopened = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    expect(
+      within(reopened).getByRole("button", { name: "Resolve caption issue for sunset.png" }),
+    ).toBeInTheDocument();
+  });
+
+  it("closes to the gallery when the issue queue was started from the automation panel", async () => {
+    const user = userEvent.setup();
+    installIssueBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Resolve 1 caption issue" }));
+
+    const resolver = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+    await user.click(within(resolver).getByRole("button", { name: "Resolve" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
   });
 
   it("moves a file to another folder from the gallery item modal", async () => {

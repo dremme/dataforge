@@ -4,7 +4,7 @@ import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays"
 import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolverOverlay";
-import { countResolvableIssues } from "@/features/gallery/lib/issues";
+import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import type { BrowseResponse, GalleryItem } from "@/shared/types";
 
 type GallerySelection = ReturnType<typeof useGallerySelection>;
@@ -54,8 +54,6 @@ export function useGallerySession({
   const query = useGalleryQuery(items);
   const issueCount = countResolvableIssues(items);
   const handleCaptionSaved = useBrowseCaptionPatch(setBrowse);
-  const issueResolver = useIssueResolverOverlay();
-  const { openIssueResolver } = issueResolver;
 
   const {
     selectedPath,
@@ -80,6 +78,21 @@ export function useGallerySession({
     mainRef,
   });
 
+  // Reopening on a path that has dropped out of the filtered set would leave
+  // `selectedPath` set with a `selectedIndex` of -1: nothing renders while the
+  // scroll lock stays held. The check mirrors what `openGalleryItem` snapshots,
+  // so the two cannot disagree.
+  const returnToGalleryItem = useCallback(
+    (path: string) => {
+      if (!query.filteredItems.some((item) => item.path === path)) return;
+      openGalleryItem(path);
+    },
+    [openGalleryItem, query.filteredItems],
+  );
+
+  const issueResolver = useIssueResolverOverlay(returnToGalleryItem);
+  const { openIssueResolver } = issueResolver;
+
   const onCaptionSaved = useCallback(
     (path: string, update: Parameters<typeof handleCaptionSaved>[1]) => {
       handleCaptionSaved(path, update);
@@ -90,10 +103,15 @@ export function useGallerySession({
 
   // Hands a single item to the issue resolver as a queue of one. Both state
   // updates land in the same commit, so the item modal never overlaps it.
+  // The guard matters: an item the queue would filter out leaves the resolver
+  // open with nothing to render and no close to return from, shutting both
+  // modals at once. The path rather than the item is the return ticket, so the
+  // reopened modal reads the saved caption from the live browse list.
   const onResolveGalleryItemIssue = useCallback(
     (item: GalleryItem) => {
+      if (!isResolvableIssueItem(item)) return;
       closeGalleryItem();
-      openIssueResolver([item]);
+      openIssueResolver([item], item.path);
     },
     [closeGalleryItem, openIssueResolver],
   );

@@ -361,6 +361,81 @@ describe("IssueResolverModal", () => {
     expect(nextCaption).not.toBe(caption);
   });
 
+  it("steps back to an item that was skipped", async () => {
+    const user = userEvent.setup();
+    const items = [
+      makeIssueItem("car.png"),
+      makeIssueItem("boat.png", { description: "A boat on the lake." }),
+    ];
+
+    function Host() {
+      const [index, setIndex] = useState(0);
+      return (
+        <IssueResolverModal
+          items={items}
+          index={index}
+          onClose={vi.fn()}
+          onIndexChange={setIndex}
+          onCaptionSaved={vi.fn()}
+        />
+      );
+    }
+
+    render(<Host />);
+
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    await screen.findByText("2 / 2");
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Caption for car.png")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+  });
+
+  it("presents an item resolved earlier in the session as settled, not outstanding", async () => {
+    const user = userEvent.setup();
+    const items = [
+      makeIssueItem("car.png"),
+      makeIssueItem("boat.png", { description: "A boat on the lake." }),
+    ];
+
+    function Host() {
+      const [index, setIndex] = useState(0);
+      return (
+        <IssueResolverModal
+          items={items}
+          index={index}
+          onClose={vi.fn()}
+          onIndexChange={setIndex}
+          onCaptionSaved={vi.fn()}
+        />
+      );
+    }
+
+    render(<Host />);
+
+    expect(screen.getByText("Suggested changes")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "Resolve" }));
+    await screen.findByText("2 / 2");
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    // The frozen queue still carries the fixes; they now read as work done.
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for car.png",
+    });
+    expect(within(dialog).getByText("Applied changes")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Suggested changes")).not.toBeInTheDocument();
+    expect(dialog.querySelector(".issue-resolver-modal__issue-card--resolved")).toBeInTheDocument();
+
+    // Still editable and re-savable — going back is what makes a bad fix fixable.
+    expect(within(dialog).getByRole("button", { name: "Resolve" })).toBeEnabled();
+  });
+
   it("closes after resolving the final issue", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

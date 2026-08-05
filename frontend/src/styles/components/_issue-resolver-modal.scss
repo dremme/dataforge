@@ -151,6 +151,19 @@
     background: linear-gradient(180deg, $color-warning-soft, transparent 120%);
   }
 
+  // Stepping back to an item this session already resolved: the fixes below are
+  // a record of work done, not a list of work outstanding.
+  &__issue-card--resolved {
+    border-color: $color-success-border;
+    background: linear-gradient(180deg, $color-success-soft, transparent 120%);
+
+    .issue-resolver-modal__issue-icon,
+    .issue-resolver-modal__issue-label,
+    .issue-resolver-modal__issue-list li::before {
+      color: $color-success;
+    }
+  }
+
   &__issue-row {
     display: flex;
     align-items: flex-start;
