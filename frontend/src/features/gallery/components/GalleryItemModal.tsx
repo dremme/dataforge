@@ -128,6 +128,10 @@ export function GalleryItemModal({
   const [deleting, setDeleting] = useState(false);
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
+  // Owned here so next/prev can keep frame capture on across videos and GIFs.
+  // Each capture hook used to hold its own flag, which dropped mode on every
+  // item swap and could not stick when switching video <-> GIF.
+  const [frameMode, setFrameMode] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -153,6 +157,7 @@ export function GalleryItemModal({
   });
 
   const itemIsGif = item ? isGif(item) : false;
+  const itemIsVideo = item ? isVideo(item) : false;
   const gifFrameCount = useGifFrameCount(item?.path, itemIsGif);
 
   // Both hooks run unconditionally - hooks cannot be called behind a branch - and
@@ -162,12 +167,16 @@ export function GalleryItemModal({
     item,
     folderPath: currentFolder,
     onSaved: onCopied,
+    frameMode,
+    setFrameMode,
   });
   const gifCapture = useGifFrameCapture({
     item,
     frameCount: gifFrameCount,
     folderPath: currentFolder,
     onSaved: onCopied,
+    frameMode,
+    setFrameMode,
   });
   const frameCapture: FrameCapture = itemIsGif ? gifCapture : videoCapture;
 
@@ -197,6 +206,15 @@ export function GalleryItemModal({
     setViewerError(null);
     resetJsonSaveState();
   }, [item?.path, resetJsonSaveState]);
+
+  // Sticky capture only applies to items that can actually capture. Landing on a
+  // still (or losing the destination folder) drops the mode so the bar does not
+  // hang over a surface that has no scrubber.
+  useEffect(() => {
+    if (!item || !currentFolder || (!itemIsVideo && !itemIsGif)) {
+      setFrameMode(false);
+    }
+  }, [item, currentFolder, itemIsVideo, itemIsGif]);
 
   // Warm next/previous full-size media (idle/low priority) so nav does not flash empty.
   useEffect(() => {
@@ -300,9 +318,10 @@ export function GalleryItemModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      // A focused slider is already exempt via `isEditableTarget`; the guard here is
-      // for focus anywhere else, where nav would throw away the frame being lined up.
-      if (childOverlayOpen || busy || frameCapture.frameMode) return;
+      // A focused scrubber is exempt via `isEditableTarget` so arrows still step
+      // frames. Everywhere else, arrows move to the next/prev gallery item even
+      // while frame capture is on — mode sticks when the next item can capture.
+      if (childOverlayOpen || busy) return;
       if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft") onPrevious();
       if (event.key === "ArrowRight") onNext();
@@ -312,7 +331,7 @@ export function GalleryItemModal({
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [busy, childOverlayOpen, frameCapture.frameMode, onPrevious, onNext]);
+  }, [busy, childOverlayOpen, onPrevious, onNext]);
 
   // In frame mode Escape steps back to plain viewing instead of closing outright.
   // `ModalShell` stands down for the duration via its `escape` prop below.
@@ -320,7 +339,6 @@ export function GalleryItemModal({
 
   if (!item) return null;
 
-  const itemIsVideo = isVideo(item);
   const mediaLabel = mediaLabelFor(item);
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
@@ -461,7 +479,7 @@ export function GalleryItemModal({
             type="button"
             className="gallery-item-modal__nav gallery-item-modal__nav--prev"
             onClick={onPrevious}
-            disabled={frameCapture.frameMode}
+            disabled={busy}
             aria-label="Previous item"
           >
             <Icon icon={iconChevronLeft} />
@@ -509,7 +527,7 @@ export function GalleryItemModal({
             type="button"
             className="gallery-item-modal__nav gallery-item-modal__nav--next"
             onClick={onNext}
-            disabled={frameCapture.frameMode}
+            disabled={busy}
             aria-label="Next item"
           >
             <Icon icon={iconChevronRight} />

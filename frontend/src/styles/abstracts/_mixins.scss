@@ -212,6 +212,14 @@
   }
 }
 
+@mixin btn-hover-success {
+  &:hover:not(:disabled) {
+    background: var(--success);
+    color: var(--bg);
+    border-color: var(--success);
+  }
+}
+
 @mixin btn-hover-warning {
   &:hover:not(:disabled) {
     background: var(--warning);
@@ -240,6 +248,13 @@
   background: var(--accent-soft);
   color: var(--accent);
   @include btn-hover-accent;
+}
+
+@mixin btn-surface-success {
+  border: 1px solid var(--success-border);
+  background: var(--success-soft);
+  color: var(--success);
+  @include btn-hover-success;
 }
 
 @mixin btn-surface-warning {

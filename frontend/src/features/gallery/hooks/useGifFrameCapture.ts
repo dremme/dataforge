@@ -26,6 +26,12 @@ export interface UseGifFrameCaptureOptions {
   folderPath: string | undefined;
   /** Runs once the frame is on disk, so the owner can reload the folder. */
   onSaved?: () => void | Promise<void>;
+  /**
+   * Owned by the modal so mode can stick across next/prev between videos and
+   * GIFs. This hook only drives enter/exit and reads the flag for UI.
+   */
+  frameMode: boolean;
+  setFrameMode: (frameMode: boolean) => void;
 }
 
 export interface GifFrameCapture extends FrameCapture {
@@ -48,7 +54,7 @@ export interface GifFrameCapture extends FrameCapture {
  */
 export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrameCapture {
   const notify = useNotify();
-  const { item, frameCount } = options;
+  const { item, frameCount, frameMode, setFrameMode } = options;
 
   // Read through a ref so every returned callback is dependency-free, and so a save
   // that outlives an item swap still finishes against the values it started with.
@@ -57,7 +63,6 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
 
   const mountedRef = useRef(true);
 
-  const [frameMode, setFrameMode] = useState(false);
   const [frameIndex, setFrameIndexState] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -80,11 +85,10 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
     };
   }, []);
 
-  // `saving` is deliberately absent: a save in flight against the previous item must
-  // run its own `finally`, and clearing the flag here would race it. Frame mode goes
-  // off regardless, so the bar unmounts and nothing user-visible is left stuck.
+  // Scrubber only. Frame mode is owned by the modal so next/prev can keep capture
+  // on across items. `saving` is deliberately absent: a save in flight against the
+  // previous item must run its own `finally`, and clearing the flag here would race it.
   useEffect(() => {
-    setFrameMode(false);
     setFrameIndexState(0);
   }, [item?.path]);
 
@@ -130,12 +134,12 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
 
   const exitFrameMode = useCallback(() => {
     setFrameMode(false);
-  }, []);
+  }, [setFrameMode]);
 
   const toggleFrameMode = useCallback(() => {
     if (savingRef.current) return;
-    setFrameMode((current) => !current);
-  }, []);
+    setFrameMode(!frameMode);
+  }, [frameMode, setFrameMode]);
 
   const saveFrame = useCallback(() => {
     // The re-entrancy guard reads a ref: a double click lands before `saving` state

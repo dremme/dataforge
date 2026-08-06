@@ -20,6 +20,12 @@ export interface UseVideoFrameCaptureOptions {
   folderPath: string | undefined;
   /** Runs once the frame is on disk, so the owner can reload the folder. */
   onSaved?: () => void | Promise<void>;
+  /**
+   * Owned by the modal so mode can stick across next/prev between videos and
+   * GIFs. This hook only drives enter/exit and reads the flag for UI.
+   */
+  frameMode: boolean;
+  setFrameMode: (frameMode: boolean) => void;
 }
 
 export interface VideoFrameCapture extends FrameCapture {
@@ -44,7 +50,7 @@ export interface VideoFrameCapture extends FrameCapture {
  */
 export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): VideoFrameCapture {
   const notify = useNotify();
-  const { item } = options;
+  const { item, frameMode, setFrameMode } = options;
 
   // Read through a ref so every returned callback is dependency-free, and so a save
   // that outlives an item swap still finishes against the values it started with.
@@ -54,7 +60,6 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mountedRef = useRef(true);
 
-  const [frameMode, setFrameMode] = useState(false);
   const [duration, setDuration] = useState(Number.NaN);
   const [sliderTime, setSliderTimeState] = useState(0);
   /**
@@ -81,11 +86,10 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
     };
   }, []);
 
-  // `saving` is deliberately absent: a save in flight against the previous item must
-  // run its own `finally`, and clearing the flag here would race it. Frame mode goes
-  // off regardless, so the bar unmounts and nothing user-visible is left stuck.
+  // Scrubber only. Frame mode is owned by the modal so next/prev can keep capture
+  // on across items. `saving` is deliberately absent: a save in flight against the
+  // previous item must run its own `finally`, and clearing the flag here would race it.
   useEffect(() => {
-    setFrameMode(false);
     setDuration(Number.NaN);
     setSliderTimeState(0);
     setPresentedTime(null);
@@ -113,21 +117,34 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
     [displayTime, setSliderTime],
   );
 
-  const handleLoadedMetadata = useCallback((video: HTMLVideoElement) => {
-    setDuration(video.duration);
+  const seedFromVideo = useCallback((video: HTMLVideoElement) => {
+    video.pause();
+    // Seed from the playhead: the toggle was pressed because *this* is the frame,
+    // or sticky mode just landed on a newly mounted video still at its start.
+    const seeded = snapFrameTime(clampFrameTime(video.currentTime, video.duration));
+    setSliderTimeState(seeded);
+    setPresentedTime(video.currentTime);
   }, []);
+
+  const handleLoadedMetadata = useCallback(
+    (video: HTMLVideoElement) => {
+      setDuration(video.duration);
+      // Sticky capture remounts a new <video autoPlay> under an already-open bar;
+      // pause and seed so playback does not run behind the scrubber.
+      if (optionsRef.current.frameMode) {
+        seedFromVideo(video);
+      }
+    },
+    [seedFromVideo],
+  );
 
   const enterFrameMode = useCallback(() => {
     const video = videoRef.current;
     if (video) {
-      video.pause();
-      // Seed from the playhead: the toggle was pressed because *this* is the frame.
-      const seeded = snapFrameTime(clampFrameTime(video.currentTime, durationRef.current));
-      setSliderTimeState(seeded);
-      setPresentedTime(video.currentTime);
+      seedFromVideo(video);
     }
     setFrameMode(true);
-  }, []);
+  }, [seedFromVideo, setFrameMode]);
 
   // Nothing is restored on the way out. The playhead stays where it was dragged
   // (scrubbers behave that way) and playback stays paused rather than snapping back
@@ -135,7 +152,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   // back with the mode, so resuming is one click away.
   const exitFrameMode = useCallback(() => {
     setFrameMode(false);
-  }, []);
+  }, [setFrameMode]);
 
   const toggleFrameMode = useCallback(() => {
     if (savingRef.current) return;

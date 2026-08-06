@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -933,7 +934,7 @@ describe("GalleryItemModal", () => {
       expect(importFilesMock).not.toHaveBeenCalled();
     });
 
-    it("holds the item still while a frame is being lined up", async () => {
+    it("navigates items with arrow keys while frame capture stays on", async () => {
       const user = userEvent.setup();
       const { onNext, onPrevious } = renderVideoModal();
 
@@ -942,10 +943,94 @@ describe("GalleryItemModal", () => {
       await user.keyboard("{ArrowRight}");
       await user.keyboard("{ArrowLeft}");
 
-      expect(onNext).not.toHaveBeenCalled();
-      expect(onPrevious).not.toHaveBeenCalled();
-      expect(within(dialog).getByRole("button", { name: "Next item" })).toBeDisabled();
-      expect(within(dialog).getByRole("button", { name: "Previous item" })).toBeDisabled();
+      expect(onNext).toHaveBeenCalledTimes(1);
+      expect(onPrevious).toHaveBeenCalledTimes(1);
+      expect(within(dialog).getByRole("button", { name: "Next item" })).toBeEnabled();
+      expect(within(dialog).getByRole("button", { name: "Previous item" })).toBeEnabled();
+      expect(within(dialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+    });
+
+    it("keeps frame capture on when moving to another video", async () => {
+      const user = userEvent.setup();
+      const items = [
+        makeItem("clip.mp4", { media_type: "video" }),
+        makeItem("reel.mp4", { media_type: "video" }),
+      ];
+
+      function StickyFrameModal() {
+        const [index, setIndex] = useState(0);
+        return (
+          <GalleryItemModal
+            items={items}
+            index={index}
+            currentFolder={HOME_PATH}
+            onClose={vi.fn()}
+            onPrevious={() => setIndex((current) => Math.max(0, current - 1))}
+            onNext={() => setIndex((current) => Math.min(items.length - 1, current + 1))}
+            onCaptionSaved={vi.fn()}
+            onCopied={vi.fn()}
+          />
+        );
+      }
+
+      renderWithProviders(<StickyFrameModal />);
+
+      const firstDialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      fireEvent.loadedMetadata(firstDialog.querySelector("video")!);
+      await user.click(
+        within(firstDialog).getByRole("button", { name: "Save a frame from clip.mp4" }),
+      );
+      expect(within(firstDialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+
+      await user.click(within(firstDialog).getByRole("button", { name: "Next item" }));
+
+      const secondDialog = await screen.findByRole("dialog", { name: "Viewing reel.mp4" });
+      expect(
+        within(secondDialog).getByRole("group", { name: "Frame capture" }),
+      ).toBeInTheDocument();
+      expect(
+        within(secondDialog).getByRole("button", { name: "Exit frame capture for reel.mp4" }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("drops frame capture when the next item cannot capture frames", async () => {
+      const user = userEvent.setup();
+      const items = [makeItem("clip.mp4", { media_type: "video" }), makeItem("sunset.png")];
+
+      function StickyFrameModal() {
+        const [index, setIndex] = useState(0);
+        return (
+          <GalleryItemModal
+            items={items}
+            index={index}
+            currentFolder={HOME_PATH}
+            onClose={vi.fn()}
+            onPrevious={() => setIndex((current) => Math.max(0, current - 1))}
+            onNext={() => setIndex((current) => Math.min(items.length - 1, current + 1))}
+            onCaptionSaved={vi.fn()}
+            onCopied={vi.fn()}
+          />
+        );
+      }
+
+      renderWithProviders(<StickyFrameModal />);
+
+      const firstDialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      fireEvent.loadedMetadata(firstDialog.querySelector("video")!);
+      await user.click(
+        within(firstDialog).getByRole("button", { name: "Save a frame from clip.mp4" }),
+      );
+      expect(within(firstDialog).getByRole("group", { name: "Frame capture" })).toBeInTheDocument();
+
+      await user.keyboard("{ArrowRight}");
+
+      const secondDialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      expect(
+        within(secondDialog).queryByRole("group", { name: "Frame capture" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(secondDialog).queryByRole("button", { name: /save a frame/i }),
+      ).not.toBeInTheDocument();
     });
 
     it("lets Escape leave frame mode without closing the modal", async () => {

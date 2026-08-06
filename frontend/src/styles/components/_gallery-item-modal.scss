@@ -70,8 +70,7 @@ $json-color: #fcd34d;
   }
 
   &__frame-toggle--active {
-    @include btn-surface-active;
-    border-color: var(--accent-border);
+    @include btn-surface-success;
   }
 
   &__delete {
