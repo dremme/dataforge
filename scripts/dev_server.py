@@ -7,6 +7,10 @@ Excludes test-only modules so editing tests does not restart the API and wipe
 in-memory job state. Pass --no-reload to freeze the server: every restart re-runs
 job recovery, which re-spawns worker threads for resumable jobs, so reloading
 while a long job runs is disruptive.
+
+A finite graceful-shutdown timeout is required with reload: the UI keeps an SSE
+connection open on /api/events, and uvicorn's default (wait forever for
+connections to close) hangs the reloader on every file save.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 
@@ -41,6 +46,11 @@ RELOAD_EXCLUDES = [
 # draining changes, so a formatter run or a multi-file save lands as one restart
 # instead of a string of them.
 RELOAD_DELAY = 1.0
+
+# Cap how long a reload (or Ctrl+C) waits for open HTTP connections. SSE and
+# media streams otherwise keep the worker alive forever and the reloader never
+# spawns the next process.
+GRACEFUL_SHUTDOWN_SECONDS = 2
 
 _FALSEY = {"0", "false", "no", "off", ""}
 
@@ -96,6 +106,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def build_uvicorn_kwargs(*, host: str, port: int, reload: bool) -> dict[str, Any]:
+    """Keyword arguments for ``uvicorn.run`` used by this entrypoint.
+
+    Exposed for tests so the reload hang fix (finite graceful shutdown) cannot
+    regress without a failing assertion.
+    """
+    kwargs: dict[str, Any] = {
+        "app": "main:app",
+        "host": host,
+        "port": port,
+        "reload": reload,
+        # Always finite: Ctrl+C with an open SSE stream must not hang either.
+        "timeout_graceful_shutdown": GRACEFUL_SHUTDOWN_SECONDS,
+    }
+    if reload:
+        # uvicorn warns about these when reload is off, so only pass them when on.
+        kwargs["reload_excludes"] = list(RELOAD_EXCLUDES)
+        kwargs["reload_delay"] = RELOAD_DELAY
+    return kwargs
+
+
 if __name__ == "__main__":
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
@@ -115,18 +146,5 @@ if __name__ == "__main__":
         flush=True,
     )
 
-    reload_settings = {}
-    if options.reload:
-        # uvicorn warns about these when reload is off, so only pass them when on.
-        reload_settings = {
-            "reload_excludes": RELOAD_EXCLUDES,
-            "reload_delay": RELOAD_DELAY,
-        }
-
-    uvicorn.run(
-        "main:app",
-        host=options.host,
-        port=options.port,
-        reload=options.reload,
-        **reload_settings,
-    )
+    kwargs = build_uvicorn_kwargs(host=options.host, port=options.port, reload=options.reload)
+    uvicorn.run(**kwargs)

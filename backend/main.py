@@ -34,10 +34,16 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
+        # Bound wait: prune walks the whole cache tree in a thread, and cancel
+        # does not interrupt it. Awaiting forever would pad every reload/exit
+        # after open SSE/media connections have already been cut off.
         for task in (external_jobs, prune):
             task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
+        with suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(
+                asyncio.gather(external_jobs, prune, return_exceptions=True),
+                timeout=1.0,
+            )
 
 
 app = FastAPI(title="DataForge API", lifespan=lifespan)
