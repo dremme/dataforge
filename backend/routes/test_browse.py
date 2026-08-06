@@ -17,6 +17,7 @@ from media_listing import (
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
+    write_gif,
     write_issue_sidecar,
     write_json_caption,
     write_media,
@@ -110,7 +111,9 @@ class BrowseEndpointTests(unittest.TestCase):
             self.assertEqual(item["description"], "A labeled scene.")
             self.assertEqual(item["caption_file_type"], "json")
 
-    def test_lists_video_without_parsing_frame_stats(self) -> None:
+    def test_lists_video_without_reading_its_header(self) -> None:
+        # The listing reports what the directory scan already knows. Nothing shown
+        # for a video needs its container parsed, so nothing parses it.
         with TempMediaFolder() as root:
             write_mp4_video(root, sample_count=120, timescale=30_000, sample_delta=1_000)
 
@@ -118,8 +121,30 @@ class BrowseEndpointTests(unittest.TestCase):
             item = next(video for video in items if video["media_type"] == "video")
 
             self.assertEqual(item["media_type"], "video")
-            self.assertIsNone(item.get("frame_count"))
-            self.assertIsNone(item.get("fps"))
+            self.assertNotIn("fps", item)
+
+    def test_lists_gif_as_its_own_media_type(self) -> None:
+        with TempMediaFolder() as root:
+            write_gif(root, "loop.gif", frames=8)
+
+            items = client.get(f"/api/browse?path={quote(str(root))}").json()["items"]
+            item = next(entry for entry in items if entry["name"] == "loop.gif")
+
+            # Not "video": the frontend would hand it to a <video> element, which
+            # cannot show a GIF at all.
+            self.assertEqual(item["media_type"], "gif")
+
+    def test_lists_gif_without_decoding_its_frames(self) -> None:
+        # A listing builds every item in a thread pool, so walking each GIF's
+        # frames here would turn opening a folder into hundreds of decodes.
+        with TempMediaFolder() as root:
+            write_gif(root, "loop.gif", frames=8)
+
+            with patch("gif_frames.gif_frame_count") as count:
+                items = client.get(f"/api/browse?path={quote(str(root))}").json()["items"]
+
+            count.assert_not_called()
+            self.assertTrue(any(entry["name"] == "loop.gif" for entry in items))
 
     def test_skips_non_media_files(self) -> None:
         with TempMediaFolder() as root:

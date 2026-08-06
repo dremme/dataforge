@@ -1,5 +1,6 @@
 import { postJson, requestJson } from "@/shared/api/http";
 import type {
+  GifInfoResponse,
   MediaTransferPreviewResponse,
   MediaTransferRequest,
   MediaTransferResponse,
@@ -124,6 +125,28 @@ export async function transferSelectedMedia(
     skipped: response.skipped,
     failed: response.failed.map((entry) => ({ path: entry.path, error: entry.detail })),
   };
+}
+
+export async function fetchGifInfo(mediaPath: string): Promise<GifInfoResponse> {
+  const params = new URLSearchParams({ path: mediaPath });
+  return requestJson<GifInfoResponse>(`/api/gif-info?${params}`);
+}
+
+/**
+ * One decoded GIF frame as a JPEG.
+ *
+ * The same URL backs the scrub preview and the save, so a saved frame is the very
+ * bytes the browser painted rather than a second, independent decode.
+ */
+export function gifFrameUrl(mediaPath: string, frame: number, cacheKey?: string): string {
+  const params = new URLSearchParams({
+    path: mediaPath,
+    frame: String(frame),
+  });
+  if (cacheKey) {
+    params.set("v", cacheKey);
+  }
+  return `/api/gif-frame?${params}`;
 }
 
 export function thumbnailUrl(mediaPath: string, width = 400, cacheKey?: string): string {

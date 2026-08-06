@@ -6,8 +6,25 @@ export const VACATION_PATH = `${HOME_PATH}\\Vacation`;
 
 export const EMPTY_PATH = `${HOME_PATH}\\Empty`;
 
-function imageItem(name: string, folder: string, options: Partial<GalleryItem> = {}): GalleryItem {
+const MEDIA_TYPE_BY_EXTENSION: Record<string, GalleryItem["media_type"]> = {
+  ".mp4": "video",
+  ".gif": "gif",
+};
+
+/**
+ * A gallery item typed from its own extension.
+ *
+ * Mapped rather than tested against one suffix so a fixture named `loop.gif` can
+ * never quietly come back as an image and let a GIF test pass on the wrong type.
+ */
+export function mediaItem(
+  name: string,
+  folder: string,
+  options: Partial<GalleryItem> = {},
+): GalleryItem {
   const path = `${folder}\\${name}`;
+  const dot = name.lastIndexOf(".");
+  const extension = dot > 0 ? name.slice(dot).toLowerCase() : "";
   return {
     name,
     path,
@@ -18,7 +35,7 @@ function imageItem(name: string, folder: string, options: Partial<GalleryItem> =
     has_issue_file: false,
     caption_status: "none",
     caption_file_type: null,
-    media_type: name.endsWith(".mp4") ? "video" : "image",
+    media_type: MEDIA_TYPE_BY_EXTENSION[extension] ?? "image",
     width: 1920,
     height: 1080,
     ...options,
@@ -66,15 +83,15 @@ export const homeBrowse: BrowseResponse = {
     },
   ],
   items: [
-    imageItem("sunset.png", HOME_PATH, {
+    mediaItem("sunset.png", HOME_PATH, {
       description: "Golden hour over the lake",
       has_description: true,
       has_caption_file: true,
       caption_status: "text",
       caption_file_type: "txt",
     }),
-    imageItem("beach.jpg", HOME_PATH),
-    imageItem("waves.mp4", HOME_PATH),
+    mediaItem("beach.jpg", HOME_PATH),
+    mediaItem("waves.mp4", HOME_PATH),
   ],
   sysprompt: syspromptItem(HOME_PATH, {
     description: "Caption every image with rich detail.",
@@ -98,7 +115,7 @@ export const vacationBrowse: BrowseResponse = {
   ],
   subfolders: [],
   items: [
-    imageItem("lake.png", VACATION_PATH, {
+    mediaItem("lake.png", VACATION_PATH, {
       description: "Mountain lake",
       has_description: true,
       has_caption_file: true,

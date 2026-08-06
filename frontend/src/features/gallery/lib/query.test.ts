@@ -45,24 +45,43 @@ function item(
 }
 
 describe("applyMediaTypeFilter", () => {
-  const items = [item("a.png", "image"), item("b.mp4", "video"), item("c.jpg", "image")];
+  const items = [
+    item("a.png", "image"),
+    item("b.mp4", "video"),
+    item("c.jpg", "image"),
+    item("d.gif", "gif"),
+  ];
 
   it.each<[MediaTypeFilter, string[]]>([
-    ["all", ["a.png", "b.mp4", "c.jpg"]],
+    ["all", ["a.png", "b.mp4", "c.jpg", "d.gif"]],
     ["image", ["a.png", "c.jpg"]],
-    ["video", ["b.mp4"]],
+    // GIFs group with video: both carry a frame sequence, which is the distinction
+    // the filter is really offering.
+    ["video", ["b.mp4", "d.gif"]],
   ])("filters to %s", (filter, expectedNames) => {
     expect(applyMediaTypeFilter(items, filter).map((entry) => entry.name)).toEqual(expectedNames);
   });
 });
 
 describe("countMediaType", () => {
-  const items = [item("a.png", "image"), item("b.mp4", "video"), item("c.jpg", "image")];
+  const items = [
+    item("a.png", "image"),
+    item("b.mp4", "video"),
+    item("c.jpg", "image"),
+    item("d.gif", "gif"),
+  ];
 
-  it("counts images and videos", () => {
+  it("counts images and motion", () => {
     expect(countMediaType(items, "image")).toBe(2);
-    expect(countMediaType(items, "video")).toBe(1);
+    expect(countMediaType(items, "video")).toBe(2);
   });
+
+  it.each<MediaTypeFilter>(["all", "image", "video"])(
+    "agrees with the grid it labels for %s",
+    (filter) => {
+      expect(countMediaType(items, filter)).toBe(applyMediaTypeFilter(items, filter).length);
+    },
+  );
 });
 
 describe("processGalleryItems", () => {

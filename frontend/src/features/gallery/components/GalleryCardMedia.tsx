@@ -4,7 +4,7 @@ import {
   galleryItemThumbnailPreviewUrl,
 } from "@/features/gallery/lib/thumbnail";
 import { useGalleryCardMedia } from "@/features/gallery/hooks/useGalleryCardMedia";
-import { iconImage, iconVideo } from "@/shared/icons";
+import { iconFileImage, iconImage, iconVideo } from "@/shared/icons";
 import type { GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
@@ -14,7 +14,11 @@ interface GalleryCardMediaProps {
 }
 
 export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
+  // Two different questions, so two flags. Only a video cannot be shown by an
+  // `<img>` at all, while both it and a GIF want the motion placeholder.
   const itemIsVideo = item.media_type === "video";
+  const itemIsGif = item.media_type === "gif";
+  const itemIsMotion = itemIsVideo || itemIsGif;
   const [useFullMediaFallback, setUseFullMediaFallback] = useState(false);
   const [thumbnailUnavailable, setThumbnailUnavailable] = useState(false);
 
@@ -44,6 +48,8 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
     );
   }
 
+  // A GIF takes the image path here: unlike an MP4, the full file does render in
+  // an `<img>`, so a missed thumbnail can still fall back to the real thing.
   const handlePreviewError = () => {
     if (!useFullMediaFallback && !itemIsVideo) {
       setUseFullMediaFallback(true);
@@ -62,7 +68,7 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
       {(!showImage || !ready) && (
         <div className="card__media-placeholder">
           <Icon
-            icon={itemIsVideo ? iconVideo : iconImage}
+            icon={itemIsGif ? iconFileImage : itemIsVideo ? iconVideo : iconImage}
             className="card__media-placeholder-icon"
           />
         </div>
@@ -73,8 +79,8 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
           className={classNames(
             "card__img",
             ready && "card__img--ready",
-            itemIsVideo && "card__video",
-            ready && itemIsVideo && "card__video--ready",
+            itemIsMotion && "card__video",
+            ready && itemIsMotion && "card__video--ready",
           )}
           src={srcReady ? previewUrl : undefined}
           alt=""

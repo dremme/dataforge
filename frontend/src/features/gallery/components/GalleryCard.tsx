@@ -4,12 +4,13 @@ import {
   iconBraces,
   iconCheck,
   iconExpand,
+  iconFileImage,
   iconMessageDashed,
   iconPlay,
   iconTriangleAlert,
   iconVideo,
 } from "@/shared/icons";
-import { isVideo } from "@/features/gallery/lib/itemKind";
+import { isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { classNames } from "@/shared/lib/classNames";
@@ -38,7 +39,10 @@ export const GalleryCard = memo(function GalleryCard({
 }: GalleryCardProps) {
   const captionDisplay = getCardCaptionDisplay(item);
   const statusIcon = captionDisplay?.variant === "warning" ? iconTriangleAlert : iconMessageDashed;
+  // The overlay asks whether the card opens a player, which a GIF does not; the
+  // card modifier and badge ask what the file is.
   const itemIsVideo = isVideo(item);
+  const itemIsGif = isGif(item);
 
   const handleClick = () => {
     if (selectionMode && onToggleSelect) {
@@ -54,7 +58,7 @@ export const GalleryCard = memo(function GalleryCard({
       className={classNames(
         "card",
         getCardModifierClass(item),
-        itemIsVideo && "card--video",
+        isMotion(item) && "card--video",
         selected && "card--selected",
       )}
       onClick={handleClick}
@@ -81,6 +85,7 @@ export const GalleryCard = memo(function GalleryCard({
           </span>
         </span>
         {itemIsVideo && <CardBadge icon={iconVideo} label="Video" variant="video" />}
+        {itemIsGif && <CardBadge icon={iconFileImage} label="GIF" variant="gif" />}
         {item.has_issue_file && (
           <CardBadge icon={iconTriangleAlert} label="Issue" variant="issue" />
         )}

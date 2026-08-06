@@ -77,6 +77,23 @@ describe("GalleryItemModal", () => {
     transferSelectedMediaMock.mockReset();
   });
 
+  it("leaves frame timing out of the meta strip", async () => {
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("clip.mp4", { media_type: "video" })]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+    expect(within(dialog).queryByText("fps")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Frames")).not.toBeInTheDocument();
+  });
+
   it("shows the modified date in the media meta section", async () => {
     renderWithProviders(
       <GalleryItemModal
@@ -803,7 +820,7 @@ describe("GalleryItemModal", () => {
       return dialog;
     }
 
-    it("is offered for videos only", async () => {
+    it("is not offered for a still image", async () => {
       renderWithProviders(
         <GalleryItemModal
           items={[makeItem("sunset.png")]}
@@ -976,6 +993,113 @@ describe("GalleryItemModal", () => {
 
       releaseImport?.();
       await waitFor(() => expect(onCopied).toHaveBeenCalledTimes(1));
+    });
+  });
+
+  describe("GIF viewing and frame capture", () => {
+    // The mock backend answers /api/gif-info with 24 frames.
+    const SAVED_GIF_FRAME_NAME = "loop_f0000.jpg";
+
+    beforeEach(() => {
+      importFilesMock
+        .mockReset()
+        .mockResolvedValue({ copied: [SAVED_GIF_FRAME_NAME], skipped: [], rejected: [] });
+    });
+
+    function renderGifModal(overrides: Partial<Parameters<typeof GalleryItemModal>[0]> = {}) {
+      const props = {
+        items: [makeItem("loop.gif", { media_type: "gif" as const })],
+        index: 0,
+        currentFolder: HOME_PATH,
+        onClose: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onCaptionSaved: vi.fn(),
+        onCopied: vi.fn(),
+        ...overrides,
+      };
+
+      renderWithProviders(<GalleryItemModal {...props} />);
+      return props;
+    }
+
+    it("renders through an img rather than a video element", async () => {
+      renderGifModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      // A GIF handed to a <video> shows nothing at all, so this is the whole reason
+      // "gif" is its own media type instead of folding into "video".
+      expect(dialog.querySelector("video")).toBeNull();
+      expect(within(dialog).getByRole("img", { name: "loop.gif" })).toBeInTheDocument();
+    });
+
+    it("hides the OS image preview the way a video does", async () => {
+      renderGifModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      expect(
+        within(dialog).queryByRole("button", { name: "Open in image preview" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps frame timing out of the meta strip", async () => {
+      renderGifModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      // The frame count is fetched for the capture bar, and shown only there.
+      expect(within(dialog).queryByText("fps")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("Frames")).not.toBeInTheDocument();
+    });
+
+    it("scrubs by frame index and writes an indexed sibling JPG", async () => {
+      const user = userEvent.setup();
+      const { onCopied } = renderGifModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      await user.click(
+        await within(dialog).findByRole("button", { name: "Save a frame from loop.gif" }),
+      );
+
+      const bar = within(dialog).getByRole("group", { name: "Frame capture" });
+      const slider = within(bar).getByRole("slider", { name: "Frame position" });
+      // 24 frames means indices 0..23, and whole-frame steps.
+      expect(slider).toHaveAttribute("max", "23");
+      expect(slider).toHaveAttribute("step", "1");
+
+      await user.click(within(bar).getByRole("button", { name: "Save frame" }));
+
+      await waitFor(() => expect(importFilesMock).toHaveBeenCalledTimes(1));
+      const [destination, files, overwrite] = importFilesMock.mock.calls[0];
+      expect(destination).toBe(HOME_PATH);
+      expect(files[0].name).toBe(SAVED_GIF_FRAME_NAME);
+      expect(overwrite).toBe(true);
+      await waitFor(() => expect(onCopied).toHaveBeenCalledTimes(1));
+    });
+
+    it("never reaches for the video encoder", async () => {
+      const user = userEvent.setup();
+      renderGifModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      await user.click(
+        await within(dialog).findByRole("button", { name: "Save a frame from loop.gif" }),
+      );
+      await user.click(within(dialog).getByRole("button", { name: "Save frame" }));
+
+      await waitFor(() => expect(importFilesMock).toHaveBeenCalledTimes(1));
+      // The GIF path fetches the decoded frame from the server; the canvas route
+      // belongs to video alone.
+      expect(seekVideoToMock).not.toHaveBeenCalled();
+      expect(encodeVideoFrameMock).not.toHaveBeenCalled();
+    });
+
+    it("stays hidden without a destination folder", async () => {
+      renderGifModal({ currentFolder: undefined });
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      expect(
+        within(dialog).queryByRole("button", { name: /save a frame/i }),
+      ).not.toBeInTheDocument();
     });
   });
 });

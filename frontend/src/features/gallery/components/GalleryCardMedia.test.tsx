@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HOME_PATH } from "@/test/fixtures";
 import {
@@ -283,5 +283,75 @@ describe("GalleryCardMedia", () => {
     expect(preview.loads.length).toBe(2);
 
     preview.restore();
+  });
+
+  describe("motion media", () => {
+    const gifItem: GalleryItem = {
+      ...imageItem,
+      name: "loop.gif",
+      path: `${HOME_PATH}\\loop.gif`,
+      media_type: "gif",
+    };
+
+    const videoItem: GalleryItem = {
+      ...imageItem,
+      name: "clip.mp4",
+      path: `${HOME_PATH}\\clip.mp4`,
+      media_type: "video",
+    };
+
+    it("falls back to the full GIF when its thumbnail fails", async () => {
+      const preview = installPendingPreviewImages();
+      vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+      const { container } = render(
+        <main>
+          <GalleryCardMedia item={gifItem} />
+        </main>,
+      );
+
+      await waitFor(() => expect(preview.loads.length).toBe(1));
+      act(() => preview.loads[0].onerror?.());
+
+      const img = await waitFor(() => {
+        const found = container.querySelector("img[src]");
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      // The element's own load is what decides the fallback, and jsdom never fails
+      // it on its own.
+      fireEvent.error(img);
+
+      // Unlike an MP4, a GIF does render in an `<img>`, so the miss falls back to
+      // the real file rather than surrendering to a placeholder icon.
+      await waitFor(() => {
+        expect(container.querySelector('img[src*="/api/media"]')).not.toBeNull();
+      });
+
+      preview.restore();
+    });
+
+    it("shows a placeholder instead of the full file when a video thumbnail fails", async () => {
+      const preview = installPendingPreviewImages();
+      vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+      const { container } = render(
+        <main>
+          <GalleryCardMedia item={videoItem} />
+        </main>,
+      );
+
+      await waitFor(() => expect(preview.loads.length).toBe(1));
+      act(() => preview.loads[0].onerror?.());
+
+      // An MP4 in an `<img>` would never decode, so there is nothing to fall back to.
+      await waitFor(() => {
+        expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
+      });
+      expect(container.querySelector('img[src*="/api/media"]')).toBeNull();
+
+      preview.restore();
+    });
   });
 });

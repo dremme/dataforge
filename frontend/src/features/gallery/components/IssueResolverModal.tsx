@@ -7,7 +7,7 @@ import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStat
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
-import { isVideo } from "@/features/gallery/lib/itemKind";
+import { isMotion, isVideo, mediaLabelFor } from "@/features/gallery/lib/itemKind";
 import {
   collectAdjacentModalMediaTargets,
   schedulePrefetchModalMedia,
@@ -154,7 +154,7 @@ export function IssueResolverModal({
   if (!item) return null;
 
   const itemIsVideo = isVideo(item);
-  const mediaLabel = itemIsVideo ? "video" : "image";
+  const mediaLabel = mediaLabelFor(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
   const resolution = getResolution(item);
   const placeholder =
@@ -178,7 +178,7 @@ export function IssueResolverModal({
           </span>
         </div>
         <div className="issue-resolver-modal__header-actions">
-          {!itemIsVideo && (
+          {!isMotion(item) && (
             <Tooltip content={viewerError ?? "Open in image preview"}>
               <button
                 type="button"

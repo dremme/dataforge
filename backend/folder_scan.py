@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from constants import (
+    GIF_EXTENSION,
     IMAGE_EXTENSIONS,
     SKIP_DIR_NAMES,
     SYSPROMPT_FILENAME,
@@ -60,6 +61,8 @@ class FolderScan:
 
 def get_media_type(path: Path) -> str | None:
     suffix = path.suffix.lower()
+    if suffix == GIF_EXTENSION:
+        return "gif"
     if suffix in IMAGE_EXTENSIONS:
         return "image"
     if suffix in VIDEO_EXTENSIONS:

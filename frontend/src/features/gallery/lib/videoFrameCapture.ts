@@ -1,12 +1,7 @@
-import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
-import type { NotificationVariant } from "@/shared/notifications/notifications";
-import type { FileImportResponse } from "@/shared/types";
+import { frameTargetStem } from "@/features/gallery/lib/frameCapture";
 
 /** Nudge distance for the step buttons and the slider's arrow-key increment. */
 export const FRAME_STEP_SECONDS = 1 / 30;
-
-/** Canvas JPEG quality. High enough that the frame stays usable as training data. */
-export const JPEG_QUALITY = 0.95;
 
 /** Seeking exactly to `duration` lands past the last frame and can leave `seeked` unfired. */
 export const END_EPSILON = 0.001;
@@ -30,15 +25,9 @@ export function frameTimeStamp(seconds: number): string {
  * the browser reports a video's frame rate, and a guessed one would mislabel every
  * file. Two saves inside the same frame still collapse onto one name, so re-saving
  * a frame replaces it instead of littering the folder.
- *
- * The extension cut is guarded on `dot > 0` rather than `!== -1` so a dotfile-shaped
- * name (`.mp4`) keeps its name instead of losing it to the stamp.
  */
 export function videoFrameTargetName(path: string, seconds: number): string {
-  const base = pathBaseName(path);
-  const dot = base.lastIndexOf(".");
-  const stem = dot > 0 ? base.slice(0, dot) : base;
-  return `${stem}_${frameTimeStamp(seconds)}.jpg`;
+  return `${frameTargetStem(path)}_${frameTimeStamp(seconds)}.jpg`;
 }
 
 /**
@@ -93,36 +82,4 @@ export function formatFrameTime(seconds: number): string {
 
   const head = hours > 0 ? `${hours}:${padded(mins, 2)}` : `${mins}`;
   return `${head}:${padded(secs, 2)}.${padded(ms, 3)}`;
-}
-
-/**
- * Turns the import response into the toast the user sees.
- *
- * Classified on array emptiness rather than name matching — one file goes up, and
- * whether the backend echoes names or paths is not worth depending on. `copied` is
- * checked first so an overwrite that also reports a skip still reads as success.
- */
-export function frameSaveOutcome(
-  result: FileImportResponse,
-  targetName: string,
-): { variant: NotificationVariant; message: string } {
-  if (result.copied.length > 0) {
-    return { variant: "success", message: `Saved frame as ${targetName}.` };
-  }
-  if (result.rejected.length > 0) {
-    return {
-      variant: "danger",
-      message: `Could not save ${targetName}: the server rejected that file.`,
-    };
-  }
-  if (result.skipped.length > 0) {
-    return {
-      variant: "warning",
-      message: `${targetName} was not saved - the server skipped it.`,
-    };
-  }
-  return {
-    variant: "danger",
-    message: `Could not save ${targetName}: the server saved nothing.`,
-  };
 }

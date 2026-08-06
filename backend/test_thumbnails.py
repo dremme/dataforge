@@ -14,7 +14,13 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from testing_fixtures import TempMediaFolder, make_png_bytes, write_media, write_mp4_video
+from testing_fixtures import (
+    TempMediaFolder,
+    make_png_bytes,
+    write_gif,
+    write_media,
+    write_mp4_video,
+)
 from thumbnails import (
     _video_thumbnail_commands,
     get_or_create_thumbnail,
@@ -102,6 +108,17 @@ class ThumbnailGenerationTests(unittest.TestCase):
             thumbnail = get_or_create_thumbnail(media, 180)
 
             self.assertEqual(thumbnail, legacy_jpg)
+
+    def test_gif_thumbnail_uses_pillow_rather_than_ffmpeg(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif", frames=8)
+
+            # If a GIF ever reached the video branch this would raise instead.
+            with patch("thumbnails._ffmpeg_path", return_value=None):
+                thumbnail = get_or_create_thumbnail(media, 200)
+
+            self.assertEqual(thumbnail.suffix, ".webp")
+            self.assertGreater(thumbnail.stat().st_size, 0)
 
     def test_video_thumbnail_targets_first_frame(self) -> None:
         commands = _video_thumbnail_commands(

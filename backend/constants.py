@@ -1,6 +1,15 @@
+# Mirrored by hand in `frontend/src/features/browse/constants/importExtensions.ts`.
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+GIF_EXTENSION = ".gif"
 VIDEO_EXTENSIONS = {".mp4"}
-MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+
+# GIF straddles two axes, so neither set above is widened to hold it. It decodes
+# like a still and renders in an `<img>`, but it carries a frame sequence and so
+# trains like a video. Reach for the axis a call site actually means.
+PILLOW_EXTENSIONS = IMAGE_EXTENSIONS | {GIF_EXTENSION}
+MOTION_EXTENSIONS = VIDEO_EXTENSIONS | {GIF_EXTENSION}
+
+MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
 # Caption sidecar suffixes in precedence order: a .json caption always wins over
 # a .txt one, so anything resolving a media file's caption must walk this in order.

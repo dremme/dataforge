@@ -1,4 +1,4 @@
-import { JPEG_QUALITY } from "@/features/gallery/lib/videoFrameCapture";
+import { JPEG_QUALITY } from "@/features/gallery/lib/frameCapture";
 
 /** A seek that never reports back must fail loudly rather than hang the save button. */
 const SEEK_TIMEOUT_MS = 2500;

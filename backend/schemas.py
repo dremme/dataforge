@@ -7,8 +7,11 @@ from pydantic import BaseModel, Field
 CaptionStatus = Literal["none", "empty", "text"]
 CaptionFileType = Literal["json", "txt"]
 
-# Wider than ``auto_caption.MediaKind``: a sysprompt entry is listed as media too.
-MediaType = Literal["image", "video", "sysprompt"]
+# How an item is rendered, which is not how it is captioned: a GIF is its own type
+# here because it needs an ``<img>``, while ``auto_caption.MediaKind`` calls it a
+# video because it trains like one. Wider than ``MediaKind`` either way, since a
+# sysprompt entry is listed as media too.
+MediaType = Literal["image", "video", "gif", "sysprompt"]
 
 
 class Breadcrumb(BaseModel):
@@ -56,8 +59,6 @@ class GalleryItem(BaseModel):
     media_type: MediaType
     width: int | None = None
     height: int | None = None
-    frame_count: int | None = None
-    fps: float | None = None
     size: int | None = None
     modified_at: str | None = None
 
@@ -362,6 +363,16 @@ class MediaOpenResponse(BaseModel):
 
 class PngWorkflowResponse(BaseModel):
     has_workflow: bool
+
+
+class GifInfoResponse(BaseModel):
+    """How many frames one GIF holds, counted on demand.
+
+    Kept off the listing because counting means walking the whole animation, and
+    only the open frame-capture bar needs it.
+    """
+
+    frame_count: int
 
 
 class FileImportPreviewRequest(BaseModel):

@@ -18,12 +18,6 @@ export function formatModifiedAt(isoDate: string): string | null {
   });
 }
 
-export function formatFps(fps: number): string {
-  if (fps >= 100) return fps.toFixed(1);
-  if (Math.abs(fps - Math.round(fps)) < 0.01) return String(Math.round(fps));
-  return fps.toFixed(2);
-}
-
 export function countWords(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;

@@ -123,6 +123,44 @@ def write_media(
     return media
 
 
+def write_gif(
+    root: Path,
+    name: str = "loop.gif",
+    *,
+    frames: int = 12,
+    width: int = 64,
+    height: int = 48,
+    duration_ms: int = 100,
+) -> Path:
+    """An animated GIF whose frames are all visibly different.
+
+    The moving block is not decoration: Pillow's GIF encoder merges frames that
+    render identically and folds their delays together, so a fixture drawn from
+    one repeated image silently writes a one-frame GIF.
+    """
+    from PIL import Image, ImageDraw
+
+    images = []
+    for index in range(frames):
+        frame = Image.new("RGB", (width, height), (10, 10, 10))
+        offset = (index * 5) % max(1, width - 16)
+        ImageDraw.Draw(frame).rectangle(
+            [offset, 4, offset + 15, height - 5],
+            fill=(240 - index * 4, 30 + index * 6, 90),
+        )
+        images.append(frame.convert("P", palette=Image.Palette.ADAPTIVE))
+
+    media = root / name
+    images[0].save(
+        media,
+        save_all=True,
+        append_images=images[1:],
+        duration=duration_ms,
+        loop=0,
+    )
+    return media
+
+
 def _mp4_full_box(box_type: str, version: int, payload: bytes) -> bytes:
     body = bytes([version, 0, 0, 0]) + payload
     return struct.pack(">I4s", 8 + len(body), box_type.encode("latin1")) + body
@@ -183,6 +221,8 @@ def make_minimal_mp4_bytes(
     metadata: dict[str, str] | None = None,
     metadata_format: str = "indexed",
 ) -> bytes:
+    """A header-only MP4."""
+
     def make_hdlr(handler_type: str) -> bytes:
         payload = b"\x00" * 4 + handler_type.encode("latin1") + b"\x00" * 12 + b"Handler\x00"
         return _mp4_full_box("hdlr", 0, payload)
@@ -203,7 +243,12 @@ def make_minimal_mp4_bytes(
 
     stbl = _mp4_box("stbl", make_stsz(sample_count) + make_stts([(sample_count, sample_delta)]))
     minf = _mp4_box("minf", stbl)
-    mdia = make_hdlr("vide") + make_mdhd(timescale, sample_count * sample_delta) + minf
+    # Wrapped in a real `mdia` box rather than concatenated loose into `trak`:
+    # that is where the spec puts these, and it is the nesting a reader meets.
+    mdia = _mp4_box(
+        "mdia",
+        make_hdlr("vide") + make_mdhd(timescale, sample_count * sample_delta) + minf,
+    )
     trak = _mp4_box("trak", mdia)
     moov_children = [trak]
     if metadata:

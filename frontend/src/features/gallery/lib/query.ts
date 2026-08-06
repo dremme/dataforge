@@ -1,4 +1,5 @@
 import { isResolvableIssueItem } from "./issues";
+import { isMotion } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem, Subfolder } from "@/shared/types";
 
 export type SortOption =
@@ -13,6 +14,7 @@ export type SortOption =
 
 export type CaptionFilter = "all" | "captioned" | "issue" | "uncaptioned";
 
+/** `video` means "has motion", so it covers GIFs as well as MP4s. */
 export type MediaTypeFilter = "all" | "image" | "video";
 
 const CAPTION_FILTER_VALUES = new Set<CaptionFilter>(["all", "captioned", "issue", "uncaptioned"]);
@@ -160,10 +162,22 @@ export function applyCaptionFilter(items: GalleryItem[], filter: CaptionFilter):
   return items;
 }
 
+/**
+ * The one place a media-type filter is decided.
+ *
+ * `video` covers GIFs too: they carry a frame sequence and group with video for
+ * training. Filtering and counting share this so a count can never disagree with
+ * the grid it labels.
+ */
+export function matchesMediaTypeFilter(item: GalleryItem, filter: MediaTypeFilter): boolean {
+  if (filter === "image") return item.media_type === "image";
+  if (filter === "video") return isMotion(item);
+  return true;
+}
+
 export function applyMediaTypeFilter(items: GalleryItem[], filter: MediaTypeFilter): GalleryItem[] {
-  if (filter === "image") return items.filter((item) => item.media_type === "image");
-  if (filter === "video") return items.filter((item) => item.media_type === "video");
-  return items;
+  if (filter === "all") return items;
+  return items.filter((item) => matchesMediaTypeFilter(item, filter));
 }
 
 export function processGalleryItems(
@@ -202,6 +216,6 @@ export function countIssues(items: GalleryItem[]): number {
   return countBy(items, isResolvableIssueItem);
 }
 
-export function countMediaType(items: GalleryItem[], mediaType: "image" | "video"): number {
-  return countBy(items, (item) => item.media_type === mediaType);
+export function countMediaType(items: GalleryItem[], filter: MediaTypeFilter): number {
+  return countBy(items, (item) => matchesMediaTypeFilter(item, filter));
 }

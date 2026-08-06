@@ -22,6 +22,7 @@ from comfy_metadata import _parse_isobmff_metadata, _parse_png_text_chunks, medi
 from testing_fixtures import (
     TempMediaFolder,
     make_minimal_mp4_bytes,
+    write_gif,
     write_media,
     write_mp4_video,
 )
@@ -34,6 +35,9 @@ class StripMetadataFileTests(unittest.TestCase):
             write_mp4_video(root, "clip.mp4")
             (root / "notes.txt").write_text("ignore", encoding="utf-8")
             (root / "photo.jpg").write_bytes(b"not supported")
+            # Re-encoding an animated GIF through Pillow risks palette and timing
+            # loss, so it stays out until that is handled deliberately.
+            write_gif(root, "loop.gif")
 
             files = list_strip_metadata_files(root)
 

@@ -27,6 +27,7 @@ export {
   Dot as iconDot,
   Expand as iconExpand,
   FileDown as iconFileDown,
+  FileImage as iconFileImage,
   FilePen as iconFilePen,
   FilePlus as iconFilePlus,
   Filter as iconFilter,

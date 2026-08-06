@@ -1,4 +1,4 @@
-import { mediaUrl, thumbnailUrl } from "@/features/gallery/api/media";
+import { gifFrameUrl, mediaUrl, thumbnailUrl } from "@/features/gallery/api/media";
 import type { GalleryItem } from "@/shared/types";
 
 /** Matches backend DEFAULT_THUMBNAIL_WIDTH — sized for ~280px cards at 1.4x DPR. */
@@ -39,4 +39,15 @@ export function galleryItemThumbnailPreviewUrl(item: MediaSource): string {
 /** Full-size media URL, versioned so an in-place edit is never served from cache. */
 export function galleryItemMediaUrl(item: MediaSource): string {
   return mediaUrl(item.path, mediaCacheKey(item.modified_at, item.size));
+}
+
+/**
+ * One decoded GIF frame, versioned like the media URL above.
+ *
+ * The version matters more here than elsewhere: a versioned frame URL is cached
+ * immutably, which is what lets the save re-read the exact bytes the scrub painted
+ * instead of asking the server to decode the frame a second time.
+ */
+export function galleryItemGifFrameUrl(item: MediaSource, frame: number): string {
+  return gifFrameUrl(item.path, frame, mediaCacheKey(item.modified_at, item.size));
 }

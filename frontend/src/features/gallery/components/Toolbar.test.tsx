@@ -106,7 +106,7 @@ describe("Toolbar", () => {
     const menu = screen.getByRole("menu", { name: "Filters" });
     expect(within(menu).getByRole("group", { name: "Media type" })).toBeInTheDocument();
     expect(within(menu).getByRole("group", { name: "Caption status" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitemradio", { name: "Videos (1)" })).toBeChecked();
+    expect(within(menu).getByRole("menuitemradio", { name: "Videos and GIFs (1)" })).toBeChecked();
 
     await user.click(within(menu).getByRole("menuitemradio", { name: "Images (2)" }));
     expect(defaultProps.onMediaTypeFilterChange).toHaveBeenCalledWith("image");

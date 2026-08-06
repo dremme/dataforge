@@ -1,7 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 
-type CardBadgeVariant = "video" | "json" | "issue";
+type CardBadgeVariant = "video" | "gif" | "json" | "issue";
 
 interface CardBadgeProps {
   icon: AppIcon;

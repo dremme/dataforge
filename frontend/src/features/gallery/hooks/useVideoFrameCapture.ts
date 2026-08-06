@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { importFiles } from "@/features/browse/api/files";
+import type { FrameCapture } from "@/features/gallery/lib/frameCapture";
+import { JPEG_QUALITY, frameSaveOutcome } from "@/features/gallery/lib/frameCapture";
 import {
-  JPEG_QUALITY,
   clampFrameTime,
-  frameSaveOutcome,
   hasUsableDuration,
   snapFrameTime,
   stepFrameTime,
@@ -22,24 +22,16 @@ export interface UseVideoFrameCaptureOptions {
   onSaved?: () => void | Promise<void>;
 }
 
-export interface VideoFrameCapture {
+export interface VideoFrameCapture extends FrameCapture {
   videoRef: RefObject<HTMLVideoElement | null>;
-  frameMode: boolean;
-  /** Metadata has landed and the duration can drive the slider. */
-  ready: boolean;
   duration: number;
   /** Controlled value of the range input. */
   sliderTime: number;
   /** The presented frame's time where known, otherwise `sliderTime`. Drives the readout. */
   displayTime: number;
-  saving: boolean;
-  toggleFrameMode: () => void;
-  exitFrameMode: () => void;
   setSliderTime: (time: number) => void;
-  stepFrame: (direction: -1 | 1) => void;
   /** Wire to the video's `onLoadedMetadata` and `onDurationChange` alike. */
   handleLoadedMetadata: (video: HTMLVideoElement) => void;
-  saveFrame: () => void;
 }
 
 /**

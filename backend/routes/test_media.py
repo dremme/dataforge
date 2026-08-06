@@ -8,8 +8,15 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
+from gif_frames import clear_gif_caches_for_tests
 from routes._test_client import client
-from testing_fixtures import TempMediaFolder, write_media, write_mp4_video, write_txt_caption
+from testing_fixtures import (
+    TempMediaFolder,
+    write_gif,
+    write_media,
+    write_mp4_video,
+    write_txt_caption,
+)
 from thumbnails import get_thumbnail_cache_dir
 
 
@@ -359,6 +366,131 @@ class ThumbnailEndpointTests(unittest.TestCase):
 
     def test_uses_isolated_thumbnail_cache_directory(self) -> None:
         self.assertEqual(get_thumbnail_cache_dir(), Path(self._cache_dir.name))
+
+    def test_renders_a_gif_poster_without_ffmpeg(self) -> None:
+        # A GIF decodes in Pillow, so it must never reach the video branch.
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=8)
+
+            with patch("thumbnails._ffmpeg_path", return_value=None):
+                response = client.get(f"/api/thumbnail?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-type"], "image/webp")
+
+
+class GifInfoEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_gif_caches_for_tests()
+
+    def test_reports_the_frame_count(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=24)
+
+            response = client.get(f"/api/gif-info?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {"frame_count": 24})
+
+    def test_rejects_media_that_is_not_a_gif(self) -> None:
+        with TempMediaFolder() as root:
+            for media in (write_media(root, "sunset.png"), write_mp4_video(root)):
+                response = client.get(f"/api/gif-info?path={quote(str(media))}")
+
+                self.assertEqual(response.status_code, 400)
+
+    def test_returns_404_for_missing_media(self) -> None:
+        with TempMediaFolder() as root:
+            response = client.get(f"/api/gif-info?path={quote(str(root / 'missing.gif'))}")
+
+            self.assertEqual(response.status_code, 404)
+
+
+class GifFrameEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_gif_caches_for_tests()
+
+    def test_serves_a_frame_as_jpeg(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=24)
+
+            response = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=7")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-type"], "image/jpeg")
+            self.assertTrue(response.content.startswith(b"\xff\xd8"))
+
+    def test_defaults_to_the_first_frame(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=6)
+
+            default = client.get(f"/api/gif-frame?path={quote(str(media))}")
+            explicit = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=0")
+
+            self.assertEqual(default.status_code, 200)
+            self.assertEqual(default.content, explicit.content)
+
+    def test_serves_different_bytes_for_different_frames(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=12)
+
+            first = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=0")
+            last = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=11")
+
+            self.assertNotEqual(first.content, last.content)
+
+    def test_returns_404_for_a_frame_past_the_end(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=5)
+
+            response = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=5")
+
+            self.assertEqual(response.status_code, 404)
+
+    def test_rejects_a_negative_frame_index(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=5)
+
+            response = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=-1")
+
+            self.assertEqual(response.status_code, 422)
+
+    def test_rejects_media_that_is_not_a_gif(self) -> None:
+        with TempMediaFolder() as root:
+            for media in (write_media(root, "sunset.png"), write_mp4_video(root)):
+                response = client.get(f"/api/gif-frame?path={quote(str(media))}")
+
+                self.assertEqual(response.status_code, 400)
+
+    def test_returns_404_for_missing_media(self) -> None:
+        with TempMediaFolder() as root:
+            response = client.get(f"/api/gif-frame?path={quote(str(root / 'missing.gif'))}")
+
+            self.assertEqual(response.status_code, 404)
+
+    def test_answers_204_for_optional_requests_that_cannot_be_served(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=4)
+
+            missing = client.get(
+                f"/api/gif-frame?path={quote(str(root / 'missing.gif'))}&optional=1"
+            )
+            past_end = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=9&optional=1")
+
+            self.assertEqual(missing.status_code, 204)
+            self.assertEqual(past_end.status_code, 204)
+
+    def test_caches_hard_only_when_versioned(self) -> None:
+        # The save re-reads the URL the preview painted, so a versioned frame has
+        # to be a cache hit rather than a second decode.
+        with TempMediaFolder() as root:
+            media = write_gif(root, frames=4)
+
+            versioned = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=1&v=abc")
+            plain = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=1")
+
+            self.assertIn("immutable", versioned.headers["cache-control"])
+            self.assertIn("no-cache", plain.headers["cache-control"])
 
 
 if __name__ == "__main__":

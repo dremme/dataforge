@@ -23,6 +23,7 @@ class FileImportPreviewEndpointTests(unittest.TestCase):
                     "filenames": [
                         "existing.png",
                         "new.jpg",
+                        "loop.gif",
                         "notes.md",
                         SYSPROMPT_FILENAME,
                         "caption.txt",
@@ -37,11 +38,14 @@ class FileImportPreviewEndpointTests(unittest.TestCase):
                 [
                     "existing.png",
                     "new.jpg",
+                    "loop.gif",
                     SYSPROMPT_FILENAME,
                     "caption.txt",
                 ],
             )
-            self.assertEqual(payload["new_files"], ["new.jpg", SYSPROMPT_FILENAME, "caption.txt"])
+            self.assertEqual(
+                payload["new_files"], ["new.jpg", "loop.gif", SYSPROMPT_FILENAME, "caption.txt"]
+            )
             self.assertEqual(payload["conflicts"], ["existing.png"])
             self.assertEqual(payload["rejected"], ["notes.md"])
 

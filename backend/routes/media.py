@@ -2,15 +2,24 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 
 from filesystem import MediaPreviewError, open_file_in_default_viewer
+from gif_frames import (
+    GifFrameError,
+    GifFrameUnavailableError,
+    extract_gif_frame,
+    gif_frame_count,
+)
 from media_delete import delete_media_with_sidecars
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
     resolve_folder,
+    resolve_gif_file,
     resolve_image_file,
     resolve_media_file,
+    resolve_optional_gif_file,
     resolve_optional_media_file,
 )
 from schemas import (
+    GifInfoResponse,
     MediaDeleteResponse,
     MediaOpenResponse,
     MediaTransferPreviewRequest,
@@ -161,6 +170,61 @@ def copy_media(
     body: MediaTransferRequest = ...,
 ) -> MediaTransferResponse:
     return _transfer(destination, body.paths, mode="copy", overwrite=overwrite)
+
+
+@router.get("/gif-info", response_model=GifInfoResponse)
+def serve_gif_info(
+    path: str = Query(..., description="Absolute path to a GIF file"),
+) -> GifInfoResponse:
+    file_path = resolve_gif_file(path)
+
+    frame_count = gif_frame_count(file_path)
+    if frame_count is None:
+        raise HTTPException(status_code=400, detail="Failed to read GIF")
+
+    return GifInfoResponse(frame_count=frame_count)
+
+
+@router.get("/gif-frame")
+def serve_gif_frame(
+    path: str = Query(..., description="Absolute path to a GIF file"),
+    frame: int = Query(0, ge=0, description="Zero-based frame index"),
+    v: str | None = Query(
+        None,
+        description="Client cache-busting token derived from file metadata",
+    ),
+    optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
+) -> Response:
+    """One GIF frame as a JPEG, which is what the frame-capture viewer previews.
+
+    Deliberately not written to the thumbnail cache: these are full-resolution and
+    live only as long as the scrub, so caching them would evict real thumbnails.
+    The browser holds them instead, which is why a versioned URL is cached hard.
+    """
+    if optional:
+        file_path = resolve_optional_gif_file(path)
+        if file_path is None:
+            return _gone()
+    else:
+        file_path = resolve_gif_file(path)
+
+    try:
+        data = extract_gif_frame(file_path, frame)
+    except GifFrameUnavailableError as exc:
+        if optional:
+            return _gone()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except GifFrameError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to extract GIF frame: {exc}") from exc
+
+    cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": cache_control},
+    )
 
 
 @router.get("/thumbnail")

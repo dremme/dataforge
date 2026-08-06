@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from constants import IMAGE_EXTENSIONS, MEDIA_EXTENSIONS, SYSPROMPT_FILENAME
+from constants import GIF_EXTENSION, IMAGE_EXTENSIONS, MEDIA_EXTENSIONS, SYSPROMPT_FILENAME
 from filesystem import normalize_user_path, resolve_folder
 from schemas import JobResponse
 
@@ -10,8 +10,10 @@ from schemas import JobResponse
 __all__ = [
     "job_response",
     "resolve_folder",
+    "resolve_gif_file",
     "resolve_image_file",
     "resolve_media_file",
+    "resolve_optional_gif_file",
     "resolve_optional_media_file",
     "resolve_sysprompt_target",
 ]
@@ -45,6 +47,25 @@ def resolve_image_file(path: str) -> Path:
         raise HTTPException(
             status_code=400, detail="Only image files can be opened in the image viewer"
         )
+
+    return file_path
+
+
+def resolve_optional_gif_file(path: str) -> Path | None:
+    """Like `resolve_gif_file`, but a missing file is an expected outcome, not an error."""
+    file_path = resolve_optional_media_file(path)
+
+    if file_path is not None and file_path.suffix.lower() != GIF_EXTENSION:
+        raise HTTPException(status_code=400, detail="Only GIF files have extractable frames")
+
+    return file_path
+
+
+def resolve_gif_file(path: str) -> Path:
+    file_path = resolve_optional_gif_file(path)
+
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="Media file not found")
 
     return file_path
 

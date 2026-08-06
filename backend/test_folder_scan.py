@@ -11,21 +11,50 @@ import unittest
 
 from caption_cache import clear_caption_cache_for_tests
 from captions import caption_summary_from_sidecar, issue_summary_from_sidecar
-from folder_scan import scan_folder
+from folder_scan import get_media_type, scan_folder
 from media_listing import list_media_in_folder
 from testing_fixtures import (
     TempMediaFolder,
+    write_gif,
     write_issue_sidecar,
     write_media,
+    write_mp4_video,
     write_sysprompt,
     write_txt_caption,
 )
+
+
+class MediaTypeTests(unittest.TestCase):
+    def test_classifies_each_supported_extension(self) -> None:
+        with TempMediaFolder() as root:
+            self.assertEqual(get_media_type(write_media(root, "photo.png")), "image")
+            self.assertEqual(get_media_type(write_mp4_video(root, "clip.mp4")), "video")
+            # Its own type rather than "video": the frontend picks the element from
+            # this, and a GIF needs an <img>.
+            self.assertEqual(get_media_type(write_gif(root, "loop.gif")), "gif")
+
+    def test_classification_ignores_case(self) -> None:
+        with TempMediaFolder() as root:
+            self.assertEqual(get_media_type(write_gif(root, "LOOP.GIF")), "gif")
+
+    def test_returns_none_for_unsupported_extensions(self) -> None:
+        with TempMediaFolder() as root:
+            self.assertIsNone(get_media_type(root / "notes.md"))
 
 
 class FolderScanTests(unittest.TestCase):
     def test_returns_none_for_unreadable_folder(self) -> None:
         with TempMediaFolder() as root:
             self.assertIsNone(scan_folder(root / "does-not-exist"))
+
+    def test_a_gif_lands_in_the_media_list(self) -> None:
+        with TempMediaFolder() as root:
+            write_gif(root, "loop.gif")
+
+            scan = scan_folder(root)
+
+            assert scan is not None
+            self.assertEqual([entry.name for entry in scan.media], ["loop.gif"])
 
     def test_separates_media_dirs_sidecars_and_sysprompt(self) -> None:
         with TempMediaFolder() as root:

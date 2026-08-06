@@ -291,7 +291,7 @@ describe("App", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Filter media" }));
-    await user.click(await screen.findByRole("menuitemradio", { name: /Videos \(\d+\)/ }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /Videos and GIFs \(\d+\)/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View waves.mp4" })).toBeInTheDocument();

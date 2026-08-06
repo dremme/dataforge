@@ -1,40 +1,46 @@
 import type { CSSProperties } from "react";
-import {
-  FRAME_STEP_SECONDS,
-  formatFrameTime,
-  hasUsableDuration,
-} from "@/features/gallery/lib/videoFrameCapture";
 import { iconImageDown, iconLoader2, iconStepBack, iconStepForward } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 
-interface VideoFrameCaptureBarProps {
-  duration: number;
-  /** Metadata has landed, so the slider has a real range to move over. */
+interface FrameCaptureBarProps {
+  min: number;
+  max: number;
+  /** The slider's arrow-key increment: one frame, however the format counts them. */
+  step: number;
+  value: number;
+  /** The source is loaded, so the slider has a real range to move over. */
   ready: boolean;
-  sliderTime: number;
-  /** The presented frame's time where known, otherwise the scrubbed-to time. */
-  displayTime: number;
   saving: boolean;
   /** Other modal work is in flight — the bar locks itself rather than racing it. */
   busy: boolean;
-  onSliderTimeChange: (time: number) => void;
+  /** The position on screen: a timestamp for video, a frame ordinal for a GIF. */
+  currentLabel: string;
+  totalLabel: string;
+  /** Shown while the source is still loading. */
+  hint: string;
+  onValueChange: (value: number) => void;
   onStepFrame: (direction: -1 | 1) => void;
   onSave: () => void;
 }
 
-export function VideoFrameCaptureBar({
-  duration,
+export function FrameCaptureBar({
+  min,
+  max,
+  step,
+  value,
   ready,
-  sliderTime,
-  displayTime,
   saving,
   busy,
-  onSliderTimeChange,
+  currentLabel,
+  totalLabel,
+  hint,
+  onValueChange,
   onStepFrame,
   onSave,
-}: VideoFrameCaptureBarProps) {
+}: FrameCaptureBarProps) {
   const locked = !ready || busy || saving;
-  const progress = ready && hasUsableDuration(duration) ? (sliderTime / duration) * 100 : 0;
+  const span = max - min;
+  const progress = ready && span > 0 ? ((value - min) / span) * 100 : 0;
 
   return (
     <div className="video-frame-bar" role="group" aria-label="Frame capture">
@@ -51,19 +57,18 @@ export function VideoFrameCaptureBar({
         <input
           type="range"
           className="video-frame-bar__slider"
-          min={0}
+          min={min}
           // Never let this become NaN: React would render `max="NaN"` and the
-          // control's own clamping stops making sense.
-          max={ready ? duration : 1}
-          // A range input's arrow-key increment is its `step`, so one frame here
-          // makes a focused slider nudge exactly like the buttons beside it.
-          step={FRAME_STEP_SECONDS}
-          value={ready ? sliderTime : 0}
+          // control's own clamping stops making sense. A single-frame source has
+          // no span either, so the track needs a width it can still paint.
+          max={ready && span > 0 ? max : min + 1}
+          step={step}
+          value={ready ? value : min}
           disabled={locked}
           // Firefox has ::-moz-range-progress and Chromium has no equivalent, so the
           // filled track is a gradient driven by this custom property.
           style={{ "--frame-progress": `${progress}%` } as CSSProperties}
-          onChange={(event) => onSliderTimeChange(Number(event.target.value))}
+          onChange={(event) => onValueChange(Number(event.target.value))}
           aria-label="Frame position"
         />
         <button
@@ -88,11 +93,11 @@ export function VideoFrameCaptureBar({
       </div>
 
       <div className="video-frame-bar__meta">
-        {!ready && <p className="video-frame-bar__hint">Frame times load with the video.</p>}
+        {!ready && <p className="video-frame-bar__hint">{hint}</p>}
         <span className="video-frame-bar__time">
-          <span className="video-frame-bar__time-current">{formatFrameTime(displayTime)}</span>
+          <span className="video-frame-bar__time-current">{currentLabel}</span>
           <span className="video-frame-bar__time-divider">/</span>
-          <span className="video-frame-bar__time-total">{formatFrameTime(duration)}</span>
+          <span className="video-frame-bar__time-total">{totalLabel}</span>
         </span>
       </div>
     </div>

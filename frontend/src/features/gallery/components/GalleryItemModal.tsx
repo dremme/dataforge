@@ -13,6 +13,8 @@ import { formatApiError } from "@/shared/api/http";
 import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
+import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture";
+import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapture";
@@ -32,7 +34,10 @@ import {
   iconX,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
-import { isVideo } from "@/features/gallery/lib/itemKind";
+import { isGif, isMotion, isVideo, mediaLabelFor } from "@/features/gallery/lib/itemKind";
+import type { FrameCapture } from "@/features/gallery/lib/frameCapture";
+import { formatFrameOrdinal } from "@/features/gallery/lib/gifFrameCapture";
+import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
 import { pathBaseName } from "@/features/gallery/lib/mediaActionMessages";
 import {
   collectAdjacentModalMediaTargets,
@@ -47,7 +52,7 @@ import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { TransferMediaDialog } from "./TransferMediaDialog";
-import { VideoFrameCaptureBar } from "./VideoFrameCaptureBar";
+import { FrameCaptureBar } from "./FrameCaptureBar";
 import { ZoomableImage } from "./ZoomableImage";
 
 /** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
@@ -147,11 +152,24 @@ export function GalleryItemModal({
     copySuccessMessage,
   });
 
-  const frameCapture = useVideoFrameCapture({
+  const itemIsGif = item ? isGif(item) : false;
+  const gifFrameCount = useGifFrameCount(item?.path, itemIsGif);
+
+  // Both hooks run unconditionally - hooks cannot be called behind a branch - and
+  // the shared `FrameCapture` shape lets the rest of the modal read whichever one
+  // matches the item without asking again which format it is.
+  const videoCapture = useVideoFrameCapture({
     item,
     folderPath: currentFolder,
     onSaved: onCopied,
   });
+  const gifCapture = useGifFrameCapture({
+    item,
+    frameCount: gifFrameCount,
+    folderPath: currentFolder,
+    onSaved: onCopied,
+  });
+  const frameCapture: FrameCapture = itemIsGif ? gifCapture : videoCapture;
 
   const { transferPicker, overwritePrompt, transferring } = transfer;
   /** Modal work other than a frame save — the capture bar locks itself on this. */
@@ -303,7 +321,7 @@ export function GalleryItemModal({
   if (!item) return null;
 
   const itemIsVideo = isVideo(item);
-  const mediaLabel = itemIsVideo ? "video" : "image";
+  const mediaLabel = mediaLabelFor(item);
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
   const captionCharacterCount = caption.length;
@@ -313,7 +331,7 @@ export function GalleryItemModal({
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
   // Only the destination folder is required; a missing `onCopied` costs the refresh,
   // not the save, so it must not gate the toggle the way `canTransfer` does.
-  const canCaptureFrame = itemIsVideo && Boolean(currentFolder);
+  const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
@@ -340,7 +358,7 @@ export function GalleryItemModal({
             </span>
           </div>
           <div className="gallery-item-modal__header-actions">
-            {!itemIsVideo && (
+            {!isMotion(item) && (
               <Tooltip content={viewerError ?? "Open in image preview"}>
                 <button
                   type="button"
@@ -452,7 +470,7 @@ export function GalleryItemModal({
           {itemIsVideo ? (
             <video
               key={item.path}
-              ref={frameCapture.videoRef}
+              ref={videoCapture.videoRef}
               className="gallery-item-modal__video"
               src={galleryItemMediaUrl(item)}
               // The native timeline would let the user seek behind the capture
@@ -464,18 +482,21 @@ export function GalleryItemModal({
               onLoadedMetadata={(event) => {
                 const video = event.currentTarget;
                 recordResolution(video.videoWidth, video.videoHeight, item.path);
-                frameCapture.handleLoadedMetadata(video);
+                videoCapture.handleLoadedMetadata(video);
               }}
               // Streamed MP4s report `Infinity` at `loadedmetadata` and only settle
               // on a real duration later, which would strand the slider without this.
-              onDurationChange={(event) => frameCapture.handleLoadedMetadata(event.currentTarget)}
+              onDurationChange={(event) => videoCapture.handleLoadedMetadata(event.currentTarget)}
             />
           ) : (
             <ZoomableImage
-              key={item.path}
+              // Frame mode swaps in a still, so it needs a fresh instance: a zoom
+              // transform left over from the animated GIF would be applied to a
+              // differently decoded image.
+              key={gifCapture.previewUrl ? `${item.path}#frame` : item.path}
               className="gallery-item-modal__media-wrap"
               imgClassName="gallery-item-modal__img"
-              src={galleryItemMediaUrl(item)}
+              src={gifCapture.previewUrl ?? galleryItemMediaUrl(item)}
               alt={item.name}
               onLoad={(event) => {
                 const img = event.currentTarget;
@@ -497,24 +518,44 @@ export function GalleryItemModal({
 
         {/* Outside the stage on purpose: that block centres its content and hangs
             the nav buttons over it, so a strip inside would fight both. */}
-        {frameCapture.frameMode && (
-          <VideoFrameCaptureBar
-            duration={frameCapture.duration}
-            ready={frameCapture.ready}
-            sliderTime={frameCapture.sliderTime}
-            displayTime={frameCapture.displayTime}
-            saving={frameCapture.saving}
-            busy={otherWorkBusy}
-            onSliderTimeChange={frameCapture.setSliderTime}
-            onStepFrame={frameCapture.stepFrame}
-            onSave={frameCapture.saveFrame}
-          />
-        )}
+        {frameCapture.frameMode &&
+          (itemIsGif ? (
+            <FrameCaptureBar
+              min={0}
+              max={Math.max(0, gifCapture.frameCount - 1)}
+              step={1}
+              value={gifCapture.frameIndex}
+              ready={gifCapture.ready}
+              saving={gifCapture.saving}
+              busy={otherWorkBusy}
+              currentLabel={formatFrameOrdinal(gifCapture.frameIndex, gifCapture.frameCount)}
+              totalLabel={String(gifCapture.frameCount)}
+              hint="Frame count loads with the GIF."
+              onValueChange={gifCapture.setFrameIndex}
+              onStepFrame={gifCapture.stepFrame}
+              onSave={gifCapture.saveFrame}
+            />
+          ) : (
+            <FrameCaptureBar
+              min={0}
+              max={videoCapture.duration}
+              step={FRAME_STEP_SECONDS}
+              value={videoCapture.sliderTime}
+              ready={videoCapture.ready}
+              saving={videoCapture.saving}
+              busy={otherWorkBusy}
+              currentLabel={formatFrameTime(videoCapture.displayTime)}
+              totalLabel={formatFrameTime(videoCapture.duration)}
+              hint="Frame times load with the video."
+              onValueChange={videoCapture.setSliderTime}
+              onStepFrame={videoCapture.stepFrame}
+              onSave={videoCapture.saveFrame}
+            />
+          ))}
 
         <footer className="gallery-item-modal__footer">
           <GalleryItemModalMeta
             item={item}
-            itemIsVideo={itemIsVideo}
             resolution={resolution}
             hasComfyWorkflow={hasComfyWorkflow}
             captionCharacterCount={captionCharacterCount}

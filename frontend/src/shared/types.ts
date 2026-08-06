@@ -1,4 +1,4 @@
-type MediaType = "image" | "video" | "sysprompt";
+type MediaType = "image" | "video" | "gif" | "sysprompt";
 
 export type CaptionStatus = "none" | "empty" | "text";
 
@@ -17,8 +17,6 @@ export interface GalleryItem {
   media_type: MediaType;
   width?: number;
   height?: number;
-  frame_count?: number;
-  fps?: number;
   size?: number;
   modified_at?: string;
 }
@@ -123,6 +121,10 @@ export interface SubfolderStatsResponse {
 
 export interface PngWorkflowResponse {
   has_workflow: boolean;
+}
+
+export interface GifInfoResponse {
+  frame_count: number;
 }
 
 export interface CaptionSaveResponse {

@@ -652,6 +652,20 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/gif-info") {
+      return jsonResponse({ frame_count: 24 });
+    }
+
+    if (url.pathname === "/api/gif-frame") {
+      return new Response(MINIMAL_PNG, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/jpeg",
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    }
+
     if (url.pathname === "/api/automation/auto-caption" && method === "POST") {
       const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
       return jsonResponse(createMockJob(folderPath, "auto_caption"));

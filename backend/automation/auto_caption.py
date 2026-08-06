@@ -24,7 +24,8 @@ from automation.vision import (
     vision_messages,
 )
 from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
-from constants import IMAGE_EXTENSIONS, SYSPROMPT_FILENAME, VIDEO_EXTENSIONS
+from constants import GIF_EXTENSION, IMAGE_EXTENSIONS, MOTION_EXTENSIONS, SYSPROMPT_FILENAME
+from gif_frames import extract_gif_keyframes
 from openai_settings import create_openai_client, get_max_tokens, get_openai_model
 from sysprompt import load_sysprompt
 
@@ -35,7 +36,7 @@ IMAGE_MAX_PIXELS = 1_000_000
 VIDEO_FRAME_MAX_PIXELS = 500_000
 VIDEO_KEYFRAME_COUNT = 12
 
-AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
 MediaKind = Literal["image", "video"]
 
@@ -70,7 +71,27 @@ MEDIA_KIND_SETTINGS: dict[MediaKind, MediaKindSettings] = {
 
 
 def media_kind_for(path: Path) -> MediaKind:
-    return "video" if path.suffix.lower() in VIDEO_EXTENSIONS else "image"
+    """How a file is captioned, which for a GIF is as a video.
+
+    ``MediaKind`` is the training axis, and a GIF carries a frame sequence, so it
+    gets the video prompt and the keyframe pipeline. ``schemas.MediaType`` is the
+    rendering axis and calls the same file a ``gif``.
+    """
+    return "video" if path.suffix.lower() in MOTION_EXTENSIONS else "image"
+
+
+def extract_keyframes(
+    media_path: Path, count: int = VIDEO_KEYFRAME_COUNT
+) -> list[Image.Image] | None:
+    """Evenly spaced frames, decoded by whichever reader handles the container.
+
+    GIFs never reach OpenCV: it reports a frame count of zero for many of them,
+    which silently drops ``extract_video_keyframes`` into its sequential fallback
+    and captions only the opening of the animation.
+    """
+    if media_path.suffix.lower() == GIF_EXTENSION:
+        return extract_gif_keyframes(media_path, count)
+    return extract_video_keyframes(media_path, count)
 
 
 def extract_video_keyframes(
@@ -132,7 +153,7 @@ def build_system_prompt(folder: Path, *, media_kind: MediaKind = "image") -> str
             You are an expert video captioning assistant specializing in high-density, descriptive captions for training generative AI LoRA models. Your specific task is to analyze a sequence of video keyframes in chronological order and describe the video with extreme accuracy and structural consistency.
 
             # Objective
-            You are given {VIDEO_KEYFRAME_COUNT} keyframes extracted evenly across the video timeline, presented in chronological order. Treat them as a single continuous video. Generate one comprehensive, single-paragraph caption for the full video. Do not use conversational filler, introductions, or structural bullet points in the final output. Use the user provided description as **very close guidance** for analyzing the video and creating the caption; **never** change its meaning.
+            You are given keyframes extracted evenly across the video timeline, presented in chronological order. Treat them as a single continuous video. Generate one comprehensive, single-paragraph caption for the full video. Do not use conversational filler, introductions, or structural bullet points in the final output. Use the user provided description as **very close guidance** for analyzing the video and creating the caption; **never** change its meaning.
 
             {specific_sys_prompt}
 
@@ -165,13 +186,20 @@ def list_auto_caption_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, AUTO_CAPTION_EXTENSIONS, order="mtime")
 
 
-def _build_user_text(ref_caption: str, media_kind: MediaKind) -> str:
+def _keyframe_sentence(frame_count: int) -> str:
+    """States the real frame count, which a short GIF makes smaller than the cap."""
+    if frame_count == 1:
+        return "You are given a single frame. Analyze it while following the system instructions."
+    return f"You are given {frame_count} keyframes in chronological order. Analyze the full video sequence while following the system instructions."
+
+
+def _build_user_text(ref_caption: str, media_kind: MediaKind, frame_count: int) -> str:
     if media_kind == "video":
         return textwrap.dedent(
             f"""
             Caption the video for LoRA training.
 
-            You are given {VIDEO_KEYFRAME_COUNT} keyframes in chronological order. Analyze the full video sequence while following the system instructions.
+            {_keyframe_sentence(frame_count)}
 
             Use the provided description as **very close guidance** — keep its overall meaning and wording style as much as possible.
             Follow **all** rules from the system instructions exactly.
@@ -199,7 +227,7 @@ def _load_media_images(
     media_kind: MediaKind,
 ) -> tuple[list[Image.Image] | None, str | None]:
     if media_kind == "video":
-        keyframes = extract_video_keyframes(media_path)
+        keyframes = extract_keyframes(media_path)
         if not keyframes:
             return None, "frame_error"
         return keyframes, None
@@ -233,9 +261,11 @@ def complete_caption(
     if not images_b64:
         return None
 
+    user_text = _build_user_text(ref_caption, media_kind, len(images))
+
     return run_vision_completion(
         client,
-        vision_messages(system_prompt, images_b64, _build_user_text(ref_caption, media_kind)),
+        vision_messages(system_prompt, images_b64, user_text),
         mode=mode,
         model=model if model is not None else get_openai_model(),
         max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),

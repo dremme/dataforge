@@ -74,6 +74,10 @@ class GalleryItemSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             _gallery_item(media_type="audio")
 
+    def test_accepts_every_media_type_the_scanner_can_emit(self) -> None:
+        for media_type in ("image", "video", "gif", "sysprompt"):
+            self.assertEqual(_gallery_item(media_type=media_type).media_type, media_type)
+
     def test_rejects_unknown_caption_file_type(self) -> None:
         with self.assertRaises(ValidationError):
             _gallery_item(caption_file_type="yaml")

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { frameSaveOutcome } from "./frameCapture";
 import {
   END_EPSILON,
   FRAME_STEP_SECONDS,
   clampFrameTime,
   formatFrameTime,
-  frameSaveOutcome,
   frameTimeStamp,
   hasUsableDuration,
   snapFrameTime,

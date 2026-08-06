@@ -29,6 +29,7 @@ from captions import issue_file_path
 from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
     TempMediaFolder,
+    write_gif,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -446,6 +447,9 @@ class VerifyCaptionsMediaListingTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_mp4_video(root, "clip.mp4")
+            # A GIF is a frame sequence, so verifying it against one frame would
+            # judge the caption on a fraction of what it describes.
+            write_gif(root, "loop.gif")
 
             names = [path.name for path in list_verify_captions_media(root)]
 

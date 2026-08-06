@@ -17,8 +17,10 @@ from automation.auto_caption import (
     VIDEO_KEYFRAME_COUNT,
     build_system_prompt,
     complete_caption,
+    extract_keyframes,
     extract_video_keyframes,
     list_auto_caption_media,
+    media_kind_for,
     process_media,
     run_auto_caption_job,
     validate_auto_caption_folder,
@@ -31,6 +33,7 @@ from automation.vision import (
 )
 from testing_fixtures import (
     TempMediaFolder,
+    write_gif,
     write_json_caption,
     write_media,
     write_mp4_video,
@@ -88,14 +91,15 @@ def _make_fake_caption_client(
 
 
 class AutoCaptionVideoUnitTests(unittest.TestCase):
-    def test_list_auto_caption_media_includes_mp4(self) -> None:
+    def test_list_auto_caption_media_includes_mp4_and_gif(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_mp4_video(root, "clip.mp4")
+            write_gif(root, "loop.gif")
 
             names = [path.name for path in list_auto_caption_media(root)]
 
-            self.assertCountEqual(names, ["clip.mp4", "photo.png"])
+            self.assertCountEqual(names, ["clip.mp4", "loop.gif", "photo.png"])
 
     def test_build_video_system_prompt_mentions_sequence(self) -> None:
         with TempMediaFolder() as root:
@@ -105,8 +109,19 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
 
             self.assertIn("video", prompt.lower())
             self.assertIn("chronological order", prompt.lower())
-            self.assertIn(str(VIDEO_KEYFRAME_COUNT), prompt)
             self.assertIn("Focus on the subject.", prompt)
+
+    def test_system_prompt_does_not_promise_a_fixed_frame_count(self) -> None:
+        # It is built once per job, before any file is read, so it cannot know how
+        # many frames a given GIF will actually yield.
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Focus on the subject.")
+
+            prompt = build_system_prompt(root, media_kind="video")
+
+            # Matched on the phrase, not the bare number: the output-length guidance
+            # says "80-120 words" and would swallow a looser assertion.
+            self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", prompt)
 
     def test_video_frames_use_half_megapixel_resize(self) -> None:
         image = Image.new("RGB", (1280, 720), color="red")
@@ -146,6 +161,7 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             self.assertEqual(caption, "A polished video caption.")
             self.assertEqual(captured["image_count"], VIDEO_KEYFRAME_COUNT)
             self.assertIn("chronological order", (captured["user_text"] or "").lower())
+            self.assertIn(str(VIDEO_KEYFRAME_COUNT), captured["user_text"] or "")
             self.assertEqual(captured["temperature"], 1.0)
             self.assertEqual(captured["top_p"], 0.95)
             self.assertEqual(captured["presence_penalty"], 0.0)
@@ -265,6 +281,72 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
 
         self.assertIsNone(extracted)
         self.assertEqual(released, [True])
+
+
+class AutoCaptionGifTests(unittest.TestCase):
+    def test_a_gif_is_captioned_as_a_video(self) -> None:
+        # MediaKind is the training axis, and a GIF is a frame sequence, so it gets
+        # the video prompt and the keyframe pipeline. Only rendering calls it a gif.
+        with TempMediaFolder() as root:
+            self.assertEqual(media_kind_for(write_gif(root, "loop.gif")), "video")
+            self.assertEqual(media_kind_for(write_media(root, "photo.png")), "image")
+            self.assertEqual(media_kind_for(write_mp4_video(root, "clip.mp4")), "video")
+
+    def test_keyframes_come_from_pillow_and_never_touch_opencv(self) -> None:
+        # cv2 reports a frame count of zero for many GIFs, which drops the video
+        # path into its sequential fallback and captions only the opening frames.
+        def explode(_path: str) -> None:
+            raise AssertionError("OpenCV must not be used to read a GIF")
+
+        fake_cv2 = type("cv2", (), {"VideoCapture": staticmethod(explode)})
+
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif", frames=30)
+
+            with patch.dict("sys.modules", {"cv2": fake_cv2}):
+                frames = extract_keyframes(media)
+
+        assert frames is not None
+        self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_short_gif_yields_one_frame_per_frame_it_has(self) -> None:
+        with TempMediaFolder() as root:
+            frames = extract_keyframes(write_gif(root, "short.gif", frames=5))
+
+            assert frames is not None
+            self.assertEqual(len(frames), 5)
+
+    def test_the_user_text_states_the_real_frame_count(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, "short.gif", frames=5)
+            frames = extract_keyframes(media)
+            assert frames is not None
+
+            fake_client, captured = _make_fake_caption_client("A polished GIF caption.")
+            complete_caption(fake_client, media, "System prompt", "Draft", images=frames)
+
+            # Claiming 12 keyframes for a 5-frame GIF would be a plain lie to the model.
+            self.assertIn("5 keyframes", captured["user_text"] or "")
+            self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", captured["user_text"] or "")
+
+    def test_a_single_frame_gif_is_described_in_the_singular(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, "still.gif", frames=1)
+            frames = extract_keyframes(media)
+            assert frames is not None
+
+            fake_client, captured = _make_fake_caption_client("A polished caption.")
+            complete_caption(fake_client, media, "System prompt", "Draft", images=frames)
+
+            self.assertIn("a single frame", (captured["user_text"] or "").lower())
+
+    def test_reading_keyframes_leaves_the_gif_movable(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif", frames=12)
+
+            extract_keyframes(media)
+
+            media.rename(root / "moved.gif")
 
 
 class AutoCaptionFolderValidationTests(unittest.TestCase):

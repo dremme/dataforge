@@ -95,7 +95,7 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 - Subfolders, breadcrumbs, favorites, and recent history
 - Drive and folder picker
 - Search by file name, folder name, or caption, with optional regex (**Ctrl+K** / **⌘K** focuses search)
-- Filters for all / captioned / issues / missing caption, and images / videos
+- Filters for all / captioned / issues / missing caption, and images / videos (GIFs count as videos)
 - Sort by name, modified date, caption length, or megapixels
 - WebP thumbnails and a responsive layout
 - Folder cards flag when a folder has caption issues
@@ -106,7 +106,7 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 - JSON caption editor with a bounding-box overlay — view and edit when present
 - Click-to-zoom in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
-- Save any video frame as a JPG beside the video; scrub to the frame and the filename carries its timestamp, so each frame is its own file
+- Save any video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
 - Per-folder `.sysprompt` (markdown) to steer AI captioning
 - Caption status on cards and in the detail view
 - Detection of embedded ComfyUI workflows in PNGs

@@ -41,7 +41,7 @@ export const FILTER_OPTIONS = [
 export const MEDIA_TYPE_FILTER_OPTIONS = [
   { value: "all" as const, label: "All", ariaLabel: "All types", icon: iconImages },
   { value: "image" as const, label: "Images", ariaLabel: "Images", icon: iconImage },
-  { value: "video" as const, label: "Videos", ariaLabel: "Videos", icon: iconVideo },
+  { value: "video" as const, label: "Videos", ariaLabel: "Videos and GIFs", icon: iconVideo },
 ] satisfies ReadonlyArray<{
   value: MediaTypeFilter;
   label: string;
@@ -82,7 +82,7 @@ export function getFilterEmptyState(options: {
     return {
       icon: iconVideo,
       title: "No videos",
-      description: "This folder has no supported video files.",
+      description: "This folder has no supported video or GIF files.",
       variant: "muted",
     };
   }

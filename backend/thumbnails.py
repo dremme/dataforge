@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
-from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from constants import MEDIA_EXTENSIONS, PILLOW_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -348,7 +348,7 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
     normalized_width = normalize_thumbnail_width(width)
     suffix = source.suffix.lower()
 
-    if suffix not in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS:
+    if suffix not in MEDIA_EXTENSIONS:
         raise ThumbnailError("Unsupported media type for thumbnails")
 
     _ensure_cache_dir()
@@ -372,7 +372,9 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
             temp_path = Path(handle.name)
 
         try:
-            if suffix in IMAGE_EXTENSIONS:
+            if suffix in PILLOW_EXTENSIONS:
+                # A GIF lands here rather than in ffmpeg: Pillow opens it on frame
+                # zero, which is the poster frame a still thumbnail wants anyway.
                 _render_image_thumbnail(source, temp_path, normalized_width)
             else:
                 _render_video_thumbnail(source, temp_path, normalized_width)

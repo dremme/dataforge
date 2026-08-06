@@ -10,6 +10,7 @@ from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
     make_png_ztxt_bytes,
+    write_gif,
     write_issue_sidecar,
     write_json_caption,
     write_media,
@@ -107,6 +108,16 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertFalse(response.json()["has_workflow"])
+
+    def test_returns_400_for_gif(self) -> None:
+        # A GIF carries neither PNG text chunks nor ISOBMFF boxes, so offering the
+        # workflow probe for one would only ever answer no.
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif")
+
+            response = client.get(f"/api/comfy-workflow?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 400)
 
     def test_returns_400_for_unsupported_extension(self) -> None:
         with TempMediaFolder() as root:
