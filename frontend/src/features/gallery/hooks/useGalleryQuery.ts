@@ -32,6 +32,9 @@ export function useGalleryQuery(items: GalleryItem[]) {
   );
   const [searchQuery, setSearchQueryState] = useState(() => readGallerySessionQuery().searchQuery);
   const [searchRegex, setSearchRegexState] = useState(() => readGallerySessionQuery().searchRegex);
+  const [searchFolders, setSearchFoldersState] = useState(
+    () => readGallerySessionQuery().searchFolders,
+  );
   const [sort, setSortState] = useState<SortOption>(() =>
     parseSortOption(readCachedSortPreference() ?? DEFAULT_SORT),
   );
@@ -68,6 +71,11 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const setSearchRegex = useCallback((value: boolean) => {
     setSearchRegexState(value);
     cacheGallerySessionQuery({ searchRegex: value });
+  }, []);
+
+  const setSearchFolders = useCallback((value: boolean) => {
+    setSearchFoldersState(value);
+    cacheGallerySessionQuery({ searchFolders: value });
   }, []);
 
   const setSort = useCallback((value: SortOption) => {
@@ -149,8 +157,10 @@ export function useGalleryQuery(items: GalleryItem[]) {
     setMediaTypeFilter,
     searchQuery,
     searchRegex,
+    searchFolders,
     setSearchQuery,
     setSearchRegex,
+    setSearchFolders,
     sort,
     setSort,
     filteredItems,

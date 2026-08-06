@@ -81,7 +81,7 @@ $toolbar-search-width-max: 22rem;
       // it to the cap. The base offset sets that hand-off point.
       width: clamp(
         #{$toolbar-search-width-min},
-        calc(3rem + var(--toolbar-search-length, 0) * 1ch),
+        calc(4rem + var(--toolbar-search-length, 0) * 1ch),
         #{$toolbar-search-width-max}
       );
       min-width: min(100%, 10.5rem);
@@ -156,12 +156,9 @@ $toolbar-search-width-max: 22rem;
       }
     }
 
+    &-folders,
     &-regex {
       @include icon-btn-xs;
-      font-weight: var(--font-semibold);
-      font-family: monospace;
-      letter-spacing: -0.2rem;
-      padding-right: 0.2rem;
 
       &--active,
       &--active:hover:not(:disabled) {
@@ -170,6 +167,10 @@ $toolbar-search-width-max: 22rem;
 
       &:focus-visible {
         outline: none;
+      }
+
+      &-icon {
+        @include icon-size(var(--icon-size-sm));
       }
     }
 
@@ -181,7 +182,7 @@ $toolbar-search-width-max: 22rem;
       }
 
       &-icon {
-        @include icon-size(var(--icon-size-base));
+        @include icon-size(var(--icon-size-sm));
       }
     }
   }

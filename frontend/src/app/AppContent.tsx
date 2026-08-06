@@ -70,6 +70,7 @@ export function AppContent() {
               statsLoading: loading && !refreshing,
               searchQuery: query.searchQuery,
               searchRegex: query.searchRegex,
+              searchFolders: query.searchFolders,
               sort: query.sort,
               filter: query.filter,
               filterCounts: query.filterCounts,
@@ -81,6 +82,10 @@ export function AppContent() {
               },
               onSearchRegexChange: (value) => {
                 query.setSearchRegex(value);
+                clearSelection();
+              },
+              onSearchFoldersChange: (value) => {
+                query.setSearchFolders(value);
                 clearSelection();
               },
               onSortChange: (value) => {

@@ -13,6 +13,7 @@ import {
   iconMessageCheck,
   iconMessageWarning,
   iconImages,
+  iconRegex,
   iconSearch,
   iconX,
 } from "@/shared/icons";
@@ -33,6 +34,7 @@ interface ToolbarProps {
   statsLoading?: boolean;
   searchQuery: string;
   searchRegex: boolean;
+  searchFolders: boolean;
   sort: SortOption;
   filter: CaptionFilter;
   filterCounts: Record<CaptionFilter, number>;
@@ -40,6 +42,7 @@ interface ToolbarProps {
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
   onSearchQueryChange: (value: string) => void;
   onSearchRegexChange: (value: boolean) => void;
+  onSearchFoldersChange: (value: boolean) => void;
   onSortChange: (value: SortOption) => void;
   onFilterChange: (value: CaptionFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
@@ -48,11 +51,20 @@ interface ToolbarProps {
 interface ToolbarSearchProps {
   value: string;
   regex: boolean;
+  folders: boolean;
   onQueryChange: (value: string) => void;
   onRegexChange: (value: boolean) => void;
+  onFoldersChange: (value: boolean) => void;
 }
 
-function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSearchProps) {
+function ToolbarSearch({
+  value,
+  regex,
+  folders,
+  onQueryChange,
+  onRegexChange,
+  onFoldersChange,
+}: ToolbarSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   const hasValue = value.trim().length > 0;
@@ -81,7 +93,7 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
 
   return (
     <Tooltip
-      content="Search by file name, folder name, or caption (optional regex)"
+      content="Search by file name or caption, folders and regex optional"
       disabled={expanded && focused}
     >
       <label
@@ -109,9 +121,27 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Search..."
-            aria-label="Search files and folders by name or caption"
+            aria-label={
+              folders
+                ? "Search files and folders by name or caption"
+                : "Search files by name or caption"
+            }
             aria-keyshortcuts="Control+K Meta+K"
           />
+          <button
+            type="button"
+            className={classNames(
+              "toolbar__search-folders",
+              folders && "toolbar__search-folders--active",
+            )}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onFoldersChange(!folders)}
+            aria-label="Include folders in search"
+            aria-pressed={folders}
+            tabIndex={-1}
+          >
+            <Icon icon={iconFolder} className="toolbar__search-folders-icon" />
+          </button>
           <button
             type="button"
             className={classNames(
@@ -124,7 +154,7 @@ function ToolbarSearch({ value, regex, onQueryChange, onRegexChange }: ToolbarSe
             aria-pressed={regex}
             tabIndex={-1}
           >
-            .*
+            <Icon icon={iconRegex} className="toolbar__search-regex-icon" />
           </button>
           {hasValue && (
             <button
@@ -161,6 +191,7 @@ export function Toolbar({
   statsLoading = false,
   searchQuery,
   searchRegex,
+  searchFolders,
   sort,
   filter,
   filterCounts,
@@ -168,6 +199,7 @@ export function Toolbar({
   mediaTypeFilterCounts,
   onSearchQueryChange,
   onSearchRegexChange,
+  onSearchFoldersChange,
   onSortChange,
   onFilterChange,
   onMediaTypeFilterChange,
@@ -251,11 +283,13 @@ export function Toolbar({
         <ToolbarSearch
           value={searchQuery}
           regex={searchRegex}
+          folders={searchFolders}
           onQueryChange={onSearchQueryChange}
           onRegexChange={onSearchRegexChange}
+          onFoldersChange={onSearchFoldersChange}
         />
 
-        <Tooltip content="Sort files by name, date, caption, or total megapixels">
+        <Tooltip content="Sort files by name, date, caption, or megapixels">
           <label className="toolbar__sort">
             <Icon icon={iconArrowDownWideNarrow} className="toolbar__sort-icon" />
             <select

@@ -14,6 +14,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "image",
       searchQuery: "sunset",
       searchRegex: true,
+      searchFolders: false,
     });
 
     expect(window.sessionStorage.getItem(SESSION_QUERY_CACHE_KEY)).toBe(
@@ -22,6 +23,7 @@ describe("gallery session preferences", () => {
         mediaTypeFilter: "image",
         searchQuery: "sunset",
         searchRegex: true,
+        searchFolders: false,
       }),
     );
     expect(readGallerySessionQuery()).toEqual({
@@ -29,6 +31,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "image",
       searchQuery: "sunset",
       searchRegex: true,
+      searchFolders: false,
     });
   });
 
@@ -38,6 +41,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "lake",
       searchRegex: false,
+      searchFolders: true,
     });
 
     cacheGallerySessionQuery({ searchQuery: "mountain" });
@@ -47,6 +51,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "mountain",
       searchRegex: false,
+      searchFolders: true,
     });
   });
 
@@ -58,6 +63,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "",
       searchRegex: false,
+      searchFolders: true,
     });
   });
 
@@ -69,6 +75,7 @@ describe("gallery session preferences", () => {
         mediaTypeFilter: "bogus",
         searchQuery: 42,
         searchRegex: "",
+        searchFolders: "yes",
       }),
     );
 
@@ -77,6 +84,21 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "",
       searchRegex: false,
+      searchFolders: true,
     });
+  });
+
+  it("defaults searchFolders to true when the stored key is missing", () => {
+    window.sessionStorage.setItem(
+      SESSION_QUERY_CACHE_KEY,
+      JSON.stringify({
+        filter: "all",
+        mediaTypeFilter: "all",
+        searchQuery: "",
+        searchRegex: false,
+      }),
+    );
+
+    expect(readGallerySessionQuery().searchFolders).toBe(true);
   });
 });

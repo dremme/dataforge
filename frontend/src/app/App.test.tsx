@@ -258,6 +258,37 @@ describe("App", () => {
     expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
   });
 
+  it("leaves subfolders unfiltered when folder search is off", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    // Expand search so the in-field toggles are reachable.
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByRole("button", { name: "Include folders in search" }));
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search files by name or caption" }),
+      "sunset",
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument();
+    });
+
+    // Folders stay fully visible; only media is narrowed. The folder count stays a
+    // plain total (no "of") because nothing was filtered out of that section.
+    expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Empty/ })).toBeInTheDocument();
+    expect(document.querySelector(".folder-section__count")).toHaveTextContent("2");
+    expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
+  });
+
   it("counts the selection against the visible media while selecting", async () => {
     const user = userEvent.setup();
     installMockBackend();

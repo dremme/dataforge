@@ -14,6 +14,8 @@ export interface GallerySessionQuery {
   mediaTypeFilter: MediaTypeFilter;
   searchQuery: string;
   searchRegex: boolean;
+  /** When true, the search box also filters subfolders by name. Defaults on. */
+  searchFolders: boolean;
 }
 
 const DEFAULT_SESSION_QUERY: GallerySessionQuery = {
@@ -21,6 +23,7 @@ const DEFAULT_SESSION_QUERY: GallerySessionQuery = {
   mediaTypeFilter: "all",
   searchQuery: "",
   searchRegex: false,
+  searchFolders: true,
 };
 
 function parseStoredSessionQuery(value: unknown): GallerySessionQuery | null {
@@ -34,6 +37,7 @@ function parseStoredSessionQuery(value: unknown): GallerySessionQuery | null {
       : "all",
     searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : "",
     searchRegex: typeof parsed.searchRegex === "boolean" ? parsed.searchRegex : false,
+    searchFolders: typeof parsed.searchFolders === "boolean" ? parsed.searchFolders : true,
   };
 }
 
@@ -55,6 +59,7 @@ export function cacheGallerySessionQuery(partial: Partial<GallerySessionQuery>):
       mediaTypeFilter: partial.mediaTypeFilter ?? current.mediaTypeFilter,
       searchQuery: partial.searchQuery ?? current.searchQuery,
       searchRegex: partial.searchRegex ?? current.searchRegex,
+      searchFolders: partial.searchFolders ?? current.searchFolders,
     } satisfies GallerySessionQuery,
     "session",
   );

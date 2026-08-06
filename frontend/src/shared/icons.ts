@@ -61,6 +61,7 @@ export {
   Play as iconPlay,
   Plus as iconPlus,
   Quote as iconQuote,
+  Regex as iconRegex,
   RemoveFormatting as iconRemoveFormatting,
   Search as iconSearch,
   Shredder as iconShredder,

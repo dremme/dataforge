@@ -1,4 +1,8 @@
 fastapi==0.115.6
+# Pinned deliberately: media_file_response.MediaFileResponse overrides FileResponse's
+# private _handle_* methods, so a starlette bump must be a considered change.
+# test_media_file_response.StarletteApiGuardTests fails loudly if they move.
+starlette==0.41.3
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
 python-dotenv==1.1.0

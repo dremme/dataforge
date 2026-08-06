@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Query, Response
-from fastapi.responses import FileResponse
 
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from gif_frames import (
@@ -9,6 +8,7 @@ from gif_frames import (
     gif_frame_count,
 )
 from media_delete import delete_media_with_sidecars
+from media_file_response import MediaFileResponse
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
     resolve_folder,
@@ -75,7 +75,9 @@ def serve_media(
     # Without one, the response must be revalidated: browsers otherwise apply
     # heuristic freshness and keep serving an edited file's old bytes.
     cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
-    return FileResponse(
+    # MediaFileResponse: share-delete open + cancel on disconnect so a video
+    # range request cannot leave the source locked against delete on Windows.
+    return MediaFileResponse(
         file_path,
         headers={"Cache-Control": cache_control},
     )
@@ -266,7 +268,9 @@ def serve_thumbnail(
             detail=f"Failed to generate thumbnail: {exc}",
         ) from exc
 
-    return FileResponse(
+    # MediaFileResponse for the same reason as /media: cache pruning deletes
+    # these .webp files, and a plain FileResponse would lock one mid-stream.
+    return MediaFileResponse(
         thumbnail_path,
         media_type="image/webp",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},

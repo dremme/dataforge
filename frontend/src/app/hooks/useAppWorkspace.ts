@@ -90,11 +90,12 @@ export function useAppWorkspace() {
     syncBaseline,
   });
 
-  const { searchQuery, searchRegex } = gallery.query;
+  const { searchQuery, searchRegex, searchFolders } = gallery.query;
 
   const filteredSubfolders = useMemo(
-    () => filterSubfoldersBySearch(subfolders, searchQuery, searchRegex),
-    [subfolders, searchQuery, searchRegex],
+    () =>
+      searchFolders ? filterSubfoldersBySearch(subfolders, searchQuery, searchRegex) : subfolders,
+    [subfolders, searchQuery, searchRegex, searchFolders],
   );
 
   const automation = useAutomationHost({

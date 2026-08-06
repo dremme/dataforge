@@ -21,6 +21,7 @@ const defaultProps = {
   hasCaptionBackup: false,
   searchQuery: "",
   searchRegex: false,
+  searchFolders: true,
   sort: "name-asc" as SortOption,
   filter: "all" as CaptionFilter,
   filterCounts: {
@@ -37,6 +38,7 @@ const defaultProps = {
   },
   onSearchQueryChange: vi.fn(),
   onSearchRegexChange: vi.fn(),
+  onSearchFoldersChange: vi.fn(),
   onSortChange: vi.fn(),
   onFilterChange: vi.fn(),
   onMediaTypeFilterChange: vi.fn(),
@@ -93,6 +95,31 @@ describe("Toolbar", () => {
 
     rerender(<Toolbar {...defaultProps} searchQuery={"a".repeat(40)} />);
     expect(field().style.getPropertyValue("--toolbar-search-length")).toBe("40");
+  });
+
+  it("toggles including folders in search", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ searchQuery: "sun", searchFolders: true });
+
+    const foldersToggle = screen.getByRole("button", { name: "Include folders in search" });
+    const regexToggle = screen.getByRole("button", { name: "Toggle regular expression search" });
+
+    expect(foldersToggle).toHaveAttribute("aria-pressed", "true");
+    expect(
+      foldersToggle.compareDocumentPosition(regexToggle) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await user.click(foldersToggle);
+
+    expect(defaultProps.onSearchFoldersChange).toHaveBeenCalledWith(false);
+  });
+
+  it("labels the search box for files only when folders are excluded", () => {
+    renderToolbar({ searchFolders: false });
+
+    expect(
+      screen.getByRole("searchbox", { name: "Search files by name or caption" }),
+    ).toBeInTheDocument();
   });
 
   it("opens both filter groups from the filter menu", async () => {
