@@ -2,11 +2,11 @@ from fastapi import APIRouter
 
 from routes import (
     automation,
-    browse,
     captions,
     events,
     external_jobs,
     files,
+    folder_contents,
     folders,
     health,
     jobs,
@@ -22,7 +22,7 @@ for module in (
     health,
     system,
     folders,
-    browse,
+    folder_contents,
     media,
     captions,
     files,

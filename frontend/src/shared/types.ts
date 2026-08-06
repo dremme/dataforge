@@ -95,9 +95,9 @@ export interface MediaTransferResponse {
 /**
  * A child folder card.
  *
- * The counts are `null` in a browse response — computing them means reading every
+ * The counts are `null` in a folder response — computing them means reading every
  * caption sidecar in every child folder, so they arrive separately from
- * `/api/browse/subfolder-stats` and are merged in once they land.
+ * `/api/folders/subfolder-stats` and are merged in once they land.
  */
 export interface Subfolder {
   name: string;
@@ -147,7 +147,7 @@ export interface SysPromptSaveResponse {
   path: string;
 }
 
-export interface BrowseFingerprintResponse {
+export interface FolderFingerprintResponse {
   fingerprint: string;
 }
 
@@ -158,7 +158,7 @@ export interface BrowseFingerprintResponse {
  * the two apart would be work neither side needs. `full` means the server could not
  * produce a delta and the whole folder should be refetched.
  */
-export interface BrowseChangesResponse {
+export interface FolderChangesResponse {
   full: boolean;
   fingerprint: string;
   changed: GalleryItem[];
@@ -178,8 +178,8 @@ export interface FileImportResponse {
   rejected: string[];
 }
 
-export interface BrowseResponse {
-  folder: string;
+export interface FolderResponse {
+  path: string;
   home: string;
   parent: string | null;
   breadcrumbs: Breadcrumb[];

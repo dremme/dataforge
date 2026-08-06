@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { fetchFolderChildren, fetchFolderRoots } from "@/features/browse/api/folders";
+import { fetchFolderChildren, fetchFolderRoots } from "@/features/folder/api/folders";
 import {
   folderLeafName,
   folderPathsEqual,
   normalizeFolderPath,
-} from "@/features/browse/lib/folderPath";
+} from "@/features/folder/lib/folderPath";
 import { formatApiError } from "@/shared/api/http";
 import {
   iconChevronDown,

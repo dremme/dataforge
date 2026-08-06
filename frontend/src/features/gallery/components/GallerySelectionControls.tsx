@@ -8,7 +8,7 @@ import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import { iconCopy, iconFolderInput, iconLoader2, iconTrash2, type AppIcon } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
+import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { TransferMediaDialog } from "@/features/gallery/components/TransferMediaDialog";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";

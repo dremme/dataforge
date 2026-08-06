@@ -69,7 +69,7 @@ def _issue_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None
 def _summary_signature(scan: FolderScan) -> tuple:
     """Directory signature used to invalidate the summary cache.
 
-    Media files and their sidecars only - unlike the browse fingerprint, a child
+    Media files and their sidecars only - unlike the folder fingerprint, a child
     directory appearing under this folder does not change its own counts.
     """
     signatures: list[tuple[str, int, int]] = []
@@ -214,7 +214,7 @@ def list_media_from_scan(scan: FolderScan) -> list[dict]:
 def media_items_named(scan: FolderScan, names: set[str]) -> list[dict]:
     """Just the named media entries, resolved exactly as a full listing would.
 
-    Used by the browse delta so a changed item is built by the same code that built it
+    Used by the folder delta so a changed item is built by the same code that built it
     the first time, rather than by a second, drifting implementation.
     """
     return [

@@ -1,4 +1,4 @@
-# Mirrored by hand in `frontend/src/features/browse/constants/importExtensions.ts`.
+# Mirrored by hand in `frontend/src/features/folder/constants/importExtensions.ts`.
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 GIF_EXTENSION = ".gif"
 VIDEO_EXTENSIONS = {".mp4"}

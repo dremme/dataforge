@@ -1,6 +1,6 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
-import { normalizeFolderPath } from "@/features/browse/lib/folderPath";
+import { normalizeFolderPath } from "@/features/folder/lib/folderPath";
 import type { AutomationMode, VerifyCaptionsSettingsUpdate } from "@/shared/types";
 
 export type VerifyCaptionsMode = AutomationMode;

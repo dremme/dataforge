@@ -1,24 +1,24 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { useBrowseCaptionPatch } from "@/features/gallery/hooks/useBrowseCaptionPatch";
+import { useFolderCaptionPatch } from "@/features/gallery/hooks/useFolderCaptionPatch";
 import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays";
 import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolverOverlay";
 import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery/lib/issues";
-import type { BrowseResponse, GalleryItem } from "@/shared/types";
+import type { FolderResponse, GalleryItem } from "@/shared/types";
 
 type GallerySelection = ReturnType<typeof useGallerySelection>;
 
 type UseGallerySessionOptions = {
   selection: GallerySelection;
   items: GalleryItem[];
-  folder: string | undefined;
+  folderPath: string | undefined;
   sysprompt: GalleryItem | null;
-  setBrowse: Dispatch<SetStateAction<BrowseResponse | null>>;
+  setFolder: Dispatch<SetStateAction<FolderResponse | null>>;
   mainRef: RefObject<HTMLElement | null>;
   /** Full silent reload + fingerprint sync (after delete/move/import). */
   refreshFolder: () => Promise<void>;
-  /** Fingerprint-only sync after local browse patches (caption save). */
+  /** Fingerprint-only sync after local folder patches (caption save). */
   syncBaseline: () => Promise<void> | void;
 };
 
@@ -29,9 +29,9 @@ type UseGallerySessionOptions = {
 export function useGallerySession({
   selection,
   items,
-  folder,
+  folderPath,
   sysprompt,
-  setBrowse,
+  setFolder,
   mainRef,
   refreshFolder,
   syncBaseline,
@@ -53,7 +53,7 @@ export function useGallerySession({
 
   const query = useGalleryQuery(items);
   const issueCount = countResolvableIssues(items);
-  const handleCaptionSaved = useBrowseCaptionPatch(setBrowse);
+  const handleCaptionSaved = useFolderCaptionPatch(setFolder);
 
   const {
     selectedPath,
@@ -73,7 +73,7 @@ export function useGallerySession({
     images: items,
     filteredItems: query.filteredItems,
     selectionEpoch,
-    folder,
+    folder: folderPath,
     sysprompt,
     mainRef,
   });
@@ -106,7 +106,7 @@ export function useGallerySession({
   // The guard matters: an item the queue would filter out leaves the resolver
   // open with nothing to render and no close to return from, shutting both
   // modals at once. The path rather than the item is the return ticket, so the
-  // reopened modal reads the saved caption from the live browse list.
+  // reopened modal reads the saved caption from the live folder list.
   const onResolveGalleryItemIssue = useCallback(
     (item: GalleryItem) => {
       if (!isResolvableIssueItem(item)) return;

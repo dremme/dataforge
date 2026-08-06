@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOME_PATH, VACATION_PATH, homeBrowse } from "@/test/fixtures";
+import { HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { stubVideoElement } from "@/test/videoElement";
@@ -9,7 +9,7 @@ import type { GalleryItem } from "@/shared/types";
 import { formatModifiedAt } from "@/shared/lib/format";
 import * as useCopyFeedbackModule from "@/shared/hooks/useCopyFeedback";
 import * as mediaApi from "@/features/gallery/api/media";
-import { importFiles } from "@/features/browse/api/files";
+import { importFiles } from "@/features/folder/api/files";
 import { encodeVideoFrame, seekVideoTo } from "@/features/gallery/lib/videoFrameEncode";
 import { GalleryItemModal } from "./GalleryItemModal";
 
@@ -37,7 +37,7 @@ vi.mock("@/features/gallery/lib/videoFrameEncode", () => ({
   encodeVideoFrame: vi.fn(),
 }));
 
-vi.mock("@/features/browse/api/files", () => ({
+vi.mock("@/features/folder/api/files", () => ({
   importFiles: vi.fn(),
   previewFileImport: vi.fn(),
 }));
@@ -207,10 +207,10 @@ describe("GalleryItemModal", () => {
     );
 
     installMockBackend({
-      browseByPath: {
+      folderByPath: {
         [HOME_PATH]: {
-          ...homeBrowse,
-          items: [...homeBrowse.items, jsonItem],
+          ...homeFolder,
+          items: [...homeFolder.items, jsonItem],
         },
       },
     });
@@ -418,12 +418,12 @@ describe("GalleryItemModal", () => {
   it("drops a caption selection when moving to another item", async () => {
     const items = [makeItem("sunset.png"), makeItem("beach.jpg", { description: "A quiet shore" })];
 
-    // The caption is fetched, so the second item needs its text in the browse fixture too.
+    // The caption is fetched, so the second item needs its text in the folder fixture too.
     installMockBackend({
-      browseByPath: {
+      folderByPath: {
         [HOME_PATH]: {
-          ...homeBrowse,
-          items: homeBrowse.items.map((entry) =>
+          ...homeFolder,
+          items: homeFolder.items.map((entry) =>
             entry.name === "beach.jpg"
               ? {
                   ...entry,

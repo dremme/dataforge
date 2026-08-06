@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { importFiles } from "@/features/browse/api/files";
+import { importFiles } from "@/features/folder/api/files";
 import type { FrameCapture } from "@/features/gallery/lib/frameCapture";
 import { frameSaveOutcome } from "@/features/gallery/lib/frameCapture";
 import {

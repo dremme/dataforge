@@ -26,7 +26,7 @@ describe("SysPromptModal", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps editor content and selection when browse echoes a save", async () => {
+  it("keeps editor content and selection when folder echoes a save", async () => {
     vi.spyOn(api, "saveSysPrompt").mockImplementation(async (_path, text) => ({
       description: text.trim(),
       has_description: text.trim().length > 0,
@@ -68,7 +68,7 @@ describe("SysPromptModal", () => {
     expect(editor.selectionStart).toBe(selectionBeforeEcho);
   });
 
-  it("does not apply server-normalized browse text while the modal stays open", async () => {
+  it("does not apply server-normalized folder text while the modal stays open", async () => {
     vi.spyOn(api, "saveSysPrompt").mockImplementation(async (_path, text) => ({
       description: text.trim(),
       has_description: text.trim().length > 0,

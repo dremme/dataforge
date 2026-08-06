@@ -21,7 +21,7 @@ import { subscribeToServerEvents } from "@/shared/api/eventStream";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { ExternalOstrisJob, Job, JobType } from "@/shared/types";
-import { foldersMatch } from "@/features/browse/lib/folderPath";
+import { foldersMatch } from "@/features/folder/lib/folderPath";
 import {
   isActiveJobStatus,
   isTerminalJobStatus,

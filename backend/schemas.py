@@ -22,9 +22,9 @@ class Breadcrumb(BaseModel):
 class Subfolder(BaseModel):
     """A child folder card.
 
-    The counts are ``None`` in a ``/api/browse`` response: computing them means
-    reading every caption sidecar in every child, so they are served separately
-    by ``/api/browse/subfolder-stats`` and merged in once they arrive.
+    The counts are ``None`` in a ``/api/folders/contents`` response: computing them
+    means reading every caption sidecar in every child, so they are served separately
+    by ``/api/folders/subfolder-stats`` and merged in once they arrive.
     """
 
     name: str
@@ -63,11 +63,11 @@ class GalleryItem(BaseModel):
     modified_at: str | None = None
 
 
-class BrowseFingerprintResponse(BaseModel):
+class FolderFingerprintResponse(BaseModel):
     fingerprint: str
 
 
-class BrowseChangesResponse(BaseModel):
+class FolderChangesResponse(BaseModel):
     """What changed in a folder since a given fingerprint.
 
     ``changed`` covers both new and edited items: the client upserts by path, so
@@ -81,8 +81,8 @@ class BrowseChangesResponse(BaseModel):
     removed: list[str] = Field(default_factory=list)
 
 
-class BrowseResponse(BaseModel):
-    folder: str
+class FolderResponse(BaseModel):
+    path: str
     home: str
     parent: str | None
     breadcrumbs: list[Breadcrumb]

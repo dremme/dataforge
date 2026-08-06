@@ -2,7 +2,7 @@
 
 Browsing a folder used to re-read and re-parse every sidecar on every request —
 including the reloads the 3s change-detection poll triggers. Keying on
-``(path, mtime_ns, size)`` makes a repeat browse of an unchanged folder cost no
+``(path, mtime_ns, size)`` makes a repeat listing of an unchanged folder cost no
 file reads at all, while a rewritten sidecar bumps its mtime and so invalidates
 itself. Callers get those three values free from :mod:`folder_scan`, so a lookup
 costs no syscall either.

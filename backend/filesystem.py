@@ -231,7 +231,7 @@ def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:
 
 
 def list_subfolders(folder: Path) -> list[dict[str, str | int]]:
-    """Child folders with per-folder media/caption stats (for the main gallery browse)."""
+    """Child folders with per-folder media/caption stats (for the main gallery listing)."""
     subfolder_entries = _iter_child_directories(folder)
     if not subfolder_entries:
         return []

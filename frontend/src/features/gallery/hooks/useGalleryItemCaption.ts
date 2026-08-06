@@ -53,7 +53,7 @@ export function useGalleryItemCaption({
   const captionRef = useRef(caption);
   const captionRevisionRef = useRef<string | null>(null);
   // Every caption state this hook has already shown for the open item. The folder
-  // poller reloads browse ~1.5s after a save, and that reload can be answered from
+  // poller reloads folder ~1.5s after a save, and that reload can be answered from
   // data older than the save, so it echoes a revision we have already moved past.
   const seenRevisionsRef = useRef(new Set<string>());
 
@@ -84,7 +84,7 @@ export function useGalleryItemCaption({
       if (result.caption_content != null) {
         setCaptionContent(result.caption_content);
       }
-      // Match the browse revision produced by onCaptionSaved so background sync
+      // Match the folder revision produced by onCaptionSaved so background sync
       // does not wipe caption_content after a save.
       markRevision(revisionFromSaveResult(result));
       onCaptionSaved(payload.path, result);
@@ -111,7 +111,7 @@ export function useGalleryItemCaption({
       const cachedCaption = source.description ?? "";
 
       setCaption(cachedCaption);
-      // Browse items do not carry caption_content; only clear it on full item reload.
+      // Folder items do not carry caption_content; only clear it on full item reload.
       if (options.resetCaptionContent) {
         setCaptionContent(null);
       }
@@ -160,7 +160,7 @@ export function useGalleryItemCaption({
 
     return cancelDeferredCaptionLoad;
     // Depend on itemPath only — not `item`. fetchCaption calls onCaptionSaved which
-    // updates the parent browse state and replaces the item object, which would
+    // updates the parent folder state and replaces the item object, which would
     // retrigger this effect endlessly if `item` were listed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isCurrent/next/item omitted on purpose
   }, [
@@ -197,12 +197,12 @@ export function useGalleryItemCaption({
     const incomingCaption = item.description ?? "";
     const current = captionRef.current;
     if (current === incomingCaption || current.trim() === incomingCaption) {
-      // Browse echoed our own save (possibly after server-side whitespace normalization).
+      // The folder listing echoed our own save (possibly after server-side whitespace normalization).
       // Keep the editor's exact buffer (e.g. trailing spaces while typing) and baseline.
       return;
     }
 
-    // Keep caption_content from the last fetch/save — browse items never include it.
+    // Keep caption_content from the last fetch/save — folder items never include it.
     applyCaptionFromItem(item, { resetCaptionContent: false });
   }, [applyCaptionFromItem, hasUnsavedChanges, item, itemPath, itemRevision, markRevision]);
 

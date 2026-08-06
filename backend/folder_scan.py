@@ -4,7 +4,7 @@
 directory enumeration itself, so a single pass replaces the ``iterdir`` +
 ``is_file`` + ``stat`` + per-sidecar ``is_file`` probes each caller used to run
 on its own. Sidecar existence becomes a dict hit against :attr:`FolderScan.files`
-instead of a syscall, which is what a browse spends most of its time on.
+instead of a syscall, which is what a folder listing spends most of its time on.
 
 This module deliberately imports nothing but ``constants`` — ``filesystem`` and
 ``media_listing`` both depend on it, so any import back the other way would cycle.
@@ -43,7 +43,7 @@ class ScannedEntry:
 
 @dataclass(frozen=True)
 class FolderScan:
-    """Everything a browse needs to know about one directory."""
+    """Everything a folder listing needs to know about one directory."""
 
     folder: Path
     #: Every regular file, keyed by exact name, for O(1) sidecar lookup.
@@ -150,10 +150,10 @@ def scan_folder(folder: Path) -> FolderScan | None:
     )
 
 
-def browse_entries_in_order(scan: FolderScan) -> list[tuple[str, ScannedEntry]]:
+def folder_entries_in_order(scan: FolderScan) -> list[tuple[str, ScannedEntry]]:
     """Dirs, sysprompt, and media as one name-ordered sequence with kind tags.
 
-    The browse fingerprint hashes entries in directory order, so it needs the
+    The folder fingerprint hashes entries in directory order, so it needs the
     three collections merged back together rather than concatenated.
     """
     tagged: list[tuple[str, ScannedEntry]] = [("dir", entry) for entry in scan.dirs]

@@ -1,5 +1,5 @@
 import type { Job, JobType } from "@/shared/types";
-import { foldersMatch } from "@/features/browse/lib/folderPath";
+import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { jobTypeOf } from "./jobs";
 
 export type StartingJob = {

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { AutomationDialogOverlays } from "@/features/automation/components/AutomationDialogOverlays";
-import { CreateFolderDialog } from "@/features/browse/components/CreateFolderDialog";
-import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
+import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDialog";
+import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal";
 import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";

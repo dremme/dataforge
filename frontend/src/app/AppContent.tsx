@@ -1,4 +1,4 @@
-import { AppBrowseContent } from "@/app/components/AppBrowseContent";
+import { AppFolderContent } from "@/app/components/AppFolderContent";
 import { AppHeader } from "@/app/components/AppHeader";
 import { AppOverlays } from "@/app/components/AppOverlays";
 import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
@@ -7,7 +7,7 @@ import { GallerySelectionProvider } from "@/features/gallery/context/GallerySele
 export function AppContent() {
   const {
     mainRef,
-    browse,
+    folder,
     loading,
     refreshing,
     error,
@@ -54,19 +54,19 @@ export function AppContent() {
       onCopied={onGalleryItemsCopied}
     >
       <div className="app">
-        {browse && (
+        {folder && (
           <AppHeader
-            browse={browse}
+            folder={folder}
             folderNotFound={folderNotFound}
             refreshing={refreshing}
             onNavigate={navigateTo}
             onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
             toolbarProps={{
-              subfolderCount: browse.subfolder_count,
+              subfolderCount: folder.subfolder_count,
               fileCount: items.length,
               captionedCount: query.captionedCount,
               issueCount: gallery.issueCount,
-              hasCaptionBackup: browse.has_caption_backup,
+              hasCaptionBackup: folder.has_caption_backup,
               statsLoading: loading && !refreshing,
               searchQuery: query.searchQuery,
               searchRegex: query.searchRegex,
@@ -101,10 +101,10 @@ export function AppContent() {
 
         <main ref={mainRef} className="main">
           <div className="main__inner">
-            <AppBrowseContent
+            <AppFolderContent
               error={error}
               loading={loading}
-              browse={browse}
+              folder={folder}
               subfolders={subfolders}
               filteredSubfolders={filteredSubfolders}
               items={items}
@@ -116,11 +116,11 @@ export function AppContent() {
               onOpenGalleryItem={openGalleryItem}
               automationPanelProps={automation.panelProps}
               fileDrop={{
-                enabled: Boolean(browse) && !folderNotFound && !loading,
+                enabled: Boolean(folder) && !folderNotFound && !loading,
                 active: fileDrop.isDragActive,
                 folderLabel:
-                  browse?.breadcrumbs[browse.breadcrumbs.length - 1]?.name ??
-                  browse?.folder ??
+                  folder?.breadcrumbs[folder.breadcrumbs.length - 1]?.name ??
+                  folder?.path ??
                   "this folder",
                 onDragEnter: fileDrop.onDragEnter,
                 onDragOver: fileDrop.onDragOver,
@@ -132,7 +132,7 @@ export function AppContent() {
         </main>
 
         <AppOverlays
-          currentFolder={browse?.folder}
+          currentFolder={folder?.path}
           onOpenFolder={navigateTo}
           onCaptionSaved={gallery.onCaptionSaved}
           gallery={{

@@ -1,4 +1,4 @@
-import type { BrowseResponse, GalleryItem } from "@/shared/types";
+import type { FolderResponse, GalleryItem } from "@/shared/types";
 
 export const HOME_PATH = "C:\\Photos";
 
@@ -58,8 +58,8 @@ function syspromptItem(folder: string, options: Partial<GalleryItem> = {}): Gall
   };
 }
 
-export const homeBrowse: BrowseResponse = {
-  folder: HOME_PATH,
+export const homeFolder: FolderResponse = {
+  path: HOME_PATH,
   home: HOME_PATH,
   parent: null,
   breadcrumbs: [
@@ -104,8 +104,8 @@ export const homeBrowse: BrowseResponse = {
   fingerprint: "fp-home",
 };
 
-export const vacationBrowse: BrowseResponse = {
-  folder: VACATION_PATH,
+export const vacationFolder: FolderResponse = {
+  path: VACATION_PATH,
   home: HOME_PATH,
   parent: HOME_PATH,
   breadcrumbs: [
@@ -130,8 +130,8 @@ export const vacationBrowse: BrowseResponse = {
   fingerprint: "fp-vacation",
 };
 
-export const emptyBrowse: BrowseResponse = {
-  folder: EMPTY_PATH,
+export const emptyFolder: FolderResponse = {
+  path: EMPTY_PATH,
   home: HOME_PATH,
   parent: HOME_PATH,
   breadcrumbs: [

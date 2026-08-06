@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { foldersMatch } from "@/features/browse/lib/folderPath";
+import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { useFolderJob, useJobTransitions, useJobs } from "@/features/jobs/context/JobsContext";
 import { isStartingJobForFolder } from "@/features/jobs/lib/jobStartHelpers";
 import type { JobType } from "@/shared/types";
@@ -15,7 +15,7 @@ export function useFolderAutomation(
     (folderPath: string) => {
       if (!folder || !foldersMatch(folderPath, folder)) return;
       reloadFolder().catch(() => {
-        // Browse refresh failures are surfaced by folder navigation.
+        // Folder refresh failures are surfaced by folder navigation.
       });
     },
     [folder, reloadFolder],

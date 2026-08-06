@@ -4,7 +4,7 @@ import {
   transferSelectedMedia,
   type MediaTransferMode,
 } from "@/features/gallery/api/media";
-import { folderLeafName } from "@/features/browse/lib/folderPath";
+import { folderLeafName } from "@/features/folder/lib/folderPath";
 import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";

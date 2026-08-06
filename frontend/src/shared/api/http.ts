@@ -11,7 +11,7 @@ export const BACKEND_UNREACHABLE = {
 /** Matches the API `detail` field for missing folders. */
 export const FOLDER_NOT_FOUND_MESSAGE = FOLDER_NOT_FOUND.title;
 
-export type BrowseError =
+export type FolderError =
   | { kind: "folder-not-found" }
   | { kind: "backend-unreachable" }
   | { kind: "other"; message: string };
@@ -42,7 +42,7 @@ function isNetworkFailureHttpResponse(status: number, detail: unknown): boolean 
   return status === 500 || status === 502 || status === 503 || status === 504;
 }
 
-export function resolveBrowseError(error: unknown): BrowseError | null {
+export function resolveFolderError(error: unknown): FolderError | null {
   if (error == null) return null;
 
   const message = errorMessage(error);
@@ -62,7 +62,7 @@ export function resolveBrowseError(error: unknown): BrowseError | null {
 }
 
 export function isFolderNotFoundError(error: unknown): boolean {
-  return resolveBrowseError(error)?.kind === "folder-not-found";
+  return resolveFolderError(error)?.kind === "folder-not-found";
 }
 
 /** True for a request the caller itself cancelled — never a real failure to report. */
@@ -72,7 +72,7 @@ export function isAbortError(error: unknown): boolean {
 
 /** User-facing single-line message for tooltips and inline errors. */
 export function formatApiError(error: unknown): string {
-  const resolved = resolveBrowseError(error);
+  const resolved = resolveFolderError(error);
   if (!resolved) return "Something went wrong.";
 
   switch (resolved.kind) {

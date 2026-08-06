@@ -1,15 +1,15 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { EMPTY_PATH, HOME_PATH, VACATION_PATH, homeBrowse } from "@/test/fixtures";
+import { EMPTY_PATH, HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
-import type { BrowseResponse } from "@/shared/types";
+import type { FolderResponse } from "@/shared/types";
 
 /** Home, with sunset.png carrying a caption issue the resolver can act on. */
-const issueBrowse: BrowseResponse = {
-  ...homeBrowse,
-  items: homeBrowse.items.map((item) =>
+const issueFolder: FolderResponse = {
+  ...homeFolder,
+  items: homeFolder.items.map((item) =>
     item.name === "sunset.png"
       ? { ...item, has_issue_file: true, issue_fixes: ['Replace "lake" with "river".'] }
       : item,
@@ -19,20 +19,20 @@ const issueBrowse: BrowseResponse = {
 /** The first load asks for no path, so both keys have to carry the payload. */
 function installIssueBackend() {
   return installMockBackend({
-    browseByPath: { undefined: issueBrowse, [HOME_PATH]: issueBrowse },
+    folderByPath: { undefined: issueFolder, [HOME_PATH]: issueFolder },
   });
 }
 
 describe("App", () => {
   it("shows folder not found when the current folder is deleted in the background", async () => {
-    const { removeBrowseFolder } = installMockBackend();
+    const { removeFolder } = installMockBackend();
     await renderApp();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    removeBrowseFolder(HOME_PATH);
+    removeFolder(HOME_PATH);
 
     await waitFor(
       () => {
@@ -46,7 +46,7 @@ describe("App", () => {
   }, 10_000);
 
   it("shows an initial loading state before the home folder renders", async () => {
-    installMockBackend({ browseDelayMs: 50 });
+    installMockBackend({ folderDelayMs: 50 });
     await renderApp();
 
     expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
@@ -95,13 +95,13 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Create instructions" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
 
-    const browseCalls = fetchMock.mock.calls.filter(([input]) => {
+    const folderCalls = fetchMock.mock.calls.filter(([input]) => {
       const requestUrl =
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      return new URL(requestUrl, "http://localhost").pathname === "/api/browse";
+      return new URL(requestUrl, "http://localhost").pathname === "/api/folders/contents";
     });
     expect(
-      browseCalls.some(([input]) => {
+      folderCalls.some(([input]) => {
         const requestUrl =
           typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         return new URL(requestUrl, "http://localhost").searchParams.get("path") === VACATION_PATH;
@@ -122,16 +122,16 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
     });
 
-    const pathsBrowsed = () =>
+    const pathsListed = () =>
       fetchMock.mock.calls
         .map(([input]) =>
           typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
         )
         .map((requestUrl) => new URL(requestUrl, "http://localhost"))
-        .filter((parsed) => parsed.pathname === "/api/browse")
+        .filter((parsed) => parsed.pathname === "/api/folders/contents")
         .map((parsed) => parsed.searchParams.get("path"));
 
-    const browsesBeforeReturn = pathsBrowsed().length;
+    const listingsBeforeReturn = pathsListed().length;
 
     await user.click(screen.getByRole("button", { name: /Photos/ }));
 
@@ -139,17 +139,17 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
     expect(document.querySelector(".folder-card--skeleton")).toBeNull();
 
-    // The fingerprint check confirms nothing moved, so no second full browse.
+    // The fingerprint check confirms nothing moved, so no second full folder.
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([input]) => {
           const requestUrl =
             typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-          return new URL(requestUrl, "http://localhost").pathname === "/api/browse/fingerprint";
+          return new URL(requestUrl, "http://localhost").pathname === "/api/folders/fingerprint";
         }),
       ).toBe(true);
     });
-    expect(pathsBrowsed()).toHaveLength(browsesBeforeReturn);
+    expect(pathsListed()).toHaveLength(listingsBeforeReturn);
   });
 
   it("fills in subfolder counts after the folder cards have rendered", async () => {
@@ -311,12 +311,12 @@ describe("App", () => {
       }),
     );
     const foldersOnlyHome = {
-      ...homeBrowse,
+      ...homeFolder,
       items: [],
       item_count: 0,
     };
     installMockBackend({
-      browseByPath: {
+      folderByPath: {
         undefined: foldersOnlyHome,
         [HOME_PATH]: foldersOnlyHome,
       },
@@ -362,12 +362,12 @@ describe("App", () => {
   it("shows media type filter empty state when subfolders are present", async () => {
     const user = userEvent.setup();
     const videoOnlyHome = {
-      ...homeBrowse,
-      items: homeBrowse.items.filter((item) => item.media_type === "video"),
+      ...homeFolder,
+      items: homeFolder.items.filter((item) => item.media_type === "video"),
       item_count: 1,
     };
     installMockBackend({
-      browseByPath: {
+      folderByPath: {
         undefined: videoOnlyHome,
         [HOME_PATH]: videoOnlyHome,
       },
@@ -599,9 +599,9 @@ describe("App", () => {
     });
   });
 
-  it("shows an error message when browse requests fail", async () => {
+  it("shows an error message when folder requests fail", async () => {
     window.history.replaceState(null, "", `/?path=${encodeURIComponent(HOME_PATH)}`);
-    installMockBackend({ failBrowse: true });
+    installMockBackend({ failFolder: true });
     await renderApp();
 
     await waitFor(
@@ -770,7 +770,7 @@ describe("App", () => {
         const requestUrl =
           typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         return (
-          new URL(requestUrl, "http://localhost").pathname === "/api/browse" &&
+          new URL(requestUrl, "http://localhost").pathname === "/api/folders/contents" &&
           new URL(requestUrl, "http://localhost").searchParams.get("path") === VACATION_PATH
         );
       }),

@@ -200,7 +200,7 @@ describe("Toolbar", () => {
     expect(screen.queryByLabelText(/caption issue/)).not.toBeInTheDocument();
   });
 
-  it("marks the stats when the browsed folder has backed up captions", () => {
+  it("marks the stats when the open folder has backed up captions", () => {
     renderToolbar({ hasCaptionBackup: true });
 
     const badge = screen.getByLabelText("This folder has backed up captions");

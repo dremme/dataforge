@@ -21,7 +21,7 @@ function entersNewline(target: EventTarget | null): boolean {
 interface DialogProps {
   title: string;
   description?: ReactNode;
-  /** `alertdialog` interrupts the user; use `dialog` for pickers and browsers. */
+  /** `alertdialog` interrupts the user; use `dialog` for pickers and folder trees. */
   role?: "alertdialog" | "dialog";
   /** Extra class on the panel, e.g. `batch-rename-dialog`. */
   panelClassName?: string;

@@ -1,10 +1,10 @@
 import type { ComponentProps } from "react";
-import { BreadcrumbBar } from "@/features/browse/components/BreadcrumbBar";
+import { BreadcrumbBar } from "@/features/folder/components/BreadcrumbBar";
 import { Toolbar } from "@/features/gallery/components/Toolbar";
-import type { BrowseResponse } from "@/shared/types";
+import type { FolderResponse } from "@/shared/types";
 
 type AppHeaderProps = {
-  browse: BrowseResponse;
+  folder: FolderResponse;
   folderNotFound?: boolean;
   /** A reload running underneath content that stays on screen. */
   refreshing?: boolean;
@@ -14,7 +14,7 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({
-  browse,
+  folder,
   folderNotFound,
   refreshing = false,
   onNavigate,
@@ -25,8 +25,8 @@ export function AppHeader({
     <header className="app-nav">
       <div className="app-nav__inner">
         <BreadcrumbBar
-          breadcrumbs={browse.breadcrumbs}
-          currentFolder={browse.folder}
+          breadcrumbs={folder.breadcrumbs}
+          currentFolder={folder.path}
           folderNotFound={folderNotFound}
           onNavigate={onNavigate}
           onCreateFolder={onCreateFolder}

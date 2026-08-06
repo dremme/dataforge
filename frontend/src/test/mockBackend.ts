@@ -1,7 +1,7 @@
 import { vi } from "vitest";
-import { clearBrowseCache } from "@/features/browse/lib/browseCache";
-import type { Job, BrowseResponse } from "@/shared/types";
-import { emptyBrowse, homeBrowse, vacationBrowse } from "./fixtures";
+import { clearFolderCache } from "@/features/folder/lib/folderCache";
+import type { Job, FolderResponse } from "@/shared/types";
+import { emptyFolder, homeFolder, vacationFolder } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0,
@@ -10,12 +10,12 @@ const MINIMAL_PNG = new Uint8Array([
 ]);
 
 export interface MockBackendOptions {
-  failBrowse?: boolean;
-  browseDelayMs?: number;
-  browseByPath?: Record<string, BrowseResponse | undefined>;
+  failFolder?: boolean;
+  folderDelayMs?: number;
+  folderByPath?: Record<string, FolderResponse | undefined>;
 }
 
-function normalizeBrowseKey(path: string | null | undefined): string | undefined {
+function normalizeFolderKey(path: string | null | undefined): string | undefined {
   if (!path) return undefined;
   return path.replace(/\//g, "\\");
 }
@@ -27,7 +27,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function cloneBrowse(data: BrowseResponse): BrowseResponse {
+function cloneFolder(data: FolderResponse): FolderResponse {
   return structuredClone(data);
 }
 
@@ -55,40 +55,40 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
 export function installMockBackend(options: MockBackendOptions = {}) {
   let folderFavorites: string[] | null = null;
 
-  // The browse cache is a module singleton, so a payload left over from an
+  // The folder cache is a module singleton, so a payload left over from an
   // earlier test would otherwise be served instead of hitting this mock.
-  clearBrowseCache();
+  clearFolderCache();
 
-  const browseByPath = Object.fromEntries(
-    Object.entries(options.browseByPath ?? {}).map(([key, value]) => [
+  const folderByPath = Object.fromEntries(
+    Object.entries(options.folderByPath ?? {}).map(([key, value]) => [
       key,
-      value ? cloneBrowse(value) : value,
+      value ? cloneFolder(value) : value,
     ]),
   );
 
-  const browseResponses: Record<string, BrowseResponse | undefined> = {
-    undefined: cloneBrowse(homeBrowse),
-    [homeBrowse.folder]: cloneBrowse(homeBrowse),
-    [vacationBrowse.folder]: cloneBrowse(vacationBrowse),
-    [emptyBrowse.folder]: cloneBrowse(emptyBrowse),
-    ...browseByPath,
+  const folderResponses: Record<string, FolderResponse | undefined> = {
+    undefined: cloneFolder(homeFolder),
+    [homeFolder.path]: cloneFolder(homeFolder),
+    [vacationFolder.path]: cloneFolder(vacationFolder),
+    [emptyFolder.path]: cloneFolder(emptyFolder),
+    ...folderByPath,
   };
 
-  const getFavoritePaths = () => folderFavorites ?? [homeBrowse.home];
+  const getFavoritePaths = () => folderFavorites ?? [homeFolder.home];
 
   const buildFavoritesResponse = () => ({
     favorites: getFavoritePaths().map((path) => ({
       path,
-      name: path === homeBrowse.home ? "Home" : folderLeafName(path),
+      name: path === homeFolder.home ? "Home" : folderLeafName(path),
     })),
   });
 
   const isDriveRoot = (path: string) => /^[A-Za-z]:\\$/i.test(path);
 
   const folderExists = (path: string | null | undefined) => {
-    const pathKey = normalizeBrowseKey(path);
+    const pathKey = normalizeFolderKey(path);
     if (!pathKey) return false;
-    if (browseResponses[pathKey] !== undefined) return true;
+    if (folderResponses[pathKey] !== undefined) return true;
     return isDriveRoot(pathKey);
   };
 
@@ -99,7 +99,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     const method = (init?.method ?? "GET").toUpperCase();
 
     if (url.pathname === "/api/folders/favorites") {
-      const favoritePath = normalizeBrowseKey(url.searchParams.get("path"));
+      const favoritePath = normalizeFolderKey(url.searchParams.get("path"));
 
       if (method === "GET") {
         return jsonResponse(buildFavoritesResponse());
@@ -111,7 +111,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         }
 
         const paths = [...getFavoritePaths()];
-        if (!paths.some((entry) => normalizeBrowseKey(entry) === favoritePath)) {
+        if (!paths.some((entry) => normalizeFolderKey(entry) === favoritePath)) {
           paths.push(favoritePath);
         }
         folderFavorites = paths;
@@ -124,14 +124,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         }
 
         folderFavorites = getFavoritePaths().filter(
-          (entry) => normalizeBrowseKey(entry) !== favoritePath,
+          (entry) => normalizeFolderKey(entry) !== favoritePath,
         );
         return jsonResponse(buildFavoritesResponse());
       }
     }
 
     if (url.pathname === "/api/folders/open" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path"));
+      const folderPath = normalizeFolderKey(url.searchParams.get("path"));
       if (!folderPath || !folderExists(folderPath)) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
@@ -140,7 +140,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
 
     if (url.pathname === "/api/folders/create" && method === "POST") {
-      const parentPath = normalizeBrowseKey(url.searchParams.get("path"));
+      const parentPath = normalizeFolderKey(url.searchParams.get("path"));
       const folderName = url.searchParams.get("name")?.trim() ?? "";
 
       if (!parentPath || !folderExists(parentPath)) {
@@ -152,13 +152,13 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
 
       const createdPath = `${parentPath.replace(/[/\\]+$/, "")}\\${folderName}`;
-      const parentBrowse = browseResponses[parentPath];
-      if (!parentBrowse) {
+      const parentFolder = folderResponses[parentPath];
+      if (!parentFolder) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
       if (
-        parentBrowse.subfolders.some(
+        parentFolder.subfolders.some(
           (entry) => entry.name.toLowerCase() === folderName.toLowerCase(),
         )
       ) {
@@ -173,16 +173,16 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         issue_count: 0,
       };
 
-      parentBrowse.subfolders = [...parentBrowse.subfolders, createdSubfolder].sort((left, right) =>
+      parentFolder.subfolders = [...parentFolder.subfolders, createdSubfolder].sort((left, right) =>
         left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
       );
-      parentBrowse.subfolder_count = parentBrowse.subfolders.length;
+      parentFolder.subfolder_count = parentFolder.subfolders.length;
 
-      browseResponses[createdPath] = {
-        ...cloneBrowse(parentBrowse),
-        folder: createdPath,
+      folderResponses[createdPath] = {
+        ...cloneFolder(parentFolder),
+        path: createdPath,
         parent: parentPath,
-        breadcrumbs: [...parentBrowse.breadcrumbs, { name: folderName, path: createdPath }],
+        breadcrumbs: [...parentFolder.breadcrumbs, { name: folderName, path: createdPath }],
         subfolders: [],
         items: [],
         item_count: 0,
@@ -195,9 +195,9 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
     if (url.pathname === "/api/folders/roots") {
       return jsonResponse({
-        home: homeBrowse.home,
+        home: homeFolder.home,
         roots: [
-          { name: "Home", path: homeBrowse.home },
+          { name: "Home", path: homeFolder.home },
           { name: "C:\\", path: "C:\\" },
         ],
       });
@@ -205,12 +205,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
     if (url.pathname === "/api/folders/children") {
       const rawPath = url.searchParams.get("path");
-      const pathKey = normalizeBrowseKey(rawPath);
+      const pathKey = normalizeFolderKey(rawPath);
       if (!pathKey || !folderExists(pathKey)) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
-      const data = browseResponses[pathKey];
+      const data = folderResponses[pathKey];
       const children = (data?.subfolders ?? []).map((entry) => ({
         name: entry.name,
         path: entry.path,
@@ -218,11 +218,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ folder: pathKey, children });
     }
 
-    if (url.pathname === "/api/browse/fingerprint") {
+    if (url.pathname === "/api/folders/fingerprint") {
       const rawPath = url.searchParams.get("path");
-      const pathKey = normalizeBrowseKey(rawPath);
+      const pathKey = normalizeFolderKey(rawPath);
       const data =
-        rawPath === null || rawPath === "" ? browseResponses.undefined : browseResponses[pathKey!];
+        rawPath === null || rawPath === "" ? folderResponses.undefined : folderResponses[pathKey!];
       if (!data) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
@@ -230,9 +230,9 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ fingerprint: data.fingerprint });
     }
 
-    if (url.pathname === "/api/browse/changes") {
-      const pathKey = normalizeBrowseKey(url.searchParams.get("path"));
-      const data = pathKey ? browseResponses[pathKey] : undefined;
+    if (url.pathname === "/api/folders/changes") {
+      const pathKey = normalizeFolderKey(url.searchParams.get("path"));
+      const data = pathKey ? folderResponses[pathKey] : undefined;
       if (!data) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
@@ -248,15 +248,15 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
-    if (url.pathname === "/api/browse/subfolder-stats") {
-      const pathKey = normalizeBrowseKey(url.searchParams.get("path"));
-      const data = pathKey ? browseResponses[pathKey] : undefined;
+    if (url.pathname === "/api/folders/subfolder-stats") {
+      const pathKey = normalizeFolderKey(url.searchParams.get("path"));
+      const data = pathKey ? folderResponses[pathKey] : undefined;
       if (!data) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
       return jsonResponse({
-        folder: data.folder,
+        folder: data.path,
         subfolders: data.subfolders.map((entry) => ({
           path: entry.path,
           file_count: entry.file_count ?? 0,
@@ -266,19 +266,19 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
-    if (url.pathname === "/api/browse") {
-      if (options.browseDelayMs) {
-        await new Promise((resolve) => setTimeout(resolve, options.browseDelayMs));
+    if (url.pathname === "/api/folders/contents") {
+      if (options.folderDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.folderDelayMs));
       }
 
-      if (options.failBrowse) {
+      if (options.failFolder) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
       const rawPath = url.searchParams.get("path");
-      const pathKey = normalizeBrowseKey(rawPath);
+      const pathKey = normalizeFolderKey(rawPath);
       const data =
-        rawPath === null || rawPath === "" ? browseResponses.undefined : browseResponses[pathKey!];
+        rawPath === null || rawPath === "" ? folderResponses.undefined : folderResponses[pathKey!];
       if (!data) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
@@ -344,14 +344,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
     if (url.pathname === "/api/caption" && method === "GET") {
       const path = url.searchParams.get("path") ?? "";
-      const browseData =
-        browseResponses[
-          Object.keys(browseResponses).find(
+      const folderData =
+        folderResponses[
+          Object.keys(folderResponses).find(
             (key) =>
-              key !== "undefined" && browseResponses[key]?.items.some((item) => item.path === path),
+              key !== "undefined" && folderResponses[key]?.items.some((item) => item.path === path),
           ) ?? ""
         ];
-      const item = browseData?.items.find((entry) => entry.path === path);
+      const item = folderData?.items.find((entry) => entry.path === path);
 
       const captionText = item?.description ?? "";
       const captionFileType = item?.caption_file_type ?? null;
@@ -380,11 +380,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const text = typeof body.text === "string" ? body.text : "";
       const hasDescription = text.length > 0;
       const resolveIssue = body.resolve_issue === true;
-      let savedItem: (typeof homeBrowse.items)[number] | undefined;
+      let savedItem: (typeof homeFolder.items)[number] | undefined;
 
-      for (const browseData of Object.values(browseResponses)) {
-        if (!browseData) continue;
-        const item = browseData.items.find((entry) => entry.path === path);
+      for (const folderData of Object.values(folderResponses)) {
+        if (!folderData) continue;
+        const item = folderData.items.find((entry) => entry.path === path);
         if (!item) continue;
         savedItem = item;
 
@@ -494,7 +494,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       (url.pathname === "/api/media/move/preview" || url.pathname === "/api/media/copy/preview") &&
       method === "POST"
     ) {
-      const destination = normalizeBrowseKey(url.searchParams.get("destination"));
+      const destination = normalizeFolderKey(url.searchParams.get("destination"));
       const body = init?.body ? JSON.parse(init.body as string) : { paths: [] };
       const paths = Array.isArray(body.paths) ? body.paths : [];
 
@@ -502,14 +502,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
-      const destinationBrowse = browseResponses[destination];
-      const existingNames = new Set(destinationBrowse?.items.map((item) => item.name) ?? []);
+      const destinationFolder = folderResponses[destination];
+      const existingNames = new Set(destinationFolder?.items.map((item) => item.name) ?? []);
       const eligible: string[] = [];
       const conflicts: string[] = [];
       const skipped: string[] = [];
 
       for (const path of paths) {
-        const normalizedPath = normalizeBrowseKey(path);
+        const normalizedPath = normalizeFolderKey(path);
         const fileName = normalizedPath?.split(/[/\\]/).pop();
         if (!normalizedPath || !fileName) continue;
 
@@ -534,7 +534,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       method === "POST"
     ) {
       const isCopy = url.pathname === "/api/media/copy";
-      const destination = normalizeBrowseKey(url.searchParams.get("destination"));
+      const destination = normalizeFolderKey(url.searchParams.get("destination"));
       const overwrite = url.searchParams.get("overwrite") === "true";
       const body = init?.body ? JSON.parse(init.body as string) : { paths: [] };
       const paths = Array.isArray(body.paths) ? body.paths : [];
@@ -543,8 +543,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
-      const destinationBrowse = browseResponses[destination];
-      if (!destinationBrowse) {
+      const destinationFolder = folderResponses[destination];
+      if (!destinationFolder) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
@@ -553,12 +553,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const failed: Array<{ path: string; detail: string }> = [];
 
       for (const path of paths) {
-        const normalizedPath = normalizeBrowseKey(path);
+        const normalizedPath = normalizeFolderKey(path);
         if (!normalizedPath) continue;
 
         const fileName = normalizedPath.split(/[/\\]/).pop() ?? "";
         const parent = normalizedPath.replace(/[/\\][^/\\]+$/, "");
-        const existingIndex = destinationBrowse.items.findIndex(
+        const existingIndex = destinationFolder.items.findIndex(
           (item) => item.name.toLowerCase() === fileName.toLowerCase(),
         );
 
@@ -571,23 +571,23 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           continue;
         }
 
-        let sourceBrowse: BrowseResponse | undefined;
-        for (const browseData of Object.values(browseResponses)) {
-          if (!browseData) continue;
-          const index = browseData.items.findIndex((entry) => entry.path === normalizedPath);
+        let sourceFolder: FolderResponse | undefined;
+        for (const folderData of Object.values(folderResponses)) {
+          if (!folderData) continue;
+          const index = folderData.items.findIndex((entry) => entry.path === normalizedPath);
           if (index >= 0) {
-            sourceBrowse = browseData;
+            sourceFolder = folderData;
             // A copy leaves the source listing alone; a move takes the item out.
-            const item = isCopy ? browseData.items[index] : browseData.items.splice(index, 1)[0];
-            browseData.item_count = browseData.items.length;
+            const item = isCopy ? folderData.items[index] : folderData.items.splice(index, 1)[0];
+            folderData.item_count = folderData.items.length;
 
             if (existingIndex >= 0) {
-              destinationBrowse.items.splice(existingIndex, 1);
+              destinationFolder.items.splice(existingIndex, 1);
             }
 
             const destinationPath = `${destination.replace(/[/\\]+$/, "")}\\${item.name}`;
-            destinationBrowse.items.push({ ...item, path: destinationPath });
-            destinationBrowse.item_count = destinationBrowse.items.length;
+            destinationFolder.items.push({ ...item, path: destinationPath });
+            destinationFolder.item_count = destinationFolder.items.length;
 
             const files = [item.name];
             if (item.has_caption_file) {
@@ -605,7 +605,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           }
         }
 
-        if (!sourceBrowse) {
+        if (!sourceFolder) {
           failed.push({ path: normalizedPath, detail: "Media file not found" });
         }
       }
@@ -618,13 +618,13 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         const path = url.searchParams.get("path") ?? "";
         const deleted = [path.split(/[/\\]/).pop() ?? "file"];
 
-        for (const browseData of Object.values(browseResponses)) {
-          if (!browseData) continue;
-          const index = browseData.items.findIndex((entry) => entry.path === path);
+        for (const folderData of Object.values(folderResponses)) {
+          if (!folderData) continue;
+          const index = folderData.items.findIndex((entry) => entry.path === path);
           if (index < 0) continue;
-          const item = browseData.items[index];
-          browseData.items.splice(index, 1);
-          browseData.item_count = browseData.items.length;
+          const item = folderData.items[index];
+          folderData.items.splice(index, 1);
+          folderData.item_count = folderData.items.length;
           if (item.caption_file_type === "json") {
             deleted.push(item.name.replace(/\.[^.]+$/, ".json"));
           } else if (item.has_caption_file) {
@@ -667,42 +667,42 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
 
     if (url.pathname === "/api/automation/auto-caption" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "auto_caption"));
     }
 
     if (url.pathname === "/api/automation/strip-metadata" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "strip_metadata"));
     }
 
     if (url.pathname === "/api/automation/set-captions" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "set_captions"));
     }
 
     if (url.pathname === "/api/automation/batch-rename" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "batch_rename"));
     }
 
     if (url.pathname === "/api/automation/verify-captions" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "verify_captions"));
     }
 
     if (url.pathname === "/api/automation/backup-captions" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "backup_captions"));
     }
 
     if (url.pathname === "/api/automation/restore-captions" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "restore_captions"));
     }
 
     if (url.pathname === "/api/automation/train-lora" && method === "POST") {
-      const folderPath = normalizeBrowseKey(url.searchParams.get("path")) ?? homeBrowse.folder;
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "train_lora"));
     }
 
@@ -726,7 +726,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
 
     if (url.pathname.startsWith("/api/jobs/") && url.pathname.endsWith("/cancel")) {
-      return jsonResponse(createMockJob(homeBrowse.folder));
+      return jsonResponse(createMockJob(homeFolder.path));
     }
 
     if (url.pathname.startsWith("/api/jobs/") && method === "DELETE") {
@@ -737,14 +737,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     return new Response("Not found", { status: 404 });
   });
 
-  const removeBrowseFolder = (path: string) => {
-    const pathKey = normalizeBrowseKey(path);
+  const removeFolder = (path: string) => {
+    const pathKey = normalizeFolderKey(path);
     if (pathKey) {
-      delete browseResponses[pathKey];
+      delete folderResponses[pathKey];
     }
   };
 
   vi.stubGlobal("fetch", fetchMock);
 
-  return { fetchMock, removeBrowseFolder };
+  return { fetchMock, removeFolder };
 }

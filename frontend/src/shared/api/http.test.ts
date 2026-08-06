@@ -6,29 +6,29 @@ import {
   parseApiError,
   postJson,
   putJson,
-  resolveBrowseError,
+  resolveFolderError,
 } from "@/shared/api/http";
 
-describe("resolveBrowseError", () => {
+describe("resolveFolderError", () => {
   it("classifies gateway failures as backend unreachable", () => {
     for (const status of [500, 502, 503, 504]) {
-      expect(resolveBrowseError(new Error(`Request failed (${status})`))).toEqual({
+      expect(resolveFolderError(new Error(`Request failed (${status})`))).toEqual({
         kind: "backend-unreachable",
       });
     }
   });
 
   it("classifies folder and fetch failures", () => {
-    expect(resolveBrowseError(new Error(FOLDER_NOT_FOUND_MESSAGE))).toEqual({
+    expect(resolveFolderError(new Error(FOLDER_NOT_FOUND_MESSAGE))).toEqual({
       kind: "folder-not-found",
     });
-    expect(resolveBrowseError(new TypeError("Failed to fetch"))).toEqual({
+    expect(resolveFolderError(new TypeError("Failed to fetch"))).toEqual({
       kind: "backend-unreachable",
     });
   });
 
   it("preserves other API error messages", () => {
-    expect(resolveBrowseError(new Error("Caption save failed"))).toEqual({
+    expect(resolveFolderError(new Error("Caption save failed"))).toEqual({
       kind: "other",
       message: "Caption save failed",
     });

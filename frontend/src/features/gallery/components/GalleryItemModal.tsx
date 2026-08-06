@@ -47,7 +47,7 @@ import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { FileImportOverwriteDialog } from "@/features/browse/components/FileImportOverwriteDialog";
+import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -257,7 +257,7 @@ export function GalleryItemModal({
   const handleResolveIssue = useCallback(() => {
     if (!item || busy || !onResolveIssue) return;
     flushPendingSave();
-    // Hand over what the editor shows, not the browse snapshot: the flushed save
+    // Hand over what the editor shows, not the folder snapshot: the flushed save
     // has not reached disk yet when the resolver seeds itself from this item.
     onResolveIssue({ ...item, description: caption });
   }, [busy, caption, flushPendingSave, item, onResolveIssue]);

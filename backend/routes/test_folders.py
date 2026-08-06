@@ -36,7 +36,7 @@ class FolderChildrenEndpointTests(unittest.TestCase):
             response = client.get(f"/api/folders/children?path={quote(str(missing))}")
             self.assertEqual(response.status_code, 404)
 
-    def test_does_not_update_last_browsed_folder(self) -> None:
+    def test_does_not_update_last_opened_folder(self) -> None:
         from constants import LAST_FOLDER_KEY
         from db import get_preference, set_preference
 

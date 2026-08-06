@@ -71,7 +71,7 @@ describe("useGalleryItemCaption", () => {
     expect(fetchCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`);
   });
 
-  it("syncs browse caption updates without re-fetching when there are no local edits", async () => {
+  it("syncs folder caption updates without re-fetching when there are no local edits", async () => {
     const fetchCaption = vi
       .spyOn(api, "fetchCaption")
       .mockResolvedValue(captionResponse("Fresh caption"));
@@ -109,7 +109,7 @@ describe("useGalleryItemCaption", () => {
     expect(onCaptionSaved).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps local edits when browse caption updates arrive in the background", async () => {
+  it("keeps local edits when folder caption updates arrive in the background", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Fresh caption"));
     const onCaptionSaved = vi.fn();
 
@@ -191,7 +191,7 @@ describe("useGalleryItemCaption", () => {
     );
   });
 
-  it("keeps cached browse data when the refresh request fails", async () => {
+  it("keeps cached folder data when the refresh request fails", async () => {
     vi.spyOn(api, "fetchCaption").mockRejectedValue(new Error("Network error"));
     const onCaptionSaved = vi.fn();
 
@@ -210,7 +210,7 @@ describe("useGalleryItemCaption", () => {
     expect(onCaptionSaved).not.toHaveBeenCalled();
   });
 
-  it("preserves saved feedback when browse echoes the saved caption", async () => {
+  it("preserves saved feedback when folder echoes the saved caption", async () => {
     vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Fresh caption"));
     vi.spyOn(api, "saveCaption").mockResolvedValue(captionResponse("Edited caption"));
     const onCaptionSaved = vi.fn();
@@ -468,8 +468,8 @@ describe("useGalleryItemCaption", () => {
       await Promise.resolve();
     });
 
-    // Browse items never carry caption_content, so the .json editor depends on it
-    // surviving the browse-driven reconciliation that follows a save.
+    // Folder items never carry caption_content, so the .json editor depends on it
+    // surviving the folder-driven reconciliation that follows a save.
     expect(result.current.captionContent).toBe(jsonContent);
     expect(result.current.hasJsonCaption).toBe(true);
   });

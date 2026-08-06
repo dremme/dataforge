@@ -148,7 +148,7 @@ def caption_summary_from_sidecar(
 ) -> tuple[str | None, str, str | None]:
     """:func:`load_caption_summary` for a sidecar the caller has already stat'ed.
 
-    Memoized on the stat signature, so an unchanged folder re-browses without
+    Memoized on the stat signature, so an unchanged folder re-lists without
     touching a single caption file.
     """
 

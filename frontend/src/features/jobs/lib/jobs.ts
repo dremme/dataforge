@@ -1,7 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import type { Job, JobStatus, JobType } from "@/shared/types";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
-import { folderLeafName, foldersMatch } from "@/features/browse/lib/folderPath";
+import { folderLeafName, foldersMatch } from "@/features/folder/lib/folderPath";
 import { isKnownJobType, jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
 
 type JobCompletionNotificationVariant = "danger" | "warning" | "success";
