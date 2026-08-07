@@ -1,11 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { stubDialogClock } from "@/test/dialogClock";
 import { Dialog, DialogActions } from "./Dialog";
 
 function renderDialog(overrides: Partial<Parameters<typeof Dialog>[0]> = {}) {
   const onConfirm = vi.fn();
   const onClose = vi.fn();
+
+  // Stubbed before the render so the dialog stamps its open time on this clock.
+  const { passOpenGrace } = stubDialogClock();
 
   render(
     <Dialog
@@ -18,12 +22,7 @@ function renderDialog(overrides: Partial<Parameters<typeof Dialog>[0]> = {}) {
     />,
   );
 
-  return { onConfirm, onClose };
-}
-
-/** Enter is ignored for OPEN_GRACE_MS after mount. */
-async function passOpenGrace() {
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  return { onConfirm, onClose, passOpenGrace };
 }
 
 describe("Dialog", () => {
@@ -56,20 +55,20 @@ describe("Dialog", () => {
 
   it("ignores Enter immediately after opening", async () => {
     const user = userEvent.setup();
-    const { onConfirm } = renderDialog();
+    const { onConfirm, passOpenGrace } = renderDialog();
 
     await user.keyboard("{Enter}");
     expect(onConfirm).not.toHaveBeenCalled();
 
-    await passOpenGrace();
+    passOpenGrace();
     await user.keyboard("{Enter}");
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
   it("closes on Escape and confirms on Enter", async () => {
     const user = userEvent.setup();
-    const { onConfirm, onClose } = renderDialog();
-    await passOpenGrace();
+    const { onConfirm, onClose, passOpenGrace } = renderDialog();
+    passOpenGrace();
 
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -81,10 +80,10 @@ describe("Dialog", () => {
 
   it("lets Enter insert a newline inside a textarea", async () => {
     const user = userEvent.setup();
-    const { onConfirm } = renderDialog({
+    const { onConfirm, passOpenGrace } = renderDialog({
       children: <textarea aria-label="Notes" defaultValue="" />,
     });
-    await passOpenGrace();
+    passOpenGrace();
 
     await user.click(screen.getByLabelText("Notes"));
     await user.keyboard("one{Enter}two");
@@ -95,8 +94,8 @@ describe("Dialog", () => {
 
   it("ignores Shift+Enter so multiline shortcuts stay available", async () => {
     const user = userEvent.setup();
-    const { onConfirm } = renderDialog();
-    await passOpenGrace();
+    const { onConfirm, passOpenGrace } = renderDialog();
+    passOpenGrace();
 
     await user.keyboard("{Shift>}{Enter}{/Shift}");
 
@@ -105,8 +104,8 @@ describe("Dialog", () => {
 
   it("ignores keyboard shortcuts while busy", async () => {
     const user = userEvent.setup();
-    const { onConfirm, onClose } = renderDialog({ busy: true });
-    await passOpenGrace();
+    const { onConfirm, onClose, passOpenGrace } = renderDialog({ busy: true });
+    passOpenGrace();
 
     await user.keyboard("{Escape}");
     await user.keyboard("{Enter}");

@@ -8,7 +8,7 @@ import { ModalShell } from "./ModalShell";
  * opened it can still be in flight, which would confirm before the user reads
  * anything.
  */
-const OPEN_GRACE_MS = 100;
+export const OPEN_GRACE_MS = 100;
 
 /** Enter inserts a newline in a multiline field instead of confirming. */
 function entersNewline(target: EventTarget | null): boolean {

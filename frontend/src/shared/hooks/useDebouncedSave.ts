@@ -3,7 +3,7 @@ import { useStaleRequest } from "./useStaleRequest";
 
 export type SaveState = "idle" | "saved" | "error";
 
-const DEFAULT_DEBOUNCE_MS = 500;
+export const DEFAULT_DEBOUNCE_MS = 500;
 const DEFAULT_FEEDBACK_CLEAR_MS = 3000;
 
 interface UseDebouncedSaveOptions<T> {

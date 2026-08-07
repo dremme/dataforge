@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubDialogClock } from "@/test/dialogClock";
 import {
   acquireScrollLock,
   releaseScrollLock,
@@ -116,6 +117,8 @@ describe("ConfirmDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
+    // Stubbed before the render so the dialog stamps its open time on this clock.
+    const { passOpenGrace } = stubDialogClock();
 
     render(
       <ConfirmDialog
@@ -132,7 +135,7 @@ describe("ConfirmDialog", () => {
     expect(onConfirm).not.toHaveBeenCalled();
 
     onCancel.mockClear();
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    passOpenGrace();
     await user.keyboard("{Enter}");
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();

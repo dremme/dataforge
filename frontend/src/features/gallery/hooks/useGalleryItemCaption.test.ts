@@ -2,7 +2,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/gallery/api/captions";
 import { HOME_PATH } from "@/test/fixtures";
+import { advanceFakeClock } from "@/test/timers";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
+import { DEFAULT_DEBOUNCE_MS } from "@/shared/hooks/useDebouncedSave";
 import { useGalleryItemCaption } from "./useGalleryItemCaption";
 
 vi.mock("@/shared/lib/defer", () => ({
@@ -230,13 +232,10 @@ describe("useGalleryItemCaption", () => {
       expect(result.current.caption).toBe("Fresh caption");
     });
 
-    act(() => {
+    await advanceFakeClock(DEFAULT_DEBOUNCE_MS, () => {
       result.current.handleCaptionChange("Edited caption");
     });
-
-    await waitFor(() => {
-      expect(result.current.saveState).toBe("saved");
-    });
+    expect(result.current.saveState).toBe("saved");
 
     rerender({
       item: {
@@ -306,13 +305,10 @@ describe("useGalleryItemCaption", () => {
       expect(result.current.caption).toBe("Hello");
     });
 
-    act(() => {
+    await advanceFakeClock(DEFAULT_DEBOUNCE_MS, () => {
       result.current.handleCaptionChange("Hello world");
     });
-
-    await waitFor(() => {
-      expect(result.current.saveState).toBe("saved");
-    });
+    expect(result.current.saveState).toBe("saved");
 
     // The poller reloaded the folder from a response older than the save.
     rerender({ item: makeItem("sunset.png", { description: "Hello" }) });
@@ -449,13 +445,10 @@ describe("useGalleryItemCaption", () => {
       expect(result.current.captionContent).toBe(jsonContent);
     });
 
-    act(() => {
+    await advanceFakeClock(DEFAULT_DEBOUNCE_MS, () => {
       result.current.handleCaptionChange("Scene, edited");
     });
-
-    await waitFor(() => {
-      expect(result.current.saveState).toBe("saved");
-    });
+    expect(result.current.saveState).toBe("saved");
 
     rerender({
       item: makeItem("scene.png", {
