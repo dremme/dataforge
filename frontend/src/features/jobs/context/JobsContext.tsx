@@ -20,7 +20,7 @@ import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs
 import { subscribeToServerEvents } from "@/shared/api/eventStream";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
-import type { ExternalOstrisJob, Job, JobType } from "@/shared/types";
+import type { ExternalOstrisJob, Job, JobType, JobsResponse } from "@/shared/types";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import {
   isActiveJobStatus,
@@ -29,16 +29,31 @@ import {
   selectFolderJob,
   upsertJob,
 } from "@/features/jobs/lib/jobs";
+import { claimJobCompletionNotification } from "@/features/jobs/lib/jobCompletionNotifyClaim";
 import {
   clearStartingJobIfMatch,
   upsertStartedJob,
   type StartingJob,
 } from "@/features/jobs/lib/jobStartHelpers";
 
-// Only used while the push stream is down — the server otherwise tells us when
-// something changes, so there is nothing to ask for on a timer.
-const ACTIVE_POLL_MS = 1000;
-const IDLE_POLL_MS = 8000;
+// Fast poll only when the push stream is down.
+const DISCONNECTED_ACTIVE_POLL_MS = 1000;
+const DISCONNECTED_IDLE_POLL_MS = 8000;
+// Safety net while SSE claims connected: catches silent streams and multi-tab
+// starts without opening the drawer or switching tabs.
+const CONNECTED_ACTIVE_POLL_MS = 3000;
+const CONNECTED_IDLE_POLL_MS = 15000;
+
+type ExternalJobsSnapshot = {
+  jobs: ExternalOstrisJob[];
+  active_count: number;
+  available: boolean;
+};
+
+type JobsRefreshResult = {
+  internal: JobsResponse;
+  external: ExternalJobsSnapshot;
+};
 
 interface JobsContextValue {
   jobs: Job[];
@@ -77,36 +92,67 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const [stoppingOstrisJobId, setStoppingOstrisJobId] = useState<string | null>(null);
   const previousJobStatusesRef = useRef<Map<string, Job["status"]>>(new Map());
+  const refreshGenerationRef = useRef(0);
+  const refreshInFlightRef = useRef<Promise<JobsRefreshResult> | null>(null);
+  const refreshQueuedRef = useRef(false);
+  const refreshAllJobsRef = useRef<() => Promise<JobsRefreshResult>>(async () => ({
+    internal: { jobs: [], active_count: 0 },
+    external: { jobs: [], active_count: 0, available: false },
+  }));
 
-  const refreshJobs = useCallback(async () => {
-    const response = await fetchJobs();
-    setJobs(response.jobs);
-    return response;
-  }, []);
+  const refreshAllJobs = useCallback(async (): Promise<JobsRefreshResult> => {
+    refreshQueuedRef.current = true;
 
-  const refreshExternalJobs = useCallback(async () => {
-    try {
-      const response = await fetchOstrisJobs();
-      setExternalJobs(response.jobs);
-      setOstrisAvailable(response.available);
-      return response;
-    } catch {
-      setExternalJobs([]);
-      setOstrisAvailable(false);
-      return { jobs: [], active_count: 0, available: false };
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
+
+    const run = async (): Promise<JobsRefreshResult> => {
+      let last: JobsRefreshResult = {
+        internal: { jobs: [], active_count: 0 },
+        external: { jobs: [], active_count: 0, available: false },
+      };
+
+      try {
+        while (refreshQueuedRef.current) {
+          refreshQueuedRef.current = false;
+          const generation = ++refreshGenerationRef.current;
+
+          const [internal, external] = await Promise.all([
+            fetchJobs(),
+            fetchOstrisJobs().catch(
+              (): ExternalJobsSnapshot => ({ jobs: [], active_count: 0, available: false }),
+            ),
+          ]);
+
+          last = { internal, external };
+
+          // Only the newest generation may apply. An older response must not
+          // clobber a later hydrate or an SSE upsert that landed in between.
+          if (generation === refreshGenerationRef.current) {
+            setJobs(internal.jobs);
+            setExternalJobs(external.jobs);
+            setOstrisAvailable(external.available);
+          }
+        }
+
+        return last;
+      } finally {
+        refreshInFlightRef.current = null;
+        // A caller may have queued after the last loop check but before we
+        // cleared in-flight; kick another run so that request is not dropped.
+        if (refreshQueuedRef.current) {
+          void refreshAllJobsRef.current();
+        }
+      }
+    };
+
+    const promise = run();
+    refreshInFlightRef.current = promise;
+    return promise;
   }, []);
 
-  const refreshAllJobs = useCallback(async () => {
-    const [internalResponse, externalResponse] = await Promise.all([
-      refreshJobs(),
-      refreshExternalJobs(),
-    ]);
-    return {
-      internal: internalResponse,
-      external: externalResponse,
-    };
-  }, [refreshJobs, refreshExternalJobs]);
+  refreshAllJobsRef.current = refreshAllJobs;
 
   // `/api/external/ostris/jobs` only ever lists runs that are still going, so its
   // length is the external active count.
@@ -145,11 +191,9 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshAllJobs]);
 
-  // The fallback path: without a stream nothing would arrive at all, so poll until
-  // one is back. Also the initial load, since the stream only opens after mount.
+  // Always poll: fast when the stream is down (or not open yet), slow while it is
+  // connected so a silent EventSource cannot freeze the badge/drawer forever.
   useEffect(() => {
-    if (streamConnected) return;
-
     let cancelled = false;
     let timeoutId = 0;
 
@@ -159,10 +203,20 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         const hasActiveJobs =
           response.internal.active_count > 0 || response.external.active_count > 0;
-        timeoutId = window.setTimeout(poll, hasActiveJobs ? ACTIVE_POLL_MS : IDLE_POLL_MS);
+        const delay = streamConnected
+          ? hasActiveJobs
+            ? CONNECTED_ACTIVE_POLL_MS
+            : CONNECTED_IDLE_POLL_MS
+          : hasActiveJobs
+            ? DISCONNECTED_ACTIVE_POLL_MS
+            : DISCONNECTED_IDLE_POLL_MS;
+        timeoutId = window.setTimeout(poll, delay);
       } catch {
         if (cancelled) return;
-        timeoutId = window.setTimeout(poll, IDLE_POLL_MS);
+        timeoutId = window.setTimeout(
+          poll,
+          streamConnected ? CONNECTED_IDLE_POLL_MS : DISCONNECTED_IDLE_POLL_MS,
+        );
       }
     };
 
@@ -174,9 +228,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     };
   }, [streamConnected, refreshAllJobs]);
 
-  // Other tabs (and any missed SSE frames) leave this tab's list stale while the
-  // stream still reports connected and polling is off. Re-fetch when the user is
-  // about to look at jobs, or when they return to this tab.
+  // Other tabs (and any missed SSE frames) leave this tab's list stale. Re-fetch
+  // when the user is about to look at jobs, or when they return to this tab.
   useEffect(() => {
     if (!drawerOpen) return;
     void refreshAllJobs();
@@ -209,7 +262,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
       if (becameTerminal) {
         const notification = jobCompletionNotification(job);
-        if (notification) {
+        if (notification && claimJobCompletionNotification(job.id, job.status)) {
           notify(notification);
         }
       }

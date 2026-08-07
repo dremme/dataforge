@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchJobs } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs } from "@/features/jobs/api/externalJobs";
@@ -96,21 +96,33 @@ describe("JobsProvider", () => {
     expect(listJobs).toHaveBeenCalledTimes(2);
   });
 
-  it("stops polling once the stream connects, and takes updates from it", async () => {
+  it("takes push updates while connected and only safety-polls on a slow cadence", async () => {
+    vi.useFakeTimers();
     vi.stubGlobal("EventSource", FakeEventSource);
     renderProvider();
 
-    await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
-    const source = FakeEventSource.last!;
+    await vi.waitFor(() => expect(FakeEventSource.last).not.toBeNull());
 
-    source.onopen!();
+    await act(async () => {
+      FakeEventSource.last!.onopen!();
+    });
     // Connecting hydrates once, because the stream carries no history.
-    await waitFor(() => expect(listJobs).toHaveBeenCalled());
+    await vi.waitFor(() => expect(listJobs).toHaveBeenCalled());
+    // Let React apply streamConnected and restart the poll effect.
+    await act(async () => {
+      await Promise.resolve();
+    });
 
-    const callsWhileConnected = listJobs.mock.calls.length;
-    vi.useFakeTimers();
-    await vi.advanceTimersByTimeAsync(30000);
-    expect(listJobs).toHaveBeenCalledTimes(callsWhileConnected);
+    const callsAfterConnect = listJobs.mock.calls.length;
+    // Connected + active job → 3s safety poll, not the 1s disconnected cadence.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(listJobs).toHaveBeenCalledTimes(callsAfterConnect);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(listJobs.mock.calls.length).toBeGreaterThan(callsAfterConnect);
   });
 
   it("resumes polling when the stream drops", async () => {
@@ -181,5 +193,41 @@ describe("JobsProvider", () => {
     document.dispatchEvent(new Event("visibilitychange"));
 
     await waitFor(() => expect(listJobs.mock.calls.length).toBeGreaterThan(callsBeforeVisible));
+  });
+
+  it("applies only the latest hydrate when refreshes overlap", async () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    listExternalJobs.mockResolvedValue({ jobs: [], active_count: 0, available: false });
+
+    let releaseFirst:
+      | ((value: { jobs: (typeof runningJob)[]; active_count: number }) => void)
+      | null = null;
+    listJobs
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirst = resolve;
+          }),
+      )
+      .mockResolvedValue({
+        jobs: [{ ...runningJob, id: "job-latest", processed: 9 }],
+        active_count: 1,
+      });
+
+    const latest = renderProvider();
+
+    await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
+    FakeEventSource.last!.onopen!();
+    await waitFor(() => expect(releaseFirst).not.toBeNull());
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    releaseFirst!({ jobs: [{ ...runningJob, id: "job-stale", processed: 1 }], active_count: 1 });
+
+    await waitFor(() => expect(latest.current?.jobs[0]?.id).toBe("job-latest"));
   });
 });
