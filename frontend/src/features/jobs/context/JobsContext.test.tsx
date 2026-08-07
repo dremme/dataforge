@@ -149,4 +149,37 @@ describe("JobsProvider", () => {
     await waitFor(() => expect(latest.current?.jobs[0].processed).toBe(9));
     expect(latest.current?.activeCount).toBe(0);
   });
+
+  it("refetches when the jobs drawer opens", async () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const latest = renderProvider();
+
+    await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
+    FakeEventSource.last!.onopen!();
+    await waitFor(() => expect(listJobs).toHaveBeenCalled());
+
+    const callsBeforeOpen = listJobs.mock.calls.length;
+    latest.current!.toggleDrawer();
+
+    await waitFor(() => expect(listJobs.mock.calls.length).toBeGreaterThan(callsBeforeOpen));
+  });
+
+  it("refetches when the tab becomes visible again", async () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    renderProvider();
+
+    await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
+    FakeEventSource.last!.onopen!();
+    await waitFor(() => expect(listJobs).toHaveBeenCalled());
+
+    const callsBeforeVisible = listJobs.mock.calls.length;
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(listJobs.mock.calls.length).toBeGreaterThan(callsBeforeVisible));
+  });
 });

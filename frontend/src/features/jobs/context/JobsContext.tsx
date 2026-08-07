@@ -174,6 +174,25 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     };
   }, [streamConnected, refreshAllJobs]);
 
+  // Other tabs (and any missed SSE frames) leave this tab's list stale while the
+  // stream still reports connected and polling is off. Re-fetch when the user is
+  // about to look at jobs, or when they return to this tab.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    void refreshAllJobs();
+  }, [drawerOpen, refreshAllJobs]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshAllJobs();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [refreshAllJobs]);
+
   useEffect(() => {
     const currentJobIds = new Set(jobs.map((job) => job.id));
 
