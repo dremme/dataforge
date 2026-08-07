@@ -66,6 +66,7 @@ export {
   Search as iconSearch,
   Shredder as iconShredder,
   Sparkles as iconSparkles,
+  Stamp as iconStamp,
   Star as iconStar,
   StarPlusIcon as iconStarPlusIcon,
   StepBack as iconStepBack,

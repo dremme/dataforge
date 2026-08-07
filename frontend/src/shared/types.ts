@@ -200,7 +200,8 @@ export type JobType =
   | "batch_rename"
   | "backup_captions"
   | "restore_captions"
-  | "train_lora";
+  | "train_lora"
+  | "watermark";
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 
@@ -345,6 +346,32 @@ export interface TrainLoraStartRequest extends JobSelectionRequest {
   prompts?: string[];
 }
 
+export type WatermarkSizeName = "small" | "medium" | "large";
+export type WatermarkOpacity = 25 | 50 | 75;
+/** top = top-left, center = middle, bottom = bottom-right. */
+export type WatermarkPosition = "top" | "center" | "bottom";
+
+export interface WatermarkStartRequest extends JobSelectionRequest {
+  text?: string;
+  size?: WatermarkSizeName;
+  opacity?: WatermarkOpacity;
+  position?: WatermarkPosition;
+}
+
+export interface WatermarkSettingsResponse {
+  text: string;
+  size: WatermarkSizeName;
+  opacity: WatermarkOpacity;
+  position: WatermarkPosition;
+}
+
+export interface WatermarkSettingsUpdate {
+  text?: string;
+  size?: WatermarkSizeName;
+  opacity?: WatermarkOpacity;
+  position?: WatermarkPosition;
+}
+
 /** Selects the body shape for a given job type. */
 export interface JobStartBodies {
   auto_caption: AutoCaptionStartRequest;
@@ -352,6 +379,7 @@ export interface JobStartBodies {
   verify_captions: VerifyCaptionsStartRequest;
   batch_rename: BatchRenameStartRequest;
   train_lora: TrainLoraStartRequest;
+  watermark: WatermarkStartRequest;
   strip_metadata: JobSelectionRequest;
   backup_captions: JobSelectionRequest;
   restore_captions: JobSelectionRequest;

@@ -11,6 +11,10 @@ MOTION_EXTENSIONS = VIDEO_EXTENSIONS | {GIF_EXTENSION}
 
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
+# Watermarking burns text into pixels, which GIF's palette cannot express without
+# visible banding, so it stays on the two axes that re-encode cleanly.
+WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+
 # Caption sidecar suffixes in precedence order: a .json caption always wins over
 # a .txt one, so anything resolving a media file's caption must walk this in order.
 CAPTION_SIDECAR_EXTENSIONS = (".json", ".txt")
@@ -29,6 +33,10 @@ MAX_ISSUE_FIXES = 3
 ISSUE_FIX_SENTINELS = frozenset({"none", "n/a", "no issues", "no changes"})
 
 CAPTION_BACKUP_DIR_NAME = ".backup"
+
+# Watermarked copies land here, beside the untouched originals. Deliberately absent from
+# SKIP_DIR_NAMES: the results are for the user to browse, unlike the caption backup.
+WATERMARK_DIR_NAME = "watermarked"
 
 SKIP_DIR_NAMES = {
     CAPTION_BACKUP_DIR_NAME,

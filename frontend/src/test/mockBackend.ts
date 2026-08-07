@@ -328,6 +328,16 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/preferences/watermark") {
+      const stored = { text: "", size: "medium", opacity: 50, position: "bottom" };
+      if (method === "PUT") {
+        const body = init?.body ? JSON.parse(init.body as string) : {};
+        return jsonResponse({ ...stored, ...body });
+      }
+
+      return jsonResponse(stored);
+    }
+
     if (url.pathname === "/api/sysprompt" && method === "PUT") {
       const path = url.searchParams.get("path") ?? "";
       const body = init?.body ? JSON.parse(init.body as string) : { text: "" };
@@ -689,6 +699,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/verify-captions" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "verify_captions"));
+    }
+
+    if (url.pathname === "/api/automation/watermark" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
+      return jsonResponse(createMockJob(folderPath, "watermark"));
     }
 
     if (url.pathname === "/api/automation/backup-captions" && method === "POST") {

@@ -47,6 +47,25 @@ def batch_rename_error_message(stats: dict[str, int]) -> str | None:
     )
 
 
+def watermark_error_message(stats: dict[str, int]) -> str | None:
+    ffmpeg_errors = int(stats.get("ffmpeg_error") or 0)
+    write_errors = int(stats.get("write_error") or 0)
+    read_errors = int(stats.get("read_error") or 0)
+    error_count = ffmpeg_errors + write_errors + read_errors
+
+    if error_count == 0:
+        return None
+
+    if ffmpeg_errors == error_count:
+        if ffmpeg_errors == 1:
+            return "Failed to watermark 1 video. Check that ffmpeg is available."
+        return f"Failed to watermark {ffmpeg_errors} videos. Check that ffmpeg is available."
+
+    if error_count == 1:
+        return "Failed to watermark 1 file. The original was not changed."
+    return f"Failed to watermark {error_count} files. The originals were not changed."
+
+
 def set_captions_error_message(stats: dict[str, int]) -> str | None:
     write_errors = int(stats.get("write_error") or 0)
     if write_errors == 0:
@@ -149,4 +168,6 @@ def resolve_job_error(
         return backup_captions_error_message(stats)
     if job_type == "restore_captions":
         return restore_captions_error_message(stats)
+    if job_type == "watermark":
+        return watermark_error_message(stats)
     return None

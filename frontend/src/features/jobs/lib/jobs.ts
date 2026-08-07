@@ -172,7 +172,8 @@ export function jobShowsWarningState(job: Job): boolean {
     type === "set_captions" ||
     type === "batch_rename" ||
     type === "backup_captions" ||
-    type === "train_lora"
+    type === "train_lora" ||
+    type === "watermark"
   ) {
     return false;
   }
@@ -355,6 +356,14 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
   if (type === "batch_rename") {
     const slow = (stats.success ?? 0) + (stats.rename_error ?? 0);
     return { fast: stats.cancelled ?? 0, slow };
+  }
+
+  // Only the videos are slow here: re-encoding one costs orders of magnitude more
+  // than compositing text onto a still, so counting both alike wrecks the estimate.
+  if (type === "watermark") {
+    const slow = (stats.video_success ?? 0) + (stats.ffmpeg_error ?? 0);
+    const fast = (stats.image_success ?? 0) + (stats.read_error ?? 0) + (stats.write_error ?? 0);
+    return { fast, slow };
   }
 
   // File copies are uniformly cheap, so every handled item counts as fast.

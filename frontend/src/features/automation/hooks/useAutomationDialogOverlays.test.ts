@@ -11,6 +11,15 @@ vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
   })),
 }));
 
+vi.mock("@/features/automation/preferences/watermarkPreferences", () => ({
+  loadWatermarkSettings: vi.fn(async () => ({
+    text: "Sample Studio",
+    size: "large" as const,
+    opacity: 75 as const,
+    position: "top" as const,
+  })),
+}));
+
 function setupOverlays(startingJobType: JobType | null = null) {
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
 
@@ -71,6 +80,33 @@ describe("useAutomationDialogOverlays", () => {
       "verify_captions",
       "C:\\Photos",
       { mode: "thinking", context: "Outdoor portraits." },
+      undefined,
+    );
+  });
+
+  it("fetches preferences before opening the watermark dialog", async () => {
+    const { result, startJob } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("watermark");
+    });
+    expect(result.current.dialogs.watermark.open).toBe(true);
+    expect(result.current.dialogs.watermark.initialSettings).toEqual({
+      text: "Sample Studio",
+      size: "large",
+      opacity: 75,
+      position: "top",
+    });
+
+    await act(async () => {
+      result.current.dialogs.watermark.onConfirm("Sample Studio", "large", 75, "center");
+    });
+
+    expect(result.current.dialogs.watermark.open).toBe(false);
+    expect(startJob).toHaveBeenCalledWith(
+      "watermark",
+      "C:\\Photos",
+      { text: "Sample Studio", size: "large", opacity: 75, position: "center" },
       undefined,
     );
   });

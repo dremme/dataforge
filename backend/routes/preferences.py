@@ -5,9 +5,12 @@ from schemas import (
     UiSettingsUpdate,
     VerifyCaptionsSettingsResponse,
     VerifyCaptionsSettingsUpdate,
+    WatermarkSettingsResponse,
+    WatermarkSettingsUpdate,
 )
 from ui_settings import get_ui_settings, update_ui_settings
 from verify_captions_settings import get_verify_captions_settings, update_verify_captions_settings
+from watermark_settings import get_watermark_settings, update_watermark_settings
 
 router = APIRouter()
 
@@ -40,4 +43,16 @@ def write_verify_captions_settings(
         mode=body.mode,
         context=body.context,
         folder_path=body.folder_path,
+    )
+
+
+@router.get("/preferences/watermark", response_model=WatermarkSettingsResponse)
+def read_watermark_settings() -> WatermarkSettingsResponse:
+    return get_watermark_settings()
+
+
+@router.put("/preferences/watermark", response_model=WatermarkSettingsResponse)
+def write_watermark_settings(body: WatermarkSettingsUpdate) -> WatermarkSettingsResponse:
+    return update_watermark_settings(
+        text=body.text, size=body.size, opacity=body.opacity, position=body.position
     )

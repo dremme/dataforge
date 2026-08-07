@@ -31,11 +31,19 @@ from automation.job_messages import (
     set_captions_error_message,
     strip_metadata_error_message,
     verify_captions_failure_message,
+    watermark_error_message,
 )
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
 from automation.train_lora import run_train_lora_job, validate_train_lora_folder
 from automation.verify_captions import run_verify_captions_job, validate_verify_captions_folder
+from automation.watermark import (
+    DEFAULT_WATERMARK_OPACITY,
+    DEFAULT_WATERMARK_POSITION,
+    DEFAULT_WATERMARK_SIZE,
+    run_watermark_job,
+    validate_watermark_folder,
+)
 from filesystem import normalize_user_path, path_leaf_name
 
 JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
@@ -48,6 +56,7 @@ JobType = Literal[
     "backup_captions",
     "restore_captions",
     "train_lora",
+    "watermark",
 ]
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
@@ -215,6 +224,17 @@ def _validate_batch_rename(folder: Path, **params: object) -> None:
     )
 
 
+def _validate_watermark(folder: Path, **params: object) -> None:
+    validate_watermark_folder(
+        folder,
+        text=str(params.get("text", "")),
+        size=str(params.get("size", DEFAULT_WATERMARK_SIZE)),
+        opacity=int(params.get("opacity", DEFAULT_WATERMARK_OPACITY)),  # type: ignore[arg-type]
+        position=str(params.get("position", DEFAULT_WATERMARK_POSITION)),
+        selected_paths=_selected_paths(params),
+    )
+
+
 def _train_lora_external_ref(params: dict[str, object]) -> str | None:
     return str(params.get("lora_name", "")).strip() or None
 
@@ -297,6 +317,12 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_verify_captions_job,
         resolve_status=_resolve_verify_captions_status,
         validate=_folder_only(validate_verify_captions_folder),
+    ),
+    "watermark": JobSpec(
+        thread_prefix="watermark",
+        run=run_watermark_job,
+        resolve_status=_resolve_stats_errors(watermark_error_message),
+        validate=_validate_watermark,
     ),
     "train_lora": JobSpec(
         thread_prefix="train-lora",

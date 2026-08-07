@@ -56,7 +56,13 @@
     display: flex;
     justify-content: flex-end;
     gap: 0.65rem;
-    margin-top: 1.15rem;
+    margin-top: 1.5rem;
+    margin-left: calc(-1 * var(--panel-padding));
+    margin-right: calc(-1 * var(--panel-padding));
+    padding-top: var(--panel-padding);
+    padding-left: var(--panel-padding);
+    padding-right: var(--panel-padding);
+    border-top: 1px solid var(--border);
   }
 
   &__btn {
@@ -205,7 +211,8 @@
 .set-captions-dialog,
 .verify-captions-dialog,
 .auto-caption-dialog,
-.train-lora-dialog {
+.train-lora-dialog,
+.watermark-dialog {
   width: min(32rem, 100%);
 }
 
@@ -489,5 +496,15 @@
     font-weight: var(--font-semibold);
     letter-spacing: var(--tracking-caps);
     text-transform: uppercase;
+  }
+}
+
+.watermark-dialog {
+  .dialog__option {
+    align-items: center;
+
+    &-content {
+      line-height: var(--leading-normal);
+    }
   }
 }

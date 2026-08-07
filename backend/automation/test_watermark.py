@@ -1,0 +1,598 @@
+"""Unit tests for the watermark job."""
+
+from __future__ import annotations
+
+from testing_fixtures import isolate_test_database
+
+isolate_test_database()
+
+import os
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from PIL import Image
+
+import automation.watermark as watermark_module
+from automation.watermark import (
+    FONT_MISSING_MESSAGE,
+    MAX_WATERMARK_TEXT_LENGTH,
+    WATERMARK_SIZES,
+    WATERMARK_STALE_MARKER,
+    WATERMARK_TEMP_MARKER,
+    WatermarkCancelled,
+    _publish_watermarked_file,
+    build_drawtext_filter,
+    escape_drawtext_path,
+    escape_drawtext_text,
+    list_watermark_files,
+    normalize_watermark_text,
+    resolve_watermark_alpha,
+    resolve_watermark_position,
+    resolve_watermark_size,
+    run_watermark_job,
+    validate_watermark_folder,
+)
+from constants import WATERMARK_DIR_NAME
+from testing_fixtures import (
+    TempMediaFolder,
+    write_gif,
+    write_jpeg,
+    write_media,
+    write_mp4_video,
+)
+
+SAMPLE_FONT = Path(r"C:\Windows\Fonts\segoeui.ttf")
+
+
+def watermarked(root: Path, name: str) -> Path:
+    return root / WATERMARK_DIR_NAME / name
+
+
+def bottom_right(image: Image.Image) -> Image.Image:
+    width, height = image.size
+    return image.crop((width // 2, height // 2, width, height))
+
+
+def top_left(image: Image.Image) -> Image.Image:
+    width, height = image.size
+    return image.crop((0, 0, width // 2, height // 2))
+
+
+class DrawtextEscapingTests(unittest.TestCase):
+    def test_escapes_windows_font_path(self) -> None:
+        self.assertEqual(
+            escape_drawtext_path(SAMPLE_FONT),
+            "C\\:/Windows/Fonts/segoeui.ttf",
+        )
+
+    def test_escapes_filtergraph_metacharacters(self) -> None:
+        cases = {
+            "ab": "ab",
+            "a:b": "a\\:b",
+            "it's mine": "it\\'s mine",
+            "100% sure": "100\\% sure",
+            "a\\b": "a\\\\b",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(escape_drawtext_text(text), expected)
+
+    def test_escapes_backslash_before_the_escapes_it_adds(self) -> None:
+        # Escaping ':' first would leave 'a\\\:b', which renders a stray backslash.
+        self.assertEqual(escape_drawtext_text("a:b"), "a\\:b")
+        self.assertEqual(escape_drawtext_text("a\\:b"), "a\\\\\\:b")
+
+    def test_leaves_braces_and_commas_alone(self) -> None:
+        self.assertEqual(escape_drawtext_text("x{y}z, w[q]"), "x{y}z, w[q]")
+
+
+class DrawtextFilterTests(unittest.TestCase):
+    def filter_for(
+        self,
+        size: str = "medium",
+        alpha: float = 0.5,
+        text: str = "Sample",
+        position: str = "bottom",
+    ) -> str:
+        return build_drawtext_filter(
+            text=text,
+            font_path=SAMPLE_FONT,
+            size=WATERMARK_SIZES[size],
+            alpha=alpha,
+            position=position,  # type: ignore[arg-type]
+        )
+
+    def test_builds_the_expected_filter(self) -> None:
+        self.assertEqual(
+            self.filter_for(),
+            "drawtext=fontfile='C\\:/Windows/Fonts/segoeui.ttf'"
+            ":text='Sample'"
+            ":expansion=none"
+            ":fontsize=max(12\\,h*0.045)"
+            ":fontcolor=white@0.50"
+            ":borderw=2:bordercolor=black@0.35"
+            ":x=w-tw-(max(8\\,h*0.02))"
+            ":y=h-th-(max(8\\,h*0.02))",
+        )
+
+    def test_positions_map_to_the_matching_x_y_expressions(self) -> None:
+        cases = {
+            "top": (":x=max(8\\,h*0.02)", ":y=max(8\\,h*0.02)"),
+            "center": (":x=(w-tw)/2", ":y=(h-th)/2"),
+            "bottom": (":x=w-tw-(max(8\\,h*0.02))", ":y=h-th-(max(8\\,h*0.02))"),
+        }
+        for position, (x_fragment, y_fragment) in cases.items():
+            with self.subTest(position=position):
+                filter_text = self.filter_for(position=position)
+                self.assertIn(x_fragment, filter_text)
+                self.assertIn(y_fragment, filter_text)
+
+    def test_disables_strftime_expansion(self) -> None:
+        # Without this a '%' in the text is read as a strftime directive.
+        self.assertIn(":expansion=none", self.filter_for(text="100%"))
+
+    def test_escapes_every_comma_inside_an_expression(self) -> None:
+        # A bare comma ends the filter's option list, so none may survive unescaped.
+        for fragment in self.filter_for().split(":"):
+            if "max(" in fragment:
+                self.assertNotIn(",", fragment.replace("\\,", ""), fragment)
+
+    def test_border_width_is_a_plain_integer(self) -> None:
+        # ffmpeg's borderw rejects frame variables, unlike fontsize/x/y.
+        self.assertIn(":borderw=3:", self.filter_for(size="large"))
+
+    def test_draws_on_every_frame(self) -> None:
+        self.assertNotIn("enable=", self.filter_for())
+
+    def test_size_table_grows_with_each_step(self) -> None:
+        scales = [WATERMARK_SIZES[name].font_scale for name in ("small", "medium", "large")]
+        self.assertEqual(scales, sorted(scales))
+        self.assertTrue(all(WATERMARK_SIZES[name].stroke_px >= 1 for name in WATERMARK_SIZES))
+
+
+class WatermarkValidationTests(unittest.TestCase):
+    def test_lists_only_jpg_png_and_mp4(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            write_jpeg(root, "beach.jpg")
+            write_jpeg(root, "beach.jpeg")
+            write_mp4_video(root, "clip.mp4")
+            write_gif(root, "loop.gif")
+            (root / "notes.txt").write_text("ignore", encoding="utf-8")
+
+            names = {path.name for path in list_watermark_files(root)}
+
+            self.assertEqual(names, {"photo.png", "beach.jpg", "beach.jpeg", "clip.mp4"})
+
+    def test_rejects_empty_text(self) -> None:
+        for text in ("", "   "):
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, "cannot be empty"):
+                normalize_watermark_text(text)
+
+    def test_rejects_text_over_the_length_cap(self) -> None:
+        with self.assertRaisesRegex(ValueError, "longer than 120"):
+            normalize_watermark_text("x" * (MAX_WATERMARK_TEXT_LENGTH + 1))
+
+    def test_rejects_line_breaks(self) -> None:
+        with self.assertRaisesRegex(ValueError, "line breaks"):
+            normalize_watermark_text("line\nbreak")
+
+    def test_accepts_filtergraph_metacharacters(self) -> None:
+        # These are escaped at render time; rejecting them would be a regression.
+        self.assertEqual(normalize_watermark_text("  a:b's 100% \\  "), "a:b's 100% \\")
+
+    def test_rejects_unknown_size_opacity_and_position(self) -> None:
+        with self.assertRaisesRegex(ValueError, "size must be one of"):
+            resolve_watermark_size("huge")
+        with self.assertRaisesRegex(ValueError, "opacity must be one of"):
+            resolve_watermark_alpha(33)
+        with self.assertRaisesRegex(ValueError, "position must be one of"):
+            resolve_watermark_position("side")
+
+    def test_resolves_opacity_to_an_alpha_fraction(self) -> None:
+        self.assertEqual(resolve_watermark_alpha(75), 0.75)
+
+    def test_resolves_known_positions(self) -> None:
+        for position in ("top", "center", "bottom"):
+            with self.subTest(position=position):
+                self.assertEqual(resolve_watermark_position(position), position)
+
+    def test_requires_supported_media(self) -> None:
+        with TempMediaFolder() as root:
+            write_gif(root, "loop.gif")
+
+            with self.assertRaisesRegex(ValueError, "No JPG, PNG or MP4"):
+                validate_watermark_folder(root, text="Sample")
+
+    def test_refuses_to_run_inside_the_output_folder(self) -> None:
+        with TempMediaFolder() as root:
+            nested = root / WATERMARK_DIR_NAME
+            nested.mkdir()
+            write_media(nested, "photo.png")
+
+            with self.assertRaisesRegex(ValueError, "Open the parent folder"):
+                validate_watermark_folder(nested, text="Sample")
+
+    def test_refuses_when_the_output_name_is_taken_by_a_file(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            (root / WATERMARK_DIR_NAME).write_text("not a folder", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "a file with that name already exists"):
+                validate_watermark_folder(root, text="Sample")
+
+    def test_reports_a_missing_font_before_the_job_starts(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with patch("automation.watermark.resolve_watermark_font", return_value=None):
+                with self.assertRaisesRegex(ValueError, "No usable system font"):
+                    validate_watermark_folder(root, text="Sample")
+
+            self.assertIn("No usable system font", FONT_MISSING_MESSAGE)
+
+
+class WatermarkImageTests(unittest.TestCase):
+    def test_marks_the_bottom_right_and_leaves_the_original_alone(self) -> None:
+        with TempMediaFolder() as root:
+            source = write_media(root, "photo.png", width=400, height=300)
+            before = source.read_bytes()
+
+            result = run_watermark_job(root, text="Sample Studio")
+
+            self.assertEqual(result["processed"], 1)
+            self.assertEqual(source.read_bytes(), before)
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                self.assertEqual(output.size, (400, 300))
+                self.assertIsNotNone(bottom_right(output).convert("L").getbbox())
+                self.assertIsNone(top_left(output).convert("L").getbbox())
+
+    def test_releases_the_source_file_handle(self) -> None:
+        with TempMediaFolder() as root:
+            source = write_media(root, "photo.png", width=200, height=150)
+
+            run_watermark_job(root, text="Sample Studio")
+
+            # Windows refuses both of these while Pillow still holds the file open.
+            source.rename(root / "renamed.png")
+            (root / "renamed.png").unlink()
+
+    def test_jpeg_stays_a_jpeg(self) -> None:
+        with TempMediaFolder() as root:
+            write_jpeg(root, "beach.jpg", width=320, height=240)
+
+            run_watermark_job(root, text="Sample Studio")
+
+            with Image.open(watermarked(root, "beach.jpg")) as output:
+                self.assertEqual(output.format, "JPEG")
+                self.assertEqual(output.mode, "RGB")
+
+    def test_opaque_png_does_not_gain_an_alpha_channel(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=200, height=150)
+
+            run_watermark_job(root, text="Sample Studio")
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                self.assertEqual(output.mode, "RGB")
+
+    def test_transparent_png_keeps_its_alpha_channel(self) -> None:
+        with TempMediaFolder() as root:
+            Image.new("RGBA", (200, 150), (0, 0, 0, 0)).save(root / "logo.png")
+
+            run_watermark_job(root, text="Sample Studio")
+
+            with Image.open(watermarked(root, "logo.png")) as output:
+                self.assertEqual(output.mode, "RGBA")
+
+    def test_higher_opacity_renders_brighter(self) -> None:
+        marks = {}
+        for opacity in (25, 75):
+            with TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+                run_watermark_job(root, text="Sample Studio", opacity=opacity)
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    pixels = list(bottom_right(output).convert("L").getdata())
+                    marks[opacity] = sum(pixels) / len(pixels)
+
+        self.assertGreater(marks[75], marks[25])
+
+    def test_larger_size_renders_wider(self) -> None:
+        widths = {}
+        for size in ("small", "large"):
+            with TempMediaFolder() as root:
+                write_media(root, "photo.png", width=400, height=300)
+                run_watermark_job(root, text="Sample Studio", size=size)
+                with Image.open(watermarked(root, "photo.png")) as output:
+                    box = output.convert("L").getbbox()
+                    assert box is not None
+                    widths[size] = box[2] - box[0]
+
+        self.assertGreater(widths["large"], widths["small"])
+
+    def test_top_places_the_mark_in_the_top_left(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=400, height=300)
+
+            run_watermark_job(root, text="Sample Studio", position="top")
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                self.assertIsNotNone(top_left(output).convert("L").getbbox())
+                self.assertIsNone(bottom_right(output).convert("L").getbbox())
+
+    def test_center_places_the_mark_near_the_middle(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=400, height=300)
+
+            run_watermark_job(root, text="Sample Studio", position="center")
+
+            with Image.open(watermarked(root, "photo.png")) as output:
+                box = output.convert("L").getbbox()
+                assert box is not None
+                center_x = (box[0] + box[2]) / 2
+                center_y = (box[1] + box[3]) / 2
+                self.assertAlmostEqual(center_x, 200, delta=40)
+                self.assertAlmostEqual(center_y, 150, delta=40)
+
+    def test_rotated_jpeg_is_marked_in_the_corner_the_viewer_sees(self) -> None:
+        with TempMediaFolder() as root:
+            # Orientation 6 means "rotate 90 degrees clockwise to display".
+            write_jpeg(root, "portrait.jpg", width=400, height=300, orientation=6)
+
+            run_watermark_job(root, text="Sample Studio")
+
+            with Image.open(watermarked(root, "portrait.jpg")) as output:
+                self.assertEqual(output.size, (300, 400))
+                self.assertIsNotNone(bottom_right(output).convert("L").getbbox())
+                self.assertIsNone(top_left(output).convert("L").getbbox())
+
+    def test_reports_a_source_that_cannot_be_decoded(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "broken.png").write_bytes(b"not a png")
+
+            result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["read_error"], 1)
+            self.assertEqual(stats["success"], 0)
+            results = result["results"]
+            assert isinstance(results, list)
+            self.assertEqual(results[0]["status"], "read_error")
+
+
+class WatermarkVideoTests(unittest.TestCase):
+    """The video path is mocked: no backend test invokes ffmpeg for real."""
+
+    def test_counts_images_and_videos_separately(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            write_mp4_video(root, "clip.mp4")
+
+            with patch("automation.watermark.watermark_video") as encode:
+                encode.side_effect = lambda source, destination, **_: destination.write_bytes(b"x")
+                result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["success"], 2)
+            self.assertEqual(stats["image_success"], 1)
+            self.assertEqual(stats["video_success"], 1)
+            self.assertEqual(result["processed"], 2)
+            self.assertTrue(watermarked(root, "clip.mp4").exists())
+
+    def test_reports_missing_ffmpeg(self) -> None:
+        with TempMediaFolder() as root:
+            write_mp4_video(root, "clip.mp4")
+
+            with patch("automation.watermark._ffmpeg_path", return_value=None):
+                result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["ffmpeg_error"], 1)
+            results = result["results"]
+            assert isinstance(results, list)
+            self.assertEqual(results[0]["status"], "ffmpeg_error")
+
+    def test_reports_an_ffmpeg_failure(self) -> None:
+        with TempMediaFolder() as root:
+            write_mp4_video(root, "clip.mp4")
+
+            with patch("automation.watermark.watermark_video", side_effect=RuntimeError("boom")):
+                result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["ffmpeg_error"], 1)
+            self.assertFalse(watermarked(root, "clip.mp4").exists())
+
+    def test_cancelling_mid_encode_accounts_for_every_remaining_file(self) -> None:
+        with TempMediaFolder() as root:
+            for index in range(4):
+                write_mp4_video(root, f"clip_{index}.mp4")
+
+            calls = {"count": 0}
+
+            def encode(source: Path, destination: Path, **_: object) -> None:
+                calls["count"] += 1
+                if calls["count"] == 2:
+                    destination.write_bytes(b"partial")
+                    raise WatermarkCancelled
+                destination.write_bytes(b"x")
+
+            with patch("automation.watermark.watermark_video", side_effect=encode):
+                result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["cancelled"], 3)
+            self.assertEqual(stats["video_success"], 1)
+            results = result["results"]
+            assert isinstance(results, list)
+            self.assertEqual(len(results), 2)
+            self.assertEqual(results[1]["status"], "cancelled")
+
+            leftovers = list((root / WATERMARK_DIR_NAME).glob(f"*{WATERMARK_TEMP_MARKER}.*"))
+            self.assertEqual(leftovers, [])
+
+
+class PublishWatermarkedFileTests(unittest.TestCase):
+    def test_replaces_when_the_destination_is_free(self) -> None:
+        with TempMediaFolder() as root:
+            final_path = root / "photo.png"
+            temp_path = root / f"photo{WATERMARK_TEMP_MARKER}.png"
+            final_path.write_bytes(b"old")
+            temp_path.write_bytes(b"new")
+
+            _publish_watermarked_file(temp_path, final_path)
+
+            self.assertEqual(final_path.read_bytes(), b"new")
+            self.assertFalse(temp_path.exists())
+
+    def test_falls_back_when_direct_replace_is_denied(self) -> None:
+        """Windows can refuse ``os.replace`` onto a streamed destination (WinError 5)."""
+        with TempMediaFolder() as root:
+            final_path = root / "photo.png"
+            temp_path = root / f"photo{WATERMARK_TEMP_MARKER}.png"
+            final_path.write_bytes(b"old")
+            temp_path.write_bytes(b"new")
+            calls = {"count": 0}
+            real_replace = os.replace
+
+            def replace(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> None:
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    raise PermissionError(13, "Access is denied")
+                real_replace(source, dest)
+
+            with patch("automation.watermark.os.replace", side_effect=replace):
+                _publish_watermarked_file(temp_path, final_path)
+
+            self.assertEqual(final_path.read_bytes(), b"new")
+            self.assertFalse(temp_path.exists())
+            self.assertFalse(
+                (root / f"photo{WATERMARK_STALE_MARKER}.png").exists(),
+            )
+
+    def test_restores_the_previous_output_when_install_fails(self) -> None:
+        with TempMediaFolder() as root:
+            final_path = root / "photo.png"
+            temp_path = root / f"photo{WATERMARK_TEMP_MARKER}.png"
+            final_path.write_bytes(b"old")
+            temp_path.write_bytes(b"new")
+            calls = {"count": 0}
+            real_replace = os.replace
+
+            def replace(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> None:
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    raise PermissionError(13, "Access is denied")
+                if calls["count"] == 3:
+                    # After the destination was moved aside, refuse the install.
+                    raise OSError("disk full")
+                real_replace(source, dest)
+
+            with patch("automation.watermark.os.replace", side_effect=replace):
+                with self.assertRaises(OSError):
+                    _publish_watermarked_file(temp_path, final_path)
+
+            self.assertEqual(final_path.read_bytes(), b"old")
+            self.assertTrue(temp_path.exists())
+
+    @unittest.skipUnless(sys.platform == "win32", "FILE_SHARE_DELETE is a Windows concern")
+    def test_replaces_a_destination_open_for_shared_read(self) -> None:
+        """Matches a gallery video still streaming the previous watermarked copy."""
+        from media_file_response import open_shared_read
+
+        with TempMediaFolder() as root:
+            final_path = root / "clip.mp4"
+            temp_path = root / f"clip{WATERMARK_TEMP_MARKER}.mp4"
+            final_path.write_bytes(b"old-bytes")
+            temp_path.write_bytes(b"new-bytes")
+
+            with open_shared_read(final_path) as handle:
+                handle.read(1)
+                _publish_watermarked_file(temp_path, final_path)
+
+            self.assertEqual(final_path.read_bytes(), b"new-bytes")
+            self.assertFalse(temp_path.exists())
+            self.assertFalse(
+                (root / f"clip{WATERMARK_STALE_MARKER}.mp4").exists(),
+            )
+
+
+class WatermarkOutputFolderTests(unittest.TestCase):
+    def test_rerunning_replaces_the_previous_output(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png", width=400, height=300)
+
+            run_watermark_job(root, text="Sample Studio", size="small")
+            small = watermarked(root, "photo.png").read_bytes()
+
+            run_watermark_job(root, text="Sample Studio", size="large")
+            large = watermarked(root, "photo.png").read_bytes()
+
+            self.assertNotEqual(small, large)
+            self.assertEqual(
+                sorted(path.name for path in (root / WATERMARK_DIR_NAME).iterdir()),
+                ["photo.png"],
+            )
+
+    def test_sweeps_temp_files_left_by_an_interrupted_run(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            output_dir = root / WATERMARK_DIR_NAME
+            output_dir.mkdir()
+            stale = output_dir / f"other{WATERMARK_TEMP_MARKER}.png"
+            stale.write_bytes(b"interrupted")
+            displaced = output_dir / f"prior{WATERMARK_STALE_MARKER}.png"
+            displaced.write_bytes(b"displaced")
+
+            run_watermark_job(root, text="Sample Studio")
+
+            self.assertFalse(stale.exists())
+            self.assertFalse(displaced.exists())
+
+    def test_a_write_failure_keeps_the_files_that_succeeded(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "a_photo.png")
+            write_media(root, "b_photo.png")
+
+            real_save = watermark_module._save_watermarked_image
+
+            def save(merged: Image.Image, destination: Path, **kwargs: object) -> None:
+                if destination.name.startswith("b_photo"):
+                    raise OSError("disk full")
+                real_save(merged, destination, **kwargs)  # type: ignore[arg-type]
+
+            with patch.object(watermark_module, "_save_watermarked_image", side_effect=save):
+                result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["write_error"], 1)
+            self.assertEqual(stats["success"], 1)
+            self.assertEqual(
+                sorted(path.name for path in (root / WATERMARK_DIR_NAME).iterdir()),
+                ["a_photo.png"],
+            )
+
+    def test_selection_limits_the_output(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "a_photo.png")
+            write_media(root, "b_photo.png")
+
+            run_watermark_job(root, text="Sample Studio", selected_paths=[first])
+
+            self.assertEqual(
+                sorted(path.name for path in (root / WATERMARK_DIR_NAME).iterdir()),
+                ["a_photo.png"],
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -28,6 +28,7 @@ describe("automation API", () => {
       ["backup_captions", "backup-captions"],
       ["restore_captions", "restore-captions"],
       ["train_lora", "train-lora"],
+      ["watermark", "watermark"],
     ];
 
     for (const [jobType, path] of routes) {

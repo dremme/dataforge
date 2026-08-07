@@ -6,8 +6,19 @@ import {
   loadVerifyCaptionsSettings,
   type VerifyCaptionsSettings,
 } from "@/features/automation/preferences/verifyCaptionsPreferences";
+import {
+  loadWatermarkSettings,
+  type WatermarkSettings,
+} from "@/features/automation/preferences/watermarkPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
-import type { JobStartBodies, JobStartBody, JobType } from "@/shared/types";
+import type {
+  JobStartBodies,
+  JobStartBody,
+  JobType,
+  WatermarkOpacity,
+  WatermarkPosition,
+  WatermarkSizeName,
+} from "@/shared/types";
 
 type UseAutomationDialogOverlaysOptions = {
   folderPath: string | undefined;
@@ -35,10 +46,12 @@ export function useAutomationDialogOverlays({
   const [openJobType, setOpenJobType] = useState<JobType | null>(null);
   const [verifyCaptionsSettings, setVerifyCaptionsSettings] =
     useState<VerifyCaptionsSettings | null>(null);
+  const [watermarkSettings, setWatermarkSettings] = useState<WatermarkSettings | null>(null);
 
   const closeDialog = useCallback(() => {
     setOpenJobType(null);
     setVerifyCaptionsSettings(null);
+    setWatermarkSettings(null);
   }, []);
 
   /** Closes the dialog, then starts its job; a rejection is already reported by the context. */
@@ -57,6 +70,11 @@ export function useAutomationDialogOverlays({
     setVerifyCaptionsSettings(settings);
     setOpenJobType("verify_captions");
   }, [folderPath]);
+
+  const openWatermarkDialog = useCallback(async () => {
+    setWatermarkSettings(await loadWatermarkSettings());
+    setOpenJobType("watermark");
+  }, []);
 
   const dialogs = useMemo<AutomationDialogsState>(() => {
     const shared = (jobType: JobType) => ({
@@ -94,6 +112,17 @@ export function useAutomationDialogOverlays({
         onConfirm: (settings: TrainLoraSettings) =>
           startJobFromDialog("train_lora", trainLoraBody(settings)),
       },
+      watermark: {
+        ...shared("watermark"),
+        itemCount,
+        initialSettings: watermarkSettings,
+        onConfirm: (
+          text: string,
+          size: WatermarkSizeName,
+          opacity: WatermarkOpacity,
+          position: WatermarkPosition,
+        ) => startJobFromDialog("watermark", { text, size, opacity, position }),
+      },
     };
   }, [
     closeDialog,
@@ -104,15 +133,17 @@ export function useAutomationDialogOverlays({
     startJobFromDialog,
     startingJobType,
     verifyCaptionsSettings,
+    watermarkSettings,
   ]);
 
   /** Shows a job type's dialog, loading its saved settings first when it has any. */
   const openDialogForJobType = useCallback(
     (jobType: JobType) => {
       if (jobType === "verify_captions") void openVerifyCaptionsDialog();
+      else if (jobType === "watermark") void openWatermarkDialog();
       else setOpenJobType(jobType);
     },
-    [openVerifyCaptionsDialog],
+    [openVerifyCaptionsDialog, openWatermarkDialog],
   );
 
   return { dialogs, openDialogForJobType };

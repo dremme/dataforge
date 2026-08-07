@@ -3,6 +3,7 @@ import { SetCaptionsDialog } from "./SetCaptionsDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
+import { WatermarkDialog } from "./WatermarkDialog";
 import type { AutomationDialogsState } from "@/features/automation/types";
 
 type AutomationDialogOverlaysProps = {
@@ -10,7 +11,7 @@ type AutomationDialogOverlaysProps = {
 };
 
 export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysProps) {
-  const { setCaptions, autoCaption, verifyCaptions, batchRename, trainLora } = dialogs;
+  const { setCaptions, autoCaption, verifyCaptions, batchRename, trainLora, watermark } = dialogs;
 
   return (
     <>
@@ -60,6 +61,17 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={trainLora.busy}
           onConfirm={trainLora.onConfirm}
           onCancel={trainLora.onCancel}
+        />
+      )}
+
+      {watermark.open && watermark.initialSettings && (
+        <WatermarkDialog
+          folderLabel={watermark.folderLabel}
+          itemCount={watermark.itemCount}
+          initialSettings={watermark.initialSettings}
+          busy={watermark.busy}
+          onConfirm={watermark.onConfirm}
+          onCancel={watermark.onCancel}
         />
       )}
     </>

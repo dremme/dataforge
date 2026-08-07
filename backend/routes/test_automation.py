@@ -12,6 +12,7 @@ from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
 from automation.jobs import JOB_SPECS, Job, job_manager
+from db import get_connection
 from external.ostris_training import OstrisTrainingError
 from routes._test_client import client
 from testing_fixtures import (
@@ -22,6 +23,7 @@ from testing_fixtures import (
     write_sysprompt,
     write_txt_caption,
 )
+from watermark_settings import WATERMARK_SETTINGS_KEY
 
 
 @contextmanager
@@ -214,6 +216,83 @@ class CaptionBackupEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["job_type"], "restore_captions")
+
+
+class WatermarkAutomationEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def tearDown(self) -> None:
+        with get_connection() as conn:
+            conn.execute("DELETE FROM preferences WHERE key = ?", (WATERMARK_SETTINGS_KEY,))
+            conn.commit()
+
+    def _start(self, folder: Path, **body: object) -> object:
+        payload = {"text": "Sample Studio", **body}
+        return client.post(f"/api/automation/watermark?path={quote(str(folder))}", json=payload)
+
+    def test_requires_watermark_text(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, text="  ")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("cannot be empty", response.json()["detail"])
+
+    def test_requires_supported_media(self) -> None:
+        with TempMediaFolder() as root:
+            response = self._start(root)
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("No JPG, PNG or MP4", response.json()["detail"])
+
+    def test_rejects_an_unknown_size_opacity_or_position(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            for body in ({"size": "huge"}, {"opacity": 33}, {"position": "side"}):
+                with self.subTest(body=body):
+                    self.assertEqual(self._start(root, **body).status_code, 422)
+
+    def test_starts_job_and_passes_the_settings_through(self) -> None:
+        received: dict[str, object] = {}
+
+        def run(folder: Path, **params: object) -> dict[str, object]:
+            received.update(params)
+            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with _patched_job_runner("watermark", run):
+                response = self._start(root, size="large", opacity=75, position="top")
+
+                self.assertEqual(response.status_code, 200)
+                payload = response.json()
+                self.assertEqual(payload["job_type"], "watermark")
+                wait_for_job(payload["id"])
+
+        self.assertEqual(received["text"], "Sample Studio")
+        self.assertEqual(received["size"], "large")
+        self.assertEqual(received["opacity"], 75)
+        self.assertEqual(received["position"], "top")
+
+    def test_starting_a_job_stores_the_settings_for_next_time(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            self._start(root, size="large", opacity=25, position="center")
+
+            self.assertEqual(
+                client.get("/api/preferences/watermark").json(),
+                {
+                    "text": "Sample Studio",
+                    "size": "large",
+                    "opacity": 25,
+                    "position": "center",
+                },
+            )
 
 
 class TrainLoraAutomationEndpointTests(unittest.TestCase):

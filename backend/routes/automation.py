@@ -15,8 +15,10 @@ from schemas import (
     StripMetadataStartRequest,
     TrainLoraStartRequest,
     VerifyCaptionsStartRequest,
+    WatermarkStartRequest,
 )
 from verify_captions_settings import update_verify_captions_settings
+from watermark_settings import update_watermark_settings
 
 router = APIRouter()
 
@@ -115,6 +117,26 @@ def start_verify_captions_job(
         body.paths,
         mode=body.mode,
         context=body.context,
+    )
+
+
+@router.post("/automation/watermark", response_model=JobResponse)
+def start_watermark_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: WatermarkStartRequest = WatermarkStartRequest(),
+) -> JobResponse:
+    update_watermark_settings(
+        text=body.text, size=body.size, opacity=body.opacity, position=body.position
+    )
+
+    return _start_job(
+        "watermark",
+        resolve_folder(path),
+        body.paths,
+        text=body.text,
+        size=body.size,
+        opacity=body.opacity,
+        position=body.position,
     )
 
 

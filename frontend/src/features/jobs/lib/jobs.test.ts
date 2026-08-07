@@ -460,6 +460,37 @@ describe("caption backup and restore jobs", () => {
   });
 });
 
+describe("watermark jobs", () => {
+  it("does not inherit the missing-caption warning", () => {
+    const job = makeJob({
+      job_type: "watermark",
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 3, image_success: 3, no_caption: 2 },
+    });
+
+    expect(jobShowsWarningState(job)).toBe(false);
+    expect(jobWarningMessage(job)).toBeNull();
+  });
+
+  it("estimates from the videos, not the images", () => {
+    const startedAt = new Date("2026-01-01T12:00:00.000Z").toISOString();
+    const job = makeJob({
+      job_type: "watermark",
+      status: "running",
+      processed: 9,
+      total: 10,
+      started_at: startedAt,
+      // Eight images took no time; the one remaining file is another video.
+      stats: { success: 9, image_success: 8, video_success: 1 },
+    });
+
+    const nowMs = Date.parse("2026-01-01T12:01:02.000Z");
+    expect(jobRemainingSeconds(job, nowMs)).toBe(60);
+  });
+});
+
 describe("verify captions jobs", () => {
   it("labels verify captions jobs and treats parse errors as failures", () => {
     const job = makeJob({

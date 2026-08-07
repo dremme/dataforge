@@ -10,6 +10,7 @@ import {
   iconMessagePlus,
   iconPencilSparkles,
   iconShredder,
+  iconStamp,
 } from "@/shared/icons";
 import type { JobType } from "@/shared/types";
 
@@ -91,6 +92,14 @@ export const JOB_TYPE_META = {
     icon: iconFilePen,
     startUi: "dialog" as const,
     menuDescription: "Rename media files.",
+  },
+  watermark: {
+    type: "watermark" as const,
+    group: "files" as const,
+    label: "Batch watermark",
+    icon: iconStamp,
+    startUi: "dialog" as const,
+    menuDescription: "Adds a watermark to media files.",
   },
   strip_metadata: {
     type: "strip_metadata" as const,

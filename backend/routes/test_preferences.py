@@ -9,6 +9,7 @@ from db import get_connection
 from routes._test_client import client
 from ui_settings import UI_SETTINGS_KEY
 from verify_captions_settings import VERIFY_CAPTIONS_SETTINGS_KEY
+from watermark_settings import WATERMARK_SETTINGS_KEY
 
 
 class UiPreferencesEndpointTests(unittest.TestCase):
@@ -147,3 +148,48 @@ class VerifyCaptionsPreferencesEndpointTests(unittest.TestCase):
 
         read_back = client.get(f"/api/preferences/verify-captions?path={quote(folder)}")
         self.assertEqual(read_back.json()["context"], "")
+
+
+class WatermarkPreferencesEndpointTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        with get_connection() as conn:
+            conn.execute("DELETE FROM preferences WHERE key = ?", (WATERMARK_SETTINGS_KEY,))
+            conn.commit()
+
+    def test_read_default_settings(self) -> None:
+        response = client.get("/api/preferences/watermark")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"text": "", "size": "medium", "opacity": 50, "position": "bottom"},
+        )
+
+    def test_settings_survive_a_read_back(self) -> None:
+        response = client.put(
+            "/api/preferences/watermark",
+            json={
+                "text": "Sample Studio",
+                "size": "large",
+                "opacity": 75,
+                "position": "top",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        read_back = client.get("/api/preferences/watermark")
+        self.assertEqual(
+            read_back.json(),
+            {
+                "text": "Sample Studio",
+                "size": "large",
+                "opacity": 75,
+                "position": "top",
+            },
+        )
+
+    def test_rejects_an_unknown_size_opacity_or_position(self) -> None:
+        for body in ({"size": "huge"}, {"opacity": 33}, {"position": "side"}):
+            with self.subTest(body=body):
+                response = client.put("/api/preferences/watermark", json=body)
+                self.assertEqual(response.status_code, 422)

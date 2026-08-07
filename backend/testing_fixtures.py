@@ -123,6 +123,30 @@ def write_media(
     return media
 
 
+def write_jpeg(
+    root: Path,
+    name: str = "photo.jpg",
+    *,
+    width: int = 64,
+    height: int = 48,
+    color: tuple[int, int, int] = (0, 0, 0),
+    orientation: int | None = None,
+) -> Path:
+    """A real JPEG, optionally carrying an EXIF Orientation tag."""
+    from PIL import Image
+
+    media = root / name
+    image = Image.new("RGB", (width, height), color)
+    if orientation is None:
+        image.save(media, format="JPEG")
+        return media
+
+    exif = Image.Exif()
+    exif[0x0112] = orientation
+    image.save(media, format="JPEG", exif=exif)
+    return media
+
+
 def write_gif(
     root: Path,
     name: str = "loop.gif",

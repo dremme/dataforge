@@ -94,6 +94,7 @@ class JobResponseSchemaTests(unittest.TestCase):
             "backup_captions",
             "restore_captions",
             "train_lora",
+            "watermark",
         ):
             self.assertEqual(_job(job_type=job_type).job_type, job_type)
 

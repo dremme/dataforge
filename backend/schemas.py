@@ -13,6 +13,12 @@ CaptionFileType = Literal["json", "txt"]
 # sysprompt entry is listed as media too.
 MediaType = Literal["image", "video", "gif", "sysprompt"]
 
+# Watermark appearance, mirrored by the size table in ``automation/watermark.py``.
+WatermarkSizeName = Literal["small", "medium", "large"]
+WatermarkOpacity = Literal[25, 50, 75]
+# top = top-left, center = middle, bottom = bottom-right.
+WatermarkPosition = Literal["top", "center", "bottom"]
+
 
 class Breadcrumb(BaseModel):
     name: str
@@ -194,6 +200,29 @@ class BackupCaptionsStartRequest(JobSelectionRequest):
 
 class RestoreCaptionsStartRequest(JobSelectionRequest):
     pass
+
+
+class WatermarkStartRequest(JobSelectionRequest):
+    # ``text`` is deliberately unconstrained so its refusal comes back as the job's own
+    # 400 message rather than a pydantic validation blob.
+    text: str = ""
+    size: WatermarkSizeName = "medium"
+    opacity: WatermarkOpacity = 50
+    position: WatermarkPosition = "bottom"
+
+
+class WatermarkSettingsResponse(BaseModel):
+    text: str = ""
+    size: WatermarkSizeName = "medium"
+    opacity: WatermarkOpacity = 50
+    position: WatermarkPosition = "bottom"
+
+
+class WatermarkSettingsUpdate(BaseModel):
+    text: str | None = None
+    size: WatermarkSizeName | None = None
+    opacity: WatermarkOpacity | None = None
+    position: WatermarkPosition | None = None
 
 
 class VerifyCaptionsSettingsResponse(BaseModel):

@@ -8,6 +8,7 @@ from automation.job_messages import (
     auto_caption_error_message,
     resolve_job_error,
     verify_captions_failure_message,
+    watermark_error_message,
 )
 from automation.jobs import Job
 
@@ -60,6 +61,33 @@ class JobMessagesTests(unittest.TestCase):
         )
 
         self.assertEqual(message, auto_caption_error_message(2))
+
+    def test_watermark_is_silent_without_errors(self) -> None:
+        self.assertIsNone(watermark_error_message({"success": 4}))
+
+    def test_watermark_blames_ffmpeg_when_only_videos_failed(self) -> None:
+        message = watermark_error_message({"ffmpeg_error": 2})
+
+        self.assertEqual(message, "Failed to watermark 2 videos. Check that ffmpeg is available.")
+
+    def test_watermark_reassures_that_originals_survived(self) -> None:
+        message = watermark_error_message({"ffmpeg_error": 1, "write_error": 1})
+
+        self.assertEqual(message, "Failed to watermark 2 files. The originals were not changed.")
+
+    def test_watermark_uses_the_singular_for_one_failure(self) -> None:
+        message = watermark_error_message({"read_error": 1})
+
+        self.assertEqual(message, "Failed to watermark 1 file. The original was not changed.")
+
+    def test_resolve_job_error_reconstructs_watermark_message(self) -> None:
+        message = resolve_job_error(
+            job_type="watermark",
+            stats={"write_error": 3},
+            stored_error=None,
+        )
+
+        self.assertEqual(message, watermark_error_message({"write_error": 3}))
 
     def test_job_to_dict_exposes_resolved_error_for_legacy_rows(self) -> None:
         job = Job(

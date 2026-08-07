@@ -104,6 +104,7 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 
 - In-place caption editing for `.json` and `.txt` sidecars
 - JSON caption editor with a bounding-box overlay — view and edit when present
+- Issue resolver — step through flagged files to edit, resolve, or skip
 - Click-to-zoom in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
 - Save any video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
@@ -121,14 +122,14 @@ Jobs run in the background, with a drawer for progress, cancel, and history:
 | Job | What it does |
 | --- | --- |
 | **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode) |
-| **Verify captions** | Checks captions against images and writes `.issue.json` when something is wrong |
-| **Issue resolver** | Step through flagged files to edit, resolve, or skip |
-| **Strip metadata** | Remove embedded data from PNGs and MP4s |
 | **Set captions** | Apply the same text to many files |
+| **Verify captions** | Checks captions against images and writes `.issue.json` when something is wrong |
+| **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 | **Batch rename** | Numbered rename of media plus related sidecars |
+| **Batch watermark** | Burn text onto JPG, PNG, and MP4 copies in a `watermarked` subfolder (size, opacity, position) |
+| **Strip metadata** | Remove embedded data from PNGs and MP4s |
 | **Backup captions** | Copy captions and caption issues into `.backup` |
 | **Restore captions** | Restore captions and issues from `.backup` |
-| **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 
 External **Ostris / AI-Toolkit** training jobs also appear in the jobs drawer once [configured](#paths-integrations-and-logging).
 
@@ -151,7 +152,7 @@ Verify-captions **additional context** is stored **per folder** in the app datab
 
 ### App only
 
-Enough for gallery browsing, caption editing, strip metadata, set captions, and batch rename.
+Enough for gallery browsing, caption editing, strip metadata, watermark, set captions, and batch rename.
 
 | | Minimum | Recommended |
 | --- | --- | --- |
