@@ -10,7 +10,7 @@ describe("BreadcrumbBar", () => {
     vi.unstubAllGlobals();
   });
 
-  it("disables explorer when the current folder is missing", () => {
+  it("disables path actions when the current folder is missing", () => {
     render(
       <BreadcrumbBar
         breadcrumbs={homeFolder.breadcrumbs}
@@ -20,25 +20,26 @@ describe("BreadcrumbBar", () => {
       />,
     );
 
+    expect(screen.getByRole("button", { name: "Copy path" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Open in File Explorer" })).toBeDisabled();
   });
 
-  it("opens the create-folder dialog from the breadcrumb bar", async () => {
+  it("copies the current folder path", async () => {
     const user = userEvent.setup();
-    const onCreateFolder = vi.fn();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
 
     render(
       <BreadcrumbBar
         breadcrumbs={homeFolder.breadcrumbs}
         currentFolder={homeFolder.path}
         onNavigate={vi.fn()}
-        onCreateFolder={onCreateFolder}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "New folder" }));
+    await user.click(screen.getByRole("button", { name: "Copy path" }));
 
-    expect(onCreateFolder).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith(homeFolder.path);
+    expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
   });
 
   it("opens the current folder in the file explorer", async () => {

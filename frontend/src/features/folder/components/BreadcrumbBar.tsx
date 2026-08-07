@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import { openFolderInExplorer } from "@/features/folder/api/folders";
 import { formatApiError } from "@/shared/api/http";
+import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import {
   iconArrowUpRight,
   iconChevronRight,
+  iconCopy,
   iconFolderOpen,
-  iconFolderPlus,
   iconLoader2,
 } from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
@@ -19,7 +20,6 @@ interface BreadcrumbBarProps {
   currentFolder: string;
   folderNotFound?: boolean;
   onNavigate: (path: string) => void;
-  onCreateFolder?: () => void;
 }
 
 export function BreadcrumbBar({
@@ -27,11 +27,11 @@ export function BreadcrumbBar({
   currentFolder,
   folderNotFound = false,
   onNavigate,
-  onCreateFolder,
 }: BreadcrumbBarProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openingInExplorer, setOpeningInExplorer] = useState(false);
   const [explorerError, setExplorerError] = useState<string | null>(null);
+  const { copyState, copyText } = useCopyFeedback();
 
   const handleOpenInExplorer = useCallback(async () => {
     if (openingInExplorer) return;
@@ -47,6 +47,14 @@ export function BreadcrumbBar({
       setOpeningInExplorer(false);
     }
   }, [currentFolder, openingInExplorer]);
+
+  const handleCopyPath = useCallback(() => {
+    if (folderNotFound || !currentFolder) return;
+    void copyText(currentFolder);
+  }, [copyText, currentFolder, folderNotFound]);
+
+  const copyPathLabel =
+    copyState === "copied" ? "Copied!" : copyState === "error" ? "Failed!" : "Copy path";
 
   if (breadcrumbs.length === 0) return null;
 
@@ -97,19 +105,17 @@ export function BreadcrumbBar({
         </ol>
 
         <div className="breadcrumbs__actions">
-          {onCreateFolder && (
-            <Tooltip content={folderNotFound ? "Folder not found" : "New folder"}>
-              <button
-                type="button"
-                className="breadcrumbs__explorer"
-                onClick={onCreateFolder}
-                disabled={folderNotFound}
-                aria-label="New folder"
-              >
-                <Icon icon={iconFolderPlus} className="breadcrumbs__explorer-icon" />
-              </button>
-            </Tooltip>
-          )}
+          <Tooltip content={folderNotFound ? "Folder not found" : copyPathLabel}>
+            <button
+              type="button"
+              className="breadcrumbs__explorer"
+              onClick={handleCopyPath}
+              disabled={folderNotFound || !currentFolder}
+              aria-label={copyPathLabel}
+            >
+              <Icon icon={iconCopy} className="breadcrumbs__explorer-icon" />
+            </button>
+          </Tooltip>
 
           <Tooltip
             content={

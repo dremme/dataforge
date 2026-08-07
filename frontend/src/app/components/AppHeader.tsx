@@ -9,7 +9,6 @@ type AppHeaderProps = {
   /** A reload running underneath content that stays on screen. */
   refreshing?: boolean;
   onNavigate: (path?: string) => void;
-  onCreateFolder?: () => void;
   toolbarProps: ComponentProps<typeof Toolbar>;
 };
 
@@ -18,7 +17,6 @@ export function AppHeader({
   folderNotFound,
   refreshing = false,
   onNavigate,
-  onCreateFolder,
   toolbarProps,
 }: AppHeaderProps) {
   return (
@@ -29,7 +27,6 @@ export function AppHeader({
           currentFolder={folder.path}
           folderNotFound={folderNotFound}
           onNavigate={onNavigate}
-          onCreateFolder={onCreateFolder}
         />
         <Toolbar {...toolbarProps} />
       </div>

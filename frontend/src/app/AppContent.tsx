@@ -60,7 +60,6 @@ export function AppContent() {
             folderNotFound={folderNotFound}
             refreshing={refreshing}
             onNavigate={navigateTo}
-            onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
             toolbarProps={{
               subfolderCount: folder.subfolder_count,
               fileCount: items.length,
