@@ -151,6 +151,12 @@ describe("JobsProvider", () => {
 
     await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
 
+    // Hold every later poll open. This test is about what the push alone does; a
+    // safety poll answering from the static mock would be a legitimate 3, and
+    // whether one lands inside the assertion window is pure timing.
+    listJobs.mockReturnValue(new Promise(() => {}));
+    const callsBeforePush = listJobs.mock.calls.length;
+
     source.onmessage!({
       data: JSON.stringify({
         type: "job",
@@ -158,8 +164,51 @@ describe("JobsProvider", () => {
       }),
     });
 
+    // Synchronous, before any timer can fire: the push is applied in place, not by
+    // going back to the server.
+    expect(listJobs).toHaveBeenCalledTimes(callsBeforePush);
     await waitFor(() => expect(latest.current?.jobs[0].processed).toBe(9));
     expect(latest.current?.activeCount).toBe(0);
+  });
+
+  it("keeps a job pushed mid-request when the response predates the push", async () => {
+    // The request was answered from state older than the push, so applying its
+    // snapshot as-is would roll the job back to `running` until the next poll.
+    vi.stubGlobal("EventSource", FakeEventSource);
+
+    // The first request is held open so the push provably lands while it is in
+    // flight. Every later request hangs: one that *starts* after the push would
+    // legitimately answer 3 from this static mock, which is not what is under test.
+    let releaseJobs: (value: { jobs: (typeof runningJob)[]; active_count: number }) => void;
+    listJobs.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseJobs = resolve;
+      }),
+    );
+    listJobs.mockReturnValue(new Promise(() => {}));
+
+    const latest = renderProvider();
+
+    await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
+    const source = FakeEventSource.last!;
+    source.onopen!();
+    await waitFor(() => expect(listJobs).toHaveBeenCalled());
+
+    source.onmessage!({
+      data: JSON.stringify({
+        type: "job",
+        job: { ...runningJob, processed: 9, status: "completed" },
+      }),
+    });
+    await waitFor(() => expect(latest.current?.jobs[0]?.processed).toBe(9));
+
+    await act(async () => {
+      releaseJobs!({ jobs: [runningJob], active_count: 1 });
+      await Promise.resolve();
+    });
+
+    expect(latest.current?.jobs[0].processed).toBe(9);
+    expect(latest.current?.jobs[0].status).toBe("completed");
   });
 
   it("refetches when the jobs drawer opens", async () => {

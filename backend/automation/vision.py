@@ -1,9 +1,10 @@
 """Shared vision-model plumbing for the auto-caption and verify-captions jobs.
 
-Covers everything both jobs do identically: preparing images for the OpenAI
-chat API, issuing the completion with the right sampling profile for the mode,
-and retrying a flaky model. What each job asks the model for, and how it
-interprets the answer, stays in the job module.
+Covers everything both jobs do identically: classifying image vs motion media,
+extracting video/GIF keyframes, owning the model client for a run, assembling and
+issuing the request with the right sampling profile for the mode, and retrying a
+flaky model. What each job asks the model for, and how it interprets the answer,
+stays in the job module.
 """
 
 from __future__ import annotations
@@ -11,17 +12,21 @@ from __future__ import annotations
 import base64
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from PIL import Image
 
+from constants import GIF_EXTENSION, MOTION_EXTENSIONS
+from gif_frames import extract_gif_keyframes
 from openai_settings import (
     assistant_message_text,
     build_sampling_extra_body,
+    create_openai_client,
     get_max_tokens,
     get_openai_model,
     get_sampling_profile,
@@ -30,6 +35,13 @@ from openai_settings import (
 logger = logging.getLogger(__name__)
 
 MAX_MODEL_ATTEMPTS = 3
+
+# Evenly spaced samples across a motion file; short GIFs yield fewer than this.
+VIDEO_KEYFRAME_COUNT = 12
+# Multi-frame payloads stay smaller than stills so the request remains tractable.
+VIDEO_FRAME_MAX_PIXELS = 500_000
+
+MediaKind = Literal["image", "video"]
 
 # How often a waiting job re-checks for cancellation while the model request is in flight.
 CANCEL_POLL_SECONDS = 0.1
@@ -41,6 +53,10 @@ INSTRUCT_THINK_PREFILL = "<think>\n\n</think>"
 SUCCESS = "success"
 API_ERROR = "api_error"
 CANCELLED = "cancelled"
+# A still that would not decode, and a motion file that yielded no keyframes. Both
+# jobs count these under the same names, which is also what the UI reads them by.
+READ_ERROR = "read_error"
+FRAME_ERROR = "frame_error"
 
 _STRIPPED_PREFIXES = (
     "assistant:",
@@ -111,6 +127,116 @@ def load_image_rgb(media_path: Path) -> tuple[list[Image.Image] | None, str | No
         return None, str(exc)
 
 
+def media_kind_for(path: Path) -> MediaKind:
+    """How a file is captioned or verified, which for a GIF is as a video.
+
+    ``MediaKind`` is the training axis, and a GIF carries a frame sequence, so it
+    gets the video prompt and the keyframe pipeline. ``schemas.MediaType`` is the
+    rendering axis and calls the same file a ``gif``.
+    """
+    return "video" if path.suffix.lower() in MOTION_EXTENSIONS else "image"
+
+
+def extract_video_keyframes(
+    video_path: Path,
+    count: int = VIDEO_KEYFRAME_COUNT,
+) -> list[Image.Image] | None:
+    import cv2
+
+    # release() covers the failed-open branch too: a capture that never opened still
+    # holds the file on Windows, which locks the video against moves and deletes.
+    cap = cv2.VideoCapture(str(video_path))
+    try:
+        if not cap.isOpened():
+            logger.error("Failed to open video for keyframe extraction: %s", video_path.name)
+            return None
+
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+        if total_frames <= 0:
+            frames: list[Image.Image] = []
+            while len(frames) < count:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                frames.append(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+            return frames or None
+
+        if total_frames == 1:
+            indices = [0] * count
+        else:
+            indices = [round(index * (total_frames - 1) / (count - 1)) for index in range(count)]
+
+        frames = []
+        for frame_index in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+            ok, frame = cap.read()
+            if not ok:
+                continue
+            frames.append(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+
+        return frames or None
+    finally:
+        cap.release()
+
+
+def extract_keyframes(
+    media_path: Path, count: int = VIDEO_KEYFRAME_COUNT
+) -> list[Image.Image] | None:
+    """Evenly spaced frames, decoded by whichever reader handles the container.
+
+    GIFs never reach OpenCV: it reports a frame count of zero for many of them,
+    which silently drops ``extract_video_keyframes`` into its sequential fallback
+    and captions only the opening of the animation.
+    """
+    if media_path.suffix.lower() == GIF_EXTENSION:
+        return extract_gif_keyframes(media_path, count)
+    return extract_video_keyframes(media_path, count)
+
+
+def keyframe_sentence(frame_count: int) -> str:
+    """States the real frame count, which a short GIF makes smaller than the cap."""
+    if frame_count == 1:
+        return "You are given a single frame. Analyze it while following the system instructions."
+    return (
+        f"You are given {frame_count} keyframes in chronological order. "
+        "Analyze the full video sequence while following the system instructions."
+    )
+
+
+@dataclass(frozen=True)
+class MediaLoadError:
+    """Why a file never reached the model.
+
+    ``status`` is the job counter it lands in, and is deliberately the exact stat key
+    rather than something a caller has to translate: the same string travels through
+    the job stats and out to the UI. ``message`` is the reader's own explanation, which
+    only a still can supply - a failed keyframe extraction logs its reason and leaves
+    the user the count.
+    """
+
+    status: str
+    message: str | None = None
+
+
+def load_media_images(
+    media_path: Path,
+) -> tuple[list[Image.Image] | None, MediaLoadError | None]:
+    """Load stills or motion keyframes for a vision request.
+
+    Returns ``(frames, None)`` on success, or ``(None, error)`` describing why not.
+    """
+    if media_kind_for(media_path) == "video":
+        keyframes = extract_keyframes(media_path)
+        if not keyframes:
+            return None, MediaLoadError(FRAME_ERROR)
+        return keyframes, None
+
+    images, error = load_image_rgb(media_path)
+    if images is None:
+        return None, MediaLoadError(READ_ERROR, error)
+    return images, None
+
+
 def vision_messages(system_prompt: str, images_b64: list[str], user_text: str) -> list[dict]:
     content: list[dict] = [
         {
@@ -124,6 +250,35 @@ def vision_messages(system_prompt: str, images_b64: list[str], user_text: str) -
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": content},
     ]
+
+
+def request_vision_text(
+    client,
+    system_prompt: str,
+    images: list[Image.Image],
+    user_text: str,
+    *,
+    max_pixels: int,
+    mode: str,
+    model: str | None = None,
+    max_tokens: int | None = None,
+) -> str | None:
+    """Encode ``images`` and ask the model, returning the assistant text or ``None``.
+
+    Both jobs assemble a request identically; only the pixel budget and the user text
+    differ, so those arrive already resolved for the file's media kind.
+    """
+    images_b64 = prepare_images_for_api(images, max_pixels=max_pixels)
+    if not images_b64:
+        return None
+
+    return run_vision_completion(
+        client,
+        vision_messages(system_prompt, images_b64, user_text),
+        mode=mode,
+        model=model,
+        max_tokens=max_tokens,
+    )
 
 
 def clean_model_text(raw_text: str) -> str:
@@ -194,9 +349,10 @@ class ModelOutcome(Generic[T]):
 
 
 def close_vision_client(client: object) -> None:
-    """Best-effort teardown so an abandoned request stops occupying the model server.
+    """Best-effort teardown of a client that will not be used again.
 
-    Only called once a job has been cancelled, after which its client is never used again.
+    Safe to call twice: a cancelled job closes the client the moment it abandons an
+    in-flight request, and ``vision_client`` closes it again when the run unwinds.
     """
     close = getattr(client, "close", None)
     if close is None:
@@ -205,7 +361,22 @@ def close_vision_client(client: object) -> None:
     try:
         close()
     except Exception as exc:
-        logger.debug("Closing the vision client after cancellation failed: %s", exc)
+        logger.debug("Closing the vision client failed: %s", exc)
+
+
+@contextmanager
+def vision_client() -> Iterator[Any]:
+    """A model client scoped to one job run.
+
+    The client owns a connection pool, so a run that walked away from it would leave
+    that pool alive until the process collected it - one per run, on a server that
+    stays up across many.
+    """
+    client = create_openai_client()
+    try:
+        yield client
+    finally:
+        close_vision_client(client)
 
 
 def _await_attempt(

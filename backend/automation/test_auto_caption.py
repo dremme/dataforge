@@ -13,14 +13,9 @@ isolate_test_database()
 from PIL import Image
 
 from automation.auto_caption import (
-    VIDEO_FRAME_MAX_PIXELS,
-    VIDEO_KEYFRAME_COUNT,
     build_system_prompt,
     complete_caption,
-    extract_keyframes,
-    extract_video_keyframes,
     list_auto_caption_media,
-    media_kind_for,
     process_media,
     run_auto_caption_job,
     validate_auto_caption_folder,
@@ -28,6 +23,11 @@ from automation.auto_caption import (
 from automation.vision import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
+    VIDEO_FRAME_MAX_PIXELS,
+    VIDEO_KEYFRAME_COUNT,
+    extract_keyframes,
+    extract_video_keyframes,
+    media_kind_for,
     prepare_images_for_api,
     resize_for_qwen,
 )
@@ -382,6 +382,24 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             self.assertEqual(result["results"][0]["status"], "api_error")
             self.assertEqual(mock_complete.call_count, MAX_MODEL_ATTEMPTS)
 
+    def test_run_job_separates_unreadable_media_from_model_failures(self) -> None:
+        # A file that never decoded never reached the model, so counting it as an
+        # api_error would blame the server and burn three attempts on it.
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            broken = root / "broken.png"
+            broken.write_bytes(b"not an image")
+            write_txt_caption(broken, "Draft.")
+
+            with patch("automation.auto_caption.complete_caption") as mock_complete:
+                result = run_auto_caption_job(root)
+
+            self.assertEqual(result["stats"]["read_error"], 1)
+            self.assertEqual(result["stats"]["api_error"], 0)
+            self.assertEqual(result["results"][0]["status"], "read_error")
+            self.assertTrue(result["results"][0]["message"])
+            mock_complete.assert_not_called()
+
     def test_process_media_retries_api_errors_then_succeeds(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
@@ -399,7 +417,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 "automation.auto_caption.complete_caption",
                 side_effect=[None, None, polished],
             ) as mock_complete:
-                _path, caption, status = process_media(
+                _path, caption, status, _message = process_media(
                     object(),
                     media,
                     {"image": "system prompt", "video": "system prompt"},
@@ -425,7 +443,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 "automation.auto_caption.complete_caption",
                 side_effect=["too short", polished],
             ) as mock_complete:
-                _path, caption, status = process_media(
+                _path, caption, status, _message = process_media(
                     object(),
                     media,
                     {"image": "system prompt", "video": "system prompt"},
@@ -444,7 +462,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 "automation.auto_caption.complete_caption",
                 return_value="short",
             ) as mock_complete:
-                _path, caption, status = process_media(
+                _path, caption, status, _message = process_media(
                     object(),
                     media,
                     {"image": "system prompt", "video": "system prompt"},

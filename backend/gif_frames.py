@@ -356,7 +356,11 @@ def _keyframe_indices(total_frames: int, count: int) -> list[int]:
 
 
 def extract_gif_keyframes(path: Path, count: int) -> list[Image.Image] | None:
-    """Evenly spaced frames in chronological order, or ``None`` if unreadable."""
+    """Evenly spaced frames in chronological order, or ``None`` if unreadable.
+
+    Decodes from an in-memory copy so the path is never held open across the walk
+    (same Windows lock discipline as the frame endpoint).
+    """
     total_frames = gif_frame_count(path)
     if total_frames is None:
         return None
@@ -366,13 +370,14 @@ def extract_gif_keyframes(path: Path, count: int) -> list[Image.Image] | None:
         return None
 
     try:
-        with Image.open(path) as image:
+        data = _read_gif_bytes(path)
+        with _open_gif(data) as image:
             frames = [
                 _flatten(frame)
                 for position, frame in enumerate(ImageSequence.Iterator(image))
                 if position in wanted
             ]
-    except (OSError, UnidentifiedImageError) as exc:
+    except (OSError, UnidentifiedImageError, GifFrameError) as exc:
         logger.error("GIF keyframe extraction failed for %s: %s", path.name, exc)
         return None
 

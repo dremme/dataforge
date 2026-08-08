@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from testing_fixtures import isolate_test_database
@@ -17,14 +18,22 @@ from automation.vision import (
     API_ERROR,
     CANCEL_POLL_SECONDS,
     CANCELLED,
+    FRAME_ERROR,
+    READ_ERROR,
     SUCCESS,
+    VIDEO_KEYFRAME_COUNT,
     ModelOutcome,
     call_with_retries,
     close_vision_client,
+    keyframe_sentence,
     load_image_rgb,
+    load_media_images,
+    media_kind_for,
+    vision_client,
 )
 from testing_fixtures import (
     TempMediaFolder,
+    write_gif,
     write_media,
     write_sysprompt,
     write_txt_caption,
@@ -54,10 +63,12 @@ class HangingCompletions:
 class HangingClient:
     def __init__(self, request_started: threading.Event, release: threading.Event) -> None:
         self.closed = threading.Event()
+        self.close_count = 0
         completions = HangingCompletions(request_started, release)
         self.chat = type("Chat", (), {"completions": completions})()
 
     def close(self) -> None:
+        self.close_count += 1
         self.closed.set()
 
 
@@ -102,6 +113,10 @@ class CancelWhileWaitingTests(unittest.TestCase):
             self.assertNotIn("error", results)
             self.assertLess(waited, CANCEL_DEADLINE_SECONDS)
             self.assertTrue(client.closed.is_set(), "the abandoned request was not torn down")
+            # Once to tear down the request that was still hanging, once when the run
+            # scope ended. A single close means the in-flight teardown never happened,
+            # which the event alone can no longer tell apart.
+            self.assertEqual(client.close_count, 2)
 
             stats = results["value"]["stats"]
             self.assertEqual(stats["cancelled"], 1)
@@ -117,7 +132,7 @@ class CancelWhileWaitingTests(unittest.TestCase):
         self._assert_drops_in_flight_request(
             lambda root, should_cancel: run_auto_caption_job(root, should_cancel=should_cancel),
             folder_setup,
-            "automation.auto_caption.create_openai_client",
+            "automation.vision.create_openai_client",
         )
 
     def test_verify_captions_cancels_without_waiting_for_the_model(self) -> None:
@@ -129,7 +144,7 @@ class CancelWhileWaitingTests(unittest.TestCase):
         self._assert_drops_in_flight_request(
             lambda root, should_cancel: run_verify_captions_job(root, should_cancel=should_cancel),
             folder_setup,
-            "automation.verify_captions.create_openai_client",
+            "automation.vision.create_openai_client",
         )
 
     def test_abandoned_caption_leaves_the_draft_sidecar_untouched(self) -> None:
@@ -152,7 +167,7 @@ class CancelWhileWaitingTests(unittest.TestCase):
                 finally:
                     job_finished.set()
 
-            with patch("automation.auto_caption.create_openai_client", return_value=client):
+            with patch("automation.vision.create_openai_client", return_value=client):
                 worker = threading.Thread(target=run, daemon=True)
                 worker.start()
                 self.assertTrue(request_started.wait(timeout=CANCEL_DEADLINE_SECONDS))
@@ -375,6 +390,139 @@ class LoadImageRgbTests(unittest.TestCase):
 
             self.assertIsNone(images)
             self.assertIsNotNone(error)
+
+
+class MediaKindTests(unittest.TestCase):
+    def test_stills_are_images(self) -> None:
+        for name in ("photo.png", "photo.JPG", "photo.jpeg"):
+            self.assertEqual(media_kind_for(Path(name)), "image")
+
+    def test_videos_and_gifs_are_both_video(self) -> None:
+        # A GIF carries a frame sequence, so it takes the keyframe pipeline even
+        # though the rendering layer calls it a gif.
+        for name in ("clip.mp4", "loop.gif", "LOOP.GIF"):
+            self.assertEqual(media_kind_for(Path(name)), "video")
+
+
+class KeyframeSentenceTests(unittest.TestCase):
+    def test_states_the_real_frame_count(self) -> None:
+        sentence = keyframe_sentence(5)
+
+        self.assertIn("5 keyframes", sentence)
+        self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", sentence)
+
+    def test_a_lone_frame_is_singular(self) -> None:
+        self.assertIn("a single frame", keyframe_sentence(1).lower())
+
+
+class LoadMediaImagesTests(unittest.TestCase):
+    """``status`` is the job counter the file lands in, so its value is the contract."""
+
+    def test_a_still_loads_as_one_frame(self) -> None:
+        with TempMediaFolder() as root:
+            images, error = load_media_images(write_media(root, "photo.png"))
+
+            self.assertIsNone(error)
+            assert images is not None
+            self.assertEqual(len(images), 1)
+
+    def test_an_unreadable_still_reports_read_error_with_a_message(self) -> None:
+        # The jobs surface this message as the file's result, so a read_error without
+        # one would report the failure without saying why.
+        with TempMediaFolder() as root:
+            broken = root / "broken.png"
+            broken.write_bytes(b"not an image")
+
+            images, error = load_media_images(broken)
+
+            self.assertIsNone(images)
+            assert error is not None
+            self.assertEqual(error.status, READ_ERROR)
+            self.assertTrue(error.message)
+
+    def test_a_gif_loads_as_keyframes_rather_than_its_opening_frame(self) -> None:
+        with TempMediaFolder() as root:
+            images, error = load_media_images(write_gif(root, "loop.gif", frames=8))
+
+            self.assertIsNone(error)
+            assert images is not None
+            self.assertGreater(len(images), 1)
+
+    def test_undecodable_motion_reports_frame_error_without_a_message(self) -> None:
+        # The extractor logs the reason; the user gets the count.
+        with TempMediaFolder() as root:
+            broken = root / "broken.mp4"
+            broken.write_bytes(b"not a video")
+
+            images, error = load_media_images(broken)
+
+            self.assertIsNone(images)
+            assert error is not None
+            self.assertEqual(error.status, FRAME_ERROR)
+            self.assertIsNone(error.message)
+
+
+class VisionClientScopeTests(unittest.TestCase):
+    """A client holds a connection pool, so every run has to hand it back."""
+
+    class _SpyClient:
+        def __init__(self) -> None:
+            self.close_count = 0
+
+        def close(self) -> None:
+            self.close_count += 1
+
+    def test_closes_the_client_when_the_run_ends(self) -> None:
+        client = self._SpyClient()
+
+        with patch("automation.vision.create_openai_client", return_value=client):
+            with vision_client() as scoped:
+                self.assertIs(scoped, client)
+                self.assertEqual(client.close_count, 0)
+
+        self.assertEqual(client.close_count, 1)
+
+    def test_closes_the_client_when_the_run_raises(self) -> None:
+        client = self._SpyClient()
+
+        with patch("automation.vision.create_openai_client", return_value=client):
+            with self.assertRaises(ValueError), vision_client():
+                raise ValueError("job blew up")
+
+        self.assertEqual(client.close_count, 1)
+
+    def test_a_completed_auto_caption_job_does_not_keep_its_client(self) -> None:
+        client = self._SpyClient()
+
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            from automation.auto_caption import run_auto_caption_job
+
+            with (
+                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.auto_caption.complete_caption", return_value=None),
+            ):
+                run_auto_caption_job(root)
+
+        self.assertEqual(client.close_count, 1)
+
+    def test_a_completed_verify_captions_job_does_not_keep_its_client(self) -> None:
+        client = self._SpyClient()
+
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A caption to verify.")
+
+            from automation.verify_captions import run_verify_captions_job
+
+            with (
+                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.verify_captions.verify_caption", return_value=None),
+            ):
+                run_verify_captions_job(root)
+
+        self.assertEqual(client.close_count, 1)
 
 
 class CloseVisionClientTests(unittest.TestCase):

@@ -520,6 +520,30 @@ describe("verify captions jobs", () => {
     expect(jobErrorMessage(job)).toBe(backendError);
   });
 
+  it("treats frame errors as failures for verify captions", () => {
+    const job = makeJob({
+      job_type: "verify_captions",
+      status: "completed",
+      processed: 2,
+      total: 2,
+      stats: { success: 1, frame_error: 1 },
+    });
+
+    expect(statusLabel(job)).toBe("Failed");
+  });
+
+  it("treats media that never decoded as an auto-caption failure", () => {
+    const job = makeJob({
+      job_type: "auto_caption",
+      status: "completed",
+      processed: 2,
+      total: 2,
+      stats: { success: 1, frame_error: 1 },
+    });
+
+    expect(statusLabel(job)).toBe("Failed");
+  });
+
   it("warns when verify captions skipped files without txt sidecars", () => {
     const job = makeJob({
       job_type: "verify_captions",

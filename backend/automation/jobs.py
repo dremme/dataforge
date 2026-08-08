@@ -23,7 +23,7 @@ from automation.backup_captions import (
 )
 from automation.batch_rename import run_batch_rename_job, validate_batch_rename_folder
 from automation.job_messages import (
-    auto_caption_error_message,
+    auto_caption_failure_message,
     backup_captions_error_message,
     batch_rename_error_message,
     resolve_job_error,
@@ -85,18 +85,6 @@ def _resolve_verify_captions_status(job: Job, cancelled: bool) -> tuple[JobStatu
     if message:
         return "failed", message
     return "completed", None
-
-
-def _resolve_api_errors(stat_key: str, message: Callable[[int], str]) -> StatusResolver:
-    def resolve(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
-        if cancelled:
-            return "cancelled", None
-        count = int(job.stats.get(stat_key) or 0)
-        if count > 0:
-            return "failed", message(count)
-        return "completed", None
-
-    return resolve
 
 
 def _resolve_train_lora_status(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
@@ -278,7 +266,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
     "auto_caption": JobSpec(
         thread_prefix="auto-caption",
         run=run_auto_caption_job,
-        resolve_status=_resolve_api_errors("api_error", auto_caption_error_message),
+        resolve_status=_resolve_stats_errors(auto_caption_failure_message),
         validate=_folder_only(validate_auto_caption_folder),
         caption_mode=_auto_caption_mode,
     ),

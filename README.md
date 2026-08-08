@@ -123,7 +123,7 @@ Jobs run in the background, with a drawer for progress, cancel, and history:
 | --- | --- |
 | **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode) |
 | **Set captions** | Apply the same text to many files |
-| **Verify captions** | Checks captions against images and writes `.issue.json` when something is wrong |
+| **Verify captions** | Checks captions against the media — videos and GIFs via keyframes — and writes `.issue.json` when something is wrong |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 | **Batch rename** | Numbered rename of media plus related sidecars |
 | **Batch watermark** | Burn text onto JPG, PNG, and MP4 copies in a `watermarked` subfolder (size, opacity, position) |

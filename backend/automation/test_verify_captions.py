@@ -15,6 +15,7 @@ from PIL import Image
 from automation.verify_captions import (
     VerificationResult,
     build_verification_system_prompt,
+    build_verification_user_text,
     list_verify_captions_media,
     parse_verification_response,
     process_media,
@@ -24,7 +25,15 @@ from automation.verify_captions import (
     validate_verify_captions_folder,
     verify_caption,
 )
-from automation.vision import INSTRUCT_THINK_PREFILL, MAX_MODEL_ATTEMPTS
+from automation.vision import (
+    FRAME_ERROR,
+    INSTRUCT_THINK_PREFILL,
+    MAX_MODEL_ATTEMPTS,
+    VIDEO_KEYFRAME_COUNT,
+    MediaLoadError,
+    extract_keyframes,
+    media_kind_for,
+)
 from captions import issue_file_path
 from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
@@ -329,6 +338,25 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         for mechanic in ("most important first", "sentences"):
             self.assertNotIn(mechanic, rules)
 
+    def test_video_system_prompt_describes_keyframes(self) -> None:
+        prompt = build_verification_system_prompt(media_kind="video")
+
+        self.assertIn("keyframes", prompt.lower())
+        self.assertIn("chronological", prompt.lower())
+        self.assertIn("hand and leg positioning", prompt.lower())
+        self.assertIn('"correct": true or false', prompt)
+
+    def test_video_user_text_states_the_real_frame_count(self) -> None:
+        text = build_verification_user_text("A red car.", media_kind="video", frame_count=5)
+
+        self.assertIn("5 keyframes", text)
+        self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", text)
+
+    def test_single_frame_user_text_is_singular(self) -> None:
+        text = build_verification_user_text("Still.", media_kind="video", frame_count=1)
+
+        self.assertIn("a single frame", text.lower())
+
 
 class VerifyCaptionsApiTests(unittest.TestCase):
     def test_verify_caption_uses_instruct_params_when_requested(self) -> None:
@@ -443,28 +471,34 @@ class VerifyCaptionsApiTests(unittest.TestCase):
 
 
 class VerifyCaptionsMediaListingTests(unittest.TestCase):
-    def test_list_media_includes_images_only(self) -> None:
+    def test_list_media_includes_images_videos_and_gifs(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_mp4_video(root, "clip.mp4")
-            # A GIF is a frame sequence, so verifying it against one frame would
-            # judge the caption on a fraction of what it describes.
+            # A GIF is a frame sequence and is verified via keyframes like a video.
             write_gif(root, "loop.gif")
 
             names = [path.name for path in list_verify_captions_media(root)]
 
-            self.assertEqual(names, ["photo.png"])
+            self.assertEqual(names, ["clip.mp4", "loop.gif", "photo.png"])
 
 
 class VerifyCaptionsFolderValidationTests(unittest.TestCase):
     def test_validate_requires_supported_media(self) -> None:
         with TempMediaFolder() as root:
-            with self.assertRaisesRegex(ValueError, "No supported images"):
+            with self.assertRaisesRegex(ValueError, "No supported images or videos"):
                 validate_verify_captions_folder(root)
 
     def test_validate_accepts_folder_with_images_only(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
+
+            validate_verify_captions_folder(root)
+
+    def test_validate_accepts_folder_with_motion_only(self) -> None:
+        with TempMediaFolder() as root:
+            write_mp4_video(root, "clip.mp4")
+            write_gif(root, "loop.gif")
 
             validate_verify_captions_folder(root)
 
@@ -584,7 +618,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                 _path, verification, status, message = process_media(
                     object(),
                     media,
-                    "system prompt",
+                    {"image": "system prompt", "video": "video system prompt"},
                 )
 
             self.assertEqual(status, "success")
@@ -611,7 +645,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                 _path, verification, status, message = process_media(
                     object(),
                     media,
-                    "system prompt",
+                    {"image": "system prompt", "video": "video system prompt"},
                 )
 
             self.assertEqual(status, "success")
@@ -638,3 +672,101 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(result["processed"], 2)
             self.assertEqual(result["stats"]["success"], 2)
             self.assertEqual(result["stats"]["issues_found"], 1)
+
+    def test_run_job_verifies_gif_and_video_captions(self) -> None:
+        with TempMediaFolder() as root:
+            gif = write_gif(root, "loop.gif", frames=8)
+            video = write_mp4_video(root, "clip.mp4")
+            write_txt_caption(gif, "An animated loop.")
+            write_txt_caption(video, "A short clip.")
+            frames = [Image.new("RGB", (64, 64), color="blue") for _ in range(3)]
+
+            # Fixture MP4s are often not seekable; the job only needs a successful load
+            # here so verify_caption is reached for both motion types.
+            def fake_load(path):
+                return frames, None
+
+            with (
+                patch("automation.verify_captions.load_media_images", side_effect=fake_load),
+                patch(
+                    "automation.verify_captions.verify_caption",
+                    return_value=_fixes_json(),
+                ) as mock_verify,
+            ):
+                result = run_verify_captions_job(root)
+
+            self.assertEqual(result["stats"]["success"], 2)
+            self.assertEqual(mock_verify.call_count, 2)
+            verified_names = {call.args[1].name for call in mock_verify.call_args_list}
+            self.assertEqual(verified_names, {"loop.gif", "clip.mp4"})
+
+    def test_run_job_picks_the_prompt_matching_each_media_kind(self) -> None:
+        # The kinds share every other code path, so nothing else catches a still
+        # being fact-checked against the keyframe prompt or the reverse.
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.png")
+            gif = write_gif(root, "loop.gif", frames=8)
+            write_txt_caption(photo, "A still.")
+            write_txt_caption(gif, "An animated loop.")
+            frames = [Image.new("RGB", (64, 64), color="blue")]
+
+            with (
+                patch(
+                    "automation.verify_captions.load_media_images",
+                    side_effect=lambda _path: (frames, None),
+                ),
+                patch(
+                    "automation.verify_captions.verify_caption",
+                    return_value=_fixes_json(),
+                ) as mock_verify,
+            ):
+                run_verify_captions_job(root)
+
+            prompts = {call.args[1].name: call.args[2] for call in mock_verify.call_args_list}
+            self.assertEqual(
+                prompts["photo.png"], build_verification_system_prompt(media_kind="image")
+            )
+            self.assertEqual(
+                prompts["loop.gif"], build_verification_system_prompt(media_kind="video")
+            )
+
+    def test_run_job_records_frame_errors(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            write_txt_caption(media, "Draft.")
+
+            with patch(
+                "automation.verify_captions.load_media_images",
+                return_value=(None, MediaLoadError(FRAME_ERROR)),
+            ):
+                result = run_verify_captions_job(root)
+
+            self.assertEqual(result["stats"]["frame_error"], 1)
+            self.assertEqual(result["stats"]["success"], 0)
+            self.assertFalse(issue_file_path(media).exists())
+
+    def test_verify_caption_sends_gif_keyframes_not_a_single_still(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif", frames=8)
+            frames = extract_keyframes(media)
+            assert frames is not None
+            self.assertGreater(len(frames), 1)
+            self.assertEqual(media_kind_for(media), "video")
+
+            fake_client, captured = _make_fake_verify_client()
+            response = verify_caption(
+                fake_client,
+                media,
+                build_verification_system_prompt(media_kind="video"),
+                "An animated loop.",
+                images=frames,
+                mode="instruct",
+            )
+
+            self.assertIsNotNone(response)
+            user_content = captured["messages"][1]["content"]
+            image_parts = [part for part in user_content if part.get("type") == "image_url"]
+            text_parts = [part for part in user_content if part.get("type") == "text"]
+            self.assertEqual(len(image_parts), len(frames))
+            self.assertIn(f"{len(frames)} keyframes", text_parts[0]["text"])
+            self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", text_parts[0]["text"])

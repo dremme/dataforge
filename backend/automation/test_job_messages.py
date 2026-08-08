@@ -6,6 +6,7 @@ import unittest
 
 from automation.job_messages import (
     auto_caption_error_message,
+    auto_caption_failure_message,
     resolve_job_error,
     verify_captions_failure_message,
     watermark_error_message,
@@ -33,6 +34,15 @@ class JobMessagesTests(unittest.TestCase):
         self.assertIn("model requests", message)
         self.assertIn("qwen35moe", message)
 
+    def test_frame_errors_blame_keyframe_extraction(self) -> None:
+        message = verify_captions_failure_message({"frame_error": 2})
+
+        self.assertIsNotNone(message)
+        assert message is not None
+        self.assertIn("keyframes", message)
+        self.assertNotIn("model server may be running", message)
+        self.assertNotIn("local model server is running", message)
+
     def test_resolve_job_error_prefers_stored_message(self) -> None:
         message = resolve_job_error(
             job_type="verify_captions",
@@ -59,6 +69,32 @@ class JobMessagesTests(unittest.TestCase):
             stats={"api_error": 2},
             stored_error=None,
         )
+
+        self.assertEqual(message, auto_caption_error_message(2))
+
+    def test_auto_caption_is_silent_without_errors(self) -> None:
+        self.assertIsNone(auto_caption_failure_message({"success": 4, "skipped_long": 1}))
+
+    def test_auto_caption_reports_media_that_never_reached_the_model(self) -> None:
+        # These files failed before any request went out, so a "restart the server"
+        # message would send the user after a service that is working fine.
+        message = auto_caption_failure_message({"read_error": 1, "frame_error": 2})
+
+        self.assertEqual(
+            message,
+            "Failed auto-caption for 3 files. They could not be read or decoded into frames.",
+        )
+
+    def test_auto_caption_media_failure_uses_the_singular(self) -> None:
+        message = auto_caption_failure_message({"frame_error": 1})
+
+        self.assertEqual(
+            message,
+            "Failed auto-caption for 1 file. It could not be read or decoded into frames.",
+        )
+
+    def test_auto_caption_blames_the_server_when_requests_failed(self) -> None:
+        message = auto_caption_failure_message({"api_error": 2, "frame_error": 1})
 
         self.assertEqual(message, auto_caption_error_message(2))
 

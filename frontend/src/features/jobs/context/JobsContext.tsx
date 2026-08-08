@@ -95,6 +95,10 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const refreshGenerationRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<JobsRefreshResult> | null>(null);
   const refreshQueuedRef = useRef(false);
+  // Jobs pushed while a refresh request was open. That request was answered from
+  // state older than the push, so applying its snapshot as-is would roll those jobs
+  // back until the next poll - visibly, for the seconds between safety polls.
+  const pushedDuringRefreshRef = useRef<Map<string, Job>>(new Map());
   const refreshAllJobsRef = useRef<() => Promise<JobsRefreshResult>>(async () => ({
     internal: { jobs: [], active_count: 0 },
     external: { jobs: [], active_count: 0, available: false },
@@ -117,6 +121,9 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         while (refreshQueuedRef.current) {
           refreshQueuedRef.current = false;
           const generation = ++refreshGenerationRef.current;
+          // Cleared synchronously with the request going out, so the map ends up
+          // holding exactly the pushes that raced this response.
+          pushedDuringRefreshRef.current.clear();
 
           const [internal, external] = await Promise.all([
             fetchJobs(),
@@ -127,10 +134,12 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
           last = { internal, external };
 
-          // Only the newest generation may apply. An older response must not
-          // clobber a later hydrate or an SSE upsert that landed in between.
+          // Only the newest generation may apply: an older response must not clobber
+          // a later hydrate. Pushes that raced this one are newer than anything in it,
+          // so they go back on top of the snapshot rather than being overwritten by it.
           if (generation === refreshGenerationRef.current) {
-            setJobs(internal.jobs);
+            const pushed = [...pushedDuringRefreshRef.current.values()];
+            setJobs(pushed.reduce((merged, job) => upsertJob(merged, job), internal.jobs));
             setExternalJobs(external.jobs);
             setOstrisAvailable(external.available);
           }
@@ -169,6 +178,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         if (event.type === "job") {
+          pushedDuringRefreshRef.current.set(event.job.id, event.job);
           setJobs((current) => upsertJob(current, event.job));
           return;
         }

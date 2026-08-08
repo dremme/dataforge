@@ -1,4 +1,4 @@
-"""Vision-model verify existing captions against their images."""
+"""Vision-model verify existing captions against their media."""
 
 from __future__ import annotations
 
@@ -16,14 +16,17 @@ from PIL import Image
 from automation.job_runner import FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import (
+    VIDEO_FRAME_MAX_PIXELS,
+    MediaKind,
     ModelOutcome,
     call_with_retries,
     clean_model_text,
     close_vision_client,
-    load_image_rgb,
-    prepare_images_for_api,
-    run_vision_completion,
-    vision_messages,
+    keyframe_sentence,
+    load_media_images,
+    media_kind_for,
+    request_vision_text,
+    vision_client,
 )
 from captions import (
     NO_CAPTION_STATUS,
@@ -31,19 +34,29 @@ from captions import (
     load_reference_caption,
     normalize_issue_fixes,
 )
-from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES
-from openai_settings import create_openai_client, get_max_tokens, get_openai_model
+from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
+from openai_settings import get_openai_model
 
 logger = logging.getLogger(__name__)
 
 IMAGE_MAX_PIXELS = 1_750_000
 
-# For now, only images are supported
-VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS
+# Fact-checking needs more detail than captioning does - a hand position is decided by
+# a small part of the frame - so a still gets a larger budget here than in auto-caption.
+# Keyframes keep the shared motion budget: a dozen of them at stills resolution would
+# not fit the request.
+MEDIA_KIND_MAX_PIXELS: dict[MediaKind, int] = {
+    "image": IMAGE_MAX_PIXELS,
+    "video": VIDEO_FRAME_MAX_PIXELS,
+}
+
+VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
 VerifyMode = Literal["thinking", "instruct"]
 
-NON_SUCCESS_STATUSES = frozenset({NO_CAPTION_STATUS, "read_error", "api_error", "parse_error"})
+NON_SUCCESS_STATUSES = frozenset(
+    {NO_CAPTION_STATUS, "read_error", "api_error", "parse_error", "frame_error"}
+)
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
@@ -208,7 +221,69 @@ def verification_result_to_dict(verification: VerificationResult) -> dict[str, o
     return {"fixes": list(verification.fixes)}
 
 
-def build_verification_system_prompt(context: str = "") -> str:
+@dataclass(frozen=True)
+class MediaKindWording:
+    """The per-kind words the rules and output format are written around.
+
+    ``framing`` opens the objective; the rest slot into sentences that are otherwise
+    identical for stills and motion, so the two prompts stay calibrated together.
+    """
+
+    framing: str
+    subject: str
+    visible_ref: str
+    contradict_ref: str
+
+
+# Kept out of ``framing`` because it applies to both kinds: the pose errors it targets
+# are the ones the model misses regardless of how many frames it is looking at.
+_POSITIONING_ATTENTION = textwrap.dedent(
+    """
+    Pay special attention to hand and leg positioning, as these are often incorrect
+    in captions even when the rest of the description is reasonable.
+    """
+).strip()
+
+MEDIA_KIND_WORDING: dict[MediaKind, MediaKindWording] = {
+    "image": MediaKindWording(
+        framing=textwrap.dedent(
+            """
+            Compare the provided image to the proposed caption and judge whether the caption
+            accurately describes what is visible. Flag only objective contradictions between
+            the caption text and the image.
+            """
+        ).strip(),
+        subject="image",
+        visible_ref="what is visible",
+        contradict_ref="the image",
+    ),
+    "video": MediaKindWording(
+        framing=textwrap.dedent(
+            """
+            You are given keyframes extracted evenly across the video timeline, presented in
+            chronological order. Treat them as a single continuous video. Compare them to the
+            proposed caption and judge whether the caption accurately describes what is visible
+            across the sequence. Flag only objective contradictions between the caption text
+            and the video.
+            """
+        ).strip(),
+        subject="video",
+        visible_ref="what is visible across the keyframes",
+        contradict_ref="the video",
+    ),
+}
+
+
+def build_verification_system_prompt(
+    context: str = "",
+    *,
+    media_kind: MediaKind = "image",
+) -> str:
+    wording = MEDIA_KIND_WORDING[media_kind]
+    subject = wording.subject
+    visible_ref = wording.visible_ref
+    contradict_ref = wording.contradict_ref
+
     sections = [
         textwrap.dedent(
             """
@@ -216,17 +291,7 @@ def build_verification_system_prompt(context: str = "") -> str:
             You are a caption fact-checker for LoRA training data.
             """
         ).strip(),
-        textwrap.dedent(
-            """
-            # Objective
-            Compare the provided image to the proposed caption and judge whether the caption
-            accurately describes what is visible. Flag only objective contradictions between
-            the caption text and the image.
-
-            Pay special attention to hand and leg positioning, as these are often incorrect
-            in captions even when the rest of the description is reasonable.
-            """
-        ).strip(),
+        f"# Objective\n{wording.framing}\n\n{_POSITIONING_ATTENTION}",
     ]
 
     context_stripped = context.strip()
@@ -237,13 +302,13 @@ def build_verification_system_prompt(context: str = "") -> str:
         textwrap.dedent(
             f"""
             # Rules
-            - Set "correct" to true when the caption matches the image, including when it omits
-              optional details that do not contradict what is visible.
+            - Set "correct" to true when the caption matches the {subject}, including when it omits
+              optional details that do not contradict {visible_ref}.
             - Set "correct" to false only for clear factual contradictions (wrong subject, wrong
               clothing, wrong pose, wrong setting, invented details, incorrect hand/leg positioning).
             - When you are unsure, set "correct" to true.
             - Do not flag caption style, formatting, or harmless omissions.
-            - When "correct" is false, quote the exact caption phrase that contradicts the image
+            - When "correct" is false, quote the exact caption phrase that contradicts {contradict_ref}
               in "issues".
 
             # Output Format
@@ -251,7 +316,7 @@ def build_verification_system_prompt(context: str = "") -> str:
             ```json
             {{
                 "correct": true or false,
-                "issues": "Up to {MAX_ISSUE_FIXES} sentences, most important first, each quoting the exact caption phrase that contradicts the image and stating what it should say instead, or 'None'."
+                "issues": "Up to {MAX_ISSUE_FIXES} sentences, most important first, each quoting the exact caption phrase that contradicts {contradict_ref} and stating what it should say instead, or 'None'."
             }}
             ```
 
@@ -266,7 +331,29 @@ def build_verification_system_prompt(context: str = "") -> str:
     return "\n\n".join(sections)
 
 
-def build_verification_user_text(ref_caption: str) -> str:
+def build_verification_system_prompts(context: str = "") -> dict[MediaKind, str]:
+    return {
+        kind: build_verification_system_prompt(context, media_kind=kind)
+        for kind in MEDIA_KIND_WORDING
+    }
+
+
+def build_verification_user_text(
+    ref_caption: str,
+    media_kind: MediaKind = "image",
+    frame_count: int = 1,
+) -> str:
+    if media_kind == "video":
+        return textwrap.dedent(
+            f"""
+            Proposed caption to verify:
+            {ref_caption.strip()}
+
+            {keyframe_sentence(frame_count)}
+            Compare this caption against the video keyframes. Output only the JSON object.
+            """
+        ).strip()
+
     return textwrap.dedent(
         f"""
         Proposed caption to verify:
@@ -281,46 +368,39 @@ def list_verify_captions_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, VERIFY_CAPTIONS_EXTENSIONS, order="name")
 
 
-def _load_image(media_path: Path) -> tuple[list[Image.Image] | None, str | None]:
-    images, error = load_image_rgb(media_path)
-    if images is None:
-        return None, f"read_error: {error}"
-    return images, None
-
-
 def verify_caption(
     client,
     media_path: Path,
     system_prompt: str,
     ref_caption: str,
     *,
-    images: list[Image.Image] | None = None,
+    images: list[Image.Image],
     model: str | None = None,
     max_tokens: int | None = None,
     mode: VerifyMode = "instruct",
 ) -> str | None:
-    if images is None:
-        images, _load_error = _load_image(media_path)
-        if images is None:
-            return None
+    """Ask the model to fact-check ``ref_caption`` against already-loaded ``images``.
 
-    images_b64 = prepare_images_for_api(images, max_pixels=IMAGE_MAX_PIXELS)
-    if not images_b64:
-        return None
-
-    return run_vision_completion(
+    Decoding stays with ``process_media`` so a file that never opened is reported as
+    such instead of being retried three times as a model failure.
+    """
+    media_kind = media_kind_for(media_path)
+    return request_vision_text(
         client,
-        vision_messages(system_prompt, images_b64, build_verification_user_text(ref_caption)),
+        system_prompt,
+        images,
+        build_verification_user_text(ref_caption, media_kind, len(images)),
+        max_pixels=MEDIA_KIND_MAX_PIXELS[media_kind],
         mode=mode,
-        model=model if model is not None else get_openai_model(),
-        max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),
+        model=model,
+        max_tokens=max_tokens,
     )
 
 
 def process_media(
     client,
     media_path: Path,
-    system_prompt: str,
+    system_prompts: dict[MediaKind, str],
     *,
     model: str | None = None,
     mode: VerifyMode = "instruct",
@@ -331,9 +411,12 @@ def process_media(
     if status != "ok" or ref_caption is None:
         return media_path, None, status, None
 
-    images, load_error = _load_image(media_path)
-    if load_error:
-        return media_path, None, load_error, None
+    media_kind = media_kind_for(media_path)
+    images, load_error = load_media_images(media_path)
+    if load_error is not None:
+        return media_path, None, load_error.status, load_error.message
+
+    system_prompt = system_prompts[media_kind]
 
     def attempt() -> ModelOutcome[VerificationResult]:
         raw_caption = verify_caption(
@@ -375,7 +458,7 @@ def validate_verify_captions_folder(folder: Path) -> None:
         raise ValueError("Folder not found")
 
     if not list_verify_captions_media(folder):
-        raise ValueError("No supported images found in folder")
+        raise ValueError("No supported images or videos found in folder")
 
 
 def _initial_job_stats(total: int) -> dict[str, int]:
@@ -387,6 +470,7 @@ def _initial_job_stats(total: int) -> dict[str, int]:
         "read_error": 0,
         "api_error": 0,
         "parse_error": 0,
+        "frame_error": 0,
         "write_error": 0,
         "cancelled": 0,
     }
@@ -417,14 +501,11 @@ def _remove_stale_issue_file(media_path: Path) -> None:
         logger.warning("Failed to remove stale issue file %s: %s", issue_path.name, exc)
 
 
-def _failure_outcome(status: str, detail: str | None) -> FileOutcome:
+def _failure_outcome(status: str, message: str | None) -> FileOutcome:
     """Map a non-success ``process_media`` status onto its counter and message."""
-    base_status, _, read_detail = status.partition(":")
-    message = read_detail.strip() or status if base_status == "read_error" else detail
-
     return FileOutcome(
-        status=base_status,
-        stats={base_status: 1} if base_status in NON_SUCCESS_STATUSES else {},
+        status=status,
+        stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
         fields={"message": message} if message else {},
     )
 
@@ -442,60 +523,61 @@ def run_verify_captions_job(
     validate_verify_captions_folder(folder)
     _clear_existing_issue_sidecars(folder)
 
-    system_prompt = build_verification_system_prompt(context)
+    system_prompts = build_verification_system_prompts(context)
     media_files = filter_media_list(list_verify_captions_media(folder), selected_paths)
-    client = create_openai_client()
     resolved_model = model if model is not None else get_openai_model()
 
-    def process(media_path: Path) -> FileOutcome:
-        _path, verification, status, detail = process_media(
-            client,
-            media_path,
-            system_prompt,
-            model=resolved_model,
-            mode=mode,
+    with vision_client() as client:
+
+        def process(media_path: Path) -> FileOutcome:
+            _path, verification, status, message = process_media(
+                client,
+                media_path,
+                system_prompts,
+                model=resolved_model,
+                mode=mode,
+                should_cancel=should_cancel,
+            )
+
+            if status == "cancelled":
+                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+
+            if status != "success" or verification is None:
+                return _failure_outcome(status, message)
+
+            if should_cancel and should_cancel():
+                # Do not write the sidecar when cancellation landed around this file.
+                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+
+            if not should_write_issue_file(verification):
+                _remove_stale_issue_file(media_path)
+                return FileOutcome(status="success", stats={"success": 1})
+
+            try:
+                issue_file_path(media_path).write_text(
+                    json.dumps(verification_result_to_dict(verification), indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                return FileOutcome(
+                    status="write_error",
+                    stats={"write_error": 1},
+                    fields={"message": str(exc)},
+                )
+
+            return FileOutcome(
+                status="success",
+                stats={"issues_found": 1, "success": 1},
+                fields={"description": "; ".join(verification.fixes)},
+            )
+
+        # ``processed`` counts each handled file once: issues_found is a sub-stat of
+        # successful verifications and must not inflate it.
+        return run_media_job(
+            folder,
+            media_files,
+            stats=_initial_job_stats(len(media_files)),
+            process=process,
+            on_progress=on_progress,
             should_cancel=should_cancel,
         )
-
-        if status == "cancelled":
-            return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
-
-        if status != "success" or verification is None:
-            return _failure_outcome(status, detail)
-
-        if should_cancel and should_cancel():
-            # Do not write the sidecar when cancellation landed around this file.
-            return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
-
-        if not should_write_issue_file(verification):
-            _remove_stale_issue_file(media_path)
-            return FileOutcome(status="success", stats={"success": 1})
-
-        try:
-            issue_file_path(media_path).write_text(
-                json.dumps(verification_result_to_dict(verification), indent=2) + "\n",
-                encoding="utf-8",
-            )
-        except OSError as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
-
-        return FileOutcome(
-            status="success",
-            stats={"issues_found": 1, "success": 1},
-            fields={"description": "; ".join(verification.fixes)},
-        )
-
-    # ``processed`` counts each handled file once: issues_found is a sub-stat of
-    # successful verifications and must not inflate it.
-    return run_media_job(
-        folder,
-        media_files,
-        stats=_initial_job_stats(len(media_files)),
-        process=process,
-        on_progress=on_progress,
-        should_cancel=should_cancel,
-    )

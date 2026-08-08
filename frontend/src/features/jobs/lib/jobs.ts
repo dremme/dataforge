@@ -125,6 +125,12 @@ function jobVerifyErrorCount(job: Job): number {
   );
 }
 
+/** Media that never decoded fails the job too, even though no model request went out. */
+function jobCaptionErrorCount(job: Job): number {
+  const stats = job.stats ?? {};
+  return (stats.api_error ?? 0) + (stats.read_error ?? 0) + (stats.frame_error ?? 0);
+}
+
 /** Media skipped for having no caption to work from. `no_txt` is the pre-JSON stat name. */
 function jobNoCaptionCount(job: Job): number {
   const stats = job.stats ?? {};
@@ -138,6 +144,9 @@ function jobOrphanedCount(job: Job): number {
 function effectiveJobStatus(job: Job): JobStatus {
   if (job.status === "completed") {
     if (jobTypeOf(job) === "verify_captions" && jobVerifyErrorCount(job) > 0) {
+      return "failed";
+    }
+    if (jobTypeOf(job) === "auto_caption" && jobCaptionErrorCount(job) > 0) {
       return "failed";
     }
     if (jobApiErrorCount(job) > 0) {
@@ -376,6 +385,8 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
       (stats.success ?? 0) +
       (stats.api_error ?? 0) +
       (stats.parse_error ?? 0) +
+      (stats.frame_error ?? 0) +
+      (stats.read_error ?? 0) +
       (stats.write_error ?? 0);
     const fast = jobNoCaptionCount(job);
     return { fast, slow };

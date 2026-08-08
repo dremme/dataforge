@@ -59,8 +59,8 @@ export function VerifyCaptionsDialog({
       title="Start verify captions?"
       description={
         <>
-          Verify captions for images in <strong>{folderLabel}</strong> using <VisionModelBadge />.
-          Images with caption issues will be marked with an exclamation mark.
+          Verify captions for images and videos in <strong>{folderLabel}</strong> using{" "}
+          <VisionModelBadge />. Media with caption issues will be marked with an exclamation mark.
         </>
       }
       panelClassName="verify-captions-dialog"
