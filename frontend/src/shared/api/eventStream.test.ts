@@ -73,6 +73,28 @@ describe("subscribeToServerEvents", () => {
     expect(source().closed).toBe(false);
   });
 
+  it("ignores a well-formed frame that does not match the wire schema", () => {
+    const source = installFakeEventSource();
+    const onEvent = vi.fn();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    subscribeToServerEvents({ onEvent, onConnectedChange: vi.fn() });
+
+    // Parses cleanly, so only the guard stands between this and `setExternalJobs`.
+    source().onmessage!({ data: JSON.stringify({ type: "job", job: { id: "job-1" } }) });
+
+    expect(onEvent).not.toHaveBeenCalled();
+    expect(source().closed).toBe(false);
+    expect(warn).toHaveBeenCalledOnce();
+
+    // A stream that disagrees about the format disagrees about every frame, so the
+    // warning must not repeat once per push.
+    source().onmessage!({ data: JSON.stringify({ type: "banana" }) });
+    expect(warn).toHaveBeenCalledOnce();
+
+    warn.mockRestore();
+  });
+
   it("closes the source and stops listening when unsubscribed", () => {
     const source = installFakeEventSource();
     const onEvent = vi.fn();

@@ -518,3 +518,14 @@ type ServerEvent = Annotated[JobEvent | ExternalJobsEvent, Field(discriminator="
 #: are here because no model uses them: they are the narrowing the frontend applies
 #: over ``JobResponse``'s deliberately loose ``str`` fields.
 EXTRA_WIRE_MODELS = (ServerEvent, JobType, JobStatus)
+
+#: Wire types the frontend checks at runtime, not just at compile time. A generated
+#: guard goes into ``frontend/src/shared/wireGuards.ts`` for each of these and for
+#: everything they reference.
+#:
+#: Only what arrives unvalidated belongs here. ``/api/events`` frames do: they are
+#: pushed rather than requested, and the client parses them straight off the wire.
+#: Ordinary responses do not: FastAPI has already validated them against
+#: ``response_model`` on the way out, and re-checking a folder listing item by item
+#: would put real work on the read path's hot loop for no new guarantee.
+GUARDED_WIRE_MODELS = (ServerEvent,)

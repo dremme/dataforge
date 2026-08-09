@@ -23,10 +23,13 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
-# Generated from backend/schemas.py by scripts/generate_types.py, which runs first in
-# scripts/run_checks.py. Anything that compiles the frontend needs it on disk, so a
-# fresh clone must create backend/.venv before npm typecheck/test/build will work.
+# Generated from backend/schemas.py and backend/constants.py by scripts/generate_types.py,
+# which runs first in scripts/run_checks.py, so a fresh clone has to create backend/.venv
+# before the frontend is useful. types.ts is imported only as `import type`, so vite and
+# vitest erase it; the other two carry real values and are needed to run at all.
 frontend/src/shared/types.ts
+frontend/src/shared/constants.ts
+frontend/src/shared/wireGuards.ts
 
 # Local-only notes (not shared via git)
 TODO.md

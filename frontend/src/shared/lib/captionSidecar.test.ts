@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  CAPTION_SIDECAR_EXTENSION_LIST,
-  CAPTION_SIDECAR_EXTENSIONS,
-  captionFileTypeLabel,
-} from "./captionSidecar";
+import { CAPTION_SIDECAR_EXTENSIONS } from "@/shared/constants";
+import { CAPTION_SIDECAR_EXTENSION_LIST, captionFileTypeLabel } from "./captionSidecar";
 
 describe("captionSidecar", () => {
   it("lists sidecar extensions in precedence order", () => {

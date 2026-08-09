@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SYSPROMPT_FILENAME } from "@/features/folder/constants/importExtensions";
+import { SYSPROMPT_FILENAME } from "@/shared/constants";
 import { filterImportableFiles, isImportableFileName } from "./importableFiles";
 
 describe("isImportableFileName", () => {

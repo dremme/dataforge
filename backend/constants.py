@@ -1,4 +1,3 @@
-# Mirrored by hand in `frontend/src/features/folder/constants/importExtensions.ts`.
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 GIF_EXTENSION = ".gif"
 VIDEO_EXTENSIONS = {".mp4"}
@@ -68,3 +67,14 @@ CAPTION_JSON_KEYS = (
     "summary",
     "prompt",
 )
+
+#: What ``scripts/generate_types.py`` emits into ``frontend/src/shared/constants.ts``.
+#: Keys are the TypeScript names. Only what the UI actually needs belongs here: the
+#: server re-validates every drop, so this drives affordances, never enforcement.
+#: Sets are sorted for a stable diff; sequences keep their order because
+#: ``CAPTION_SIDECAR_EXTENSIONS`` is a precedence list, not a bag.
+SHARED_CONSTANTS: dict[str, object] = {
+    "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
+    "CAPTION_SIDECAR_EXTENSIONS": list(CAPTION_SIDECAR_EXTENSIONS),
+    "SYSPROMPT_FILENAME": SYSPROMPT_FILENAME,
+}

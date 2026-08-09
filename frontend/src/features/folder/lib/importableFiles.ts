@@ -1,7 +1,6 @@
-import {
-  IMPORT_EXTENSION_SET,
-  SYSPROMPT_FILENAME,
-} from "@/features/folder/constants/importExtensions";
+import { IMPORT_EXTENSIONS, SYSPROMPT_FILENAME } from "@/shared/constants";
+
+const IMPORT_EXTENSION_SET = new Set<string>(IMPORT_EXTENSIONS);
 
 export function isImportableFileName(name: string): boolean {
   if (name === SYSPROMPT_FILENAME) {
