@@ -655,8 +655,10 @@ export function GalleryItemModal({
           title="Delete file?"
           description={
             <span>
-              This will permanently delete <strong>{item.name}</strong> and any matching caption
-              sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
+              This will delete <strong>{item.name}</strong> and any matching caption sidecars (
+              {CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
+              <br />
+              On Windows, files are moved to the Recycle Bin.
             </span>
           }
           confirmLabel="Delete"

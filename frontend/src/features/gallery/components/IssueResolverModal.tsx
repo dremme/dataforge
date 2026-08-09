@@ -216,6 +216,11 @@ export function IssueResolverModal({
               className="issue-resolver-modal__video"
               src={galleryItemMediaUrl(item)}
               controls
+              // Judging a caption against a clip means watching it more than once,
+              // so it runs on repeat until the player's own pause stops it. `muted`
+              // is what makes the autoplay permitted rather than blocked.
+              autoPlay
+              loop
               muted
               playsInline
               onLoadedMetadata={(event) => {

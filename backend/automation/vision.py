@@ -22,7 +22,7 @@ from typing import Any, Generic, Literal, TypeVar
 from PIL import Image
 
 from constants import GIF_EXTENSION, MOTION_EXTENSIONS
-from gif_frames import extract_gif_keyframes
+from gif_frames import extract_gif_keyframes, keyframe_indices
 from openai_settings import (
     assistant_message_text,
     build_sampling_extra_body,
@@ -38,6 +38,10 @@ MAX_MODEL_ATTEMPTS = 3
 
 # Evenly spaced samples across a motion file; short GIFs yield fewer than this.
 VIDEO_KEYFRAME_COUNT = 12
+# How far back to hunt for a closing frame when the reported frame count overshoots
+# the decodable tail. Metadata is wrong by a handful of frames, not by seconds, so a
+# longer walk means the file is broken rather than merely mis-measured.
+TAIL_SEEK_LIMIT = 32
 # Multi-frame payloads stay smaller than stills so the request remains tractable.
 VIDEO_FRAME_MAX_PIXELS = 500_000
 
@@ -137,10 +141,77 @@ def media_kind_for(path: Path) -> MediaKind:
     return "video" if path.suffix.lower() in MOTION_EXTENSIONS else "image"
 
 
+def _read_frame_at(cap, cv2, frame_index: int) -> Image.Image | None:
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+    ok, frame = cap.read()
+    if not ok:
+        return None
+    return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+
+def _seek_keyframes(cap, cv2, total_frames: int, count: int) -> list[Image.Image]:
+    """Sample a video whose length is known, ending on its real last frame."""
+    wanted = keyframe_indices(total_frames, count)
+    captured = {index: image for index in wanted if (image := _read_frame_at(cap, cv2, index))}
+
+    last_wanted = wanted[-1] if wanted else 0
+    if wanted and last_wanted not in captured:
+        # CAP_PROP_FRAME_COUNT is duration x fps, which overshoots the real
+        # decodable tail often enough that the closing frame would otherwise be
+        # dropped in silence. Walk back to the last index that does read.
+        floor = max(captured, default=-1)
+        limit = max(floor, last_wanted - TAIL_SEEK_LIMIT)
+        for index in range(last_wanted - 1, limit, -1):
+            image = _read_frame_at(cap, cv2, index)
+            if image is not None:
+                captured[index] = image
+                break
+
+    return [captured[index] for index in sorted(captured)]
+
+
+def _streamed_keyframes(cap, cv2, count: int) -> list[Image.Image]:
+    """Sample a video whose length is unknown, ending on its real last frame.
+
+    A container that reports no frame count cannot be seeked either, so the end is
+    only discoverable by decoding to it. Kept frames are halved whenever they
+    outgrow ``2 * count``, which bounds what is held in memory while preserving the
+    opening frame and an even spread; the newest frame is tracked separately so the
+    closing one survives regardless of where the halving left the stride.
+    """
+    kept: list[Image.Image] = []
+    last: Image.Image | None = None
+    stride = 1
+    position = 0
+
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+
+        last = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if position % stride == 0:
+            kept.append(last)
+            if len(kept) > 2 * count:
+                # Every second frame, so the survivors are still evenly spaced and
+                # still start at position 0.
+                kept = kept[::2]
+                stride *= 2
+        position += 1
+
+    if last is None:
+        return []
+    if kept[-1] is not last:
+        kept.append(last)
+
+    return [kept[index] for index in keyframe_indices(len(kept), count)]
+
+
 def extract_video_keyframes(
     video_path: Path,
     count: int = VIDEO_KEYFRAME_COUNT,
 ) -> list[Image.Image] | None:
+    """Evenly spaced frames spanning the whole clip, first and last included."""
     import cv2
 
     # release() covers the failed-open branch too: a capture that never opened still
@@ -153,28 +224,9 @@ def extract_video_keyframes(
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
         if total_frames <= 0:
-            frames: list[Image.Image] = []
-            while len(frames) < count:
-                ok, frame = cap.read()
-                if not ok:
-                    break
-                frames.append(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
-            return frames or None
+            return _streamed_keyframes(cap, cv2, count) or None
 
-        if total_frames == 1:
-            indices = [0] * count
-        else:
-            indices = [round(index * (total_frames - 1) / (count - 1)) for index in range(count)]
-
-        frames = []
-        for frame_index in indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-            ok, frame = cap.read()
-            if not ok:
-                continue
-            frames.append(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
-
-        return frames or None
+        return _seek_keyframes(cap, cv2, total_frames, count) or None
     finally:
         cap.release()
 

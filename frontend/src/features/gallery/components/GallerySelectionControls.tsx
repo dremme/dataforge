@@ -176,13 +176,15 @@ export function GallerySelectionControls({
   const deleteDescription =
     selectedCount === 1 ? (
       <span>
-        This will permanently delete <strong>{pathBaseName(Array.from(selectedPaths)[0])}</strong>{" "}
-        and any matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
+        This will delete <strong>{pathBaseName(Array.from(selectedPaths)[0])}</strong> and any
+        matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder. On Windows,
+        files are moved to the Recycle Bin.
       </span>
     ) : (
       <span>
-        This will permanently delete <strong>{selectedCount} selected files</strong> and any
-        matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
+        This will delete <strong>{selectedCount} selected files</strong> and any matching caption
+        sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder. On Windows, files are moved to
+        the Recycle Bin.
       </span>
     );
 

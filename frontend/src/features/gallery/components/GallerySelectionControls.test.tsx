@@ -107,7 +107,8 @@ describe("GallerySelectionControls", () => {
     const confirmDialog = await screen.findByRole("alertdialog", {
       name: "Delete selected files?",
     });
-    expect(within(confirmDialog).getByText(/permanently delete/i)).toBeInTheDocument();
+    expect(within(confirmDialog).getByText(/will delete/i)).toBeInTheDocument();
+    expect(within(confirmDialog).getByText(/Recycle Bin/i)).toBeInTheDocument();
     expect(within(confirmDialog).getByText("2 selected files")).toBeInTheDocument();
 
     await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));

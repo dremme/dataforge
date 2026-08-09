@@ -10,6 +10,7 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import numpy
 from PIL import Image
 
 from automation.auto_caption import (
@@ -23,6 +24,7 @@ from automation.auto_caption import (
 from automation.vision import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
+    TAIL_SEEK_LIMIT,
     VIDEO_FRAME_MAX_PIXELS,
     VIDEO_KEYFRAME_COUNT,
     extract_keyframes,
@@ -281,6 +283,135 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
 
         self.assertIsNone(extracted)
         self.assertEqual(released, [True])
+
+
+class FakeCapture:
+    """A capture whose frames are solid greys, so a frame's index is readable back.
+
+    ``reported`` is what ``CAP_PROP_FRAME_COUNT`` claims, which real containers let
+    overshoot ``decodable``; ``0`` stands for the containers that report nothing and
+    force the sequential read.
+    """
+
+    def __init__(self, decodable: int, reported: int | None = None) -> None:
+        self.decodable = decodable
+        self.reported = decodable if reported is None else reported
+        self.position = 0
+        self.released = False
+        self.seeks: list[int] = []
+
+    def isOpened(self) -> bool:
+        return True
+
+    def get(self, _prop: int) -> float:
+        return float(self.reported)
+
+    def set(self, _prop: int, value: float) -> bool:
+        self.position = int(value)
+        self.seeks.append(self.position)
+        return True
+
+    def read(self):
+        if self.position >= self.decodable:
+            return False, None
+        # cvtColor is patched to identity, so the shade *is* the frame index. Kept
+        # under 256 by every case here, since it has to survive as one uint8.
+        frame = numpy.full((8, 8, 3), self.position, dtype=numpy.uint8)
+        self.position += 1
+        return True, frame
+
+    def release(self) -> None:
+        self.released = True
+
+
+def _fake_cv2_for(capture: FakeCapture):
+    return type(
+        "cv2",
+        (),
+        {
+            "VideoCapture": staticmethod(lambda _path: capture),
+            "CAP_PROP_FRAME_COUNT": 7,
+            "CAP_PROP_POS_FRAMES": 1,
+            "COLOR_BGR2RGB": 4,
+            "cvtColor": staticmethod(lambda frame, _code: frame),
+        },
+    )
+
+
+def _shades(frames) -> list[int]:
+    """The source index of every extracted frame, in order."""
+    return [frame.getpixel((0, 0))[0] for frame in frames]
+
+
+class VideoKeyframeSpanTests(unittest.TestCase):
+    """The clip's opening and closing frames both have to reach the model.
+
+    A caption is judged on where the motion starts and where it ends up, so a
+    sample that quietly stops short of the end reads as a different clip.
+    """
+
+    def _extract(self, capture: FakeCapture, count: int = VIDEO_KEYFRAME_COUNT):
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+            with patch.dict("sys.modules", {"cv2": _fake_cv2_for(capture)}):
+                return extract_video_keyframes(video, count)
+
+    def test_spans_the_whole_clip(self) -> None:
+        frames = self._extract(FakeCapture(decodable=120))
+
+        assert frames is not None
+        shades = _shades(frames)
+        self.assertEqual(len(shades), VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 119)
+        self.assertEqual(shades, sorted(shades))
+
+    def test_reaches_the_last_frame_when_the_reported_count_overshoots(self) -> None:
+        # The regression this guards: seeking to the reported end fails, and the
+        # closing frames used to be dropped without a word.
+        frames = self._extract(FakeCapture(decodable=100, reported=112))
+
+        assert frames is not None
+        self.assertEqual(_shades(frames)[-1], 99)
+
+    def test_gives_up_on_a_tail_that_is_broken_rather_than_mis_measured(self) -> None:
+        capture = FakeCapture(decodable=40, reported=400)
+        frames = self._extract(capture)
+
+        assert frames is not None
+        # No closing frame is reachable within the walk, so it returns what it has
+        # instead of seeking backwards through the whole file.
+        self.assertLessEqual(len(capture.seeks), VIDEO_KEYFRAME_COUNT + TAIL_SEEK_LIMIT)
+
+    def test_reaches_the_last_frame_when_the_container_reports_no_count(self) -> None:
+        # Reported 0 means the file cannot be seeked either, so the end is only
+        # found by decoding to it. This used to return the opening frames only.
+        frames = self._extract(FakeCapture(decodable=250, reported=0))
+
+        assert frames is not None
+        shades = _shades(frames)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 249)
+        self.assertEqual(shades, sorted(shades))
+        self.assertLessEqual(len(shades), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_short_clip_yields_each_frame_once(self) -> None:
+        # Matches the GIF path: padding five frames out to twelve would repeat
+        # frames and make the keyframe sentence claim twelve of them.
+        frames = self._extract(FakeCapture(decodable=5))
+
+        assert frames is not None
+        self.assertEqual(_shades(frames), [0, 1, 2, 3, 4])
+
+    def test_a_single_frame_clip_is_not_repeated(self) -> None:
+        frames = self._extract(FakeCapture(decodable=1))
+
+        assert frames is not None
+        self.assertEqual(_shades(frames), [0])
+
+    def test_an_undecodable_capture_reports_nothing(self) -> None:
+        self.assertIsNone(self._extract(FakeCapture(decodable=0, reported=30)))
+        self.assertIsNone(self._extract(FakeCapture(decodable=0, reported=0)))
 
 
 class AutoCaptionGifTests(unittest.TestCase):

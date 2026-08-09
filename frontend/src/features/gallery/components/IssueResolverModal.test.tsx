@@ -204,6 +204,38 @@ describe("IssueResolverModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("plays a video on repeat, with controls to stop it", async () => {
+    render(
+      <IssueResolverModal
+        items={[
+          makeIssueItem("clip.mp4", {
+            media_type: "video",
+            caption_file_type: null,
+          }),
+        ]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for clip.mp4",
+    });
+    const video = dialog.querySelector("video");
+
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("autoplay");
+    expect(video).toHaveAttribute("loop");
+    // Autoplay is only permitted while muted, so losing this silently stops the
+    // clip from ever starting. React assigns `muted` as a property and never
+    // reflects it to an attribute, so this is the only way to see it.
+    expect(video!.muted).toBe(true);
+    // The loop runs until the user pauses it, which needs the native controls.
+    expect(video).toHaveAttribute("controls");
+  });
+
   it("does not save the caption while typing", async () => {
     const user = userEvent.setup();
     const saveCaption = vi.spyOn(api, "saveCaption");

@@ -340,11 +340,16 @@ def extract_gif_frame(path: Path, index: int) -> bytes:
     return strip[index]
 
 
-def _keyframe_indices(total_frames: int, count: int) -> list[int]:
+def keyframe_indices(total_frames: int, count: int) -> list[int]:
     """Up to ``count`` evenly spaced indices, de-duplicated and ascending.
 
-    A GIF shorter than ``count`` yields every frame once rather than repeating
+    The first and last frame are always among them, so the model sees where the
+    motion starts and where it ends up rather than a sample of the middle. A
+    sequence shorter than ``count`` yields every frame once rather than repeating
     frames to pad the list out.
+
+    ``automation.vision`` samples videos with this too, so a GIF and an MP4 of the
+    same length are handed to the model as the same frames.
     """
     if total_frames <= 0 or count <= 0:
         return []
@@ -365,7 +370,7 @@ def extract_gif_keyframes(path: Path, count: int) -> list[Image.Image] | None:
     if total_frames is None:
         return None
 
-    wanted = set(_keyframe_indices(total_frames, count))
+    wanted = set(keyframe_indices(total_frames, count))
     if not wanted:
         return None
 
