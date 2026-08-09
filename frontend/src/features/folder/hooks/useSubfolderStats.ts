@@ -53,7 +53,7 @@ export function useSubfolderStats(
   // gap itself is what makes those reloads refetch instead of stranding the
   // cards on their placeholders. It settles because merging the counts closes
   // the gap, so the effect stops re-running rather than looping.
-  const needsCounts = subfolders.some((entry) => entry.file_count === null);
+  const needsCounts = subfolders.some((entry) => entry.file_count == null);
 
   useEffect(() => {
     if (!enabled || !folderPath || !needsCounts) return;

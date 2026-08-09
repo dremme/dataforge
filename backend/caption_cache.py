@@ -14,12 +14,9 @@ import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
 
 #: Roughly one very large folder's worth of sidecars; entries are small tuples.
 MAX_CACHE_ENTRIES = 20_000
-
-T = TypeVar("T")
 
 _CacheKey = tuple[str, str, int, int]
 
@@ -33,7 +30,7 @@ def clear_caption_cache_for_tests() -> None:
         _cache.clear()
 
 
-def cached_by_stat(
+def cached_by_stat[T](
     namespace: str,
     path: Path,
     mtime_ns: int,

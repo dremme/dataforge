@@ -17,7 +17,7 @@ import logging
 
 import events
 from external.ostris_jobs import fetch_active_ostris_jobs
-from schemas import ExternalOstrisJobResponse
+from schemas import ExternalJobsEvent, ExternalOstrisJobResponse
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +31,11 @@ IDLE_INTERVAL_SECONDS = 5.0
 
 def external_jobs_event() -> dict[str, object]:
     jobs, available = fetch_active_ostris_jobs()
-    return {
-        "type": "external_jobs",
-        "jobs": [ExternalOstrisJobResponse.model_validate(job).model_dump() for job in jobs],
-        "active_count": len(jobs),
-        "available": available,
-    }
+    return ExternalJobsEvent(
+        jobs=[ExternalOstrisJobResponse.model_validate(job) for job in jobs],
+        active_count=len(jobs),
+        available=available,
+    ).model_dump()
 
 
 async def run_external_jobs_feed() -> None:

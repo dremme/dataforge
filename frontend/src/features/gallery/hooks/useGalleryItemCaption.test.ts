@@ -42,6 +42,8 @@ function captionResponse(
     caption_file: `${HOME_PATH}\\file.txt`,
     caption_file_type: "txt",
     caption_content: `${description}\n`,
+    issue_fixes: [],
+    has_issue_file: false,
     ...overrides,
   };
 }

@@ -38,9 +38,9 @@ export function applyFolderCaptionSave(
       has_description: captionUpdate.has_description,
       has_caption_file: captionUpdate.has_caption_file,
       caption_status: captionUpdate.caption_status,
-      caption_file_type: captionUpdate.caption_file_type,
-      issue_fixes: captionUpdate.issue_fixes ?? item.issue_fixes,
-      has_issue_file: captionUpdate.has_issue_file ?? item.has_issue_file,
+      caption_file_type: captionUpdate.caption_file_type ?? null,
+      issue_fixes: captionUpdate.issue_fixes,
+      has_issue_file: captionUpdate.has_issue_file,
     };
   });
 

@@ -24,7 +24,7 @@ function revisionFromSaveResult(result: CaptionSaveResponse): string {
     description: result.description,
     caption_status: result.caption_status,
     has_description: result.has_description,
-    caption_file_type: result.caption_file_type,
+    caption_file_type: result.caption_file_type ?? null,
   });
 }
 

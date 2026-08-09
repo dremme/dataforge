@@ -1,6 +1,8 @@
 import { postJson, requestJson } from "@/shared/api/http";
 import type {
   GifInfoResponse,
+  MediaDeleteResponse,
+  MediaOpenResponse,
   MediaTransferPreviewResponse,
   MediaTransferRequest,
   MediaTransferResponse,
@@ -8,15 +10,6 @@ import type {
 
 /** Move takes the files, copy leaves the originals in place. */
 export type MediaTransferMode = "move" | "copy";
-
-export type MediaDeleteResponse = {
-  path: string;
-  deleted: string[];
-};
-
-export type MediaOpenResponse = {
-  path: string;
-};
 
 export async function openMediaInViewer(mediaPath: string): Promise<MediaOpenResponse> {
   const params = new URLSearchParams({ path: mediaPath });

@@ -1,7 +1,7 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
 import { readStored, writeStored } from "@/shared/lib/storage";
-import type { UiSettingsUpdate } from "@/shared/types";
+import type { UiSettingsResponse, UiSettingsUpdate } from "@/shared/types";
 
 /**
  * UI preferences shared across features via a single backend endpoint.
@@ -34,10 +34,7 @@ function cacheAutomationSpecsPreference(showAutomationSpecs: boolean): void {
   writeStored(AUTOMATION_SPECS_CACHE_KEY, String(showAutomationSpecs));
 }
 
-function parseUiSettingsResponse(data: {
-  sort: string;
-  show_automation_specs?: boolean;
-}): UiSettings {
+function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
   return {
     sort: data.sort,
     showAutomationSpecs: Boolean(data.show_automation_specs),
@@ -45,9 +42,7 @@ function parseUiSettingsResponse(data: {
 }
 
 async function fetchUiSettings(): Promise<UiSettings> {
-  const data = await requestJson<{ sort: string; show_automation_specs?: boolean }>(
-    "/api/preferences/ui",
-  );
+  const data = await requestJson<UiSettingsResponse>("/api/preferences/ui");
   const settings = parseUiSettingsResponse(data);
   cacheSortPreference(settings.sort);
   cacheAutomationSpecsPreference(settings.showAutomationSpecs);
@@ -74,10 +69,7 @@ export async function updateUiSettings(partial: Partial<UiSettings>): Promise<Ui
     body.show_automation_specs = partial.showAutomationSpecs;
   }
 
-  const data = await putJson<{ sort: string; show_automation_specs?: boolean }>(
-    "/api/preferences/ui",
-    body,
-  );
+  const data = await putJson<UiSettingsResponse>("/api/preferences/ui", body);
   const settings = parseUiSettingsResponse(data);
   cacheSortPreference(settings.sort);
   cacheAutomationSpecsPreference(settings.showAutomationSpecs);

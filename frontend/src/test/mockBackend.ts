@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { clearFolderCache } from "@/features/folder/lib/folderCache";
-import type { Job, FolderResponse } from "@/shared/types";
+import type { CaptionSaveResponse, Job, FolderResponse } from "@/shared/types";
 import { emptyFolder, homeFolder, vacationFolder } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
@@ -372,7 +372,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
             ? `${captionText}\n`
             : null;
 
-      return jsonResponse({
+      const caption: CaptionSaveResponse = {
         description: item?.description ?? null,
         has_description: item?.has_description ?? false,
         has_caption_file: item?.has_caption_file ?? false,
@@ -380,7 +380,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         caption_file: path.replace(/\.[^.]+$/, captionFileType === "json" ? ".json" : ".txt"),
         caption_file_type: captionFileType,
         caption_content: captionContent,
-      });
+        issue_fixes: item?.issue_fixes ?? [],
+        has_issue_file: item?.has_issue_file ?? false,
+      };
+      return jsonResponse(caption);
     }
 
     if (url.pathname === "/api/caption" && method === "PUT") {

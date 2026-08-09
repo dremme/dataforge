@@ -27,22 +27,18 @@ import {
   upsertJob,
 } from "./jobs";
 import type { ExternalOstrisJob } from "@/shared/types";
+import { job } from "@/test/fixtures";
 import { iconCircleQuestionMark, iconPencilSparkles } from "@/shared/icons";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
-  return {
-    id: "job-1",
-    folder: "C:\\Photos",
-    folder_name: "Photos",
+  return job({
     status: "running",
-    processed: 0,
     total: 10,
     current_name: null,
     error: null,
-    stats: {},
     created_at: "2026-01-01T12:00:00.000Z",
     ...overrides,
-  };
+  });
 }
 
 describe("upsertJob", () => {

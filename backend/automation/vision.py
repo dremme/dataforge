@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Literal
 
 from PIL import Image
 
@@ -72,8 +72,6 @@ _STRIPPED_PREFIXES = (
     "Revised caption:",
     "Output:",
 )
-
-T = TypeVar("T")
 
 
 def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
@@ -388,7 +386,7 @@ def run_vision_completion(
 
 
 @dataclass(frozen=True)
-class ModelOutcome(Generic[T]):
+class ModelOutcome[T]:
     """One model attempt. ``status`` is ``SUCCESS`` when ``value`` is usable.
 
     A failed attempt may still carry a ``value`` so callers can report what the
@@ -431,7 +429,7 @@ def vision_client() -> Iterator[Any]:
         close_vision_client(client)
 
 
-def _await_attempt(
+def _await_attempt[T](
     attempt: Callable[[], ModelOutcome[T]],
     should_cancel: Callable[[], bool],
 ) -> ModelOutcome[T] | None:
@@ -465,7 +463,7 @@ def _await_attempt(
     return outcomes[0]
 
 
-def call_with_retries(
+def call_with_retries[T](
     attempt: Callable[[], ModelOutcome[T]],
     *,
     job_label: str,

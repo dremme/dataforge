@@ -9,7 +9,6 @@ import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 from PIL import Image
 
@@ -36,6 +35,7 @@ from captions import (
 )
 from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
 from openai_settings import get_openai_model
+from schemas import AutomationMode
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,6 @@ MEDIA_KIND_MAX_PIXELS: dict[MediaKind, int] = {
 
 VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
-VerifyMode = Literal["thinking", "instruct"]
 
 NON_SUCCESS_STATUSES = frozenset(
     {NO_CAPTION_STATUS, "read_error", "api_error", "parse_error", "frame_error"}
@@ -377,7 +376,7 @@ def verify_caption(
     images: list[Image.Image],
     model: str | None = None,
     max_tokens: int | None = None,
-    mode: VerifyMode = "instruct",
+    mode: AutomationMode = "instruct",
 ) -> str | None:
     """Ask the model to fact-check ``ref_caption`` against already-loaded ``images``.
 
@@ -403,7 +402,7 @@ def process_media(
     system_prompts: dict[MediaKind, str],
     *,
     model: str | None = None,
-    mode: VerifyMode = "instruct",
+    mode: AutomationMode = "instruct",
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, VerificationResult | None, str, str | None]:
     resolved_model = model if model is not None else get_openai_model()
@@ -514,7 +513,7 @@ def run_verify_captions_job(
     folder: Path,
     *,
     model: str | None = None,
-    mode: VerifyMode = "instruct",
+    mode: AutomationMode = "instruct",
     context: str = "",
     on_progress: ProgressCallback | None = None,
     should_cancel: Callable[[], bool] | None = None,

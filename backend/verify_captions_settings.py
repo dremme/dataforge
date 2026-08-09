@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import get_args
 
 from pydantic import BaseModel, Field
 
 from filesystem import preference_folder_key
 from preferences import JsonPreference
-from schemas import VerifyCaptionsSettingsResponse
+from schemas import AutomationMode, VerifyCaptionsSettingsResponse
 
 VERIFY_CAPTIONS_SETTINGS_KEY = "verify_captions_settings"
 
-VerifyMode = Literal["thinking", "instruct"]
-VALID_MODES = frozenset(get_args(VerifyMode))
-DEFAULT_MODE: VerifyMode = "instruct"
+VALID_MODES = frozenset(get_args(AutomationMode.__value__))
+DEFAULT_MODE: AutomationMode = "instruct"
 
 # Re-export so callers/tests keep a single import for folder-keyed preferences.
 __all__ = [
@@ -31,7 +30,7 @@ class VerifyCaptionsStoredSettings(BaseModel):
     A legacy single global ``context`` key is intentionally not migrated onto folders.
     """
 
-    mode: VerifyMode = DEFAULT_MODE
+    mode: AutomationMode = DEFAULT_MODE
     context_by_folder: dict[str, str] = Field(default_factory=dict)
 
 

@@ -1,23 +1,48 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-# Caption resolution states from ``captions.py``. ``no_caption`` is a job stat key,
-# not one of these, so do not fold it in.
-CaptionStatus = Literal["none", "empty", "text"]
-CaptionFileType = Literal["json", "txt"]
+# Every alias here is a PEP 695 ``type`` statement rather than a plain assignment,
+# which is what makes pydantic emit it as a named schema instead of inlining its
+# members at each use site. ``scripts/generate_types.py`` turns those named schemas
+# into the exported TypeScript unions the frontend imports.
 
-# How an item is rendered, which is not how it is captioned: a GIF is its own type
-# here because it needs an ``<img>``, while ``auto_caption.MediaKind`` calls it a
-# video because it trains like one. Wider than ``MediaKind`` either way, since a
-# sysprompt entry is listed as media too.
-MediaType = Literal["image", "video", "gif", "sysprompt"]
+#: Caption resolution states from ``captions.py``. ``no_caption`` is a job stat key,
+#: not one of these, so do not fold it in.
+type CaptionStatus = Literal["none", "empty", "text"]
+type CaptionFileType = Literal["json", "txt"]
 
-# Watermark appearance, mirrored by the size table in ``automation/watermark.py``.
-WatermarkSizeName = Literal["small", "medium", "large"]
-WatermarkOpacity = Literal[25, 50, 75]
-# top = top-left, center = middle, bottom = bottom-right.
-WatermarkPosition = Literal["top", "center", "bottom"]
+#: How an item is rendered, which is not how it is captioned: a GIF is its own type
+#: here because it needs an ``<img>``, while ``auto_caption.MediaKind`` calls it a
+#: video because it trains like one. Wider than ``MediaKind`` either way, since a
+#: sysprompt entry is listed as media too.
+type MediaType = Literal["image", "video", "gif", "sysprompt"]
+
+#: Watermark appearance, mirrored by the size table in ``automation/watermark.py``.
+type WatermarkSizeName = Literal["small", "medium", "large"]
+type WatermarkOpacity = Literal[25, 50, 75]
+# Annotated rather than a bare alias so the note reaches the generated TypeScript:
+# a ``#:`` comment is invisible to pydantic, a ``Field`` description is not.
+type WatermarkPosition = Annotated[
+    Literal["top", "center", "bottom"],
+    Field(description="top = top-left, center = middle, bottom = bottom-right."),
+]
+
+#: How the vision model is prompted: ``thinking`` lets it reason first.
+type AutomationMode = Literal["thinking", "instruct"]
+
+type JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
+type JobType = Literal[
+    "auto_caption",
+    "strip_metadata",
+    "set_captions",
+    "verify_captions",
+    "batch_rename",
+    "backup_captions",
+    "restore_captions",
+    "train_lora",
+    "watermark",
+]
 
 
 class Breadcrumb(BaseModel):
@@ -120,7 +145,7 @@ class VisionLlmInfoResponse(BaseModel):
     model: str
 
 
-GallerySort = Literal[
+type GallerySort = Literal[
     "name-asc",
     "name-desc",
     "date-asc",
@@ -171,6 +196,8 @@ class SysPromptSaveResponse(BaseModel):
 
 
 class JobSelectionRequest(BaseModel):
+    """Base of every job start: omit ``paths`` to process the whole folder."""
+
     paths: list[str] | None = Field(
         default=None,
         description="Optional absolute media paths to limit the job to. Omit to process the full folder.",
@@ -178,7 +205,7 @@ class JobSelectionRequest(BaseModel):
 
 
 class AutoCaptionStartRequest(JobSelectionRequest):
-    mode: Literal["thinking", "instruct"] = "thinking"
+    mode: AutomationMode = "thinking"
 
 
 class SetCaptionsStartRequest(JobSelectionRequest):
@@ -226,19 +253,19 @@ class WatermarkSettingsUpdate(BaseModel):
 
 
 class VerifyCaptionsSettingsResponse(BaseModel):
-    mode: Literal["thinking", "instruct"] = "instruct"
+    mode: AutomationMode = "instruct"
     context: str = ""
     folder_path: str
 
 
 class VerifyCaptionsSettingsUpdate(BaseModel):
-    mode: Literal["thinking", "instruct"] | None = None
+    mode: AutomationMode | None = None
     context: str | None = None
     folder_path: str
 
 
 class VerifyCaptionsStartRequest(JobSelectionRequest):
-    mode: Literal["thinking", "instruct"] = "instruct"
+    mode: AutomationMode = "instruct"
     context: str = ""
 
 
@@ -277,7 +304,10 @@ class JobResponse(BaseModel):
     started_at: str | None = None
     finished_at: str | None = None
     auto_caption_mode: str | None = None
-    external_ref: str | None = None
+    external_ref: str | None = Field(
+        default=None,
+        description="The external job this one co-tracks (the AI-Toolkit training name).",
+    )
 
 
 class JobResultsResponse(BaseModel):
@@ -433,6 +463,8 @@ class MediaTransferPreviewRequest(BaseModel):
 
 
 class MediaTransferPreviewResponse(BaseModel):
+    """Shared by move and copy: only the endpoint decides whether the source survives."""
+
     eligible: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
@@ -457,3 +489,32 @@ class MediaTransferResponse(BaseModel):
     transferred: list[MediaTransferItemResponse] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
     failed: list[MediaTransferFailure] = Field(default_factory=list)
+
+
+class JobEvent(BaseModel):
+    """One job's whole current state, pushed whenever it changes."""
+
+    type: Literal["job"] = "job"
+    job: JobResponse
+
+
+class ExternalJobsEvent(BaseModel):
+    """The whole AI-Toolkit picture, pushed whenever the poll sees it change."""
+
+    type: Literal["external_jobs"] = "external_jobs"
+    jobs: list[ExternalOstrisJobResponse] = Field(default_factory=list)
+    active_count: int = 0
+    available: bool = False
+
+
+#: Everything ``/api/events`` pushes.
+#:
+#: Every event carries a complete current snapshot of what it describes, never a delta,
+#: so a client that misses one loses nothing once the next arrives.
+type ServerEvent = Annotated[JobEvent | ExternalJobsEvent, Field(discriminator="type")]
+
+#: Wire types no route mentions, so ``app.openapi()`` cannot reach them on its own.
+#: ``scripts/generate_types.py`` merges these in by hand. ``JobType`` and ``JobStatus``
+#: are here because no model uses them: they are the narrowing the frontend applies
+#: over ``JobResponse``'s deliberately loose ``str`` fields.
+EXTRA_WIRE_MODELS = (ServerEvent, JobType, JobStatus)

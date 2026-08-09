@@ -11,9 +11,8 @@ import {
   type WatermarkSettings,
 } from "@/features/automation/preferences/watermarkPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
+import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type {
-  JobStartBodies,
-  JobStartBody,
   JobType,
   WatermarkOpacity,
   WatermarkPosition,

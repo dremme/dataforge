@@ -1,4 +1,4 @@
-import type { FolderResponse, GalleryItem } from "@/shared/types";
+import type { FolderResponse, GalleryItem, Job } from "@/shared/types";
 
 export const HOME_PATH = "C:\\Photos";
 
@@ -38,6 +38,28 @@ export function mediaItem(
     media_type: MEDIA_TYPE_BY_EXTENSION[extension] ?? "image",
     width: 1920,
     height: 1080,
+    ...options,
+  };
+}
+
+/**
+ * A queued job with nothing done yet.
+ *
+ * The server always sends `folder_name` and `job_type`, so both are required on the
+ * wire; spelling them out in every test is what this exists to avoid.
+ */
+export function job(options: Partial<Job> = {}): Job {
+  const folder = options.folder ?? HOME_PATH;
+  return {
+    id: "job-1",
+    folder,
+    folder_name: folder.slice(folder.lastIndexOf("\\") + 1),
+    job_type: "auto_caption",
+    status: "queued",
+    total: 0,
+    processed: 0,
+    stats: {},
+    created_at: "2026-01-01T00:00:00.000Z",
     ...options,
   };
 }

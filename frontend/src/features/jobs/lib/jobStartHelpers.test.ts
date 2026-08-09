@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Job } from "@/shared/types";
+import { job as makeJob } from "@/test/fixtures";
 import {
   clearStartingJobIfMatch,
   isStartingJobForFolder,
@@ -7,16 +8,7 @@ import {
 } from "./jobStartHelpers";
 
 function job(id: string, folder: string, jobType: Job["job_type"]): Job {
-  return {
-    id,
-    folder,
-    job_type: jobType,
-    status: "queued",
-    total: 0,
-    processed: 0,
-    stats: {},
-    created_at: "2026-01-01T00:00:00.000Z",
-  };
+  return makeJob({ id, folder, job_type: jobType });
 }
 
 describe("upsertStartedJob", () => {

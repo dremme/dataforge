@@ -154,20 +154,30 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Each tool is resolved only when in scope, so a backend-only run needs no
-    # Node and a frontend-only run needs no backend venv.
-    python = _resolve_python() if args.scope != "frontend" else None
+    # The backend venv is always needed, even for a frontend-only run: the frontend's
+    # API types are generated from ``backend/schemas.py`` and are not checked in, so
+    # they have to exist before anything compiles. Node is resolved only when the
+    # frontend is in scope, and ``backend_python`` is what gates the backend's own
+    # steps -- having the interpreter is not the same as having the backend in scope.
+    python = _resolve_python()
+    backend_python = python if args.scope != "frontend" else None
     npm = _resolve_npm() if args.scope != "backend" else None
     auto_fixed = False
 
-    if args.fix:
-        status_before = _git_status_porcelain()
-        _run_fix_steps(python, npm)
-        status_after = _git_status_porcelain()
-        auto_fixed = status_before != status_after
-
     try:
-        _run_check_steps(python, npm, lint_only=args.lint_only)
+        _run_step(
+            "Generate frontend API types",
+            [str(python), str(SCRIPTS / "generate_types.py")],
+            cwd=ROOT,
+        )
+
+        if args.fix:
+            status_before = _git_status_porcelain()
+            _run_fix_steps(backend_python, npm)
+            status_after = _git_status_porcelain()
+            auto_fixed = status_before != status_after
+
+        _run_check_steps(backend_python, npm, lint_only=args.lint_only)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
         if code != 0:

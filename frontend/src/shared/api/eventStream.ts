@@ -1,19 +1,4 @@
-import type { ExternalOstrisJob, Job } from "@/shared/types";
-
-/**
- * Everything `/api/events` pushes.
- *
- * Every event carries a complete current snapshot of what it describes, never a delta,
- * so a client that misses one loses nothing once the next arrives.
- */
-export type ServerEvent =
-  | { type: "job"; job: Job }
-  | {
-      type: "external_jobs";
-      jobs: ExternalOstrisJob[];
-      active_count: number;
-      available: boolean;
-    };
+import type { ServerEvent } from "@/shared/types";
 
 export interface ServerEventHandlers {
   onEvent: (event: ServerEvent) => void;

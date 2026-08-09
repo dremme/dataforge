@@ -64,13 +64,28 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # frontend/src/shared/types.ts is generated from backend/schemas.py and is not
+      # checked in, so the frontend cannot typecheck, test, or build without a backend
+      # venv to generate it first. One version is enough: the generated output does not
+      # depend on the Python version, so this job stays off the backend's matrix.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Create backend venv and install deps
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --upgrade pip
+          backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
 
-      # Nothing here depends on the Python version, so it runs once rather than
-      # once per matrix leg. The runner's own python only drives the script.
       - name: Run frontend checks
         env:
           DATAFORGE_DISABLE_DOTENV: "1"
-        run: python3 scripts/run_checks.py --scope frontend
+        run: backend/.venv/bin/python scripts/run_checks.py --scope frontend

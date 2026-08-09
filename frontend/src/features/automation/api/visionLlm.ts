@@ -1,8 +1,5 @@
 import { requestJson } from "@/shared/api/http";
-
-type VisionLlmInfo = {
-  model: string;
-};
+import type { VisionLlmInfoResponse } from "@/shared/types";
 
 let cachedModel: string | null = null;
 let inflight: Promise<string> | null = null;
@@ -12,7 +9,7 @@ export async function loadVisionModelId(): Promise<string> {
   if (cachedModel !== null) return cachedModel;
   if (inflight) return inflight;
 
-  inflight = requestJson<VisionLlmInfo>("/api/system/vision-llm")
+  inflight = requestJson<VisionLlmInfoResponse>("/api/system/vision-llm")
     .then((data) => {
       cachedModel = typeof data.model === "string" ? data.model : "";
       return cachedModel;

@@ -9,7 +9,10 @@ from schemas import GallerySort, UiSettingsResponse
 
 UI_SETTINGS_KEY = "ui_settings"
 DEFAULT_SORT: GallerySort = "name-asc"
-VALID_SORTS = frozenset(get_args(GallerySort))
+# ``GallerySort`` is a PEP 695 alias, so its members live behind ``__value__``:
+# ``get_args`` on the alias itself returns an empty tuple and would silently reject
+# every sort.
+VALID_SORTS = frozenset(get_args(GallerySort.__value__))
 
 _settings: JsonPreference[UiSettingsResponse] = JsonPreference(UI_SETTINGS_KEY, UiSettingsResponse)
 

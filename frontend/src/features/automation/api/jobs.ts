@@ -1,12 +1,7 @@
 import { postJson } from "@/shared/api/http";
 import { withJobPaths } from "@/features/jobs/api/jobPaths";
-import type {
-  Job,
-  JobStartBodies,
-  JobStartBody,
-  JobType,
-  TrainLoraStartRequest,
-} from "@/shared/types";
+import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
+import type { Job, JobType, TrainLoraStartRequest } from "@/shared/types";
 
 export type { JobStartBody };
 

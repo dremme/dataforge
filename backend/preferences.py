@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import json
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from db import get_preference, set_preference
 
-T = TypeVar("T", bound=BaseModel)
 
-
-class JsonPreference(Generic[T]):
+class JsonPreference[T: BaseModel]:
     """One preferences row holding a JSON-serialised Pydantic model.
 
     ``model`` must be constructible with no arguments: those defaults are what a

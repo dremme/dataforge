@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/gallery/api/captions";
-import { HOME_PATH } from "@/test/fixtures";
+import { HOME_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import type { GalleryItem } from "@/shared/types";
 import { IssueResolverModal } from "./IssueResolverModal";
@@ -309,6 +309,13 @@ describe("IssueResolverModal", () => {
       makeIssueItem("four.png", { issue_fixes: ["Fix four."] }),
     ];
 
+    // The backend reports each item's real issue state on a caption fetch, so the
+    // mock has to know these items: otherwise every fetch answers "no issue file"
+    // and the harness below cannot tell a fetch from a resolve.
+    installMockBackend({
+      folderByPath: { [HOME_PATH]: { ...homeFolder, items: initialItems } },
+    });
+
     function Harness() {
       const [index, setIndex] = useState(0);
       // Mimic the parent: only a resolve clears has_issue_file, which drops the item
@@ -323,6 +330,9 @@ describe("IssueResolverModal", () => {
           onIndexChange={setIndex}
           onCaptionSaved={(path, update) => {
             if (update.has_issue_file !== false) return;
+            // Re-fetching an item resolved earlier reports the same cleared state,
+            // so record the transition rather than every response carrying it.
+            if (resolvedPaths.includes(path)) return;
             resolvedPaths.push(path);
             setLiveItems((current) => current.filter((entry) => entry.path !== path));
           }}

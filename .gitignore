@@ -23,6 +23,11 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
+# Generated from backend/schemas.py by scripts/generate_types.py, which runs first in
+# scripts/run_checks.py. Anything that compiles the frontend needs it on disk, so a
+# fresh clone must create backend/.venv before npm typecheck/test/build will work.
+frontend/src/shared/types.ts
+
 # Local-only notes (not shared via git)
 TODO.md
 CHANGELOG.md

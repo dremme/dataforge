@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { subscribeToServerEvents, type ServerEvent } from "./eventStream";
+import type { ServerEvent } from "@/shared/types";
+import { job } from "@/test/fixtures";
+import { subscribeToServerEvents } from "./eventStream";
 
 /** Minimal stand-in for the browser's EventSource, which jsdom does not implement. */
 class FakeEventSource {
@@ -53,15 +55,7 @@ describe("subscribeToServerEvents", () => {
 
     const event: ServerEvent = {
       type: "job",
-      job: {
-        id: "job-1",
-        folder: "C:\\Photos",
-        status: "running",
-        total: 10,
-        processed: 3,
-        stats: {},
-        created_at: "2026-01-01T00:00:00.000Z",
-      },
+      job: job({ status: "running", total: 10, processed: 3 }),
     };
     source().onmessage!({ data: JSON.stringify(event) });
 

@@ -10,7 +10,10 @@ type MediaSource = Pick<GalleryItem, "path" | "modified_at" | "size">;
  * Version token for media URLs. Editing a file in place keeps its path, so both
  * the thumbnail and the full media URL need this to escape the browser cache.
  */
-export function mediaCacheKey(modifiedAt?: string, size?: number): string | undefined {
+export function mediaCacheKey(
+  modifiedAt?: string | null,
+  size?: number | null,
+): string | undefined {
   if (!modifiedAt) {
     return size == null ? undefined : String(size);
   }
@@ -25,8 +28,8 @@ export function mediaCacheKey(modifiedAt?: string, size?: number): string | unde
 
 export function galleryThumbnailPreviewUrl(
   path: string,
-  modifiedAt?: string,
-  size?: number,
+  modifiedAt?: string | null,
+  size?: number | null,
 ): string {
   const cacheKey = mediaCacheKey(modifiedAt, size);
   return thumbnailUrl(path, GALLERY_THUMBNAIL_WIDTH, cacheKey);

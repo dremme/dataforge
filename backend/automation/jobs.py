@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
-from typing import Literal
 
 import events
 from automation import jobs_store
@@ -45,19 +44,8 @@ from automation.watermark import (
     validate_watermark_folder,
 )
 from filesystem import normalize_user_path, path_leaf_name
+from schemas import JobEvent, JobResponse, JobStatus, JobType
 
-JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
-JobType = Literal[
-    "auto_caption",
-    "strip_metadata",
-    "set_captions",
-    "verify_captions",
-    "batch_rename",
-    "backup_captions",
-    "restore_captions",
-    "train_lora",
-    "watermark",
-]
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
 #: A per-file job saves a snapshot before and after every file, which for a fast job is
@@ -754,9 +742,7 @@ class JobManager:
             return
 
         self._published[job_id] = (now, status)
-        # ``results`` is deliberately not on the wire; see ``Job.to_summary_dict``.
-        job = {key: value for key, value in snapshot.items() if key != "results"}
-        events.publish({"type": "job", "job": job})
+        events.publish(JobEvent(job=JobResponse.model_validate(snapshot)).model_dump())
 
 
 job_manager = JobManager()

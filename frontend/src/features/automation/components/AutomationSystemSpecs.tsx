@@ -59,8 +59,8 @@ export function AutomationSystemSpecs({ id, open }: AutomationSystemSpecsProps) 
             {hasGpu ? (
               <>
                 {gpu_name}
-                {gpu_memory_bytes !== null &&
-                  (gpu_memory_used_bytes !== null ? (
+                {gpu_memory_bytes != null &&
+                  (gpu_memory_used_bytes != null ? (
                     <MemoryDetail
                       usedBytes={gpu_memory_used_bytes}
                       totalBytes={gpu_memory_bytes}
