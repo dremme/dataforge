@@ -32,7 +32,8 @@ Ideal when you already keep datasets on disk and want a fast, visual workflow ov
 ### Windows
 
 **1. Setup (once)** — double-click `setup.bat` in the project root.
-It downloads Python 3.12.6 → `.python/` and Node 20.19.0 → `.node/`, creates `backend/.venv`, and installs all dependencies.
+It downloads Python 3.12.6 → `.python/` and Node 20.19.0 → `.node/`, creates `backend/.venv`, installs all dependencies,
+and generates the frontend's view of the backend API — see [Generated frontend code](#generated-frontend-code).
 
 **2. Run** — double-click `start.bat`, or run `.\start.ps1` in PowerShell. The launcher:
 
@@ -70,6 +71,9 @@ python -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 cd frontend && npm install && cd ..
 
+# Required before the frontend will start — see "Generated frontend code"
+backend/.venv/bin/python scripts/generate_types.py
+
 # Terminal 1 — API
 backend/.venv/bin/python scripts/dev_server.py
 
@@ -92,7 +96,10 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 ### Gallery and navigation
 
 - Virtualized grid that stays smooth on large folders
+- Live updates — the server watches the open folder and pushes changes, so files added, edited, or removed
+  outside DataForge appear without a refresh
 - Subfolders, breadcrumbs, favorites, and recent history
+- Copy the current folder path, or open it in File Explorer (Windows)
 - Drive and folder picker
 - Search by file name, folder name, or caption, with optional regex (**Ctrl+K** / **⌘K** focuses search)
 - Filters for all / captioned / issues / missing caption, and images / videos (GIFs count as videos)
@@ -117,7 +124,8 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 
 ### Automation jobs
 
-Jobs run in the background, with a drawer for progress, cancel, and history:
+Jobs run in the background, with a drawer for progress, cancel, and history. Progress is pushed over the same
+event stream the gallery uses, so the drawer and automation panel follow a running job as it goes:
 
 | Job | What it does |
 | --- | --- |
@@ -284,6 +292,7 @@ DataForge/
 │   ├── data/          # Local SQLite + thumbnails (gitignored)
 │   └── routes/        # HTTP API
 ├── frontend/          # React + TypeScript + Vite UI
+│   └── src/shared/    # types.ts, constants.ts, wireGuards.ts are generated (gitignored)
 ├── scripts/           # Dev server, launcher helpers, lint, tests, git hooks
 ├── .github/workflows/ # CI (run_checks.py)
 ├── sample-images/     # Tiny example dataset
@@ -296,6 +305,25 @@ DataForge/
 └── LICENSE            # Apache-2.0
 ```
 
+### Generated frontend code
+
+`backend/schemas.py` and `backend/constants.py` are the single source of truth for the API contract.
+[`scripts/generate_types.py`](scripts/generate_types.py) writes three files from them, so nothing is mirrored by hand:
+
+| File | Contents |
+| --- | --- |
+| `frontend/src/shared/types.ts` | Every wire shape, from the published OpenAPI schema |
+| `frontend/src/shared/constants.ts` | `constants.SHARED_CONSTANTS` |
+| `frontend/src/shared/wireGuards.ts` | Runtime guards for `schemas.GUARDED_WIRE_MODELS` |
+
+All three are **gitignored**, so a fresh clone does not have them, and two of them carry real values rather
+than types alone — the frontend will not build or start until they exist. `setup.bat` generates them, and
+`scripts/run_checks.py` regenerates them before anything compiles, lints, or tests. Generate them by hand after
+a fresh clone on Linux or macOS, and whenever you change `schemas.py` or `constants.py` without running checks.
+
+**Never edit these files.** They carry a `Do not edit` header and the next generator run overwrites them;
+frontend-only shapes belong in the module that uses them.
+
 ### Commands
 
 Run these from the **project root** using the backend venv Python — `backend\.venv\Scripts\python.exe` on
@@ -305,6 +333,7 @@ Windows, `backend/.venv/bin/python` on Unix:
 | --- | --- |
 | API with hot reload | `python scripts/dev_server.py` — accepts `--no-reload`, `--port`, `--host` |
 | Full checks | `python scripts/run_checks.py` — the same suite CI runs |
+| Regenerate API types | `python scripts/generate_types.py` — see [Generated frontend code](#generated-frontend-code) |
 | Backend lint | `python scripts/run_lint.py` — add `--fix` to auto-fix |
 | Backend tests | `python scripts/run_tests.py` |
 | Frontend tests | `cd frontend && npm test` |

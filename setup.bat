@@ -124,6 +124,17 @@ if errorlevel 1 (
 popd
 
 echo.
+echo Generating the frontend's view of the backend contract...
+:: constants.ts and wireGuards.ts carry real values, so the frontend cannot even
+:: start until these exist. They are gitignored, so a fresh clone has neither.
+"%VENV_PY%" "%ROOT%scripts\generate_types.py"
+if errorlevel 1 (
+    echo [ERROR] Frontend type generation failed.
+    pause
+    exit /b 1
+)
+
+echo.
 echo ================================================
 echo Setup complete^!
 echo You can now run start.bat or start.ps1 from this folder.
