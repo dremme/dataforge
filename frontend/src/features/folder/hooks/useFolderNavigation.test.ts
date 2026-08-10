@@ -105,6 +105,83 @@ describe("useFolderNavigation", () => {
     });
   });
 
+  it("settles both flags when a silent reload supersedes an uncached navigation", async () => {
+    const resolvers = new Map<string | undefined, (value: FolderResponse) => void>();
+    vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(
+      (path) => new Promise<FolderResponse>((resolve) => resolvers.set(path, resolve)),
+    );
+
+    const { result } = renderHook(() => useFolderNavigation());
+
+    await waitFor(() => expect(resolvers.has(undefined)).toBe(true));
+    await act(async () => {
+      resolvers.get(undefined)?.(homeFolder);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // An uncached destination blanks the grid, so this load owns `loading`.
+    act(() => {
+      void result.current.navigateTo(VACATION_PATH);
+    });
+    await waitFor(() => expect(result.current.loading).toBe(true));
+
+    // A background reload lands mid-navigation and takes over the generation,
+    // leaving the navigation's `finally` unreachable.
+    act(() => {
+      void result.current.reloadFolder({ silent: true });
+    });
+    expect(result.current.refreshing).toBe(true);
+
+    await act(async () => {
+      resolvers.get(VACATION_PATH)?.(vacationFolder);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.folder?.path).toBe(VACATION_PATH);
+      expect(result.current.refreshing).toBe(false);
+      // Used to stick on, pinning the folder behind a skeleton that never cleared.
+      expect(result.current.loading).toBe(false);
+    });
+  });
+
+  it("settles both flags when an uncached navigation supersedes a silent reload", async () => {
+    const resolvers = new Map<string | undefined, (value: FolderResponse) => void>();
+    vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(
+      (path) => new Promise<FolderResponse>((resolve) => resolvers.set(path, resolve)),
+    );
+
+    const { result } = renderHook(() => useFolderNavigation());
+
+    await waitFor(() => expect(resolvers.has(undefined)).toBe(true));
+    await act(async () => {
+      resolvers.get(undefined)?.(homeFolder);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      void result.current.reloadFolder({ silent: true });
+    });
+    expect(result.current.refreshing).toBe(true);
+
+    act(() => {
+      void result.current.navigateTo(VACATION_PATH);
+    });
+
+    await act(async () => {
+      resolvers.get(VACATION_PATH)?.(vacationFolder);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.folder?.path).toBe(VACATION_PATH);
+      expect(result.current.loading).toBe(false);
+      expect(result.current.refreshing).toBe(false);
+    });
+  });
+
   it("shows folder not found after a silent reload discovers the folder is missing", async () => {
     const missingPath = `${HOME_PATH}\\Missing`;
 

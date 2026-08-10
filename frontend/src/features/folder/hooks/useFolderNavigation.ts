@@ -147,12 +147,12 @@ export function useFolderNavigation(onFolderChange?: () => void) {
         setError(resolved);
         return null;
       } finally {
+        // Both flags, not just the one this call raised: a superseded load never
+        // reaches here, so whatever it left standing has no other owner. Clearing
+        // only our own branch strands the other flag on forever.
         if (generation === loadGenerationRef.current) {
-          if (showSkeleton) {
-            setLoading(false);
-          } else {
-            setRefreshing(false);
-          }
+          setLoading(false);
+          setRefreshing(false);
         }
       }
     },
