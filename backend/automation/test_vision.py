@@ -19,12 +19,14 @@ from automation.vision import (
     CANCEL_POLL_SECONDS,
     CANCELLED,
     FRAME_ERROR,
+    MAX_VIDEO_KEYFRAME_COUNT,
     READ_ERROR,
     SUCCESS,
     VIDEO_KEYFRAME_COUNT,
     ModelOutcome,
     call_with_retries,
     close_vision_client,
+    keyframe_count_for_seconds,
     keyframe_sentence,
     load_image_rgb,
     load_media_images,
@@ -402,6 +404,40 @@ class MediaKindTests(unittest.TestCase):
         # though the rendering layer calls it a gif.
         for name in ("clip.mp4", "loop.gif", "LOOP.GIF"):
             self.assertEqual(media_kind_for(Path(name)), "video")
+
+
+class KeyframeCountTests(unittest.TestCase):
+    """A clip gets two samples a second plus its endpoints, within a floor and a cap."""
+
+    def test_scales_with_the_clip_length(self) -> None:
+        self.assertEqual(keyframe_count_for_seconds(6), 14)
+        self.assertEqual(keyframe_count_for_seconds(10), 22)
+        self.assertEqual(keyframe_count_for_seconds(20), 42)
+
+    def test_a_part_second_counts_as_a_whole_one(self) -> None:
+        # Rounding down would leave the last fraction of a second unsampled, so the
+        # boundary is pinned against a later int() or round() creeping in.
+        self.assertEqual(keyframe_count_for_seconds(10.0), 22)
+        self.assertEqual(keyframe_count_for_seconds(10.4), 24)
+
+    def test_a_short_clip_keeps_the_fixed_count(self) -> None:
+        # The formula alone would hand a 1s clip four frames, which is fewer than it
+        # gets today. Below the floor nothing about a short clip changes.
+        for seconds in (0.5, 1, 3, 5.0):
+            self.assertEqual(keyframe_count_for_seconds(seconds), VIDEO_KEYFRAME_COUNT)
+
+        self.assertEqual(keyframe_count_for_seconds(6.0), 14)
+
+    def test_a_long_clip_stops_at_the_cap(self) -> None:
+        # Every frame is inlined in one request, so an uncapped count would build a
+        # payload no model accepts - and retry it.
+        self.assertEqual(keyframe_count_for_seconds(31), MAX_VIDEO_KEYFRAME_COUNT)
+        for seconds in (32, 60, 300):
+            self.assertEqual(keyframe_count_for_seconds(seconds), MAX_VIDEO_KEYFRAME_COUNT)
+
+    def test_an_unusable_duration_falls_back_to_the_fixed_count(self) -> None:
+        for seconds in (None, 0, -5, float("nan"), float("inf")):
+            self.assertEqual(keyframe_count_for_seconds(seconds), VIDEO_KEYFRAME_COUNT)
 
 
 class KeyframeSentenceTests(unittest.TestCase):

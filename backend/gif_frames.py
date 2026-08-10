@@ -348,8 +348,9 @@ def keyframe_indices(total_frames: int, count: int) -> list[int]:
     sequence shorter than ``count`` yields every frame once rather than repeating
     frames to pad the list out.
 
-    ``automation.vision`` samples videos with this too, so a GIF and an MP4 of the
-    same length are handed to the model as the same frames.
+    ``automation.vision`` samples videos with this too, so both kinds are spread the
+    same way. It chooses the ``count`` separately though: a video scales its own with
+    the clip's length, where a GIF is always asked for the fixed one.
     """
     if total_frames <= 0 or count <= 0:
         return []

@@ -24,6 +24,7 @@ from automation.auto_caption import (
 from automation.vision import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
+    MAX_VIDEO_KEYFRAME_COUNT,
     TAIL_SEEK_LIMIT,
     VIDEO_FRAME_MAX_PIXELS,
     VIDEO_KEYFRAME_COUNT,
@@ -285,17 +286,35 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
         self.assertEqual(released, [True])
 
 
+# The real cv2 values, so a capture that is handed the wrong one is still recognisable.
+FAKE_CAP_PROP_POS_FRAMES = 1
+FAKE_CAP_PROP_FPS = 5
+FAKE_CAP_PROP_FRAME_COUNT = 7
+
+
 class FakeCapture:
     """A capture whose frames are solid greys, so a frame's index is readable back.
 
     ``reported`` is what ``CAP_PROP_FRAME_COUNT`` claims, which real containers let
     overshoot ``decodable``; ``0`` stands for the containers that report nothing and
-    force the sequential read.
+    force the sequential read. ``fps`` defaults to the container that reports no frame
+    rate at all, which is what leaves a case on the fixed keyframe count.
     """
 
-    def __init__(self, decodable: int, reported: int | None = None) -> None:
+    def __init__(
+        self,
+        decodable: int,
+        reported: int | None = None,
+        *,
+        fps: float = 0.0,
+        width: int = 8,
+        height: int = 8,
+    ) -> None:
         self.decodable = decodable
         self.reported = decodable if reported is None else reported
+        self.fps = fps
+        self.width = width
+        self.height = height
         self.position = 0
         self.released = False
         self.seeks: list[int] = []
@@ -303,7 +322,9 @@ class FakeCapture:
     def isOpened(self) -> bool:
         return True
 
-    def get(self, _prop: int) -> float:
+    def get(self, prop: int) -> float:
+        if prop == FAKE_CAP_PROP_FPS:
+            return float(self.fps)
         return float(self.reported)
 
     def set(self, _prop: int, value: float) -> bool:
@@ -316,7 +337,7 @@ class FakeCapture:
             return False, None
         # cvtColor is patched to identity, so the shade *is* the frame index. Kept
         # under 256 by every case here, since it has to survive as one uint8.
-        frame = numpy.full((8, 8, 3), self.position, dtype=numpy.uint8)
+        frame = numpy.full((self.height, self.width, 3), self.position, dtype=numpy.uint8)
         self.position += 1
         return True, frame
 
@@ -330,8 +351,9 @@ def _fake_cv2_for(capture: FakeCapture):
         (),
         {
             "VideoCapture": staticmethod(lambda _path: capture),
-            "CAP_PROP_FRAME_COUNT": 7,
-            "CAP_PROP_POS_FRAMES": 1,
+            "CAP_PROP_FRAME_COUNT": FAKE_CAP_PROP_FRAME_COUNT,
+            "CAP_PROP_POS_FRAMES": FAKE_CAP_PROP_POS_FRAMES,
+            "CAP_PROP_FPS": FAKE_CAP_PROP_FPS,
             "COLOR_BGR2RGB": 4,
             "cvtColor": staticmethod(lambda frame, _code: frame),
         },
@@ -343,6 +365,13 @@ def _shades(frames) -> list[int]:
     return [frame.getpixel((0, 0))[0] for frame in frames]
 
 
+def _extract_from(capture: FakeCapture, count: int | None):
+    with TempMediaFolder() as root:
+        video = write_mp4_video(root, "clip.mp4")
+        with patch.dict("sys.modules", {"cv2": _fake_cv2_for(capture)}):
+            return extract_video_keyframes(video, count)
+
+
 class VideoKeyframeSpanTests(unittest.TestCase):
     """The clip's opening and closing frames both have to reach the model.
 
@@ -350,11 +379,9 @@ class VideoKeyframeSpanTests(unittest.TestCase):
     sample that quietly stops short of the end reads as a different clip.
     """
 
-    def _extract(self, capture: FakeCapture, count: int = VIDEO_KEYFRAME_COUNT):
-        with TempMediaFolder() as root:
-            video = write_mp4_video(root, "clip.mp4")
-            with patch.dict("sys.modules", {"cv2": _fake_cv2_for(capture)}):
-                return extract_video_keyframes(video, count)
+    def _extract(self, capture: FakeCapture, count: int | None = VIDEO_KEYFRAME_COUNT):
+        """Pins the count these cases were written around; production passes ``None``."""
+        return _extract_from(capture, count)
 
     def test_spans_the_whole_clip(self) -> None:
         frames = self._extract(FakeCapture(decodable=120))
@@ -414,6 +441,92 @@ class VideoKeyframeSpanTests(unittest.TestCase):
         self.assertIsNone(self._extract(FakeCapture(decodable=0, reported=0)))
 
 
+class AdaptiveKeyframeCountTests(unittest.TestCase):
+    """How many frames a clip yields when nobody names a count.
+
+    Twelve frames across a long clip is one sample every few seconds, so the model is
+    asked to describe motion it never saw. The count follows the clip's length instead.
+    """
+
+    def _extract(self, capture: FakeCapture, count: int | None = None):
+        return _extract_from(capture, count)
+
+    def test_a_long_clip_is_sampled_by_its_length(self) -> None:
+        frames = self._extract(FakeCapture(decodable=240, fps=30))
+
+        assert frames is not None
+        shades = _shades(frames)
+        # Eight seconds, so two a second plus both endpoints.
+        self.assertEqual(len(shades), 18)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 239)
+        self.assertEqual(shades, sorted(shades))
+
+    def test_a_short_clip_is_not_sampled_more_thinly_than_before(self) -> None:
+        # Three and a bit seconds works out at ten frames, which is fewer than this
+        # clip gets today. The floor is what keeps the change from taking any away.
+        frames = self._extract(FakeCapture(decodable=200, fps=60))
+
+        assert frames is not None
+        self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_very_long_clip_stops_at_the_cap_and_still_ends_on_its_last_frame(self) -> None:
+        # Fifty seconds asks for 102 frames; every one would be inlined in a single
+        # request. The closing frame has to survive the clamp.
+        capture = FakeCapture(decodable=250, fps=5)
+        frames = self._extract(capture)
+
+        assert frames is not None
+        shades = _shades(frames)
+        self.assertEqual(len(shades), MAX_VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 249)
+        self.assertEqual(len(set(shades)), len(shades))
+
+    def test_a_named_count_is_never_overridden(self) -> None:
+        frames = self._extract(FakeCapture(decodable=250, fps=5), count=VIDEO_KEYFRAME_COUNT)
+
+        assert frames is not None
+        self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_frame_rate_that_cannot_be_trusted_falls_back_to_the_fixed_count(self) -> None:
+        # 90000 is an MPEG timescale reported where the frame rate belongs, which
+        # would otherwise read as a clip lasting a fraction of a second.
+        for fps in (0.0, -30.0, float("nan"), 90_000.0):
+            with self.subTest(fps=fps):
+                frames = self._extract(FakeCapture(decodable=240, fps=fps))
+
+                assert frames is not None
+                self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_derived_count_still_gives_up_on_a_broken_tail(self) -> None:
+        capture = FakeCapture(decodable=40, reported=400, fps=1)
+        frames = self._extract(capture)
+
+        assert frames is not None
+        self.assertLessEqual(len(capture.seeks), MAX_VIDEO_KEYFRAME_COUNT + TAIL_SEEK_LIMIT)
+
+    def test_a_clip_that_reports_no_frame_count_keeps_the_fixed_count(self) -> None:
+        # Its length is only discoverable by decoding to the end, and the frames have
+        # to be held during that decode, so this path stays on the smaller budget
+        # however much the frame rate claims.
+        frames = self._extract(FakeCapture(decodable=250, reported=0, fps=30))
+
+        assert frames is not None
+        self.assertLessEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+
+    def test_frames_come_back_within_the_multi_frame_pixel_budget(self) -> None:
+        # Sixty-four full-resolution frames sit in memory for the whole model call,
+        # retries included, so they are capped as they are read rather than later.
+        frames = self._extract(FakeCapture(decodable=3, width=1200, height=1200))
+
+        assert frames is not None
+        for frame in frames:
+            self.assertLessEqual(frame.width * frame.height, VIDEO_FRAME_MAX_PIXELS)
+        # A solid frame survives the resize, so its index is still readable back.
+        self.assertEqual(_shades(frames), [0, 1, 2])
+
+
 class AutoCaptionGifTests(unittest.TestCase):
     def test_a_gif_is_captioned_as_a_video(self) -> None:
         # MediaKind is the training axis, and a GIF is a frame sequence, so it gets
@@ -432,7 +545,9 @@ class AutoCaptionGifTests(unittest.TestCase):
         fake_cv2 = type("cv2", (), {"VideoCapture": staticmethod(explode)})
 
         with TempMediaFolder() as root:
-            media = write_gif(root, "loop.gif", frames=30)
+            # Long enough that the video path would sample it far more densely: a GIF
+            # keeps the fixed count whatever its length.
+            media = write_gif(root, "loop.gif", frames=120)
 
             with patch.dict("sys.modules", {"cv2": fake_cv2}):
                 frames = extract_keyframes(media)

@@ -43,8 +43,8 @@ IMAGE_MAX_PIXELS = 1_750_000
 
 # Fact-checking needs more detail than captioning does - a hand position is decided by
 # a small part of the frame - so a still gets a larger budget here than in auto-caption.
-# Keyframes keep the shared motion budget: a dozen of them at stills resolution would
-# not fit the request.
+# Keyframes keep the shared motion budget: a long clip sends dozens of them, and at
+# stills resolution they would not fit the request.
 MEDIA_KIND_MAX_PIXELS: dict[MediaKind, int] = {
     "image": IMAGE_MAX_PIXELS,
     "video": VIDEO_FRAME_MAX_PIXELS,

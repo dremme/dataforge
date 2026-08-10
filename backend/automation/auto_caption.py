@@ -55,7 +55,8 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 
 # Captioning reads the whole frame, so a still gets the larger budget; keyframes are
-# sent a dozen at a time and have to stay small enough for the request to be tractable.
+# sent dozens at a time, scaling with the clip's length, and have to stay small enough
+# for the request to be tractable.
 MEDIA_KIND_MAX_PIXELS: dict[MediaKind, int] = {
     "image": IMAGE_MAX_PIXELS,
     "video": VIDEO_FRAME_MAX_PIXELS,

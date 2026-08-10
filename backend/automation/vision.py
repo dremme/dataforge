@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -36,8 +37,22 @@ logger = logging.getLogger(__name__)
 
 MAX_MODEL_ATTEMPTS = 3
 
-# Evenly spaced samples across a motion file; short GIFs yield fewer than this.
+# Evenly spaced samples across a motion file, in three roles: the count a GIF is
+# always sampled at, the floor below which a short video is not sampled any thinner
+# than it used to be, and the fallback for a container that will not say how fast it
+# runs. Short GIFs and short clips yield fewer than this.
 VIDEO_KEYFRAME_COUNT = 12
+# A video is sampled by its length instead, twice a second plus both endpoints, since
+# a dozen frames across a long clip describes motion the model never saw.
+KEYFRAMES_PER_SECOND = 2
+# Where that stops. Every frame is inlined in one request at roughly 640 vision
+# tokens, so an uncapped count would build a payload no model accepts - and
+# ``call_with_retries`` would upload it three times before saying so.
+MAX_VIDEO_KEYFRAME_COUNT = 64
+# Above this a reported frame rate is metadata corruption rather than a fast camera:
+# the usual culprit is a container reporting its MPEG timescale of 90000. Real
+# high-speed footage tops out well below it.
+MAX_PLAUSIBLE_FPS = 1000.0
 # How far back to hunt for a closing frame when the reported frame count overshoots
 # the decodable tail. Metadata is wrong by a handful of frames, not by seconds, so a
 # longer walk means the file is broken rather than merely mis-measured.
@@ -139,12 +154,53 @@ def media_kind_for(path: Path) -> MediaKind:
     return "video" if path.suffix.lower() in MOTION_EXTENSIONS else "image"
 
 
+def keyframe_count_for_seconds(seconds: float | None) -> int:
+    """How many frames a clip of this length is worth sampling.
+
+    Floored so a short clip is never sampled more thinly than it was before this
+    existed, and capped so a long one cannot build a request no model will take. An
+    unusable duration falls back to the fixed count.
+    """
+    if seconds is None or not math.isfinite(seconds) or seconds <= 0:
+        return VIDEO_KEYFRAME_COUNT
+
+    wanted = KEYFRAMES_PER_SECOND * math.ceil(seconds) + 2
+    return min(max(wanted, VIDEO_KEYFRAME_COUNT), MAX_VIDEO_KEYFRAME_COUNT)
+
+
+def _video_seconds(cap, cv2, total_frames: int) -> float | None:
+    """How long the clip runs, or ``None`` when the container will not say usefully.
+
+    Both ways of being wrong are safe: an overstated frame rate understates the
+    length and lands on the floor, an understated one overstates it and lands on the
+    cap. There is no lower bound beyond zero because a pathologically small rate is
+    already bounded by the cap, and by ``keyframe_indices`` never returning more
+    indices than the clip has frames.
+    """
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+    if not math.isfinite(fps) or fps <= 0 or fps > MAX_PLAUSIBLE_FPS:
+        return None
+    return total_frames / fps
+
+
+def _capped(image: Image.Image) -> Image.Image:
+    """A keyframe at the multi-frame budget, applied as it is read.
+
+    A long clip's frames are held for the whole model call, retries included, so
+    shrinking them only at request time would keep sixty-four full-resolution frames
+    resident - gigabytes for 4K footage. Nothing is lost: this is the same budget
+    ``prepare_images_for_api`` would apply before the frames left the process, and
+    ``resize_for_qwen`` returns an already-small frame untouched.
+    """
+    return resize_for_qwen(image, max_pixels=VIDEO_FRAME_MAX_PIXELS)
+
+
 def _read_frame_at(cap, cv2, frame_index: int) -> Image.Image | None:
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
     ok, frame = cap.read()
     if not ok:
         return None
-    return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    return _capped(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
 
 
 def _seek_keyframes(cap, cv2, total_frames: int, count: int) -> list[Image.Image]:
@@ -173,9 +229,15 @@ def _streamed_keyframes(cap, cv2, count: int) -> list[Image.Image]:
 
     A container that reports no frame count cannot be seeked either, so the end is
     only discoverable by decoding to it. Kept frames are halved whenever they
-    outgrow ``2 * count``, which bounds what is held in memory while preserving the
-    opening frame and an even spread; the newest frame is tracked separately so the
-    closing one survives regardless of where the halving left the stride.
+    outgrow ``2 * count`` retained frames, which bounds what is held in memory while
+    preserving the opening frame and an even spread; the newest frame is tracked
+    separately so the closing one survives regardless of where the halving left the
+    stride.
+
+    Deliberately not sampled by duration like the seekable path: the length is only
+    known once the decode finishes, but the frames have to be retained *during* it,
+    so provisioning for the larger count would mean holding twice that many
+    full-resolution frames to serve the rarest branch here.
     """
     kept: list[Image.Image] = []
     last: Image.Image | None = None
@@ -202,14 +264,18 @@ def _streamed_keyframes(cap, cv2, count: int) -> list[Image.Image]:
     if kept[-1] is not last:
         kept.append(last)
 
-    return [kept[index] for index in keyframe_indices(len(kept), count)]
+    return [_capped(kept[index]) for index in keyframe_indices(len(kept), count)]
 
 
 def extract_video_keyframes(
     video_path: Path,
-    count: int = VIDEO_KEYFRAME_COUNT,
+    count: int | None = None,
 ) -> list[Image.Image] | None:
-    """Evenly spaced frames spanning the whole clip, first and last included."""
+    """Evenly spaced frames spanning the whole clip, first and last included.
+
+    ``count`` of ``None`` derives one from the clip's length; an explicit count is
+    taken as given. Frames come back capped at ``VIDEO_FRAME_MAX_PIXELS``.
+    """
     import cv2
 
     # release() covers the failed-open branch too: a capture that never opened still
@@ -222,29 +288,34 @@ def extract_video_keyframes(
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
         if total_frames <= 0:
-            return _streamed_keyframes(cap, cv2, count) or None
+            return _streamed_keyframes(cap, cv2, count or VIDEO_KEYFRAME_COUNT) or None
 
-        return _seek_keyframes(cap, cv2, total_frames, count) or None
+        resolved = (
+            count
+            if count is not None
+            else keyframe_count_for_seconds(_video_seconds(cap, cv2, total_frames))
+        )
+        return _seek_keyframes(cap, cv2, total_frames, resolved) or None
     finally:
         cap.release()
 
 
-def extract_keyframes(
-    media_path: Path, count: int = VIDEO_KEYFRAME_COUNT
-) -> list[Image.Image] | None:
+def extract_keyframes(media_path: Path, count: int | None = None) -> list[Image.Image] | None:
     """Evenly spaced frames, decoded by whichever reader handles the container.
 
     GIFs never reach OpenCV: it reports a frame count of zero for many of them,
     which silently drops ``extract_video_keyframes`` into its sequential fallback
-    and captions only the opening of the animation.
+    and captions only the opening of the animation. A GIF also keeps the fixed count
+    however long it is, where a video derives one from its length - GIF frames are
+    small and cheap to hold, and ``gif_frames`` stays clear of request budgets.
     """
     if media_path.suffix.lower() == GIF_EXTENSION:
-        return extract_gif_keyframes(media_path, count)
+        return extract_gif_keyframes(media_path, count or VIDEO_KEYFRAME_COUNT)
     return extract_video_keyframes(media_path, count)
 
 
 def keyframe_sentence(frame_count: int) -> str:
-    """States the real frame count, which a short GIF makes smaller than the cap."""
+    """States the real frame count, which a short GIF shrinks and a long clip grows."""
     if frame_count == 1:
         return "You are given a single frame. Analyze it while following the system instructions."
     return (
