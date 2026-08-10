@@ -1,23 +1,39 @@
 import { useEffect, useState, type RefObject } from "react";
 
-function isSentinelAboveScrollRoot(sentinel: HTMLElement, scrollRoot: Element): boolean {
-  const rootTop = scrollRoot.getBoundingClientRect().top;
+/** Slack for fractional layout, so sub-pixel drift does not read as docked. */
+const DOCKED_EPSILON_PX = 0.5;
+
+function isDocked(sentinel: HTMLElement, element: HTMLElement): boolean {
   const sentinelBottom = sentinel.getBoundingClientRect().bottom;
-  return sentinelBottom <= rootTop;
+  const elementTop = element.getBoundingClientRect().top;
+  return elementTop - sentinelBottom > DOCKED_EPSILON_PX;
 }
 
-export function useStickyFloating(sentinelRef: RefObject<HTMLElement | null>): boolean {
+/**
+ * Whether sticky positioning is currently holding `elementRef` away from the
+ * sentinel marking its resting place.
+ *
+ * Measuring the two against each other rather than against the scroll root keeps
+ * this correct for elements that dock at an offset instead of at the very top.
+ * The sentinel is zero-height and sits immediately above an element with no top
+ * margin, so the two edges coincide exactly while undocked.
+ */
+export function useStickyFloating(
+  sentinelRef: RefObject<HTMLElement | null>,
+  elementRef: RefObject<HTMLElement | null>,
+): boolean {
   const [floating, setFloating] = useState(false);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    const element = elementRef.current;
+    if (!sentinel || !element) return;
 
     const scrollRoot = sentinel.closest(".main");
     if (!scrollRoot) return;
 
     const update = () => {
-      setFloating(isSentinelAboveScrollRoot(sentinel, scrollRoot));
+      setFloating(isDocked(sentinel, element));
     };
 
     update();
@@ -28,7 +44,7 @@ export function useStickyFloating(sentinelRef: RefObject<HTMLElement | null>): b
       scrollRoot.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };
-  }, [sentinelRef]);
+  }, [elementRef, sentinelRef]);
 
   return floating;
 }

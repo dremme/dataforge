@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import type { AppIcon } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "./Icon";
 
 interface SectionHeaderProps {
@@ -12,6 +14,8 @@ interface SectionHeaderProps {
   /** Keeps the total visible even when it equals `count`, e.g. selection progress. */
   alwaysShowTotal?: boolean;
   loading?: boolean;
+  /** Docks the header below the automation panel while its section scrolls past. */
+  sticky?: boolean;
   actions?: ReactNode;
 }
 
@@ -23,34 +27,49 @@ export function SectionHeader({
   total,
   alwaysShowTotal = false,
   loading = false,
+  sticky = false,
   actions,
 }: SectionHeaderProps) {
   const showTotal = total !== undefined && (alwaysShowTotal || total !== count);
+  const stickySentinelRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  // `sticky` is fixed per call site, so the refs are populated before effects run.
+  const floating = useStickyFloating(stickySentinelRef, headerRef);
 
   return (
-    <div className={`${section}-section__header`}>
-      <h2 className={`${section}-section__title`}>
-        <Icon icon={icon} className="section-title__icon" />
-        {title}
-      </h2>
-      {loading ? (
-        <span className="section-header__count-skeleton skeleton-shimmer" aria-hidden="true" />
-      ) : (
-        <span
-          className={`${section}-section__count`}
-          // "3 / 12" reads as "three slash twelve" without this.
-          aria-label={showTotal ? `${count} of ${total}` : undefined}
-        >
-          {count}
-          {showTotal && (
-            <>
-              <span className="section-header__count-divider">/</span>
-              <span className="section-header__count-total">{total}</span>
-            </>
-          )}
-        </span>
-      )}
-      {actions}
-    </div>
+    <>
+      {sticky && <div ref={stickySentinelRef} className="sticky-sentinel" aria-hidden="true" />}
+      <div
+        ref={headerRef}
+        className={classNames(
+          `${section}-section__header`,
+          sticky && `${section}-section__header--sticky`,
+          floating && `${section}-section__header--floating`,
+        )}
+      >
+        <h2 className={`${section}-section__title`}>
+          <Icon icon={icon} className="section-title__icon" />
+          {title}
+        </h2>
+        {loading ? (
+          <span className="section-header__count-skeleton skeleton-shimmer" aria-hidden="true" />
+        ) : (
+          <span
+            className={`${section}-section__count`}
+            // "3 / 12" reads as "three slash twelve" without this.
+            aria-label={showTotal ? `${count} of ${total}` : undefined}
+          >
+            {count}
+            {showTotal && (
+              <>
+                <span className="section-header__count-divider">/</span>
+                <span className="section-header__count-total">{total}</span>
+              </>
+            )}
+          </span>
+        )}
+        {actions}
+      </div>
+    </>
   );
 }

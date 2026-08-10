@@ -1,0 +1,9 @@
+// A zero-height marker left in flow directly above a sticky element. Comparing
+// the two rects is what tells the element whether it is currently docked, so the
+// marker must contribute nothing to layout itself.
+.sticky-sentinel {
+  height: 0;
+  margin: 0;
+  pointer-events: none;
+  visibility: hidden;
+}

@@ -17,6 +17,7 @@
     @include pill-btn-compact(default);
     padding: 0.2rem 0.5rem;
     min-height: 1.5rem;
+    --bg-elevated: #{$color-bg-soft};
 
     &-icon {
       width: 0.85rem;

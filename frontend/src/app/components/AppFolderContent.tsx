@@ -113,6 +113,7 @@ export function AppFolderContent({
                     // folder mode counts the visible media against the whole folder.
                     total={selectionMode ? filteredItems.length : items.length}
                     alwaysShowTotal={selectionMode}
+                    sticky
                     actions={
                       // Nothing to select once the filters empty the grid.
                       filteredItems.length > 0 ? (

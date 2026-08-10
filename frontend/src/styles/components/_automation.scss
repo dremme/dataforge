@@ -1,14 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// Sentinel sits in document flow above the panel; when it scrolls past the top of
-// .main, the panel is stuck and gains the floating appearance.
-.automation-sentinel {
-  margin: 0;
-  pointer-events: none;
-  visibility: hidden;
-}
-
 // ---------------------------------------------------------------------------
 // .automation
 // ---------------------------------------------------------------------------
@@ -18,7 +10,7 @@
   top: 0;
   z-index: $z-index-sticky-panel;
   margin-bottom: 1.25rem;
-  padding: 1rem var(--panel-padding);
+  padding: var(--panel-padding);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -28,10 +20,7 @@
     backdrop-filter 0.22s ease;
 
   &--floating {
-    background: var(--bg-sticky);
-    backdrop-filter: blur(var(--modal-backdrop-blur));
-    -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
-    box-shadow: 0 0px 8px rgba(0, 0, 0, 0.28);
+    @include floating-sticky-surface;
   }
 
   // Block modifiers

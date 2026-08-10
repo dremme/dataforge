@@ -737,6 +737,14 @@
   }
 }
 
+/// The frosted surface a sticky element takes on once it docks.
+@mixin floating-sticky-surface {
+  background: var(--bg-sticky);
+  backdrop-filter: blur(var(--modal-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.28);
+}
+
 @mixin modal-panel-surface {
   background: var(--bg-elevated);
   border: 1px solid var(--border);

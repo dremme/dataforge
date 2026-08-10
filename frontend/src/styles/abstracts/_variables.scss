@@ -63,6 +63,11 @@ $control-height-sm: 2rem;
 $control-height-xs: 1.5rem;
 $toolbar-control-height: $control-height;
 $panel-padding: 1.15rem;
+// A sticky section header floats as its own bar below the panel it docks under:
+// the gap is the space left open between the two, the padding is the bar's own
+// inset around the header content.
+$sticky-dock-gap: 0.6rem;
+$sticky-dock-padding: 0.5rem;
 $modal-gutter: 1.5rem;
 // Shared by every modal stage so media reads at one size across the app.
 $modal-media-max-height: min(36vh, 500px);
@@ -84,6 +89,9 @@ $icon-size-xl: 2rem;
 // base modals even though it can never appear over one. Its trigger sits in the
 // app header, which is already behind every 1000-level backdrop, so the pairing
 // is unreachable and the ordering only has to satisfy the stacks below.
+// A section header docks *under* the automation panel, so it stacks below it —
+// but above the gallery cards, whose own z-indexes go up to 2.
+$z-index-sticky-section-header: 14;
 $z-index-sticky-panel: 15;
 $z-index-tooltip: 50;
 $z-index-drawer: 1050;

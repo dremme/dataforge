@@ -1,3 +1,4 @@
+@use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
 // ---------------------------------------------------------------------------
@@ -13,7 +14,45 @@
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.85rem;
+    padding: 0 var(--panel-padding);
     min-height: 1.5rem;
+
+    // Docks below the automation panel, whose measured height arrives as
+    // --sticky-dock-offset. The frosted surface is painted by a pseudo-element
+    // rather than the header itself so that docking changes nothing about the
+    // box the virtualized gallery measures its scroll margin against.
+    &--sticky {
+      position: sticky;
+      // The bar's own padding sits above the header box, so the dock offset has
+      // to clear it for the gap below the panel to come out at $sticky-dock-gap.
+      top: calc(var(--sticky-dock-offset, 0px) + #{$sticky-dock-gap + $sticky-dock-padding});
+      z-index: $z-index-sticky-section-header;
+
+      &::before {
+        @include floating-sticky-surface;
+        content: "";
+        position: absolute;
+        // Bleeds by the bar's padding only, leaving $sticky-dock-gap of open
+        // space below the panel for cards to pass through.
+        inset-block: calc(-1 * #{$sticky-dock-padding});
+        inset-inline: 0;
+        z-index: -1;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        opacity: 0;
+        // Paired with opacity so the blur costs nothing while hidden: a
+        // transparent backdrop-filter still repaints every frame.
+        visibility: hidden;
+        transition:
+          opacity 0.22s ease,
+          visibility 0.22s ease;
+      }
+    }
+
+    &--floating::before {
+      opacity: 1;
+      visibility: visible;
+    }
   }
 
   &__title {

@@ -33,6 +33,7 @@ import {
 } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
 import { useTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
+import { useStickyDockOffset } from "@/shared/hooks/useStickyDockOffset";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
@@ -95,7 +96,9 @@ export function AutomationPanel({
   onResolveIssues,
 }: AutomationPanelProps) {
   const stickySentinelRef = useRef<HTMLDivElement>(null);
-  const isFloating = useStickyFloating(stickySentinelRef);
+  const panelRef = useRef<HTMLElement>(null);
+  useStickyDockOffset(panelRef);
+  const isFloating = useStickyFloating(stickySentinelRef, panelRef);
   const jobActive = job ? isActiveJobStatus(job.status) : false;
   const starting = startingJobType !== null;
   const startingPrimary = startingJobType === PRIMARY_JOB_TYPE;
@@ -131,8 +134,9 @@ export function AutomationPanel({
 
   return (
     <>
-      <div ref={stickySentinelRef} className="automation-sentinel" aria-hidden="true" />
+      <div ref={stickySentinelRef} className="sticky-sentinel" aria-hidden="true" />
       <section
+        ref={panelRef}
         className={classNames(
           "automation",
           isFloating && "automation--floating",

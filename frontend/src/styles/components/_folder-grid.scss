@@ -14,6 +14,7 @@
 
   &__btn {
     @include pill-btn-compact(default);
+    --bg-elevated: #{$color-bg-soft};
     padding: 0.2rem 0.5rem;
     min-height: 1.5rem;
 
