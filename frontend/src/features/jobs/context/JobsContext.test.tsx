@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchJobs } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs } from "@/features/jobs/api/externalJobs";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
-import { JobsProvider, useJobs } from "./JobsContext";
+import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
+import {
+  CONNECTED_ACTIVE_POLL_MS,
+  DISCONNECTED_ACTIVE_POLL_MS,
+  JobsProvider,
+  useJobs,
+} from "./JobsContext";
 
 vi.mock("@/features/jobs/api/jobs", () => ({
   fetchJobs: vi.fn(),
@@ -58,13 +64,15 @@ function renderProvider() {
 
   render(
     <NotificationsProvider>
-      <JobsProvider>
-        <Probe
-          onRender={(value) => {
-            latest.current = value;
-          }}
-        />
-      </JobsProvider>
+      <ServerEventsProvider>
+        <JobsProvider>
+          <Probe
+            onRender={(value) => {
+              latest.current = value;
+            }}
+          />
+        </JobsProvider>
+      </ServerEventsProvider>
     </NotificationsProvider>,
   );
 
@@ -114,15 +122,36 @@ describe("JobsProvider", () => {
     });
 
     const callsAfterConnect = listJobs.mock.calls.length;
-    // Connected + active job → 3s safety poll, not the 1s disconnected cadence.
+    // Connected + active job reconciles on the slow cadence, not the disconnected one.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(DISCONNECTED_ACTIVE_POLL_MS);
     });
     expect(listJobs).toHaveBeenCalledTimes(callsAfterConnect);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
+      await vi.advanceTimersByTimeAsync(CONNECTED_ACTIVE_POLL_MS);
     });
     expect(listJobs.mock.calls.length).toBeGreaterThan(callsAfterConnect);
+  });
+
+  it("ignores a frame type it does not recognise", async () => {
+    vi.stubGlobal("EventSource", FakeEventSource);
+    const latest = renderProvider();
+
+    await waitFor(() => expect(FakeEventSource.last).not.toBeNull());
+    const source = FakeEventSource.last!;
+    source.onopen!();
+    await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
+
+    // A frame the client does not know must not be read as an external-jobs one:
+    // that sets externalJobs to undefined and throws in the activeCount memo, which
+    // tears down the whole provider rather than degrading a badge.
+    await act(async () => {
+      source.onmessage!({ data: JSON.stringify({ type: "heartbeat" }) });
+    });
+
+    expect(latest.current?.externalJobs).toEqual([]);
+    expect(latest.current?.activeCount).toBe(1);
+    expect(latest.current?.jobs).toHaveLength(1);
   });
 
   it("resumes polling when the stream drops", async () => {

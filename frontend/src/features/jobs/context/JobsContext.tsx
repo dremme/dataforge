@@ -17,7 +17,7 @@ import {
   fetchLatestFolderJob,
 } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs";
-import { subscribeToServerEvents } from "@/shared/api/eventStream";
+import { useServerEvent, useStreamConnected } from "@/shared/events/serverEvents";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { ExternalOstrisJob, Job, JobType, JobsResponse } from "@/shared/types";
@@ -37,12 +37,23 @@ import {
 } from "@/features/jobs/lib/jobStartHelpers";
 
 // Fast poll only when the push stream is down.
-const DISCONNECTED_ACTIVE_POLL_MS = 1000;
-const DISCONNECTED_IDLE_POLL_MS = 8000;
-// Safety net while SSE claims connected: catches silent streams and multi-tab
-// starts without opening the drawer or switching tabs.
-const CONNECTED_ACTIVE_POLL_MS = 3000;
-const CONNECTED_IDLE_POLL_MS = 15000;
+export const DISCONNECTED_ACTIVE_POLL_MS = 1000;
+export const DISCONNECTED_IDLE_POLL_MS = 8000;
+// Reconciliation while the stream is up. Push covers progress; this covers what push
+// cannot: a deleted job (which publishes nothing at all) and a dropped terminal frame,
+// which is the last one a job ever sends and so is never restated.
+export const CONNECTED_ACTIVE_POLL_MS = 15000;
+export const CONNECTED_IDLE_POLL_MS = 60000;
+// A hidden tab has given up its stream on purpose. Without this it would read as
+// "disconnected" and poll on the fast cadence - the opposite of what is wanted, and
+// worse than before it dropped the stream.
+export const HIDDEN_POLL_MS = 60000;
+
+function jobsPollDelay(streamConnected: boolean, hasActiveJobs: boolean): number {
+  if (document.visibilityState !== "visible") return HIDDEN_POLL_MS;
+  if (streamConnected) return hasActiveJobs ? CONNECTED_ACTIVE_POLL_MS : CONNECTED_IDLE_POLL_MS;
+  return hasActiveJobs ? DISCONNECTED_ACTIVE_POLL_MS : DISCONNECTED_IDLE_POLL_MS;
+}
 
 type ExternalJobsSnapshot = {
   jobs: ExternalOstrisJob[];
@@ -86,7 +97,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [externalJobs, setExternalJobs] = useState<ExternalOstrisJob[]>([]);
   const [ostrisAvailable, setOstrisAvailable] = useState(false);
-  const [streamConnected, setStreamConnected] = useState(false);
+  const streamConnected = useStreamConnected();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [startingJob, setStartingJob] = useState<StartingJob | null>(null);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
@@ -170,39 +181,30 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     [jobs, externalJobs],
   );
 
+  useServerEvent((event) => {
+    if (event.type === "job") {
+      pushedDuringRefreshRef.current.set(event.job.id, event.job);
+      setJobs((current) => upsertJob(current, event.job));
+      return;
+    }
+
+    // Matched explicitly rather than as an else: an unrecognised frame must be inert,
+    // not read as an external-jobs one. Reading it as one sets `externalJobs` to
+    // undefined, which throws in `activeCount` below and takes the whole provider down.
+    if (event.type === "external_jobs") {
+      setExternalJobs(event.jobs);
+      setOstrisAvailable(event.available);
+    }
+  });
+
   useEffect(() => {
-    let cancelled = false;
+    // A fresh connection may have missed changes while it was down, and the stream
+    // carries no history, so start again from the full state.
+    if (streamConnected) void refreshAllJobs();
+  }, [streamConnected, refreshAllJobs]);
 
-    const unsubscribe = subscribeToServerEvents({
-      onEvent: (event) => {
-        if (cancelled) return;
-
-        if (event.type === "job") {
-          pushedDuringRefreshRef.current.set(event.job.id, event.job);
-          setJobs((current) => upsertJob(current, event.job));
-          return;
-        }
-
-        setExternalJobs(event.jobs);
-        setOstrisAvailable(event.available);
-      },
-      onConnectedChange: (connected) => {
-        if (cancelled) return;
-        setStreamConnected(connected);
-        // A fresh connection may have missed changes while it was down, and the
-        // stream carries no history, so start again from the full state.
-        if (connected) void refreshAllJobs();
-      },
-    });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [refreshAllJobs]);
-
-  // Always poll: fast when the stream is down (or not open yet), slow while it is
-  // connected so a silent EventSource cannot freeze the badge/drawer forever.
+  // Always poll: fast when the stream is down, slow while it is up. Push cannot be the
+  // only source - see the cadence constants for what it misses.
   useEffect(() => {
     let cancelled = false;
     let timeoutId = 0;
@@ -213,20 +215,10 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         const hasActiveJobs =
           response.internal.active_count > 0 || response.external.active_count > 0;
-        const delay = streamConnected
-          ? hasActiveJobs
-            ? CONNECTED_ACTIVE_POLL_MS
-            : CONNECTED_IDLE_POLL_MS
-          : hasActiveJobs
-            ? DISCONNECTED_ACTIVE_POLL_MS
-            : DISCONNECTED_IDLE_POLL_MS;
-        timeoutId = window.setTimeout(poll, delay);
+        timeoutId = window.setTimeout(poll, jobsPollDelay(streamConnected, hasActiveJobs));
       } catch {
         if (cancelled) return;
-        timeoutId = window.setTimeout(
-          poll,
-          streamConnected ? CONNECTED_IDLE_POLL_MS : DISCONNECTED_IDLE_POLL_MS,
-        );
+        timeoutId = window.setTimeout(poll, jobsPollDelay(streamConnected, false));
       }
     };
 

@@ -7,10 +7,11 @@ whatever it describes.
 
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 import events
+from schemas import HeartbeatEvent
 
 router = APIRouter()
 
@@ -20,9 +21,13 @@ HEARTBEAT_SECONDS = 20.0
 
 
 @router.get("/events")
-async def stream_events() -> StreamingResponse:
+async def stream_events(
+    tab: str = Query("", description="Caller's tab id, so folder events can be addressed to it."),
+) -> StreamingResponse:
+    heartbeat = f"data: {HeartbeatEvent().model_dump_json()}\n\n"
+
     async def generate():
-        with events.subscribe() as subscriber:
+        with events.subscribe(tab) as subscriber:
             # Opens the response immediately, so the client's `open` fires before the
             # first real event rather than whenever work happens to start.
             yield ": connected\n\n"
@@ -30,7 +35,9 @@ async def stream_events() -> StreamingResponse:
             while True:
                 event = await subscriber.next_event(HEARTBEAT_SECONDS)
                 if event is None:
-                    yield ": keep-alive\n\n"
+                    # A real frame rather than an SSE comment: comments never reach
+                    # `onmessage`, so a client cannot tell a quiet stream from a dead one.
+                    yield heartbeat
                     continue
                 yield f"data: {json.dumps(event)}\n\n"
 

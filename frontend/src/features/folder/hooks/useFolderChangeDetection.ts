@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef } from "react";
 import { fetchFolderChanges, fetchFolderFingerprint } from "@/features/folder/api/folderContents";
+import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { isFolderNotFoundError } from "@/shared/api/http";
+import { useServerEvent } from "@/shared/events/serverEvents";
 import type { FolderChangesResponse } from "@/shared/types";
 
-const VISIBLE_POLL_MS = 3000;
-const HIDDEN_POLL_MS = 30000;
-const RELOAD_DEBOUNCE_MS = 1500;
+// The server watches the open folder and pushes its fingerprint, so these are a
+// backstop for the cases push cannot cover: a stream that is down, and a tab that has
+// deliberately given its stream up while hidden.
+export const VISIBLE_POLL_MS = 30000;
+export const HIDDEN_POLL_MS = 60000;
+export const RELOAD_DEBOUNCE_MS = 1500;
 
 export type UseFolderChangeDetectionOptions = {
   /** Skip folder reloads while a job is mutating the current folder. */
@@ -33,6 +38,8 @@ export function useFolderChangeDetection(
   const reloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingFingerprintRef = useRef<string | null>(null);
   const missingFolderHandledRef = useRef(false);
+  const checkInFlightRef = useRef(false);
+  const checkAgainRef = useRef(false);
 
   useEffect(() => {
     if (knownFingerprint) {
@@ -127,6 +134,9 @@ export function useFolderChangeDetection(
   const checkForChanges = useCallback(async () => {
     if (!folderPath || !enabled) return;
 
+    // `previous` is read here and never overwritten before the request goes out: it is
+    // the baseline the server diffs against, so adopting the newer fingerprint first
+    // would make every check answer `full` and turn each delta into a whole reload.
     const previous = fingerprintRef.current;
 
     try {
@@ -174,6 +184,47 @@ export function useFolderChangeDetection(
     scheduleReload,
     suspendReloads,
   ]);
+
+  /** `checkForChanges`, serialised so overlapping pushes cannot pile up requests. */
+  const runCheck = useCallback(async () => {
+    checkInFlightRef.current = true;
+    try {
+      do {
+        checkAgainRef.current = false;
+        await checkForChanges();
+      } while (checkAgainRef.current);
+    } finally {
+      checkInFlightRef.current = false;
+    }
+  }, [checkForChanges]);
+
+  useServerEvent((event) => {
+    if (event.type !== "folder" || !folderPath || !enabled) return;
+    // `foldersMatch` rather than `===`: the watcher keys folders in a folded form, and
+    // a tab that has just navigated can still be sent one event for its old folder.
+    if (!foldersMatch(event.path, folderPath)) return;
+
+    // The pushed fingerprint is only ever used to decide whether to ask, never as the
+    // baseline to ask with.
+    if (event.fingerprint === fingerprintRef.current) return;
+
+    if (suspendReloads) {
+      // A job rewriting this folder pushes about once a second. It would be answered
+      // with a request that is then thrown away, so take the fingerprint from the
+      // event and ask nothing at all.
+      fingerprintRef.current = event.fingerprint;
+      return;
+    }
+
+    if (checkInFlightRef.current) {
+      // The open request was answered before this change landed, so run once more
+      // rather than waiting on the backstop poll.
+      checkAgainRef.current = true;
+      return;
+    }
+
+    void runCheck();
+  });
 
   useEffect(() => {
     missingFolderHandledRef.current = false;

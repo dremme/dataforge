@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ServerEvent } from "@/shared/types";
 import { job } from "@/test/fixtures";
-import { subscribeToServerEvents } from "./eventStream";
+import { serverEventsTabId, subscribeToServerEvents } from "./eventStream";
 
 /** Minimal stand-in for the browser's EventSource, which jsdom does not implement. */
 class FakeEventSource {
@@ -38,7 +38,9 @@ describe("subscribeToServerEvents", () => {
 
     subscribeToServerEvents({ onEvent: vi.fn(), onConnectedChange });
 
-    expect(source().url).toBe("/api/events");
+    // The tab id is what lets the server address folder events to the tab actually
+    // viewing that folder, so it has to be on the stream's own URL.
+    expect(source().url).toBe(`/api/events?tab=${serverEventsTabId()}`);
 
     source().onopen!();
     expect(onConnectedChange).toHaveBeenLastCalledWith(true);

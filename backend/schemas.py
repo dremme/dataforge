@@ -507,11 +507,38 @@ class ExternalJobsEvent(BaseModel):
     available: bool = False
 
 
+class HeartbeatEvent(BaseModel):
+    """Proof the stream is still alive, sent only when it has been idle.
+
+    A real event rather than an SSE comment because a comment does not reach
+    ``onmessage``, leaving a client unable to tell a working-but-quiet stream from one
+    that has silently stopped delivering.
+    """
+
+    type: Literal["heartbeat"] = "heartbeat"
+
+
+class FolderEvent(BaseModel):
+    """A watched folder's contents changed on disk.
+
+    Carries the new fingerprint rather than the change itself: each client diffs
+    against its own baseline, so only the client can ask for a delta that is correct
+    for it. ``fingerprint`` is empty when the folder became unreadable.
+    """
+
+    type: Literal["folder"] = "folder"
+    path: str
+    fingerprint: str = ""
+
+
 #: Everything ``/api/events`` pushes.
 #:
 #: Every event carries a complete current snapshot of what it describes, never a delta,
 #: so a client that misses one loses nothing once the next arrives.
-type ServerEvent = Annotated[JobEvent | ExternalJobsEvent, Field(discriminator="type")]
+type ServerEvent = Annotated[
+    JobEvent | ExternalJobsEvent | HeartbeatEvent | FolderEvent,
+    Field(discriminator="type"),
+]
 
 #: Wire types no route mentions, so ``app.openapi()`` cannot reach them on its own.
 #: ``scripts/generate_types.py`` merges these in by hand. ``JobType`` and ``JobStatus``

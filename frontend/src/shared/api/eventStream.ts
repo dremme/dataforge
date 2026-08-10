@@ -1,5 +1,34 @@
+import { readStored, writeStored } from "@/shared/lib/storage";
 import type { ServerEvent } from "@/shared/types";
 import { isServerEvent } from "@/shared/wireGuards";
+
+const TAB_ID_KEY = "server-events-tab";
+
+let cachedTabId: string | null = null;
+
+/**
+ * This tab's identity on the push channel, so the server can address folder events
+ * to the tab that is actually looking at that folder.
+ *
+ * `sessionStorage` is per-tab and survives a reload. The module-level memo is what
+ * makes the id stable when storage is unavailable, where every read would otherwise
+ * mint a new one.
+ */
+export function serverEventsTabId(): string {
+  if (cachedTabId) return cachedTabId;
+
+  const stored = readStored(TAB_ID_KEY, "session");
+  if (stored) {
+    cachedTabId = stored;
+    return stored;
+  }
+
+  const minted =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  writeStored(TAB_ID_KEY, minted, "session");
+  cachedTabId = minted;
+  return minted;
+}
 
 export interface ServerEventHandlers {
   onEvent: (event: ServerEvent) => void;
@@ -21,7 +50,7 @@ export function subscribeToServerEvents({
     return () => {};
   }
 
-  const source = new EventSource("/api/events");
+  const source = new EventSource(`/api/events?tab=${encodeURIComponent(serverEventsTabId())}`);
   let warnedOnMismatch = false;
 
   source.onopen = () => onConnectedChange(true);

@@ -107,7 +107,27 @@ class EventStreamTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(lambda: asyncio.ensure_future(frames.aclose()))
 
             self.assertEqual(await anext(frames), ": connected\n\n")
-            self.assertEqual(await anext(frames), ": keep-alive\n\n")
+            # A data frame, not a comment: a comment never reaches the client's
+            # ``onmessage``, so it cannot be used to tell a quiet stream from a dead one.
+            frame = await anext(frames)
+            self.assertEqual(json.loads(frame.removeprefix("data: ")), {"type": "heartbeat"})
+
+    async def test_folder_events_only_reach_the_tab_that_asked_for_that_folder(self) -> None:
+        response = await stream_events(tab="tab-a")
+        frames = response.body_iterator
+        self.addCleanup(lambda: asyncio.ensure_future(frames.aclose()))
+        self.assertEqual(await anext(frames), ": connected\n\n")
+
+        events.publish_to_tabs(["tab-b"], {"type": "folder", "path": "C:\\Other"})
+        events.publish_to_tabs(["tab-a"], {"type": "folder", "path": "C:\\Photos"})
+
+        # The first frame to arrive is the one addressed here: the other tab's event was
+        # never queued, rather than queued and skipped.
+        frame = await anext(frames)
+        self.assertEqual(
+            json.loads(frame.removeprefix("data: ")),
+            {"type": "folder", "path": "C:\\Photos"},
+        )
 
 
 if __name__ == "__main__":

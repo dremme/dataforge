@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
+import folder_watch
 from filesystem import resolve_initial_folder
 from folder_contents import (
     build_folder_changes,
@@ -22,6 +23,8 @@ router = APIRouter()
 
 JSON_MEDIA_TYPE = "application/json"
 
+TAB_QUERY = Query("", description="Caller's tab id, so this folder is watched for it")
+
 
 def _folder_payload(folder: Path) -> str:
     # Serializing on the worker thread keeps a multi-megabyte folder from tying up
@@ -37,8 +40,13 @@ def _folder_payload(folder: Path) -> str:
 )
 async def read_folder_contents(
     path: str | None = Query(None, description="Folder to list; defaults to last or home"),
+    tab: str = TAB_QUERY,
 ) -> Response:
     folder = resolve_initial_folder(path)
+    # Asking for a folder is what registers interest in it, so there is no separate
+    # registration to race with a navigation. Keyed off the resolved folder because
+    # ``path`` may be absent here.
+    folder_watch.touch(tab, str(folder))
     payload = await asyncio.to_thread(_folder_payload, folder)
     return Response(content=payload, media_type=JSON_MEDIA_TYPE)
 
@@ -54,7 +62,9 @@ async def read_subfolder_stats(
 @router.get("/folders/fingerprint", response_model=FolderFingerprintResponse)
 async def read_folder_fingerprint(
     path: str = Query(..., description="Folder to fingerprint"),
+    tab: str = TAB_QUERY,
 ) -> FolderFingerprintResponse:
+    folder_watch.touch(tab, path)
     folder = resolve_folder(path)
     fingerprint = await asyncio.to_thread(compute_folder_fingerprint, folder)
     if fingerprint is None:
@@ -69,6 +79,10 @@ async def read_folder_changes(
         "",
         description="Fingerprint of the listing to diff against; an unknown one answers full",
     ),
+    tab: str = TAB_QUERY,
 ) -> FolderChangesResponse:
+    # Before resolving: a folder that has just vanished still needs to stay watched
+    # long enough for the client to be told it is gone.
+    folder_watch.touch(tab, path)
     folder = resolve_folder(path)
     return await asyncio.to_thread(build_folder_changes, folder, since)

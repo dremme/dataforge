@@ -8,7 +8,11 @@ vi.mock("@/shared/api/http", () => ({
   requestJson: requestJsonMock,
 }));
 
+import { serverEventsTabId } from "@/shared/api/eventStream";
 import { fetchFolder, fetchFolderFingerprint, fetchSubfolderStats } from "./folderContents";
+
+/** Every folder request carries it: that is what registers this tab's interest. */
+const tab = () => `tab=${serverEventsTabId()}`;
 
 describe("folder API", () => {
   afterEach(() => {
@@ -20,7 +24,9 @@ describe("folder API", () => {
 
     await fetchFolder();
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/contents", { signal: undefined });
+    expect(requestJsonMock).toHaveBeenCalledWith(`/api/folders/contents?${tab()}`, {
+      signal: undefined,
+    });
   });
 
   it("fetches a specific folder", async () => {
@@ -29,7 +35,7 @@ describe("folder API", () => {
     await fetchFolder("C:\\Photos\\Vacation");
 
     expect(requestJsonMock).toHaveBeenCalledWith(
-      "/api/folders/contents?path=C%3A%5CPhotos%5CVacation",
+      `/api/folders/contents?path=C%3A%5CPhotos%5CVacation&${tab()}`,
       {
         signal: undefined,
       },
@@ -41,9 +47,10 @@ describe("folder API", () => {
 
     await fetchFolderFingerprint("C:\\Photos");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/fingerprint?path=C%3A%5CPhotos", {
-      signal: undefined,
-    });
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      `/api/folders/fingerprint?path=C%3A%5CPhotos&${tab()}`,
+      { signal: undefined },
+    );
   });
 
   it("fetches subfolder stats for a folder", async () => {
@@ -65,8 +72,11 @@ describe("folder API", () => {
 
     await fetchFolder("C:\\Photos", controller.signal);
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/contents?path=C%3A%5CPhotos", {
-      signal: controller.signal,
-    });
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      `/api/folders/contents?path=C%3A%5CPhotos&${tab()}`,
+      {
+        signal: controller.signal,
+      },
+    );
   });
 });

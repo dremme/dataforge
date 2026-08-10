@@ -1,3 +1,4 @@
+import { serverEventsTabId } from "@/shared/api/eventStream";
 import { requestJson } from "@/shared/api/http";
 import type {
   FolderChangesResponse,
@@ -6,15 +7,23 @@ import type {
   SubfolderStatsResponse,
 } from "@/shared/types";
 
+/**
+ * Asking about a folder is what tells the server this tab is looking at it, which is
+ * how folder events find their way back to the right tab. There is no separate
+ * registration to fall out of step with where the user actually is.
+ */
+function folderParams(folderPath?: string): URLSearchParams {
+  const params = new URLSearchParams();
+  if (folderPath) params.set("path", folderPath);
+  params.set("tab", serverEventsTabId());
+  return params;
+}
+
 export async function fetchFolder(
   folderPath?: string,
   signal?: AbortSignal,
 ): Promise<FolderResponse> {
-  const params = new URLSearchParams();
-  if (folderPath) params.set("path", folderPath);
-
-  const query = params.toString();
-  return requestJson<FolderResponse>(`/api/folders/contents${query ? `?${query}` : ""}`, {
+  return requestJson<FolderResponse>(`/api/folders/contents?${folderParams(folderPath)}`, {
     signal,
   });
 }
@@ -23,7 +32,7 @@ export async function fetchFolderFingerprint(
   folderPath: string,
   signal?: AbortSignal,
 ): Promise<FolderFingerprintResponse> {
-  const params = new URLSearchParams({ path: folderPath });
+  const params = folderParams(folderPath);
   return requestJson<FolderFingerprintResponse>(`/api/folders/fingerprint?${params}`, { signal });
 }
 
@@ -38,7 +47,8 @@ export async function fetchFolderChanges(
   since: string,
   signal?: AbortSignal,
 ): Promise<FolderChangesResponse> {
-  const params = new URLSearchParams({ path: folderPath, since });
+  const params = folderParams(folderPath);
+  params.set("since", since);
   return requestJson<FolderChangesResponse>(`/api/folders/changes?${params}`, { signal });
 }
 
