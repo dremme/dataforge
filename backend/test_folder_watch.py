@@ -35,6 +35,27 @@ class WatchRegistryTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(watchers), 1)
             self.assertEqual(next(iter(watchers.values())), {"tab-a", "tab-b"})
 
+    async def test_folders_differing_by_more_than_case_stay_separate(self) -> None:
+        # Full case folding maps "ß" onto "ss", which would make these one key: one of
+        # two real folders would stop being scanned, and the path published for the
+        # survivor would match neither tab's own folder.
+        with _fake_subscriber("tab-a"), _fake_subscriber("tab-b"):
+            folder_watch.touch("tab-a", "C:\\Stra\u00dfe")
+            folder_watch.touch("tab-b", "C:\\Strasse")
+
+            self.assertEqual(len(folder_watch.watchers_by_folder()), 2)
+
+    async def test_keying_an_already_keyed_path_changes_nothing(self) -> None:
+        # The published path is the key, and a client may well send it back.
+        key = folder_watch.watch_key("C:/Photos/")
+        self.assertEqual(folder_watch.watch_key(key), key)
+
+    async def test_a_blank_path_is_not_watched(self) -> None:
+        with _fake_subscriber("tab-a"):
+            folder_watch.touch("tab-a", "   ")
+
+            self.assertEqual(folder_watch.watchers_by_folder(), {})
+
     async def test_an_entry_expires_once_its_tab_stops_mentioning_it(self) -> None:
         with _fake_subscriber("tab-a"):
             folder_watch.touch("tab-a", "C:\\Photos")

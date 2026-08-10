@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import events
-from filesystem import normalize_user_path
+from filesystem import looks_like_windows_path, preference_folder_key
 from folder_fingerprint import compute_folder_fingerprint
 from schemas import FolderEvent
 
@@ -66,22 +66,38 @@ MAX_FOLDERS_PER_TAB = 3
 def watch_key(path: str) -> str:
     """One folder, one key, however the client happened to spell it.
 
-    ``normalize_user_path`` settles separators and the drive letter, but Windows is
-    case-insensitive the rest of the way too, so ``C:\\Photos`` and ``c:/photos`` are
-    the same directory and must not be scanned - or published - twice. POSIX is
+    Windows paths are case-insensitive and accept either separator, so ``C:\\Photos``
+    and ``c:/photos`` are the same directory and must not be scanned - or published -
+    twice. ``preference_folder_key`` settles the separators and the drive letter, and
+    keeps a Windows-shaped string Windows-shaped on any host: CI is Linux while fixtures
+    and Windows clients still send drive-letter paths, and ``normalize_user_path`` on
+    POSIX would read ``\\`` as part of a relative name. Real POSIX paths stay
     case-sensitive, where folding would merge two genuinely different folders.
+
+    ``lower`` and not ``casefold``: Windows compares with a simple upcase table, which is
+    also what ``os.path.normcase`` and the client's ``toLowerCase`` do. Full folding
+    makes ``Stra\u00dfe`` and ``Strasse`` one key, so one real folder would stop being
+    scanned and the other's published path would match no client.
+
+    Asked of the key rather than the argument, so the question is put to the string
+    actually being keyed and re-keying an already-keyed path is a no-op.
     """
-    normalized = str(normalize_user_path(path))
-    return normalized.casefold() if os.name == "nt" else normalized
+    key = preference_folder_key(path)
+    if os.name == "nt" or looks_like_windows_path(key):
+        return key.lower()
+    return key
 
 
 def touch(tab_id: str, path: str) -> None:
     """Record that ``tab_id`` is looking at ``path``."""
-    if not tab_id:
+    key = watch_key(path)
+    # A blank path keys to nothing, and watching nothing means scanning whatever the
+    # process happens to be running in and publishing a path no client can match.
+    if not tab_id or not key:
         return
 
     folders = _watches.setdefault(tab_id, {})
-    folders[watch_key(path)] = time.monotonic()
+    folders[key] = time.monotonic()
 
     if len(folders) > MAX_FOLDERS_PER_TAB:
         for folder in sorted(folders, key=folders.__getitem__)[:-MAX_FOLDERS_PER_TAB]:
