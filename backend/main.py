@@ -16,6 +16,7 @@ from folder_watch import run_folder_watch_feed
 from logging_config import configure_logging
 from routes import router
 from server_settings import get_cors_origins
+from static_site import mount_ui
 from thumbnails import prune_thumbnail_cache
 
 CORS_ORIGINS = get_cors_origins()
@@ -59,3 +60,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+# After the router: the mount answers "/" and everything below it, so the API has to
+# claim its paths first.
+mount_ui(app)

@@ -12,6 +12,7 @@ from server_settings import (
     get_api_port,
     get_cors_origins,
     get_ui_port,
+    serve_ui_enabled,
 )
 
 
@@ -49,6 +50,24 @@ class ServerSettingsTests(unittest.TestCase):
                 get_cors_origins(),
                 ("http://localhost:9000", "http://127.0.0.1:9000"),
             )
+
+    def test_serve_ui_is_off_by_default(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(serve_ui_enabled())
+
+    def test_serve_ui_reads_the_flag(self) -> None:
+        for raw, expected in (
+            ("1", True),
+            ("true", True),
+            (" ON ", True),
+            ("0", False),
+            ("false", False),
+            ("off", False),
+            ("", False),
+        ):
+            with self.subTest(raw=raw):
+                with patch.dict(os.environ, {"DATAFORGE_SERVE_UI": raw}, clear=True):
+                    self.assertEqual(serve_ui_enabled(), expected)
 
 
 if __name__ == "__main__":

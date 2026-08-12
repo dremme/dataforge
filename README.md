@@ -37,29 +37,34 @@ and generates the frontend's view of the backend API — see [Generated frontend
 
 **2. Run** — double-click `start.bat`, or run `.\start.ps1` in PowerShell. The launcher:
 
-- Frees the dev ports first, if a previous run left a server behind
-- Opens the backend and frontend in separate consoles
-- Waits until the API answers `/api/health` and Vite is listening, *then* opens **http://localhost:8081**
-- Stays open as a supervisor — press any key in it to stop both servers
+- Builds the frontend when a source changed since the last build, and skips it otherwise
+- Frees the app port, if a previous run left a server behind
+- Starts **one** server in its own console, serving the bundled UI and the API together
+- Waits until it answers `/api/health`, *then* opens **http://localhost:8081**
+- Stays open as a supervisor — press any key in it to stop the server
 
-The API listens on **http://localhost:8080** and Vite proxies `/api` to it. Both ports are configurable; see [Dev server ports](#dev-server-ports).
+Everything is served from a single origin on **http://localhost:8081** — no proxy hop, no hot-reload machinery.
+The first launch spends a minute or two on the frontend build; later ones start in seconds.
+The port is configurable; see [Server ports](#server-ports).
 
 **3. Optional AI config** — copy `.env.example` to `.env` in the project root and set the `OPENAI_*` variables.
 The backend loads `.env` automatically on startup. See [Configuration](#configuration).
 
 **4. Daily use** — only `start.bat` is needed from then on. Re-run `setup.bat` to refresh dependencies.
 
-To stop the servers: press any key in the launcher window, hit **Ctrl+C** in each console, or run `stop.bat`.
-`stop.bat` also clears a uvicorn reload child left behind by closing a console with the X button.
+To stop the server: press any key in the launcher window, hit **Ctrl+C** in the server console, or run `stop.bat`.
+`stop.bat` also clears a server left behind by closing a console with the X button.
 
 `start.bat` passes flags through to `start.ps1`:
 
 | Flag | Effect |
 | --- | --- |
-| `-BackendOnly` / `-FrontendOnly` | Start just one server |
+| `-Rebuild` | Build the frontend even when it looks up to date |
+| `-NoBuild` | Never build; serve whatever is already in `frontend/dist` |
 | `-NoBrowser` | Do not open the browser |
-| `-NoReload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
-| `-Detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` |
+| `-Detach` | Exit once the server is ready instead of supervising; stop it later with `stop.bat` |
+
+Working on DataForge itself? Use `dev.bat` instead — see [Running with hot reload](#running-with-hot-reload).
 
 ### Linux, macOS, or a global Python/Node
 
@@ -71,21 +76,16 @@ python -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 cd frontend && npm install && cd ..
 
-# Required before the frontend will start — see "Generated frontend code"
+# Required before the frontend will build — see "Generated frontend code"
 backend/.venv/bin/python scripts/generate_types.py
 
-# Terminal 1 — API
-backend/.venv/bin/python scripts/dev_server.py
-
-# Terminal 2 — UI
-cd frontend && npm run dev
+# Build the UI, then serve both halves from one process
+cd frontend && npm run build && cd ..
+backend/.venv/bin/python scripts/prod_server.py
 ```
 
-Then open **http://localhost:8081**.
-
-On Windows, `start-backend.ps1` and `start-frontend.ps1` run a single server in the current terminal and prefer
-`.python` / `.node` when present. They share `scripts/dev-common.ps1` with `start.ps1` / `stop.ps1`, so port cleanup
-and the dependency-drift warning behave identically everywhere.
+Then open **http://localhost:8081**. Re-run `npm run build` after changing frontend sources —
+`prod_server.py` serves whatever is in `frontend/dist`.
 
 ### Try the sample dataset
 
@@ -195,18 +195,21 @@ On startup the backend loads the **first** file that exists:
 OS and shell environment variables always win over the file. `.env` is gitignored — copy
 [`.env.example`](.env.example) to get started, and restart the backend after editing.
 
-### Dev server ports
+### Server ports
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATAFORGE_API_PORT` | `8080` | Port the API binds. Also the Vite `/api` proxy target, and the port the launchers free and probe |
-| `DATAFORGE_UI_PORT` | `8081` | Port the Vite dev server binds. Also drives the backend CORS allowlist |
-| `DATAFORGE_API_HOST` | `127.0.0.1` | Interface the API binds (`scripts/dev_server.py` only) |
+| `DATAFORGE_UI_PORT` | `8081` | The port you open. Production binds it for the UI *and* the API; in development Vite binds it, and it drives the backend CORS allowlist |
+| `DATAFORGE_API_PORT` | `8080` | **Development only** — port the API binds, and the Vite `/api` proxy target |
+| `DATAFORGE_API_HOST` | `127.0.0.1` | Interface the server binds (`scripts/dev_server.py` and `scripts/prod_server.py`) |
+
+Production serves both halves from one process, so `DATAFORGE_API_PORT` is never bound there and CORS
+never applies.
 
 All four readers — [`frontend/vite.config.ts`](frontend/vite.config.ts), [`backend/server_settings.py`](backend/server_settings.py),
 [`scripts/dev_server.py`](scripts/dev_server.py), and [`scripts/dev-common.ps1`](scripts/dev-common.ps1) — resolve these
 from the same project-root `.env`, and an OS environment variable overrides the file in each.
-Restart both servers after a change; Vite reads its port once at startup.
+Restart the servers after a change; Vite reads its port once at startup.
 
 ### Vision LLM
 
@@ -285,8 +288,39 @@ DataForge at one of those servers.
 | `DATAFORGE_THUMBNAIL_CACHE` | Override the thumbnail cache directory |
 | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | Thumbnail cache size ceiling (default `2048`). Least recently used entries are dropped past it; `0` never deletes |
 | `DATAFORGE_LOG_LEVEL` | Backend log level (default `INFO`) |
+| `DATAFORGE_SERVE_UI` | Serve `frontend/dist` at `/`. Set automatically by `scripts/prod_server.py`; leave it unset for development |
 
 ## Development
+
+### Running with hot reload
+
+`dev.bat` (or `.\dev.ps1`) is the development launcher. It opens **two** consoles — the API with the uvicorn
+reloader on **http://localhost:8080** and the Vite dev server on **http://localhost:8081**, with Vite proxying
+`/api` to the API — waits until both are serving, then opens the browser and supervises them. Separate windows
+keep uvicorn's reload output from stepping on Vite's.
+
+| Flag | Effect |
+| --- | --- |
+| `-BackendOnly` / `-FrontendOnly` | Start just one server |
+| `-NoBrowser` | Do not open the browser |
+| `-NoReload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
+| `-Detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` |
+
+`start-backend.ps1` and `start-frontend.ps1` run a single dev server in the current terminal and prefer
+`.python` / `.node` when present. All of them share `scripts/dev-common.ps1` with `dev.ps1`, `start.ps1`, and
+`stop.ps1`, so port cleanup and the dependency-drift warning behave identically everywhere.
+
+On Linux or macOS, run the two halves yourself from the project root:
+
+```bash
+# Terminal 1 — API
+backend/.venv/bin/python scripts/dev_server.py
+
+# Terminal 2 — UI
+cd frontend && npm run dev
+```
+
+`stop.bat` frees both ports and covers either launcher.
 
 ### Tech stack
 
@@ -303,15 +337,17 @@ DataForge/
 │   ├── data/          # Local SQLite + thumbnails (gitignored)
 │   └── routes/        # HTTP API
 ├── frontend/          # React + TypeScript + Vite UI
+│   ├── dist/          # Production build output (gitignored)
 │   └── src/shared/    # types.ts, constants.ts, wireGuards.ts are generated (gitignored)
-├── scripts/           # Dev server, launcher helpers, lint, tests, git hooks
+├── scripts/           # Dev + prod servers, launcher helpers, lint, tests, git hooks
 ├── .github/workflows/ # CI (run_checks.py)
 ├── sample-images/     # Tiny example dataset
 ├── .env.example       # Sample env vars: ports, AI config (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
 ├── setup.bat          # Windows self-contained install
-├── start.bat / .ps1   # Launchers
-├── stop.bat / .ps1    # Frees the dev ports
+├── start.bat / .ps1   # Production launcher - builds the UI, serves both halves
+├── dev.bat / .ps1     # Dev launcher - two servers with hot reload
+├── stop.bat / .ps1    # Frees the ports
 ├── SECURITY.md
 └── LICENSE            # Apache-2.0
 ```
@@ -343,6 +379,8 @@ Windows, `backend/.venv/bin/python` on Unix:
 | Task | Command |
 | --- | --- |
 | API with hot reload | `python scripts/dev_server.py` — accepts `--no-reload`, `--port`, `--host` |
+| Production server | `python scripts/prod_server.py` — accepts `--port`, `--host`, `--access-log`; needs a build |
+| Build the UI | `cd frontend && npm run build` — typechecks, then writes `frontend/dist` |
 | Full checks | `python scripts/run_checks.py` — the same suite CI runs |
 | Regenerate API types | `python scripts/generate_types.py` — see [Generated frontend code](#generated-frontend-code) |
 | Backend lint | `python scripts/run_lint.py` — add `--fix` to auto-fix |

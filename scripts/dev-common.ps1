@@ -1,4 +1,4 @@
-# Shared helpers for the DataForge dev launchers (start.ps1, stop.ps1,
+# Shared helpers for the DataForge launchers (dev.ps1, start.ps1, stop.ps1,
 # start-backend.ps1, start-frontend.ps1). Dot-source it:
 #
 #   . (Join-Path $PSScriptRoot 'scripts\dev-common.ps1')
@@ -91,6 +91,8 @@ $DevUiPort = Get-DevPort -Name 'DATAFORGE_UI_PORT' -EnvMap $DevEnvMap -Default 8
 $DevApiUrl = 'http://127.0.0.1:{0}' -f $DevApiPort
 $DevUiUrl = 'http://127.0.0.1:{0}' -f $DevUiPort
 $DevHealthUrl = '{0}/api/health' -f $DevApiUrl
+# Production serves both halves on the UI port, so its health check lives there.
+$DevAppHealthUrl = '{0}/api/health' -f $DevUiUrl
 
 function Get-DevPaths {
     <#
@@ -100,12 +102,14 @@ function Get-DevPaths {
     #>
     $root = Split-Path -Parent $PSScriptRoot
     [pscustomobject]@{
-        Root      = $root
-        Backend   = Join-Path $root 'backend'
-        Frontend  = Join-Path $root 'frontend'
-        Scripts   = Join-Path $root 'scripts'
-        VenvPy    = Join-Path $root 'backend\.venv\Scripts\python.exe'
-        DevServer = Join-Path $root 'scripts\dev_server.py'
+        Root       = $root
+        Backend    = Join-Path $root 'backend'
+        Frontend   = Join-Path $root 'frontend'
+        Scripts    = Join-Path $root 'scripts'
+        Dist       = Join-Path $root 'frontend\dist'
+        VenvPy     = Join-Path $root 'backend\.venv\Scripts\python.exe'
+        DevServer  = Join-Path $root 'scripts\dev_server.py'
+        ProdServer = Join-Path $root 'scripts\prod_server.py'
     }
 }
 
@@ -119,11 +123,15 @@ function Get-NpmCommand {
     return 'npm.cmd'
 }
 
+# Generated from backend/schemas.py and backend/constants.py, gitignored, and two of
+# them carry real values - so the frontend neither starts nor builds without them.
+$DevGeneratedSources = @('types.ts', 'constants.ts', 'wireGuards.ts')
+
 function Test-DevPrerequisites {
     <#
     .SYNOPSIS
-      Verifies the venv and node_modules exist. Prints what to run and returns
-      $false when something is missing.
+      Verifies the venv, node_modules, and generated frontend sources exist. Prints
+      what to run and returns $false when something is missing.
     #>
     param(
         [switch]$SkipBackend,
@@ -147,6 +155,18 @@ function Test-DevPrerequisites {
         Write-Host '          cd frontend'
         Write-Host '          npm install'
         $ok = $false
+    }
+
+    if (-not $SkipFrontend) {
+        $missing = @($DevGeneratedSources | Where-Object {
+                -not (Test-Path (Join-Path $paths.Frontend ('src\shared\{0}' -f $_)))
+            })
+        if ($missing.Count -gt 0) {
+            Write-Host ('[ERROR] Generated frontend sources missing: {0}.' -f ($missing -join ', ')) -ForegroundColor Red
+            Write-Host '        Run setup.bat from the project root, or:'
+            Write-Host '          backend\.venv\Scripts\python scripts\generate_types.py'
+            $ok = $false
+        }
     }
 
     return $ok
@@ -197,6 +217,107 @@ function Test-DependencyDrift {
     }
 
     return $stale
+}
+
+# Written only after a build that actually succeeded, the way setup.bat dates its
+# pip install. Keying freshness off dist\index.html instead would trust a half
+# finished or hand-made dist.
+$DevBuildStampName = '.dataforge-build-stamp'
+
+# Everything vite build reads. src\ is recursive and covers the generated
+# src\shared files, so regenerating the API contract also marks the build stale.
+$DevBuildInputDirs = @('src', 'public')
+$DevBuildInputFiles = @('index.html', 'package.json', 'package-lock.json', 'vite.config.ts')
+$DevBuildInputPatterns = @('tsconfig*.json')
+
+function Get-FrontendSourceStamp {
+    <#
+    .SYNOPSIS
+      The newest write time across every input to a frontend build, or $null when
+      none of them exist.
+    #>
+    $paths = Get-DevPaths
+    $newest = $null
+
+    $items = @()
+    foreach ($dir in $DevBuildInputDirs) {
+        $full = Join-Path $paths.Frontend $dir
+        if (Test-Path $full) { $items += @(Get-ChildItem -LiteralPath $full -Recurse -File -ErrorAction SilentlyContinue) }
+    }
+    foreach ($file in $DevBuildInputFiles) {
+        $full = Join-Path $paths.Frontend $file
+        if (Test-Path -LiteralPath $full -PathType Leaf) { $items += @(Get-Item -LiteralPath $full) }
+    }
+    foreach ($pattern in $DevBuildInputPatterns) {
+        $items += @(Get-ChildItem -Path (Join-Path $paths.Frontend $pattern) -File -ErrorAction SilentlyContinue)
+    }
+
+    foreach ($item in $items) {
+        if ($null -eq $newest -or $item.LastWriteTimeUtc -gt $newest) { $newest = $item.LastWriteTimeUtc }
+    }
+    return $newest
+}
+
+function Test-DistFresh {
+    <#
+    .SYNOPSIS
+      Whether frontend\dist was built after the last source change.
+
+    .DESCRIPTION
+      A tie counts as stale: Windows write times are coarse enough that a source
+      saved in the same tick as the stamp would otherwise be missed, and rebuilding
+      once too often is the cheaper mistake.
+    #>
+    $paths = Get-DevPaths
+    $stamp = Join-Path $paths.Dist $DevBuildStampName
+    if (-not (Test-Path -LiteralPath $stamp -PathType Leaf)) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $paths.Dist 'index.html') -PathType Leaf)) { return $false }
+
+    $newestSource = Get-FrontendSourceStamp
+    if ($null -eq $newestSource) { return $true }
+
+    return (Get-Item -LiteralPath $stamp).LastWriteTimeUtc -gt $newestSource
+}
+
+function Invoke-FrontendBuild {
+    <#
+    .SYNOPSIS
+      Runs 'npm run build' in frontend\ and stamps the result. Returns $false when
+      the build failed.
+
+    .DESCRIPTION
+      Runs in the calling window rather than a spawned console: 'npm run build' is
+      typecheck plus vite build, so its failures are compiler errors the caller has
+      to read before deciding to abort.
+    #>
+    $paths = Get-DevPaths
+    $previous = Get-Location
+
+    Write-Host 'Building the frontend (npm run build)...'
+    Write-Host ''
+    try {
+        Set-Location -LiteralPath $paths.Frontend
+        # Out-Host, not a bare call: anything npm writes to stdout would otherwise
+        # join this function's return value and make even a failed build truthy.
+        & (Get-NpmCommand) run build | Out-Host
+        $exitCode = $LASTEXITCODE
+    } catch {
+        Write-Host ('[ERROR] Could not run npm: {0}' -f $_.Exception.Message) -ForegroundColor Red
+        return $false
+    } finally {
+        Set-Location -LiteralPath $previous
+    }
+
+    Write-Host ''
+    if ($exitCode -ne 0) {
+        Write-Host '[ERROR] Frontend build failed. Fix the errors above and try again.' -ForegroundColor Red
+        return $false
+    }
+
+    $stamp = Join-Path $paths.Dist $DevBuildStampName
+    Set-Content -LiteralPath $stamp -Value ((Get-Date).ToString('o')) -Encoding ASCII
+    Write-Host 'Frontend build complete.' -ForegroundColor Green
+    return $true
 }
 
 function Get-DevPortListener {

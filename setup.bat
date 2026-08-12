@@ -108,7 +108,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Dates the install so start.ps1 can warn when requirements.txt has moved on.
+:: Dates the install so the launchers can warn when requirements.txt has moved on.
 >"%ROOT%backend\.venv\.dataforge-deps-stamp" echo %DATE% %TIME%
 
 echo.
@@ -137,7 +137,8 @@ if errorlevel 1 (
 echo.
 echo ================================================
 echo Setup complete^!
-echo You can now run start.bat or start.ps1 from this folder.
+echo You can now run start.bat from this folder to launch the app,
+echo or dev.bat to develop it with hot reload.
 echo Everything - Python, Node, venvs, deps - is local to this project.
 echo No global Python or Node installation was required or modified.
 echo ================================================

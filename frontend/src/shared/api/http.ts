@@ -5,7 +5,7 @@ export const FOLDER_NOT_FOUND = {
 
 export const BACKEND_UNREACHABLE = {
   title: "Backend unreachable",
-  description: "Start the API server with start.bat or start-backend.ps1.",
+  description: "Start the API server with dev.bat or start-backend.ps1.",
 } as const;
 
 /** Matches the API `detail` field for missing folders. */

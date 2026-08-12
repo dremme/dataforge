@@ -1,46 +1,45 @@
 <#
 .SYNOPSIS
-  Launches the DataForge backend and frontend dev servers in two separate console
-  windows, waits until each is actually serving, then supervises them.
+  Runs DataForge in production mode: builds the frontend if needed, then serves the
+  bundled UI and the API from a single process.
 
 .DESCRIPTION
-  Separate windows keep the logs isolated, so uvicorn hot reload never disturbs
-  the Vite output. This launcher window stays open as a supervisor: press any key
-  in it to stop both servers cleanly, including the uvicorn reload child process
-  that a plain window-close would orphan.
+  One uvicorn process binds DATAFORGE_UI_PORT (default 8081) and answers both the
+  built UI at / and the API under /api. Same origin, so there is no proxy hop and no
+  CORS - and no reloader, so a long job is never restarted out from under itself.
 
-  Use this directly, or double-click start.bat for the same behavior.
+  The build is skipped when frontend\dist is newer than every frontend source, which
+  makes the usual launch near-instant. This window stays open as a supervisor: press
+  any key in it to stop the server cleanly.
 
-.PARAMETER BackendOnly
-  Start only the API (port from DATAFORGE_API_PORT, default 8080).
+  Use this directly, or double-click start.bat for the same behavior. For hot
+  reload while developing, use dev.ps1.
 
-.PARAMETER FrontendOnly
-  Start only the Vite dev server (port from DATAFORGE_UI_PORT, default 8081).
+.PARAMETER Rebuild
+  Build the frontend even when dist looks up to date.
+
+.PARAMETER NoBuild
+  Never build. Serves whatever is already in frontend\dist.
 
 .PARAMETER NoBrowser
-  Do not open the browser once the servers are ready.
-
-.PARAMETER NoReload
-  Run the API without uvicorn's reloader. Use this while a long job is running:
-  a reload re-runs job recovery and re-spawns worker threads mid-flight.
+  Do not open the browser once the server is ready.
 
 .PARAMETER Detach
-  Exit as soon as both servers are ready instead of supervising them. Stop them
-  later with stop.bat.
+  Exit as soon as the server is ready instead of supervising it. Stop it later with
+  stop.bat.
 
 .EXAMPLE
-  .\start.ps1 -NoReload
+  .\start.ps1
 
 .EXAMPLE
-  .\start.ps1 -BackendOnly -NoBrowser
+  .\start.ps1 -Rebuild -NoBrowser
 #>
 
 [CmdletBinding()]
 param(
-    [switch]$BackendOnly,
-    [switch]$FrontendOnly,
+    [switch]$Rebuild,
+    [switch]$NoBuild,
     [switch]$NoBrowser,
-    [switch]$NoReload,
     [switch]$Detach
 )
 
@@ -58,146 +57,95 @@ function Exit-Launcher {
     exit $Code
 }
 
-function Stop-DevServers {
-    param(
-        [System.Diagnostics.Process]$Backend,
-        [System.Diagnostics.Process]$Frontend
-    )
-
-    Write-Host ''
-    Write-Host 'Stopping dev servers...'
-    foreach ($proc in @($Backend, $Frontend)) {
-        if ($proc -and -not $proc.HasExited) {
-            Stop-DevTree -ProcessId $proc.Id
-        }
-    }
-
-    # Backstop: a console the user closed by hand leaves its server holding the
-    # port, and there is no PID left to walk down from.
-    if ($Backend) { Clear-DevPort -Port $DevApiPort -Label 'backend' | Out-Null }
-    if ($Frontend) { Clear-DevPort -Port $DevUiPort -Label 'frontend' | Out-Null }
-    Write-Host 'Stopped.'
-}
-
-if ($BackendOnly -and $FrontendOnly) {
-    Write-Host '[ERROR] -BackendOnly and -FrontendOnly cannot be combined.' -ForegroundColor Red
+if ($Rebuild -and $NoBuild) {
+    Write-Host '[ERROR] -Rebuild and -NoBuild cannot be combined.' -ForegroundColor Red
     Exit-Launcher
 }
 
-$startBackend = -not $FrontendOnly
-$startFrontend = -not $BackendOnly
 $paths = Get-DevPaths
 
 Write-Host '================================================'
-Write-Host '  Starting DataForge Dev Servers'
-if ($startBackend) { Write-Host ('  Backend  : {0}' -f $DevApiUrl) }
-if ($startFrontend) { Write-Host ('  Frontend : {0}' -f $DevUiUrl) }
+Write-Host '  Starting DataForge'
+Write-Host ('  App      : {0}' -f $DevUiUrl)
+Write-Host '  Mode     : production - bundled UI, no hot reload'
 Write-Host '================================================'
 Write-Host ''
 
-if (-not (Test-DevPrerequisites -SkipBackend:(-not $startBackend) -SkipFrontend:(-not $startFrontend))) {
-    Exit-Launcher
+if (-not (Test-DevPrerequisites)) { Exit-Launcher }
+Test-DependencyDrift | Out-Null
+
+if ($NoBuild) {
+    if (-not (Test-Path -LiteralPath (Join-Path $paths.Dist 'index.html') -PathType Leaf)) {
+        Write-Host '[ERROR] No frontend build in frontend\dist, and -NoBuild was passed.' -ForegroundColor Red
+        Write-Host '        Run start.bat without -NoBuild, or build it yourself:'
+        Write-Host '          cd frontend'
+        Write-Host '          npm run build'
+        Exit-Launcher
+    }
+    Write-Host 'Skipping the build (-NoBuild). Serving the existing frontend\dist.'
+} elseif ($Rebuild -or -not (Test-DistFresh)) {
+    if (-not (Invoke-FrontendBuild)) { Exit-Launcher }
+} else {
+    Write-Host 'Frontend build is up to date. Pass -Rebuild to force a rebuild.'
 }
-Test-DependencyDrift -SkipBackend:(-not $startBackend) -SkipFrontend:(-not $startFrontend) | Out-Null
+Write-Host ''
 
-# Clear stale listeners before launching. Vite runs with strictPort, so a
-# leftover node.exe on the UI port kills the frontend window the moment it starts.
-if ($startBackend -and -not (Clear-DevPort -Port $DevApiPort -Label 'backend')) { Exit-Launcher }
-if ($startFrontend -and -not (Clear-DevPort -Port $DevUiPort -Label 'frontend')) { Exit-Launcher }
+# Vite in a leftover dev window holds this port too, and the server would just fail
+# to bind. Clearing it first keeps start.bat working right after dev.bat.
+if (-not (Clear-DevPort -Port $DevUiPort -Label 'app')) { Exit-Launcher }
 
-$backendProc = $null
-$frontendProc = $null
-$backendReady = $false
-$frontendReady = $false
+$appProc = $null
 $leaveRunning = $false
 
 try {
-    if ($startBackend) {
-        Write-Host ('Starting backend on port {0}...' -f $DevApiPort)
-        $reloadLabel = 'Hot reload: uvicorn reloader'
-        $backendCommand = "`"$($paths.VenvPy)`" `"$($paths.DevServer)`""
-        if ($NoReload) {
-            $reloadLabel = 'Hot reload: disabled via --no-reload'
-            $backendCommand += ' --no-reload'
-        }
-        $backendProc = Start-DevConsole `
-            -Title 'DataForge - Backend' `
-            -WorkingDirectory $paths.Root `
-            -Banner @("DataForge Backend - $DevApiUrl", $reloadLabel) `
-            -Command $backendCommand
-    }
-
-    if ($startFrontend) {
-        Write-Host ('Starting frontend on port {0}...' -f $DevUiPort)
-        $frontendProc = Start-DevConsole `
-            -Title 'DataForge - Frontend' `
-            -WorkingDirectory $paths.Frontend `
-            -Banner @("DataForge Frontend - $DevUiUrl", 'Hot reload: Vite HMR') `
-            -Command "call `"$(Get-NpmCommand)`" run dev"
-    }
+    Write-Host ('Starting the server on port {0}...' -f $DevUiPort)
+    $appProc = Start-DevConsole `
+        -Title 'DataForge - Server' `
+        -WorkingDirectory $paths.Root `
+        -Banner @("DataForge - $DevUiUrl", 'Production: bundled UI, no hot reload') `
+        -Command "`"$($paths.VenvPy)`" `"$($paths.ProdServer)`""
 
     Write-Host ''
+    Write-Host '  Waiting for the app to answer /api/health...' -NoNewline
+    $ready = Wait-HttpReady -Url $DevAppHealthUrl -TimeoutSec 60 -Process $appProc
+    if ($ready) { Write-Host ' ready.' -ForegroundColor Green } else { Write-Host ' FAILED.' -ForegroundColor Red }
 
-    # Wait for real readiness rather than a fixed sleep: a cold Vite start is
-    # routinely slower than any timeout worth hardcoding, and opening the browser
-    # early just means a connection error you have to refresh past.
-    if ($startBackend) {
-        Write-Host '  Waiting for the API to answer /api/health...' -NoNewline
-        $backendReady = Wait-HttpReady -Url $DevHealthUrl -TimeoutSec 60 -Process $backendProc
-        if ($backendReady) { Write-Host ' ready.' -ForegroundColor Green } else { Write-Host ' FAILED.' -ForegroundColor Red }
-    }
-
-    if ($startFrontend) {
-        Write-Host ('  Waiting for Vite to accept connections on {0}...' -f $DevUiPort) -NoNewline
-        $frontendReady = Wait-TcpReady -Port $DevUiPort -TimeoutSec 90 -Process $frontendProc
-        if ($frontendReady) { Write-Host ' ready.' -ForegroundColor Green } else { Write-Host ' FAILED.' -ForegroundColor Red }
-    }
-
-    $allReady = ((-not $startBackend) -or $backendReady) -and ((-not $startFrontend) -or $frontendReady)
-
-    if (-not $allReady) {
+    if (-not $ready) {
         Write-Host ''
-        if ($startBackend -and -not $backendReady) {
-            Write-Host '[ERROR] The backend never became ready. Check the "DataForge - Backend" window.' -ForegroundColor Red
-        }
-        if ($startFrontend -and -not $frontendReady) {
-            Write-Host '[ERROR] The frontend never became ready. Check the "DataForge - Frontend" window.' -ForegroundColor Red
-        }
-        Write-Host '        The server windows were left open so the error stays readable.'
+        Write-Host '[ERROR] The server never became ready. Check the "DataForge - Server" window.' -ForegroundColor Red
+        Write-Host '        That window was left open so the error stays readable.'
         $leaveRunning = $true
         Exit-Launcher
     }
 
     if (-not $NoBrowser) {
-        $url = $DevUiUrl
-        if (-not $startFrontend) { $url = $DevApiUrl }
-        try { Start-Process $url | Out-Null } catch { }
+        try { Start-Process $DevUiUrl | Out-Null } catch { }
     }
 
     Write-Host ''
-    Write-Host 'Hot reload:'
-    if ($startFrontend) { Write-Host '  Frontend - Vite HMR on save' }
-    if ($startBackend -and -not $NoReload) { Write-Host '  Backend  - uvicorn reloader on .py changes, tests excluded' }
-    if ($startBackend -and $NoReload) { Write-Host '  Backend  - disabled, restart manually to pick up changes' }
-    Write-Host ''
-
     if ($Detach) {
         $leaveRunning = $true
-        Write-Host 'Servers are running in their own windows. Run stop.bat to stop them.'
+        Write-Host 'The server is running in its own window. Run stop.bat to stop it.'
         exit 0
     }
 
-    Write-Host 'Both servers are running. This window supervises them.'
-    Write-Host 'Press any key here to stop them, or close their windows individually.' -ForegroundColor Cyan
+    Write-Host 'The app is running. This window supervises it.'
+    Write-Host 'Press any key here to stop it, or close its window.' -ForegroundColor Cyan
     try {
         [void]$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
     } catch {
         # No interactive console (redirected stdin) - fall back to a line read.
-        Read-Host 'Press Enter to stop the servers' | Out-Null
+        Read-Host 'Press Enter to stop the server' | Out-Null
     }
 } finally {
     if (-not $leaveRunning) {
-        Stop-DevServers -Backend $backendProc -Frontend $frontendProc
+        Write-Host ''
+        Write-Host 'Stopping the server...'
+        if ($appProc -and -not $appProc.HasExited) { Stop-DevTree -ProcessId $appProc.Id }
+        # Backstop: a console closed by hand leaves the server holding the port with
+        # no PID left to walk down from.
+        Clear-DevPort -Port $DevUiPort -Label 'app' | Out-Null
+        Write-Host 'Stopped.'
     }
 }
 

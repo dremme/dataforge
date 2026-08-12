@@ -1,6 +1,6 @@
 # Starts only the frontend dev server (Vite) in this terminal.
 # Use this (or start-backend.ps1) in separate terminals when you want fully
-# independent control. For both servers at once, use start.bat / start.ps1.
+# independent control. For both dev servers at once, use dev.bat / dev.ps1.
 
 [CmdletBinding()]
 param()
