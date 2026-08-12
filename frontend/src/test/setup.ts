@@ -58,6 +58,7 @@ function createVirtualizerMock(options: { count: number }) {
         start: index * 340,
       })),
     measureElement: () => {},
+    measure: () => {},
     options: { scrollMargin: 0 },
   };
 }

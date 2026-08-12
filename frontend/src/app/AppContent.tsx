@@ -118,6 +118,8 @@ export function AppContent() {
               onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
               createFolderDisabled={createFolder.busy}
               onOpenGalleryItem={openGalleryItem}
+              displayMode={gallery.displayMode}
+              onDisplayModeChange={gallery.setDisplayMode}
               automationPanelProps={automation.panelProps}
               fileDrop={{
                 enabled: Boolean(folder) && !folderNotFound && !loading,

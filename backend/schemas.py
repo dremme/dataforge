@@ -169,6 +169,19 @@ class UiSettingsUpdate(BaseModel):
     show_automation_specs: bool | None = None
 
 
+type GalleryDisplayMode = Literal["large", "small", "list"]
+
+
+class GalleryDisplaySettingsResponse(BaseModel):
+    mode: GalleryDisplayMode = "large"
+    folder_path: str
+
+
+class GalleryDisplaySettingsUpdate(BaseModel):
+    mode: GalleryDisplayMode | None = None
+    folder_path: str
+
+
 class CaptionUpdate(BaseModel):
     text: str = ""
     json_content: str | None = None

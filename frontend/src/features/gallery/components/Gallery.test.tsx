@@ -100,6 +100,47 @@ describe("Gallery", () => {
     expect(cardRenderSpy.mock.calls.map(([item]) => item.path)).toEqual([imageItem.path]);
   });
 
+  it("puts one item per row in list mode", () => {
+    const { container } = render(
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} displayMode="list" />
+        </main>,
+      ),
+    );
+
+    expect(container.querySelectorAll(".gallery-row")).toHaveLength(2);
+    // List mode swaps the card out for a row component entirely.
+    expect(container.querySelectorAll(".gallery-list-row")).toHaveLength(2);
+    expect(container.querySelector(".card")).toBeNull();
+  });
+
+  it("keeps selection working in list and small mode", () => {
+    for (const displayMode of ["list", "small"] as const) {
+      const onSelect = vi.fn();
+      const toggleSelectedPath = vi.fn();
+
+      const { unmount } = render(
+        withGallerySelection(
+          <main className="main">
+            <Gallery items={[imageItem, videoItem]} onSelect={onSelect} displayMode={displayMode} />
+          </main>,
+          {
+            selectionMode: true,
+            selectedPaths: new Set([imageItem.path]),
+            toggleSelectedPath,
+          },
+        ),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: `Deselect ${imageItem.name}` }));
+      expect(toggleSelectedPath).toHaveBeenCalledWith(imageItem.path);
+      expect(onSelect).not.toHaveBeenCalled();
+
+      unmount();
+    }
+  });
+
   it("shows a back-to-top button after scrolling the main container", () => {
     vi.spyOn(scrollRoot, "scrollContainerToTop").mockImplementation((element) => {
       element.scrollTop = 0;

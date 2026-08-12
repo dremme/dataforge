@@ -139,6 +139,59 @@
   @include focus-ring;
 }
 
+// ---------------------------------------------------------------------------
+// Dropdown menus
+//
+// Shared by every hand-rolled `role="menu"` popover (toolbar filters, gallery
+// display mode). The trigger stays per-call-site because each sits in chrome of
+// a different scale, but the panel a user drops open should look the same
+// everywhere — keeping these here is what stops the two from drifting apart.
+// ---------------------------------------------------------------------------
+
+@mixin dropdown-menu-panel($min-width: 15rem) {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: min($min-width, calc(100vw - 2rem));
+  padding: 0.35rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+
+@mixin dropdown-menu-option {
+  @include control-interactive;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: 1;
+  text-align: left;
+
+  &:hover {
+    color: var(--text);
+    background: var(--accent-soft);
+  }
+}
+
+@mixin dropdown-menu-option-icon {
+  flex-shrink: 0;
+  @include icon-block;
+  @include icon-size(var(--icon-size-sm));
+  @include icon-muted;
+}
+
 @mixin interactive-card($lift: -3px) {
   transition:
     transform $transition-medium,

@@ -11,16 +11,20 @@ import {
   iconVideo,
 } from "@/shared/icons";
 import { isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
-import type { GalleryItem } from "@/shared/types";
+import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { classNames } from "@/shared/lib/classNames";
 import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
 import { Icon } from "@/shared/ui/Icon";
 
+/** List mode has no card; it renders `GalleryListRow` instead. */
+type GalleryCardMode = Exclude<GalleryDisplayMode, "list">;
+
 interface GalleryCardProps {
   item: GalleryItem;
   onSelect: (path: string) => void;
+  displayMode?: GalleryCardMode;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
@@ -33,6 +37,7 @@ interface GalleryCardProps {
 export const GalleryCard = memo(function GalleryCard({
   item,
   onSelect,
+  displayMode = "large",
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -57,6 +62,7 @@ export const GalleryCard = memo(function GalleryCard({
       type="button"
       className={classNames(
         "card",
+        `card--${displayMode}`,
         getCardModifierClass(item),
         isMotion(item) && "card--video",
         selected && "card--selected",

@@ -49,6 +49,22 @@ export function getCardCaptionDisplay(item: GalleryItem): CaptionStatusDisplay |
   return messages[resolveCaptionStatus(item)] ?? null;
 }
 
+const ROW_STATUS_MESSAGES: Record<CaptionStatus, CaptionStatusDisplay> = {
+  text: { message: "Captioned", variant: "success" },
+  empty: { message: "Empty", variant: "warning" },
+  none: { message: "No caption", variant: "muted" },
+};
+
+/**
+ * Terse counterpart of {@link getCardCaptionDisplay} for list rows, which have a
+ * single line to spend and so cannot carry a card's full sentence. Always
+ * returns a value: a row shows its state even when captioned, where a card
+ * shows the caption text instead.
+ */
+export function getRowCaptionDisplay(item: GalleryItem): CaptionStatusDisplay {
+  return ROW_STATUS_MESSAGES[resolveCaptionStatus(item)];
+}
+
 export function getGalleryItemCaptionDisplay(
   item: GalleryItem,
   mediaLabel: string,

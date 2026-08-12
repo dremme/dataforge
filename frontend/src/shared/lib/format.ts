@@ -28,6 +28,28 @@ export function formatBytes(bytes: number): string {
   return `${formatBytesValue(bytes)} GB`;
 }
 
+const FILE_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
+
+/**
+ * Scaled file size for a single media file, unlike {@link formatBytes}, which is
+ * pinned to GB because it reports disk capacity.
+ */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < FILE_SIZE_UNITS.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  // Bytes are always whole; anything scaled keeps one decimal until it is large
+  // enough that the fraction is noise.
+  const decimals = unit === 0 || value >= 100 ? 0 : 1;
+  return `${value.toFixed(decimals)} ${FILE_SIZE_UNITS[unit]}`;
+}
+
 /** Unitless counterpart of {@link formatBytes}, for "x / y GB" pairs. */
 export function formatBytesValue(bytes: number): string {
   return String(Math.round(bytes / 1024 ** 3));

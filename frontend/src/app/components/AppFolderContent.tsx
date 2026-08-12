@@ -4,13 +4,14 @@ import { FolderErrorState } from "@/features/folder/components/FolderErrorState"
 import { FolderLoadingState } from "@/features/folder/components/FolderLoadingState";
 import { FolderGrid } from "@/features/folder/components/FolderGrid";
 import { Gallery } from "@/features/gallery/components/Gallery";
+import { GalleryDisplayMenu } from "@/features/gallery/components/GalleryDisplayMenu";
 import { GalleryFileDropOverlay } from "@/features/gallery/components/GalleryFileDropOverlay";
 import { GallerySelectionControls } from "@/features/gallery/components/GallerySelectionControls";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { FolderError } from "@/shared/api/http";
 import { iconFolderOpen, iconImages } from "@/shared/icons";
-import type { FolderResponse, GalleryItem, Subfolder } from "@/shared/types";
+import type { FolderResponse, GalleryDisplayMode, GalleryItem, Subfolder } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
@@ -30,6 +31,8 @@ type AppFolderContentProps = {
   onCreateFolder?: () => void;
   createFolderDisabled?: boolean;
   onOpenGalleryItem: (path: string) => void;
+  displayMode: GalleryDisplayMode;
+  onDisplayModeChange: (value: GalleryDisplayMode) => void;
   fileDrop: FileDropState;
 };
 
@@ -57,6 +60,8 @@ export function AppFolderContent({
   onCreateFolder,
   createFolderDisabled = false,
   onOpenGalleryItem,
+  displayMode,
+  onDisplayModeChange,
   fileDrop,
 }: AppFolderContentProps) {
   const { selectionMode, selectedCount } = useGallerySelectionContext();
@@ -115,18 +120,29 @@ export function AppFolderContent({
                     alwaysShowTotal={selectionMode}
                     sticky
                     actions={
-                      // Nothing to select once the filters empty the grid.
-                      filteredItems.length > 0 ? (
-                        <GallerySelectionControls
-                          currentFolder={folder.path}
-                          totalCount={filteredItems.length}
-                        />
+                      // The layout picker stays put while the filters empty the
+                      // grid; only the selection controls, which would have
+                      // nothing to act on, drop out.
+                      items.length > 0 ? (
+                        <div className="gallery-section__actions">
+                          {filteredItems.length > 0 && (
+                            <GallerySelectionControls
+                              currentFolder={folder.path}
+                              totalCount={filteredItems.length}
+                            />
+                          )}
+                          <GalleryDisplayMenu value={displayMode} onChange={onDisplayModeChange} />
+                        </div>
                       ) : undefined
                     }
                   />
 
                   {filteredItems.length > 0 ? (
-                    <Gallery items={filteredItems} onSelect={onOpenGalleryItem} />
+                    <Gallery
+                      items={filteredItems}
+                      onSelect={onOpenGalleryItem}
+                      displayMode={displayMode}
+                    />
                   ) : showEmptyFolder ? (
                     <EmptyState
                       icon={iconFolderOpen}

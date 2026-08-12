@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useFolderCaptionPatch } from "@/features/gallery/hooks/useFolderCaptionPatch";
+import { useGalleryDisplayMode } from "@/features/gallery/hooks/useGalleryDisplayMode";
 import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays";
 import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
@@ -52,6 +53,7 @@ export function useGallerySession({
   } = selection;
 
   const query = useGalleryQuery(items);
+  const { displayMode, setDisplayMode } = useGalleryDisplayMode(folderPath);
   const issueCount = countResolvableIssues(items);
   const handleCaptionSaved = useFolderCaptionPatch(setFolder);
 
@@ -167,6 +169,8 @@ export function useGallerySession({
     clearSelectedPaths,
     handleSelectAllPaths,
     query,
+    displayMode,
+    setDisplayMode,
     issueCount,
     openGalleryItem,
     openSysPrompt,
