@@ -46,11 +46,18 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
 }
 
 describe("useAutomationHost", () => {
-  it("starts a caption backup straight away, with no confirmation", async () => {
+  it("waits for confirmation before backing up captions", async () => {
     const { result, startJob } = setupHost();
 
-    await act(async () => {
+    act(() => {
       result.current.panelProps.onRequestStart("backup_captions");
+    });
+
+    expect(result.current.jobStartConfirm.pending).toBe("backup_captions");
+    expect(startJob).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.jobStartConfirm.onConfirm();
     });
 
     expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
@@ -101,13 +108,13 @@ describe("useAutomationHost", () => {
     expect(startJob).not.toHaveBeenCalled();
   });
 
-  it("still allows a backup when the folder has no backup yet", async () => {
-    const { result, startJob } = setupHost({ hasCaptionBackup: false });
+  it("still allows a backup when the folder has no backup yet", () => {
+    const { result } = setupHost({ hasCaptionBackup: false });
 
-    await act(async () => {
+    act(() => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 
-    expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
+    expect(result.current.jobStartConfirm.pending).toBe("backup_captions");
   });
 });

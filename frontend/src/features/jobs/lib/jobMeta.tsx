@@ -15,7 +15,7 @@ import {
 import type { JobType } from "@/shared/types";
 
 /** How the app asks the user before starting this job type. */
-type JobStartUi = "dialog" | "confirm" | "immediate";
+type JobStartUi = "dialog" | "confirm";
 
 /** Folder state that decides whether a job can run right now. */
 export interface JobAvailability {
@@ -123,8 +123,19 @@ export const JOB_TYPE_META = {
     group: "backup" as const,
     label: "Backup captions",
     icon: iconArchive,
-    startUi: "immediate" as const,
+    startUi: "confirm" as const,
     menuDescription: "Copy captions and caption issues into the .backup folder.",
+    confirm: {
+      title: "Back up captions?",
+      description: (folderLabel: string) => (
+        <>
+          This copies captions and caption issues in <strong>{folderLabel}</strong> into{" "}
+          <strong>.backup</strong>, replacing any earlier backup of the same files. Other files
+          already in the backup are left untouched.
+        </>
+      ),
+      confirmLabel: "Back up captions",
+    },
   },
   restore_captions: {
     type: "restore_captions" as const,
@@ -163,9 +174,6 @@ type JobTypeWithStartUi<Ui extends JobStartUi> = {
 }[JobType];
 
 export type ConfirmableJobType = JobTypeWithStartUi<"confirm">;
-
-/** Jobs that start straight from the menu, with no dialog or confirmation. */
-export type ImmediateJobType = JobTypeWithStartUi<"immediate">;
 
 const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
 
@@ -214,10 +222,6 @@ export function isConfirmableJobType(type: JobType): type is ConfirmableJobType 
   return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "confirm";
 }
 
-export function isImmediateJobType(type: JobType): type is ImmediateJobType {
-  return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "immediate";
-}
-
 /** Whether ``type`` can be started for a folder in this state. */
 export function isJobAvailable(type: JobType, availability: JobAvailability): boolean {
   if (!isKnownJobType(type)) return true;
@@ -226,5 +230,6 @@ export function isJobAvailable(type: JobType, availability: JobAvailability): bo
 
 export const JOB_START_CONFIRM: Record<ConfirmableJobType, NonNullable<JobTypeMeta["confirm"]>> = {
   strip_metadata: JOB_TYPE_META.strip_metadata.confirm!,
+  backup_captions: JOB_TYPE_META.backup_captions.confirm!,
   restore_captions: JOB_TYPE_META.restore_captions.confirm!,
 };

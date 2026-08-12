@@ -5,7 +5,6 @@ import type { useFolderAutomation } from "@/features/automation/hooks/useFolderA
 import { useJobStartConfirmation } from "@/features/jobs/hooks/useJobStartConfirmation";
 import {
   isConfirmableJobType,
-  isImmediateJobType,
   isJobAvailable,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
@@ -80,16 +79,9 @@ export function useAutomationHost({
         requestJobStart(jobType);
         return;
       }
-      if (isImmediateJobType(jobType)) {
-        if (!folder) return;
-        startJob(jobType, folder, undefined, getJobPaths()).catch(() => {
-          // Errors are stored in jobs context state.
-        });
-        return;
-      }
       openDialogForJobType(jobType);
     },
-    [folder, getJobPaths, jobAvailability, openDialogForJobType, requestJobStart, startJob],
+    [jobAvailability, openDialogForJobType, requestJobStart],
   );
 
   const panelProps = useMemo<AutomationPanelProps>(

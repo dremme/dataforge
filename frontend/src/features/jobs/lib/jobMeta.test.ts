@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { JobType } from "@/shared/types";
-import { JOB_GROUPS, SECONDARY_JOB_GROUPS, SECONDARY_JOB_TYPES, isJobAvailable } from "./jobMeta";
+import {
+  JOB_GROUPS,
+  JOB_START_CONFIRM,
+  JOB_TYPE_META,
+  SECONDARY_JOB_GROUPS,
+  SECONDARY_JOB_TYPES,
+  isConfirmableJobType,
+  isJobAvailable,
+} from "./jobMeta";
 
 const withBackup = { hasCaptionBackup: true, ostrisAvailable: true };
 const withoutBackup = { hasCaptionBackup: false, ostrisAvailable: true };
@@ -30,6 +38,22 @@ describe("isJobAvailable", () => {
 
   it("tolerates a job type the registry does not know", () => {
     expect(isJobAvailable("legacy_job" as JobType, withoutBackup)).toBe(true);
+  });
+});
+
+describe("JOB_START_CONFIRM", () => {
+  it("gives every confirm-started job its dialog copy", () => {
+    const confirmable = (Object.keys(JOB_TYPE_META) as JobType[]).filter(isConfirmableJobType);
+    expect(confirmable).toContain("backup_captions");
+
+    // `confirm` is optional on the registry entry, so a confirm job could otherwise
+    // reach the dialog with nothing to render.
+    for (const type of confirmable) {
+      const copy = JOB_START_CONFIRM[type];
+      expect(copy?.title).toBeTruthy();
+      expect(copy?.confirmLabel).toBeTruthy();
+      expect(copy?.description("Photos")).toBeTruthy();
+    }
   });
 });
 
