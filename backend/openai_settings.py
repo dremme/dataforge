@@ -3,7 +3,7 @@
 Environment (all optional):
 
 - ``OPENAI_API_BASE_URL`` — base URL of the OpenAI-compatible server
-- ``OPENAI_API_KEY`` — API key (placeholder is fine for many local servers)
+- ``OPENAI_API_KEY`` — only needed if the server was started with ``--api-key``
 - ``OPENAI_MODEL`` — chat ``model`` id the server expects
 - ``OPENAI_MAX_TOKENS`` — completion max tokens
 - ``OPENAI_TIMEOUT`` — seconds to wait for a model response before giving up
@@ -18,8 +18,11 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:1234/v1"
-DEFAULT_OPENAI_API_KEY = "sk-1234"
+DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:8888/v1"
+# The SDK refuses to build a client without an api_key, but llama.cpp, vLLM and
+# Unsloth authenticate nothing unless started with --api-key. "EMPTY" is the
+# placeholder vLLM's own docs use: it is a required-field filler, not a credential.
+DEFAULT_OPENAI_API_KEY = "EMPTY"
 DEFAULT_OPENAI_MODEL = "qwen35moe"
 
 DEFAULT_MAX_TOKENS = 8192

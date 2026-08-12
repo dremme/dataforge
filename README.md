@@ -172,7 +172,7 @@ Enough for gallery browsing, caption editing, strip metadata, watermark, set cap
 
 ### Vision LLM jobs
 
-Hardware here is driven by **the model you load** in llama.cpp, LM Studio, vLLM, or similar — not by DataForge,
+Hardware here is driven by **the model you load** in llama.cpp, Unsloth, or similar — not by DataForge,
 which only calls an OpenAI-compatible HTTP endpoint.
 
 | | Minimum (lighter models) | Optimal (recommended models) |
@@ -210,7 +210,7 @@ Restart both servers after a change; Vite reads its port once at startup.
 
 ### Vision LLM
 
-DataForge talks to any **OpenAI-compatible** vision endpoint. Load a model in llama.cpp, LM Studio, or vLLM before
+DataForge talks to any **OpenAI-compatible** vision endpoint. Load a model in llama.cpp, Unsloth, or similar before
 running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — not necessarily the Hugging Face repo name.
 
 **Suggested models, best first:**
@@ -231,13 +231,24 @@ Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in i
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_BASE_URL` | `http://127.0.0.1:1234/v1` | OpenAI-compatible base URL |
-| `OPENAI_API_KEY` | `sk-1234` | Placeholder key; most local servers ignore it |
+| `OPENAI_API_BASE_URL` | `http://127.0.0.1:8888/v1` | OpenAI-compatible base URL |
+| `OPENAI_API_KEY` | `EMPTY` | Not a credential. Local servers ignore it unless started with `--api-key` |
 | `OPENAI_MODEL` | `qwen35moe` | Chat `model` id, matching what your server exposes |
 | `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
 | `OPENAI_TIMEOUT` | `600` | Seconds to wait for a response before giving up |
 
 Many single-model servers answer even with a wrong `OPENAI_MODEL`. Multi-model servers need the id to match.
+
+`llama-server` defaults to port `8080`, which DataForge's API already uses. Start it on `8888` to match
+`OPENAI_API_BASE_URL` above:
+
+```bash
+llama-server --port 8888 -m <model.gguf> --mmproj <mmproj.gguf>
+```
+
+`--mmproj` loads the multimodal projector, which llama.cpp keeps separate from the weights. Without it you get a
+server that answers text but silently ignores images — which shows up here as captions describing nothing in
+your media. No API key is needed unless you start the server with `--api-key`.
 
 <details>
 <summary><b>Sampling knobs</b> — per-mode temperature, penalties, and top-p/k</summary>
@@ -258,7 +269,7 @@ Many single-model servers answer even with a wrong `OPENAI_MODEL`. Multi-model s
 | `OPENAI_INSTRUCT_REPEAT_PENALTY` | `1.0` | Repetition penalty in instruct mode (via `extra_body`) |
 | `OPENAI_TOP_K` | `20` | Top-k (via `extra_body`) |
 
-`repeat_penalty` follows llama.cpp / LM Studio naming. Hugging Face and vLLM call the same knob
+`repeat_penalty` follows llama.cpp naming. Hugging Face– and vLLM-style stacks call the same knob
 `repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
 DataForge at one of those servers.
 

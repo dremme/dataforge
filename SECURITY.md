@@ -24,4 +24,4 @@ Do not commit:
 - Personal dataset folders
 - Local session logs (`agent-tools/`, `terminals/`, IDE caches)
 
-Default LLM client credentials in source (for example `sk-1234`) are placeholders for a local OpenAI-compatible server, not production secrets.
+The LLM client sends a non-credential placeholder (`EMPTY`) when `OPENAI_API_KEY` is unset; local servers ignore it. Set a real key only if your server was started with one — and only in `.env`, never in source.
