@@ -13,7 +13,7 @@ Built for people who curate training data for generative models — LoRAs, fine-
 
 [Quick start](#quick-start) · [Features](#features) · [Requirements](#system-requirements) · [Configuration](#configuration) · [Development](#development) · [Security](SECURITY.md) · [License](#license)
 
-<!-- A screenshot or short GIF of the gallery belongs here once one is available. -->
+![The DataForge gallery: a thumbnail grid of a caption dataset, with per-card caption status badges, the folder breadcrumb bar, and the search and filter toolbar.](docs/gallery.png)
 
 ## Overview
 
