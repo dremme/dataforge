@@ -90,12 +90,14 @@ export function useAppWorkspace() {
     syncBaseline,
   });
 
-  const { searchQuery, searchRegex, searchFolders } = gallery.query;
+  const { searchQuery, searchRegex, searchNames } = gallery.query;
 
+  // Names off means a caption-only search, which a folder can never satisfy — leave the
+  // subfolder list unfiltered rather than emptying it, so navigation stays intact.
   const filteredSubfolders = useMemo(
     () =>
-      searchFolders ? filterSubfoldersBySearch(subfolders, searchQuery, searchRegex) : subfolders,
-    [subfolders, searchQuery, searchRegex, searchFolders],
+      searchNames ? filterSubfoldersBySearch(subfolders, searchQuery, searchRegex) : subfolders,
+    [subfolders, searchQuery, searchRegex, searchNames],
   );
 
   const automation = useAutomationHost({

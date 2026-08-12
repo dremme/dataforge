@@ -9,7 +9,8 @@ export function findSearchMatchRanges(
 
   if (useRegex) {
     try {
-      const pattern = new RegExp(trimmed, "gi");
+      // Flags mirror compileSearchRegex (plus `g` to walk every match).
+      const pattern = new RegExp(trimmed, "gis");
       const ranges: { from: number; to: number }[] = [];
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(text)) !== null) {

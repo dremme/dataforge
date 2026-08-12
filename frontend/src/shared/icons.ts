@@ -75,6 +75,7 @@ export {
   StepBack as iconStepBack,
   StepForward as iconStepForward,
   Strikethrough as iconStrikethrough,
+  Tag as iconTag,
   Trash2 as iconTrash2,
   TriangleAlert as iconTriangleAlert,
   Unlink as iconUnlink,

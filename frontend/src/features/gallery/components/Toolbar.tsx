@@ -15,6 +15,7 @@ import {
   iconImages,
   iconRegex,
   iconSearch,
+  iconTag,
   iconX,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -34,7 +35,7 @@ interface ToolbarProps {
   statsLoading?: boolean;
   searchQuery: string;
   searchRegex: boolean;
-  searchFolders: boolean;
+  searchNames: boolean;
   sort: SortOption;
   filter: CaptionFilter;
   filterCounts: Record<CaptionFilter, number>;
@@ -42,7 +43,7 @@ interface ToolbarProps {
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
   onSearchQueryChange: (value: string) => void;
   onSearchRegexChange: (value: boolean) => void;
-  onSearchFoldersChange: (value: boolean) => void;
+  onSearchNamesChange: (value: boolean) => void;
   onSortChange: (value: SortOption) => void;
   onFilterChange: (value: CaptionFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
@@ -51,19 +52,19 @@ interface ToolbarProps {
 interface ToolbarSearchProps {
   value: string;
   regex: boolean;
-  folders: boolean;
+  names: boolean;
   onQueryChange: (value: string) => void;
   onRegexChange: (value: boolean) => void;
-  onFoldersChange: (value: boolean) => void;
+  onNamesChange: (value: boolean) => void;
 }
 
 function ToolbarSearch({
   value,
   regex,
-  folders,
+  names,
   onQueryChange,
   onRegexChange,
-  onFoldersChange,
+  onNamesChange,
 }: ToolbarSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
@@ -92,10 +93,7 @@ function ToolbarSearch({
   }, []);
 
   return (
-    <Tooltip
-      content="Search by file name or caption, folders and regex optional"
-      disabled={expanded && focused}
-    >
+    <Tooltip content="Search names and captions, regex optional" disabled={expanded && focused}>
       <label
         className={classNames(
           "toolbar__search",
@@ -121,26 +119,22 @@ function ToolbarSearch({
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="Search..."
-            aria-label={
-              folders
-                ? "Search files and folders by name or caption"
-                : "Search files by name or caption"
-            }
+            aria-label={names ? "Search files and folders by name or caption" : "Search captions"}
             aria-keyshortcuts="Control+K Meta+K"
           />
           <button
             type="button"
             className={classNames(
-              "toolbar__search-folders",
-              folders && "toolbar__search-folders--active",
+              "toolbar__search-names",
+              names && "toolbar__search-names--active",
             )}
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onFoldersChange(!folders)}
-            aria-label="Include folders in search"
-            aria-pressed={folders}
+            onClick={() => onNamesChange(!names)}
+            aria-label="Match file and folder names"
+            aria-pressed={names}
             tabIndex={-1}
           >
-            <Icon icon={iconFolder} className="toolbar__search-folders-icon" />
+            <Icon icon={iconTag} className="toolbar__search-names-icon" />
           </button>
           <button
             type="button"
@@ -191,7 +185,7 @@ export function Toolbar({
   statsLoading = false,
   searchQuery,
   searchRegex,
-  searchFolders,
+  searchNames,
   sort,
   filter,
   filterCounts,
@@ -199,7 +193,7 @@ export function Toolbar({
   mediaTypeFilterCounts,
   onSearchQueryChange,
   onSearchRegexChange,
-  onSearchFoldersChange,
+  onSearchNamesChange,
   onSortChange,
   onFilterChange,
   onMediaTypeFilterChange,
@@ -283,10 +277,10 @@ export function Toolbar({
         <ToolbarSearch
           value={searchQuery}
           regex={searchRegex}
-          folders={searchFolders}
+          names={searchNames}
           onQueryChange={onSearchQueryChange}
           onRegexChange={onSearchRegexChange}
-          onFoldersChange={onSearchFoldersChange}
+          onNamesChange={onSearchNamesChange}
         />
 
         <Tooltip content="Sort files by name, date, caption, or megapixels">

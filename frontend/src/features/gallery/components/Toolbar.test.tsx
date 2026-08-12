@@ -21,7 +21,7 @@ const defaultProps = {
   hasCaptionBackup: false,
   searchQuery: "",
   searchRegex: false,
-  searchFolders: true,
+  searchNames: true,
   sort: "name-asc" as SortOption,
   filter: "all" as CaptionFilter,
   filterCounts: {
@@ -38,7 +38,7 @@ const defaultProps = {
   },
   onSearchQueryChange: vi.fn(),
   onSearchRegexChange: vi.fn(),
-  onSearchFoldersChange: vi.fn(),
+  onSearchNamesChange: vi.fn(),
   onSortChange: vi.fn(),
   onFilterChange: vi.fn(),
   onMediaTypeFilterChange: vi.fn(),
@@ -97,29 +97,27 @@ describe("Toolbar", () => {
     expect(field().style.getPropertyValue("--toolbar-search-length")).toBe("40");
   });
 
-  it("toggles including folders in search", async () => {
+  it("toggles matching names in search", async () => {
     const user = userEvent.setup();
-    renderToolbar({ searchQuery: "sun", searchFolders: true });
+    renderToolbar({ searchQuery: "sun", searchNames: true });
 
-    const foldersToggle = screen.getByRole("button", { name: "Include folders in search" });
+    const namesToggle = screen.getByRole("button", { name: "Match file and folder names" });
     const regexToggle = screen.getByRole("button", { name: "Toggle regular expression search" });
 
-    expect(foldersToggle).toHaveAttribute("aria-pressed", "true");
+    expect(namesToggle).toHaveAttribute("aria-pressed", "true");
     expect(
-      foldersToggle.compareDocumentPosition(regexToggle) & Node.DOCUMENT_POSITION_FOLLOWING,
+      namesToggle.compareDocumentPosition(regexToggle) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    await user.click(foldersToggle);
+    await user.click(namesToggle);
 
-    expect(defaultProps.onSearchFoldersChange).toHaveBeenCalledWith(false);
+    expect(defaultProps.onSearchNamesChange).toHaveBeenCalledWith(false);
   });
 
-  it("labels the search box for files only when folders are excluded", () => {
-    renderToolbar({ searchFolders: false });
+  it("labels the search box for captions only when names are excluded", () => {
+    renderToolbar({ searchNames: false });
 
-    expect(
-      screen.getByRole("searchbox", { name: "Search files by name or caption" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search captions" })).toBeInTheDocument();
   });
 
   it("opens both filter groups from the filter menu", async () => {

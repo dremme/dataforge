@@ -77,7 +77,7 @@ describe("App: search and filters", () => {
     expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
   });
 
-  it("leaves subfolders unfiltered when folder search is off", async () => {
+  it("searches captions only and leaves subfolders unfiltered when name matching is off", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -88,12 +88,10 @@ describe("App: search and filters", () => {
 
     // Expand search so the in-field toggles are reachable.
     await user.keyboard("{Control>}k{/Control}");
-    await user.click(screen.getByRole("button", { name: "Include folders in search" }));
+    await user.click(screen.getByRole("button", { name: "Match file and folder names" }));
 
-    await user.type(
-      screen.getByRole("searchbox", { name: "Search files by name or caption" }),
-      "sunset",
-    );
+    // "golden" only appears in sunset.png's caption, never in a file name.
+    await user.type(screen.getByRole("searchbox", { name: "Search captions" }), "golden");
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();

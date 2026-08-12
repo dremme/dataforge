@@ -97,6 +97,7 @@ describe("processGalleryItems", () => {
       mediaTypeFilter: "video",
       searchQuery: "",
       searchRegex: false,
+      searchNames: true,
       sort: "name-asc",
     });
 
@@ -165,15 +166,19 @@ describe("filterBySearch", () => {
   ];
 
   it("matches file names case-insensitively", () => {
-    expect(filterBySearch(items, "SUN", false).map((entry) => entry.name)).toEqual(["sunset.png"]);
+    expect(filterBySearch(items, "SUN", false, true).map((entry) => entry.name)).toEqual([
+      "sunset.png",
+    ]);
   });
 
   it("matches caption text", () => {
-    expect(filterBySearch(items, "ocean", false).map((entry) => entry.name)).toEqual(["waves.mp4"]);
+    expect(filterBySearch(items, "ocean", false, true).map((entry) => entry.name)).toEqual([
+      "waves.mp4",
+    ]);
   });
 
   it("returns all items for blank search", () => {
-    expect(filterBySearch(items, "   ", false).map((entry) => entry.name)).toEqual([
+    expect(filterBySearch(items, "   ", false, true).map((entry) => entry.name)).toEqual([
       "sunset.png",
       "beach.jpg",
       "waves.mp4",
@@ -181,19 +186,62 @@ describe("filterBySearch", () => {
   });
 
   it("matches with a valid regular expression", () => {
-    expect(filterBySearch(items, "sun|ocean", true).map((entry) => entry.name)).toEqual([
+    expect(filterBySearch(items, "sun|ocean", true, true).map((entry) => entry.name)).toEqual([
       "sunset.png",
       "waves.mp4",
     ]);
   });
 
   it("does not crash on an incomplete or invalid regular expression", () => {
-    expect(() => filterBySearch(items, "land(scape", true)).not.toThrow();
+    expect(() => filterBySearch(items, "land(scape", true, true)).not.toThrow();
     // Falls back to plain substring match while the pattern is invalid.
-    expect(filterBySearch(items, "sunset", true).map((entry) => entry.name)).toEqual([
+    expect(filterBySearch(items, "sunset", true, true).map((entry) => entry.name)).toEqual([
       "sunset.png",
     ]);
-    expect(filterBySearch(items, "land(scape", true).map((entry) => entry.name)).toEqual([]);
+    expect(filterBySearch(items, "land(scape", true, true).map((entry) => entry.name)).toEqual([]);
+  });
+
+  it("ignores file names when name matching is off", () => {
+    expect(filterBySearch(items, "sun", false, false).map((entry) => entry.name)).toEqual([]);
+    expect(filterBySearch(items, "golden", false, false).map((entry) => entry.name)).toEqual([
+      "sunset.png",
+    ]);
+  });
+
+  describe("exclusion patterns", () => {
+    const captioned = [
+      item("portrait_001.png", "image", { description: "a woman standing in a field" }),
+      item("portrait_002.png", "image", { description: "a man standing in a field" }),
+    ];
+
+    it("excludes captions containing the term when name matching is off", () => {
+      expect(
+        filterBySearch(captioned, "^((?!woman).)*$", true, false).map((entry) => entry.name),
+      ).toEqual(["portrait_002.png"]);
+    });
+
+    it("matches everything when name matching is on, since names lack the term", () => {
+      expect(
+        filterBySearch(captioned, "^((?!woman).)*$", true, true).map((entry) => entry.name),
+      ).toEqual(["portrait_001.png", "portrait_002.png"]);
+    });
+
+    it("spans multi-line captions", () => {
+      const multiline = [
+        item("a.png", "image", { description: "a woman standing\nin a field" }),
+        item("b.png", "image", { description: "a man standing\nin a field" }),
+      ];
+
+      expect(
+        filterBySearch(multiline, "^((?!woman).)*$", true, false).map((entry) => entry.name),
+      ).toEqual(["b.png"]);
+    });
+
+    it("never matches an item without a caption", () => {
+      const uncaptioned = [item("beach.jpg", "image")];
+
+      expect(filterBySearch(uncaptioned, "^((?!woman).)*$", true, false)).toEqual([]);
+    });
   });
 });
 

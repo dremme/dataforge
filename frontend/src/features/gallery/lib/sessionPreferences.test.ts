@@ -14,7 +14,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "image",
       searchQuery: "sunset",
       searchRegex: true,
-      searchFolders: false,
+      searchNames: false,
     });
 
     expect(window.sessionStorage.getItem(SESSION_QUERY_CACHE_KEY)).toBe(
@@ -23,7 +23,7 @@ describe("gallery session preferences", () => {
         mediaTypeFilter: "image",
         searchQuery: "sunset",
         searchRegex: true,
-        searchFolders: false,
+        searchNames: false,
       }),
     );
     expect(readGallerySessionQuery()).toEqual({
@@ -31,7 +31,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "image",
       searchQuery: "sunset",
       searchRegex: true,
-      searchFolders: false,
+      searchNames: false,
     });
   });
 
@@ -41,7 +41,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "lake",
       searchRegex: false,
-      searchFolders: true,
+      searchNames: true,
     });
 
     cacheGallerySessionQuery({ searchQuery: "mountain" });
@@ -51,7 +51,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "mountain",
       searchRegex: false,
-      searchFolders: true,
+      searchNames: true,
     });
   });
 
@@ -63,7 +63,7 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "",
       searchRegex: false,
-      searchFolders: true,
+      searchNames: true,
     });
   });
 
@@ -75,7 +75,7 @@ describe("gallery session preferences", () => {
         mediaTypeFilter: "bogus",
         searchQuery: 42,
         searchRegex: "",
-        searchFolders: "yes",
+        searchNames: "yes",
       }),
     );
 
@@ -84,11 +84,11 @@ describe("gallery session preferences", () => {
       mediaTypeFilter: "all",
       searchQuery: "",
       searchRegex: false,
-      searchFolders: true,
+      searchNames: true,
     });
   });
 
-  it("defaults searchFolders to true when the stored key is missing", () => {
+  it("defaults searchNames to true when the stored key is missing", () => {
     window.sessionStorage.setItem(
       SESSION_QUERY_CACHE_KEY,
       JSON.stringify({
@@ -99,6 +99,21 @@ describe("gallery session preferences", () => {
       }),
     );
 
-    expect(readGallerySessionQuery().searchFolders).toBe(true);
+    expect(readGallerySessionQuery().searchNames).toBe(true);
+  });
+
+  it("honours the pre-rename searchFolders key", () => {
+    window.sessionStorage.setItem(
+      SESSION_QUERY_CACHE_KEY,
+      JSON.stringify({
+        filter: "all",
+        mediaTypeFilter: "all",
+        searchQuery: "",
+        searchRegex: false,
+        searchFolders: false,
+      }),
+    );
+
+    expect(readGallerySessionQuery().searchNames).toBe(false);
   });
 });

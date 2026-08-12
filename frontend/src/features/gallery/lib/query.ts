@@ -104,7 +104,10 @@ export function sortGalleryItems(items: GalleryItem[], sort: SortOption): Galler
 
 function compileSearchRegex(pattern: string): RegExp | null {
   try {
-    return new RegExp(pattern, "i");
+    // `s` so `.` spans newlines: without it an exclusion pattern like `^((?!x).)*$`
+    // rejects every multi-line caption. `m` is deliberately omitted — per-line
+    // anchors would let each line satisfy a negation on its own.
+    return new RegExp(pattern, "is");
   } catch {
     return null;
   }
@@ -114,22 +117,33 @@ function matchesSearchQuery(
   query: string,
   pattern: RegExp | null,
   useRegex: boolean,
+  matchNames: boolean,
   name: string,
   description?: string | null,
 ): boolean {
   if (useRegex && pattern) {
-    if (pattern.test(name)) return true;
+    if (matchNames && pattern.test(name)) return true;
     if (description != null && pattern.test(description)) return true;
     return false;
   }
 
   const needle = query.toLowerCase();
-  if (name.toLowerCase().includes(needle)) return true;
+  if (matchNames && name.toLowerCase().includes(needle)) return true;
   if (description?.toLowerCase().includes(needle)) return true;
   return false;
 }
 
-export function filterBySearch(items: GalleryItem[], query: string, regex: boolean): GalleryItem[] {
+/**
+ * `matchNames` off searches captions only. That is what makes an exclusion pattern
+ * expressible: a name almost never contains the excluded word, so an OR over both
+ * fields would keep every item.
+ */
+export function filterBySearch(
+  items: GalleryItem[],
+  query: string,
+  regex: boolean,
+  matchNames: boolean,
+): GalleryItem[] {
   const trimmed = query.trim();
   if (!trimmed) return items;
 
@@ -137,7 +151,7 @@ export function filterBySearch(items: GalleryItem[], query: string, regex: boole
   const pattern = regex ? compileSearchRegex(trimmed) : null;
 
   return items.filter((item) =>
-    matchesSearchQuery(trimmed, pattern, regex, item.name, item.description),
+    matchesSearchQuery(trimmed, pattern, regex, matchNames, item.name, item.description),
   );
 }
 
@@ -152,7 +166,7 @@ export function filterSubfoldersBySearch(
 
   const pattern = regex ? compileSearchRegex(trimmed) : null;
 
-  return folders.filter((folder) => matchesSearchQuery(trimmed, pattern, regex, folder.name));
+  return folders.filter((folder) => matchesSearchQuery(trimmed, pattern, regex, true, folder.name));
 }
 
 export function applyCaptionFilter(items: GalleryItem[], filter: CaptionFilter): GalleryItem[] {
@@ -187,6 +201,7 @@ export function processGalleryItems(
     mediaTypeFilter: MediaTypeFilter;
     searchQuery: string;
     searchRegex: boolean;
+    searchNames: boolean;
     sort: SortOption;
   },
 ): GalleryItem[] {
@@ -195,6 +210,7 @@ export function processGalleryItems(
       applyCaptionFilter(applyMediaTypeFilter(items, options.mediaTypeFilter), options.filter),
       options.searchQuery,
       options.searchRegex,
+      options.searchNames,
     ),
     options.sort,
   );
