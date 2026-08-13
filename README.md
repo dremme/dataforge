@@ -11,7 +11,7 @@ Built for people who curate training data for generative models — LoRAs, fine-
 [![Node](https://img.shields.io/badge/node-20%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#system-requirements)
 
-[Quick start](#quick-start) · [Features](#features) · [Requirements](#system-requirements) · [Configuration](#configuration) · [Development](#development) · [Security](SECURITY.md) · [License](#license)
+[Quick start](#quick-start) · [Features](#features) · [Requirements](#system-requirements) · [Configuration](docs/configuration.md) · [Development](docs/development.md) · [Security](SECURITY.md) · [License](#license)
 
 ![The DataForge gallery: a thumbnail grid of a caption dataset, with per-card caption status badges, the folder breadcrumb bar, and the search and filter toolbar.](docs/gallery.png)
 
@@ -33,7 +33,7 @@ Ideal when you already keep datasets on disk and want a fast, visual workflow ov
 
 **1. Setup (once)** — double-click `setup.bat` in the project root.
 It downloads Python 3.12.6 → `.python/` and Node 20.19.0 → `.node/`, creates `backend/.venv`, installs all dependencies,
-and generates the frontend's view of the backend API — see [Generated frontend code](#generated-frontend-code).
+and generates the frontend's view of the backend API — see [Generated frontend code](docs/development.md#generated-frontend-code).
 
 **2. Run** — double-click `start.bat`, or run `.\start.ps1` in PowerShell. The launcher:
 
@@ -45,10 +45,10 @@ and generates the frontend's view of the backend API — see [Generated frontend
 
 Everything is served from a single origin on **http://localhost:8081** — no proxy hop, no hot-reload machinery.
 The first launch spends a minute or two on the frontend build; later ones start in seconds.
-The port is configurable; see [Server ports](#server-ports).
+The port is configurable; see [Server ports](docs/configuration.md#server-ports).
 
 **3. Optional AI config** — copy `.env.example` to `.env` in the project root and set the `OPENAI_*` variables.
-The backend loads `.env` automatically on startup. See [Configuration](#configuration).
+The backend loads `.env` automatically on startup. See [Configuration](docs/configuration.md).
 
 **4. Daily use** — only `start.bat` is needed from then on. Re-run `setup.bat` to refresh dependencies.
 
@@ -65,7 +65,7 @@ All three stop the server cleanly. `stop.bat` is the fallback for the cases with
 | `-NoBrowser` | Do not open the browser |
 | `-Detach` | Exit once the server is ready instead of supervising; stop it later with `stop.bat` |
 
-Working on DataForge itself? Use `dev.bat` instead — see [Running with hot reload](#running-with-hot-reload).
+Working on DataForge itself? Use `dev.bat` instead — see [Running with hot reload](docs/development.md#running-with-hot-reload).
 
 ### Linux, macOS, or a global Python/Node
 
@@ -77,7 +77,7 @@ python -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 cd frontend && npm install && cd ..
 
-# Required before the frontend will build — see "Generated frontend code"
+# Required before the frontend will build — see docs/development.md
 backend/.venv/bin/python scripts/generate_types.py
 
 # Build the UI, then serve both halves from one process
@@ -140,7 +140,7 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | **Backup captions** | Copy captions and caption issues into `.backup` |
 | **Restore captions** | Restore captions and issues from `.backup` |
 
-External **Ostris / AI-Toolkit** training jobs also appear in the jobs drawer once [configured](#paths-integrations-and-logging).
+External **Ostris / AI-Toolkit** training jobs also appear in the jobs drawer once [configured](docs/configuration.md#paths-integrations-and-logging).
 
 Quick LoRA training needs AI-Toolkit running on `http://127.0.0.1:8675`; the menu entry stays disabled otherwise.
 AI-Toolkit owns the run and its training folder, while DataForge tracks it like any other job — progress and sample
@@ -184,236 +184,31 @@ which only calls an OpenAI-compatible HTTP endpoint.
 | **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B), [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) |
 | **Software** | A local OpenAI-compatible vision server with a vision model loaded | Same, with VRAM for quality quants and longer contexts |
 
-[Audio captioning](#audio-captioning) additionally needs an omni model that accepts audio input.
+[Audio captioning](docs/configuration.md#audio-captioning) additionally needs an omni model that accepts audio input.
 
 ## Configuration
 
-### The `.env` file
+Copy [`.env.example`](.env.example) to `.env` in the project root and restart the backend after editing.
+The file is gitignored. OS and shell environment variables always win over it.
 
-On startup the backend loads the **first** file that exists:
-
-1. Project root `.env` — next to `start.bat`
-2. `backend/.env`
-
-OS and shell environment variables always win over the file. `.env` is gitignored — copy
-[`.env.example`](.env.example) to get started, and restart the backend after editing.
-
-### Server ports
+For AI jobs, set the `OPENAI_*` variables so DataForge can reach a local OpenAI-compatible vision server.
+The defaults assume that server is on `http://127.0.0.1:8888/v1`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATAFORGE_UI_PORT` | `8081` | The port you open. Production binds it for the UI *and* the API; in development Vite binds it, and it drives the backend CORS allowlist |
 | `DATAFORGE_API_PORT` | `8080` | **Development only** — port the API binds, and the Vite `/api` proxy target |
-| `DATAFORGE_API_HOST` | `127.0.0.1` | Interface the server binds (`scripts/dev_server.py` and `scripts/prod_server.py`) |
+| `DATAFORGE_UI_PORT` | `8081` | The port you open |
 
-Production serves both halves from one process, so `DATAFORGE_API_PORT` is never bound there and CORS
-never applies.
-
-All four readers — [`frontend/vite.config.ts`](frontend/vite.config.ts), [`backend/server_settings.py`](backend/server_settings.py),
-[`scripts/dev_server.py`](scripts/dev_server.py), and [`scripts/dev-common.ps1`](scripts/dev-common.ps1) — resolve these
-from the same project-root `.env`, and an OS environment variable overrides the file in each.
-Restart the servers after a change; Vite reads its port once at startup.
-
-### Vision LLM
-
-DataForge talks to any **OpenAI-compatible** vision endpoint. Load a model in llama.cpp, Unsloth, or similar before
-running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — not necessarily the Hugging Face repo name.
-
-**Suggested models, best first:**
-
-| Model | Notes |
-| --- | --- |
-| [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Recommended MoE default |
-| [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) | MoE alternative with fewer refusals |
-| [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) | Omni MoE that also **hears audio** — the one to load for [audio captioning](#audio-captioning) |
-| [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) | Dense alternative |
-| [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) | Lighter VLM for smaller GPUs |
-| [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) | Weak; usable only when VRAM is tight |
-
-[Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it) and [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
-also work with some tuning. Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`, where the
-Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in instruct mode and leave `OPENAI_THINKING_*` alone.
-
-**Connection settings** — defaults target a local server:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `OPENAI_API_BASE_URL` | `http://127.0.0.1:8888/v1` | OpenAI-compatible base URL |
-| `OPENAI_API_KEY` | `EMPTY` | Not a credential. Local servers ignore it unless started with `--api-key` |
-| `OPENAI_MODEL` | `qwen35moe` | Chat `model` id, matching what your server exposes |
-| `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
-| `OPENAI_TIMEOUT` | `600` | Seconds to wait for a response before giving up |
-
-Many single-model servers answer even with a wrong `OPENAI_MODEL`. Multi-model servers need the id to match.
-
-`llama-server` defaults to port `8080`, which DataForge's API already uses. Start it on `8888` to match
-`OPENAI_API_BASE_URL` above:
-
-```bash
-llama-server --port 8888 -m <model.gguf> --mmproj <mmproj.gguf>
-```
-
-`--mmproj` loads the multimodal projector, which llama.cpp keeps separate from the weights. Without it you get a
-server that answers text but silently ignores images — which shows up here as captions describing nothing in
-your media. No API key is needed unless you start the server with `--api-key`.
-
-#### Audio captioning
-
-Video models that condition on sound need captions that say what a clip *sounds* like,
-which keyframes alone cannot supply. Tick **Caption audio** in the auto-caption dialog and each MP4's audio track
-is sent in the same request as its keyframes, with a line added to the system prompt asking the model to describe
-what it hears.
-
-This needs an **omni** model — one that accepts audio input, such as
-[Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) — served by a backend
-built with audio support. A vision-only model ignores the audio and captions the frames as usual, so the option
-is off by default. Set `OPENAI_MODEL` to the omni model's id as your server exposes it.
-
-Details worth knowing:
-
-- Only the **first 15 seconds** of a clip are sent — as much as current local omni models take
-- Clips with no audio track, and GIFs, are **still captioned** from their keyframes — the model typically calls
-  them silent — and the job finishes with a warning naming how many there were
-- Still images are unaffected
-- Verify-captions never sends audio, so it works with a vision-only model as before
-
-<details>
-<summary><b>Sampling knobs</b> — per-mode temperature, penalties, and top-p/k</summary>
-
-<br>
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `OPENAI_THINKING_TEMPERATURE` | `1.0` | Sampling temperature in thinking mode |
-| `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0` | Presence penalty in thinking mode |
-| `OPENAI_THINKING_TOP_P` | `0.95` | Top-p in thinking mode |
-| `OPENAI_THINKING_MIN_P` | `0.0` | Min-p in thinking mode (via `extra_body`) |
-| `OPENAI_THINKING_REPEAT_PENALTY` | `1.0` | Repetition penalty in thinking mode (via `extra_body`) |
-| `OPENAI_INSTRUCT_TEMPERATURE` | `0.7` | Sampling temperature in instruct mode |
-| `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5` | Presence penalty in instruct mode |
-| `OPENAI_INSTRUCT_TOP_P` | `0.8` | Top-p in instruct mode |
-| `OPENAI_INSTRUCT_MIN_P` | `0.0` | Min-p in instruct mode (via `extra_body`) |
-| `OPENAI_INSTRUCT_REPEAT_PENALTY` | `1.0` | Repetition penalty in instruct mode (via `extra_body`) |
-| `OPENAI_TOP_K` | `20` | Top-k (via `extra_body`) |
-
-`repeat_penalty` follows llama.cpp naming. Hugging Face– and vLLM-style stacks call the same knob
-`repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
-DataForge at one of those servers.
-
-</details>
-
-### Paths, integrations, and logging
-
-| Variable | Purpose |
-| --- | --- |
-| `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` | Auth for gated SAM weights |
-| `OSTRIS_TOOLKIT_ROOT` | Path to an AI-Toolkit install, so external train jobs can be listed |
-| `DATAFORGE_DB_PATH` | Override the SQLite path (default is under `backend/data/`) |
-| `DATAFORGE_THUMBNAIL_CACHE` | Override the thumbnail cache directory |
-| `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | Thumbnail cache size ceiling (default `2048`). Least recently used entries are dropped past it; `0` never deletes |
-| `DATAFORGE_LOG_LEVEL` | Backend log level (default `INFO`) |
-| `DATAFORGE_SERVE_UI` | Serve `frontend/dist` at `/`. Set automatically by `scripts/prod_server.py`; leave it unset for development |
+Ports, model choices, audio captioning, sampling knobs, and integration paths are in
+**[Configuration.md](docs/configuration.md)**.
 
 ## Development
 
-### Running with hot reload
+Working on DataForge itself? Use `dev.bat` (or `.\dev.ps1`) instead of `start.bat` — two consoles, hot reload,
+and Vite proxying `/api`.
 
-`dev.bat` (or `.\dev.ps1`) is the development launcher. It opens **two** consoles — the API with the uvicorn
-reloader on **http://localhost:8080** and the Vite dev server on **http://localhost:8081**, with Vite proxying
-`/api` to the API — waits until both are serving, then opens the browser and supervises them. Separate windows
-keep uvicorn's reload output from stepping on Vite's.
-
-| Flag | Effect |
-| --- | --- |
-| `-BackendOnly` / `-FrontendOnly` | Start just one server |
-| `-NoBrowser` | Do not open the browser |
-| `-NoReload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
-| `-Detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` |
-
-`start-backend.ps1` and `start-frontend.ps1` run a single dev server in the current terminal and prefer
-`.python` / `.node` when present. All of them share `scripts/dev-common.ps1` with `dev.ps1`, `start.ps1`, and
-`stop.ps1`, so port cleanup and the dependency-drift warning behave identically everywhere.
-
-On Linux or macOS, run the two halves yourself from the project root:
-
-```bash
-# Terminal 1 — API
-backend/.venv/bin/python scripts/dev_server.py
-
-# Terminal 2 — UI
-cd frontend && npm run dev
-```
-
-`stop.bat` frees both ports and covers either launcher. You should rarely need it: closing a launcher window
-stops the servers it started. It is for `-Detach`, for a server console closed by hand, and for the Linux/macOS
-shape above where nothing is supervising.
-
-### Tech stack
-
-- **Backend** — Python 3.11+, FastAPI, SQLite, Pillow, with an optional OpenAI client and Ultralytics
-- **Frontend** — React 19, TypeScript, Vite, SCSS
-- **Local AI** — any OpenAI-compatible vision endpoint
-
-### Project layout
-
-```text
-DataForge/
-├── backend/           # FastAPI, jobs, captions, media I/O, automation
-│   ├── automation/    # Job runners + YOLO/SAM weights (downloaded locally)
-│   ├── data/          # Local SQLite + thumbnails (gitignored)
-│   └── routes/        # HTTP API
-├── frontend/          # React + TypeScript + Vite UI
-│   ├── dist/          # Production build output (gitignored)
-│   └── src/shared/    # types.ts, constants.ts, wireGuards.ts are generated (gitignored)
-├── scripts/           # Dev + prod servers, launcher helpers, lint, tests, git hooks
-├── .github/workflows/ # CI (run_checks.py)
-├── sample-images/     # Tiny example dataset
-├── .env.example       # Sample env vars: ports, AI config (copy to .env)
-├── .env               # Local secrets/config (gitignored; optional)
-├── setup.bat          # Windows self-contained install
-├── start.bat / .ps1   # Production launcher - builds the UI, serves both halves
-├── dev.bat / .ps1     # Dev launcher - two servers with hot reload
-├── stop.bat / .ps1    # Frees the ports
-├── SECURITY.md
-└── LICENSE            # Apache-2.0
-```
-
-### Generated frontend code
-
-`backend/schemas.py` and `backend/constants.py` are the single source of truth for the API contract.
-[`scripts/generate_types.py`](scripts/generate_types.py) writes three files from them, so nothing is mirrored by hand:
-
-| File | Contents |
-| --- | --- |
-| `frontend/src/shared/types.ts` | Every wire shape, from the published OpenAPI schema |
-| `frontend/src/shared/constants.ts` | `constants.SHARED_CONSTANTS` |
-| `frontend/src/shared/wireGuards.ts` | Runtime guards for `schemas.GUARDED_WIRE_MODELS` |
-
-All three are **gitignored**, so a fresh clone does not have them, and two of them carry real values rather
-than types alone — the frontend will not build or start until they exist. `setup.bat` generates them, and
-`scripts/run_checks.py` regenerates them before anything compiles, lints, or tests. Generate them by hand after
-a fresh clone on Linux or macOS, and whenever you change `schemas.py` or `constants.py` without running checks.
-
-**Never edit these files.** They carry a `Do not edit` header and the next generator run overwrites them;
-frontend-only shapes belong in the module that uses them.
-
-### Commands
-
-Run these from the **project root** using the backend venv Python — `backend\.venv\Scripts\python.exe` on
-Windows, `backend/.venv/bin/python` on Unix:
-
-| Task | Command |
-| --- | --- |
-| API with hot reload | `python scripts/dev_server.py` — accepts `--no-reload`, `--port`, `--host` |
-| Production server | `python scripts/prod_server.py` — accepts `--port`, `--host`, `--access-log`; needs a build |
-| Build the UI | `cd frontend && npm run build` — typechecks, then writes `frontend/dist` |
-| Full checks | `python scripts/run_checks.py` — the same suite CI runs |
-| Regenerate API types | `python scripts/generate_types.py` — see [Generated frontend code](#generated-frontend-code) |
-| Backend lint | `python scripts/run_lint.py` — add `--fix` to auto-fix |
-| Backend tests | `python scripts/run_tests.py` |
-| Frontend tests | `cd frontend && npm test` |
-| Frontend lint / format | `cd frontend && npm run lint` / `npm run format` |
-| Install git hooks | `scripts/install-git-hooks.ps1` or `.sh` |
+Launcher flags, project layout, generated frontend types, and the command list are in
+**[Development.md](docs/development.md)**.
 
 ## Security and privacy
 
