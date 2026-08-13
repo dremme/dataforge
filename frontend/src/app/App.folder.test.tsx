@@ -5,6 +5,20 @@ import { EMPTY_PATH, HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
+/**
+ * jsdom has no layout, so the app's scroll container never moves on its own.
+ * A writable `scrollTop` makes what the app writes observable.
+ */
+function stubMainScroll(scrollTop = 0): HTMLElement {
+  const element = document.querySelector("main.main") as HTMLElement;
+  Object.defineProperty(element, "scrollTop", {
+    value: scrollTop,
+    writable: true,
+    configurable: true,
+  });
+  return element;
+}
+
 describe("App: folder navigation", () => {
   it("shows folder not found when the current folder is deleted in the background", async () => {
     const { removeFolder } = installMockBackend();
@@ -227,5 +241,98 @@ describe("App: folder navigation", () => {
     expect(screen.queryByRole("region", { name: "System prompt" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Vacation/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Photos" })).toBeInTheDocument();
+  });
+
+  it("opens a subfolder at the top rather than where the last folder was left", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    const main = stubMainScroll(900);
+    await user.click(screen.getByRole("button", { name: /Vacation/ }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
+    });
+    expect(main.scrollTop).toBe(0);
+  });
+
+  it("returns each history entry to the offset it was left at", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    const main = stubMainScroll(900);
+    await user.click(screen.getByRole("button", { name: /Vacation/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
+    });
+
+    main.scrollTop = 300;
+    window.history.back();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+      expect(main.scrollTop).toBe(900);
+    });
+
+    window.history.forward();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
+      // A cache keyed by folder path rather than by history entry gets this wrong.
+      expect(main.scrollTop).toBe(300);
+    });
+  });
+
+  it("leaves the scroll position alone when a folder refreshes in place", async () => {
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    const main = stubMainScroll(640);
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+    });
+    expect(main.scrollTop).toBe(640);
+  });
+
+  it("opens a folder from the open-folder dialog at the top", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+
+    const main = stubMainScroll(900);
+    await user.click(screen.getByRole("button", { name: "Open folder" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
+    const pathInput = within(dialog).getByRole("textbox", { name: "Folder path" });
+    await user.clear(pathInput);
+    await user.type(pathInput, VACATION_PATH);
+    await user.click(within(dialog).getByRole("button", { name: "Open" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
+    });
+    // The modal scroll lock restores the pre-open offset on close; the reset has
+    // to land after that, not before.
+    expect(main.scrollTop).toBe(0);
   });
 });

@@ -3,13 +3,21 @@ import { fetchFolderFingerprint } from "@/features/folder/api/folderContents";
 import { buildBreadcrumbs } from "@/features/folder/lib/breadcrumbs";
 import { evictCachedFolder, readCachedFolder } from "@/features/folder/lib/folderCache";
 import {
+  getCurrentEntryKey,
+  getEntryKeyFromHistoryEvent,
   getFolderFromHistoryEvent,
   getFolderFromUrl,
   syncFolderHistory,
   type HistoryMode,
 } from "@/features/folder/lib/folderHistory";
 import { getCachedLastFolder, loadFolderContents } from "@/features/folder/lib/folderPreferences";
+import {
+  forgetFolderScroll,
+  recallFolderScroll,
+  rememberFolderScroll,
+} from "@/features/folder/lib/folderScrollMemory";
 import { isAbortError, resolveFolderError, type FolderError } from "@/shared/api/http";
+import { getAppScrollElement } from "@/shared/lib/appScroll";
 import type { FolderResponse } from "@/shared/types";
 
 /**
@@ -61,6 +69,23 @@ function createFailedFolderShell(
   };
 }
 
+/**
+ * Where the scroll container should land once the destination folder paints.
+ *
+ * Minted only by `navigateTo` and the popstate listener, so the many other
+ * `setFolder` callers — silent reloads, folder deltas, subfolder stats — leave
+ * the scroll position alone by construction rather than by a guard. The `id`
+ * makes each navigation distinguishable even when the path does not change.
+ */
+export type FolderScrollIntent = {
+  id: number;
+  mode: "reset" | "restore";
+  /** Destination requested by the navigation; undefined means the default folder. */
+  path: string | undefined;
+  /** Offset to apply for "restore"; always 0 for "reset". */
+  target: number;
+};
+
 export type LoadFolderOptions = {
   preserveSelection?: boolean;
   updateRecent?: boolean;
@@ -79,6 +104,15 @@ export function useFolderNavigation(onFolderChange?: () => void) {
   const loadGenerationRef = useRef(0);
   const inFlightRef = useRef<AbortController | null>(null);
   const lastRequestedPathRef = useRef<string | undefined>(undefined);
+  const [scrollIntent, setScrollIntent] = useState<FolderScrollIntent | null>(null);
+  const scrollIntentIdRef = useRef(0);
+  const currentEntryKeyRef = useRef<string | undefined>(getCurrentEntryKey());
+
+  const saveOutgoingScroll = useCallback(() => {
+    const element = getAppScrollElement();
+    if (!element) return;
+    rememberFolderScroll(currentEntryKeyRef.current, element.scrollTop);
+  }, []);
 
   const loadFolder = useCallback(
     async (
@@ -163,21 +197,33 @@ export function useFolderNavigation(onFolderChange?: () => void) {
     async (path?: string, historyMode: HistoryMode = "push") => {
       if (historyMode === "push" && path && folder?.path === path) return;
 
+      // The DOM still holds the folder we are leaving, so its offset is only
+      // readable here, before any of the state below re-renders.
+      if (historyMode === "push") {
+        saveOutgoingScroll();
+      }
+      setScrollIntent({ id: ++scrollIntentIdRef.current, mode: "reset", path, target: 0 });
+
       if (path) {
         setFolder((current) =>
           current ? applyOptimisticFolder(current, path) : createFailedFolderShell(path, null),
         );
         if (historyMode !== "none") {
-          syncFolderHistory(path, historyMode);
+          currentEntryKeyRef.current = syncFolderHistory(path, historyMode);
+          // A replace reuses the entry, so any offset stored under it belongs to
+          // a folder that entry no longer points at.
+          if (historyMode === "replace") {
+            forgetFolderScroll(currentEntryKeyRef.current);
+          }
         }
       }
 
       const data = await loadFolder(path);
       if (data && path && historyMode !== "none" && data.path !== path) {
-        syncFolderHistory(data.path, "replace");
+        currentEntryKeyRef.current = syncFolderHistory(data.path, "replace");
       }
     },
-    [folder?.path, loadFolder],
+    [folder?.path, loadFolder, saveOutgoingScroll],
   );
 
   useEffect(() => {
@@ -187,7 +233,7 @@ export function useFolderNavigation(onFolderChange?: () => void) {
     const initialPath = getFolderFromUrl();
     loadFolder(initialPath).then((data) => {
       if (data) {
-        syncFolderHistory(data.path, "replace");
+        currentEntryKeyRef.current = syncFolderHistory(data.path, "replace");
       }
     });
   }, [loadFolder]);
@@ -195,7 +241,16 @@ export function useFolderNavigation(onFolderChange?: () => void) {
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const path = getFolderFromHistoryEvent(event);
-      syncFolderHistory(path, "none");
+
+      saveOutgoingScroll();
+      const entryKey = getEntryKeyFromHistoryEvent(event);
+      currentEntryKeyRef.current = entryKey;
+      setScrollIntent({
+        id: ++scrollIntentIdRef.current,
+        mode: "restore",
+        path,
+        target: recallFolderScroll(entryKey) ?? 0,
+      });
 
       if (path) {
         setFolder((current) =>
@@ -208,7 +263,7 @@ export function useFolderNavigation(onFolderChange?: () => void) {
 
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [loadFolder]);
+  }, [loadFolder, saveOutgoingScroll]);
 
   const reloadFolder = useCallback(
     async ({ silent = true }: ReloadFolderOptions = {}) => {
@@ -222,5 +277,5 @@ export function useFolderNavigation(onFolderChange?: () => void) {
     [folder?.path, loadFolder],
   );
 
-  return { folder, loading, refreshing, error, reloadFolder, navigateTo, setFolder };
+  return { folder, loading, refreshing, error, reloadFolder, navigateTo, setFolder, scrollIntent };
 }

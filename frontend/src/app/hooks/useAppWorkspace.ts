@@ -6,6 +6,7 @@ import { useFolderChangeDetection } from "@/features/folder/hooks/useFolderChang
 import { applyFolderDelta } from "@/features/folder/lib/applyFolderDelta";
 import { useFolderFileDrop } from "@/features/folder/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/folder/hooks/useFolderNavigation";
+import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScrollPosition";
 import { useSubfolderStats } from "@/features/folder/hooks/useSubfolderStats";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
@@ -22,11 +23,18 @@ export function useAppWorkspace() {
   const selection = useGallerySelection();
   const { ostrisAvailable } = useJobs();
 
-  const { folder, loading, refreshing, error, navigateTo, setFolder, reloadFolder } =
+  const { folder, loading, refreshing, error, navigateTo, setFolder, reloadFolder, scrollIntent } =
     useFolderNavigation(selection.clearSelection);
 
   const reloadFolderSilently = useCallback(() => reloadFolder({ silent: true }), [reloadFolder]);
   const folderNotFound = error?.kind === "folder-not-found";
+
+  useFolderScrollPosition({
+    intent: scrollIntent,
+    folderPath: folder?.path,
+    loading,
+    hasError: Boolean(error),
+  });
   const folderLabel =
     folder?.breadcrumbs[folder.breadcrumbs.length - 1]?.name ?? folder?.path ?? "this folder";
 

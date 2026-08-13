@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { clearFolderCache } from "@/features/folder/lib/folderCache";
+import { clearFolderScrollMemory } from "@/features/folder/lib/folderScrollMemory";
 import type { CaptionSaveResponse, Job, FolderResponse } from "@/shared/types";
 import { emptyFolder, homeFolder, vacationFolder } from "./fixtures";
 
@@ -58,6 +59,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
   // The folder cache is a module singleton, so a payload left over from an
   // earlier test would otherwise be served instead of hitting this mock.
   clearFolderCache();
+  clearFolderScrollMemory();
 
   const folderByPath = Object.fromEntries(
     Object.entries(options.folderByPath ?? {}).map(([key, value]) => [
