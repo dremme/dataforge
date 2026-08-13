@@ -41,7 +41,7 @@ and generates the frontend's view of the backend API — see [Generated frontend
 - Frees the app port, if a previous run left a server behind
 - Starts **one** server in its own console, serving the bundled UI and the API together
 - Waits until it answers `/api/health`, *then* opens **http://localhost:8081**
-- Stays open as a supervisor — press any key in it to stop the server
+- Stays open as a supervisor — press any key in it, or close it, to stop the server
 
 Everything is served from a single origin on **http://localhost:8081** — no proxy hop, no hot-reload machinery.
 The first launch spends a minute or two on the frontend build; later ones start in seconds.
@@ -52,8 +52,9 @@ The backend loads `.env` automatically on startup. See [Configuration](#configur
 
 **4. Daily use** — only `start.bat` is needed from then on. Re-run `setup.bat` to refresh dependencies.
 
-To stop the server: press any key in the launcher window, hit **Ctrl+C** in the server console, or run `stop.bat`.
-`stop.bat` also clears a server left behind by closing a console with the X button.
+To stop the server: press any key in the launcher window, close that window, or hit **Ctrl+C** in the server console.
+All three stop the server cleanly. `stop.bat` is the fallback for the cases with no launcher watching — after
+`-Detach`, or when the *server* console was closed with the X button and left its port held.
 
 `start.bat` passes flags through to `start.ps1`:
 
@@ -320,7 +321,9 @@ backend/.venv/bin/python scripts/dev_server.py
 cd frontend && npm run dev
 ```
 
-`stop.bat` frees both ports and covers either launcher.
+`stop.bat` frees both ports and covers either launcher. You should rarely need it: closing a launcher window
+stops the servers it started. It is for `-Detach`, for a server console closed by hand, and for the Linux/macOS
+shape above where nothing is supervising.
 
 ### Tech stack
 

@@ -372,6 +372,120 @@ function Stop-DevTree {
     }
 }
 
+function Register-DevExitGuard {
+    <#
+    .SYNOPSIS
+      Makes closing the launcher window stop the spawned server consoles.
+
+    .DESCRIPTION
+      The launchers clean up in a finally block, which Windows PowerShell never runs
+      for CTRL_CLOSE_EVENT - and the servers are independent cmd windows rather than
+      children, so they outlive the launcher. Closing a launcher with the X button
+      therefore used to orphan a python and a node holding the dev ports.
+
+      This installs a Win32 console control handler that kills the recorded PIDs
+      with the same taskkill /T tree walk Stop-DevTree uses. Call it again as more
+      servers start; the new list replaces the old one.
+
+      The paths that deliberately leave servers running - -Detach, and the readiness
+      failure that keeps the error on screen - must call Unregister-DevExitGuard
+      before they exit.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [int[]]$ProcessId
+    )
+
+    if (-not ('DevConsoleGuard' -as [type])) {
+        try {
+            # Compiled on first use only, so stop.ps1 - which dot-sources this file
+            # but never spawns anything - does not pay the compile.
+            Add-Type -TypeDefinition @'
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+public static class DevConsoleGuard
+{
+    public delegate bool CtrlHandler(uint ctrlType);
+
+    // Static so the GC cannot collect the delegate while Windows still holds the
+    // native function pointer. A collected callback would crash the launcher at
+    // the exact moment it is being asked to clean up.
+    private static CtrlHandler _handler;
+    private static int[] _pids = new int[0];
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(CtrlHandler handler, bool add);
+
+    public static void Arm(int[] pids)
+    {
+        _pids = (pids == null) ? new int[0] : pids;
+        if (_handler == null)
+        {
+            _handler = new CtrlHandler(OnCtrl);
+            SetConsoleCtrlHandler(_handler, true);
+        }
+    }
+
+    public static void Disarm()
+    {
+        _pids = new int[0];
+    }
+
+    // Every control type is treated alike. Ctrl+C during the readiness wait kills
+    // this process just as dead as the X button does, and a duplicate taskkill on
+    // an already-stopped tree is harmless.
+    private static bool OnCtrl(uint ctrlType)
+    {
+        // Windows allows roughly five seconds after a close event before killing
+        // this process, so the handler does nothing here but the kills. Calling
+        // back into PowerShell from this thread is not safe.
+        int[] pids = _pids;
+        foreach (int pid in pids)
+        {
+            try
+            {
+                ProcessStartInfo info = new ProcessStartInfo("taskkill.exe", "/PID " + pid + " /T /F");
+                info.UseShellExecute = false;
+                info.CreateNoWindow = true;
+                Process killer = Process.Start(info);
+                if (killer != null) { killer.WaitForExit(3000); }
+            }
+            catch
+            {
+                // Already gone, or not ours to kill.
+            }
+        }
+
+        // false: let the default handler run, so the launcher still exits.
+        return false;
+    }
+}
+'@
+        } catch {
+            Write-Host '[WARN] Could not install the window-close guard.' -ForegroundColor Yellow
+            Write-Host '       Closing this window with X will leave the servers running; use stop.bat if that happens.'
+            return
+        }
+    }
+
+    [DevConsoleGuard]::Arm([int[]]@($ProcessId | Where-Object { $_ -gt 0 }))
+}
+
+function Unregister-DevExitGuard {
+    <#
+    .SYNOPSIS
+      Stops the window-close guard from killing anything.
+
+    .DESCRIPTION
+      For the exits that intentionally leave servers running. The handler itself
+      stays registered - with an empty list it has nothing to do.
+    #>
+    if ('DevConsoleGuard' -as [type]) { [DevConsoleGuard]::Disarm() }
+}
+
 function Clear-DevPort {
     <#
     .SYNOPSIS

@@ -10,7 +10,7 @@
 
   The build is skipped when frontend\dist is newer than every frontend source, which
   makes the usual launch near-instant. This window stays open as a supervisor: press
-  any key in it to stop the server cleanly.
+  any key in it, or just close it, to stop the server cleanly.
 
   Use this directly, or double-click start.bat for the same behavior. For hot
   reload while developing, use dev.ps1.
@@ -104,6 +104,9 @@ try {
         -WorkingDirectory $paths.Root `
         -Banner @("DataForge - $DevUiUrl", 'Production: bundled UI, no hot reload') `
         -Command "`"$($paths.VenvPy)`" `"$($paths.ProdServer)`""
+    # Armed before the readiness wait: a cold start is the longest stretch in which
+    # an impatient window-close would orphan the server.
+    Register-DevExitGuard -ProcessId @($appProc.Id)
 
     Write-Host ''
     Write-Host '  Waiting for the app to answer /api/health...' -NoNewline
@@ -115,6 +118,7 @@ try {
         Write-Host '[ERROR] The server never became ready. Check the "DataForge - Server" window.' -ForegroundColor Red
         Write-Host '        That window was left open so the error stays readable.'
         $leaveRunning = $true
+        Unregister-DevExitGuard
         Exit-Launcher
     }
 
@@ -125,12 +129,13 @@ try {
     Write-Host ''
     if ($Detach) {
         $leaveRunning = $true
+        Unregister-DevExitGuard
         Write-Host 'The server is running in its own window. Run stop.bat to stop it.'
         exit 0
     }
 
     Write-Host 'The app is running. This window supervises it.'
-    Write-Host 'Press any key here to stop it, or close its window.' -ForegroundColor Cyan
+    Write-Host 'Press any key here to stop it, or just close this window.' -ForegroundColor Cyan
     try {
         [void]$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
     } catch {

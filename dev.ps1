@@ -6,8 +6,8 @@
 .DESCRIPTION
   Separate windows keep the logs isolated, so uvicorn hot reload never disturbs
   the Vite output. This launcher window stays open as a supervisor: press any key
-  in it to stop both servers cleanly, including the uvicorn reload child process
-  that a plain window-close would orphan.
+  in it, or just close it, to stop both servers cleanly - including the uvicorn
+  reload child process that an unguarded window-close would orphan.
 
   Use this directly, or double-click dev.bat for the same behavior. For a
   production run - bundled UI, one process, no hot reload - use start.ps1.
@@ -126,6 +126,9 @@ try {
             -WorkingDirectory $paths.Root `
             -Banner @("DataForge Backend - $DevApiUrl", $reloadLabel) `
             -Command $backendCommand
+        # Armed before the readiness wait: a cold start is the longest stretch in
+        # which an impatient window-close would orphan a server.
+        Register-DevExitGuard -ProcessId @($backendProc.Id)
     }
 
     if ($startFrontend) {
@@ -135,6 +138,7 @@ try {
             -WorkingDirectory $paths.Frontend `
             -Banner @("DataForge Frontend - $DevUiUrl", 'Hot reload: Vite HMR') `
             -Command "call `"$(Get-NpmCommand)`" run dev"
+        Register-DevExitGuard -ProcessId @(@($backendProc, $frontendProc) | Where-Object { $_ } | ForEach-Object { $_.Id })
     }
 
     Write-Host ''
@@ -166,6 +170,7 @@ try {
         }
         Write-Host '        The server windows were left open so the error stays readable.'
         $leaveRunning = $true
+        Unregister-DevExitGuard
         Exit-Launcher
     }
 
@@ -184,12 +189,13 @@ try {
 
     if ($Detach) {
         $leaveRunning = $true
+        Unregister-DevExitGuard
         Write-Host 'Servers are running in their own windows. Run stop.bat to stop them.'
         exit 0
     }
 
     Write-Host 'Both servers are running. This window supervises them.'
-    Write-Host 'Press any key here to stop them, or close their windows individually.' -ForegroundColor Cyan
+    Write-Host 'Press any key here to stop them, or just close this window.' -ForegroundColor Cyan
     try {
         [void]$Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
     } catch {

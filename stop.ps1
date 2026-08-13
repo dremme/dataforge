@@ -3,9 +3,10 @@
   Stops DataForge by freeing the configured ports. Covers both launchers.
 
 .DESCRIPTION
-  The escape hatch for when the supervising launcher window is already gone and a
-  server is still holding its port - typically after closing a console with the X
-  button, which leaves the uvicorn reload child running.
+  The escape hatch for when no launcher is supervising and a server is still holding
+  its port: after -Detach, or after closing a *server* console with the X button,
+  which leaves the uvicorn reload child running. Closing a launcher window is
+  handled by the launchers themselves (see Register-DevExitGuard).
 
   Both ports are cleared either way: dev.ps1 uses one per server, and start.ps1
   serves everything on the UI port.
