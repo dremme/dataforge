@@ -1,4 +1,4 @@
-"""Unit tests for automation.batch_rename."""
+"""Unit tests for automation.rename_media."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-from automation.batch_rename import (
+from automation.rename_media import (
     build_target_name,
-    list_batch_rename_media,
+    list_rename_media,
     normalize_name_stem,
-    run_batch_rename_job,
+    run_rename_media_job,
     sequence_padding,
-    validate_batch_rename_folder,
+    validate_rename_media_folder,
 )
 from captions import issue_file_path
 from testing_fixtures import (
@@ -29,7 +29,7 @@ from testing_fixtures import (
 )
 
 
-class BatchRenameHelpersTests(unittest.TestCase):
+class RenameMediaHelpersTests(unittest.TestCase):
     def test_sequence_padding_uses_at_least_three_digits(self) -> None:
         self.assertEqual(sequence_padding(3), 3)
         self.assertEqual(sequence_padding(99), 3)
@@ -46,7 +46,7 @@ class BatchRenameHelpersTests(unittest.TestCase):
             normalize_name_stem("bad/name")
 
 
-class BatchRenameMediaListingTests(unittest.TestCase):
+class RenameMediaListingTests(unittest.TestCase):
     def test_lists_supported_media_oldest_to_newest(self) -> None:
         with TempMediaFolder() as root:
             older = write_media(root, "older.png")
@@ -58,17 +58,17 @@ class BatchRenameMediaListingTests(unittest.TestCase):
             os.utime(older, (now - 20, now - 20))
             os.utime(newer, (now - 10, now - 10))
 
-            names = [path.name for path in list_batch_rename_media(root)]
+            names = [path.name for path in list_rename_media(root)]
 
             self.assertEqual(names, ["older.png", "newer.png", "clip.mp4"])
 
     def test_validate_requires_supported_media(self) -> None:
         with TempMediaFolder() as root:
             with self.assertRaisesRegex(ValueError, "No supported images or videos"):
-                validate_batch_rename_folder(root, stem="sample")
+                validate_rename_media_folder(root, stem="sample")
 
 
-class BatchRenameJobTests(unittest.TestCase):
+class RenameMediaJobTests(unittest.TestCase):
     def test_renames_media_and_sidecars_with_numbered_stem(self) -> None:
         with TempMediaFolder() as root:
             first = write_media(root, "alpha.png")
@@ -79,7 +79,7 @@ class BatchRenameJobTests(unittest.TestCase):
             os.utime(first, (now - 20, now - 20))
             os.utime(second, (now - 10, now - 10))
 
-            result = run_batch_rename_job(root, stem="portugal")
+            result = run_rename_media_job(root, stem="portugal")
 
             self.assertEqual(result["total"], 2)
             self.assertEqual(result["stats"]["success"], 2)
@@ -99,7 +99,7 @@ class BatchRenameJobTests(unittest.TestCase):
             write_json_caption(media, {"description": "Json caption."})
             write_issue_sidecar(media, 'Change "standing" to "kneeling".')
 
-            result = run_batch_rename_job(root, stem="portugal")
+            result = run_rename_media_job(root, stem="portugal")
 
             self.assertEqual(result["stats"]["success"], 1)
             self.assertTrue((root / "portugal_001.png").is_file())
@@ -122,7 +122,7 @@ class BatchRenameJobTests(unittest.TestCase):
             media = write_media(root, "alpha.png")
             write_issue_sidecar(media, 'Change "standing" to "kneeling".')
 
-            run_batch_rename_job(root, stem="portugal")
+            run_rename_media_job(root, stem="portugal")
 
             self.assertTrue((root / "portugal_001.issue.json").is_file())
             # The issue sidecar must not be turned into a caption sidecar.
@@ -134,7 +134,7 @@ class BatchRenameJobTests(unittest.TestCase):
             (root / "portugal_001.png").mkdir()
 
             with self.assertRaisesRegex(ValueError, "already exists"):
-                validate_batch_rename_folder(root, stem="portugal")
+                validate_rename_media_folder(root, stem="portugal")
 
     def test_rejects_conflicting_target_names_for_selection(self) -> None:
         with TempMediaFolder() as root:
@@ -145,7 +145,7 @@ class BatchRenameJobTests(unittest.TestCase):
 
             # Full-folder validation may pass (overlaps a source that would move), but selection must reject.
             with self.assertRaisesRegex(ValueError, "already exists"):
-                validate_batch_rename_folder(root, stem="portugal", selected_paths=[selected])
+                validate_rename_media_folder(root, stem="portugal", selected_paths=[selected])
 
     def test_rejects_sidecar_target_conflict(self) -> None:
         with TempMediaFolder() as root:
@@ -155,7 +155,7 @@ class BatchRenameJobTests(unittest.TestCase):
             (root / "portugal_001.txt").write_text("colliding sidecar", encoding="utf-8")
 
             with self.assertRaisesRegex(ValueError, "already exists"):
-                validate_batch_rename_folder(root, stem="portugal", selected_paths=[selected])
+                validate_rename_media_folder(root, stem="portugal", selected_paths=[selected])
 
     def test_progress_advances_monotonically_across_both_rename_phases(self) -> None:
         with TempMediaFolder() as root:
@@ -173,7 +173,7 @@ class BatchRenameJobTests(unittest.TestCase):
             ) -> None:
                 progress_samples.append((processed, total))
 
-            result = run_batch_rename_job(root, stem="sample", on_progress=on_progress)
+            result = run_rename_media_job(root, stem="sample", on_progress=on_progress)
 
             self.assertEqual(result["total"], 3)
             self.assertEqual(result["stats"]["success"], 3)

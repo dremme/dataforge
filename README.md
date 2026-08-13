@@ -134,8 +134,8 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | **Set captions** | Apply the same text to many files |
 | **Verify captions** | Checks captions against the media — videos and GIFs via keyframes — and writes `.issue.json` when something is wrong |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
-| **Batch rename** | Numbered rename of media plus related sidecars |
-| **Batch watermark** | Burn text onto JPG, PNG, and MP4 copies in a `watermarked` subfolder (size, opacity, position) |
+| **Rename** | Numbered rename of media plus related sidecars |
+| **Watermark** | Burn text onto JPG, PNG, and MP4 copies in a `watermarked` subfolder (size, opacity, position) |
 | **Strip metadata** | Remove embedded data from PNGs and MP4s |
 | **Backup captions** | Copy captions and caption issues into `.backup`, keeping copies already stored there unless you opt to overwrite |
 | **Restore captions** | Restore captions and issues from `.backup` |
@@ -161,7 +161,7 @@ Verify-captions **additional context** is stored **per folder** in the app datab
 
 ### App only
 
-Enough for gallery browsing, caption editing, strip metadata, watermark, set captions, and batch rename.
+Enough for gallery browsing, caption editing, strip metadata, watermark, set captions, and rename.
 
 | | Minimum | Recommended |
 | --- | --- | --- |

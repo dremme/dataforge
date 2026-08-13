@@ -51,7 +51,7 @@ def strip_metadata_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to strip metadata from {error_count} files."
 
 
-def batch_rename_error_message(stats: dict[str, int]) -> str | None:
+def rename_media_error_message(stats: dict[str, int]) -> str | None:
     rename_errors = int(stats.get("rename_error") or 0)
     if rename_errors == 0:
         return None
@@ -190,7 +190,7 @@ def resolve_job_error(
     if job_type == "set_captions":
         return set_captions_error_message(stats)
     if job_type == "batch_rename":
-        return batch_rename_error_message(stats)
+        return rename_media_error_message(stats)
     if job_type == "backup_captions":
         return backup_captions_error_message(stats)
     if job_type == "restore_captions":

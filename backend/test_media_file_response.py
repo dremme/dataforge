@@ -98,7 +98,7 @@ class OpenSharedReadTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "FILE_SHARE_DELETE is a Windows concern")
     def test_allows_rename_while_handle_is_open(self) -> None:
-        """Mirrors automation/batch_rename.py, which renames media in place."""
+        """Mirrors automation/rename_media.py, which renames media in place."""
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             renamed = root / "sunrise.png"

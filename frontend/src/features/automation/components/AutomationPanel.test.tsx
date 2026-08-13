@@ -217,8 +217,8 @@ describe("AutomationPanel", () => {
     const sections = screen.getAllByRole("group");
     expect(sections.map((section) => section.getAttribute("aria-label"))).toEqual([
       "Datasets",
-      "Files",
       "Backup",
+      "Files",
     ]);
 
     const backup = screen.getByRole("group", { name: "Backup" });
@@ -245,7 +245,7 @@ describe("AutomationPanel", () => {
 
     await user.click(screen.getByRole("button", { name: /More/ }));
 
-    const item = screen.getByRole("menuitem", { name: /Batch rename/ });
+    const item = screen.getByRole("menuitem", { name: /Rename/ });
     expect(item).not.toHaveAttribute("title");
     expect(item).toHaveTextContent("Rename media files.");
 

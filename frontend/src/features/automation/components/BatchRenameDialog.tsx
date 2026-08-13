@@ -47,7 +47,7 @@ export function BatchRenameDialog({
 
   return (
     <Dialog
-      title="Batch rename?"
+      title="Rename files?"
       description={
         <>
           Rename <strong>{itemCount}</strong> supported media {itemCount === 1 ? "file" : "files"}{" "}
@@ -62,7 +62,7 @@ export function BatchRenameDialog({
       describedById={error ? errorId : undefined}
       footer={
         <DialogActions
-          confirmLabel="Batch rename"
+          confirmLabel="Rename"
           busyLabel="Starting..."
           busy={busy}
           onConfirm={handleConfirm}

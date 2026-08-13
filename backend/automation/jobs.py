@@ -20,11 +20,10 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
-from automation.batch_rename import run_batch_rename_job, validate_batch_rename_folder
 from automation.job_messages import (
     auto_caption_failure_message,
     backup_captions_error_message,
-    batch_rename_error_message,
+    rename_media_error_message,
     resolve_job_error,
     restore_captions_error_message,
     set_captions_error_message,
@@ -32,6 +31,7 @@ from automation.job_messages import (
     verify_captions_failure_message,
     watermark_error_message,
 )
+from automation.rename_media import run_rename_media_job, validate_rename_media_folder
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
 from automation.train_lora import run_train_lora_job, validate_train_lora_folder
@@ -192,8 +192,8 @@ def _selected_paths(params: dict[str, object]) -> list[Path] | None:
     return selected if isinstance(selected, list) else None
 
 
-def _validate_batch_rename(folder: Path, **params: object) -> None:
-    validate_batch_rename_folder(
+def _validate_rename_media(folder: Path, **params: object) -> None:
+    validate_rename_media_folder(
         folder,
         stem=str(params.get("stem", "")),
         selected_paths=_selected_paths(params),
@@ -275,10 +275,10 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         validate=_folder_only(validate_set_captions_folder),
     ),
     "batch_rename": JobSpec(
-        thread_prefix="batch-rename",
-        run=run_batch_rename_job,
-        resolve_status=_resolve_stats_errors(batch_rename_error_message),
-        validate=_validate_batch_rename,
+        thread_prefix="rename-media",
+        run=run_rename_media_job,
+        resolve_status=_resolve_stats_errors(rename_media_error_message),
+        validate=_validate_rename_media,
     ),
     "backup_captions": JobSpec(
         thread_prefix="backup-captions",

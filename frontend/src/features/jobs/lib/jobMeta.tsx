@@ -26,8 +26,8 @@ export interface JobAvailability {
 /** Sections of the secondary jobs menu, in display order. */
 export const JOB_GROUPS = [
   { id: "datasets", label: "Datasets" },
-  { id: "files", label: "Files" },
   { id: "backup", label: "Backup" },
+  { id: "files", label: "Files" },
 ] as const;
 
 export type JobGroup = (typeof JOB_GROUPS)[number]["id"];
@@ -88,7 +88,7 @@ export const JOB_TYPE_META = {
   batch_rename: {
     type: "batch_rename" as const,
     group: "files" as const,
-    label: "Batch rename",
+    label: "Rename",
     icon: iconFilePen,
     startUi: "dialog" as const,
     menuDescription: "Rename media files.",
@@ -96,7 +96,7 @@ export const JOB_TYPE_META = {
   watermark: {
     type: "watermark" as const,
     group: "files" as const,
-    label: "Batch watermark",
+    label: "Watermark",
     icon: iconStamp,
     startUi: "dialog" as const,
     menuDescription: "Adds a watermark to media files.",

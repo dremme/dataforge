@@ -19,7 +19,7 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
 
 _INVALID_STEM_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-_TEMP_PREFIX = ".__df_batch_rename_"
+_TEMP_PREFIX = ".__df_rename_media_"
 
 
 def normalize_name_stem(stem: str) -> str:
@@ -41,7 +41,7 @@ def build_target_name(stem: str, index: int, padding: int, suffix: str) -> str:
     return f"{stem}_{index:0{padding}d}{suffix}"
 
 
-def list_batch_rename_media(folder: Path) -> list[Path]:
+def list_rename_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
 
 
@@ -85,13 +85,13 @@ def _validate_target_names(folder: Path, media_files: list[Path], stem: str) -> 
             _check_target_conflict(_target_for(media_path, target_media, related), moving_sources)
 
 
-def validate_batch_rename_folder(
+def validate_rename_media_folder(
     folder: Path, *, stem: str, selected_paths: list[Path] | None = None
 ) -> None:
     if not folder.is_dir():
         raise ValueError("Folder not found")
 
-    media_files = list_batch_rename_media(folder)
+    media_files = list_rename_media(folder)
     media_files = filter_media_list(media_files, selected_paths)
     if not media_files:
         raise ValueError("No supported images or videos found in folder")
@@ -123,7 +123,7 @@ def _rollback_after_phase2_failure(
     _rollback_temp_entries(temp_entries)
 
 
-def run_batch_rename_job(
+def run_rename_media_job(
     folder: Path,
     *,
     stem: str,
@@ -132,9 +132,9 @@ def run_batch_rename_job(
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     normalized_stem = normalize_name_stem(stem)
-    validate_batch_rename_folder(folder, stem=normalized_stem, selected_paths=selected_paths)
+    validate_rename_media_folder(folder, stem=normalized_stem, selected_paths=selected_paths)
 
-    media_files = filter_media_list(list_batch_rename_media(folder), selected_paths)
+    media_files = filter_media_list(list_rename_media(folder), selected_paths)
     total = len(media_files)
     padding = sequence_padding(total)
     stats: dict[str, int] = {
@@ -277,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
 
     folder = args.folder.expanduser().resolve()
     try:
-        result = run_batch_rename_job(folder, stem=args.stem)
+        result = run_rename_media_job(folder, stem=args.stem)
     except ValueError as exc:
         logger.error("%s", exc)
         return 1

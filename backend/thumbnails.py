@@ -21,7 +21,7 @@ MAX_THUMBNAIL_WIDTH = 1200
 WEBP_QUALITY = 80
 
 #: A cache entry is keyed by the source's path, size, and mtime, so anything that
-#: rewrites media — ``batch_rename``, ``strip_metadata``, or an edit outside the app —
+#: rewrites media — ``rename_media``, ``strip_metadata``, or an edit outside the app —
 #: orphans every thumbnail it had. Nothing else ever deletes them, so the cache is
 #: trimmed back to this budget instead of growing for the life of the install.
 DEFAULT_CACHE_BUDGET_MB = 2048
