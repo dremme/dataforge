@@ -542,13 +542,31 @@
 // A condensed single line, not a card laid on its side: no card chrome, rows
 // meeting on hairline separators (the virtualizer runs list mode at gap 0), and
 // a fixed height that lets the virtualizer size rows exactly.
+//
+// The trailing fields are columns shared by every row, so the facts line up down
+// the list instead of drifting with each row's own content. Their widths are the
+// custom properties `useGalleryListColumns` measures from the folder's own
+// values - a table sizing itself to its widest cell, which a virtualized list
+// cannot do unaided because every row is a separate grid. The fallbacks here
+// only cover the first paint, before that measurement lands.
 // ---------------------------------------------------------------------------
 
 $gallery-list-row-height: 2.5rem;
+$gallery-list-col-check: 1.05rem;
+$gallery-list-col-thumb: 2.75rem;
+// The name yields to the measured columns and truncates; the app's own
+// min-width keeps that floor far from reachable in practice.
+$gallery-list-col-name-min: 8rem;
+
+$gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min, 1fr)
+  var(--gallery-list-col-markers, 3.25rem) var(--gallery-list-col-status, 4rem)
+  var(--gallery-list-col-megapixels, 3rem) var(--gallery-list-col-size, 3.75rem)
+  var(--gallery-list-col-modified, 8rem);
 
 .gallery-list-row {
   @include control-interactive;
-  display: flex;
+  display: grid;
+  grid-template-columns: $gallery-list-columns;
   align-items: center;
   gap: 0.6rem;
   width: 100%;
@@ -568,8 +586,17 @@ $gallery-list-row-height: 2.5rem;
     background: var(--surface-hover);
   }
 
-  &:first-child {
+  // Closes the list at the top, the way the last row's own bottom border closes
+  // it at the foot. Keyed on the virtualizer's row index rather than :first-child,
+  // which every row satisfies - each one is the only child of its own wrapper.
+  .gallery-row[data-row-index="0"] & {
     border-top: 1px solid var(--border);
+  }
+
+  // The checkbox exists only while selecting, so it gets its own leading track
+  // rather than a placeholder that would indent the list during normal browsing.
+  &--selecting {
+    grid-template-columns: $gallery-list-col-check $gallery-list-columns;
   }
 
   &--selected {
@@ -583,11 +610,10 @@ $gallery-list-row-height: 2.5rem;
   // Leading checkbox, so a column of them lines up down the left edge.
   &__check {
     display: inline-flex;
-    flex: none;
     align-items: center;
     justify-content: center;
-    width: 1.05rem;
-    height: 1.05rem;
+    width: $gallery-list-col-check;
+    height: $gallery-list-col-check;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-media);
@@ -605,8 +631,7 @@ $gallery-list-row-height: 2.5rem;
 
   &__thumb {
     position: relative;
-    flex: none;
-    width: 2.75rem;
+    width: $gallery-list-col-thumb;
     height: 1.85rem;
     overflow: hidden;
     background: var(--bg-media);
@@ -614,7 +639,6 @@ $gallery-list-row-height: 2.5rem;
   }
 
   &__name {
-    flex: 1;
     // Without this the name refuses to shrink and shoves the file facts out of
     // the row instead of ellipsising.
     min-width: 0;
@@ -625,9 +649,11 @@ $gallery-list-row-height: 2.5rem;
 
   &__markers {
     display: inline-flex;
-    flex: none;
     align-items: center;
     gap: 0.25rem;
+    // The column is measured from the most markers any item in the folder carries,
+    // so this only ever clips if a row somehow outgrows that count.
+    overflow: hidden;
   }
 
   &__marker {
@@ -647,11 +673,10 @@ $gallery-list-row-height: 2.5rem;
   }
 
   &__status {
-    flex: none;
     font-size: var(--text-2xs);
     font-weight: var(--font-medium);
     line-height: 1;
-    white-space: nowrap;
+    @include truncate;
 
     &--success {
       color: $color-success;
@@ -666,23 +691,13 @@ $gallery-list-row-height: 2.5rem;
     }
   }
 
-  &__meta {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 0.6rem;
+  // One fact per column. Right-aligned so the values read as a column and the
+  // row ends on a straight edge, whatever width the formatted value happens to be.
+  &__meta-item {
     color: var(--text-muted);
     font-size: var(--text-2xs);
-    white-space: nowrap;
+    text-align: right;
     @include tabular-nums;
-  }
-
-  // Narrow windows keep the name and caption status; the file facts are the
-  // first thing that can go, otherwise they squeeze the name to nothing.
-  // A literal because this stylesheet has no breakpoint scale to draw on.
-  @media (max-width: 48rem) {
-    &__meta {
-      display: none;
-    }
+    @include truncate;
   }
 }

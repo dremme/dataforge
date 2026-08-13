@@ -52,17 +52,22 @@ describe("GalleryListRow", () => {
     expect(screen.getByText("Empty")).toBeInTheDocument();
   });
 
-  it("shows dimensions, size, and modified date", () => {
+  it("shows megapixels, size, and modified date", () => {
     const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
 
-    const meta = container.querySelector(".gallery-list-row__meta");
-    // Dimensions go through toLocaleString, so the separator follows the locale.
-    expect(meta?.textContent).toContain(`${(1920).toLocaleString()} × ${(1080).toLocaleString()}`);
-    expect(meta?.textContent).toContain("2.4 MB");
-    expect(container.querySelectorAll(".gallery-list-row__meta-item")).toHaveLength(3);
+    // Resolution is one number per row, not a w × h pair to compare down the column.
+    expect(container.querySelector(".gallery-list-row__meta-item--megapixels")?.textContent).toBe(
+      "2.1 MP",
+    );
+    expect(container.querySelector(".gallery-list-row__meta-item--size")?.textContent).toBe(
+      "2.4 MB",
+    );
+    expect(container.querySelector(".gallery-list-row__meta-item--modified")?.textContent).not.toBe(
+      "",
+    );
   });
 
-  it("omits the file facts a media item does not carry", () => {
+  it("keeps an empty column for a file fact the media item does not carry", () => {
     const { container } = render(
       <GalleryListRow
         item={{ ...captionedItem, width: null, height: null, size: null, modified_at: null }}
@@ -70,7 +75,18 @@ describe("GalleryListRow", () => {
       />,
     );
 
-    expect(container.querySelector(".gallery-list-row__meta")).toBeNull();
+    // Dropping the cells would slide every later column out of the list's table.
+    const cells = [...container.querySelectorAll(".gallery-list-row__meta-item")];
+    expect(cells).toHaveLength(3);
+    expect(cells.map((cell) => cell.textContent)).toEqual(["", "", ""]);
+  });
+
+  it("keeps the marker column for an item with no markers", () => {
+    const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+
+    const markers = container.querySelector(".gallery-list-row__markers");
+    expect(markers).toBeInTheDocument();
+    expect(markers?.children).toHaveLength(0);
   });
 
   it("reduces badges to icon markers that keep their label as a tooltip", () => {
@@ -110,7 +126,9 @@ describe("GalleryListRow", () => {
     );
 
     const row = container.querySelector(".gallery-list-row");
-    // The checkbox leads the row, ahead of the thumbnail.
+    // The checkbox leads the row, ahead of the thumbnail, and the modifier is
+    // what opens the column for it.
+    expect(row).toHaveClass("gallery-list-row--selecting");
     expect(row?.firstElementChild).toHaveClass("gallery-list-row__check");
 
     fireEvent.click(screen.getByRole("button", { name: `Select ${captionedItem.name}` }));
@@ -121,10 +139,10 @@ describe("GalleryListRow", () => {
   it("hides the checkbox outside selection mode", () => {
     const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
 
+    const row = container.querySelector(".gallery-list-row");
     expect(container.querySelector(".gallery-list-row__check")).toBeNull();
-    expect(container.querySelector(".gallery-list-row")?.firstElementChild).toHaveClass(
-      "gallery-list-row__thumb",
-    );
+    expect(row).not.toHaveClass("gallery-list-row--selecting");
+    expect(row?.firstElementChild).toHaveClass("gallery-list-row__thumb");
   });
 
   it("marks a selected row for assistive tech and styling", () => {

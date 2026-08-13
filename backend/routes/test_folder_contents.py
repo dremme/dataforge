@@ -82,15 +82,15 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertEqual(counted["file_count"], 2)
             self.assertEqual(counted["captioned_count"], 1)
 
-    def test_includes_file_stats_without_dimensions(self) -> None:
+    def test_includes_file_stats_and_dimensions(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, width=128, height=96)
 
             items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
             item = next(image for image in items if image["name"] == "photo.png")
 
-            self.assertIsNone(item.get("width"))
-            self.assertIsNone(item.get("height"))
+            self.assertEqual(item["width"], 128)
+            self.assertEqual(item["height"], 96)
             self.assertIn("size", item)
             self.assertIn("modified_at", item)
 

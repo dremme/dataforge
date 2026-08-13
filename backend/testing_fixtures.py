@@ -237,6 +237,28 @@ def _mp4_udta_meta(metadata: dict[str, str]) -> bytes:
     return _mp4_box("udta", meta_box)
 
 
+def _mp4_tkhd(width: int, height: int, *, version: int = 0) -> bytes:
+    """A track header carrying a 16.16 fixed-point display size."""
+    times = (
+        struct.pack(">QQI4xQ", 0, 0, 1, 0) if version == 1 else struct.pack(">IIII4x", 0, 0, 1, 0)
+    )
+    unity_matrix = struct.pack(
+        ">9i",
+        0x10000,
+        0,
+        0,
+        0,
+        0x10000,
+        0,
+        0,
+        0,
+        0x40000000,
+    )
+    # reserved(8), layer(2), alternate_group(2), volume(2), reserved(2)
+    payload = times + b"\x00" * 16 + unity_matrix + struct.pack(">II", width << 16, height << 16)
+    return _mp4_full_box("tkhd", version, payload)
+
+
 def make_minimal_mp4_bytes(
     *,
     sample_count: int = 300,
@@ -244,8 +266,16 @@ def make_minimal_mp4_bytes(
     sample_delta: int = 1_000,
     metadata: dict[str, str] | None = None,
     metadata_format: str = "indexed",
+    width: int = 640,
+    height: int = 480,
+    tkhd_version: int = 0,
+    trailing_moov: bool = False,
 ) -> bytes:
-    """A header-only MP4."""
+    """A header-only MP4.
+
+    ``trailing_moov`` puts the sample data in front of the header, the way many
+    encoders write a file that was not prepared for streaming.
+    """
 
     def make_hdlr(handler_type: str) -> bytes:
         payload = b"\x00" * 4 + handler_type.encode("latin1") + b"\x00" * 12 + b"Handler\x00"
@@ -273,7 +303,7 @@ def make_minimal_mp4_bytes(
         "mdia",
         make_hdlr("vide") + make_mdhd(timescale, sample_count * sample_delta) + minf,
     )
-    trak = _mp4_box("trak", mdia)
+    trak = _mp4_box("trak", _mp4_tkhd(width, height, version=tkhd_version) + mdia)
     moov_children = [trak]
     if metadata:
         if metadata_format == "classic":
@@ -281,7 +311,10 @@ def make_minimal_mp4_bytes(
         else:
             moov_children.append(_mp4_udta_meta(metadata))
     moov = _mp4_box("moov", b"".join(moov_children))
-    return _mp4_box("ftyp", b"isom\x00\x00\x02\x00isomiso2mp41") + moov
+    ftyp = _mp4_box("ftyp", b"isom\x00\x00\x02\x00isomiso2mp41")
+    if trailing_moov:
+        return ftyp + _mp4_box("mdat", b"\x00" * 4096) + moov
+    return ftyp + moov
 
 
 def write_mp4_video(
@@ -293,6 +326,10 @@ def write_mp4_video(
     sample_delta: int = 1_000,
     metadata: dict[str, str] | None = None,
     metadata_format: str = "indexed",
+    width: int = 640,
+    height: int = 480,
+    tkhd_version: int = 0,
+    trailing_moov: bool = False,
 ) -> Path:
     media = root / name
     media.write_bytes(
@@ -302,6 +339,10 @@ def write_mp4_video(
             sample_delta=sample_delta,
             metadata=metadata,
             metadata_format=metadata_format,
+            width=width,
+            height=height,
+            tkhd_version=tkhd_version,
+            trailing_moov=trailing_moov,
         ),
     )
     return media

@@ -11,6 +11,7 @@ from captions import (
 )
 from constants import CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX
 from folder_scan import FolderScan, ScannedEntry, get_media_type, scan_folder
+from media_dimensions import media_dimensions
 
 __all__ = [
     "clear_folder_summary_cache_for_tests",
@@ -179,6 +180,8 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
             issue_sidecar.size,
         )
 
+    dimensions = media_dimensions(media.path, media_type, media.mtime_ns, media.size)
+
     return {
         "name": media.name,
         "path": str(media.path),
@@ -190,6 +193,8 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "caption_status": caption_status,
         "caption_file_type": caption_file_type,
         "media_type": media_type,
+        "width": dimensions[0] if dimensions else None,
+        "height": dimensions[1] if dimensions else None,
         "size": media.size,
         "modified_at": datetime.fromtimestamp(media.mtime, tz=UTC).isoformat(),
     }

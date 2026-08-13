@@ -135,6 +135,30 @@ class ScanBackedListingTests(unittest.TestCase):
             self.assertEqual(item["size"], (root / "alpha.png").stat().st_size)
             self.assertTrue(item["modified_at"])
 
+    def test_listing_carries_dimensions_for_every_media_type(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "alpha.png", width=800, height=600)
+            write_gif(root, "loop.gif", width=320, height=240)
+            write_mp4_video(root, "clip.mp4", width=1920, height=1080)
+
+            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+            sizes = {name: (item["width"], item["height"]) for name, item in by_name.items()}
+
+            self.assertEqual(sizes["alpha.png"], (800, 600))
+            self.assertEqual(sizes["loop.gif"], (320, 240))
+            self.assertEqual(sizes["clip.mp4"], (1920, 1080))
+
+    def test_listing_leaves_dimensions_empty_when_they_cannot_be_read(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "headerless.mp4").write_bytes(b"\x00\x00\x00\x10ftypisom\x00\x00\x02\x00")
+            (root / "truncated.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+
+            for name in ("headerless.mp4", "truncated.png"):
+                self.assertIsNone(by_name[name]["width"])
+                self.assertIsNone(by_name[name]["height"])
+
     def test_listing_is_empty_for_unreadable_folder(self) -> None:
         with TempMediaFolder() as root:
             self.assertEqual(list_media_in_folder(root / "missing"), [])
