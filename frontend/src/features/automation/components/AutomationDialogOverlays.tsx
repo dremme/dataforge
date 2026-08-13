@@ -1,4 +1,5 @@
 import { AutoCaptionDialog } from "./AutoCaptionDialog";
+import { BackupCaptionsDialog } from "./BackupCaptionsDialog";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
@@ -11,7 +12,15 @@ type AutomationDialogOverlaysProps = {
 };
 
 export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysProps) {
-  const { setCaptions, autoCaption, verifyCaptions, batchRename, trainLora, watermark } = dialogs;
+  const {
+    setCaptions,
+    backupCaptions,
+    autoCaption,
+    verifyCaptions,
+    batchRename,
+    trainLora,
+    watermark,
+  } = dialogs;
 
   return (
     <>
@@ -21,6 +30,15 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={setCaptions.busy}
           onConfirm={setCaptions.onConfirm}
           onCancel={setCaptions.onCancel}
+        />
+      )}
+
+      {backupCaptions.open && (
+        <BackupCaptionsDialog
+          folderLabel={backupCaptions.folderLabel}
+          busy={backupCaptions.busy}
+          onConfirm={backupCaptions.onConfirm}
+          onCancel={backupCaptions.onCancel}
         />
       )}
 

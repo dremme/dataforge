@@ -89,6 +89,10 @@ export function useAutomationDialogOverlays({
         onConfirm: (caption: string, overwrite: boolean) =>
           startJobFromDialog("set_captions", { caption, overwrite }),
       },
+      backupCaptions: {
+        ...shared("backup_captions"),
+        onConfirm: (overwrite: boolean) => startJobFromDialog("backup_captions", { overwrite }),
+      },
       autoCaption: {
         ...shared("auto_caption"),
         onConfirm: (mode: AutoCaptionMode, captionAudio: boolean) =>

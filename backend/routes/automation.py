@@ -93,7 +93,12 @@ def start_backup_captions_job(
     path: str = Query(..., description="Absolute path to folder with images and videos"),
     body: BackupCaptionsStartRequest = BackupCaptionsStartRequest(),
 ) -> JobResponse:
-    return _start_job("backup_captions", resolve_folder(path), body.paths)
+    return _start_job(
+        "backup_captions",
+        resolve_folder(path),
+        body.paths,
+        overwrite=body.overwrite,
+    )
 
 
 @router.post("/automation/restore-captions", response_model=JobResponse)

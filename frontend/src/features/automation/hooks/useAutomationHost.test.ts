@@ -46,22 +46,28 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
 }
 
 describe("useAutomationHost", () => {
-  it("waits for confirmation before backing up captions", async () => {
+  it("opens the dialog before backing up captions", async () => {
     const { result, startJob } = setupHost();
 
     act(() => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 
-    expect(result.current.jobStartConfirm.pending).toBe("backup_captions");
+    expect(result.current.jobStartConfirm.pending).toBeNull();
+    expect(result.current.dialogs.backupCaptions.open).toBe(true);
     expect(startJob).not.toHaveBeenCalled();
 
     await act(async () => {
-      result.current.jobStartConfirm.onConfirm();
+      result.current.dialogs.backupCaptions.onConfirm(true);
     });
 
-    expect(startJob).toHaveBeenCalledWith("backup_captions", "C:\\Photos", undefined, undefined);
-    expect(result.current.jobStartConfirm.pending).toBeNull();
+    expect(startJob).toHaveBeenCalledWith(
+      "backup_captions",
+      "C:\\Photos",
+      { overwrite: true },
+      undefined,
+    );
+    expect(result.current.dialogs.backupCaptions.open).toBe(false);
   });
 
   it("waits for confirmation before restoring captions", async () => {
@@ -115,6 +121,6 @@ describe("useAutomationHost", () => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 
-    expect(result.current.jobStartConfirm.pending).toBe("backup_captions");
+    expect(result.current.dialogs.backupCaptions.open).toBe(true);
   });
 });

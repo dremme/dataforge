@@ -136,19 +136,71 @@ class BackupCaptionsJobTests(unittest.TestCase):
                 {"sunset.issue.json"},
             )
 
-    def test_backing_up_again_refreshes_the_stored_copy(self) -> None:
+    def test_backing_up_again_keeps_the_stored_copy(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "First caption.")
             run_backup_captions_job(root)
 
             write_txt_caption(media, "Second caption.")
+            result = run_backup_captions_job(root)
+
+            self.assertEqual(
+                caption_backup_dir(root).joinpath("sunset.txt").read_text(encoding="utf-8"),
+                "First caption.",
+            )
+            self.assertEqual(result["stats"]["already_backed_up"], 1)
+            self.assertEqual(result["stats"]["success"], 0)
+
+    def test_backing_up_with_overwrite_refreshes_the_stored_copy(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "First caption.")
             run_backup_captions_job(root)
+
+            write_txt_caption(media, "Second caption.")
+            result = run_backup_captions_job(root, overwrite=True)
 
             self.assertEqual(
                 caption_backup_dir(root).joinpath("sunset.txt").read_text(encoding="utf-8"),
                 "Second caption.",
             )
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(result["stats"]["already_backed_up"], 0)
+
+    def test_backs_up_only_the_sidecars_that_are_missing(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "First caption.")
+            run_backup_captions_job(root)
+
+            write_txt_caption(media, "Second caption.")
+            write_issue_sidecar(media, "The caption omits the mountains.")
+            result = run_backup_captions_job(root)
+
+            backup_dir = caption_backup_dir(root)
+            self.assertEqual(
+                backup_dir.joinpath("sunset.txt").read_text(encoding="utf-8"),
+                "First caption.",
+            )
+            self.assertTrue(backup_dir.joinpath("sunset.issue.json").is_file())
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(result["stats"]["sidecars"], 1)
+
+    def test_reports_an_already_backed_up_file_separately_from_an_uncaptioned_one(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "A plain caption.")
+            run_backup_captions_job(root)
+            write_media(root, "harbor.png")
+
+            result = run_backup_captions_job(root)
+
+            messages = {entry["name"]: entry["message"] for entry in result["results"]}
+            self.assertEqual(messages["sunset.png"], "Already in the backup")
+            self.assertEqual(messages["harbor.png"], "No sidecar to back up")
+            self.assertEqual(result["stats"]["already_backed_up"], 1)
+            self.assertEqual(result["stats"]["skipped"], 1)
 
     def test_honours_a_media_selection(self) -> None:
         with TempMediaFolder() as root:

@@ -2,8 +2,10 @@
 
 Covers caption sidecars and the caption issues verify-captions writes alongside them.
 
-Both directions are additive: they overwrite files of the same name and never
-delete anything, so a backup is a safety net rather than an exact snapshot.
+Neither direction ever deletes anything, so a backup is a safety net rather than an
+exact snapshot. Restoring always overwrites the current sidecar, which is the point of
+restoring. Backing up keeps what is already stored unless ``overwrite`` is set, so a
+second run cannot bury a good copy under a caption that was edited by mistake.
 """
 
 from __future__ import annotations
@@ -120,6 +122,7 @@ def validate_restore_captions_folder(folder: Path) -> None:
 def run_backup_captions_job(
     folder: Path,
     *,
+    overwrite: bool = False,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
@@ -143,8 +146,22 @@ def run_backup_captions_job(
                 fields={"message": "No sidecar to back up"},
             )
 
+        # Filtered per sidecar, not per media file: a caption can already be stored
+        # while the issue written next to it later is not.
+        pending = (
+            sidecars
+            if overwrite
+            else [sidecar for sidecar in sidecars if not (backup_dir / sidecar.name).exists()]
+        )
+        if not pending:
+            return FileOutcome(
+                status="already_backed_up",
+                stats={"already_backed_up": 1},
+                fields={"message": "Already in the backup"},
+            )
+
         try:
-            for sidecar in sidecars:
+            for sidecar in pending:
                 shutil.copy2(sidecar, backup_dir / sidecar.name)
         except OSError as exc:
             return FileOutcome(
@@ -155,7 +172,7 @@ def run_backup_captions_job(
 
         return FileOutcome(
             status="success",
-            stats={"success": 1, "sidecars": len(sidecars)},
+            stats={"success": 1, "sidecars": len(pending)},
         )
 
     return run_media_job(
@@ -165,6 +182,7 @@ def run_backup_captions_job(
             "total": len(media_files),
             "success": 0,
             "sidecars": 0,
+            "already_backed_up": 0,
             "skipped": 0,
             "write_error": 0,
             "cancelled": 0,
@@ -172,7 +190,7 @@ def run_backup_captions_job(
         process=process,
         on_progress=on_progress,
         should_cancel=should_cancel,
-        processed_stat_keys=("success", "skipped", "write_error"),
+        processed_stat_keys=("success", "already_backed_up", "skipped", "write_error"),
     )
 
 
@@ -238,19 +256,26 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="Folder containing images and/or videos",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="When backing up, replace sidecars already in the backup instead of keeping them",
+    )
     args = parser.parse_args(argv)
 
     folder = args.folder.expanduser().resolve()
-    run = run_backup_captions_job if args.action == "backup" else run_restore_captions_job
 
     try:
-        result = run(folder)
+        if args.action == "backup":
+            result = run_backup_captions_job(folder, overwrite=args.overwrite)
+        else:
+            result = run_restore_captions_job(folder)
     except ValueError as exc:
         logger.error("%s", exc)
         return 1
 
     stat_keys = (
-        ("success", "sidecars", "skipped", "write_error")
+        ("success", "sidecars", "already_backed_up", "skipped", "write_error")
         if args.action == "backup"
         else ("success", "orphaned", "write_error")
     )

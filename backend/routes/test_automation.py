@@ -252,6 +252,38 @@ class CaptionBackupEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["job_type"], "backup_captions")
 
+    def _start_backup_and_capture(self, root: Path, **body: object) -> dict[str, object]:
+        """Start the backup with a stubbed runner, returning the params it was handed."""
+        received: dict[str, object] = {}
+
+        def run(folder: Path, **params: object) -> dict[str, object]:
+            received.update(params)
+            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+        with _patched_job_runner("backup_captions", run):
+            response = client.post(
+                f"/api/automation/backup-captions?path={quote(str(root))}",
+                json=body,
+            )
+            self.assertEqual(response.status_code, 200)
+            wait_for_job(response.json()["id"])
+
+        return received
+
+    def test_backup_does_not_overwrite_unless_asked_for(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
+
+            self.assertEqual(self._start_backup_and_capture(root).get("overwrite"), False)
+
+    def test_backup_overwrite_reaches_the_runner(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
+
+            received = self._start_backup_and_capture(root, overwrite=True)
+
+            self.assertEqual(received.get("overwrite"), True)
+
     def test_restore_requires_an_existing_backup(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")

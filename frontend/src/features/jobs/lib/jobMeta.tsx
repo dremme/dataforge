@@ -123,19 +123,8 @@ export const JOB_TYPE_META = {
     group: "backup" as const,
     label: "Backup captions",
     icon: iconArchive,
-    startUi: "confirm" as const,
+    startUi: "dialog" as const,
     menuDescription: "Copy captions and caption issues into the .backup folder.",
-    confirm: {
-      title: "Back up captions?",
-      description: (folderLabel: string) => (
-        <>
-          This copies captions and caption issues in <strong>{folderLabel}</strong> into{" "}
-          <strong>.backup</strong>, replacing any earlier backup of the same files. Other files
-          already in the backup are left untouched.
-        </>
-      ),
-      confirmLabel: "Back up captions",
-    },
   },
   restore_captions: {
     type: "restore_captions" as const,
@@ -230,6 +219,5 @@ export function isJobAvailable(type: JobType, availability: JobAvailability): bo
 
 export const JOB_START_CONFIRM: Record<ConfirmableJobType, NonNullable<JobTypeMeta["confirm"]>> = {
   strip_metadata: JOB_TYPE_META.strip_metadata.confirm!,
-  backup_captions: JOB_TYPE_META.backup_captions.confirm!,
   restore_captions: JOB_TYPE_META.restore_captions.confirm!,
 };

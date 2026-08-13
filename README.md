@@ -137,7 +137,7 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | **Batch rename** | Numbered rename of media plus related sidecars |
 | **Batch watermark** | Burn text onto JPG, PNG, and MP4 copies in a `watermarked` subfolder (size, opacity, position) |
 | **Strip metadata** | Remove embedded data from PNGs and MP4s |
-| **Backup captions** | Copy captions and caption issues into `.backup` |
+| **Backup captions** | Copy captions and caption issues into `.backup`, keeping copies already stored there unless you opt to overwrite |
 | **Restore captions** | Restore captions and issues from `.backup` |
 
 External **Ostris / AI-Toolkit** training jobs also appear in the jobs drawer once [configured](docs/configuration.md#paths-integrations-and-logging).

@@ -239,7 +239,10 @@ class BatchRenameStartRequest(JobSelectionRequest):
 
 
 class BackupCaptionsStartRequest(JobSelectionRequest):
-    pass
+    overwrite: bool = Field(
+        default=False,
+        description="Replace sidecars already in the backup folder instead of keeping them.",
+    )
 
 
 class RestoreCaptionsStartRequest(JobSelectionRequest):
