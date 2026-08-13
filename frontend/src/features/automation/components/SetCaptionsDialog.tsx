@@ -67,17 +67,17 @@ export function SetCaptionsDialog({
       </div>
 
       <div className="dialog__field">
-        <label className="set-captions-dialog__checkbox" htmlFor={overwriteId}>
+        <label className="dialog__checkbox" htmlFor={overwriteId}>
           <input
             id={overwriteId}
             type="checkbox"
-            className="set-captions-dialog__checkbox-input"
+            className="dialog__checkbox-input"
             checked={overwrite}
             onChange={(event) => setOverwrite(event.target.checked)}
             disabled={busy}
           />
-          <span className="set-captions-dialog__checkbox-box" aria-hidden="true" />
-          <span className="set-captions-dialog__checkbox-label">Overwrite existing captions</span>
+          <span className="dialog__checkbox-box" aria-hidden="true" />
+          <span className="dialog__checkbox-label">Overwrite existing captions</span>
         </label>
       </div>
     </Dialog>

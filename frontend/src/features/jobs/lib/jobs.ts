@@ -137,6 +137,14 @@ function jobNoCaptionCount(job: Job): number {
   return stats.no_caption ?? stats.no_txt ?? 0;
 }
 
+/**
+ * Clips that carried no audio while audio captioning was on. A warning, never an
+ * error: they were captioned anyway, from their keyframes alone.
+ */
+function jobNoAudioCount(job: Job): number {
+  return job.stats?.audio_error ?? 0;
+}
+
 function jobOrphanedCount(job: Job): number {
   return job.stats?.orphaned ?? 0;
 }
@@ -187,8 +195,29 @@ export function jobShowsWarningState(job: Job): boolean {
     return false;
   }
 
-  // auto_caption and verify_captions both warn about media skipped for a missing caption sidecar.
+  // auto_caption and verify_captions both warn about media skipped for a missing caption sidecar,
+  // and auto_caption additionally about clips that carried no audio to caption from.
+  if (type === "auto_caption") {
+    return jobNoCaptionCount(job) + jobNoAudioCount(job) > 0;
+  }
+
   return jobNoCaptionCount(job) > 0;
+}
+
+function noCaptionWarning(count: number): string | null {
+  if (count === 0) return null;
+  if (count === 1) {
+    return `1 file had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and was skipped.`;
+  }
+  return `${count} files had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and were skipped.`;
+}
+
+function noAudioWarning(count: number): string | null {
+  if (count === 0) return null;
+  if (count === 1) {
+    return "1 video had no audio track and was captioned without it.";
+  }
+  return `${count} videos had no audio track and were captioned without them.`;
 }
 
 export function jobErrorMessage(job: Job): string | null {
@@ -208,12 +237,13 @@ export function jobWarningMessage(job: Job): string | null {
     return `${orphaned} backed up captions had no matching media file and were skipped.`;
   }
 
-  const count = jobNoCaptionCount(job);
-  if (count === 1) {
-    return `1 file had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and was skipped.`;
+  // Both can land in the same run, so neither hides the other.
+  const parts = [noCaptionWarning(jobNoCaptionCount(job))];
+  if (jobTypeOf(job) === "auto_caption") {
+    parts.push(noAudioWarning(jobNoAudioCount(job)));
   }
 
-  return `${count} files had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and were skipped.`;
+  return parts.filter((part): part is string => part !== null).join(" ") || null;
 }
 
 export function progressPercent(job: Job): number {

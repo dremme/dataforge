@@ -770,3 +770,28 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(len(image_parts), len(frames))
             self.assertIn(f"{len(frames)} keyframes", text_parts[0]["text"])
             self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", text_parts[0]["text"])
+
+    def test_verification_never_sends_audio(self) -> None:
+        """Auto-caption's audio option must not leak into the job that shares its plumbing."""
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif", frames=8)
+            frames = extract_keyframes(media)
+            assert frames is not None
+
+            for mode in ("thinking", "instruct"):
+                with self.subTest(mode=mode):
+                    fake_client, captured = _make_fake_verify_client()
+                    verify_caption(
+                        fake_client,
+                        media,
+                        build_verification_system_prompt(media_kind="video"),
+                        "An animated loop.",
+                        images=frames,
+                        mode=mode,
+                    )
+
+                    user_content = captured["messages"][1]["content"]
+                    self.assertEqual(
+                        {part.get("type") for part in user_content},
+                        {"image_url", "text"},
+                    )

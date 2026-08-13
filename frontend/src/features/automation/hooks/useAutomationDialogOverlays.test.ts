@@ -58,6 +58,26 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
+  it("sends the auto-caption mode and audio choice", async () => {
+    const { result, startJob } = setupOverlays();
+
+    act(() => {
+      result.current.openDialogForJobType("auto_caption");
+    });
+
+    await act(async () => {
+      result.current.dialogs.autoCaption.onConfirm("instruct", true);
+    });
+
+    expect(result.current.dialogs.autoCaption.open).toBe(false);
+    expect(startJob).toHaveBeenCalledWith(
+      "auto_caption",
+      "C:\\Photos",
+      { mode: "instruct", caption_audio: true },
+      undefined,
+    );
+  });
+
   it("fetches preferences before opening verify captions dialog", async () => {
     const { result, startJob } = setupOverlays();
 

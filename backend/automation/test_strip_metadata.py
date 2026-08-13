@@ -91,7 +91,7 @@ class StripMp4MetadataTests(unittest.TestCase):
     def test_requires_ffmpeg(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            with unittest.mock.patch("automation.strip_metadata._ffmpeg_path", return_value=None):
+            with unittest.mock.patch("automation.strip_metadata.ffmpeg_path", return_value=None):
                 with self.assertRaisesRegex(RuntimeError, "ffmpeg is required"):
                     strip_mp4_metadata(media)
 

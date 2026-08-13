@@ -18,7 +18,6 @@ import argparse
 import logging
 import os
 import re
-import shutil
 import subprocess
 import threading
 from collections.abc import Callable
@@ -33,6 +32,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from automation.job_runner import CANCELLED, FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import VIDEO_EXTENSIONS, WATERMARK_DIR_NAME, WATERMARK_EXTENSIONS
+from ffmpeg_bin import ffmpeg_path
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -225,23 +225,6 @@ def validate_watermark_folder(
 
     if resolve_watermark_font() is None:
         raise ValueError(FONT_MISSING_MESSAGE)
-
-
-def _ffmpeg_path() -> str | None:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-
-    try:
-        import imageio_ffmpeg
-
-        bundled = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled and Path(bundled).is_file():
-            return bundled
-    except Exception:
-        logger.debug("Bundled ffmpeg unavailable", exc_info=True)
-
-    return None
 
 
 def _load_image_for_watermark(source: Path) -> tuple[Image.Image, str, Image.Exif]:
@@ -459,7 +442,7 @@ def watermark_video(
     ffmpeg: str | None = None,
     should_cancel: ShouldCancel | None = None,
 ) -> None:
-    executable = ffmpeg or _ffmpeg_path()
+    executable = ffmpeg or ffmpeg_path()
     if not executable:
         raise RuntimeError(FFMPEG_MISSING_MESSAGE)
 
@@ -619,7 +602,7 @@ def run_watermark_job(
         raise RuntimeError(FONT_MISSING_MESSAGE)
 
     media_files = filter_media_list(list_watermark_files(folder), selected_paths)
-    resolved_ffmpeg = ffmpeg or _ffmpeg_path()
+    resolved_ffmpeg = ffmpeg or ffmpeg_path()
 
     output_dir = folder / WATERMARK_DIR_NAME
     output_dir.mkdir(exist_ok=True)

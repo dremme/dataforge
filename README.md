@@ -130,7 +130,7 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 
 | Job | What it does |
 | --- | --- |
-| **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode) |
+| **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode), optionally sending each clip's **audio** alongside its keyframes |
 | **Set captions** | Apply the same text to many files |
 | **Verify captions** | Checks captions against the media — videos and GIFs via keyframes — and writes `.issue.json` when something is wrong |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
@@ -184,6 +184,8 @@ which only calls an OpenAI-compatible HTTP endpoint.
 | **Typical models** | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) (quantized) | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B), [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) |
 | **Software** | A local OpenAI-compatible vision server with a vision model loaded | Same, with VRAM for quality quants and longer contexts |
 
+[Audio captioning](#audio-captioning) additionally needs an omni model that accepts audio input.
+
 ## Configuration
 
 ### The `.env` file
@@ -223,6 +225,7 @@ running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — no
 | --- | --- |
 | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Recommended MoE default |
 | [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) | MoE alternative with fewer refusals |
+| [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) | Omni MoE that also **hears audio** — the one to load for [audio captioning](#audio-captioning) |
 | [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) | Dense alternative |
 | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) | Lighter VLM for smaller GPUs |
 | [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) | Weak; usable only when VRAM is tight |
@@ -253,6 +256,26 @@ llama-server --port 8888 -m <model.gguf> --mmproj <mmproj.gguf>
 `--mmproj` loads the multimodal projector, which llama.cpp keeps separate from the weights. Without it you get a
 server that answers text but silently ignores images — which shows up here as captions describing nothing in
 your media. No API key is needed unless you start the server with `--api-key`.
+
+#### Audio captioning
+
+Video models that condition on sound need captions that say what a clip *sounds* like,
+which keyframes alone cannot supply. Tick **Caption audio** in the auto-caption dialog and each MP4's audio track
+is sent in the same request as its keyframes, with a line added to the system prompt asking the model to describe
+what it hears.
+
+This needs an **omni** model — one that accepts audio input, such as
+[Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) — served by a backend
+built with audio support. A vision-only model ignores the audio and captions the frames as usual, so the option
+is off by default. Set `OPENAI_MODEL` to the omni model's id as your server exposes it.
+
+Details worth knowing:
+
+- Only the **first 15 seconds** of a clip are sent — as much as current local omni models take
+- Clips with no audio track, and GIFs, are **still captioned** from their keyframes — the model typically calls
+  them silent — and the job finishes with a warning naming how many there were
+- Still images are unaffected
+- Verify-captions never sends audio, so it works with a vision-only model as before
 
 <details>
 <summary><b>Sampling knobs</b> — per-mode temperature, penalties, and top-p/k</summary>

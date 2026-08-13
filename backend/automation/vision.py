@@ -22,6 +22,7 @@ from typing import Any, Literal
 
 from PIL import Image
 
+from automation.audio import AUDIO_FORMAT
 from constants import GIF_EXTENSION, MOTION_EXTENSIONS
 from gif_frames import extract_gif_keyframes, keyframe_indices
 from openai_settings import (
@@ -358,7 +359,33 @@ def load_media_images(
     return images, None
 
 
-def vision_messages(system_prompt: str, images_b64: list[str], user_text: str) -> list[dict]:
+def audio_part(audio_wav: bytes) -> dict:
+    """The OpenAI ``input_audio`` content part, which vLLM and llama-server both take.
+
+    A wrong key name here is invisible: the server drops the part and answers from the
+    frames alone, so the caption comes back describing a silent clip that was not.
+    """
+    return {
+        "type": "input_audio",
+        "input_audio": {
+            "data": base64.b64encode(audio_wav).decode("utf-8"),
+            "format": AUDIO_FORMAT,
+        },
+    }
+
+
+def vision_messages(
+    system_prompt: str,
+    images_b64: list[str],
+    user_text: str,
+    *,
+    audio_wav: bytes | None = None,
+) -> list[dict]:
+    """The chat messages for one request: media parts first, the instruction last.
+
+    Audio sits between the frames and the text so the whole clip - what is seen and
+    what is heard - is presented before it is asked about.
+    """
     content: list[dict] = [
         {
             "type": "image_url",
@@ -366,6 +393,8 @@ def vision_messages(system_prompt: str, images_b64: list[str], user_text: str) -
         }
         for encoded in images_b64
     ]
+    if audio_wav:
+        content.append(audio_part(audio_wav))
     content.append({"type": "text", "text": user_text})
     return [
         {"role": "system", "content": system_prompt},
@@ -383,11 +412,13 @@ def request_vision_text(
     mode: str,
     model: str | None = None,
     max_tokens: int | None = None,
+    audio_wav: bytes | None = None,
 ) -> str | None:
     """Encode ``images`` and ask the model, returning the assistant text or ``None``.
 
     Both jobs assemble a request identically; only the pixel budget and the user text
-    differ, so those arrive already resolved for the file's media kind.
+    differ, so those arrive already resolved for the file's media kind. ``audio_wav``
+    defaults to nothing sent, which is every request except an audio auto-caption.
     """
     images_b64 = prepare_images_for_api(images, max_pixels=max_pixels)
     if not images_b64:
@@ -395,7 +426,7 @@ def request_vision_text(
 
     return run_vision_completion(
         client,
-        vision_messages(system_prompt, images_b64, user_text),
+        vision_messages(system_prompt, images_b64, user_text, audio_wav=audio_wav),
         mode=mode,
         model=model,
         max_tokens=max_tokens,

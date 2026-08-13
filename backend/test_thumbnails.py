@@ -74,7 +74,7 @@ class ThumbnailGenerationTests(unittest.TestCase):
         with TempMediaFolder() as root:
             video = write_mp4_video(root)
 
-            with patch("thumbnails._ffmpeg_path", return_value=None):
+            with patch("thumbnails.ffmpeg_path", return_value=None):
                 with self.assertRaisesRegex(Exception, "ffmpeg"):
                     get_or_create_thumbnail(video, 200)
 
@@ -114,7 +114,7 @@ class ThumbnailGenerationTests(unittest.TestCase):
             media = write_gif(root, "loop.gif", frames=8)
 
             # If a GIF ever reached the video branch this would raise instead.
-            with patch("thumbnails._ffmpeg_path", return_value=None):
+            with patch("thumbnails.ffmpeg_path", return_value=None):
                 thumbnail = get_or_create_thumbnail(media, 200)
 
             self.assertEqual(thumbnail.suffix, ".webp")

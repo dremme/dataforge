@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import threading
 import time
 import unittest
@@ -32,6 +33,7 @@ from automation.vision import (
     load_media_images,
     media_kind_for,
     vision_client,
+    vision_messages,
 )
 from testing_fixtures import (
     TempMediaFolder,
@@ -449,6 +451,48 @@ class KeyframeSentenceTests(unittest.TestCase):
 
     def test_a_lone_frame_is_singular(self) -> None:
         self.assertIn("a single frame", keyframe_sentence(1).lower())
+
+
+class VisionMessagesTests(unittest.TestCase):
+    """The request envelope, which is the contract with the model server."""
+
+    def test_frames_come_first_and_the_instruction_last(self) -> None:
+        messages = vision_messages("Sys", ["aaa", "bbb"], "Caption it.")
+
+        self.assertEqual([m["role"] for m in messages], ["system", "user"])
+        self.assertEqual(messages[0]["content"], "Sys")
+        self.assertEqual(
+            [part["type"] for part in messages[1]["content"]],
+            ["image_url", "image_url", "text"],
+        )
+        self.assertEqual(
+            messages[1]["content"][0]["image_url"]["url"],
+            "data:image/jpeg;base64,aaa",
+        )
+        self.assertEqual(messages[1]["content"][-1]["text"], "Caption it.")
+
+    def test_no_audio_leaves_the_request_exactly_as_it_was(self) -> None:
+        """Every caller but an audio auto-caption relies on this staying unchanged."""
+        baseline = vision_messages("Sys", ["aaa"], "Caption it.")
+
+        self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=None), baseline)
+        self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=b""), baseline)
+
+    def test_audio_sits_between_the_frames_and_the_instruction(self) -> None:
+        messages = vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=b"wav bytes")
+
+        parts = messages[1]["content"]
+        self.assertEqual([part["type"] for part in parts], ["image_url", "input_audio", "text"])
+        self.assertEqual(
+            parts[1],
+            {
+                "type": "input_audio",
+                "input_audio": {
+                    "data": base64.b64encode(b"wav bytes").decode("utf-8"),
+                    "format": "wav",
+                },
+            },
+        )
 
 
 class LoadMediaImagesTests(unittest.TestCase):

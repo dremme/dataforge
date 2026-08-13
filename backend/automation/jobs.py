@@ -225,6 +225,10 @@ def _auto_caption_mode(params: dict[str, object]) -> str | None:
     return str(params.get("mode", "thinking"))
 
 
+def _validate_auto_caption(folder: Path, **params: object) -> None:
+    validate_auto_caption_folder(folder, caption_audio=bool(params.get("caption_audio", False)))
+
+
 @dataclass(frozen=True)
 class JobSpec:
     """Everything that differs between job types; JobManager handles the rest.
@@ -255,7 +259,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         thread_prefix="auto-caption",
         run=run_auto_caption_job,
         resolve_status=_resolve_stats_errors(auto_caption_failure_message),
-        validate=_folder_only(validate_auto_caption_folder),
+        validate=_validate_auto_caption,
         caption_mode=_auto_caption_mode,
     ),
     "strip_metadata": JobSpec(

@@ -13,6 +13,7 @@ import {
   jobIsCancelled,
   jobRemainingSeconds,
   jobRemainingTimeLabel,
+  jobShowsErrorState,
   jobShowsWarningState,
   jobStatusTone,
   jobTimeLabel,
@@ -553,6 +554,75 @@ describe("verify captions jobs", () => {
     expect(jobWarningMessage(job)).toBe(
       "1 file had no caption sidecar (.json/.txt) and was skipped.",
     );
+  });
+
+  it("warns when clips carried no audio but were captioned anyway", () => {
+    const job = makeJob({
+      job_type: "auto_caption",
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 3, audio_error: 3 },
+    });
+
+    expect(jobShowsErrorState(job)).toBe(false);
+    expect(statusLabel(job)).toBe("Warnings");
+    expect(jobWarningMessage(job)).toBe(
+      "3 videos had no audio track and were captioned without them.",
+    );
+  });
+
+  it("uses the singular for a lone silent clip", () => {
+    const job = makeJob({
+      job_type: "auto_caption",
+      status: "completed",
+      processed: 2,
+      total: 2,
+      stats: { success: 2, audio_error: 1 },
+    });
+
+    expect(jobWarningMessage(job)).toBe("1 video had no audio track and was captioned without it.");
+  });
+
+  it("reports a missing sidecar and missing audio together", () => {
+    const job = makeJob({
+      job_type: "auto_caption",
+      status: "completed",
+      processed: 3,
+      total: 3,
+      stats: { success: 1, no_caption: 1, audio_error: 1 },
+    });
+
+    expect(jobWarningMessage(job)).toBe(
+      "1 file had no caption sidecar (.json/.txt) and was skipped. " +
+        "1 video had no audio track and was captioned without it.",
+    );
+  });
+
+  it("keeps a real failure red even when clips were also silent", () => {
+    const job = makeJob({
+      job_type: "auto_caption",
+      status: "completed",
+      processed: 2,
+      total: 2,
+      stats: { success: 1, frame_error: 1, audio_error: 1 },
+    });
+
+    expect(statusLabel(job)).toBe("Failed");
+    expect(jobShowsWarningState(job)).toBe(false);
+  });
+
+  it("never warns about audio for verify captions", () => {
+    const job = makeJob({
+      job_type: "verify_captions",
+      status: "completed",
+      processed: 1,
+      total: 1,
+      stats: { success: 1, audio_error: 1 },
+    });
+
+    expect(jobShowsWarningState(job)).toBe(false);
+    expect(statusLabel(job)).toBe("Completed");
   });
 });
 

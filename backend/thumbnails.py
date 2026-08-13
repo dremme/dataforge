@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import shutil
 import subprocess
 import tempfile
 import threading
@@ -12,6 +11,7 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from constants import MEDIA_EXTENSIONS, PILLOW_EXTENSIONS
+from ffmpeg_bin import ffmpeg_path
 
 logger = logging.getLogger(__name__)
 
@@ -173,23 +173,6 @@ def _render_image_thumbnail(source: Path, destination: Path, width: int) -> None
         raise ThumbnailError("Failed to read image for thumbnail generation") from exc
 
 
-def _ffmpeg_path() -> str | None:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-
-    try:
-        import imageio_ffmpeg
-
-        bundled = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled and Path(bundled).is_file():
-            return bundled
-    except Exception:
-        logger.debug("Bundled ffmpeg unavailable", exc_info=True)
-
-    return None
-
-
 def _video_thumbnail_commands(
     ffmpeg: str, source: Path, destination: Path, width: int
 ) -> list[list[str]]:
@@ -226,7 +209,7 @@ def _video_thumbnail_commands(
 
 
 def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None:
-    ffmpeg = _ffmpeg_path()
+    ffmpeg = ffmpeg_path()
     if not ffmpeg:
         raise ThumbnailUnavailableError("Video thumbnail requires ffmpeg")
 

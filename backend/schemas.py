@@ -219,6 +219,10 @@ class JobSelectionRequest(BaseModel):
 
 class AutoCaptionStartRequest(JobSelectionRequest):
     mode: AutomationMode = "thinking"
+    caption_audio: bool = Field(
+        default=False,
+        description="Send each clip's audio track with its keyframes. Needs an omni model.",
+    )
 
 
 class SetCaptionsStartRequest(JobSelectionRequest):

@@ -145,10 +145,15 @@ describe("App: dialogs", () => {
     await user.click(screen.getByRole("button", { name: /Auto-caption/ }));
     await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
 
-    // select Instruct (non-thinking) and click the confirm button
+    // select Instruct (non-thinking), turn on audio, and click the confirm button
     const instructRadio = screen.getByRole("radio", { name: /Instruct/i });
     await user.click(instructRadio);
     expect(instructRadio).toBeChecked();
+
+    const audioCheckbox = screen.getByRole("checkbox", { name: "Caption audio" });
+    expect(audioCheckbox).not.toBeChecked();
+    await user.click(audioCheckbox);
+
     await user.click(screen.getByRole("button", { name: /Start auto-caption/i }));
 
     await waitFor(() => {
@@ -166,6 +171,7 @@ describe("App: dialogs", () => {
       const init = last[1];
       const body = init?.body ? JSON.parse(init.body as string) : {};
       expect(body.mode).toBe("instruct");
+      expect(body.caption_audio).toBe(true);
     });
   });
 });

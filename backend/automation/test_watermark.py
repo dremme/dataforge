@@ -388,7 +388,7 @@ class WatermarkVideoTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_mp4_video(root, "clip.mp4")
 
-            with patch("automation.watermark._ffmpeg_path", return_value=None):
+            with patch("automation.watermark.ffmpeg_path", return_value=None):
                 result = run_watermark_job(root, text="Sample Studio")
 
             stats = result["stats"]

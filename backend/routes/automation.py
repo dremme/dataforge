@@ -49,7 +49,13 @@ def start_auto_caption(
     path: str = Query(..., description="Absolute path to folder with media files"),
     body: AutoCaptionStartRequest = AutoCaptionStartRequest(),
 ) -> JobResponse:
-    return _start_job("auto_caption", resolve_folder(path), body.paths, mode=body.mode)
+    return _start_job(
+        "auto_caption",
+        resolve_folder(path),
+        body.paths,
+        mode=body.mode,
+        caption_audio=body.caption_audio,
+    )
 
 
 @router.post("/automation/set-captions", response_model=JobResponse)

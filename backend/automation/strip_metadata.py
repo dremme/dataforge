@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -13,6 +12,7 @@ from PIL import Image, UnidentifiedImageError
 
 from automation.job_runner import FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
+from ffmpeg_bin import ffmpeg_path
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -37,23 +37,6 @@ def validate_strip_metadata_folder(folder: Path) -> None:
         raise ValueError("No PNG or MP4 files found in folder")
 
 
-def _ffmpeg_path() -> str | None:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-
-    try:
-        import imageio_ffmpeg
-
-        bundled = imageio_ffmpeg.get_ffmpeg_exe()
-        if bundled and Path(bundled).is_file():
-            return bundled
-    except Exception:
-        logger.debug("Bundled ffmpeg unavailable", exc_info=True)
-
-    return None
-
-
 def strip_png_metadata(path: Path) -> None:
     """Rewrite a PNG using only its pixel data, removing all ancillary chunks."""
     with Image.open(path) as image:
@@ -68,7 +51,7 @@ def strip_png_metadata(path: Path) -> None:
 
 def strip_mp4_metadata(path: Path, *, ffmpeg: str | None = None) -> None:
     """Remove MP4 metadata (comments, titles, etc.) without re-encoding video streams."""
-    executable = ffmpeg or _ffmpeg_path()
+    executable = ffmpeg or ffmpeg_path()
     if not executable:
         raise RuntimeError("ffmpeg is required to strip MP4 metadata")
 
@@ -125,7 +108,7 @@ def run_strip_metadata_job(
     validate_strip_metadata_folder(folder)
 
     media_files = filter_media_list(list_strip_metadata_files(folder), selected_paths)
-    resolved_ffmpeg = ffmpeg or _ffmpeg_path()
+    resolved_ffmpeg = ffmpeg or ffmpeg_path()
 
     def process(media_path: Path) -> FileOutcome:
         try:

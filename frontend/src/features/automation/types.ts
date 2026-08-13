@@ -15,7 +15,7 @@ type FolderBusyDialogState<TConfirm> = {
 
 export type AutomationDialogsState = {
   setCaptions: FolderBusyDialogState<(caption: string, overwrite: boolean) => void>;
-  autoCaption: FolderBusyDialogState<(mode: AutoCaptionMode) => void>;
+  autoCaption: FolderBusyDialogState<(mode: AutoCaptionMode, captionAudio: boolean) => void>;
   verifyCaptions: FolderBusyDialogState<(mode: VerifyCaptionsMode, context: string) => void> & {
     folderPath: string;
     initialSettings: VerifyCaptionsSettings | null;

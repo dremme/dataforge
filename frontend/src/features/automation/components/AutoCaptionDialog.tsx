@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import {
   AutomationModeSelector,
   type AutomationMode,
@@ -11,7 +11,7 @@ export type AutoCaptionMode = AutomationMode;
 interface AutoCaptionDialogProps {
   folderLabel: string;
   busy?: boolean;
-  onConfirm: (mode: AutoCaptionMode) => void;
+  onConfirm: (mode: AutoCaptionMode, captionAudio: boolean) => void;
   onCancel: () => void;
 }
 
@@ -22,11 +22,13 @@ export function AutoCaptionDialog({
   onCancel,
 }: AutoCaptionDialogProps) {
   const [mode, setMode] = useState<AutoCaptionMode>("thinking");
+  const [captionAudio, setCaptionAudio] = useState(false);
+  const captionAudioId = useId();
 
   const handleConfirm = useCallback(() => {
     if (busy) return;
-    onConfirm(mode);
-  }, [busy, mode, onConfirm]);
+    onConfirm(mode, captionAudio);
+  }, [busy, captionAudio, mode, onConfirm]);
 
   return (
     <Dialog
@@ -58,6 +60,24 @@ export function AutoCaptionDialog({
         disabled={busy}
         onChange={setMode}
       />
+
+      <div className="dialog__field">
+        <label className="dialog__checkbox" htmlFor={captionAudioId}>
+          <input
+            id={captionAudioId}
+            type="checkbox"
+            className="dialog__checkbox-input"
+            checked={captionAudio}
+            onChange={(event) => setCaptionAudio(event.target.checked)}
+            disabled={busy}
+          />
+          <span className="dialog__checkbox-box" aria-hidden="true" />
+          <span className="dialog__checkbox-label">Caption audio</span>
+        </label>
+        <p className="dialog__hint">
+          Describes what is heard as well as what is seen. Needs a model with audio support.
+        </p>
+      </div>
     </Dialog>
   );
 }

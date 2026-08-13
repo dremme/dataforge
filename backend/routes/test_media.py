@@ -319,7 +319,7 @@ class ThumbnailEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             video = write_mp4_video(root)
 
-            with patch("thumbnails._ffmpeg_path", return_value=None):
+            with patch("thumbnails.ffmpeg_path", return_value=None):
                 response = client.get(f"/api/thumbnail?path={quote(str(video))}")
 
             self.assertEqual(response.status_code, 404)
@@ -339,7 +339,7 @@ class ThumbnailEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             video = write_mp4_video(root)
 
-            with patch("thumbnails._ffmpeg_path", return_value=None):
+            with patch("thumbnails.ffmpeg_path", return_value=None):
                 response = client.get(f"/api/thumbnail?path={quote(str(video))}&optional=1")
 
             self.assertEqual(response.status_code, 204)
@@ -372,7 +372,7 @@ class ThumbnailEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_gif(root, frames=8)
 
-            with patch("thumbnails._ffmpeg_path", return_value=None):
+            with patch("thumbnails.ffmpeg_path", return_value=None):
                 response = client.get(f"/api/thumbnail?path={quote(str(media))}")
 
             self.assertEqual(response.status_code, 200)

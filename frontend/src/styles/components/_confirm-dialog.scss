@@ -145,6 +145,54 @@
     margin: 0.75rem 0 0;
   }
 
+  // Custom checkbox to match the app's rounded, accent-driven aesthetic
+  &__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--text-sm);
+    // Same height as the 1rem box so cap-height and box share one mid-line
+    line-height: 1rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  &__checkbox-input {
+    @include visually-hidden;
+  }
+
+  &__checkbox-box {
+    @include custom-checkbox-box;
+    align-self: center;
+  }
+
+  &__checkbox-input:checked + &__checkbox-box {
+    @include custom-checkbox-box-checked;
+  }
+
+  &__checkbox-input:focus-visible + &__checkbox-box {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  &__checkbox-input:disabled + &__checkbox-box {
+    @include disabled-state;
+  }
+
+  // Subtle hover affordance on the box for the unchecked state
+  &__checkbox:hover &__checkbox-input:not(:disabled) + &__checkbox-box {
+    border-color: var(--accent-border);
+  }
+
+  &__checkbox-label {
+    line-height: 1rem;
+  }
+
+  &__checkbox-input:disabled ~ &__checkbox-label {
+    opacity: var(--disabled-opacity);
+  }
+
   // Radio tiles laid out side by side (job mode selection).
   &__options {
     display: flex;
@@ -223,57 +271,6 @@
   width: min(36rem, 100%);
   max-height: min(85vh, 720px);
   overflow: hidden;
-}
-
-// Set captions form dialog extensions (reuses confirm-dialog shell)
-.set-captions-dialog {
-  // Custom checkbox to match the app's rounded, accent-driven aesthetic
-  &__checkbox {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: var(--text-sm);
-    // Same height as the 1rem box so cap-height and box share one mid-line
-    line-height: 1rem;
-    color: var(--text);
-    cursor: pointer;
-    user-select: none;
-  }
-
-  &__checkbox-input {
-    @include visually-hidden;
-  }
-
-  &__checkbox-box {
-    @include custom-checkbox-box;
-    align-self: center;
-  }
-
-  &__checkbox-input:checked + &__checkbox-box {
-    @include custom-checkbox-box-checked;
-  }
-
-  &__checkbox-input:focus-visible + &__checkbox-box {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  &__checkbox-input:disabled + &__checkbox-box {
-    @include disabled-state;
-  }
-
-  // Subtle hover affordance on the box for the unchecked state
-  &__checkbox:hover &__checkbox-input:not(:disabled) + &__checkbox-box {
-    border-color: var(--accent-border);
-  }
-
-  &__checkbox-label {
-    line-height: 1rem;
-  }
-
-  &__checkbox-input:disabled ~ &__checkbox-label {
-    opacity: var(--disabled-opacity);
-  }
 }
 
 // LoRA training: an editable list of sample prompts, each with a remove button.

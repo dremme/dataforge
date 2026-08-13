@@ -91,7 +91,8 @@ export function useAutomationDialogOverlays({
       },
       autoCaption: {
         ...shared("auto_caption"),
-        onConfirm: (mode: AutoCaptionMode) => startJobFromDialog("auto_caption", { mode }),
+        onConfirm: (mode: AutoCaptionMode, captionAudio: boolean) =>
+          startJobFromDialog("auto_caption", { mode, caption_audio: captionAudio }),
       },
       verifyCaptions: {
         ...shared("verify_captions"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import unittest
 from unittest.mock import patch
@@ -13,7 +14,10 @@ isolate_test_database()
 import numpy
 from PIL import Image
 
+from automation.audio import AUDIO_MAX_SECONDS
 from automation.auto_caption import (
+    AUDIO_OBJECTIVE_SENTENCE,
+    AUDIO_USER_SENTENCE,
     build_system_prompt,
     complete_caption,
     list_auto_caption_media,
@@ -21,6 +25,7 @@ from automation.auto_caption import (
     run_auto_caption_job,
     validate_auto_caption_folder,
 )
+from automation.job_messages import auto_caption_failure_message
 from automation.vision import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
@@ -51,7 +56,13 @@ def _make_fake_caption_client(
     *,
     reasoning_content: str | None = None,
 ) -> tuple[object, dict]:
-    """Fake client + capture dict for complete_caption calls."""
+    """Fake client + capture dict for complete_caption calls.
+
+    The whole outbound envelope is kept, not a summary of it: what the model is sent is
+    the contract with the server, and a part that is subtly misshapen is accepted and
+    then ignored rather than rejected. ``requests`` accumulates every call so a retrying
+    test can assert what each attempt carried.
+    """
     if captured is None:
         captured = {}
     message = type(
@@ -64,24 +75,30 @@ def _make_fake_caption_client(
         def create(self, **kwargs: object) -> object:
             msgs = kwargs.get("messages")
             captured["messages"] = msgs
+            captured.setdefault("requests", []).append(msgs)
+            captured["model"] = kwargs.get("model")
+            captured["max_tokens"] = kwargs.get("max_tokens")
             captured["temperature"] = kwargs.get("temperature")
             captured["top_p"] = kwargs.get("top_p")
             captured["presence_penalty"] = kwargs.get("presence_penalty")
             captured["extra_body"] = kwargs.get("extra_body")
+            captured["message_count"] = len(msgs) if msgs else 0
 
             if msgs and len(msgs) > 1 and isinstance(msgs[1].get("content"), list):
                 parts = msgs[1]["content"]
+                captured["parts"] = parts
+                captured["part_types"] = [p.get("type") for p in parts if isinstance(p, dict)]
                 captured["image_count"] = sum(
                     1 for p in parts if isinstance(p, dict) and p.get("type") == "image_url"
                 )
+                captured["audio_parts"] = [
+                    p for p in parts if isinstance(p, dict) and p.get("type") == "input_audio"
+                ]
                 text_part = next(
                     (p for p in parts if isinstance(p, dict) and p.get("type") == "text"),
                     None,
                 )
                 captured["user_text"] = text_part.get("text") if text_part else None
-                captured["message_count"] = len(msgs)
-            else:
-                captured["message_count"] = len(msgs) if msgs else 0
 
             choice = type("Choice", (), {"message": message})()
             return type("Response", (), {"choices": [choice]})()
@@ -91,6 +108,16 @@ def _make_fake_caption_client(
             self.chat = type("Chat", (), {"completions": FakeCompletions()})()
 
     return FakeClient(), captured
+
+
+def _audio_payloads(request: list[dict]) -> list[bytes]:
+    """The decoded audio of every ``input_audio`` part in one captured request."""
+    content = request[1]["content"]
+    return [
+        base64.b64decode(part["input_audio"]["data"])
+        for part in content
+        if isinstance(part, dict) and part.get("type") == "input_audio"
+    ]
 
 
 class AutoCaptionVideoUnitTests(unittest.TestCase):
@@ -663,7 +690,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 "automation.auto_caption.complete_caption",
                 side_effect=[None, None, polished],
             ) as mock_complete:
-                _path, caption, status, _message = process_media(
+                _path, caption, status, _message, audio_missing = process_media(
                     object(),
                     media,
                     {"image": "system prompt", "video": "system prompt"},
@@ -671,6 +698,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
 
             self.assertEqual(status, "success")
             self.assertEqual(caption, polished)
+            self.assertFalse(audio_missing)
             self.assertEqual(mock_complete.call_count, 3)
 
     def test_process_media_retries_too_short_then_succeeds(self) -> None:
@@ -689,7 +717,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 "automation.auto_caption.complete_caption",
                 side_effect=["too short", polished],
             ) as mock_complete:
-                _path, caption, status, _message = process_media(
+                _path, caption, status, _message, audio_missing = process_media(
                     object(),
                     media,
                     {"image": "system prompt", "video": "system prompt"},
@@ -697,6 +725,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
 
             self.assertEqual(status, "success")
             self.assertEqual(caption, polished)
+            self.assertFalse(audio_missing)
             self.assertEqual(mock_complete.call_count, 2)
 
     def test_process_media_exhausts_retries_on_too_short(self) -> None:
@@ -708,7 +737,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 "automation.auto_caption.complete_caption",
                 return_value="short",
             ) as mock_complete:
-                _path, caption, status, _message = process_media(
+                _path, caption, status, _message, audio_missing = process_media(
                     object(),
                     media,
                     {"image": "system prompt", "video": "system prompt"},
@@ -716,6 +745,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
 
             self.assertEqual(status, "too_short")
             self.assertEqual(caption, "short")
+            self.assertFalse(audio_missing)
             self.assertEqual(mock_complete.call_count, MAX_MODEL_ATTEMPTS)
 
     def test_run_job_writes_completed_caption(self) -> None:
@@ -780,3 +810,292 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 run_auto_caption_job(root)
 
             self.assertEqual(mock_complete.call_args.args[3], "JSON draft.")
+
+
+POLISHED_CAPTION = (
+    "A detailed portrait with warm sunlight falling across the subject's face "
+    "and soft shadows in the background, with layered textures in the clothing, "
+    "subtle color grading, reflective highlights, and rich environmental context "
+    "that makes this caption substantially longer than the short draft threshold."
+)
+
+FAKE_WAV = b"RIFF$\x00\x00\x00WAVEfmt fake pcm payload for the request assertions"
+
+
+class AutoCaptionAudioPromptTests(unittest.TestCase):
+    """What the prompts say once audio captioning is on."""
+
+    def test_video_prompt_asks_about_audio_only_when_enabled(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Focus on the subject.")
+
+            without = build_system_prompt(root, media_kind="video")
+            with_audio = build_system_prompt(root, media_kind="video", caption_audio=True)
+
+            self.assertNotIn(AUDIO_OBJECTIVE_SENTENCE, without)
+            self.assertIn(AUDIO_OBJECTIVE_SENTENCE, with_audio)
+            # The rest of a calibrated prompt must be untouched by the option.
+            self.assertEqual(with_audio.replace(f" {AUDIO_OBJECTIVE_SENTENCE}", ""), without)
+
+    def test_image_prompt_never_mentions_audio(self) -> None:
+        """A still has no track, so asking about one only invites invention."""
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Focus on the subject.")
+
+            prompt = build_system_prompt(root, media_kind="image", caption_audio=True)
+
+            self.assertNotIn(AUDIO_OBJECTIVE_SENTENCE, prompt)
+            self.assertNotIn("audio", prompt.lower())
+
+    def test_a_single_line_sysprompt_still_dedents_with_audio_on(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Focus on the subject.")
+
+            prompt = build_system_prompt(root, media_kind="video", caption_audio=True)
+
+            self.assertTrue(prompt.startswith("# Role"))
+            self.assertNotIn("\n    ", prompt)
+
+
+class AutoCaptionAudioRequestTests(unittest.TestCase):
+    """What actually reaches the model when audio rides along with the keyframes."""
+
+    def setUp(self) -> None:
+        self.frames = [Image.new("RGB", (128, 128), color="blue") for _ in range(3)]
+
+    def _caption(
+        self,
+        media,
+        *,
+        audio_wav: bytes | None = None,
+        mode: str = "thinking",
+    ) -> tuple[str | None, dict]:
+        client, captured = _make_fake_caption_client(POLISHED_CAPTION)
+        caption = complete_caption(
+            client,
+            media,
+            "Video system prompt",
+            "Draft.",
+            images=self.frames,
+            mode=mode,
+            audio_wav=audio_wav,
+        )
+        return caption, captured
+
+    def test_audio_part_follows_the_frames_and_precedes_the_instruction(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, captured = self._caption(video, audio_wav=FAKE_WAV)
+
+            self.assertEqual(
+                captured["part_types"],
+                ["image_url", "image_url", "image_url", "input_audio", "text"],
+            )
+
+    def test_audio_part_uses_the_exact_openai_shape(self) -> None:
+        """A misspelled key is accepted and then ignored, so the caption silently lies."""
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, captured = self._caption(video, audio_wav=FAKE_WAV)
+
+            self.assertEqual(len(captured["audio_parts"]), 1)
+            part = captured["audio_parts"][0]
+            self.assertEqual(set(part), {"type", "input_audio"})
+            self.assertEqual(part["type"], "input_audio")
+            self.assertEqual(set(part["input_audio"]), {"data", "format"})
+            self.assertEqual(part["input_audio"]["format"], "wav")
+            self.assertIsInstance(part["input_audio"]["data"], str)
+
+    def test_audio_payload_round_trips_the_extracted_bytes(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, captured = self._caption(video, audio_wav=FAKE_WAV)
+
+            self.assertEqual(_audio_payloads(captured["requests"][0]), [FAKE_WAV])
+
+    def test_no_audio_part_without_audio(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, captured = self._caption(video)
+
+            self.assertEqual(captured["audio_parts"], [])
+            self.assertEqual(captured["part_types"], ["image_url"] * 3 + ["text"])
+
+    def test_user_text_claims_the_attachment_only_when_one_is_sent(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, with_audio = self._caption(video, audio_wav=FAKE_WAV)
+            _caption, without = self._caption(video)
+
+            self.assertIn(AUDIO_USER_SENTENCE, with_audio["user_text"])
+            self.assertIn(str(AUDIO_MAX_SECONDS), with_audio["user_text"])
+            self.assertNotIn("audio", (without["user_text"] or "").lower())
+
+    def test_a_still_never_grows_an_audio_instruction(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+
+            _caption, captured = self._caption(media, audio_wav=FAKE_WAV)
+
+            self.assertNotIn("audio", (captured["user_text"] or "").lower())
+
+    def test_instruct_prefill_stays_the_last_message(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, captured = self._caption(video, audio_wav=FAKE_WAV, mode="instruct")
+
+            msgs = captured["messages"]
+            self.assertEqual([m["role"] for m in msgs], ["system", "user", "assistant"])
+            self.assertEqual(msgs[2]["content"], INSTRUCT_THINK_PREFILL)
+            self.assertEqual(captured["part_types"][-1], "text")
+
+    def test_sampling_is_identical_with_and_without_audio(self) -> None:
+        """Attaching audio must not perturb decoding; only the payload changes."""
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+
+            _caption, with_audio = self._caption(video, audio_wav=FAKE_WAV)
+            _caption, without = self._caption(video)
+
+            for knob in (
+                "model",
+                "max_tokens",
+                "temperature",
+                "top_p",
+                "presence_penalty",
+                "extra_body",
+            ):
+                with self.subTest(knob=knob):
+                    self.assertEqual(with_audio[knob], without[knob])
+
+
+class AutoCaptionAudioJobTests(unittest.TestCase):
+    """How an audio run counts what it captioned.
+
+    A GIF stands in for the media throughout: it decodes into real keyframes without
+    OpenCV, and it is also the clearest case of motion media that cannot carry sound.
+    """
+
+    def _folder_with_gif(self, root):
+        write_sysprompt(root, "Describe the scene.")
+        media = write_gif(root, "loop.gif")
+        write_txt_caption(media, "Draft.")
+        return media
+
+    def test_audio_is_extracted_once_and_resent_on_every_retry(self) -> None:
+        with TempMediaFolder() as root:
+            media = self._folder_with_gif(root)
+            client, captured = _make_fake_caption_client("too short")
+
+            with (
+                patch("automation.vision.create_openai_client", return_value=client),
+                patch(
+                    "automation.auto_caption.extract_audio_wav", return_value=FAKE_WAV
+                ) as extract,
+            ):
+                result = run_auto_caption_job(root, caption_audio=True)
+
+            self.assertEqual(result["stats"]["too_short"], 1)
+            self.assertEqual(extract.call_count, 1)
+            self.assertEqual(extract.call_args.args[0], media)
+            # Decoded once, sent three times: a retry must not re-read the clip.
+            self.assertEqual(len(captured["requests"]), MAX_MODEL_ATTEMPTS)
+            for request in captured["requests"]:
+                self.assertEqual(_audio_payloads(request), [FAKE_WAV])
+
+    def test_a_silent_clip_is_still_captioned_and_counted(self) -> None:
+        with TempMediaFolder() as root:
+            media = self._folder_with_gif(root)
+
+            with (
+                patch("automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION),
+                patch("automation.audio.subprocess.run") as run_ffmpeg,
+            ):
+                result = run_auto_caption_job(root, caption_audio=True)
+
+            # A GIF is known silent without a decode, so ffmpeg is never spawned.
+            run_ffmpeg.assert_not_called()
+            self.assertEqual(result["stats"]["audio_error"], 1)
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").strip(),
+                POLISHED_CAPTION,
+            )
+
+    def test_missing_audio_does_not_fail_the_job_or_inflate_progress(self) -> None:
+        with TempMediaFolder() as root:
+            self._folder_with_gif(root)
+
+            with patch("automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION):
+                result = run_auto_caption_job(root, caption_audio=True)
+
+            self.assertEqual(result["processed"], 1)
+            self.assertEqual(result["total"], 1)
+            self.assertIsNone(auto_caption_failure_message(result["stats"]))
+
+    def test_a_still_image_never_counts_as_missing_audio(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Draft.")
+
+            with (
+                patch("automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION),
+                patch("automation.auto_caption.extract_audio_wav") as extract,
+            ):
+                result = run_auto_caption_job(root, caption_audio=True)
+
+            extract.assert_not_called()
+            self.assertEqual(result["stats"]["audio_error"], 0)
+            self.assertEqual(result["stats"]["success"], 1)
+
+    def test_audio_off_never_looks_for_audio(self) -> None:
+        with TempMediaFolder() as root:
+            self._folder_with_gif(root)
+            client, captured = _make_fake_caption_client(POLISHED_CAPTION)
+
+            with (
+                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.auto_caption.extract_audio_wav") as extract,
+            ):
+                result = run_auto_caption_job(root)
+
+            extract.assert_not_called()
+            self.assertEqual(result["stats"]["audio_error"], 0)
+            self.assertEqual(captured["audio_parts"], [])
+            self.assertNotIn("audio", (captured["user_text"] or "").lower())
+            self.assertNotIn("audio", captured["messages"][0]["content"].lower())
+
+    def test_an_audio_run_sends_the_audio_prompt_and_the_part_together(self) -> None:
+        with TempMediaFolder() as root:
+            self._folder_with_gif(root)
+            client, captured = _make_fake_caption_client(POLISHED_CAPTION)
+
+            with (
+                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.auto_caption.extract_audio_wav", return_value=FAKE_WAV),
+            ):
+                result = run_auto_caption_job(root, caption_audio=True)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(result["stats"]["audio_error"], 0)
+            self.assertIn(AUDIO_OBJECTIVE_SENTENCE, captured["messages"][0]["content"])
+            self.assertEqual(_audio_payloads(captured["requests"][0]), [FAKE_WAV])
+
+    def test_audio_captioning_requires_ffmpeg_up_front(self) -> None:
+        with TempMediaFolder() as root:
+            self._folder_with_gif(root)
+
+            with patch("automation.auto_caption.ffmpeg_path", return_value=None):
+                with self.assertRaises(ValueError) as caught:
+                    validate_auto_caption_folder(root, caption_audio=True)
+
+                self.assertIn("ffmpeg", str(caught.exception))
+                # The same folder is fine when nothing needs ffmpeg.
+                validate_auto_caption_folder(root)

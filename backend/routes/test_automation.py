@@ -89,6 +89,63 @@ class AutoCaptionAutomationEndpointTests(unittest.TestCase):
             self.assertEqual(payload.get("auto_caption_mode"), "thinking")
             self.assertIn("id", payload)
 
+    def _start_and_capture(self, root: Path, **body: object) -> dict[str, object]:
+        """Start the job with a stubbed runner, returning the params it was handed."""
+        received: dict[str, object] = {}
+
+        def run(folder: Path, **params: object) -> dict[str, object]:
+            received.update(params)
+            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+        with _patched_job_runner("auto_caption", run):
+            response = client.post(
+                f"/api/automation/auto-caption?path={quote(str(root))}",
+                json=body,
+            )
+            self.assertEqual(response.status_code, 200)
+            wait_for_job(response.json()["id"])
+
+        return received
+
+    def test_audio_captioning_is_off_unless_asked_for(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            self.assertEqual(self._start_and_capture(root).get("caption_audio"), False)
+
+    def test_audio_captioning_reaches_the_runner(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            received = self._start_and_capture(root, mode="instruct", caption_audio=True)
+
+            self.assertEqual(received.get("caption_audio"), True)
+            self.assertEqual(received.get("mode"), "instruct")
+
+    def test_audio_captioning_is_refused_without_ffmpeg(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            with patch("automation.auto_caption.ffmpeg_path", return_value=None):
+                response = client.post(
+                    f"/api/automation/auto-caption?path={quote(str(root))}",
+                    json={"caption_audio": True},
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("ffmpeg", response.json()["detail"])
+
+                # The same folder still starts fine without audio.
+                self.assertEqual(
+                    client.post(
+                        f"/api/automation/auto-caption?path={quote(str(root))}"
+                    ).status_code,
+                    200,
+                )
+
 
 class StripMetadataAutomationEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
