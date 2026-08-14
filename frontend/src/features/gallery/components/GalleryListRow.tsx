@@ -1,6 +1,5 @@
 import { memo } from "react";
-import { getRowCaptionDisplay } from "@/features/gallery/lib/captionStatus";
-import { rowMarkers, rowMetaCells } from "@/features/gallery/lib/listRowCells";
+import { rowMarkers, rowMetaCells, rowStatus } from "@/features/gallery/lib/listRowCells";
 import { iconCheck } from "@/shared/icons";
 import type { GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
@@ -35,7 +34,7 @@ export const GalleryListRow = memo(function GalleryListRow({
   selected = false,
   onToggleSelect,
 }: GalleryListRowProps) {
-  const status = getRowCaptionDisplay(item);
+  const status = rowStatus(item);
   const markers = rowMarkers(item);
   const metaCells = rowMetaCells(item);
 
@@ -87,8 +86,11 @@ export const GalleryListRow = memo(function GalleryListRow({
           </span>
         ))}
       </span>
-      <span className={`gallery-list-row__status gallery-list-row__status--${status.variant}`}>
-        {status.message}
+      <span
+        className={`gallery-list-row__status gallery-list-row__status--${status.variant}`}
+        title={status.label}
+      >
+        <Icon icon={status.icon} className="gallery-list-row__status-icon" />
       </span>
       {metaCells.map((cell) => (
         <span

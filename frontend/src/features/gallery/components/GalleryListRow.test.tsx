@@ -34,22 +34,47 @@ const uncaptionedVideo: GalleryItem = {
 };
 
 describe("GalleryListRow", () => {
-  it("shows a terse status instead of the caption text", () => {
-    render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+  it("shows the caption state as an icon instead of the caption text", () => {
+    const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
 
-    // A caption paragraph would swamp a single-line row.
+    // A caption paragraph would swamp a single-line row, and so would the word
+    // for its state - the label survives as the tooltip.
     expect(screen.queryByText("Golden hour over the harbour")).toBeNull();
-    expect(screen.getByText("Captioned")).toBeInTheDocument();
+    expect(screen.queryByText("Captioned")).toBeNull();
+
+    const status = container.querySelector(".gallery-list-row__status");
+    expect(status).toHaveAttribute("title", "Captioned");
+    expect(status?.querySelector(".gallery-list-row__status-icon")).toBeInTheDocument();
   });
 
-  it("shortens the missing- and empty-caption states to fit one line", () => {
-    const { rerender } = render(<GalleryListRow item={uncaptionedVideo} onSelect={vi.fn()} />);
-    expect(screen.getByText("No caption")).toBeInTheDocument();
+  it("gives each caption state its own icon and tooltip", () => {
+    const statusOf = (item: GalleryItem) => {
+      const { container } = render(<GalleryListRow item={item} onSelect={vi.fn()} />);
+      const status = container.querySelector(".gallery-list-row__status");
+      return {
+        title: status?.getAttribute("title"),
+        variant: [...(status?.classList ?? [])].find((name) => name.includes("--")),
+        // The drawn shape, which is what actually distinguishes one icon from another.
+        icon: status?.querySelector("svg")?.innerHTML,
+      };
+    };
 
-    rerender(
-      <GalleryListRow item={{ ...uncaptionedVideo, caption_status: "empty" }} onSelect={vi.fn()} />,
-    );
-    expect(screen.getByText("Empty")).toBeInTheDocument();
+    const captioned = statusOf(captionedItem);
+    const empty = statusOf({ ...uncaptionedVideo, caption_status: "empty" });
+    const missing = statusOf(uncaptionedVideo);
+
+    expect([captioned.title, empty.title, missing.title]).toEqual([
+      "Captioned",
+      "Empty",
+      "No caption",
+    ]);
+    expect([captioned.variant, empty.variant, missing.variant]).toEqual([
+      "gallery-list-row__status--success",
+      "gallery-list-row__status--warning",
+      "gallery-list-row__status--muted",
+    ]);
+    // Three states, three different icons.
+    expect(new Set([captioned.icon, empty.icon, missing.icon]).size).toBe(3);
   });
 
   it("shows megapixels, size, and modified date", () => {

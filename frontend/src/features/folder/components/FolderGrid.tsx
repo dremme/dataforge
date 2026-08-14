@@ -2,7 +2,7 @@ import {
   iconFolder,
   iconFolderPlus,
   iconFolderTree,
-  iconImages,
+  iconImage,
   iconTriangleAlert,
 } from "@/shared/icons";
 import type { Subfolder } from "@/shared/types";
@@ -21,7 +21,7 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
   if (fileCount === null || captionedCount === null) {
     return (
       <span className="folder-card__stat folder-card__stat--pending" aria-hidden="true">
-        <Icon icon={iconImages} className="folder-card__stat-icon" />
+        <Icon icon={iconImage} className="folder-card__stat-icon" />
         <span className="folder-card__stat-placeholder" />
       </span>
     );
@@ -32,7 +32,7 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
     <span
       className={`folder-card__stat folder-card__stat--${allCaptioned ? "success" : "warning"}`}
     >
-      <Icon icon={iconImages} className="folder-card__stat-icon" />
+      <Icon icon={iconImage} className="folder-card__stat-icon" />
       <strong>{captionedCount}</strong> / {fileCount} captioned
       {issueCount != null && issueCount > 0 && (
         <Icon icon={iconTriangleAlert} className="folder-card__issue-icon" aria-hidden="true" />

@@ -1,15 +1,10 @@
 import { useLayoutEffect, useMemo, useState, type CSSProperties, type RefObject } from "react";
-import {
-  rowMarkers,
-  rowMetaCells,
-  rowStatusText,
-  type RowMetaColumn,
-} from "@/features/gallery/lib/listRowCells";
+import { rowMarkers, rowMetaCells, type RowMetaColumn } from "@/features/gallery/lib/listRowCells";
 import type { GalleryItem } from "@/shared/types";
 
-type TextColumn = RowMetaColumn | "status";
+type TextColumn = RowMetaColumn;
 
-const TEXT_COLUMNS: TextColumn[] = ["status", "megapixels", "size", "modified"];
+const TEXT_COLUMNS: TextColumn[] = ["megapixels", "size", "modified"];
 
 /**
  * How many of a column's distinct values get measured.
@@ -29,7 +24,8 @@ interface ListColumnContent {
   markerCount: number;
 }
 
-type ColumnWidths = Record<TextColumn | "markers", number>;
+/** The two icon columns are sized by their icons, not by any text they carry. */
+type ColumnWidths = Record<TextColumn | "markers" | "status", number>;
 
 function longestFirst(values: Set<string>): string[] {
   return [...values].sort((a, b) => b.length - a.length).slice(0, MEASURED_CANDIDATES);
@@ -44,7 +40,6 @@ function longestFirst(values: Set<string>): string[] {
  */
 function collectColumnContent(items: GalleryItem[]): ListColumnContent {
   const distinct: Record<TextColumn, Set<string>> = {
-    status: new Set(),
     megapixels: new Set(),
     size: new Set(),
     modified: new Set(),
@@ -52,7 +47,6 @@ function collectColumnContent(items: GalleryItem[]): ListColumnContent {
   let markerCount = 0;
 
   for (const item of items) {
-    distinct.status.add(rowStatusText(item));
     for (const cell of rowMetaCells(item)) {
       distinct[cell.key].add(cell.value);
     }
@@ -61,7 +55,6 @@ function collectColumnContent(items: GalleryItem[]): ListColumnContent {
 
   return {
     values: {
-      status: longestFirst(distinct.status),
       megapixels: longestFirst(distinct.megapixels),
       size: longestFirst(distinct.size),
       modified: longestFirst(distinct.modified),
@@ -71,9 +64,7 @@ function collectColumnContent(items: GalleryItem[]): ListColumnContent {
 }
 
 function cellClassName(column: TextColumn): string {
-  return column === "status"
-    ? "gallery-list-row__status"
-    : `gallery-list-row__meta-item gallery-list-row__meta-item--${column}`;
+  return `gallery-list-row__meta-item gallery-list-row__meta-item--${column}`;
 }
 
 function probeElement(className: string): HTMLSpanElement {
@@ -115,9 +106,9 @@ function measureColumns(host: HTMLElement, content: ListColumnContent): ColumnWi
     }
   }
 
+  // Both icon columns are built from the real classes, so the icon size and the
+  // gap between icons come from the stylesheet rather than numbers repeated here.
   if (content.markerCount > 0) {
-    // Built from the real classes so the icon size and the gap between icons come
-    // from the stylesheet rather than from numbers repeated here.
     const markers = probeElement("gallery-list-row__markers");
     markers.style.cssText = "width:auto;overflow:visible;";
     for (let index = 0; index < content.markerCount; index += 1) {
@@ -128,6 +119,13 @@ function measureColumns(host: HTMLElement, content: ListColumnContent): ColumnWi
     probe.appendChild(markers);
     cells.push({ column: "markers", element: markers });
   }
+
+  // Every item has a caption state, so this column is always exactly one icon.
+  const status = probeElement("gallery-list-row__status");
+  status.style.cssText = "width:auto;";
+  status.appendChild(probeElement("gallery-list-row__status-icon"));
+  probe.appendChild(status);
+  cells.push({ column: "status", element: status });
 
   host.appendChild(probe);
   const widths: ColumnWidths = {

@@ -28,7 +28,7 @@
     z-index: $z-index-tooltip;
     width: max-content;
     max-width: 14rem;
-    padding: 0.4rem 0.65rem;
+    padding: 0.375rem 0.625rem;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
@@ -51,7 +51,7 @@
 
   &__arrow {
     position: absolute;
-    top: -0.3rem;
+    top: -0.3125rem;
     left: calc(50% + var(--tooltip-arrow-shift));
     width: 0.5rem;
     height: 0.5rem;

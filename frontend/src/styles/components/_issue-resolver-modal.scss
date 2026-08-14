@@ -29,7 +29,7 @@
   &__header-text {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.625rem;
     min-width: 0;
   }
 
@@ -50,7 +50,7 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.375rem;
   }
 
   &__preview {
@@ -108,9 +108,9 @@
     @include app-scrollbar;
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0.875rem;
     min-width: 0;
-    padding: 1rem 1.15rem;
+    padding: 1rem 1.125rem;
     overflow-y: auto;
   }
 
@@ -144,8 +144,8 @@
   &__issue-card {
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
-    padding: 0.8rem 0.85rem;
+    gap: 0.625rem;
+    padding: 0.8125rem 0.875rem;
     border: 1px solid $color-warning-border;
     border-radius: var(--radius-md);
     background: linear-gradient(180deg, $color-warning-soft, transparent 120%);
@@ -167,12 +167,12 @@
   &__issue-row {
     display: flex;
     align-items: flex-start;
-    gap: 0.65rem;
+    gap: 0.625rem;
   }
 
   &__issue-icon {
     flex-shrink: 0;
-    margin-top: 0.15rem;
+    margin-top: 0.125rem;
     @include icon-size(var(--icon-size-base));
     color: $color-warning;
   }
@@ -180,7 +180,7 @@
   &__issue-content {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.1875rem;
     min-width: 0;
   }
 
@@ -196,7 +196,7 @@
   &__issue-list {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.3125rem;
     margin: 0;
     padding-left: 0;
     // Native markers cannot be aligned flush nor spaced from their text, so the
@@ -238,7 +238,7 @@
   &__caption-editor {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.4375rem;
   }
 
   &__caption-label {
@@ -253,6 +253,6 @@
   &__footer {
     @include modal-chrome-footer;
     // Tighter than the chrome default: this is a button pair, not a meta row.
-    gap: 0.55rem;
+    gap: 0.5625rem;
   }
 }

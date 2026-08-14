@@ -1,8 +1,14 @@
-import { getRowCaptionDisplay } from "@/features/gallery/lib/captionStatus";
+import {
+  getRowCaptionDisplay,
+  type CaptionStatusVariant,
+} from "@/features/gallery/lib/captionStatus";
 import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import {
   iconBraces,
   iconFileImage,
+  iconMessageCheck,
+  iconMessageDashed,
+  iconMessageWarning,
   iconTriangleAlert,
   iconVideo,
   type AppIcon,
@@ -74,6 +80,25 @@ export function rowMetaCells(item: GalleryItem): RowMetaCell[] {
   ];
 }
 
-export function rowStatusText(item: GalleryItem): string {
-  return getRowCaptionDisplay(item).message;
+/**
+ * The message-bubble family the toolbar's caption stats use, so the same three
+ * caption states read the same way in the header and down the list. Deliberately
+ * not the triangle: that one already means "has an issue file" one column over.
+ */
+const ROW_STATUS_ICONS: Record<CaptionStatusVariant, AppIcon> = {
+  success: iconMessageCheck,
+  warning: iconMessageWarning,
+  muted: iconMessageDashed,
+};
+
+export interface RowStatus {
+  icon: AppIcon;
+  label: string;
+  variant: CaptionStatusVariant;
+}
+
+/** Caption state as an icon, with the wording it replaces kept as the tooltip. */
+export function rowStatus(item: GalleryItem): RowStatus {
+  const { message, variant } = getRowCaptionDisplay(item);
+  return { icon: ROW_STATUS_ICONS[variant], label: message, variant };
 }

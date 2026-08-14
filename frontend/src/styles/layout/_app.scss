@@ -16,7 +16,7 @@
   flex-shrink: 0;
   z-index: 20;
   @include full-bleed;
-  padding: 0.65rem 0 0.85rem;
+  padding: 0.625rem 0 0.875rem;
   border-bottom: 1px solid var(--border);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.28);
 
@@ -83,7 +83,7 @@
   }
 
   &__icon {
-    @include icon-size(var(--icon-size-base));
+    @include icon-size(var(--icon-size-lg));
     color: var(--accent);
   }
 
