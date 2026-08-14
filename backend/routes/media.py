@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, Response
 
+from constants import MEDIA_MIME_TYPES
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from gif_frames import (
     GifFrameError,
@@ -79,6 +80,7 @@ def serve_media(
     # range request cannot leave the source locked against delete on Windows.
     return MediaFileResponse(
         file_path,
+        media_type=MEDIA_MIME_TYPES.get(file_path.suffix.lower()),
         headers={"Cache-Control": cache_control},
     )
 

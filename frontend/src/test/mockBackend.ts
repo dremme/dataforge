@@ -496,7 +496,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/media/open" && method === "POST") {
       const path = url.searchParams.get("path") ?? "";
       const fileName = path.split(/[/\\]/).pop() ?? "";
-      const isImage = /\.(png|jpe?g)$/i.test(fileName);
+      const isImage = /\.(png|jpe?g|webp|bmp)$/i.test(fileName);
 
       if (!path || !isImage) {
         return jsonResponse({ detail: "Only image files can be opened in the image viewer" }, 400);

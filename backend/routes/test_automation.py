@@ -334,7 +334,7 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
             response = self._start(root)
 
             self.assertEqual(response.status_code, 400)
-            self.assertIn("No JPG, PNG or MP4", response.json()["detail"])
+            self.assertIn("No JPG, PNG, WebP, BMP, MP4, MOV or M4V", response.json()["detail"])
 
     def test_rejects_an_unknown_size_opacity_or_position(self) -> None:
         with TempMediaFolder() as root:

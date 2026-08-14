@@ -13,6 +13,7 @@ from media_dimensions import media_dimensions
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
+    write_image,
     write_jpeg,
     write_media,
     write_mp4_video,
@@ -38,6 +39,14 @@ class ImageDimensionTests(unittest.TestCase):
             self.assertEqual(_dimensions(png, "image"), (800, 600))
             self.assertEqual(_dimensions(jpeg, "image"), (320, 240))
             self.assertEqual(_dimensions(gif, "gif"), (120, 90))
+
+    def test_reads_webp_and_bmp(self) -> None:
+        with TempMediaFolder() as root:
+            webp = write_image(root, "photo.webp", width=640, height=360)
+            bmp = write_image(root, "photo.bmp", width=200, height=100)
+
+            self.assertEqual(_dimensions(webp, "image"), (640, 360))
+            self.assertEqual(_dimensions(bmp, "image"), (200, 100))
 
     def test_returns_none_for_a_malformed_image(self) -> None:
         with TempMediaFolder() as root:
@@ -80,6 +89,24 @@ class VideoDimensionTests(unittest.TestCase):
             video = write_mp4_video(root, width=720, height=1280, trailing_moov=True)
 
             self.assertEqual(_dimensions(video, "video"), (720, 1280))
+
+    def test_reads_the_rest_of_the_mp4_family(self) -> None:
+        with TempMediaFolder() as root:
+            mov = write_mp4_video(root, "clip.mov", width=1440, height=1080)
+            m4v = write_mp4_video(root, "clip.m4v", width=640, height=480)
+
+            self.assertEqual(_dimensions(mov, "video"), (1440, 1080))
+            self.assertEqual(_dimensions(m4v, "video"), (640, 480))
+
+    def test_returns_none_for_a_container_that_is_not_isobmff(self) -> None:
+        """A matroska or avi file has no box structure to walk, so it is not opened."""
+        with TempMediaFolder() as root:
+            for name in ("clip.mkv", "clip.avi", "clip.wmv", "clip.flv"):
+                with self.subTest(name=name):
+                    # MP4 bytes under a non-MP4 name: only the suffix should decide,
+                    # so a parseable payload must still come back empty.
+                    disguised = write_mp4_video(root, name, width=1920, height=1080)
+                    self.assertIsNone(_dimensions(disguised, "video"))
 
     def test_returns_none_when_the_file_carries_no_header(self) -> None:
         with TempMediaFolder() as root:

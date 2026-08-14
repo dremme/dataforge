@@ -1,3 +1,4 @@
+import { SYSPROMPT_FILENAME } from "@/shared/constants";
 import type { GalleryItem } from "@/shared/types";
 
 export function buildSyspromptItem(folder: string, existing?: GalleryItem | null): GalleryItem {
@@ -6,8 +7,8 @@ export function buildSyspromptItem(folder: string, existing?: GalleryItem | null
   const separator = folder.includes("\\") ? "\\" : "/";
 
   return {
-    name: ".sysprompt",
-    path: `${folder}${separator}.sysprompt`,
+    name: SYSPROMPT_FILENAME,
+    path: `${folder}${separator}${SYSPROMPT_FILENAME}`,
     description: null,
     has_description: false,
     has_caption_file: false,
@@ -20,7 +21,5 @@ export function buildSyspromptItem(folder: string, existing?: GalleryItem | null
 }
 
 export function isSyspromptPath(path: string): boolean {
-  return (
-    path.endsWith(".sysprompt") || path.endsWith("\\.sysprompt") || path.endsWith("/.sysprompt")
-  );
+  return path.endsWith(SYSPROMPT_FILENAME);
 }

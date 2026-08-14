@@ -3,10 +3,15 @@
 The gallery reports megapixels per item and sorts by them, so a listing needs
 width and height for every file it returns - hundreds per folder, on the path
 every navigation waits for. Both probes therefore stop at the header: Pillow
-reads an image header without decoding it, and a video is walked box by box to
-its track header, seeking over the sample data rather than reading it. The result
-is memoized against the file's stat signature, so re-listing an unchanged folder
-costs no file access at all.
+reads an image header without decoding it, and an MP4-family video is walked box
+by box to its track header, seeking over the sample data rather than reading it.
+The result is memoized against the file's stat signature, so re-listing an
+unchanged folder costs no file access at all.
+
+A container outside that family - matroska, avi, asf, flv - has no size here at
+all. Reading one would mean a parser per format or an ffprobe subprocess per file
+on the listing path, and the gallery already renders a missing size as an empty
+megapixel cell, which is the same thing it shows for a file it cannot read.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from typing import BinaryIO
 from PIL import Image, UnidentifiedImageError
 
 from caption_cache import cached_by_stat
+from constants import ISOBMFF_EXTENSIONS
 
 __all__ = ["media_dimensions"]
 
@@ -47,7 +53,7 @@ def _image_dimensions(path: Path) -> Dimensions:
 
 
 # ---------------------------------------------------------------------------
-# ISOBMFF (.mp4) boxes
+# ISOBMFF (.mp4, .mov, .m4v) boxes
 #
 # Only enough of the container to reach `moov/trak/tkhd`. Sizes come in three
 # forms - a 32-bit size, 1 for a 64-bit size that follows the type, and 0 for
@@ -142,6 +148,9 @@ def _track_dimensions(data: bytes, start: int, end: int) -> Dimensions:
 
 
 def _video_dimensions(path: Path) -> Dimensions:
+    if path.suffix.lower() not in ISOBMFF_EXTENSIONS:
+        return None
+
     try:
         with path.open("rb") as handle:
             moov = _read_moov(handle, path.stat().st_size)

@@ -18,6 +18,7 @@ from testing_fixtures import (
     TempMediaFolder,
     make_png_bytes,
     write_gif,
+    write_image,
     write_media,
     write_mp4_video,
 )
@@ -119,6 +120,30 @@ class ThumbnailGenerationTests(unittest.TestCase):
 
             self.assertEqual(thumbnail.suffix, ".webp")
             self.assertGreater(thumbnail.stat().st_size, 0)
+
+    def test_webp_and_bmp_thumbnails_use_pillow_rather_than_ffmpeg(self) -> None:
+        with TempMediaFolder() as root:
+            for name in ("photo.webp", "photo.bmp"):
+                with self.subTest(name=name):
+                    media = write_image(root, name, width=640, height=480)
+
+                    # Reaching the video branch would raise without ffmpeg.
+                    with patch("thumbnails.ffmpeg_path", return_value=None):
+                        thumbnail = get_or_create_thumbnail(media, 200)
+
+                    with Image.open(thumbnail) as image:
+                        self.assertEqual(image.format, "WEBP")
+                        self.assertLessEqual(image.width, 200)
+
+    def test_every_video_container_takes_the_ffmpeg_branch(self) -> None:
+        with TempMediaFolder() as root:
+            for name in ("clip.mp4", "clip.avi", "clip.mov", "clip.mkv", "clip.wmv", "clip.flv"):
+                with self.subTest(name=name):
+                    video = write_mp4_video(root, name)
+
+                    with patch("thumbnails.ffmpeg_path", return_value=None):
+                        with self.assertRaisesRegex(Exception, "ffmpeg"):
+                            get_or_create_thumbnail(video, 200)
 
     def test_video_thumbnail_targets_first_frame(self) -> None:
         commands = _video_thumbnail_commands(

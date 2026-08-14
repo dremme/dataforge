@@ -85,6 +85,7 @@ WATERMARK_TEMP_MARKER = ".watermark-tmp"
 WATERMARK_STALE_MARKER = ".watermark-stale"
 JPEG_SUFFIXES = {".jpg", ".jpeg"}
 JPEG_QUALITY = 92
+WEBP_QUALITY = 92
 
 FFMPEG_POLL_SECONDS = 0.2
 FFMPEG_TIMEOUT_SECONDS = 3600
@@ -215,7 +216,7 @@ def validate_watermark_folder(
     resolve_watermark_position(position)
 
     if not filter_media_list(list_watermark_files(folder), selected_paths):
-        raise ValueError("No JPG, PNG or MP4 files found in folder")
+        raise ValueError("No JPG, PNG, WebP, BMP, MP4, MOV or M4V files found in folder")
 
     output_dir = folder / WATERMARK_DIR_NAME
     if output_dir.exists() and not output_dir.is_dir():
@@ -285,7 +286,9 @@ def _save_watermarked_image(
     source_mode: str,
     exif: Image.Exif,
 ) -> None:
-    if destination.suffix.lower() in JPEG_SUFFIXES:
+    suffix = destination.suffix.lower()
+
+    if suffix in JPEG_SUFFIXES:
         # 4:4:4 rather than the default 4:2:0: chroma subsampling halves the resolution
         # of the thin white strokes and turns small text to mush.
         merged.convert("RGB").save(
@@ -298,10 +301,21 @@ def _save_watermarked_image(
         )
         return
 
+    if suffix == ".bmp":
+        # BMP has no alpha a viewer can be relied on to read, so the mark is flattened
+        # rather than written into a channel half the decoders in the world ignore.
+        merged.convert("RGB").save(destination, format="BMP")
+        return
+
     keeps_alpha = source_mode in {"RGBA", "LA", "PA"} or (
         source_mode == "P" and "transparency" in merged.info
     )
     image = merged if keeps_alpha else merged.convert("RGB")
+
+    if suffix == ".webp":
+        image.save(destination, format="WEBP", quality=WEBP_QUALITY, method=6)
+        return
+
     image.save(destination, format="PNG", optimize=True)
 
 

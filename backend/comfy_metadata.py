@@ -8,7 +8,7 @@ import threading
 import zlib
 from pathlib import Path
 
-from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from constants import COMFY_WORKFLOW_EXTENSIONS
 
 _MAX_COMFY_WORKFLOW_CACHE = 512
 _comfy_workflow_cache: dict[str, tuple[tuple[int, int], bool]] = {}
@@ -385,17 +385,17 @@ def _comfy_workflow_cache_token(file_path: Path) -> tuple[int, int] | None:
 
 def _probe_comfy_workflow(file_path: Path) -> bool:
     suffix = file_path.suffix.lower()
+    if suffix not in COMFY_WORKFLOW_EXTENSIONS:
+        return False
+
     data = _read_media_bytes(file_path)
     if not data:
         return False
 
-    if suffix in IMAGE_EXTENSIONS and suffix == ".png":
+    if suffix == ".png":
         return _metadata_values_have_comfy_workflow(_parse_png_text_chunks(data))
 
-    if suffix in VIDEO_EXTENSIONS:
-        return _metadata_values_have_comfy_workflow(_parse_isobmff_metadata(data))
-
-    return False
+    return _metadata_values_have_comfy_workflow(_parse_isobmff_metadata(data))
 
 
 def media_has_comfy_workflow(file_path: Path) -> bool:

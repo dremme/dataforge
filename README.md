@@ -94,6 +94,20 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 
 ## Features
 
+### Supported formats
+
+Images are JPG, JPEG, PNG, WebP, BMP, and GIF; videos are MP4, AVI, MOV, MKV, WMV, M4V, and FLV — the same
+set [AI-Toolkit](https://github.com/ostris/ai-toolkit) trains on, minus audio-only files and SVG. Everything
+in that list lists, thumbnails, captions, and trains.
+
+Two things are narrower than the list, because the formats themselves are:
+
+- **In-app video playback and frame saving** need a container the browser can decode, which means MP4, MOV,
+  and M4V. An AVI, WMV, FLV, or MKV still gets a thumbnail and a caption; it just will not play in the
+  detail view.
+- **Megapixels, watermarking, and ComfyUI workflow detection** are MP4, MOV, and M4V only. The other
+  containers hide their headers somewhere the readers here cannot reach, or cannot be re-muxed cleanly.
+
 ### Gallery and navigation
 
 - Virtualized grid that stays smooth on large folders
@@ -115,10 +129,10 @@ Point the app at [`sample-images/`](sample-images/) in this repo — a tiny fold
 - Issue resolver — step through flagged files to edit, resolve, or skip
 - Click-to-zoom in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
-- Save any video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
+- Save any playable video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
 - Per-folder `.sysprompt` (markdown) to steer AI captioning
 - Caption status on cards and in the detail view
-- Detection of embedded ComfyUI workflows in PNGs
+- Detection of embedded ComfyUI workflows in PNGs and MP4-family videos
 - Drag-and-drop import for media, sidecars, and `.sysprompt`
 - Delete media along with matching sidecars, including `.issue.json`
 - Move or copy selected files, and create subfolders
@@ -135,7 +149,7 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | **Verify captions** | Checks captions against the media — videos and GIFs via keyframes — and writes `.issue.json` when something is wrong |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 | **Rename** | Numbered rename of media plus related sidecars |
-| **Watermark** | Burn text onto JPG, PNG, and MP4 copies in a `watermarked` subfolder (size, opacity, position) |
+| **Watermark** | Burn text onto JPG, PNG, WebP, BMP, MP4, MOV, and M4V copies in a `watermarked` subfolder (size, opacity, position) |
 | **Strip metadata** | Remove embedded data from PNGs and MP4s |
 | **Backup captions** | Copy captions and caption issues into `.backup`, keeping copies already stored there unless you opt to overwrite |
 | **Restore captions** | Restore captions and issues from `.backup` |

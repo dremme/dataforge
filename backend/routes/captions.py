@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from captions import build_caption_response, save_caption
 from comfy_metadata import media_has_comfy_workflow
-from constants import VIDEO_EXTENSIONS
+from constants import COMFY_WORKFLOW_EXTENSIONS
 from routes._helpers import resolve_media_file, resolve_sysprompt_target
 from schemas import CaptionSaveResponse, CaptionUpdate, PngWorkflowResponse, SysPromptSaveResponse
 from sysprompt import save_sysprompt
@@ -23,11 +23,10 @@ def read_comfy_workflow(
     path: str = Query(..., description="Absolute path to image or video file"),
 ) -> PngWorkflowResponse:
     file_path = resolve_media_file(path)
-    suffix = file_path.suffix.lower()
-    if suffix != ".png" and suffix not in VIDEO_EXTENSIONS:
+    if file_path.suffix.lower() not in COMFY_WORKFLOW_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail="ComfyUI workflow metadata is only supported for PNG and MP4 files",
+            detail="ComfyUI workflow metadata is only supported for PNG, MP4, MOV, and M4V files",
         )
 
     return PngWorkflowResponse(has_workflow=media_has_comfy_workflow(file_path))

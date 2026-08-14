@@ -147,6 +147,22 @@ def write_jpeg(
     return media
 
 
+def write_image(
+    root: Path,
+    name: str,
+    *,
+    width: int = 64,
+    height: int = 48,
+    color: tuple[int, int, int] = (120, 90, 60),
+) -> Path:
+    """A real image in whatever format the name asks for, via Pillow's own suffix map."""
+    from PIL import Image
+
+    media = root / name
+    Image.new("RGB", (width, height), color).save(media)
+    return media
+
+
 def write_gif(
     root: Path,
     name: str = "loop.gif",

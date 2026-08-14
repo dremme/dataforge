@@ -33,13 +33,41 @@ class MediaTypeTests(unittest.TestCase):
             # this, and a GIF needs an <img>.
             self.assertEqual(get_media_type(write_gif(root, "loop.gif")), "gif")
 
+    def test_classifies_every_image_format(self) -> None:
+        with TempMediaFolder() as root:
+            for name in ("photo.jpg", "photo.jpeg", "photo.png", "photo.webp", "photo.bmp"):
+                with self.subTest(name=name):
+                    self.assertEqual(get_media_type(root / name), "image")
+
+    def test_classifies_every_video_container(self) -> None:
+        with TempMediaFolder() as root:
+            for name in (
+                "clip.mp4",
+                "clip.avi",
+                "clip.mov",
+                "clip.mkv",
+                "clip.wmv",
+                "clip.m4v",
+                "clip.flv",
+            ):
+                with self.subTest(name=name):
+                    self.assertEqual(get_media_type(root / name), "video")
+
     def test_classification_ignores_case(self) -> None:
         with TempMediaFolder() as root:
             self.assertEqual(get_media_type(write_gif(root, "LOOP.GIF")), "gif")
+            self.assertEqual(get_media_type(root / "CLIP.MKV"), "video")
+            self.assertEqual(get_media_type(root / "PHOTO.WEBP"), "image")
 
     def test_returns_none_for_unsupported_extensions(self) -> None:
         with TempMediaFolder() as root:
             self.assertIsNone(get_media_type(root / "notes.md"))
+            # Vector, so nothing that decodes pixels here could read it.
+            self.assertIsNone(get_media_type(root / "logo.svg"))
+            # Audio-only files are deliberately out of scope.
+            for name in ("track.mp3", "track.wav", "track.flac", "track.ogg"):
+                with self.subTest(name=name):
+                    self.assertIsNone(get_media_type(root / name))
 
 
 class FolderScanTests(unittest.TestCase):

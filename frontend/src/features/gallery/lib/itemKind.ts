@@ -1,7 +1,7 @@
+import { GIF_EXTENSION, VIDEO_EXTENSIONS } from "@/shared/constants";
 import type { GalleryItem } from "@/shared/types";
 
-const VIDEO_EXTENSIONS = new Set([".mp4"]);
-const GIF_EXTENSIONS = new Set([".gif"]);
+const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
 
 export function isSysPrompt(item: GalleryItem): boolean {
   return item.media_type === "sysprompt";
@@ -26,7 +26,7 @@ export function isVideo(item: GalleryItem): boolean {
   }
 
   const extension = extensionOf(item);
-  return extension !== null && VIDEO_EXTENSIONS.has(extension);
+  return extension !== null && VIDEO_EXTENSION_SET.has(extension);
 }
 
 export function isGif(item: GalleryItem): boolean {
@@ -34,8 +34,7 @@ export function isGif(item: GalleryItem): boolean {
     return item.media_type === "gif";
   }
 
-  const extension = extensionOf(item);
-  return extension !== null && GIF_EXTENSIONS.has(extension);
+  return extensionOf(item) === GIF_EXTENSION;
 }
 
 /** Whether the item carries a frame sequence, which is how LoRA training groups it. */

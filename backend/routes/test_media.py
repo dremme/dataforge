@@ -30,6 +30,35 @@ class MediaEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.content.startswith(b"\x89PNG"))
 
+    def test_serves_an_explicit_content_type_for_every_media_extension(self) -> None:
+        """Guessed types come off the Windows registry, which need not know WebP or MKV."""
+        expected = {
+            "sunset.png": "image/png",
+            "beach.jpg": "image/jpeg",
+            "beach.jpeg": "image/jpeg",
+            "loop.gif": "image/gif",
+            "logo.webp": "image/webp",
+            "logo.bmp": "image/bmp",
+            "clip.mp4": "video/mp4",
+            "clip.m4v": "video/mp4",
+            "clip.mov": "video/quicktime",
+            "clip.mkv": "video/x-matroska",
+            "clip.avi": "video/x-msvideo",
+            "clip.wmv": "video/x-ms-wmv",
+            "clip.flv": "video/x-flv",
+        }
+
+        with TempMediaFolder() as root:
+            for name, content_type in expected.items():
+                with self.subTest(name=name):
+                    media = root / name
+                    media.write_bytes(b"\x00" * 16)
+
+                    response = client.get(f"/api/media?path={quote(str(media))}")
+
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.headers["content-type"], content_type)
+
     def test_unversioned_media_must_be_revalidated(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")

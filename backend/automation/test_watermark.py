@@ -38,6 +38,7 @@ from constants import WATERMARK_DIR_NAME
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
+    write_image,
     write_jpeg,
     write_media,
     write_mp4_video,
@@ -153,18 +154,45 @@ class DrawtextFilterTests(unittest.TestCase):
 
 
 class WatermarkValidationTests(unittest.TestCase):
-    def test_lists_only_jpg_png_and_mp4(self) -> None:
+    def test_lists_every_image_and_the_mp4_family(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_jpeg(root, "beach.jpg")
             write_jpeg(root, "beach.jpeg")
+            write_image(root, "logo.webp")
+            write_image(root, "logo.bmp")
             write_mp4_video(root, "clip.mp4")
+            write_mp4_video(root, "clip.mov")
+            write_mp4_video(root, "clip.m4v")
             write_gif(root, "loop.gif")
             (root / "notes.txt").write_text("ignore", encoding="utf-8")
 
             names = {path.name for path in list_watermark_files(root)}
 
-            self.assertEqual(names, {"photo.png", "beach.jpg", "beach.jpeg", "clip.mp4"})
+            self.assertEqual(
+                names,
+                {
+                    "photo.png",
+                    "beach.jpg",
+                    "beach.jpeg",
+                    "logo.webp",
+                    "logo.bmp",
+                    "clip.mp4",
+                    "clip.mov",
+                    "clip.m4v",
+                },
+            )
+
+    def test_skips_containers_the_ffmpeg_command_cannot_mux(self) -> None:
+        """`-movflags` and `-c:a copy` are MP4-family shaped; the rest are left alone."""
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            for name in ("clip.mkv", "clip.avi", "clip.wmv", "clip.flv"):
+                write_mp4_video(root, name)
+
+            names = {path.name for path in list_watermark_files(root)}
+
+            self.assertEqual(names, {"photo.png"})
 
     def test_rejects_empty_text(self) -> None:
         for text in ("", "   "):
@@ -203,7 +231,7 @@ class WatermarkValidationTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_gif(root, "loop.gif")
 
-            with self.assertRaisesRegex(ValueError, "No JPG, PNG or MP4"):
+            with self.assertRaisesRegex(ValueError, "No JPG, PNG, WebP, BMP, MP4, MOV or M4V"):
                 validate_watermark_folder(root, text="Sample")
 
     def test_refuses_to_run_inside_the_output_folder(self) -> None:
@@ -269,6 +297,41 @@ class WatermarkImageTests(unittest.TestCase):
             with Image.open(watermarked(root, "beach.jpg")) as output:
                 self.assertEqual(output.format, "JPEG")
                 self.assertEqual(output.mode, "RGB")
+
+    def test_every_image_format_is_saved_as_itself(self) -> None:
+        """The output is named after the source, so it has to be encoded that way too."""
+        expected = {
+            "beach.jpg": "JPEG",
+            "photo.png": "PNG",
+            "logo.webp": "WEBP",
+            "logo.bmp": "BMP",
+        }
+
+        for name, image_format in expected.items():
+            with self.subTest(name=name), TempMediaFolder() as root:
+                if name.endswith(".jpg"):
+                    write_jpeg(root, name, width=320, height=240)
+                elif name.endswith(".png"):
+                    write_media(root, name, width=320, height=240)
+                else:
+                    write_image(root, name, width=320, height=240)
+
+                run_watermark_job(root, text="Sample Studio")
+
+                with Image.open(watermarked(root, name)) as output:
+                    self.assertEqual(output.format, image_format)
+                    self.assertEqual(output.size, (320, 240))
+                    self.assertIsNotNone(bottom_right(output).convert("L").getbbox())
+
+    def test_transparent_webp_keeps_its_alpha_channel(self) -> None:
+        with TempMediaFolder() as root:
+            Image.new("RGBA", (200, 150), (0, 0, 0, 0)).save(root / "logo.webp")
+
+            run_watermark_job(root, text="Sample Studio")
+
+            with Image.open(watermarked(root, "logo.webp")) as output:
+                self.assertEqual(output.format, "WEBP")
+                self.assertEqual(output.mode, "RGBA")
 
     def test_opaque_png_does_not_gain_an_alpha_channel(self) -> None:
         with TempMediaFolder() as root:

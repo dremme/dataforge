@@ -109,6 +109,29 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertFalse(response.json()["has_workflow"])
 
+    def test_detects_comfy_workflow_metadata_in_the_rest_of_the_mp4_family(self) -> None:
+        workflow = '{"nodes": [{"type": "KSampler"}]}'
+        for name in ("comfy.mov", "comfy.m4v"):
+            with self.subTest(name=name), TempMediaFolder() as root:
+                media = write_mp4_video(root, name, metadata={"workflow": workflow})
+
+                response = client.get(f"/api/comfy-workflow?path={quote(str(media))}")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.json()["has_workflow"])
+
+    def test_returns_400_for_a_container_without_isobmff_boxes(self) -> None:
+        # Matroska, avi, asf and flv carry their metadata somewhere the box walk
+        # cannot reach, so the probe is refused rather than always answering no.
+        workflow = '{"nodes": [{"type": "KSampler"}]}'
+        for name in ("comfy.mkv", "comfy.avi", "comfy.wmv", "comfy.flv"):
+            with self.subTest(name=name), TempMediaFolder() as root:
+                media = write_mp4_video(root, name, metadata={"workflow": workflow})
+
+                response = client.get(f"/api/comfy-workflow?path={quote(str(media))}")
+
+                self.assertEqual(response.status_code, 400)
+
     def test_returns_400_for_gif(self) -> None:
         # A GIF carries neither PNG text chunks nor ISOBMFF boxes, so offering the
         # workflow probe for one would only ever answer no.

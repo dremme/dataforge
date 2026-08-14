@@ -1,3 +1,4 @@
+import { GIF_EXTENSION, VIDEO_EXTENSIONS } from "@/shared/constants";
 import type { FolderResponse, GalleryItem, Job } from "@/shared/types";
 
 export const HOME_PATH = "C:\\Photos";
@@ -7,8 +8,8 @@ export const VACATION_PATH = `${HOME_PATH}\\Vacation`;
 export const EMPTY_PATH = `${HOME_PATH}\\Empty`;
 
 const MEDIA_TYPE_BY_EXTENSION: Record<string, GalleryItem["media_type"]> = {
-  ".mp4": "video",
-  ".gif": "gif",
+  ...Object.fromEntries(VIDEO_EXTENSIONS.map((extension) => [extension, "video"])),
+  [GIF_EXTENSION]: "gif",
 };
 
 /**
