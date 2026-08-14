@@ -302,7 +302,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
 
     if (url.pathname === "/api/system/vision-llm") {
-      return jsonResponse({ model: "qwen35moe" });
+      return jsonResponse({ model: "qwen38" });
     }
 
     if (url.pathname === "/api/preferences/ui") {

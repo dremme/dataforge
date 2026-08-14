@@ -43,12 +43,12 @@ class SystemSpecsEndpointTests(unittest.TestCase):
 
 
 class VisionLlmInfoEndpointTests(unittest.TestCase):
-    @patch("routes.system.get_openai_model", return_value="qwen35moe")
+    @patch("routes.system.get_openai_model", return_value="qwen38")
     def test_returns_configured_model_id(self, _get_model_mock) -> None:
         response = client.get("/api/system/vision-llm")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"model": "qwen35moe"})
+        self.assertEqual(response.json(), {"model": "qwen38"})
 
 
 if __name__ == "__main__":

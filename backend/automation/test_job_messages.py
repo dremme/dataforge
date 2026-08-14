@@ -32,7 +32,7 @@ class JobMessagesTests(unittest.TestCase):
         self.assertIsNotNone(message)
         assert message is not None
         self.assertIn("model requests", message)
-        self.assertIn("qwen35moe", message)
+        self.assertIn("qwen38", message)
 
     def test_frame_errors_blame_keyframe_extraction(self) -> None:
         message = verify_captions_failure_message({"frame_error": 2})

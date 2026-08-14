@@ -23,7 +23,7 @@ DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:8888/v1"
 # Unsloth authenticate nothing unless started with --api-key. "EMPTY" is the
 # placeholder vLLM's own docs use: it is a required-field filler, not a credential.
 DEFAULT_OPENAI_API_KEY = "EMPTY"
-DEFAULT_OPENAI_MODEL = "qwen35moe"
+DEFAULT_OPENAI_MODEL = "qwen38"
 
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TOP_K = 20

@@ -37,6 +37,7 @@ running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — no
 
 | Model | Notes |
 | --- | --- |
+| [Qwen3.8 27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Recommended dense default |
 | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Recommended MoE default |
 | [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) | MoE alternative with fewer refusals |
 | [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) | Omni MoE that also **hears audio** — the one to load for [audio captioning](#audio-captioning) |
@@ -54,7 +55,7 @@ Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in i
 | --- | --- | --- |
 | `OPENAI_API_BASE_URL` | `http://127.0.0.1:8888/v1` | OpenAI-compatible base URL |
 | `OPENAI_API_KEY` | `EMPTY` | Not a credential. Local servers ignore it unless started with `--api-key` |
-| `OPENAI_MODEL` | `qwen35moe` | Chat `model` id, matching what your server exposes |
+| `OPENAI_MODEL` | `qwen38` | Chat `model` id, matching what your server exposes |
 | `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
 | `OPENAI_TIMEOUT` | `600` | Seconds to wait for a response before giving up |
 

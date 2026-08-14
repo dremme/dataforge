@@ -18,14 +18,14 @@ describe("visionLlm", () => {
   });
 
   it("fetches the model id once and reuses the cache", async () => {
-    requestJsonMock.mockResolvedValue({ model: "qwen35moe" });
+    requestJsonMock.mockResolvedValue({ model: "qwen38" });
 
-    await expect(loadVisionModelId()).resolves.toBe("qwen35moe");
-    await expect(loadVisionModelId()).resolves.toBe("qwen35moe");
+    await expect(loadVisionModelId()).resolves.toBe("qwen38");
+    await expect(loadVisionModelId()).resolves.toBe("qwen38");
 
     expect(requestJsonMock).toHaveBeenCalledTimes(1);
     expect(requestJsonMock).toHaveBeenCalledWith("/api/system/vision-llm");
-    expect(getCachedVisionModelId()).toBe("qwen35moe");
+    expect(getCachedVisionModelId()).toBe("qwen38");
   });
 
   it("dedupes concurrent loads", async () => {
