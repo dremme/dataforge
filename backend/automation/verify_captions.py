@@ -15,12 +15,12 @@ from PIL import Image
 from automation.job_runner import FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import (
-    VIDEO_FRAME_MAX_PIXELS,
     MediaKind,
     ModelOutcome,
     call_with_retries,
     clean_model_text,
     close_vision_client,
+    get_video_frame_max_pixels,
     keyframe_sentence,
     load_media_images,
     media_kind_for,
@@ -45,14 +45,16 @@ logger = logging.getLogger(__name__)
 
 IMAGE_MAX_PIXELS = 1_750_000
 
-# Fact-checking needs more detail than captioning does - a hand position is decided by
-# a small part of the frame - so a still gets a larger budget here than in auto-caption.
-# Keyframes keep the shared motion budget: a long clip sends dozens of them, and at
-# stills resolution they would not fit the request.
-MEDIA_KIND_MAX_PIXELS: dict[MediaKind, int] = {
-    "image": IMAGE_MAX_PIXELS,
-    "video": VIDEO_FRAME_MAX_PIXELS,
-}
+
+def media_kind_max_pixels(media_kind: MediaKind) -> int:
+    """Per-frame pixel budget, larger for stills here than in auto-caption.
+
+    Fact-checking needs more detail - a hand position is decided by a small part of the
+    frame. Keyframes keep the shared motion budget, resolved per call because it is
+    configurable.
+    """
+    return IMAGE_MAX_PIXELS if media_kind == "image" else get_video_frame_max_pixels()
+
 
 VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
@@ -403,7 +405,7 @@ def verify_caption(
             len(images),
             timestamps[-1] if timestamps else None,
         ),
-        max_pixels=MEDIA_KIND_MAX_PIXELS[media_kind],
+        max_pixels=media_kind_max_pixels(media_kind),
         mode=mode,
         effort=effort,
         preserve_thinking=preserve_thinking,

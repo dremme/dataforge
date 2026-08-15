@@ -14,12 +14,12 @@ from automation.audio import AUDIO_MAX_SECONDS, extract_audio_wav
 from automation.job_runner import FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import (
-    VIDEO_FRAME_MAX_PIXELS,
     MediaKind,
     ModelOutcome,
     call_with_retries,
     clean_model_text,
     close_vision_client,
+    get_video_frame_max_pixels,
     keyframe_sentence,
     load_media_images,
     media_kind_for,
@@ -66,13 +66,25 @@ NON_SUCCESS_STATUSES = frozenset(
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 
-# Captioning reads the whole frame, so a still gets the larger budget; keyframes are
-# sent dozens at a time, scaling with the clip's length, and have to stay small enough
-# for the request to be tractable.
-MEDIA_KIND_MAX_PIXELS: dict[MediaKind, int] = {
-    "image": IMAGE_MAX_PIXELS,
-    "video": VIDEO_FRAME_MAX_PIXELS,
-}
+MEDIA_KINDS: tuple[MediaKind, ...] = ("image", "video")
+
+
+def media_kind_max_pixels(media_kind: MediaKind) -> int:
+    """Per-frame pixel budget. Stills get the larger one; keyframes are sent dozens at a time.
+
+    A function rather than the dict this was: a module-level dict resolves the
+    configurable video budget once at import, so a set value never reaches a frame.
+    """
+    return IMAGE_MAX_PIXELS if media_kind == "image" else get_video_frame_max_pixels()
+
+
+#: Added to every video prompt. Without it a walking subject gets captioned as standing:
+#: the Output Format section asks for what is "clearly visible" and forbids speculation,
+#: and motion is only readable as change between frames. One sentence, like the audio one.
+MOTION_OBJECTIVE_SENTENCE = (
+    "What changes between consecutive frames is directly observed, not speculation - "
+    "compare them and state the motion that occurred, naming the action and its direction."
+)
 
 #: Added to the video prompts only while audio captioning is on. Kept to one sentence
 #: each: the rest of the prompt is calibrated, and a longer aside about sound pulls the
@@ -117,7 +129,7 @@ def build_system_prompt(
             You are an expert video captioning assistant specializing in high-density, descriptive captions for training generative AI LoRA models. Your specific task is to analyze a sequence of video keyframes in chronological order and describe the video with extreme accuracy and structural consistency.
 
             # Objective
-            You are given keyframes extracted evenly across the video timeline, presented in chronological order. Treat them as a single continuous video. Generate one comprehensive, single-paragraph caption for the full video. Do not use conversational filler, introductions, or structural bullet points in the final output. Use the user provided description as **very close guidance** for analyzing the video and creating the caption; **never** change its meaning.{audio_objective}
+            You are given keyframes extracted evenly across the video timeline, presented in chronological order. Treat them as a single continuous video. {MOTION_OBJECTIVE_SENTENCE} Generate one comprehensive, single-paragraph caption for the full video. Do not use conversational filler, introductions, or structural bullet points in the final output. Use the user provided description as **very close guidance** for analyzing the video and creating the caption; **never** change its meaning.{audio_objective}
 
             {specific_sys_prompt}
 
@@ -145,7 +157,7 @@ def build_system_prompt(
 def build_system_prompts(folder: Path, *, caption_audio: bool = False) -> dict[MediaKind, str]:
     return {
         kind: build_system_prompt(folder, media_kind=kind, caption_audio=caption_audio)
-        for kind in MEDIA_KIND_MAX_PIXELS
+        for kind in MEDIA_KINDS
     }
 
 
@@ -231,7 +243,7 @@ def complete_caption(
             has_audio=audio_wav is not None,
             seconds=timestamps[-1] if timestamps else None,
         ),
-        max_pixels=MEDIA_KIND_MAX_PIXELS[media_kind],
+        max_pixels=media_kind_max_pixels(media_kind),
         mode=mode,
         effort=effort,
         preserve_thinking=preserve_thinking,

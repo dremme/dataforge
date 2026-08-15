@@ -81,7 +81,8 @@ def _env_str(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
-def _env_int(name: str, default: int) -> int:
+def env_int(name: str, default: int) -> int:
+    """Public because ``automation.vision`` parses its frame-budget vars with it."""
     raw = _env_str(name)
     if not raw:
         return default
@@ -114,11 +115,11 @@ def get_openai_model() -> str:
 
 
 def get_max_tokens() -> int:
-    return _env_int("OPENAI_MAX_TOKENS", DEFAULT_MAX_TOKENS)
+    return env_int("OPENAI_MAX_TOKENS", DEFAULT_MAX_TOKENS)
 
 
 def get_top_k() -> int:
-    return _env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
+    return env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
 
 
 def get_openai_timeout() -> float:

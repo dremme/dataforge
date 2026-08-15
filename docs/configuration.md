@@ -114,6 +114,27 @@ Per-mode temperature, penalties, and top-p/k:
 `repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
 DataForge at one of those servers.
 
+## Video keyframe sampling
+
+A video is sent as still keyframes, sampled twice a second plus both endpoints, each labelled with its
+timestamp. Values that are not positive whole numbers are ignored.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VIDEO_KEYFRAMES_PER_SECOND` | `2` | How densely a clip is sampled |
+| `VIDEO_MAX_KEYFRAMES` | `64` | Ceiling on frames per clip, whatever its length |
+| `VIDEO_FRAME_MAX_PIXELS` | `500000` | Per-frame pixel budget |
+
+**The cap is why brief actions go missing.** It binds from 31 seconds on, so a two-minute clip samples
+near 0.5 fps and a one-second action is likelier to fall between frames than land on one. Raising
+`VIDEO_MAX_KEYFRAMES` is the fix, at roughly 640 vision tokens per frame — 128 frames is about 82k
+tokens before the prompt.
+
+**Lowering `VIDEO_FRAME_MAX_PIXELS` does not buy those frames.** Neither side is scaled below 512px,
+and the floor applies per side, so a 1920×1080 frame goes 928×512 at `500000`, 640×512 at `250000`
+(squashed to 1.25 from 1.78), and 512×512 at `125000`. Raise this knob for detail; do not lower it
+for headroom.
+
 ## Reasoning effort
 
 Not an environment setting: **Reasoning effort** and **Preserve thinking** are picked per job, in the

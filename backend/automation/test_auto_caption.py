@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -18,9 +19,12 @@ from automation.audio import AUDIO_MAX_SECONDS
 from automation.auto_caption import (
     AUDIO_OBJECTIVE_SENTENCE,
     AUDIO_USER_SENTENCE,
+    IMAGE_MAX_PIXELS,
+    MOTION_OBJECTIVE_SENTENCE,
     build_system_prompt,
     complete_caption,
     list_auto_caption_media,
+    media_kind_max_pixels,
     process_media,
     run_auto_caption_job,
     validate_auto_caption_folder,
@@ -30,8 +34,11 @@ from automation.vision import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
     MAX_VIDEO_KEYFRAME_COUNT,
+    MIN_HONORED_MAX_PIXELS,
+    QWEN_MIN_SIDE_PX,
     TAIL_SEEK_LIMIT,
     VIDEO_FRAME_MAX_PIXELS,
+    VIDEO_FRAME_MAX_PIXELS_VAR,
     VIDEO_KEYFRAME_COUNT,
     MediaFrames,
     extract_video_keyframes,
@@ -143,6 +150,25 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             self.assertIn("video", prompt.lower())
             self.assertIn("chronological order", prompt.lower())
             self.assertIn("Focus on the subject.", prompt)
+
+    def test_video_prompt_licenses_reading_motion_across_frames(self) -> None:
+        # Without it the stationary reading is the only one defensible from a single
+        # frame, and a walking subject gets captioned as standing.
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Focus on the subject.")
+
+            prompt = build_system_prompt(root, media_kind="video")
+
+            self.assertIn(MOTION_OBJECTIVE_SENTENCE, prompt)
+
+    def test_image_prompt_says_nothing_about_frames(self) -> None:
+        # A still has nothing to compare against, and that prompt is separately calibrated.
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Focus on the subject.")
+
+            prompt = build_system_prompt(root, media_kind="image")
+
+            self.assertNotIn(MOTION_OBJECTIVE_SENTENCE, prompt)
 
     def test_system_prompt_does_not_promise_a_fixed_frame_count(self) -> None:
         # It is built once per job, before any file is read, so it cannot know how
@@ -637,6 +663,38 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
             self.assertLessEqual(frame.width * frame.height, VIDEO_FRAME_MAX_PIXELS)
         # A solid frame survives the resize, so its index is still readable back.
         self.assertEqual(_shades(frames), [0, 1, 2])
+
+    def test_a_configured_pixel_budget_reaches_the_decoded_frames(self) -> None:
+        # Catches the budget being resolved once at import, where the getter would read
+        # back fine and every frame still come out at the old size. Raised rather than
+        # lowered because the resize floor swallows a lower one - see below.
+        budget = MIN_HONORED_MAX_PIXELS * 4
+        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: str(budget)}):
+            frames = self._extract(FakeCapture(decodable=3, width=4000, height=4000))
+
+        assert frames is not None
+        for frame in frames.images:
+            self.assertLessEqual(frame.width * frame.height, budget)
+            self.assertGreater(frame.width * frame.height, VIDEO_FRAME_MAX_PIXELS)
+
+    def test_a_budget_under_the_resize_floor_cannot_shrink_a_frame(self) -> None:
+        # The trap in the other direction: below the floor the knob buys no frames and
+        # reshapes them instead, so a 16:9 source comes back square.
+        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "125000"}):
+            frames = self._extract(FakeCapture(decodable=1, width=1920, height=1080))
+
+        assert frames is not None
+        frame = frames.images[0]
+        self.assertEqual(frame.size, (QWEN_MIN_SIDE_PX, QWEN_MIN_SIDE_PX))
+        self.assertEqual(frame.width * frame.height, MIN_HONORED_MAX_PIXELS)
+
+    def test_a_configured_budget_reaches_the_request_the_same_way(self) -> None:
+        # The other half of the trap: this was a module-level dict, so a set budget
+        # shrank frames on read and was re-applied at the old size on the way out.
+        budget = VIDEO_FRAME_MAX_PIXELS // 4
+        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: str(budget)}):
+            self.assertEqual(media_kind_max_pixels("video"), budget)
+            self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
 
 
 class AutoCaptionGifTests(unittest.TestCase):

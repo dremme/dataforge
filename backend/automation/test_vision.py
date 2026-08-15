@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import threading
 import time
 import unittest
@@ -20,13 +21,21 @@ from automation.vision import (
     CANCEL_POLL_SECONDS,
     CANCELLED,
     FRAME_ERROR,
+    KEYFRAMES_PER_SECOND,
+    KEYFRAMES_PER_SECOND_VAR,
     MAX_VIDEO_KEYFRAME_COUNT,
+    MAX_VIDEO_KEYFRAMES_VAR,
     READ_ERROR,
     SUCCESS,
+    VIDEO_FRAME_MAX_PIXELS,
+    VIDEO_FRAME_MAX_PIXELS_VAR,
     VIDEO_KEYFRAME_COUNT,
     ModelOutcome,
     call_with_retries,
     close_vision_client,
+    get_keyframes_per_second,
+    get_max_video_keyframes,
+    get_video_frame_max_pixels,
     keyframe_count_for_seconds,
     keyframe_sentence,
     load_image_rgb,
@@ -444,6 +453,45 @@ class KeyframeCountTests(unittest.TestCase):
     def test_an_unusable_duration_falls_back_to_the_fixed_count(self) -> None:
         for seconds in (None, 0, -5, float("nan"), float("inf")):
             self.assertEqual(keyframe_count_for_seconds(seconds), VIDEO_KEYFRAME_COUNT)
+
+
+class FrameBudgetEnvTests(unittest.TestCase):
+    """The sampling schedule is configurable, and every knob is read per call."""
+
+    def test_the_defaults_are_what_the_pinned_counts_already_assert(self) -> None:
+        # The rest of the suite hard-codes 14/22/42 and the 64-frame cap.
+        self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
+        self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
+
+    def test_a_higher_rate_samples_a_clip_more_densely(self) -> None:
+        with patch.dict(os.environ, {KEYFRAMES_PER_SECOND_VAR: "4"}):
+            self.assertEqual(keyframe_count_for_seconds(6), 26)
+            self.assertEqual(keyframe_count_for_seconds(10), 42)
+
+    def test_a_raised_cap_lets_a_long_clip_past_sixty_four(self) -> None:
+        with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "128"}):
+            self.assertEqual(keyframe_count_for_seconds(60), 122)
+            self.assertEqual(keyframe_count_for_seconds(300), 128)
+
+    def test_the_floor_still_applies_under_a_raised_cap(self) -> None:
+        with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "128"}):
+            self.assertEqual(keyframe_count_for_seconds(1), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_lowered_cap_wins_over_the_floor(self) -> None:
+        # The cap keeps the request tractable, so it is the last word.
+        with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "8"}):
+            self.assertEqual(keyframe_count_for_seconds(1), 8)
+
+    def test_a_value_that_would_send_nothing_is_ignored(self) -> None:
+        # A cap of zero comes back as a caption of nothing rather than as an error.
+        for raw in ("0", "-4", "", "   ", "many", "2.5"):
+            with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: raw}):
+                self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
+            with patch.dict(os.environ, {KEYFRAMES_PER_SECOND_VAR: raw}):
+                self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
+            with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: raw}):
+                self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
 
 
 class KeyframeSentenceTests(unittest.TestCase):

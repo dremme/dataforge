@@ -31,6 +31,7 @@ from openai_settings import (
     assistant_message_text,
     build_sampling_extra_body,
     create_openai_client,
+    env_int,
     get_max_tokens,
     get_openai_model,
     get_sampling_profile,
@@ -59,8 +60,44 @@ MAX_PLAUSIBLE_FPS = 1000.0
 # the decodable tail. Metadata is wrong by a handful of frames, not by seconds, so a
 # longer walk means the file is broken rather than merely mis-measured.
 TAIL_SEEK_LIMIT = 32
-# Multi-frame payloads stay smaller than stills so the request remains tractable.
+# Neither side is scaled below this, whatever the pixel budget says.
+QWEN_MIN_SIDE_PX = 512
+# Under this both sides floor and every frame comes out square; between here and roughly
+# 500k only one floors, so the frame is not smaller, it is the wrong shape.
+MIN_HONORED_MAX_PIXELS = QWEN_MIN_SIDE_PX * QWEN_MIN_SIDE_PX
+
+# Multi-frame payloads stay smaller than stills so the request remains tractable. Near
+# the bottom of the useful range: frames cannot be bought by shrinking them.
 VIDEO_FRAME_MAX_PIXELS = 500_000
+
+# The three values above are defaults. The cap is what makes a brief action vanish from a
+# long clip - 64 frames over two minutes is 0.5 fps - so each is env-configurable to make
+# that measurable. Read per call, not at import.
+KEYFRAMES_PER_SECOND_VAR = "VIDEO_KEYFRAMES_PER_SECOND"
+MAX_VIDEO_KEYFRAMES_VAR = "VIDEO_MAX_KEYFRAMES"
+VIDEO_FRAME_MAX_PIXELS_VAR = "VIDEO_FRAME_MAX_PIXELS"
+
+
+def _positive_env_int(name: str, default: int) -> int:
+    """Env-configured count, ignoring values that would send no frames at all.
+
+    A cap of 0 comes back as a caption of nothing rather than as an error.
+    """
+    value = env_int(name, default)
+    return value if value > 0 else default
+
+
+def get_keyframes_per_second() -> int:
+    return _positive_env_int(KEYFRAMES_PER_SECOND_VAR, KEYFRAMES_PER_SECOND)
+
+
+def get_max_video_keyframes() -> int:
+    return _positive_env_int(MAX_VIDEO_KEYFRAMES_VAR, MAX_VIDEO_KEYFRAME_COUNT)
+
+
+def get_video_frame_max_pixels() -> int:
+    return _positive_env_int(VIDEO_FRAME_MAX_PIXELS_VAR, VIDEO_FRAME_MAX_PIXELS)
+
 
 MediaKind = Literal["image", "video"]
 
@@ -92,15 +129,19 @@ _STRIPPED_PREFIXES = (
 
 
 def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
-    """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid."""
+    """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid.
+
+    The floor applies to each side on its own, so below ``MIN_HONORED_MAX_PIXELS`` a
+    frame stops shrinking and changes shape: a 16:9 frame is 640x512 at a 250k budget.
+    """
     width, height = image.size
     current_pixels = width * height
     if current_pixels <= max_pixels:
         return image
 
     scale = (max_pixels / current_pixels) ** 0.5
-    new_width = max((int(width * scale) // 32) * 32, 512)
-    new_height = max((int(height * scale) // 32) * 32, 512)
+    new_width = max((int(width * scale) // 32) * 32, QWEN_MIN_SIDE_PX)
+    new_height = max((int(height * scale) // 32) * 32, QWEN_MIN_SIDE_PX)
     return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
@@ -183,8 +224,8 @@ def keyframe_count_for_seconds(seconds: float | None) -> int:
     if seconds is None or not math.isfinite(seconds) or seconds <= 0:
         return VIDEO_KEYFRAME_COUNT
 
-    wanted = KEYFRAMES_PER_SECOND * math.ceil(seconds) + 2
-    return min(max(wanted, VIDEO_KEYFRAME_COUNT), MAX_VIDEO_KEYFRAME_COUNT)
+    wanted = get_keyframes_per_second() * math.ceil(seconds) + 2
+    return min(max(wanted, VIDEO_KEYFRAME_COUNT), get_max_video_keyframes())
 
 
 def _video_fps(cap, cv2) -> float | None:
@@ -219,9 +260,10 @@ def _capped(image: Image.Image) -> Image.Image:
     shrinking them only at request time would keep sixty-four full-resolution frames
     resident - gigabytes for 4K footage. Nothing is lost: this is the same budget
     ``prepare_images_for_api`` would apply before the frames left the process, and
-    ``resize_for_qwen`` returns an already-small frame untouched.
+    ``resize_for_qwen`` returns an already-small frame untouched. Both ends read the
+    getter, or a configured budget would be applied here and again at a different size.
     """
-    return resize_for_qwen(image, max_pixels=VIDEO_FRAME_MAX_PIXELS)
+    return resize_for_qwen(image, max_pixels=get_video_frame_max_pixels())
 
 
 def _read_frame_at(cap, cv2, frame_index: int) -> Image.Image | None:
