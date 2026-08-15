@@ -206,6 +206,84 @@ describe("App: search and filters", () => {
     });
   });
 
+  it("keeps the selection when the search narrows the gallery", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    await user.click(screen.getByRole("button", { name: "Select waves.mp4" }));
+    expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
+      "sunset",
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /waves\.mp4/ })).not.toBeInTheDocument();
+    });
+
+    // Still in selection mode, and waves.mp4 stays selected while filtered out.
+    expect(screen.getByRole("button", { name: "Deselect sunset.png" })).toBeInTheDocument();
+    expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
+  });
+
+  it("keeps the selection when a media type filter is applied", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select waves.mp4" }));
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: /Videos and GIFs \(\d+\)/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /sunset\.png/ })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Deselect waves.mp4" })).toBeInTheDocument();
+  });
+
+  it("keeps the selection when the gallery switches to list view", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+
+    await user.click(screen.getByRole("button", { name: "Display mode" }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "List" }));
+
+    await waitFor(() => {
+      expect(document.querySelector(".gallery-virtual--list")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Deselect sunset.png" })).toBeInTheDocument();
+  });
+
+  // Navigation is the only thing left that drops a selection, so it is the one
+  // caller keeping `clearSelection` alive.
+  it("drops the selection when another folder is opened", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+
+    await user.click(screen.getByRole("button", { name: /Vacation/ }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+  });
+
   it("shows empty-folder state when a folder has subfolders but no media files", async () => {
     window.sessionStorage.setItem(
       "gallery-session-query",

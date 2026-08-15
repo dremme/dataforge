@@ -24,7 +24,6 @@ export function AppContent() {
 
   const {
     query,
-    clearSelection,
     selectionMode,
     selectedPaths,
     selectedCount,
@@ -75,30 +74,14 @@ export function AppContent() {
               filterCounts: query.filterCounts,
               mediaTypeFilter: query.mediaTypeFilter,
               mediaTypeFilterCounts: query.mediaTypeFilterCounts,
-              onSearchQueryChange: (value) => {
-                query.setSearchQuery(value);
-                clearSelection();
-              },
-              onSearchRegexChange: (value) => {
-                query.setSearchRegex(value);
-                clearSelection();
-              },
-              onSearchNamesChange: (value) => {
-                query.setSearchNames(value);
-                clearSelection();
-              },
-              onSortChange: (value) => {
-                query.setSort(value);
-                clearSelection();
-              },
-              onFilterChange: (value) => {
-                query.setFilter(value);
-                clearSelection();
-              },
-              onMediaTypeFilterChange: (value) => {
-                query.setMediaTypeFilter(value);
-                clearSelection();
-              },
+              // Narrowing the view is not a selection change: a path stays selected
+              // while it is filtered out, so the pick survives refining a search.
+              onSearchQueryChange: query.setSearchQuery,
+              onSearchRegexChange: query.setSearchRegex,
+              onSearchNamesChange: query.setSearchNames,
+              onSortChange: query.setSort,
+              onFilterChange: query.setFilter,
+              onMediaTypeFilterChange: query.setMediaTypeFilter,
             }}
           />
         )}

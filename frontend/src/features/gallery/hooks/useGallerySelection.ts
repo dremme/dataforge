@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 export function useGallerySelection() {
-  const [selectionEpoch, setSelectionEpoch] = useState(0);
+  const [folderResetToken, setFolderResetToken] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -9,8 +9,16 @@ export function useGallerySelection() {
     setSelectedPaths(new Set());
   }, []);
 
+  /**
+   * Drop everything tied to the folder being left: the selection, and — via the
+   * token — any overlay still showing one of its items.
+   *
+   * Only folder navigation calls this. Narrowing the view (search, sort, filters)
+   * deliberately does not: a path stays selected while it is filtered out, so
+   * refining a search does not silently shrink what the next action will touch.
+   */
   const clearSelection = useCallback(() => {
-    setSelectionEpoch((epoch) => epoch + 1);
+    setFolderResetToken((token) => token + 1);
     setSelectionMode(false);
     clearSelectedPaths();
   }, [clearSelectedPaths]);
@@ -61,7 +69,7 @@ export function useGallerySelection() {
   }, [hasSelection, selectedPathsList, selectionMode]);
 
   return {
-    selectionEpoch,
+    folderResetToken,
     clearSelection,
     selectionMode,
     selectedPaths,

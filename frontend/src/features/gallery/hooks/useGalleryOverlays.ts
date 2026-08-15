@@ -7,7 +7,7 @@ import type { GalleryItem } from "@/shared/types";
 type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
-  selectionEpoch: number;
+  folderResetToken: number;
   folder: string | undefined;
   sysprompt: GalleryItem | null;
   mainRef: RefObject<HTMLElement | null>;
@@ -21,7 +21,7 @@ type UseGalleryOverlaysArgs = {
 export function useGalleryOverlays({
   images,
   filteredItems,
-  selectionEpoch,
+  folderResetToken,
   folder,
   sysprompt,
   mainRef,
@@ -37,11 +37,11 @@ export function useGalleryOverlays({
     goToPrevious,
     goToNext,
     removeGalleryItem,
-  } = useGalleryItemModal(images, filteredItems, selectionEpoch);
+  } = useGalleryItemModal(images, filteredItems, folderResetToken);
 
   useEffect(() => {
     setSyspromptOpen(false);
-  }, [selectionEpoch]);
+  }, [folderResetToken]);
 
   const openGalleryItem = useCallback(
     (path: string) => {

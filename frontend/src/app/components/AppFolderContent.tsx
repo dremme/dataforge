@@ -114,9 +114,10 @@ export function AppFolderContent({
                     icon={iconImages}
                     title="Media"
                     count={selectionMode ? selectedCount : filteredItems.length}
-                    // Selection mode counts the selection against what is visible;
-                    // folder mode counts the visible media against the whole folder.
-                    total={selectionMode ? filteredItems.length : items.length}
+                    // Both modes count against the whole folder. The selection
+                    // survives the filters, so counting it against the visible
+                    // media would read "2 of 1" as soon as a search hides one.
+                    total={items.length}
                     alwaysShowTotal={selectionMode}
                     sticky
                     actions={

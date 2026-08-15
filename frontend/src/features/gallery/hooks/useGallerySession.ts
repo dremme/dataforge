@@ -38,8 +38,7 @@ export function useGallerySession({
   syncBaseline,
 }: UseGallerySessionOptions) {
   const {
-    selectionEpoch,
-    clearSelection,
+    folderResetToken,
     selectionMode,
     selectedPaths,
     selectedCount,
@@ -74,7 +73,7 @@ export function useGallerySession({
   } = useGalleryOverlays({
     images: items,
     filteredItems: query.filteredItems,
-    selectionEpoch,
+    folderResetToken,
     folder: folderPath,
     sysprompt,
     mainRef,
@@ -158,7 +157,6 @@ export function useGallerySession({
   }, [query.filteredItems, selectAllPaths]);
 
   return {
-    clearSelection,
     selectionMode,
     selectedPaths,
     selectedCount,
