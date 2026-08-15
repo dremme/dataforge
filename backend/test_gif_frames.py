@@ -19,8 +19,8 @@ from gif_frames import (
     GifFrameUnavailableError,
     _walk_to_frame,
     clear_gif_caches_for_tests,
+    extract_gif_first_frame,
     extract_gif_frame,
-    extract_gif_keyframes,
     get_gif_frame_cache_bytes_for_tests,
     gif_frame_count,
     warm_gif_frames,
@@ -218,41 +218,56 @@ class GifFrameCacheTests(unittest.TestCase):
             self.assertTrue(extract_gif_frame(second, 3))
 
 
-class ExtractGifKeyframesTests(unittest.TestCase):
+class ExtractGifFirstFrameTests(unittest.TestCase):
+    """The single frame the captioning jobs describe a GIF from."""
+
     def setUp(self) -> None:
         clear_gif_caches_for_tests()
 
-    def test_samples_evenly_across_a_long_gif(self) -> None:
+    def test_returns_the_opening_frame_as_rgb(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, frames=30)
 
-            frames = extract_gif_keyframes(media, 12)
+            frame = extract_gif_first_frame(media)
 
-            assert frames is not None
-            self.assertEqual(len(frames), 12)
-            self.assertTrue(all(frame.mode == "RGB" for frame in frames))
+            assert frame is not None
+            self.assertEqual(frame.mode, "RGB")
 
-    def test_returns_every_frame_of_a_short_gif_without_repeating_any(self) -> None:
+    def test_returns_the_first_frame_not_a_later_one(self) -> None:
+        # The fixture's block moves left to right, so the opening frame is the only
+        # one with it flush against the left edge.
         with TempMediaFolder() as root:
-            media = write_gif(root, frames=5)
+            media = write_gif(root, frames=12)
 
-            frames = extract_gif_keyframes(media, 12)
+            frame = extract_gif_first_frame(media)
 
-            assert frames is not None
-            self.assertEqual(len(frames), 5)
+            assert frame is not None
+            self.assertEqual(frame.getpixel((0, 4))[:3], (240, 30, 90))
 
-    def test_returns_the_one_frame_of_a_still_gif(self) -> None:
+    def test_reads_a_single_frame_gif(self) -> None:
         with TempMediaFolder() as root:
-            media = write_gif(root, frames=1)
-
-            frames = extract_gif_keyframes(media, 12)
-
-            assert frames is not None
-            self.assertEqual(len(frames), 1)
+            self.assertIsNotNone(extract_gif_first_frame(write_gif(root, frames=1)))
 
     def test_returns_none_for_an_unreadable_file(self) -> None:
         with TempMediaFolder() as root:
-            self.assertIsNone(extract_gif_keyframes(write_media(root), 12))
+            self.assertIsNone(extract_gif_first_frame(write_media(root)))
+
+    def test_transparency_composites_over_black(self) -> None:
+        """A plain ``convert("RGB")`` would emit the transparent palette entry.
+
+        That colour is arbitrary per file, so the model would see a backdrop no one
+        chose - and a different one from the JPG the frame scrubber saves.
+        """
+        with TempMediaFolder() as root:
+            media = root / "transparent.gif"
+            frame = Image.new("P", (16, 16), 0)
+            frame.putpalette([255, 255, 255] + [0, 0, 0] * 255)
+            frame.save(media, transparency=0)
+
+            extracted = extract_gif_first_frame(media)
+
+            assert extracted is not None
+            self.assertEqual(extracted.getpixel((0, 0)), (0, 0, 0))
 
 
 class GifFileHandleTests(unittest.TestCase):
@@ -269,12 +284,11 @@ class GifFileHandleTests(unittest.TestCase):
 
             media.rename(root / "moved.gif")
 
-    def test_keyframe_extraction_leaves_the_gif_deletable(self) -> None:
+    def test_first_frame_extraction_leaves_the_gif_deletable(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, frames=12)
 
-            frames = extract_gif_keyframes(media, 12)
-            assert frames is not None
+            assert extract_gif_first_frame(media) is not None
 
             media.unlink()
             self.assertFalse(media.exists())

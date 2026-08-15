@@ -33,8 +33,9 @@ from automation.vision import (
     TAIL_SEEK_LIMIT,
     VIDEO_FRAME_MAX_PIXELS,
     VIDEO_KEYFRAME_COUNT,
-    extract_keyframes,
+    MediaFrames,
     extract_video_keyframes,
+    load_media_images,
     media_kind_for,
     prepare_images_for_api,
     resize_for_qwen,
@@ -94,11 +95,13 @@ def _make_fake_caption_client(
                 captured["audio_parts"] = [
                     p for p in parts if isinstance(p, dict) and p.get("type") == "input_audio"
                 ]
-                text_part = next(
-                    (p for p in parts if isinstance(p, dict) and p.get("type") == "text"),
-                    None,
-                )
-                captured["user_text"] = text_part.get("text") if text_part else None
+                texts = [
+                    p.get("text") for p in parts if isinstance(p, dict) and p.get("type") == "text"
+                ]
+                # The instruction is always the last part; any text before it is a
+                # frame timestamp label, so taking the first would read a marker.
+                captured["user_text"] = texts[-1] if texts else None
+                captured["timestamp_labels"] = texts[:-1]
 
             choice = type("Choice", (), {"message": message})()
             return type("Response", (), {"choices": [choice]})()
@@ -198,7 +201,11 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             self.assertEqual(captured["message_count"], 2)
             extra = captured["extra_body"]
             self.assertIsNotNone(extra)
-            self.assertNotIn("chat_template_kwargs", extra)
+            self.assertEqual(
+                extra.get("chat_template_kwargs"),
+                {"reasoning_effort": "medium", "preserve_thinking": True},
+            )
+            self.assertEqual(extra.get("reasoning_effort"), "medium")
             self.assertEqual(extra.get("top_k"), 20)
             self.assertIn("min_p", extra)
 
@@ -233,8 +240,33 @@ class AutoCaptionVideoUnitTests(unittest.TestCase):
             extra = captured["extra_body"]
             self.assertIsNotNone(extra)
             self.assertEqual(extra.get("chat_template_kwargs"), {"enable_thinking": False})
+            self.assertNotIn("reasoning_effort", extra)
             self.assertEqual(extra.get("top_k"), 20)
             self.assertIn("min_p", extra)
+
+    def test_complete_caption_forwards_reasoning_effort(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            frames = [Image.new("RGB", (128, 128), color="blue")]
+
+            fake_client, captured = _make_fake_caption_client("Caption.")
+            complete_caption(
+                fake_client,
+                media,
+                "Sys",
+                "Draft.",
+                images=frames,
+                mode="thinking",
+                effort="xhigh",
+                preserve_thinking=False,
+            )
+
+            extra = captured["extra_body"]
+            self.assertEqual(
+                extra.get("chat_template_kwargs"),
+                {"reasoning_effort": "xhigh", "preserve_thinking": False},
+            )
+            self.assertEqual(extra.get("reasoning_effort"), "xhigh")
 
     def test_complete_caption_forwards_configured_repeat_penalty(self) -> None:
         with TempMediaFolder() as root:
@@ -388,8 +420,12 @@ def _fake_cv2_for(capture: FakeCapture):
 
 
 def _shades(frames) -> list[int]:
-    """The source index of every extracted frame, in order."""
-    return [frame.getpixel((0, 0))[0] for frame in frames]
+    """The source index of every extracted frame, in order.
+
+    Takes the ``MediaFrames`` extraction returns, so a case that only cares which
+    frames came back does not have to reach past the timestamps to say so.
+    """
+    return [frame.getpixel((0, 0))[0] for frame in frames.images]
 
 
 def _extract_from(capture: FakeCapture, count: int | None):
@@ -495,7 +531,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
         frames = self._extract(FakeCapture(decodable=200, fps=60))
 
         assert frames is not None
-        self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
 
     def test_a_very_long_clip_stops_at_the_cap_and_still_ends_on_its_last_frame(self) -> None:
         # Fifty seconds asks for 102 frames; every one would be inlined in a single
@@ -514,7 +550,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
         frames = self._extract(FakeCapture(decodable=250, fps=5), count=VIDEO_KEYFRAME_COUNT)
 
         assert frames is not None
-        self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
 
     def test_a_frame_rate_that_cannot_be_trusted_falls_back_to_the_fixed_count(self) -> None:
         # 90000 is an MPEG timescale reported where the frame rate belongs, which
@@ -524,7 +560,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
                 frames = self._extract(FakeCapture(decodable=240, fps=fps))
 
                 assert frames is not None
-                self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+                self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
 
     def test_a_derived_count_still_gives_up_on_a_broken_tail(self) -> None:
         capture = FakeCapture(decodable=40, reported=400, fps=1)
@@ -540,7 +576,56 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
         frames = self._extract(FakeCapture(decodable=250, reported=0, fps=30))
 
         assert frames is not None
-        self.assertLessEqual(len(frames), VIDEO_KEYFRAME_COUNT)
+        self.assertLessEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
+
+    def test_frames_carry_the_second_they_were_taken_at(self) -> None:
+        # Eight seconds at 30 fps. The labels come from the frame indices the sampler
+        # actually landed on, so they stay true even when the tail walk moves one.
+        frames = self._extract(FakeCapture(decodable=240, fps=30))
+
+        assert frames is not None
+        timestamps = frames.timestamps
+        assert timestamps is not None
+        self.assertEqual(len(timestamps), len(frames.images))
+        self.assertEqual(timestamps[0], 0.0)
+        self.assertAlmostEqual(timestamps[-1], 239 / 30)
+        self.assertEqual(timestamps, sorted(timestamps))
+
+    def test_a_clip_with_no_usable_frame_rate_carries_no_timestamps(self) -> None:
+        # The count already falls back here; labelling the frames from a rate that was
+        # rejected would put times on them the sampling itself did not believe.
+        for fps in (0.0, -30.0, float("nan"), 90_000.0):
+            with self.subTest(fps=fps):
+                frames = self._extract(FakeCapture(decodable=240, fps=fps))
+
+                assert frames is not None
+                self.assertIsNone(frames.timestamps)
+
+    def test_a_streamed_clip_carries_no_timestamps(self) -> None:
+        # The halving stride breaks the link between a survivor's position and its
+        # position in the clip, so any label would be a guess.
+        frames = self._extract(FakeCapture(decodable=250, reported=0, fps=30))
+
+        assert frames is not None
+        self.assertIsNone(frames.timestamps)
+
+    def test_the_user_text_states_the_span_it_sampled(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            frames = _extract_from(FakeCapture(decodable=240, fps=30), None)
+            assert frames is not None
+
+            fake_client, captured = _make_fake_caption_client("A polished caption.")
+            complete_caption(
+                fake_client,
+                media,
+                "System prompt",
+                "Draft",
+                images=frames.images,
+                timestamps=frames.timestamps,
+            )
+
+            self.assertIn("8.0 seconds", captured["user_text"] or "")
 
     def test_frames_come_back_within_the_multi_frame_pixel_budget(self) -> None:
         # Sixty-four full-resolution frames sit in memory for the whole model call,
@@ -548,76 +633,53 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
         frames = self._extract(FakeCapture(decodable=3, width=1200, height=1200))
 
         assert frames is not None
-        for frame in frames:
+        for frame in frames.images:
             self.assertLessEqual(frame.width * frame.height, VIDEO_FRAME_MAX_PIXELS)
         # A solid frame survives the resize, so its index is still readable back.
         self.assertEqual(_shades(frames), [0, 1, 2])
 
 
 class AutoCaptionGifTests(unittest.TestCase):
-    def test_a_gif_is_captioned_as_a_video(self) -> None:
-        # MediaKind is the training axis, and a GIF is a frame sequence, so it gets
-        # the video prompt and the keyframe pipeline. Only rendering calls it a gif.
+    """A GIF is captioned as a still, from its opening frame.
+
+    The gallery still treats it as motion - it animates and its frames are still
+    scrubbable - so these cases pin the captioning axis alone.
+    """
+
+    def test_a_gif_is_captioned_as_an_image(self) -> None:
         with TempMediaFolder() as root:
-            self.assertEqual(media_kind_for(write_gif(root, "loop.gif")), "video")
+            self.assertEqual(media_kind_for(write_gif(root, "loop.gif")), "image")
             self.assertEqual(media_kind_for(write_media(root, "photo.png")), "image")
             self.assertEqual(media_kind_for(write_mp4_video(root, "clip.mp4")), "video")
 
-    def test_keyframes_come_from_pillow_and_never_touch_opencv(self) -> None:
-        # cv2 reports a frame count of zero for many GIFs, which drops the video
-        # path into its sequential fallback and captions only the opening frames.
-        def explode(_path: str) -> None:
-            raise AssertionError("OpenCV must not be used to read a GIF")
-
-        fake_cv2 = type("cv2", (), {"VideoCapture": staticmethod(explode)})
-
+    def test_a_long_gif_still_sends_one_frame(self) -> None:
         with TempMediaFolder() as root:
-            # Long enough that the video path would sample it far more densely: a GIF
-            # keeps the fixed count whatever its length.
-            media = write_gif(root, "loop.gif", frames=120)
+            frames, error = load_media_images(write_gif(root, "loop.gif", frames=120))
 
-            with patch.dict("sys.modules", {"cv2": fake_cv2}):
-                frames = extract_keyframes(media)
-
-        assert frames is not None
-        self.assertEqual(len(frames), VIDEO_KEYFRAME_COUNT)
-
-    def test_a_short_gif_yields_one_frame_per_frame_it_has(self) -> None:
-        with TempMediaFolder() as root:
-            frames = extract_keyframes(write_gif(root, "short.gif", frames=5))
-
+            self.assertIsNone(error)
             assert frames is not None
-            self.assertEqual(len(frames), 5)
+            self.assertEqual(len(frames.images), 1)
 
-    def test_the_user_text_states_the_real_frame_count(self) -> None:
+    def test_the_user_text_is_the_image_prompt_with_no_frame_count(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, "short.gif", frames=5)
-            frames = extract_keyframes(media)
+            frames, _error = load_media_images(media)
             assert frames is not None
 
             fake_client, captured = _make_fake_caption_client("A polished GIF caption.")
-            complete_caption(fake_client, media, "System prompt", "Draft", images=frames)
+            complete_caption(fake_client, media, "System prompt", "Draft", images=frames.images)
 
-            # Claiming 12 keyframes for a 5-frame GIF would be a plain lie to the model.
-            self.assertIn("5 keyframes", captured["user_text"] or "")
-            self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", captured["user_text"] or "")
+            user_text = captured["user_text"] or ""
+            self.assertIn("Caption the image", user_text)
+            self.assertNotIn("keyframes", user_text)
+            self.assertEqual(captured["image_count"], 1)
+            self.assertEqual(captured["timestamp_labels"], [])
 
-    def test_a_single_frame_gif_is_described_in_the_singular(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_gif(root, "still.gif", frames=1)
-            frames = extract_keyframes(media)
-            assert frames is not None
-
-            fake_client, captured = _make_fake_caption_client("A polished caption.")
-            complete_caption(fake_client, media, "System prompt", "Draft", images=frames)
-
-            self.assertIn("a single frame", (captured["user_text"] or "").lower())
-
-    def test_reading_keyframes_leaves_the_gif_movable(self) -> None:
+    def test_reading_the_first_frame_leaves_the_gif_movable(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif", frames=12)
 
-            extract_keyframes(media)
+            load_media_images(media)
 
             media.rename(root / "moved.gif")
 
@@ -978,23 +1040,31 @@ class AutoCaptionAudioRequestTests(unittest.TestCase):
 class AutoCaptionAudioJobTests(unittest.TestCase):
     """How an audio run counts what it captioned.
 
-    A GIF stands in for the media throughout: it decodes into real keyframes without
-    OpenCV, and it is also the clearest case of motion media that cannot carry sound.
+    An MP4 stands in for the media throughout. A GIF used to, back when it counted as
+    motion; it is captioned as a still now and never reaches the audio path at all -
+    ``test_a_still_image_never_counts_as_missing_audio`` is the shape it takes today.
+    Fixture MP4s are not reliably decodable, so the frames are patched in and only
+    the audio plumbing is exercised.
     """
 
-    def _folder_with_gif(self, root):
+    def _folder_with_clip(self, root):
         write_sysprompt(root, "Describe the scene.")
-        media = write_gif(root, "loop.gif")
+        media = write_mp4_video(root, "clip.mp4")
         write_txt_caption(media, "Draft.")
         return media
 
+    def _patched_frames(self):
+        frames = MediaFrames(images=[Image.new("RGB", (64, 64), color="blue")])
+        return patch("automation.auto_caption.load_media_images", return_value=(frames, None))
+
     def test_audio_is_extracted_once_and_resent_on_every_retry(self) -> None:
         with TempMediaFolder() as root:
-            media = self._folder_with_gif(root)
+            media = self._folder_with_clip(root)
             client, captured = _make_fake_caption_client("too short")
 
             with (
                 patch("automation.vision.create_openai_client", return_value=client),
+                self._patched_frames(),
                 patch(
                     "automation.auto_caption.extract_audio_wav", return_value=FAKE_WAV
                 ) as extract,
@@ -1011,16 +1081,15 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
 
     def test_a_silent_clip_is_still_captioned_and_counted(self) -> None:
         with TempMediaFolder() as root:
-            media = self._folder_with_gif(root)
+            media = self._folder_with_clip(root)
 
             with (
                 patch("automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION),
-                patch("automation.audio.subprocess.run") as run_ffmpeg,
+                self._patched_frames(),
+                patch("automation.auto_caption.extract_audio_wav", return_value=None),
             ):
                 result = run_auto_caption_job(root, caption_audio=True)
 
-            # A GIF is known silent without a decode, so ffmpeg is never spawned.
-            run_ffmpeg.assert_not_called()
             self.assertEqual(result["stats"]["audio_error"], 1)
             self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(
@@ -1030,9 +1099,13 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
 
     def test_missing_audio_does_not_fail_the_job_or_inflate_progress(self) -> None:
         with TempMediaFolder() as root:
-            self._folder_with_gif(root)
+            self._folder_with_clip(root)
 
-            with patch("automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION):
+            with (
+                patch("automation.auto_caption.complete_caption", return_value=POLISHED_CAPTION),
+                self._patched_frames(),
+                patch("automation.auto_caption.extract_audio_wav", return_value=None),
+            ):
                 result = run_auto_caption_job(root, caption_audio=True)
 
             self.assertEqual(result["processed"], 1)
@@ -1057,11 +1130,12 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
 
     def test_audio_off_never_looks_for_audio(self) -> None:
         with TempMediaFolder() as root:
-            self._folder_with_gif(root)
+            self._folder_with_clip(root)
             client, captured = _make_fake_caption_client(POLISHED_CAPTION)
 
             with (
                 patch("automation.vision.create_openai_client", return_value=client),
+                self._patched_frames(),
                 patch("automation.auto_caption.extract_audio_wav") as extract,
             ):
                 result = run_auto_caption_job(root)
@@ -1074,11 +1148,12 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
 
     def test_an_audio_run_sends_the_audio_prompt_and_the_part_together(self) -> None:
         with TempMediaFolder() as root:
-            self._folder_with_gif(root)
+            self._folder_with_clip(root)
             client, captured = _make_fake_caption_client(POLISHED_CAPTION)
 
             with (
                 patch("automation.vision.create_openai_client", return_value=client),
+                self._patched_frames(),
                 patch("automation.auto_caption.extract_audio_wav", return_value=FAKE_WAV),
             ):
                 result = run_auto_caption_job(root, caption_audio=True)
@@ -1090,7 +1165,7 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
 
     def test_audio_captioning_requires_ffmpeg_up_front(self) -> None:
         with TempMediaFolder() as root:
-            self._folder_with_gif(root)
+            self._folder_with_clip(root)
 
             with patch("automation.auto_caption.ffmpeg_path", return_value=None):
                 with self.assertRaises(ValueError) as caught:

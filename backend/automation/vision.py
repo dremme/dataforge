@@ -1,10 +1,10 @@
 """Shared vision-model plumbing for the auto-caption and verify-captions jobs.
 
-Covers everything both jobs do identically: classifying image vs motion media,
-extracting video/GIF keyframes, owning the model client for a run, assembling and
-issuing the request with the right sampling profile for the mode, and retrying a
-flaky model. What each job asks the model for, and how it interprets the answer,
-stays in the job module.
+Covers everything both jobs do identically: classifying image vs video media,
+extracting video keyframes, reading a GIF's opening frame, owning the model client
+for a run, assembling and issuing the request with the right sampling profile for
+the mode, and retrying a flaky model. What each job asks the model for, and how it
+interprets the answer, stays in the job module.
 """
 
 from __future__ import annotations
@@ -23,9 +23,11 @@ from typing import Any, Literal
 from PIL import Image
 
 from automation.audio import AUDIO_FORMAT
-from constants import GIF_EXTENSION, MOTION_EXTENSIONS
-from gif_frames import extract_gif_keyframes, keyframe_indices
+from constants import GIF_EXTENSION, VIDEO_EXTENSIONS
+from gif_frames import extract_gif_first_frame, keyframe_indices
 from openai_settings import (
+    DEFAULT_PRESERVE_THINKING,
+    DEFAULT_REASONING_EFFORT,
     assistant_message_text,
     build_sampling_extra_body,
     create_openai_client,
@@ -38,10 +40,9 @@ logger = logging.getLogger(__name__)
 
 MAX_MODEL_ATTEMPTS = 3
 
-# Evenly spaced samples across a motion file, in three roles: the count a GIF is
-# always sampled at, the floor below which a short video is not sampled any thinner
-# than it used to be, and the fallback for a container that will not say how fast it
-# runs. Short GIFs and short clips yield fewer than this.
+# Evenly spaced samples across a video, in two roles: the floor below which a short
+# clip is not sampled any thinner than it used to be, and the fallback for a
+# container that will not say how fast it runs. Short clips yield fewer than this.
 VIDEO_KEYFRAME_COUNT = 12
 # A video is sampled by its length instead, twice a second plus both endpoints, since
 # a dozen frames across a long clip describes motion the model never saw.
@@ -146,13 +147,30 @@ def load_image_rgb(media_path: Path) -> tuple[list[Image.Image] | None, str | No
 
 
 def media_kind_for(path: Path) -> MediaKind:
-    """How a file is captioned or verified, which for a GIF is as a video.
+    """How a file is captioned or verified, which for a GIF is as an image.
 
-    ``MediaKind`` is the training axis, and a GIF carries a frame sequence, so it
-    gets the video prompt and the keyframe pipeline. ``schemas.MediaType`` is the
-    rendering axis and calls the same file a ``gif``.
+    A GIF carries a frame sequence, but the model is shown its opening frame and
+    told it is looking at a still: the animation is rarely what the caption is
+    about, and sampling it into keyframes spent a dozen images saying so. The
+    gallery is unaffected - it still animates the file and still scrubs its frames,
+    and ``schemas.MediaType`` still calls it a ``gif``.
     """
-    return "video" if path.suffix.lower() in MOTION_EXTENSIONS else "image"
+    return "video" if path.suffix.lower() in VIDEO_EXTENSIONS else "image"
+
+
+@dataclass(frozen=True)
+class MediaFrames:
+    """What one file contributes to a request: the frames, and when each was taken.
+
+    ``timestamps`` is ``None`` whenever the source will not say - a video whose
+    container reports no usable frame rate, one sampled by streaming because it
+    reports no frame count, a GIF carrying no delays, or a still, which has no
+    timeline at all. It is otherwise one entry per frame, in seconds from the start,
+    and exactly as long as ``images``: the request labels frames by pairing the two.
+    """
+
+    images: list[Image.Image]
+    timestamps: list[float] | None = None
 
 
 def keyframe_count_for_seconds(seconds: float | None) -> int:
@@ -169,8 +187,21 @@ def keyframe_count_for_seconds(seconds: float | None) -> int:
     return min(max(wanted, VIDEO_KEYFRAME_COUNT), MAX_VIDEO_KEYFRAME_COUNT)
 
 
-def _video_seconds(cap, cv2, total_frames: int) -> float | None:
-    """How long the clip runs, or ``None`` when the container will not say usefully.
+def _video_fps(cap, cv2) -> float | None:
+    """How fast the clip runs, or ``None`` when the container will not say usefully.
+
+    The one measurement behind both the frame count and the frame timestamps, so a
+    clip that will not report a usable rate loses both together rather than being
+    sampled by a number the labels then contradict.
+    """
+    fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+    if not math.isfinite(fps) or fps <= 0 or fps > MAX_PLAUSIBLE_FPS:
+        return None
+    return fps
+
+
+def _video_seconds(fps: float | None, total_frames: int) -> float | None:
+    """How long the clip runs, given a rate ``_video_fps`` already vetted.
 
     Both ways of being wrong are safe: an overstated frame rate understates the
     length and lands on the floor, an understated one overstates it and lands on the
@@ -178,10 +209,7 @@ def _video_seconds(cap, cv2, total_frames: int) -> float | None:
     already bounded by the cap, and by ``keyframe_indices`` never returning more
     indices than the clip has frames.
     """
-    fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
-    if not math.isfinite(fps) or fps <= 0 or fps > MAX_PLAUSIBLE_FPS:
-        return None
-    return total_frames / fps
+    return None if fps is None else total_frames / fps
 
 
 def _capped(image: Image.Image) -> Image.Image:
@@ -204,8 +232,13 @@ def _read_frame_at(cap, cv2, frame_index: int) -> Image.Image | None:
     return _capped(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
 
 
-def _seek_keyframes(cap, cv2, total_frames: int, count: int) -> list[Image.Image]:
-    """Sample a video whose length is known, ending on its real last frame."""
+def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) -> MediaFrames:
+    """Sample a video whose length is known, ending on its real last frame.
+
+    The frame indices are what make the timestamps exact rather than assumed even:
+    the tail walk below can land on an index other than the one asked for, and a
+    label derived from position in the list would then be wrong by that much.
+    """
     wanted = keyframe_indices(total_frames, count)
     captured = {index: image for index in wanted if (image := _read_frame_at(cap, cv2, index))}
 
@@ -222,10 +255,14 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int) -> list[Image.Image
                 captured[index] = image
                 break
 
-    return [captured[index] for index in sorted(captured)]
+    indices = sorted(captured)
+    return MediaFrames(
+        images=[captured[index] for index in indices],
+        timestamps=None if fps is None else [index / fps for index in indices],
+    )
 
 
-def _streamed_keyframes(cap, cv2, count: int) -> list[Image.Image]:
+def _streamed_keyframes(cap, cv2, count: int) -> MediaFrames:
     """Sample a video whose length is unknown, ending on its real last frame.
 
     A container that reports no frame count cannot be seeked either, so the end is
@@ -239,6 +276,10 @@ def _streamed_keyframes(cap, cv2, count: int) -> list[Image.Image]:
     known once the decode finishes, but the frames have to be retained *during* it,
     so provisioning for the larger count would mean holding twice that many
     full-resolution frames to serve the rarest branch here.
+
+    Timestamps are left out for the same reason the count is: the halving stride
+    means a survivor's position in the list no longer maps to a position in the
+    clip, so any label put on it would be a guess.
     """
     kept: list[Image.Image] = []
     last: Image.Image | None = None
@@ -261,21 +302,24 @@ def _streamed_keyframes(cap, cv2, count: int) -> list[Image.Image]:
         position += 1
 
     if last is None:
-        return []
+        return MediaFrames(images=[])
     if kept[-1] is not last:
         kept.append(last)
 
-    return [_capped(kept[index]) for index in keyframe_indices(len(kept), count)]
+    return MediaFrames(
+        images=[_capped(kept[index]) for index in keyframe_indices(len(kept), count)]
+    )
 
 
 def extract_video_keyframes(
     video_path: Path,
     count: int | None = None,
-) -> list[Image.Image] | None:
+) -> MediaFrames | None:
     """Evenly spaced frames spanning the whole clip, first and last included.
 
     ``count`` of ``None`` derives one from the clip's length; an explicit count is
-    taken as given. Frames come back capped at ``VIDEO_FRAME_MAX_PIXELS``.
+    taken as given. Frames come back capped at ``VIDEO_FRAME_MAX_PIXELS``, carrying
+    their timestamps whenever the container reported a usable frame rate.
     """
     import cv2
 
@@ -289,38 +333,39 @@ def extract_video_keyframes(
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
         if total_frames <= 0:
-            return _streamed_keyframes(cap, cv2, count or VIDEO_KEYFRAME_COUNT) or None
+            streamed = _streamed_keyframes(cap, cv2, count or VIDEO_KEYFRAME_COUNT)
+            return streamed if streamed.images else None
 
+        fps = _video_fps(cap, cv2)
         resolved = (
             count
             if count is not None
-            else keyframe_count_for_seconds(_video_seconds(cap, cv2, total_frames))
+            else keyframe_count_for_seconds(_video_seconds(fps, total_frames))
         )
-        return _seek_keyframes(cap, cv2, total_frames, resolved) or None
+        seeked = _seek_keyframes(cap, cv2, total_frames, resolved, fps)
+        return seeked if seeked.images else None
     finally:
         cap.release()
 
 
-def extract_keyframes(media_path: Path, count: int | None = None) -> list[Image.Image] | None:
-    """Evenly spaced frames, decoded by whichever reader handles the container.
+def keyframe_sentence(frame_count: int, seconds: float | None = None) -> str:
+    """States the real frame count, which a short GIF shrinks and a long clip grows.
 
-    GIFs never reach OpenCV: it reports a frame count of zero for many of them,
-    which silently drops ``extract_video_keyframes`` into its sequential fallback
-    and captions only the opening of the animation. A GIF also keeps the fixed count
-    however long it is, where a video derives one from its length - GIF frames are
-    small and cheap to hold, and ``gif_frames`` stays clear of request budgets.
+    ``seconds`` is the clip's span, and its absence reproduces the sentence exactly
+    as it read before timestamps existed - which is what every unlabelled path
+    still gets. When present it also accounts for the ``<n.n seconds>`` markers
+    sitting between the frames, so they read as labels rather than stray tokens.
     """
-    if media_path.suffix.lower() == GIF_EXTENSION:
-        return extract_gif_keyframes(media_path, count or VIDEO_KEYFRAME_COUNT)
-    return extract_video_keyframes(media_path, count)
-
-
-def keyframe_sentence(frame_count: int) -> str:
-    """States the real frame count, which a short GIF shrinks and a long clip grows."""
     if frame_count == 1:
         return "You are given a single frame. Analyze it while following the system instructions."
+    if seconds is None:
+        return (
+            f"You are given {frame_count} keyframes in chronological order. "
+            "Analyze the full video sequence while following the system instructions."
+        )
     return (
-        f"You are given {frame_count} keyframes in chronological order. "
+        f"You are given {frame_count} keyframes in chronological order, spanning "
+        f"{seconds:.1f} seconds of video and each labelled with its timestamp. "
         "Analyze the full video sequence while following the system instructions."
     )
 
@@ -342,21 +387,32 @@ class MediaLoadError:
 
 def load_media_images(
     media_path: Path,
-) -> tuple[list[Image.Image] | None, MediaLoadError | None]:
-    """Load stills or motion keyframes for a vision request.
+) -> tuple[MediaFrames | None, MediaLoadError | None]:
+    """Load a video's keyframes or a single still for a vision request.
 
     Returns ``(frames, None)`` on success, or ``(None, error)`` describing why not.
+    Only a video carries timestamps: one frame has no timeline to place it on.
+
+    A GIF takes the still path but not ``load_image_rgb``, which would hand Pillow's
+    uncomposited ``convert("RGB")`` to the model - see ``extract_gif_first_frame``.
+    It keeps Pillow either way: OpenCV reports a frame count of zero for many GIFs.
     """
     if media_kind_for(media_path) == "video":
-        keyframes = extract_keyframes(media_path)
-        if not keyframes:
+        keyframes = extract_video_keyframes(media_path)
+        if keyframes is None or not keyframes.images:
             return None, MediaLoadError(FRAME_ERROR)
         return keyframes, None
+
+    if media_path.suffix.lower() == GIF_EXTENSION:
+        frame = extract_gif_first_frame(media_path)
+        if frame is None:
+            return None, MediaLoadError(READ_ERROR, "Failed to read GIF")
+        return MediaFrames(images=[frame]), None
 
     images, error = load_image_rgb(media_path)
     if images is None:
         return None, MediaLoadError(READ_ERROR, error)
-    return images, None
+    return MediaFrames(images=images), None
 
 
 def audio_part(audio_wav: bytes) -> dict:
@@ -374,25 +430,52 @@ def audio_part(audio_wav: bytes) -> dict:
     }
 
 
+def timestamp_part(seconds: float) -> dict:
+    """The ``<n.n seconds>`` marker Qwen3-VL's own video path emits before a frame.
+
+    Copied from ``transformers`` ``processing_qwen3_vl.py`` down to the one decimal
+    place and the spelling, because the point is to hand the model the exact string
+    it was trained on rather than a paraphrase it has to interpret.
+    """
+    return {"type": "text", "text": f"<{seconds:.1f} seconds>"}
+
+
 def vision_messages(
     system_prompt: str,
     images_b64: list[str],
     user_text: str,
     *,
+    timestamps: list[float] | None = None,
     audio_wav: bytes | None = None,
 ) -> list[dict]:
     """The chat messages for one request: media parts first, the instruction last.
 
+    Each frame is preceded by its timestamp when one is known, which is what lets
+    the model tell a slow pan from a fast one - the frames alone say nothing about
+    how much time separates them. Timestamps are dropped wholesale unless there is
+    exactly one per frame, so a mismatch mislabels nothing.
+
+    Ordering is the contract here: llama-server rewrites each media part in place,
+    so array order is prompt order. This has *not* been verified for vLLM, where it
+    depends on the chat template - if it were to reorder, the markers degrade to
+    ordinary text near the frames rather than breaking the request.
+
     Audio sits between the frames and the text so the whole clip - what is seen and
     what is heard - is presented before it is asked about.
     """
-    content: list[dict] = [
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
-        }
-        for encoded in images_b64
-    ]
+    labelled = timestamps if timestamps and len(timestamps) == len(images_b64) else None
+
+    content: list[dict] = []
+    for index, encoded in enumerate(images_b64):
+        if labelled is not None:
+            content.append(timestamp_part(labelled[index]))
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
+            }
+        )
+
     if audio_wav:
         content.append(audio_part(audio_wav))
     content.append({"type": "text", "text": user_text})
@@ -410,8 +493,11 @@ def request_vision_text(
     *,
     max_pixels: int,
     mode: str,
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     model: str | None = None,
     max_tokens: int | None = None,
+    timestamps: list[float] | None = None,
     audio_wav: bytes | None = None,
 ) -> str | None:
     """Encode ``images`` and ask the model, returning the assistant text or ``None``.
@@ -426,8 +512,16 @@ def request_vision_text(
 
     return run_vision_completion(
         client,
-        vision_messages(system_prompt, images_b64, user_text, audio_wav=audio_wav),
+        vision_messages(
+            system_prompt,
+            images_b64,
+            user_text,
+            timestamps=timestamps,
+            audio_wav=audio_wav,
+        ),
         mode=mode,
+        effort=effort,
+        preserve_thinking=preserve_thinking,
         model=model,
         max_tokens=max_tokens,
     )
@@ -456,6 +550,8 @@ def run_vision_completion(
     messages: list[dict],
     *,
     mode: str,
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     model: str | None = None,
     max_tokens: int | None = None,
 ) -> str | None:
@@ -475,7 +571,11 @@ def run_vision_completion(
             temperature=profile.temperature,
             top_p=profile.top_p,
             presence_penalty=profile.presence_penalty,
-            extra_body=build_sampling_extra_body(mode),
+            extra_body=build_sampling_extra_body(
+                mode,
+                effort=effort,
+                preserve_thinking=preserve_thinking,
+            ),
         )
         raw = assistant_message_text(
             response.choices[0].message,

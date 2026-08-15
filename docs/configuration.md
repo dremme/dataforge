@@ -87,9 +87,9 @@ is off by default. Set `OPENAI_MODEL` to the omni model's id as your server expo
 Details worth knowing:
 
 - Only the **first 15 seconds** of a clip are sent — as much as current local omni models take
-- Clips with no audio track, and GIFs, are **still captioned** from their keyframes — the model typically calls
-  them silent — and the job finishes with a warning naming how many there were
-- Still images are unaffected
+- Clips with no audio track are **still captioned** from their keyframes — the model typically calls them
+  silent — and the job finishes with a warning naming how many there were
+- Still images are unaffected, and so are GIFs: they are captioned as images
 - Verify-captions never sends audio, so it works with a vision-only model as before
 
 ## Sampling knobs
@@ -113,6 +113,32 @@ Per-mode temperature, penalties, and top-p/k:
 `repeat_penalty` follows llama.cpp naming. Hugging Face– and vLLM-style stacks call the same knob
 `repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
 DataForge at one of those servers.
+
+## Reasoning effort
+
+Not an environment setting: **Reasoning effort** and **Preserve thinking** are picked per job, in the
+auto-caption and verify-captions dialogs.
+
+The three levels are fixed by the chat template, which **raises** on anything else, so `high` is not a value:
+
+| Level | Effect |
+| --- | --- |
+| `low` | Adds an instruction to keep thinking brief and move to the conclusion |
+| `medium` | Adds no instruction at all — the model reasons as it normally would. **DataForge's default** |
+| `xhigh` | Adds an instruction to validate assumptions and weigh alternatives. The *template's* own default |
+
+DataForge defaults to `medium` where the template defaults to `xhigh`, so the value is sent on every
+reasoning-mode request rather than omitted at the default the way `repeat_penalty` is. It goes out twice —
+inside `chat_template_kwargs`, which Unsloth and vLLM feed to the Jinja render, and as a top-level
+`reasoning_effort` field, which llama.cpp reads. A server that knows neither ignores both.
+
+Only templates that read the key respond to it: the shipped
+[`llm-templates/qwen38_template.jinja`](../llm-templates/qwen38_template.jinja) does, while the Qwen3.6 and
+Gemma 4 templates ignore it and caption the same at every level.
+
+**Preserve thinking** keeps earlier assistant reasoning in the rendered prompt. It is on by default, matching
+every shipped template. It has no visible effect on captioning today, since each request is a single turn with
+no prior reasoning to keep — it matters only once a flow sends the model its own earlier answers.
 
 ## Paths, integrations, and logging
 

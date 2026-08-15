@@ -320,12 +320,16 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         const mode = body.mode === "thinking" || body.mode === "instruct" ? body.mode : "instruct";
         return jsonResponse({
           mode,
+          reasoning_effort: body.reasoning_effort ?? "medium",
+          preserve_thinking: body.preserve_thinking ?? true,
           context: typeof body.context === "string" ? body.context : "",
         });
       }
 
       return jsonResponse({
         mode: "instruct",
+        reasoning_effort: "medium",
+        preserve_thinking: true,
         context: "",
       });
     }

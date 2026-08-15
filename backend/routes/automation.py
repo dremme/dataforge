@@ -54,6 +54,8 @@ def start_auto_caption(
         resolve_folder(path),
         body.paths,
         mode=body.mode,
+        reasoning_effort=body.reasoning_effort,
+        preserve_thinking=body.preserve_thinking,
         caption_audio=body.caption_audio,
     )
 
@@ -118,6 +120,8 @@ def start_verify_captions_job(
 
     update_verify_captions_settings(
         mode=body.mode,
+        reasoning_effort=body.reasoning_effort,
+        preserve_thinking=body.preserve_thinking,
         context=body.context,
         folder_path=str(folder),
     )
@@ -127,6 +131,8 @@ def start_verify_captions_job(
         folder,
         body.paths,
         mode=body.mode,
+        reasoning_effort=body.reasoning_effort,
+        preserve_thinking=body.preserve_thinking,
         context=body.context,
     )
 

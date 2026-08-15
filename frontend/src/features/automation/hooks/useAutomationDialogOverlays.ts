@@ -14,6 +14,7 @@ import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type {
   JobType,
+  ReasoningEffort,
   WatermarkOpacity,
   WatermarkPosition,
   WatermarkSizeName,
@@ -95,15 +96,35 @@ export function useAutomationDialogOverlays({
       },
       autoCaption: {
         ...shared("auto_caption"),
-        onConfirm: (mode: AutoCaptionMode, captionAudio: boolean) =>
-          startJobFromDialog("auto_caption", { mode, caption_audio: captionAudio }),
+        onConfirm: (
+          mode: AutoCaptionMode,
+          captionAudio: boolean,
+          reasoningEffort: ReasoningEffort,
+          preserveThinking: boolean,
+        ) =>
+          startJobFromDialog("auto_caption", {
+            mode,
+            caption_audio: captionAudio,
+            reasoning_effort: reasoningEffort,
+            preserve_thinking: preserveThinking,
+          }),
       },
       verifyCaptions: {
         ...shared("verify_captions"),
         folderPath: folderPath ?? "",
         initialSettings: verifyCaptionsSettings,
-        onConfirm: (mode: VerifyCaptionsMode, context: string) =>
-          startJobFromDialog("verify_captions", { mode, context }),
+        onConfirm: (
+          mode: VerifyCaptionsMode,
+          context: string,
+          reasoningEffort: ReasoningEffort,
+          preserveThinking: boolean,
+        ) =>
+          startJobFromDialog("verify_captions", {
+            mode,
+            context,
+            reasoning_effort: reasoningEffort,
+            preserve_thinking: preserveThinking,
+          }),
       },
       batchRename: {
         ...shared("batch_rename"),

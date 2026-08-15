@@ -3,6 +3,10 @@ import {
   AutomationModeSelector,
   type AutomationMode,
 } from "@/features/automation/components/AutomationModeSelector";
+import {
+  ReasoningEffortSelector,
+  type ReasoningEffort,
+} from "@/features/automation/components/ReasoningEffortSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import {
   updateVerifyCaptionsSettings,
@@ -18,7 +22,12 @@ interface VerifyCaptionsDialogProps {
   folderLabel: string;
   initialSettings: VerifyCaptionsSettings;
   busy?: boolean;
-  onConfirm: (mode: VerifyCaptionsMode, context: string) => void;
+  onConfirm: (
+    mode: VerifyCaptionsMode,
+    context: string,
+    reasoningEffort: ReasoningEffort,
+    preserveThinking: boolean,
+  ) => void;
   onCancel: () => void;
 }
 
@@ -32,25 +41,40 @@ export function VerifyCaptionsDialog({
 }: VerifyCaptionsDialogProps) {
   const [mode, setMode] = useState<AutomationMode>(initialSettings.mode);
   const [context, setContext] = useState(initialSettings.context);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(
+    initialSettings.reasoningEffort,
+  );
+  const [preserveThinking, setPreserveThinking] = useState(initialSettings.preserveThinking);
   const [saving, setSaving] = useState(false);
   const contextId = useId();
+  const preserveThinkingId = useId();
 
   const handleConfirm = useCallback(() => {
     if (busy || saving) return;
 
     setSaving(true);
-    void updateVerifyCaptionsSettings(folderPath, { mode, context })
+    void updateVerifyCaptionsSettings(folderPath, {
+      mode,
+      context,
+      reasoningEffort,
+      preserveThinking,
+    })
       .then((settings) => {
-        onConfirm(settings.mode, settings.context);
+        onConfirm(
+          settings.mode,
+          settings.context,
+          settings.reasoningEffort,
+          settings.preserveThinking,
+        );
       })
       .catch(() => {
         // Job start also persists settings.
-        onConfirm(mode, context);
+        onConfirm(mode, context, reasoningEffort, preserveThinking);
       })
       .finally(() => {
         setSaving(false);
       });
-  }, [busy, context, folderPath, mode, onConfirm, saving]);
+  }, [busy, context, folderPath, mode, onConfirm, preserveThinking, reasoningEffort, saving]);
 
   const pending = busy || saving;
 
@@ -84,6 +108,32 @@ export function VerifyCaptionsDialog({
         disabled={pending}
         onChange={setMode}
       />
+
+      <ReasoningEffortSelector
+        value={reasoningEffort}
+        name="verify-captions-reasoning-effort"
+        groupLabel="Verification reasoning effort"
+        disabled={mode === "instruct" || pending}
+        onChange={setReasoningEffort}
+      />
+
+      <div className="dialog__field">
+        <label className="dialog__checkbox" htmlFor={preserveThinkingId}>
+          <input
+            id={preserveThinkingId}
+            type="checkbox"
+            className="dialog__checkbox-input"
+            checked={preserveThinking}
+            onChange={(event) => setPreserveThinking(event.target.checked)}
+            disabled={mode === "instruct" || pending}
+          />
+          <span className="dialog__checkbox-box" aria-hidden="true" />
+          <span className="dialog__checkbox-label">Preserve thinking</span>
+        </label>
+        <p className="dialog__hint">
+          Keeps earlier reasoning in the prompt instead of dropping it.
+        </p>
+      </div>
 
       <div className="dialog__field">
         <label htmlFor={contextId} className="dialog__label">

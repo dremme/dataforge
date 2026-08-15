@@ -3,8 +3,10 @@ GIF_EXTENSION = ".gif"
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".wmv", ".m4v", ".flv"}
 
 # GIF straddles two axes, so neither set above is widened to hold it. It decodes
-# like a still and renders in an `<img>`, but it carries a frame sequence and so
-# trains like a video. Reach for the axis a call site actually means.
+# like a still, renders in an `<img>`, and is captioned as one, but it carries a
+# frame sequence the gallery scrubs and LoRA training groups with video. Reach for
+# the axis a call site actually means - `automation.vision.media_kind_for` asks the
+# narrower `VIDEO_EXTENSIONS`, precisely so a GIF lands on the still path.
 PILLOW_EXTENSIONS = IMAGE_EXTENSIONS | {GIF_EXTENSION}
 MOTION_EXTENSIONS = VIDEO_EXTENSIONS | {GIF_EXTENSION}
 

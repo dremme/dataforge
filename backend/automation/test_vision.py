@@ -401,11 +401,15 @@ class MediaKindTests(unittest.TestCase):
         for name in ("photo.png", "photo.JPG", "photo.jpeg"):
             self.assertEqual(media_kind_for(Path(name)), "image")
 
-    def test_videos_and_gifs_are_both_video(self) -> None:
-        # A GIF carries a frame sequence, so it takes the keyframe pipeline even
-        # though the rendering layer calls it a gif.
-        for name in ("clip.mp4", "loop.gif", "LOOP.GIF"):
+    def test_videos_are_video(self) -> None:
+        for name in ("clip.mp4", "CLIP.MOV", "clip.mkv"):
             self.assertEqual(media_kind_for(Path(name)), "video")
+
+    def test_gifs_are_images(self) -> None:
+        # The rendering layer still calls a GIF a gif and the gallery still scrubs
+        # its frames; only the captioning axis folds it in with the stills.
+        for name in ("loop.gif", "LOOP.GIF"):
+            self.assertEqual(media_kind_for(Path(name)), "image")
 
 
 class KeyframeCountTests(unittest.TestCase):
@@ -451,6 +455,24 @@ class KeyframeSentenceTests(unittest.TestCase):
 
     def test_a_lone_frame_is_singular(self) -> None:
         self.assertIn("a single frame", keyframe_sentence(1).lower())
+        # A still carries no span even if one were offered.
+        self.assertIn("a single frame", keyframe_sentence(1, 4.0).lower())
+
+    def test_an_unknown_span_reads_exactly_as_it_did_before_timestamps(self) -> None:
+        """The streamed-video and delay-less-GIF paths must not shift under them."""
+        self.assertEqual(
+            keyframe_sentence(5),
+            "You are given 5 keyframes in chronological order. "
+            "Analyze the full video sequence while following the system instructions.",
+        )
+
+    def test_a_known_span_states_the_length_and_the_labels(self) -> None:
+        sentence = keyframe_sentence(18, 8.0)
+
+        self.assertIn("18 keyframes", sentence)
+        self.assertIn("8.0 seconds", sentence)
+        # The markers between the frames are otherwise unexplained tokens.
+        self.assertIn("labelled with its timestamp", sentence)
 
 
 class VisionMessagesTests(unittest.TestCase):
@@ -478,6 +500,51 @@ class VisionMessagesTests(unittest.TestCase):
         self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=None), baseline)
         self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=b""), baseline)
 
+    def test_a_timestamp_precedes_every_frame(self) -> None:
+        # Qwen3-VL's own video path emits this marker before each frame, so the
+        # spelling and the single decimal place are the contract, not a style choice.
+        messages = vision_messages("Sys", ["aaa", "bbb"], "Caption it.", timestamps=[0.0, 3.26])
+
+        parts = messages[1]["content"]
+        self.assertEqual(
+            [part["type"] for part in parts],
+            ["text", "image_url", "text", "image_url", "text"],
+        )
+        self.assertEqual(parts[0]["text"], "<0.0 seconds>")
+        self.assertEqual(parts[2]["text"], "<3.3 seconds>")
+        self.assertEqual(parts[-1]["text"], "Caption it.")
+
+    def test_no_timestamps_leaves_the_request_exactly_as_it_was(self) -> None:
+        """Stills, streamed clips and delay-less GIFs all stay on the old envelope."""
+        baseline = vision_messages("Sys", ["aaa"], "Caption it.")
+
+        self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", timestamps=None), baseline)
+        self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", timestamps=[]), baseline)
+
+    def test_a_timestamp_per_frame_mismatch_labels_nothing(self) -> None:
+        # Half-labelled frames would silently attach each timestamp to the wrong
+        # frame, which is worse than sending none.
+        baseline = vision_messages("Sys", ["aaa", "bbb"], "Caption it.")
+
+        self.assertEqual(
+            vision_messages("Sys", ["aaa", "bbb"], "Caption it.", timestamps=[0.0]),
+            baseline,
+        )
+
+    def test_timestamps_and_audio_coexist(self) -> None:
+        messages = vision_messages(
+            "Sys",
+            ["aaa"],
+            "Caption it.",
+            timestamps=[1.5],
+            audio_wav=b"wav bytes",
+        )
+
+        self.assertEqual(
+            [part["type"] for part in messages[1]["content"]],
+            ["text", "image_url", "input_audio", "text"],
+        )
+
     def test_audio_sits_between_the_frames_and_the_instruction(self) -> None:
         messages = vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=b"wav bytes")
 
@@ -500,11 +567,13 @@ class LoadMediaImagesTests(unittest.TestCase):
 
     def test_a_still_loads_as_one_frame(self) -> None:
         with TempMediaFolder() as root:
-            images, error = load_media_images(write_media(root, "photo.png"))
+            frames, error = load_media_images(write_media(root, "photo.png"))
 
             self.assertIsNone(error)
-            assert images is not None
-            self.assertEqual(len(images), 1)
+            assert frames is not None
+            self.assertEqual(len(frames.images), 1)
+            # One frame has no timeline to place it on, so the request stays unlabelled.
+            self.assertIsNone(frames.timestamps)
 
     def test_an_unreadable_still_reports_read_error_with_a_message(self) -> None:
         # The jobs surface this message as the file's result, so a read_error without
@@ -520,13 +589,46 @@ class LoadMediaImagesTests(unittest.TestCase):
             self.assertEqual(error.status, READ_ERROR)
             self.assertTrue(error.message)
 
-    def test_a_gif_loads_as_keyframes_rather_than_its_opening_frame(self) -> None:
+    def test_a_gif_loads_as_its_opening_frame_alone(self) -> None:
         with TempMediaFolder() as root:
-            images, error = load_media_images(write_gif(root, "loop.gif", frames=8))
+            frames, error = load_media_images(write_gif(root, "loop.gif", frames=8))
 
             self.assertIsNone(error)
-            assert images is not None
-            self.assertGreater(len(images), 1)
+            assert frames is not None
+            self.assertEqual(len(frames.images), 1)
+            # One frame is a still, and a still has no timeline to label it against.
+            self.assertIsNone(frames.timestamps)
+
+    def test_a_gif_loads_without_opencv(self) -> None:
+        # cv2 reports a frame count of zero for many GIFs, so it never sees one.
+        def explode(_path: str) -> None:
+            raise AssertionError("OpenCV must not be used to read a GIF")
+
+        fake_cv2 = type("cv2", (), {"VideoCapture": staticmethod(explode)})
+
+        with TempMediaFolder() as root:
+            media = write_gif(root, "loop.gif", frames=8)
+
+            with patch.dict("sys.modules", {"cv2": fake_cv2}):
+                frames, error = load_media_images(media)
+
+        self.assertIsNone(error)
+        assert frames is not None
+        self.assertEqual(len(frames.images), 1)
+
+    def test_an_unreadable_gif_reports_read_error(self) -> None:
+        # It reaches the still path now, so it lands with the stills rather than
+        # under the frame extractor's counter.
+        with TempMediaFolder() as root:
+            broken = root / "broken.gif"
+            broken.write_bytes(b"not a gif")
+
+            frames, error = load_media_images(broken)
+
+            self.assertIsNone(frames)
+            assert error is not None
+            self.assertEqual(error.status, READ_ERROR)
+            self.assertTrue(error.message)
 
     def test_undecodable_motion_reports_frame_error_without_a_message(self) -> None:
         # The extractor logs the reason; the user gets the count.

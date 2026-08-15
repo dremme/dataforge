@@ -6,6 +6,8 @@ import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
   loadVerifyCaptionsSettings: vi.fn(async (folderPath: string) => ({
     mode: "instruct" as const,
+    reasoningEffort: "medium" as const,
+    preserveThinking: true,
     context: "Outdoor portraits.",
     folderPath,
   })),
@@ -66,14 +68,19 @@ describe("useAutomationDialogOverlays", () => {
     });
 
     await act(async () => {
-      result.current.dialogs.autoCaption.onConfirm("instruct", true);
+      result.current.dialogs.autoCaption.onConfirm("instruct", true, "xhigh", false);
     });
 
     expect(result.current.dialogs.autoCaption.open).toBe(false);
     expect(startJob).toHaveBeenCalledWith(
       "auto_caption",
       "C:\\Photos",
-      { mode: "instruct", caption_audio: true },
+      {
+        mode: "instruct",
+        caption_audio: true,
+        reasoning_effort: "xhigh",
+        preserve_thinking: false,
+      },
       undefined,
     );
   });
@@ -87,19 +94,31 @@ describe("useAutomationDialogOverlays", () => {
     expect(result.current.dialogs.verifyCaptions.open).toBe(true);
     expect(result.current.dialogs.verifyCaptions.initialSettings).toEqual({
       mode: "instruct",
+      reasoningEffort: "medium",
+      preserveThinking: true,
       context: "Outdoor portraits.",
       folderPath: "C:\\Photos",
     });
 
     await act(async () => {
-      result.current.dialogs.verifyCaptions.onConfirm("thinking", "Outdoor portraits.");
+      result.current.dialogs.verifyCaptions.onConfirm(
+        "thinking",
+        "Outdoor portraits.",
+        "low",
+        true,
+      );
     });
 
     expect(result.current.dialogs.verifyCaptions.open).toBe(false);
     expect(startJob).toHaveBeenCalledWith(
       "verify_captions",
       "C:\\Photos",
-      { mode: "thinking", context: "Outdoor portraits." },
+      {
+        mode: "thinking",
+        context: "Outdoor portraits.",
+        reasoning_effort: "low",
+        preserve_thinking: true,
+      },
       undefined,
     );
   });

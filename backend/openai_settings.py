@@ -10,6 +10,9 @@ Environment (all optional):
 - ``OPENAI_THINKING_TEMPERATURE`` / ``OPENAI_THINKING_PRESENCE_PENALTY`` / ``OPENAI_THINKING_TOP_P`` / ``OPENAI_THINKING_MIN_P`` / ``OPENAI_THINKING_REPEAT_PENALTY``
 - ``OPENAI_INSTRUCT_TEMPERATURE`` / ``OPENAI_INSTRUCT_PRESENCE_PENALTY`` / ``OPENAI_INSTRUCT_TOP_P`` / ``OPENAI_INSTRUCT_MIN_P`` / ``OPENAI_INSTRUCT_REPEAT_PENALTY``
 - ``OPENAI_TOP_K`` / min-p / repeat-penalty vars — sampling extras via ``extra_body`` (local servers)
+
+Reasoning effort and preserve-thinking are deliberately absent from that list: they are
+per-job choices made in the caption dialogs, not environment settings.
 """
 
 from __future__ import annotations
@@ -37,6 +40,14 @@ CONNECT_TIMEOUT_SECONDS = 10.0
 # 1.0 disables the repetition penalty, so it is both the default and the value
 # at which the key is left out of ``extra_body`` entirely.
 NEUTRAL_REPEAT_PENALTY = 1.0
+
+# The chat template defaults reasoning effort to "xhigh" and accepts only
+# xhigh/medium/low, raising on anything else. Captioning is high-volume work on a
+# narrow task, where xhigh mostly buys latency, so DataForge defaults lower - and
+# because that differs from the template's own default, the key has to be sent
+# every time rather than omitted at the default the way ``repeat_penalty`` is.
+DEFAULT_REASONING_EFFORT = "medium"
+DEFAULT_PRESERVE_THINKING = True
 
 
 @dataclass(frozen=True)
@@ -130,13 +141,25 @@ def get_sampling_profile(mode: str) -> SamplingProfile:
     )
 
 
-def build_sampling_extra_body(mode: str) -> dict[str, object]:
+def build_sampling_extra_body(
+    mode: str,
+    *,
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+) -> dict[str, object]:
     """Sampling knobs local servers accept outside the OpenAI chat schema.
 
     ``repeat_penalty`` is the llama.cpp / LM Studio name for the knob Hugging
     Face and vLLM call ``repetition_penalty``. It is only sent once configured
     away from its neutral 1.0, so servers that do not recognise the key keep
     seeing exactly the request they saw before the setting existed.
+
+    Reasoning effort gets no such treatment: the template falls back to ``xhigh``,
+    so leaving the key out would silently ignore the ``medium`` DataForge defaults
+    to. Unsloth and vLLM feed ``chat_template_kwargs`` to the Jinja render while
+    llama.cpp reads the top-level field, so it goes out both ways; a server that
+    knows neither ignores both. Instruct mode has no reasoning to size, so it
+    sends only its own kwarg.
     """
     profile = get_sampling_profile(mode)
 
@@ -148,6 +171,12 @@ def build_sampling_extra_body(mode: str) -> dict[str, object]:
         extra["repeat_penalty"] = profile.repeat_penalty
     if mode == "instruct":
         extra["chat_template_kwargs"] = {"enable_thinking": False}
+    else:
+        extra["chat_template_kwargs"] = {
+            "reasoning_effort": effort,
+            "preserve_thinking": preserve_thinking,
+        }
+        extra["reasoning_effort"] = effort
 
     return extra
 

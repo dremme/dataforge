@@ -144,9 +144,9 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 
 | Job | What it does |
 | --- | --- |
-| **Auto-caption** | Completes short drafts with a local vision LLM (thinking or instruct mode), optionally sending each clip's **audio** alongside its keyframes |
+| **Auto-caption** | Completes short drafts with a local vision LLM (reasoning or instruct mode, with a **[reasoning effort](docs/configuration.md#reasoning-effort)** setting), optionally sending each clip's **[audio](docs/configuration.md#audio-captioning)** alongside its keyframes |
 | **Set captions** | Apply the same text to many files |
-| **Verify captions** | Checks captions against the media — videos and GIFs via keyframes — and writes `.issue.json` when something is wrong |
+| **Verify captions** | Checks captions against the media — videos via keyframes, GIFs as stills — and writes `.issue.json` when something is wrong |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 | **Rename** | Numbered rename of media plus related sidecars |
 | **Watermark** | Burn text onto JPG, PNG, WebP, BMP, MP4, MOV, and M4V copies in a `watermarked` subfolder (size, opacity, position) |

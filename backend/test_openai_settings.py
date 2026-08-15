@@ -12,6 +12,8 @@ from openai_settings import (
     DEFAULT_OPENAI_API_KEY,
     DEFAULT_OPENAI_BASE_URL,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_PRESERVE_THINKING,
+    DEFAULT_REASONING_EFFORT,
     DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_TOP_K,
     INSTRUCT_DEFAULTS,
@@ -141,11 +143,44 @@ class OpenAISettingsTests(unittest.TestCase):
 
     def test_extra_body_disables_thinking_only_for_instruct(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            self.assertNotIn("chat_template_kwargs", build_sampling_extra_body("thinking"))
             self.assertEqual(
                 build_sampling_extra_body("instruct")["chat_template_kwargs"],
                 {"enable_thinking": False},
             )
+            # Instruct has no reasoning to size, so the effort keys stay out entirely.
+            self.assertNotIn("reasoning_effort", build_sampling_extra_body("instruct"))
+
+    def test_thinking_sends_reasoning_defaults_both_ways(self) -> None:
+        # Sent even at the default: the template falls back to xhigh, so omitting the
+        # key would quietly ignore the medium DataForge picks.
+        with patch.dict(os.environ, {}, clear=True):
+            extra = build_sampling_extra_body("thinking")
+            self.assertEqual(
+                extra["chat_template_kwargs"],
+                {
+                    "reasoning_effort": DEFAULT_REASONING_EFFORT,
+                    "preserve_thinking": DEFAULT_PRESERVE_THINKING,
+                },
+            )
+            self.assertEqual(extra["reasoning_effort"], DEFAULT_REASONING_EFFORT)
+
+    def test_thinking_carries_each_supported_effort(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            for effort in ("low", "medium", "xhigh"):
+                extra = build_sampling_extra_body("thinking", effort=effort)
+                kwargs = extra["chat_template_kwargs"]
+                assert isinstance(kwargs, dict)
+                self.assertEqual(kwargs["reasoning_effort"], effort)
+                self.assertEqual(extra["reasoning_effort"], effort)
+
+    def test_thinking_carries_preserve_thinking_off(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            kwargs = build_sampling_extra_body("thinking", preserve_thinking=False)[
+                "chat_template_kwargs"
+            ]
+            assert isinstance(kwargs, dict)
+            self.assertIs(kwargs["preserve_thinking"], False)
+            self.assertEqual(kwargs["reasoning_effort"], DEFAULT_REASONING_EFFORT)
 
     def test_neutral_repeat_penalty_is_explicitly_omitted(self) -> None:
         with patch.dict(

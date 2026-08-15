@@ -141,9 +141,9 @@ def verify_captions_failure_message(stats: dict[str, int]) -> str | None:
             parts.append(f"{read_errors} files could not be read")
     if frame_errors:
         if frame_errors == 1:
-            parts.append("1 video or GIF could not yield keyframes")
+            parts.append("1 video could not yield keyframes")
         else:
-            parts.append(f"{frame_errors} videos or GIFs could not yield keyframes")
+            parts.append(f"{frame_errors} videos could not yield keyframes")
 
     summary = "; ".join(parts) + "."
     if parse_errors and not api_errors and not frame_errors:

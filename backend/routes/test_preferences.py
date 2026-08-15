@@ -83,6 +83,8 @@ class VerifyCaptionsPreferencesEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mode"], "instruct")
+        self.assertEqual(response.json()["reasoning_effort"], "medium")
+        self.assertIs(response.json()["preserve_thinking"], True)
         self.assertEqual(response.json()["context"], "")
         self.assertTrue(response.json()["folder_path"])
 
@@ -150,6 +152,35 @@ class VerifyCaptionsPreferencesEndpointTests(unittest.TestCase):
 
         read_back = client.get(f"/api/preferences/verify-captions?path={quote(folder)}")
         self.assertEqual(read_back.json()["context"], "")
+
+    def test_reasoning_knobs_are_stored_globally(self) -> None:
+        folder_a = r"C:\Photos\A"
+        folder_b = r"C:\Photos\B"
+
+        written = client.put(
+            "/api/preferences/verify-captions",
+            json={
+                "reasoning_effort": "xhigh",
+                "preserve_thinking": False,
+                "folder_path": folder_a,
+            },
+        )
+        self.assertEqual(written.status_code, 200)
+        self.assertEqual(written.json()["reasoning_effort"], "xhigh")
+        self.assertIs(written.json()["preserve_thinking"], False)
+
+        # Global, not folder-keyed: another folder reads back the same choice.
+        read_b = client.get(f"/api/preferences/verify-captions?path={quote(folder_b)}")
+        self.assertEqual(read_b.json()["reasoning_effort"], "xhigh")
+        self.assertIs(read_b.json()["preserve_thinking"], False)
+
+    def test_rejects_an_unknown_reasoning_effort(self) -> None:
+        """``high`` is the plausible wrong value: the template raises on it."""
+        response = client.put(
+            "/api/preferences/verify-captions",
+            json={"reasoning_effort": "high", "folder_path": r"C:\Photos\A"},
+        )
+        self.assertEqual(response.status_code, 422)
 
 
 class GalleryDisplayPreferencesEndpointTests(unittest.TestCase):

@@ -3,6 +3,10 @@ import {
   AutomationModeSelector,
   type AutomationMode,
 } from "@/features/automation/components/AutomationModeSelector";
+import {
+  ReasoningEffortSelector,
+  type ReasoningEffort,
+} from "@/features/automation/components/ReasoningEffortSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 
@@ -11,7 +15,12 @@ export type AutoCaptionMode = AutomationMode;
 interface AutoCaptionDialogProps {
   folderLabel: string;
   busy?: boolean;
-  onConfirm: (mode: AutoCaptionMode, captionAudio: boolean) => void;
+  onConfirm: (
+    mode: AutoCaptionMode,
+    captionAudio: boolean,
+    reasoningEffort: ReasoningEffort,
+    preserveThinking: boolean,
+  ) => void;
   onCancel: () => void;
 }
 
@@ -23,12 +32,15 @@ export function AutoCaptionDialog({
 }: AutoCaptionDialogProps) {
   const [mode, setMode] = useState<AutoCaptionMode>("thinking");
   const [captionAudio, setCaptionAudio] = useState(false);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
+  const [preserveThinking, setPreserveThinking] = useState(true);
   const captionAudioId = useId();
+  const preserveThinkingId = useId();
 
   const handleConfirm = useCallback(() => {
     if (busy) return;
-    onConfirm(mode, captionAudio);
-  }, [busy, captionAudio, mode, onConfirm]);
+    onConfirm(mode, captionAudio, reasoningEffort, preserveThinking);
+  }, [busy, captionAudio, mode, onConfirm, preserveThinking, reasoningEffort]);
 
   return (
     <Dialog
@@ -60,6 +72,32 @@ export function AutoCaptionDialog({
         disabled={busy}
         onChange={setMode}
       />
+
+      <ReasoningEffortSelector
+        value={reasoningEffort}
+        name="auto-caption-reasoning-effort"
+        groupLabel="Caption reasoning effort"
+        disabled={mode === "instruct" || busy}
+        onChange={setReasoningEffort}
+      />
+
+      <div className="dialog__field">
+        <label className="dialog__checkbox" htmlFor={preserveThinkingId}>
+          <input
+            id={preserveThinkingId}
+            type="checkbox"
+            className="dialog__checkbox-input"
+            checked={preserveThinking}
+            onChange={(event) => setPreserveThinking(event.target.checked)}
+            disabled={mode === "instruct" || busy}
+          />
+          <span className="dialog__checkbox-box" aria-hidden="true" />
+          <span className="dialog__checkbox-label">Preserve thinking</span>
+        </label>
+        <p className="dialog__hint">
+          Keeps earlier reasoning in the prompt instead of dropping it.
+        </p>
+      </div>
 
       <div className="dialog__field">
         <label className="dialog__checkbox" htmlFor={captionAudioId}>

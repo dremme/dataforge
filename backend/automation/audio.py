@@ -79,7 +79,9 @@ def extract_audio_wav(media_path: Path, *, ffmpeg: str | None = None) -> bytes |
     """
     if media_path.suffix.lower() not in VIDEO_EXTENSIONS:
         # A GIF carries frames and no sound, and a still carries neither. Neither is
-        # worth spawning a process to find that out.
+        # worth spawning a process to find that out. Auto-caption no longer sends a
+        # GIF here at all - it counts as an image now - so this guard is defence
+        # against a caller that has not caught up, not the path GIFs take.
         return None
 
     executable = ffmpeg or ffmpeg_path()

@@ -124,6 +124,39 @@ class AutoCaptionAutomationEndpointTests(unittest.TestCase):
             self.assertEqual(received.get("caption_audio"), True)
             self.assertEqual(received.get("mode"), "instruct")
 
+    def test_reasoning_knobs_default_to_medium_and_preserved(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            received = self._start_and_capture(root)
+
+            self.assertEqual(received.get("reasoning_effort"), "medium")
+            self.assertEqual(received.get("preserve_thinking"), True)
+
+    def test_reasoning_knobs_reach_the_runner(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            received = self._start_and_capture(
+                root, reasoning_effort="xhigh", preserve_thinking=False
+            )
+
+            self.assertEqual(received.get("reasoning_effort"), "xhigh")
+            self.assertEqual(received.get("preserve_thinking"), False)
+
+    def test_rejects_an_unknown_reasoning_effort(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            response = client.post(
+                f"/api/automation/auto-caption?path={quote(str(root))}",
+                json={"reasoning_effort": "high"},
+            )
+            self.assertEqual(response.status_code, 422)
+
     def test_audio_captioning_is_refused_without_ffmpeg(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")

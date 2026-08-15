@@ -1,7 +1,8 @@
 """Read GIF frames and timing with Pillow.
 
-The single owner of every ``Image.open`` against a GIF, so the frame endpoint and
-the captioning job decode the same way. Three Pillow behaviours shape this module:
+The single owner of every ``Image.open`` against a GIF, so the gallery's frame
+endpoint and the captioning jobs' opening frame decode the same way. Three Pillow
+behaviours shape this module:
 
 A GIF frame is a delta against the frames before it, so there is no such thing as
 decoding frame N on its own - Pillow always replays from frame 0. Reading frames
@@ -348,9 +349,8 @@ def keyframe_indices(total_frames: int, count: int) -> list[int]:
     sequence shorter than ``count`` yields every frame once rather than repeating
     frames to pad the list out.
 
-    ``automation.vision`` samples videos with this too, so both kinds are spread the
-    same way. It chooses the ``count`` separately though: a video scales its own with
-    the clip's length, where a GIF is always asked for the fixed one.
+    Lives here for history rather than for GIFs: ``automation.vision`` is now its
+    only caller, sampling videos with it. A GIF reaches the model as one frame.
     """
     if total_frames <= 0 or count <= 0:
         return []
@@ -361,30 +361,23 @@ def keyframe_indices(total_frames: int, count: int) -> list[int]:
     return sorted({round(index * (total_frames - 1) / (count - 1)) for index in range(count)})
 
 
-def extract_gif_keyframes(path: Path, count: int) -> list[Image.Image] | None:
-    """Evenly spaced frames in chronological order, or ``None`` if unreadable.
+def extract_gif_first_frame(path: Path) -> Image.Image | None:
+    """The opening frame as opaque RGB, or ``None`` if the GIF cannot be read.
 
-    Decodes from an in-memory copy so the path is never held open across the walk
+    What the captioning jobs send: a GIF is described as a still, and this is the
+    frame they describe. It goes through :func:`_flatten` rather than a plain
+    ``convert("RGB")`` because that would discard the alpha without compositing,
+    leaving transparent pixels showing whatever colour the palette happens to hold
+    at the transparent index - a different backdrop per file, and a different one
+    again from the JPG the frame scrubber saves.
+
+    Decodes from an in-memory copy so the path is never held open across the read
     (same Windows lock discipline as the frame endpoint).
     """
-    total_frames = gif_frame_count(path)
-    if total_frames is None:
-        return None
-
-    wanted = set(keyframe_indices(total_frames, count))
-    if not wanted:
-        return None
-
     try:
         data = _read_gif_bytes(path)
         with _open_gif(data) as image:
-            frames = [
-                _flatten(frame)
-                for position, frame in enumerate(ImageSequence.Iterator(image))
-                if position in wanted
-            ]
+            return _flatten(image)
     except (OSError, UnidentifiedImageError, GifFrameError) as exc:
-        logger.error("GIF keyframe extraction failed for %s: %s", path.name, exc)
+        logger.error("GIF first frame read failed for %s: %s", path.name, exc)
         return None
-
-    return frames or None

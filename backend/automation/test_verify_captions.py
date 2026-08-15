@@ -30,8 +30,9 @@ from automation.vision import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
     VIDEO_KEYFRAME_COUNT,
+    MediaFrames,
     MediaLoadError,
-    extract_keyframes,
+    load_media_images,
     media_kind_for,
 )
 from captions import issue_file_path
@@ -406,8 +407,35 @@ class VerifyCaptionsApiTests(unittest.TestCase):
             self.assertEqual(captured["temperature"], 1.0)
             self.assertEqual(captured["presence_penalty"], 0.0)
             self.assertEqual(len(captured["messages"]), 2)
-            self.assertNotIn("chat_template_kwargs", captured["extra_body"])
+            self.assertEqual(
+                captured["extra_body"]["chat_template_kwargs"],
+                {"reasoning_effort": "medium", "preserve_thinking": True},
+            )
+            self.assertEqual(captured["extra_body"]["reasoning_effort"], "medium")
             self.assertIn("Outdoor portraits.", captured["messages"][0]["content"])
+
+    def test_verify_caption_forwards_reasoning_effort(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+
+            fake_client, captured = _make_fake_verify_client()
+            frames = [Image.new("RGB", (128, 128), color="blue")]
+            verify_caption(
+                fake_client,
+                media,
+                build_verification_system_prompt(),
+                "A hiker on a trail.",
+                images=frames,
+                mode="thinking",
+                effort="low",
+                preserve_thinking=False,
+            )
+
+            self.assertEqual(
+                captured["extra_body"]["chat_template_kwargs"],
+                {"reasoning_effort": "low", "preserve_thinking": False},
+            )
+            self.assertEqual(captured["extra_body"]["reasoning_effort"], "low")
 
     def test_verify_caption_forwards_configured_repeat_penalty(self) -> None:
         with TempMediaFolder() as root:
@@ -684,7 +712,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             # Fixture MP4s are often not seekable; the job only needs a successful load
             # here so verify_caption is reached for both motion types.
             def fake_load(path):
-                return frames, None
+                return MediaFrames(images=frames), None
 
             with (
                 patch("automation.verify_captions.load_media_images", side_effect=fake_load),
@@ -702,18 +730,21 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
     def test_run_job_picks_the_prompt_matching_each_media_kind(self) -> None:
         # The kinds share every other code path, so nothing else catches a still
-        # being fact-checked against the keyframe prompt or the reverse.
+        # being fact-checked against the keyframe prompt or the reverse. The GIF is
+        # here to pin which side of that line it falls on: the still one.
         with TempMediaFolder() as root:
             photo = write_media(root, "photo.png")
             gif = write_gif(root, "loop.gif", frames=8)
+            video = write_mp4_video(root, "clip.mp4")
             write_txt_caption(photo, "A still.")
             write_txt_caption(gif, "An animated loop.")
+            write_txt_caption(video, "A short clip.")
             frames = [Image.new("RGB", (64, 64), color="blue")]
 
             with (
                 patch(
                     "automation.verify_captions.load_media_images",
-                    side_effect=lambda _path: (frames, None),
+                    side_effect=lambda _path: (MediaFrames(images=frames), None),
                 ),
                 patch(
                     "automation.verify_captions.verify_caption",
@@ -723,11 +754,11 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                 run_verify_captions_job(root)
 
             prompts = {call.args[1].name: call.args[2] for call in mock_verify.call_args_list}
+            image_prompt = build_verification_system_prompt(media_kind="image")
+            self.assertEqual(prompts["photo.png"], image_prompt)
+            self.assertEqual(prompts["loop.gif"], image_prompt)
             self.assertEqual(
-                prompts["photo.png"], build_verification_system_prompt(media_kind="image")
-            )
-            self.assertEqual(
-                prompts["loop.gif"], build_verification_system_prompt(media_kind="video")
+                prompts["clip.mp4"], build_verification_system_prompt(media_kind="video")
             )
 
     def test_run_job_records_frame_errors(self) -> None:
@@ -745,21 +776,23 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(result["stats"]["success"], 0)
             self.assertFalse(issue_file_path(media).exists())
 
-    def test_verify_caption_sends_gif_keyframes_not_a_single_still(self) -> None:
+    def test_verify_caption_sends_a_gif_as_a_single_still(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif", frames=8)
-            frames = extract_keyframes(media)
+            frames, error = load_media_images(media)
+            self.assertIsNone(error)
             assert frames is not None
-            self.assertGreater(len(frames), 1)
-            self.assertEqual(media_kind_for(media), "video")
+            self.assertEqual(len(frames.images), 1)
+            self.assertEqual(media_kind_for(media), "image")
 
             fake_client, captured = _make_fake_verify_client()
             response = verify_caption(
                 fake_client,
                 media,
-                build_verification_system_prompt(media_kind="video"),
+                build_verification_system_prompt(media_kind="image"),
                 "An animated loop.",
-                images=frames,
+                images=frames.images,
+                timestamps=frames.timestamps,
                 mode="instruct",
             )
 
@@ -767,15 +800,16 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             user_content = captured["messages"][1]["content"]
             image_parts = [part for part in user_content if part.get("type") == "image_url"]
             text_parts = [part for part in user_content if part.get("type") == "text"]
-            self.assertEqual(len(image_parts), len(frames))
-            self.assertIn(f"{len(frames)} keyframes", text_parts[0]["text"])
-            self.assertNotIn(f"{VIDEO_KEYFRAME_COUNT} keyframes", text_parts[0]["text"])
+            self.assertEqual(len(image_parts), 1)
+            # One instruction and no frame labels: nothing claims a sequence.
+            self.assertEqual(len(text_parts), 1)
+            self.assertNotIn("keyframes", text_parts[0]["text"])
 
     def test_verification_never_sends_audio(self) -> None:
         """Auto-caption's audio option must not leak into the job that shares its plumbing."""
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif", frames=8)
-            frames = extract_keyframes(media)
+            frames, _error = load_media_images(media)
             assert frames is not None
 
             for mode in ("thinking", "instruct"):
@@ -784,9 +818,9 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                     verify_caption(
                         fake_client,
                         media,
-                        build_verification_system_prompt(media_kind="video"),
+                        build_verification_system_prompt(media_kind="image"),
                         "An animated loop.",
-                        images=frames,
+                        images=frames.images,
                         mode=mode,
                     )
 

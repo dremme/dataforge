@@ -12,10 +12,10 @@ from pydantic import BaseModel, Field
 type CaptionStatus = Literal["none", "empty", "text"]
 type CaptionFileType = Literal["json", "txt"]
 
-#: How an item is rendered, which is not how it is captioned: a GIF is its own type
-#: here because it needs an ``<img>``, while ``auto_caption.MediaKind`` calls it a
-#: video because it trains like one. Wider than ``MediaKind`` either way, since a
-#: sysprompt entry is listed as media too.
+#: How an item is rendered. A GIF is its own type here because it needs an ``<img>``
+#: and animates, where ``MediaKind`` folds it in with images and captions its opening
+#: frame. Wider than ``MediaKind`` either way, since a sysprompt entry is listed as
+#: media too.
 type MediaType = Literal["image", "video", "gif", "sysprompt"]
 
 #: Watermark appearance, mirrored by the size table in ``automation/watermark.py``.
@@ -30,6 +30,11 @@ type WatermarkPosition = Annotated[
 
 #: How the vision model is prompted: ``thinking`` lets it reason first.
 type AutomationMode = Literal["thinking", "instruct"]
+
+#: How hard the model reasons before answering, in thinking mode. The set is fixed by the
+#: chat template, which raises on anything else - see ``llm-templates/qwen38_template.jinja``.
+#: There is no ``high``; the template's own default is ``xhigh``, DataForge's is ``medium``.
+type ReasoningEffort = Literal["low", "medium", "xhigh"]
 
 type JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
 type JobType = Literal[
@@ -219,6 +224,11 @@ class JobSelectionRequest(BaseModel):
 
 class AutoCaptionStartRequest(JobSelectionRequest):
     mode: AutomationMode = "thinking"
+    reasoning_effort: ReasoningEffort = "medium"
+    preserve_thinking: bool = Field(
+        default=True,
+        description="Keep earlier assistant reasoning in the rendered prompt.",
+    )
     caption_audio: bool = Field(
         default=False,
         description="Send each clip's audio track with its keyframes. Needs an omni model.",
@@ -274,18 +284,30 @@ class WatermarkSettingsUpdate(BaseModel):
 
 class VerifyCaptionsSettingsResponse(BaseModel):
     mode: AutomationMode = "instruct"
+    reasoning_effort: ReasoningEffort = "medium"
+    preserve_thinking: bool = Field(
+        default=True,
+        description="Keep earlier assistant reasoning in the rendered prompt.",
+    )
     context: str = ""
     folder_path: str
 
 
 class VerifyCaptionsSettingsUpdate(BaseModel):
     mode: AutomationMode | None = None
+    reasoning_effort: ReasoningEffort | None = None
+    preserve_thinking: bool | None = None
     context: str | None = None
     folder_path: str
 
 
 class VerifyCaptionsStartRequest(JobSelectionRequest):
     mode: AutomationMode = "instruct"
+    reasoning_effort: ReasoningEffort = "medium"
+    preserve_thinking: bool = Field(
+        default=True,
+        description="Keep earlier assistant reasoning in the rendered prompt.",
+    )
     context: str = ""
 
 

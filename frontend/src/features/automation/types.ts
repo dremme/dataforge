@@ -3,7 +3,12 @@ import type { AutoCaptionMode } from "@/features/automation/components/AutoCapti
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import type { VerifyCaptionsSettings } from "@/features/automation/preferences/verifyCaptionsPreferences";
 import type { WatermarkSettings } from "@/features/automation/preferences/watermarkPreferences";
-import type { WatermarkOpacity, WatermarkPosition, WatermarkSizeName } from "@/shared/types";
+import type {
+  ReasoningEffort,
+  WatermarkOpacity,
+  WatermarkPosition,
+  WatermarkSizeName,
+} from "@/shared/types";
 
 type FolderBusyDialogState<TConfirm> = {
   open: boolean;
@@ -16,8 +21,22 @@ type FolderBusyDialogState<TConfirm> = {
 export type AutomationDialogsState = {
   setCaptions: FolderBusyDialogState<(caption: string, overwrite: boolean) => void>;
   backupCaptions: FolderBusyDialogState<(overwrite: boolean) => void>;
-  autoCaption: FolderBusyDialogState<(mode: AutoCaptionMode, captionAudio: boolean) => void>;
-  verifyCaptions: FolderBusyDialogState<(mode: VerifyCaptionsMode, context: string) => void> & {
+  autoCaption: FolderBusyDialogState<
+    (
+      mode: AutoCaptionMode,
+      captionAudio: boolean,
+      reasoningEffort: ReasoningEffort,
+      preserveThinking: boolean,
+    ) => void
+  >;
+  verifyCaptions: FolderBusyDialogState<
+    (
+      mode: VerifyCaptionsMode,
+      context: string,
+      reasoningEffort: ReasoningEffort,
+      preserveThinking: boolean,
+    ) => void
+  > & {
     folderPath: string;
     initialSettings: VerifyCaptionsSettings | null;
   };

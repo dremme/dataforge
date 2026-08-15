@@ -15,7 +15,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from schemas import GalleryItem, JobResponse, UiSettingsUpdate
+from schemas import AutoCaptionStartRequest, GalleryItem, JobResponse, UiSettingsUpdate
 
 
 def _gallery_item(**overrides: object) -> GalleryItem:
@@ -114,6 +114,23 @@ class JobResponseSchemaTests(unittest.TestCase):
 
     def test_keeps_a_retired_job_status_from_persisted_history(self) -> None:
         self.assertEqual(_job(status="paused").status, "paused")
+
+
+class ReasoningEffortSchemaTests(unittest.TestCase):
+    """The chat template raises on an unrecognised effort, so the API must reject it first."""
+
+    def test_accepts_every_level_the_template_supports(self) -> None:
+        for effort in ("low", "medium", "xhigh"):
+            self.assertEqual(
+                AutoCaptionStartRequest(reasoning_effort=effort).reasoning_effort, effort
+            )
+
+    def test_defaults_to_medium(self) -> None:
+        self.assertEqual(AutoCaptionStartRequest().reasoning_effort, "medium")
+
+    def test_rejects_high_which_the_template_has_no_branch_for(self) -> None:
+        with self.assertRaises(ValidationError):
+            AutoCaptionStartRequest(reasoning_effort="high")
 
 
 class UiSettingsUpdateSchemaTests(unittest.TestCase):

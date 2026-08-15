@@ -61,6 +61,8 @@ def write_verify_captions_settings(
 ) -> VerifyCaptionsSettingsResponse:
     return update_verify_captions_settings(
         mode=body.mode,
+        reasoning_effort=body.reasoning_effort,
+        preserve_thinking=body.preserve_thinking,
         context=body.context,
         folder_path=body.folder_path,
     )

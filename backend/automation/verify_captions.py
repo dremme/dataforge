@@ -34,7 +34,11 @@ from captions import (
     normalize_issue_fixes,
 )
 from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
-from openai_settings import get_openai_model
+from openai_settings import (
+    DEFAULT_PRESERVE_THINKING,
+    DEFAULT_REASONING_EFFORT,
+    get_openai_model,
+)
 from schemas import AutomationMode
 
 logger = logging.getLogger(__name__)
@@ -341,6 +345,7 @@ def build_verification_user_text(
     ref_caption: str,
     media_kind: MediaKind = "image",
     frame_count: int = 1,
+    seconds: float | None = None,
 ) -> str:
     if media_kind == "video":
         return textwrap.dedent(
@@ -348,7 +353,7 @@ def build_verification_user_text(
             Proposed caption to verify:
             {ref_caption.strip()}
 
-            {keyframe_sentence(frame_count)}
+            {keyframe_sentence(frame_count, seconds)}
             Compare this caption against the video keyframes. Output only the JSON object.
             """
         ).strip()
@@ -377,22 +382,34 @@ def verify_caption(
     model: str | None = None,
     max_tokens: int | None = None,
     mode: AutomationMode = "instruct",
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+    timestamps: list[float] | None = None,
 ) -> str | None:
     """Ask the model to fact-check ``ref_caption`` against already-loaded ``images``.
 
     Decoding stays with ``process_media`` so a file that never opened is reported as
-    such instead of being retried three times as a model failure.
+    such instead of being retried three times as a model failure. ``timestamps``
+    follows the same rule: resolved once by the caller, sent again on every retry.
     """
     media_kind = media_kind_for(media_path)
     return request_vision_text(
         client,
         system_prompt,
         images,
-        build_verification_user_text(ref_caption, media_kind, len(images)),
+        build_verification_user_text(
+            ref_caption,
+            media_kind,
+            len(images),
+            timestamps[-1] if timestamps else None,
+        ),
         max_pixels=MEDIA_KIND_MAX_PIXELS[media_kind],
         mode=mode,
+        effort=effort,
+        preserve_thinking=preserve_thinking,
         model=model,
         max_tokens=max_tokens,
+        timestamps=timestamps,
     )
 
 
@@ -403,6 +420,8 @@ def process_media(
     *,
     model: str | None = None,
     mode: AutomationMode = "instruct",
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, VerificationResult | None, str, str | None]:
     resolved_model = model if model is not None else get_openai_model()
@@ -411,7 +430,7 @@ def process_media(
         return media_path, None, status, None
 
     media_kind = media_kind_for(media_path)
-    images, load_error = load_media_images(media_path)
+    frames, load_error = load_media_images(media_path)
     if load_error is not None:
         return media_path, None, load_error.status, load_error.message
 
@@ -423,9 +442,12 @@ def process_media(
             media_path,
             system_prompt,
             ref_caption,
-            images=images,
+            images=frames.images,
             model=resolved_model,
             mode=mode,
+            effort=effort,
+            preserve_thinking=preserve_thinking,
+            timestamps=frames.timestamps,
         )
         if raw_caption is None:
             return ModelOutcome(
@@ -514,6 +536,8 @@ def run_verify_captions_job(
     *,
     model: str | None = None,
     mode: AutomationMode = "instruct",
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     context: str = "",
     on_progress: ProgressCallback | None = None,
     should_cancel: Callable[[], bool] | None = None,
@@ -535,6 +559,8 @@ def run_verify_captions_job(
                 system_prompts,
                 model=resolved_model,
                 mode=mode,
+                effort=reasoning_effort,
+                preserve_thinking=preserve_thinking,
                 should_cancel=should_cancel,
             )
 

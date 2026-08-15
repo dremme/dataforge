@@ -562,7 +562,16 @@
     border-color var(--transition),
     background var(--transition);
 
-  &:hover {
+  // The real radio is visually hidden, so the tile cannot carry :disabled itself
+  // and reads its input's state instead. Without this a disabled tile still shows
+  // a pointer and still lights its border, advertising a click that does nothing.
+  // The radio and the label text are faded separately, so the tile itself only
+  // drops the affordance - stacking another opacity here would double-fade them.
+  &:has(input:disabled) {
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:has(input:disabled)) {
     border-color: var(--accent-border);
   }
 

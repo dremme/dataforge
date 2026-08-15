@@ -37,7 +37,14 @@ export function isGif(item: GalleryItem): boolean {
   return extensionOf(item) === GIF_EXTENSION;
 }
 
-/** Whether the item carries a frame sequence, which is how LoRA training groups it. */
+/**
+ * Whether the item carries a frame sequence, which is how LoRA training groups it
+ * and how the gallery filters it.
+ *
+ * Not how it is captioned: the AI jobs describe a GIF from its opening frame, like
+ * any other still. That split is deliberate - do not "align" this with the backend's
+ * `MediaKind` or the Videos filter stops finding GIFs.
+ */
 export function isMotion(item: GalleryItem): boolean {
   return isVideo(item) || isGif(item);
 }

@@ -29,7 +29,12 @@ from automation.vision import (
 from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
 from constants import IMAGE_EXTENSIONS, MOTION_EXTENSIONS, SYSPROMPT_FILENAME
 from ffmpeg_bin import ffmpeg_path
-from openai_settings import get_max_tokens, get_openai_model
+from openai_settings import (
+    DEFAULT_PRESERVE_THINKING,
+    DEFAULT_REASONING_EFFORT,
+    get_max_tokens,
+    get_openai_model,
+)
 from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
@@ -154,6 +159,7 @@ def _build_user_text(
     frame_count: int,
     *,
     has_audio: bool = False,
+    seconds: float | None = None,
 ) -> str:
     """The instruction for one request, which states what that request actually carries.
 
@@ -168,7 +174,7 @@ def _build_user_text(
             f"""
             Caption the video for LoRA training.
 
-            {keyframe_sentence(frame_count)}{audio_note}
+            {keyframe_sentence(frame_count, seconds)}{audio_note}
 
             Use the provided description as **very close guidance** — keep its overall meaning and wording style as much as possible.
             Follow **all** rules from the system instructions exactly.
@@ -201,24 +207,37 @@ def complete_caption(
     model: str | None = None,
     max_tokens: int | None = None,
     mode: str = "thinking",
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+    timestamps: list[float] | None = None,
     audio_wav: bytes | None = None,
 ) -> str | None:
     """Ask the model to caption ``images``, which the caller has already loaded.
 
     Decoding stays with ``process_media`` so a file that never opened is reported as
-    such instead of being retried three times as a model failure. ``audio_wav`` follows
-    the same rule: extracted once by the caller, sent again on every retry.
+    such instead of being retried three times as a model failure. ``audio_wav`` and
+    ``timestamps`` follow the same rule: resolved once by the caller, sent again on
+    every retry.
     """
     media_kind = media_kind_for(media_path)
     return request_vision_text(
         client,
         system_prompt,
         images,
-        _build_user_text(ref_caption, media_kind, len(images), has_audio=audio_wav is not None),
+        _build_user_text(
+            ref_caption,
+            media_kind,
+            len(images),
+            has_audio=audio_wav is not None,
+            seconds=timestamps[-1] if timestamps else None,
+        ),
         max_pixels=MEDIA_KIND_MAX_PIXELS[media_kind],
         mode=mode,
+        effort=effort,
+        preserve_thinking=preserve_thinking,
         model=model,
         max_tokens=max_tokens,
+        timestamps=timestamps,
         audio_wav=audio_wav,
     )
 
@@ -242,6 +261,8 @@ def process_media(
     model: str | None = None,
     max_tokens: int | None = None,
     mode: str = "thinking",
+    effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     caption_audio: bool = False,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, str | None, str, str | None, bool]:
@@ -257,7 +278,7 @@ def process_media(
         return media_path, None, status, None, False
 
     media_kind = media_kind_for(media_path)
-    images, load_error = load_media_images(media_path)
+    frames, load_error = load_media_images(media_path)
     if load_error is not None:
         return media_path, None, load_error.status, load_error.message, False
 
@@ -272,10 +293,13 @@ def process_media(
             media_path,
             system_prompts[media_kind],
             ref_caption,
-            images=images,
+            images=frames.images,
             model=resolved_model,
             max_tokens=resolved_max_tokens,
             mode=mode,
+            effort=effort,
+            preserve_thinking=preserve_thinking,
+            timestamps=frames.timestamps,
             audio_wav=audio_wav,
         )
         if raw_caption is None:
@@ -379,6 +403,8 @@ def run_auto_caption_job(
     *,
     model: str | None = None,
     mode: str = "thinking",
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     caption_audio: bool = False,
     on_progress: ProgressCallback | None = None,
     should_cancel: Callable[[], bool] | None = None,
@@ -399,6 +425,8 @@ def run_auto_caption_job(
                 system_prompts,
                 model=resolved_model,
                 mode=mode,
+                effort=reasoning_effort,
+                preserve_thinking=preserve_thinking,
                 caption_audio=caption_audio,
                 should_cancel=should_cancel,
             )

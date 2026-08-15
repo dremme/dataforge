@@ -158,6 +158,12 @@
     user-select: none;
   }
 
+  // Same reasoning as the option tile: the input is visually hidden, so the label
+  // reads its state to drop the pointer. The box and the text already fade below.
+  &__checkbox:has(&__checkbox-input:disabled) {
+    cursor: not-allowed;
+  }
+
   &__checkbox-input {
     @include visually-hidden;
   }
