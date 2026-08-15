@@ -12,7 +12,6 @@ from filesystem import (
     folder_display_name,
     list_child_folders,
     looks_like_windows_path,
-    normalize_folder_path,
     normalize_user_path,
     path_leaf_name,
     preference_folder_key,
@@ -53,9 +52,7 @@ class PathHandlingTests(unittest.TestCase):
 
     def test_normalize_user_path_resolves_existing_temp_folder(self) -> None:
         with TempMediaFolder() as root:
-            resolved = normalize_user_path(str(root))
-            self.assertEqual(resolved, root.resolve())
-            self.assertEqual(normalize_folder_path(str(root)), resolved)
+            self.assertEqual(normalize_user_path(str(root)), root.resolve())
 
     def test_normalize_user_path_preserves_host_separators(self) -> None:
         with TempMediaFolder() as root:

@@ -27,7 +27,6 @@ from thumbnails import (
     get_or_create_thumbnail,
     get_thumbnail_cache_budget_bytes,
     get_thumbnail_cache_dir,
-    legacy_thumbnail_cache_path,
     prune_thumbnail_cache,
     thumbnail_cache_path,
 )
@@ -97,18 +96,6 @@ class ThumbnailGenerationTests(unittest.TestCase):
             self.assertTrue(thumbnail.is_file())
             self.assertEqual(thumbnail, thumbnail_cache_path(media, 200))
             self.assertEqual(thumbnail.parent.parent, cache_dir)
-
-    def test_reads_legacy_flat_cache_entries(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, width=200, height=150)
-            # Simulate an old flat-layout .jpg thumbnail (pre-shard + pre-WebP)
-            legacy_jpg = legacy_thumbnail_cache_path(media, 180).with_suffix(".jpg")
-            legacy_jpg.parent.mkdir(parents=True, exist_ok=True)
-            legacy_jpg.write_bytes(b"\xff\xd8" + b"\x00" * 32)
-
-            thumbnail = get_or_create_thumbnail(media, 180)
-
-            self.assertEqual(thumbnail, legacy_jpg)
 
     def test_gif_thumbnail_uses_pillow_rather_than_ffmpeg(self) -> None:
         with TempMediaFolder() as root:

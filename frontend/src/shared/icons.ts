@@ -49,7 +49,6 @@ export {
   Images as iconImages,
   Info as iconInfo,
   Italic as iconItalic,
-  Lightbulb as iconLightbulb,
   Link as iconLink,
   List as iconList,
   ListOrdered as iconListOrdered,

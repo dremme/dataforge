@@ -80,16 +80,11 @@ describe("job type display", () => {
     expect(jobIcon(job)).toBe(iconPencilSparkles);
   });
 
-  it("defaults missing job_type to auto-caption and tolerates unknown API values", () => {
-    const missing = makeJob({ job_type: undefined });
-    expect(jobTypeOf(missing)).toBe("auto_caption");
-    expect(jobTypeLabel(missing)).toBe("Auto-caption");
-    expect(jobIcon(missing)).toBe(iconPencilSparkles);
-
-    const legacy = makeJob({ job_type: "legacy_job" as Job["job_type"] });
-    expect(jobTypeOf(legacy)).toBe("auto_caption");
-    expect(jobTypeLabel(legacy)).toBe("legacy_job");
-    expect(jobIcon(legacy)).toBe(iconCircleQuestionMark);
+  it("tolerates a job type retired since the row was written", () => {
+    const retired = makeJob({ job_type: "legacy_job" as Job["job_type"] });
+    expect(jobTypeOf(retired)).toBe("auto_caption");
+    expect(jobTypeLabel(retired)).toBe("legacy_job");
+    expect(jobIcon(retired)).toBe(iconCircleQuestionMark);
   });
 });
 
@@ -347,7 +342,7 @@ describe("missing caption warnings", () => {
       status: "completed",
       processed: 3,
       total: 3,
-      stats: { success: 2, no_txt: 1 },
+      stats: { success: 2, no_caption: 1 },
     });
 
     expect(jobShowsWarningState(job)).toBe(true);
@@ -369,23 +364,6 @@ describe("missing caption warnings", () => {
     expect(jobWarningMessage(job)).toBe(
       "3 files had no caption sidecar (.json/.txt) and were skipped.",
     );
-  });
-
-  it("reads the current no_caption stat as well as the legacy no_txt one", () => {
-    const legacy = makeJob({
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 2, no_txt: 1 },
-    });
-    const current = makeJob({
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 2, no_caption: 1 },
-    });
-
-    expect(jobWarningMessage(legacy)).toBe(jobWarningMessage(current));
   });
 });
 
@@ -547,7 +525,7 @@ describe("verify captions jobs", () => {
       status: "completed",
       processed: 2,
       total: 2,
-      stats: { success: 1, no_txt: 1 },
+      stats: { success: 1, no_caption: 1 },
     });
 
     expect(jobShowsWarningState(job)).toBe(true);
@@ -648,7 +626,7 @@ describe("jobCompletionNotification", () => {
           status: "completed",
           processed: 2,
           total: 2,
-          stats: { success: 1, no_txt: 1 },
+          stats: { success: 1, no_caption: 1 },
         }),
       ),
     ).toEqual({

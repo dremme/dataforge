@@ -131,10 +131,9 @@ function jobCaptionErrorCount(job: Job): number {
   return (stats.api_error ?? 0) + (stats.read_error ?? 0) + (stats.frame_error ?? 0);
 }
 
-/** Media skipped for having no caption to work from. `no_txt` is the pre-JSON stat name. */
+/** Media skipped for having no caption to work from. */
 function jobNoCaptionCount(job: Job): number {
-  const stats = job.stats ?? {};
-  return stats.no_caption ?? stats.no_txt ?? 0;
+  return job.stats?.no_caption ?? 0;
 }
 
 /**

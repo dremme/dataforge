@@ -80,11 +80,6 @@ def normalize_user_path(path: str) -> Path:
     return Path(text).expanduser().resolve()
 
 
-def normalize_folder_path(path: str) -> Path:
-    """Alias for :func:`normalize_user_path` (folders and files share the same rules)."""
-    return normalize_user_path(path)
-
-
 def path_leaf_name(path: str | Path) -> str:
     """Last path segment, safe for Windows-style strings on any host OS.
 

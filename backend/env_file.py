@@ -62,10 +62,6 @@ def load_env_file(*, override: bool = False, force: bool = False) -> Path | None
     return None
 
 
-def env_file_loaded() -> Path | None:
-    return _loaded_path
-
-
 def reset_env_file_state_for_tests() -> None:
     global _loaded_path, _load_attempted
     _loaded_path = None

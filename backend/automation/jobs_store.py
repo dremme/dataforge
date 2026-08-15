@@ -50,41 +50,9 @@ def _create_jobs_table_sql(table: str, *, if_not_exists: bool = False) -> str:
     return f"CREATE TABLE {exists_clause}{table} ({columns})"
 
 
-def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-        (name,),
-    ).fetchone()
-    return row is not None
-
-
 def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     return {row[1] for row in rows}
-
-
-def _migrate_legacy_auto_caption_jobs_table(conn: sqlite3.Connection) -> None:
-    if not _table_exists(conn, "auto_caption_jobs"):
-        return
-
-    columns = _column_names(conn, "auto_caption_jobs")
-    job_type_expr = "job_type" if "job_type" in columns else "'auto_caption'"
-
-    conn.execute(
-        f"""
-        INSERT OR IGNORE INTO jobs (
-            id, folder, job_type, status, total, processed, current_file, current_name,
-            stats_json, results_json, error, created_at, started_at, finished_at
-        )
-        SELECT
-            id, folder, {job_type_expr}, status, total, processed, current_file, current_name,
-            stats_json, results_json, error, created_at, started_at, finished_at
-        FROM auto_caption_jobs
-        """
-    )
-    conn.execute("DROP TABLE auto_caption_jobs")
-    conn.execute("DROP INDEX IF EXISTS idx_auto_caption_jobs_folder")
-    conn.execute("DROP INDEX IF EXISTS idx_auto_caption_jobs_status")
 
 
 def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
@@ -140,7 +108,6 @@ def init_jobs_table() -> None:
             ON jobs(status, created_at DESC)
             """
         )
-        _migrate_legacy_auto_caption_jobs_table(conn)
         _migrate_add_missing_columns(conn)
         _migrate_rebuild_jobs_table_if_needed(conn)
         conn.commit()
@@ -205,9 +172,7 @@ def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> di
     Absent rather than empty on purpose: an empty list would look like a job that
     produced no results, and re-saving such a job would erase what is on disk.
     """
-    # Tolerate rows missing a newer column during a transition.
-    padded = tuple(row) + (None,) * (len(columns) - len(row))
-    values = dict(zip(columns, padded, strict=True))
+    values = dict(zip(columns, row, strict=True))
 
     stats = _decode_json_object(values.pop("stats_json"))
     results = _decode_json_array(values.pop("results_json")) if "results_json" in values else None

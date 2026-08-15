@@ -166,8 +166,8 @@ export type ConfirmableJobType = JobTypeWithStartUi<"confirm">;
 
 const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
 
-export function isKnownJobType(value: string | null | undefined): value is JobType {
-  return typeof value === "string" && Object.hasOwn(JOB_TYPE_META, value);
+export function isKnownJobType(value: string): value is JobType {
+  return Object.hasOwn(JOB_TYPE_META, value);
 }
 
 function jobTypeMeta(type: JobType): JobTypeMeta {
@@ -193,18 +193,13 @@ export const SECONDARY_JOB_GROUPS: Array<{ id: JobGroup; label: string; types: J
     types: SECONDARY_JOB_TYPES.filter((type) => jobTypeMeta(type).group === group.id),
   })).filter((group) => group.types.length > 0);
 
-/** Safe for API values that may predate the registry or be unexpected. */
-export function jobTypeLabelFor(type: string | null | undefined): string {
-  if (isKnownJobType(type)) return JOB_TYPE_META[type].label;
-  // Older jobs omit job_type; treat as the primary type for display.
-  if (type == null || type.trim() === "") return JOB_TYPE_META[PRIMARY_JOB_TYPE].label;
-  return type.trim();
+/** Safe for persisted job rows holding a type retired since they were written. */
+export function jobTypeLabelFor(type: string): string {
+  return isKnownJobType(type) ? JOB_TYPE_META[type].label : type.trim();
 }
 
-export function jobTypeIconFor(type: string | null | undefined): AppIcon {
-  if (isKnownJobType(type)) return JOB_TYPE_META[type].icon;
-  if (type == null || type.trim() === "") return JOB_TYPE_META[PRIMARY_JOB_TYPE].icon;
-  return iconCircleQuestionMark;
+export function jobTypeIconFor(type: string): AppIcon {
+  return isKnownJobType(type) ? JOB_TYPE_META[type].icon : iconCircleQuestionMark;
 }
 
 export function isConfirmableJobType(type: JobType): type is ConfirmableJobType {

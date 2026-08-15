@@ -196,18 +196,6 @@
   @include icon-muted;
 }
 
-@mixin interactive-card($lift: -3px) {
-  transition:
-    transform $transition-medium,
-    box-shadow $transition-medium,
-    border-color $transition-medium,
-    background $transition-fast;
-
-  &:hover:not(:disabled) {
-    transform: translateY($lift);
-  }
-}
-
 @mixin spin {
   animation: spin 0.9s linear infinite;
 }
@@ -215,13 +203,6 @@
 // ---------------------------------------------------------------------------
 // Surfaces & pills
 // ---------------------------------------------------------------------------
-
-@mixin pill-surface($padding-inline: 0.75rem) {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 0 $padding-inline;
-}
 
 @mixin count-pill($accent: true) {
   display: inline-flex;
@@ -326,12 +307,6 @@
   background: var(--danger-soft);
   color: var(--danger);
   @include btn-hover-danger;
-}
-
-@mixin btn-surface-active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: var(--font-semibold);
 }
 
 @mixin btn-disabled {

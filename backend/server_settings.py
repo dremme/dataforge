@@ -2,20 +2,19 @@
 
 Environment (all optional):
 
-- ``DATAFORGE_API_PORT`` — port the API binds in development (also read by ``scripts/dev_server.py``)
 - ``DATAFORGE_UI_PORT`` — port the Vite dev server binds; drives the CORS allowlist.
   In production the single process binds this port instead, serving API and UI together.
 - ``DATAFORGE_SERVE_UI`` — serve ``frontend/dist`` at ``/``; set by ``scripts/prod_server.py``
 
-The port values are read by ``frontend/vite.config.ts`` and ``scripts/dev-common.ps1``
-from the project ``.env``, so all four stay in step.
+``DATAFORGE_API_PORT`` belongs to the development API only, and is read where it is
+used: ``scripts/dev_server.py``, ``frontend/vite.config.ts``, ``scripts/dev-common.ps1``.
+The port values all come from the project ``.env``, so they stay in step.
 """
 
 from __future__ import annotations
 
 import os
 
-DEFAULT_API_PORT = 8080
 DEFAULT_UI_PORT = 8081
 
 # A browser treats the two spellings of loopback as distinct origins, so the UI
@@ -51,10 +50,6 @@ def _env_port(name: str, default: int) -> int:
     if not _MIN_PORT <= port <= _MAX_PORT:
         return default
     return port
-
-
-def get_api_port() -> int:
-    return _env_port("DATAFORGE_API_PORT", DEFAULT_API_PORT)
 
 
 def get_ui_port() -> int:

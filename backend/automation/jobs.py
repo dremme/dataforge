@@ -174,7 +174,6 @@ class Job:
 
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-CancelCheck = Callable[[], bool]
 StatusResolver = Callable[[Job, bool], tuple[JobStatus, str | None]]
 
 
@@ -248,7 +247,6 @@ class JobSpec:
     run: Callable[..., dict[str, object]]
     resolve_status: StatusResolver
     validate: Callable[..., None]
-    prepare: Callable[[Job, Path, dict[str, object]], None] | None = None
     resume: Callable[[Job], dict[str, object] | None] | None = None
     external_ref: Callable[[dict[str, object]], str | None] | None = None
     caption_mode: Callable[[dict[str, object]], str | None] | None = None
@@ -581,11 +579,7 @@ class JobManager:
         cancel_event: threading.Event,
         params: dict[str, object],
     ) -> None:
-        def prepare(job: Job) -> None:
-            if spec.prepare is not None:
-                spec.prepare(job, folder, params)
-
-        if not self._begin_job(job_id, cancel_event, prepare=prepare):
+        if not self._begin_job(job_id, cancel_event):
             return
 
         try:
@@ -601,26 +595,17 @@ class JobManager:
 
         self._complete_job(job_id, result, cancel_event.is_set(), spec.resolve_status)
 
-    def _begin_job(
-        self,
-        job_id: str,
-        cancel_event: threading.Event,
-        *,
-        prepare: Callable[[Job], None] | None = None,
-    ) -> bool:
+    def _begin_job(self, job_id: str, cancel_event: threading.Event) -> bool:
         with self._lock:
             job = self._jobs[job_id]
             if cancel_event.is_set():
                 job.status = "cancelled"
                 job.finished_at = _utc_now()
-                snapshot = job.to_dict()
             else:
                 job.status = "running"
                 # Kept when set, so a resumed job's elapsed time stays true.
                 job.started_at = job.started_at or _utc_now()
-                if prepare is not None:
-                    prepare(job)
-                snapshot = job.to_dict()
+            snapshot = job.to_dict()
             # Persist before releasing the lock so store never lags behind memory status.
             self._save_snapshot(job_id, snapshot)
 

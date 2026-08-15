@@ -28,10 +28,7 @@ __all__ = [
 
 
 class VerifyCaptionsStoredSettings(BaseModel):
-    """Stored shape: global mode and reasoning knobs, plus context keyed by folder.
-
-    A legacy single global ``context`` key is intentionally not migrated onto folders.
-    """
+    """Stored shape: global mode and reasoning knobs, plus context keyed by folder."""
 
     mode: AutomationMode = DEFAULT_MODE
     reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT

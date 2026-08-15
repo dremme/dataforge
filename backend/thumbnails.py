@@ -87,31 +87,6 @@ def thumbnail_cache_path(source: Path, width: int) -> Path:
     return cache_dir / digest[:2] / f"{digest}.webp"
 
 
-def legacy_thumbnail_cache_path(source: Path, width: int) -> Path:
-    """Pre-sharding cache layout kept for read fallback."""
-    cache_dir = get_thumbnail_cache_dir()
-    digest = thumbnail_cache_digest(source, width)
-    return cache_dir / f"{digest}.webp"
-
-
-def resolve_cached_thumbnail(source: Path, width: int) -> Path | None:
-    """Return a cached thumbnail if present.
-
-    Checks current .webp locations first, then falls back to legacy .jpg
-    files so existing thumbnail caches continue to work after the format switch.
-    """
-    for ext in (".webp", ".jpg"):
-        sharded = thumbnail_cache_path(source, width).with_suffix(ext)
-        if sharded.is_file():
-            return sharded
-
-        legacy = legacy_thumbnail_cache_path(source, width).with_suffix(ext)
-        if legacy.is_file():
-            return legacy
-
-    return None
-
-
 def _generation_lock(cache_key: str) -> threading.Lock:
     with _lock_guard:
         lock = _generation_locks.get(cache_key)
@@ -336,15 +311,13 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
 
     _ensure_cache_dir()
     cached = thumbnail_cache_path(source, normalized_width)
-    existing = resolve_cached_thumbnail(source, normalized_width)
-    if existing is not None:
-        return existing
+    if cached.is_file():
+        return cached
 
     lock = _generation_lock(str(cached))
     with lock:
-        existing = resolve_cached_thumbnail(source, normalized_width)
-        if existing is not None:
-            return existing
+        if cached.is_file():
+            return cached
 
         cached.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
