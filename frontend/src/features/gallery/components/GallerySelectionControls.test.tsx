@@ -179,33 +179,55 @@ describe("GallerySelectionControls", () => {
     });
   });
 
-  it("exits selection mode when Escape is pressed", () => {
+  it("clears the selection on Escape rather than leaving selection mode", () => {
     const exitSelectionMode = vi.fn();
+    const clearSelectedPaths = vi.fn();
 
-    renderControls({ exitSelectionMode });
+    renderControls({ exitSelectionMode, clearSelectedPaths });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(clearSelectedPaths).toHaveBeenCalledTimes(1);
+    expect(exitSelectionMode).not.toHaveBeenCalled();
+  });
+
+  it("exits selection mode on Escape once nothing is selected", () => {
+    const exitSelectionMode = vi.fn();
+    const clearSelectedPaths = vi.fn();
+
+    renderControls({
+      selectedCount: 0,
+      selectedPaths: new Set(),
+      exitSelectionMode,
+      clearSelectedPaths,
+    });
 
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(exitSelectionMode).toHaveBeenCalledTimes(1);
+    expect(clearSelectedPaths).not.toHaveBeenCalled();
   });
 
-  it("does not exit selection mode on Escape while scroll lock is active", () => {
+  it("ignores Escape entirely while scroll lock is active", () => {
     const exitSelectionMode = vi.fn();
+    const clearSelectedPaths = vi.fn();
     const handle = acquireScrollLock("confirm-dialog-open");
 
-    renderControls({ exitSelectionMode });
+    renderControls({ exitSelectionMode, clearSelectedPaths });
 
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(exitSelectionMode).not.toHaveBeenCalled();
+    expect(clearSelectedPaths).not.toHaveBeenCalled();
     releaseScrollLock(handle);
   });
 
-  it("does not exit selection mode on Escape while the delete confirm dialog is open", async () => {
+  it("ignores Escape entirely while the delete confirm dialog is open", async () => {
     const user = userEvent.setup();
     const exitSelectionMode = vi.fn();
+    const clearSelectedPaths = vi.fn();
 
-    renderControls({ exitSelectionMode });
+    renderControls({ exitSelectionMode, clearSelectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
     await screen.findByRole("alertdialog", { name: "Delete selected files?" });
@@ -213,6 +235,7 @@ describe("GallerySelectionControls", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(exitSelectionMode).not.toHaveBeenCalled();
+    expect(clearSelectedPaths).not.toHaveBeenCalled();
   });
 
   it("moves selected files after choosing a destination folder", async () => {

@@ -266,6 +266,44 @@ describe("App: search and filters", () => {
     expect(screen.getByRole("button", { name: "Deselect sunset.png" })).toBeInTheDocument();
   });
 
+  it("takes two Escape presses to leave selection mode while items are selected", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    await user.click(screen.getByRole("button", { name: "Select beach.jpg" }));
+    expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
+
+    // First press empties the selection but keeps the mode.
+    await user.keyboard("{Escape}");
+    expect(screen.getByLabelText("0 of 3")).toHaveClass("gallery-section__count");
+    expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
+
+    // Second press, with nothing selected, leaves selection mode.
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Exit selection mode" })).not.toBeInTheDocument();
+  });
+
+  it("leaves selection mode on a single Escape when nothing is selected", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
+    });
+  });
+
   // Navigation is the only thing left that drops a selection, so it is the one
   // caller keeping `clearSelection` alive.
   it("drops the selection when another folder is opened", async () => {
@@ -281,7 +319,7 @@ describe("App: search and filters", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Exit selection mode" })).not.toBeInTheDocument();
   });
 
   it("shows empty-folder state when a folder has subfolders but no media files", async () => {

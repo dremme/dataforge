@@ -113,6 +113,10 @@ export function GallerySelectionControls({
     setDeleteConfirmOpen(false);
   }, [deleting]);
 
+  // Escape unwinds selection mode one step at a time: it empties a selection
+  // first, and only leaves the mode once there is nothing left to lose. A single
+  // press still exits when nothing is selected, so the extra press is only ever
+  // charged to the case where it protects work.
   useEffect(() => {
     if (!selectionMode) {
       return;
@@ -128,12 +132,16 @@ export function GallerySelectionControls({
       }
 
       event.preventDefault();
+      if (selectedCount > 0) {
+        clearSelectedPaths();
+        return;
+      }
       exitSelectionMode();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [exitSelectionMode, selectionMode]);
+  }, [clearSelectedPaths, exitSelectionMode, selectedCount, selectionMode]);
 
   const confirmDelete = useCallback(async () => {
     const paths = Array.from(selectedPaths);
