@@ -20,9 +20,17 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
+from automation.find_duplicates import (
+    DEFAULT_THRESHOLD as DEFAULT_DUPLICATE_THRESHOLD,
+)
+from automation.find_duplicates import (
+    run_find_duplicates_job,
+    validate_find_duplicates_folder,
+)
 from automation.job_messages import (
     auto_caption_failure_message,
     backup_captions_error_message,
+    find_duplicates_error_message,
     rename_media_error_message,
     replace_captions_error_message,
     resolve_job_error,
@@ -218,6 +226,13 @@ def _validate_replace_captions(folder: Path, **params: object) -> None:
     )
 
 
+def _validate_find_duplicates(folder: Path, **params: object) -> None:
+    validate_find_duplicates_folder(
+        folder,
+        threshold=str(params.get("threshold", DEFAULT_DUPLICATE_THRESHOLD)),
+    )
+
+
 def _validate_watermark(folder: Path, **params: object) -> None:
     validate_watermark_folder(
         folder,
@@ -296,6 +311,12 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_replace_captions_job,
         resolve_status=_resolve_stats_errors(replace_captions_error_message),
         validate=_validate_replace_captions,
+    ),
+    "find_duplicates": JobSpec(
+        thread_prefix="find-duplicates",
+        run=run_find_duplicates_job,
+        resolve_status=_resolve_stats_errors(find_duplicates_error_message),
+        validate=_validate_find_duplicates,
     ),
     "batch_rename": JobSpec(
         thread_prefix="rename-media",

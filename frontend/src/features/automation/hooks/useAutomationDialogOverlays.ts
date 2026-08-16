@@ -14,6 +14,7 @@ import {
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type {
+  DuplicateThreshold,
   JobType,
   ReasoningEffort,
   WatermarkOpacity,
@@ -140,6 +141,12 @@ export function useAutomationDialogOverlays({
             reasoning_effort: reasoningEffort,
             preserve_thinking: preserveThinking,
           }),
+      },
+      findDuplicates: {
+        ...shared("find_duplicates"),
+        itemCount,
+        onConfirm: (threshold: DuplicateThreshold) =>
+          startJobFromDialog("find_duplicates", { threshold }),
       },
       batchRename: {
         ...shared("batch_rename"),

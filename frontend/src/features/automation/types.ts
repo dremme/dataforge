@@ -5,6 +5,7 @@ import type { VerifyCaptionsMode } from "@/features/automation/components/Verify
 import type { VerifyCaptionsSettings } from "@/features/automation/preferences/verifyCaptionsPreferences";
 import type { WatermarkSettings } from "@/features/automation/preferences/watermarkPreferences";
 import type {
+  DuplicateThreshold,
   ReasoningEffort,
   WatermarkOpacity,
   WatermarkPosition,
@@ -44,6 +45,9 @@ export type AutomationDialogsState = {
   > & {
     folderPath: string;
     initialSettings: VerifyCaptionsSettings | null;
+  };
+  findDuplicates: FolderBusyDialogState<(threshold: DuplicateThreshold) => void> & {
+    itemCount: number;
   };
   batchRename: FolderBusyDialogState<(stem: string) => void> & { itemCount: number };
   trainLora: FolderBusyDialogState<(settings: TrainLoraSettings) => void> & { itemCount: number };

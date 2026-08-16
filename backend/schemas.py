@@ -42,6 +42,7 @@ type JobType = Literal[
     "strip_metadata",
     "set_captions",
     "replace_captions",
+    "find_duplicates",
     "verify_captions",
     "batch_rename",
     "backup_captions",
@@ -53,6 +54,10 @@ type JobType = Literal[
 #: How a bulk caption edit changes each caption. ``replace`` uses the search term;
 #: ``prepend`` and ``append`` ignore it and only add ``replacement``.
 type CaptionReplaceMode = Literal["replace", "prepend", "append"]
+
+#: How alike two files must be to count as duplicates. Named rather than a raw
+#: distance so the wire does not depend on the hash width.
+type DuplicateThreshold = Literal["exact", "near", "loose"]
 
 
 class Breadcrumb(BaseModel):
@@ -286,6 +291,10 @@ class ReplaceCaptionsPreviewResponse(BaseModel):
     matched: int = 0
     samples: list[CaptionReplacePreviewSample] = Field(default_factory=list)
     error: str | None = None
+
+
+class FindDuplicatesStartRequest(JobSelectionRequest):
+    threshold: DuplicateThreshold = "near"
 
 
 class StripMetadataStartRequest(JobSelectionRequest):

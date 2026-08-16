@@ -10,6 +10,7 @@ from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    FindDuplicatesStartRequest,
     JobResponse,
     ReplaceCaptionsPreviewRequest,
     ReplaceCaptionsPreviewResponse,
@@ -122,6 +123,19 @@ def preview_replace_captions_job(
         return ReplaceCaptionsPreviewResponse(folder=str(folder), error=str(exc))
 
     return ReplaceCaptionsPreviewResponse(**preview)
+
+
+@router.post("/automation/find-duplicates", response_model=JobResponse)
+def start_find_duplicates_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: FindDuplicatesStartRequest = FindDuplicatesStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "find_duplicates",
+        resolve_folder(path),
+        body.paths,
+        threshold=body.threshold,
+    )
 
 
 @router.post("/automation/strip-metadata", response_model=JobResponse)

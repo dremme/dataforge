@@ -2,6 +2,7 @@ import { AutoCaptionDialog } from "./AutoCaptionDialog";
 import { BackupCaptionsDialog } from "./BackupCaptionsDialog";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
 import { ReplaceCaptionsDialog } from "./ReplaceCaptionsDialog";
+import { FindDuplicatesDialog } from "./FindDuplicatesDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
@@ -19,6 +20,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     backupCaptions,
     autoCaption,
     verifyCaptions,
+    findDuplicates,
     batchRename,
     trainLora,
     watermark,
@@ -72,6 +74,16 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={verifyCaptions.busy}
           onConfirm={verifyCaptions.onConfirm}
           onCancel={verifyCaptions.onCancel}
+        />
+      )}
+
+      {findDuplicates.open && (
+        <FindDuplicatesDialog
+          folderLabel={findDuplicates.folderLabel}
+          itemCount={findDuplicates.itemCount}
+          busy={findDuplicates.busy}
+          onConfirm={findDuplicates.onConfirm}
+          onCancel={findDuplicates.onCancel}
         />
       )}
 

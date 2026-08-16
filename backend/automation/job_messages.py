@@ -114,6 +114,25 @@ def replace_captions_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to edit captions for {error_count} files."
 
 
+def find_duplicates_error_message(stats: dict[str, int]) -> str | None:
+    read_errors = int(stats.get("read_error") or 0)
+    write_errors = int(stats.get("write_error") or 0)
+
+    if write_errors:
+        if write_errors == 1:
+            return "Failed to flag 1 file as a duplicate."
+        return f"Failed to flag {write_errors} files as duplicates."
+
+    if read_errors == 0:
+        return None
+
+    # A file that never decoded was never compared, so it may be an unreported
+    # duplicate rather than merely a file the job skipped.
+    if read_errors == 1:
+        return "1 file could not be read and was left out of the comparison."
+    return f"{read_errors} files could not be read and were left out of the comparison."
+
+
 def backup_captions_error_message(stats: dict[str, int]) -> str | None:
     write_errors = int(stats.get("write_error") or 0)
     if write_errors == 0:
@@ -209,6 +228,8 @@ def resolve_job_error(
         return set_captions_error_message(stats)
     if job_type == "replace_captions":
         return replace_captions_error_message(stats)
+    if job_type == "find_duplicates":
+        return find_duplicates_error_message(stats)
     if job_type == "batch_rename":
         return rename_media_error_message(stats)
     if job_type == "backup_captions":

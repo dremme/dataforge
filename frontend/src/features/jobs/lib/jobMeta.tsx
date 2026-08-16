@@ -5,6 +5,7 @@ import {
   iconArchiveRestore,
   iconBrain,
   iconCircleQuestionMark,
+  iconCopy,
   iconFilePen,
   iconMessageCheck,
   iconMessagePlus,
@@ -85,6 +86,14 @@ export const JOB_TYPE_META = {
     icon: iconReplace,
     startUi: "dialog" as const,
     menuDescription: "Search and replace, prepend, or append text across captions.",
+  },
+  find_duplicates: {
+    type: "find_duplicates" as const,
+    group: "datasets" as const,
+    label: "Find duplicates",
+    icon: iconCopy,
+    startUi: "dialog" as const,
+    menuDescription: "Flag duplicate and near-duplicate media as caption issues.",
   },
   verify_captions: {
     type: "verify_captions" as const,
