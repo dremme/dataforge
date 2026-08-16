@@ -29,9 +29,10 @@ from automation.vision import (
 )
 from captions import (
     NO_CAPTION_STATUS,
-    issue_file_path,
+    load_issue_fix_groups,
     load_reference_caption,
     normalize_issue_fixes,
+    save_issue_fixes,
 )
 from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
 from openai_settings import (
@@ -220,10 +221,6 @@ def parse_verification_response(raw_text: str) -> VerificationResult | None:
 
 def should_write_issue_file(verification: VerificationResult) -> bool:
     return bool(verification.fixes)
-
-
-def verification_result_to_dict(verification: VerificationResult) -> dict[str, object]:
-    return {"fixes": list(verification.fixes)}
 
 
 @dataclass(frozen=True)
@@ -499,29 +496,15 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     }
 
 
-def _clear_existing_issue_sidecars(folder: Path) -> None:
-    try:
-        issue_files = sorted(folder.glob("*.issue.json"), key=lambda path: path.name.lower())
-    except OSError:
-        return
+def _write_caption_fixes(media_path: Path, fixes: list[str]) -> None:
+    """Replace this file's caption findings, keeping any duplicate findings beside them.
 
-    for issue_path in issue_files:
-        try:
-            if not issue_path.is_file():
-                continue
-            issue_path.unlink()
-        except OSError as exc:
-            logger.warning("Failed to remove issue sidecar %s: %s", issue_path.name, exc)
-
-
-def _remove_stale_issue_file(media_path: Path) -> None:
-    issue_path = issue_file_path(media_path)
-    if not issue_path.is_file():
-        return
-    try:
-        issue_path.unlink()
-    except OSError as exc:
-        logger.warning("Failed to remove stale issue file %s: %s", issue_path.name, exc)
+    The sidecar is shared with find-duplicates, so the previous caption findings are
+    dropped by writing over them rather than by deleting the file. A file that verifies
+    clean passes no fixes, which removes the sidecar only if nothing else is on it.
+    """
+    duplicate_fixes, _previous_caption_fixes = load_issue_fix_groups(media_path)
+    save_issue_fixes(media_path, duplicate_fixes=duplicate_fixes, caption_fixes=fixes)
 
 
 def _failure_outcome(status: str, message: str | None) -> FileOutcome:
@@ -546,7 +529,6 @@ def run_verify_captions_job(
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     validate_verify_captions_folder(folder)
-    _clear_existing_issue_sidecars(folder)
 
     system_prompts = build_verification_system_prompts(context)
     media_files = filter_media_list(list_verify_captions_media(folder), selected_paths)
@@ -576,21 +558,17 @@ def run_verify_captions_job(
                 # Do not write the sidecar when cancellation landed around this file.
                 return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
-            if not should_write_issue_file(verification):
-                _remove_stale_issue_file(media_path)
-                return FileOutcome(status="success", stats={"success": 1})
-
             try:
-                issue_file_path(media_path).write_text(
-                    json.dumps(verification_result_to_dict(verification), indent=2) + "\n",
-                    encoding="utf-8",
-                )
+                _write_caption_fixes(media_path, list(verification.fixes))
             except OSError as exc:
                 return FileOutcome(
                     status="write_error",
                     stats={"write_error": 1},
                     fields={"message": str(exc)},
                 )
+
+            if not should_write_issue_file(verification):
+                return FileOutcome(status="success", stats={"success": 1})
 
             return FileOutcome(
                 status="success",

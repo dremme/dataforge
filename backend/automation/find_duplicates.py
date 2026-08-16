@@ -4,17 +4,17 @@ Near-duplicate frames skew a LoRA, so the job hashes every file perceptually, gr
 files whose hashes are close, and records each group in the ``.issue.json`` sidecars the
 gallery already filters, badges, and steps through.
 
-Reusing the issue sidecar buys the whole review UI for free, at the cost of two known
-collisions with verify-captions, which owns the same file: that job clears every
-``.issue.json`` in the folder when it starts, and resolving a caption in the issue
-resolver deletes the sidecar. Either one drops duplicate findings that are still true.
-Re-running this job restores them.
+Reusing the issue sidecar buys the whole review UI for free. The file is shared with
+verify-captions, so each job rewrites only the fixes it owns - this one's are the ones
+prefixed with ``DUPLICATE_FIX_PREFIXES`` - and the two sets of findings coexist.
+
+One collision remains: resolving a caption in the issue resolver deletes the whole
+sidecar, dropping a duplicate finding that is still true. Re-running this job restores it.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -24,8 +24,8 @@ from PIL import Image
 from automation.job_runner import FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import extract_video_keyframes, load_image_rgb, media_kind_for
-from captions import issue_file_path, load_issue_summary
-from constants import MAX_ISSUE_FIXES, MEDIA_EXTENSIONS
+from captions import load_issue_fix_groups, save_issue_fixes
+from constants import DUPLICATE_FIX_PREFIXES, MEDIA_EXTENSIONS
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -45,9 +45,10 @@ HASH_SIZE = 8
 #: Partners named in the issue text before it collapses into a count.
 MAX_NAMED_PARTNERS = 3
 
-#: Every fix this job writes starts with one of these, so a re-run replaces its own
-#: previous finding instead of stacking a second copy beside it.
-DUPLICATE_FIX_PREFIXES = ("Duplicate of ", "Near-duplicate of ")
+#: Every fix this job writes starts with one of ``DUPLICATE_FIX_PREFIXES``, which is how
+#: a re-run replaces its own previous finding instead of stacking a second copy beside it,
+#: and how verify-captions tells this job's findings from its own.
+EXACT_FIX_PREFIX, NEAR_FIX_PREFIX = DUPLICATE_FIX_PREFIXES
 
 
 def difference_hash(image: Image.Image, size: int = HASH_SIZE) -> int:
@@ -130,26 +131,21 @@ def _duplicate_fix(media_path: Path, group: list[Path], exact: bool) -> str:
     if remaining > 0:
         listed += f" and {remaining} more"
 
-    prefix = DUPLICATE_FIX_PREFIXES[0] if exact else DUPLICATE_FIX_PREFIXES[1]
+    prefix = EXACT_FIX_PREFIX if exact else NEAR_FIX_PREFIX
     return f"{prefix}{listed}."
 
 
-def _existing_other_fixes(media_path: Path) -> list[str]:
-    """Fixes already on the file that this job did not write."""
-    fixes, _broken = load_issue_summary(media_path)
-    return [fix for fix in fixes if not fix.startswith(DUPLICATE_FIX_PREFIXES)]
+def _write_duplicate_fix(media_path: Path, fix: str | None) -> None:
+    """Replace this file's duplicate finding, keeping its caption findings beside it.
 
-
-def _write_issue_fixes(media_path: Path, fixes: list[str]) -> None:
-    issue_path = issue_file_path(media_path)
-    if not fixes:
-        if issue_path.is_file():
-            issue_path.unlink()
-        return
-
-    issue_path.write_text(
-        json.dumps({"fixes": fixes[:MAX_ISSUE_FIXES]}, indent=2) + "\n",
-        encoding="utf-8",
+    The sidecar is shared with verify-captions, so a file that is no longer a duplicate
+    passes ``None``, which removes the sidecar only if nothing else is on it.
+    """
+    _previous_duplicate_fixes, caption_fixes = load_issue_fix_groups(media_path)
+    save_issue_fixes(
+        media_path,
+        duplicate_fixes=[fix] if fix else [],
+        caption_fixes=caption_fixes,
     )
 
 
@@ -226,15 +222,10 @@ def run_find_duplicates_job(
 
     for media_path in hashes:
         group = flagged.get(media_path)
-        other_fixes = _existing_other_fixes(media_path)
-        fixes = (
-            [_duplicate_fix(media_path, group, exact=max_distance == 0), *other_fixes]
-            if group
-            else other_fixes
-        )
+        fix = _duplicate_fix(media_path, group, exact=max_distance == 0) if group else None
 
         try:
-            _write_issue_fixes(media_path, fixes)
+            _write_duplicate_fix(media_path, fix)
         except OSError as exc:
             logger.warning("Failed to write issue sidecar for %s: %s", media_path.name, exc)
             stats["write_error"] = stats.get("write_error", 0) + 1

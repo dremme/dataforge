@@ -38,8 +38,8 @@ describe("FindDuplicatesDialog", () => {
   it("says findings share the caption-issue sidecar", () => {
     renderDialog();
 
-    // The collision with verify-captions is real and unavoidable, so the dialog
-    // states it rather than letting findings vanish unexplained.
-    expect(screen.getByText(/verify-captions run clears them/)).toBeInTheDocument();
+    // Resolving a caption still drops the finding, so the dialog says so rather
+    // than letting it vanish unexplained.
+    expect(screen.getByText(/issue resolver drops that file/)).toBeInTheDocument();
   });
 });

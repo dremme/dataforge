@@ -66,8 +66,9 @@ export function FindDuplicatesDialog({
       />
 
       <p className="dialog__hint">
-        Findings share the caption-issue sidecar, so a later verify-captions run clears them and
-        resolving a caption drops its finding. Run this job again to bring them back.
+        Findings share the caption-issue sidecar with verify-captions and sit alongside its
+        findings. Resolving a caption in the issue resolver drops that file&rsquo;s finding; run
+        this job again to bring it back.
       </p>
     </Dialog>
   );
