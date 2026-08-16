@@ -132,6 +132,8 @@ Two things are narrower than the list, because the formats themselves are:
 - Save any playable video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
 - Per-folder `.sysprompt` (markdown) to steer AI captioning
 - Caption status on cards and in the detail view
+- Dataset statistics panel — caption coverage, caption-length spread, the most frequent caption words,
+  media types, and megapixel buckets; the coverage rows apply the matching gallery filter on click
 - Detection of embedded ComfyUI workflows in PNGs and MP4-family videos
 - Drag-and-drop import for media, sidecars, and `.sysprompt`
 - Delete media along with matching sidecars, including `.issue.json`
@@ -146,7 +148,9 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | --- | --- |
 | **Auto-caption** | Completes short drafts with a local vision LLM (reasoning or instruct mode, with a **[reasoning effort](docs/configuration.md#reasoning-effort)** setting), optionally sending each clip's **[audio](docs/configuration.md#audio-captioning)** alongside its keyframes |
 | **Set captions** | Apply the same text to many files |
+| **Find & replace** | Bulk caption edits — replace matching text (literal or regex), or prepend and append a trigger word — with a live count and before/after samples before anything is written |
 | **Verify captions** | Checks captions against the media — videos via keyframes, GIFs as stills — and writes `.issue.json` when something is wrong |
+| **Find duplicates** | Flags duplicate and near-duplicate media as caption issues, so the issue filter and resolver step through them |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 | **Rename** | Numbered rename of media plus related sidecars |
 | **Watermark** | Burn text onto JPG, PNG, WebP, BMP, MP4, MOV, and M4V copies in a `watermarked` subfolder (size, opacity, position) |
