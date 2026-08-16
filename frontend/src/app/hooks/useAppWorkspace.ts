@@ -113,6 +113,8 @@ export function useAppWorkspace() {
     breadcrumbs: folder?.breadcrumbs ?? [],
     items,
     filteredItems: gallery.query.filteredItems,
+    filter: gallery.query.filter,
+    onFilterChange: gallery.query.setFilter,
     sysprompt,
     hasCaptionBackup: folder?.has_caption_backup ?? false,
     ostrisAvailable,

@@ -14,6 +14,7 @@ export {
   Braces as iconBraces,
   Brain as iconBrain,
   Camera as iconCamera,
+  ChartColumn as iconChartBar,
   Check as iconCheck,
   ChevronDown as iconChevronDown,
   ChevronLeft as iconChevronLeft,

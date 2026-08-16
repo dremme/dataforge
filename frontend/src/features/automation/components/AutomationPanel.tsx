@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   iconAlertTriangle,
   iconBan,
+  iconChartBar,
   iconCircleCheck,
   iconCircleAlert,
   iconDot,
@@ -32,6 +33,8 @@ import {
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
+import { useDatasetStatsVisible } from "@/features/automation/hooks/useDatasetStatsVisible";
+import type { CaptionFilter } from "@/features/gallery/lib/query";
 import { useTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
 import { useStickyDockOffset } from "@/shared/hooks/useStickyDockOffset";
 import { useStickyFloating } from "@/shared/hooks/useStickyFloating";
@@ -39,6 +42,7 @@ import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
 import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
 import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
+import { AutomationStatsPanel } from "./AutomationStatsPanel";
 import { TrainingSamples } from "@/features/jobs/components/TrainingSamples";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -65,6 +69,10 @@ function jobStatusIcon(job: Job): { icon: LucideIcon; className: string } | null
 
 export interface AutomationPanelProps {
   filteredItems: GalleryItem[];
+  /** Every item in the folder; the stats panel summarizes the dataset, not the view. */
+  items: GalleryItem[];
+  filter: CaptionFilter;
+  onFilterChange: (filter: CaptionFilter) => void;
   job: Job | null;
   startingJobType: JobType | null;
   canStart: boolean;
@@ -82,6 +90,9 @@ export interface AutomationPanelProps {
 
 export function AutomationPanel({
   filteredItems,
+  items,
+  filter,
+  onFilterChange,
   job,
   startingJobType,
   canStart,
@@ -106,6 +117,8 @@ export function AutomationPanel({
   const showResolveIssues = issueCount > 0 && Boolean(onResolveIssues);
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
   const specsPanelId = useId();
+  const { showStats, toggleStats } = useDatasetStatsVisible();
+  const statsPanelId = useId();
 
   const showJobError = job ? jobShowsErrorState(job) : false;
   const showJobWarning = job ? jobShowsWarningState(job) : false;
@@ -128,6 +141,7 @@ export function AutomationPanel({
           ? "Write instructions in .sysprompt before running auto-caption"
           : (primaryMeta.menuDescription ?? `Start ${primaryMeta.label.toLowerCase()}`);
   const specsTooltip = showSpecs ? "Hide system specifications" : "Show system specifications";
+  const statsTooltip = showStats ? "Hide dataset statistics" : "Show dataset statistics";
   const syspromptTooltip = hasSyspromptFile
     ? "Edit the .sysprompt instructions for this folder"
     : "Create a .sysprompt file with captioning instructions";
@@ -163,6 +177,21 @@ export function AutomationPanel({
                 aria-controls={specsPanelId}
               >
                 <Icon icon={iconInfo} />
+              </button>
+            </Tooltip>
+            <Tooltip content={statsTooltip}>
+              <button
+                type="button"
+                className={classNames(
+                  "automation__specs-toggle",
+                  showStats && "automation__specs-toggle--active",
+                )}
+                onClick={toggleStats}
+                aria-label="Toggle dataset statistics"
+                aria-expanded={showStats}
+                aria-controls={statsPanelId}
+              >
+                <Icon icon={iconChartBar} />
               </button>
             </Tooltip>
           </div>
@@ -266,6 +295,14 @@ export function AutomationPanel({
         </div>
 
         <AutomationSystemSpecs id={specsPanelId} open={showSpecs} />
+
+        <AutomationStatsPanel
+          id={statsPanelId}
+          open={showStats}
+          items={items}
+          filter={filter}
+          onFilterChange={onFilterChange}
+        />
 
         {job && (
           <div className="automation__body">
