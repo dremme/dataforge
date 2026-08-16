@@ -264,11 +264,21 @@
 .batch-rename-dialog,
 .create-folder-dialog,
 .set-captions-dialog,
+.replace-captions-dialog,
 .verify-captions-dialog,
 .auto-caption-dialog,
 .train-lora-dialog,
 .watermark-dialog {
   width: min(32rem, 100%);
+}
+
+// Find & replace previews captions verbatim, which are long and arbitrary: the
+// samples wrap and break rather than stretching the panel or spilling out of it.
+.replace-captions-dialog {
+  &__preview code {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
 }
 
 // Move-media needs extra width + internal flex layout for the folder tree.

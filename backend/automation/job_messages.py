@@ -96,6 +96,24 @@ def set_captions_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to write caption for {write_errors} files."
 
 
+def replace_captions_error_message(stats: dict[str, int]) -> str | None:
+    write_errors = int(stats.get("write_error") or 0)
+    read_errors = int(stats.get("read_error") or 0)
+    error_count = write_errors + read_errors
+
+    if error_count == 0:
+        return None
+
+    if read_errors == error_count:
+        if read_errors == 1:
+            return "Could not read the caption for 1 file. It was left unchanged."
+        return f"Could not read captions for {read_errors} files. They were left unchanged."
+
+    if error_count == 1:
+        return "Failed to edit the caption for 1 file."
+    return f"Failed to edit captions for {error_count} files."
+
+
 def backup_captions_error_message(stats: dict[str, int]) -> str | None:
     write_errors = int(stats.get("write_error") or 0)
     if write_errors == 0:
@@ -189,6 +207,8 @@ def resolve_job_error(
         return strip_metadata_error_message(stats)
     if job_type == "set_captions":
         return set_captions_error_message(stats)
+    if job_type == "replace_captions":
+        return replace_captions_error_message(stats)
     if job_type == "batch_rename":
         return rename_media_error_message(stats)
     if job_type == "backup_captions":

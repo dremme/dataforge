@@ -1,0 +1,125 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { previewCaptionReplacements } from "@/features/automation/api/jobs";
+import { ReplaceCaptionsDialog } from "./ReplaceCaptionsDialog";
+
+vi.mock("@/features/automation/api/jobs", () => ({
+  previewCaptionReplacements: vi.fn(),
+}));
+
+const preview = vi.mocked(previewCaptionReplacements);
+
+function renderDialog(onConfirm = vi.fn()) {
+  render(
+    <ReplaceCaptionsDialog
+      folderLabel="Photos"
+      folderPath="C:/datasets/photos"
+      onConfirm={onConfirm}
+      onCancel={vi.fn()}
+    />,
+  );
+  return onConfirm;
+}
+
+describe("ReplaceCaptionsDialog", () => {
+  beforeEach(() => {
+    preview.mockResolvedValue({ folder: "C:/datasets/photos", total: 0, matched: 0, samples: [] });
+  });
+
+  it("focuses the search field on open", () => {
+    renderDialog();
+
+    expect(screen.getByLabelText("Search for")).toHaveFocus();
+  });
+
+  it("submits the edit", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+
+    await user.type(screen.getByLabelText("Search for"), "dog");
+    await user.type(screen.getByLabelText("Replace with"), "cat");
+    await user.click(screen.getByRole("checkbox", { name: "Match case" }));
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      mode: "replace",
+      search: "dog",
+      replacement: "cat",
+      useRegex: false,
+      caseSensitive: true,
+    });
+  });
+
+  it("refuses to submit without a search term", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter the text to search for.");
+  });
+
+  it("asks for the added text instead of a search term in append mode", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+
+    await user.click(screen.getByRole("radio", { name: /Append/ }));
+
+    // The search term is unusable in append mode, and says so rather than vanishing.
+    expect(screen.getByLabelText("Search for")).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Text to add"), ", high quality");
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      mode: "append",
+      search: "",
+      replacement: ", high quality",
+      useRegex: false,
+      caseSensitive: false,
+    });
+  });
+
+  it("shows how many captions would change", async () => {
+    const user = userEvent.setup();
+    preview.mockResolvedValue({
+      folder: "C:/datasets/photos",
+      total: 10,
+      matched: 3,
+      samples: [{ name: "one.png", before: "a dog", after: "a cat" }],
+    });
+    renderDialog();
+
+    await user.type(screen.getByLabelText("Search for"), "dog");
+
+    await waitFor(() => {
+      expect(screen.getByText("3 of 10 captions would change.")).toBeInTheDocument();
+    });
+    expect(screen.getByText("a cat")).toBeInTheDocument();
+  });
+
+  it("blocks submitting an edit the backend rejected", async () => {
+    const user = userEvent.setup();
+    preview.mockResolvedValue({
+      folder: "C:/datasets/photos",
+      total: 10,
+      matched: 0,
+      samples: [],
+      error: "Invalid regular expression: missing ), unterminated subpattern",
+    });
+    const onConfirm = renderDialog();
+
+    await user.click(screen.getByRole("checkbox", { name: "Regular expression" }));
+    await user.type(screen.getByLabelText("Search for"), "(unclosed");
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Invalid regular expression");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});

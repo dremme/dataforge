@@ -121,8 +121,8 @@ function jsonInit(method: "POST" | "PUT", body: unknown): RequestInit {
   };
 }
 
-export async function postJson<T>(url: string, body: unknown): Promise<T> {
-  return requestJson<T>(url, jsonInit("POST", body));
+export async function postJson<T>(url: string, body: unknown, init?: RequestInit): Promise<T> {
+  return requestJson<T>(url, { ...jsonInit("POST", body), ...init });
 }
 
 export async function putJson<T>(url: string, body: unknown): Promise<T> {

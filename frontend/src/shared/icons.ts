@@ -64,6 +64,7 @@ export {
   Quote as iconQuote,
   Regex as iconRegex,
   RemoveFormatting as iconRemoveFormatting,
+  Replace as iconReplace,
   Rows3 as iconRows3,
   Search as iconSearch,
   Shredder as iconShredder,

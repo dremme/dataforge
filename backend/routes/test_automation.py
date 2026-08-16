@@ -226,6 +226,79 @@ class SetCaptionsAutomationEndpointTests(unittest.TestCase):
             self.assertEqual(response.json()["job_type"], "set_captions")
 
 
+class ReplaceCaptionsAutomationEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def test_requires_a_search_term(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = client.post(
+                f"/api/automation/replace-captions?path={quote(str(root))}",
+                json={"search": ""},
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("text to search for", response.json()["detail"])
+
+    def test_rejects_invalid_regex(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = client.post(
+                f"/api/automation/replace-captions?path={quote(str(root))}",
+                json={"search": "(unclosed", "use_regex": True},
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("Invalid regular expression", response.json()["detail"])
+
+    def test_starts_job_and_returns_payload(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "a dog")
+
+            response = client.post(
+                f"/api/automation/replace-captions?path={quote(str(root))}",
+                json={"search": "dog", "replacement": "cat"},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["job_type"], "replace_captions")
+
+    def test_preview_reports_matches(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "a dog")
+
+            response = client.post(
+                f"/api/automation/replace-captions/preview?path={quote(str(root))}",
+                json={"search": "dog", "replacement": "cat"},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertEqual(payload["matched"], 1)
+            self.assertIsNone(payload["error"])
+            self.assertEqual(payload["samples"][0]["after"], "a cat")
+
+    def test_preview_reports_a_bad_edit_as_a_field_not_a_400(self) -> None:
+        """The dialog previews while the user types, so a half-typed regex is normal."""
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = client.post(
+                f"/api/automation/replace-captions/preview?path={quote(str(root))}",
+                json={"search": "(unclosed", "use_regex": True},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertIn("Invalid regular expression", payload["error"])
+            self.assertEqual(payload["matched"], 0)
+
+
 class VerifyCaptionsAutomationEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         reset_job_manager()

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { trainLoraBody, type TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
+import type { ReplaceCaptionsSettings } from "@/features/automation/components/ReplaceCaptionsDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import {
   loadVerifyCaptionsSettings,
@@ -90,6 +91,20 @@ export function useAutomationDialogOverlays({
         onConfirm: (caption: string, overwrite: boolean) =>
           startJobFromDialog("set_captions", { caption, overwrite }),
       },
+      replaceCaptions: {
+        ...shared("replace_captions"),
+        folderPath: folderPath ?? "",
+        // The same selection the job will run on, so the preview counts what it edits.
+        selectedPaths: getJobPaths?.(),
+        onConfirm: (settings: ReplaceCaptionsSettings) =>
+          startJobFromDialog("replace_captions", {
+            mode: settings.mode,
+            search: settings.search,
+            replacement: settings.replacement,
+            use_regex: settings.useRegex,
+            case_sensitive: settings.caseSensitive,
+          }),
+      },
       backupCaptions: {
         ...shared("backup_captions"),
         onConfirm: (overwrite: boolean) => startJobFromDialog("backup_captions", { overwrite }),
@@ -153,6 +168,7 @@ export function useAutomationDialogOverlays({
     closeDialog,
     folderLabel,
     folderPath,
+    getJobPaths,
     itemCount,
     openJobType,
     startJobFromDialog,

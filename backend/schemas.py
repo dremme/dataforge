@@ -41,6 +41,7 @@ type JobType = Literal[
     "auto_caption",
     "strip_metadata",
     "set_captions",
+    "replace_captions",
     "verify_captions",
     "batch_rename",
     "backup_captions",
@@ -48,6 +49,10 @@ type JobType = Literal[
     "train_lora",
     "watermark",
 ]
+
+#: How a bulk caption edit changes each caption. ``replace`` uses the search term;
+#: ``prepend`` and ``append`` ignore it and only add ``replacement``.
+type CaptionReplaceMode = Literal["replace", "prepend", "append"]
 
 
 class Breadcrumb(BaseModel):
@@ -238,6 +243,49 @@ class AutoCaptionStartRequest(JobSelectionRequest):
 class SetCaptionsStartRequest(JobSelectionRequest):
     caption: str = ""
     overwrite: bool = False
+
+
+class CaptionReplaceRequest(BaseModel):
+    """The edit itself, shared by the job start and its preview.
+
+    ``search`` and the flags are deliberately unconstrained so a refusal (an empty
+    term, a regex that does not compile) comes back as the job's own 400 message
+    rather than a pydantic validation blob.
+    """
+
+    mode: CaptionReplaceMode = "replace"
+    search: str = ""
+    replacement: str = ""
+    use_regex: bool = False
+    case_sensitive: bool = False
+
+
+class ReplaceCaptionsStartRequest(JobSelectionRequest, CaptionReplaceRequest):
+    pass
+
+
+class ReplaceCaptionsPreviewRequest(JobSelectionRequest, CaptionReplaceRequest):
+    pass
+
+
+class CaptionReplacePreviewSample(BaseModel):
+    name: str
+    before: str
+    after: str
+
+
+class ReplaceCaptionsPreviewResponse(BaseModel):
+    """What the edit would do, for the dialog to show before anything is written.
+
+    ``error`` carries an unusable edit (bad regex, empty term) instead of a 400, so
+    the dialog can show it inline while the user is still typing.
+    """
+
+    folder: str
+    total: int = 0
+    matched: int = 0
+    samples: list[CaptionReplacePreviewSample] = Field(default_factory=list)
+    error: str | None = None
 
 
 class StripMetadataStartRequest(JobSelectionRequest):

@@ -9,6 +9,7 @@ import {
   iconMessageCheck,
   iconMessagePlus,
   iconPencilSparkles,
+  iconReplace,
   iconShredder,
   iconStamp,
 } from "@/shared/icons";
@@ -76,6 +77,14 @@ export const JOB_TYPE_META = {
     icon: iconMessagePlus,
     startUi: "dialog" as const,
     menuDescription: "Write the same caption text to media files.",
+  },
+  replace_captions: {
+    type: "replace_captions" as const,
+    group: "datasets" as const,
+    label: "Find & replace",
+    icon: iconReplace,
+    startUi: "dialog" as const,
+    menuDescription: "Search and replace, prepend, or append text across captions.",
   },
   verify_captions: {
     type: "verify_captions" as const,
