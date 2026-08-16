@@ -7,7 +7,7 @@ function captioned(name: string, description: string) {
 }
 
 describe("computeDatasetStats", () => {
-  it("counts caption coverage against the gallery's own filters", () => {
+  it("counts caption coverage", () => {
     const stats = computeDatasetStats([
       captioned("one.png", "a dog"),
       mediaItem("two.png", HOME_PATH),
@@ -16,9 +16,9 @@ describe("computeDatasetStats", () => {
 
     expect(stats.total).toBe(3);
     expect(stats.coverage).toEqual([
-      { filter: "captioned", label: "Captioned", count: 1 },
-      { filter: "uncaptioned", label: "Missing caption", count: 2 },
-      { filter: "issue", label: "With issues", count: 1 },
+      { label: "Captioned", count: 1 },
+      { label: "Missing caption", count: 2 },
+      { label: "With issues", count: 1 },
     ]);
   });
 
@@ -45,11 +45,12 @@ describe("computeDatasetStats", () => {
 
     expect(stats.captionLength).toMatchObject({ min: 10, median: 100, max: 400 });
     expect(stats.captionLength?.buckets).toEqual([
-      { label: "< 50", count: 1 },
-      { label: "50 – 150", count: 1 },
-      { label: "150 – 300", count: 0 },
-      { label: "300 – 600", count: 1 },
-      { label: "600 +", count: 0 },
+      { label: "< 250", count: 2 },
+      { label: "250 – 400", count: 0 },
+      { label: "400 – 600", count: 1 },
+      { label: "600 – 800", count: 0 },
+      { label: "800 – 1000", count: 0 },
+      { label: "> 1000", count: 0 },
     ]);
   });
 
@@ -96,13 +97,13 @@ describe("computeDatasetStats", () => {
     ]);
 
     expect(stats.unknownResolution).toBe(1);
-    // 1920x1080 is 2.07 MP.
+    // 1920x1080 is 2.07 MP, past the top bucket's lower bound.
     expect(stats.megapixels).toEqual([
-      { label: "< 0.5 MP", count: 0 },
+      { label: "< 0.3 MP", count: 0 },
+      { label: "0.3 – 0.5 MP", count: 0 },
       { label: "0.5 – 1 MP", count: 0 },
       { label: "1 – 2 MP", count: 0 },
-      { label: "2 – 4 MP", count: 1 },
-      { label: "4 MP +", count: 0 },
+      { label: "> 2 MP", count: 1 },
     ]);
   });
 

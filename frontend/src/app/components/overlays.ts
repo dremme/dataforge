@@ -37,6 +37,13 @@ type SysPromptOverlayState = {
   onClose: () => void;
 };
 
+type StatsOverlayState = {
+  open: boolean;
+  /** The whole folder: the dataset overview ignores the search and filters. */
+  items: GalleryItem[];
+  onClose: () => void;
+};
+
 type JobStartConfirmState = {
   pending: ConfirmableJobType | null;
   folderLabel: string;
@@ -67,6 +74,7 @@ export type AppOverlaysProps = {
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;
   sysprompt: SysPromptOverlayState;
+  stats: StatsOverlayState;
   jobStart: JobStartConfirmState;
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;

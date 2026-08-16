@@ -11,6 +11,7 @@ const SCROLL_LOCK_CLASSES = [
   "confirm-dialog-open",
   "open-folder-modal-open",
   "jobs-drawer-open",
+  "stats-drawer-open",
   "training-sample-modal-open",
 ] as const;
 

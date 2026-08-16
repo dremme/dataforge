@@ -6,6 +6,7 @@ import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal
 import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
+import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
 
@@ -22,6 +23,7 @@ export function AppOverlays({
   gallery,
   issueResolver,
   sysprompt,
+  stats,
   jobStart,
   automation,
   fileImport,
@@ -30,6 +32,8 @@ export function AppOverlays({
   return (
     <>
       <JobsDrawer currentFolder={currentFolder} onOpenFolder={onOpenFolder} />
+
+      <StatsDrawer open={stats.open} items={stats.items} onClose={stats.onClose} />
 
       {issueResolver.open && issueResolver.items.length > 0 && (
         <IssueResolverModal

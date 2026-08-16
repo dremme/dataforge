@@ -6,7 +6,6 @@
  * folder listing has not already paid for.
  */
 
-import type { CaptionFilter } from "@/features/gallery/lib/query";
 import { isGif, isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 
@@ -23,6 +22,10 @@ const STOP_WORDS = new Set([
   "for",
   "from",
   "has",
+  "he",
+  "her",
+  "him",
+  "his",
   "in",
   "is",
   "it",
@@ -30,6 +33,7 @@ const STOP_WORDS = new Set([
   "of",
   "on",
   "or",
+  "she",
   "that",
   "the",
   "there",
@@ -44,20 +48,21 @@ const TOP_WORD_LIMIT = 15;
 
 /** Upper bound of each megapixel bucket; anything larger lands in the last one. */
 const MEGAPIXEL_BUCKETS = [
-  { label: "< 0.5 MP", max: 0.5 },
+  { label: "< 0.3 MP", max: 0.3 },
+  { label: "0.3 – 0.5 MP", max: 0.5 },
   { label: "0.5 – 1 MP", max: 1 },
   { label: "1 – 2 MP", max: 2 },
-  { label: "2 – 4 MP", max: 4 },
-  { label: "4 MP +", max: Number.POSITIVE_INFINITY },
+  { label: "> 2 MP", max: Number.POSITIVE_INFINITY },
 ] as const;
 
 /** Upper bound of each caption-length bucket, in characters. */
 const LENGTH_BUCKETS = [
-  { label: "< 50", max: 50 },
-  { label: "50 – 150", max: 150 },
-  { label: "150 – 300", max: 300 },
-  { label: "300 – 600", max: 600 },
-  { label: "600 +", max: Number.POSITIVE_INFINITY },
+  { label: "< 250", max: 250 },
+  { label: "250 – 400", max: 400 },
+  { label: "400 – 600", max: 600 },
+  { label: "600 – 800", max: 800 },
+  { label: "800 – 1000", max: 1000 },
+  { label: "> 1000", max: Number.POSITIVE_INFINITY },
 ] as const;
 
 export interface StatBucket {
@@ -78,8 +83,6 @@ export interface CaptionLengthStats {
 }
 
 export interface CaptionCoverage {
-  /** Matches the gallery's caption filter, so a row can apply it on click. */
-  filter: CaptionFilter;
   label: string;
   count: number;
 }
@@ -170,9 +173,9 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   return {
     total: media.length,
     coverage: [
-      { filter: "captioned", label: "Captioned", count: captioned },
-      { filter: "uncaptioned", label: "Missing caption", count: media.length - captioned },
-      { filter: "issue", label: "With issues", count: issues },
+      { label: "Captioned", count: captioned },
+      { label: "Missing caption", count: media.length - captioned },
+      { label: "With issues", count: issues },
     ],
     captionLength:
       sortedLengths.length === 0

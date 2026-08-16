@@ -10,6 +10,7 @@ import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScroll
 import { useSubfolderStats } from "@/features/folder/hooks/useSubfolderStats";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
+import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
@@ -108,13 +109,13 @@ export function useAppWorkspace() {
     [subfolders, searchQuery, searchRegex, searchNames],
   );
 
+  const statsDrawer = useStatsDrawer();
+
   const automation = useAutomationHost({
     folder: folder?.path,
     breadcrumbs: folder?.breadcrumbs ?? [],
     items,
     filteredItems: gallery.query.filteredItems,
-    filter: gallery.query.filter,
-    onFilterChange: gallery.query.setFilter,
     sysprompt,
     hasCaptionBackup: folder?.has_caption_backup ?? false,
     ostrisAvailable,
@@ -141,5 +142,6 @@ export function useAppWorkspace() {
     fileDrop,
     gallery,
     automation,
+    statsDrawer,
   };
 }

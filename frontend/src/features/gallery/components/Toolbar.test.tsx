@@ -36,6 +36,8 @@ const defaultProps = {
     image: 2,
     video: 1,
   },
+  statsOpen: false,
+  onToggleStats: vi.fn(),
   onSearchQueryChange: vi.fn(),
   onSearchRegexChange: vi.fn(),
   onSearchNamesChange: vi.fn(),

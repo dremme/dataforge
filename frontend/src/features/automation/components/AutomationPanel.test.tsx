@@ -79,9 +79,6 @@ vi.mock("@/features/automation/hooks/useAutomationSpecsVisible", () => ({
 
 const baseProps = {
   filteredItems: [],
-  items: [],
-  filter: "all" as const,
-  onFilterChange: vi.fn(),
   job: null,
   startingJobType: null,
   canStart: false,

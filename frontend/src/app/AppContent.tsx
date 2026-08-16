@@ -20,6 +20,7 @@ export function AppContent() {
     fileDrop,
     gallery,
     automation,
+    statsDrawer,
   } = useAppWorkspace();
 
   const {
@@ -74,6 +75,8 @@ export function AppContent() {
               filterCounts: query.filterCounts,
               mediaTypeFilter: query.mediaTypeFilter,
               mediaTypeFilterCounts: query.mediaTypeFilterCounts,
+              statsOpen: statsDrawer.statsOpen,
+              onToggleStats: statsDrawer.toggleStats,
               // Narrowing the view is not a selection change: a path stays selected
               // while it is filtered out, so the pick survives refining a search.
               onSearchQueryChange: query.setSearchQuery,
@@ -144,6 +147,11 @@ export function AppContent() {
             open: gallery.syspromptOpen,
             item: gallery.syspromptModalItem,
             onClose: gallery.closeSysPrompt,
+          }}
+          stats={{
+            open: statsDrawer.statsOpen,
+            items,
+            onClose: statsDrawer.closeStats,
           }}
           jobStart={automation.jobStartConfirm}
           automation={automation.dialogs}

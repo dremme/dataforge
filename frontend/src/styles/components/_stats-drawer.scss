@@ -1,0 +1,371 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .stats-button
+// ---------------------------------------------------------------------------
+
+// Sits beside `.jobs-button` in the toolbar and matches it, minus the activity dot.
+.stats-button {
+  @include pill-btn-ghost(0.4rem);
+  padding: 0 0.5625rem;
+
+  &__icon {
+    @include icon-size(var(--icon-size-base));
+  }
+
+  &--active {
+    color: var(--accent);
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// .stats-drawer
+// ---------------------------------------------------------------------------
+
+.stats-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: $z-index-drawer;
+  pointer-events: none;
+
+  &__backdrop {
+    @include modal-backdrop;
+    pointer-events: auto;
+  }
+
+  &__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    // Narrower than the jobs drawer: every row here is a label and a figure,
+    // where a job card carries a folder path and a progress bar.
+    width: min(100%, 24rem);
+    height: 100%;
+    background: var(--bg-elevated);
+    border-left: 1px solid var(--border);
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+    pointer-events: auto;
+    animation: drawer-slide-in 0.22s ease;
+
+    // A sheet leaves the way it arrived. Two classes beat the generic
+    // `.modal-panel--exit` fade on specificity, so load order does not matter.
+    &.modal-panel--exit {
+      animation: drawer-slide-out 0.18s ease-in both;
+    }
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--panel-padding);
+    border-bottom: 1px solid var(--border);
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+
+    h2 {
+      margin: 0;
+      font-size: var(--text-md);
+      font-weight: var(--font-semibold);
+      color: var(--text);
+    }
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-base));
+      color: var(--accent);
+    }
+  }
+
+  &__close {
+    @include modal-close-btn;
+  }
+
+  &__content {
+    @include app-scrollbar;
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.875rem var(--panel-padding) 1.25rem;
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4375rem;
+    padding: 2rem 0.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+
+    p {
+      margin: 0;
+    }
+
+    &-hint {
+      color: var(--text-subtle);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Statistics
+  //
+  // One column, and one hue. Bar length already encodes every count here, so the
+  // colour channel stays unspent rather than re-stating it — the accent marks the
+  // data, text tokens carry every label and value, and the status colours appear
+  // only where they actually mean good or bad.
+  // ---------------------------------------------------------------------------
+
+  &__stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  &__section {
+    min-width: 0;
+
+    // The lead block owns the drawer's one hero figure, so it carries more air
+    // beneath it than the sections that follow.
+    &--lead {
+      padding-bottom: 0.25rem;
+    }
+  }
+
+  &__section-title {
+    margin: 0 0 0.625rem;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  // Hero figure: the one number the drawer leads with. Proportional figures, not
+  // tabular — equal-width digits make a short number look loose at this size.
+  &__hero {
+    display: flex;
+    align-items: baseline;
+    gap: 0.125rem;
+    margin: 0 0 0.5rem;
+    font-size: 3rem;
+    font-weight: var(--font-semibold);
+    line-height: 1;
+    letter-spacing: var(--tracking-tight);
+    color: var(--text);
+
+    &-value {
+      // Proportional figures, not tabular: this number stands alone rather than
+      // aligning in a column, and equal-width digits look loose at 3rem.
+      font-variant-numeric: normal;
+    }
+
+    &-unit {
+      font-size: var(--text-lg);
+      font-weight: var(--font-medium);
+      color: var(--text-muted);
+    }
+
+    &-caption {
+      margin: 0.5rem 0 0;
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+  }
+
+  // Meter: the unfilled track is a dim step of the fill's own hue, so the state
+  // reads across the whole bar rather than only where the fill reaches.
+  &__meter {
+    height: 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    overflow: hidden;
+
+    &-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width var(--transition);
+    }
+  }
+
+  // Status never rides on colour alone - every one of these pairs its hue with an
+  // icon and the words that say the same thing.
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    margin: 0.625rem 0 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-sm));
+    }
+
+    &--warning {
+      color: var(--warning);
+    }
+
+    &--good {
+      color: var(--success);
+    }
+  }
+
+  // Stat tiles: a handful of headline numbers, side by side.
+  &__tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.875rem;
+  }
+
+  &__tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    padding: 0.5rem 0.625rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-soft);
+
+    &-value {
+      font-size: var(--text-md);
+      font-weight: var(--font-semibold);
+      line-height: 1.1;
+      color: var(--text);
+    }
+
+    &-label {
+      @include truncate;
+      font-size: var(--text-2xs);
+      color: var(--text-muted);
+    }
+  }
+
+  // Plain label/value rows, for counts with no distribution behind them.
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin: 0;
+  }
+
+  &__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+
+    &-label {
+      @include truncate;
+      min-width: 0;
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    &-value {
+      @include tabular-nums;
+      flex-shrink: 0;
+      margin: 0;
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      color: var(--text);
+    }
+  }
+
+  &__note {
+    margin: 0.625rem 0 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bar chart
+  // ---------------------------------------------------------------------------
+
+  &__chart {
+    margin: 0;
+  }
+
+  &__bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    margin: 0;
+
+    // Bucket labels are short and uniform ("< 250"); words vary, so they get more
+    // room and truncate rather than wrapping the row.
+    &--narrow {
+      --stats-label-width: 4.75rem;
+    }
+
+    &--wide {
+      --stats-label-width: 6.5rem;
+    }
+  }
+
+  &__bar-row {
+    display: grid;
+    grid-template-columns: var(--stats-label-width) 1fr;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+    padding: 0.1875rem 0.25rem;
+    margin: 0 -0.25rem;
+    border-radius: var(--radius-sm);
+  }
+
+  &__bar-label {
+    @include truncate;
+    min-width: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  &__bar-value {
+    display: grid;
+    grid-template-columns: 1fr 2.25rem;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    margin: 0;
+  }
+
+  &__bar-track {
+    display: block;
+    min-width: 0;
+    height: 0.375rem;
+    border-radius: var(--radius-pill);
+    // One step off the surface: present enough to show the full scale, recessive
+    // enough that the fill is what the eye lands on.
+    background: var(--surface-hover);
+  }
+
+  &__bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    // A bucket with a single file still has to be visible as a mark.
+    min-width: 0.1875rem;
+  }
+
+  &__bar-count {
+    @include tabular-nums;
+    font-size: var(--text-xs);
+    text-align: right;
+    color: var(--text-muted);
+  }
+}

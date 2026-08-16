@@ -31,8 +31,6 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
       breadcrumbs: [{ name: "Photos", path: "C:\\Photos" }],
       items: [] as GalleryItem[],
       filteredItems: [] as GalleryItem[],
-      filter: "all" as const,
-      onFilterChange: vi.fn(),
       sysprompt: null,
       hasCaptionBackup: options.hasCaptionBackup ?? true,
       ostrisAvailable: options.ostrisAvailable ?? false,

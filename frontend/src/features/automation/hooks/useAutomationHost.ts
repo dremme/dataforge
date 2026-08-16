@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react";
 import type { AutomationPanelProps } from "@/features/automation/components/AutomationPanel";
 import { useAutomationDialogOverlays } from "@/features/automation/hooks/useAutomationDialogOverlays";
 import type { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
-import type { CaptionFilter } from "@/features/gallery/lib/query";
 import { useJobStartConfirmation } from "@/features/jobs/hooks/useJobStartConfirmation";
 import {
   isConfirmableJobType,
@@ -16,10 +15,9 @@ type FolderAutomation = ReturnType<typeof useFolderAutomation>;
 type UseAutomationHostOptions = {
   folder: string | undefined;
   breadcrumbs: Breadcrumb[];
+  /** Every item in the folder; only the default job size is derived from it. */
   items: GalleryItem[];
   filteredItems: GalleryItem[];
-  filter: CaptionFilter;
-  onFilterChange: (filter: CaptionFilter) => void;
   sysprompt: GalleryItem | null;
   hasCaptionBackup: boolean;
   ostrisAvailable: boolean;
@@ -39,8 +37,6 @@ export function useAutomationHost({
   breadcrumbs,
   items,
   filteredItems,
-  filter,
-  onFilterChange,
   sysprompt,
   hasCaptionBackup,
   ostrisAvailable,
@@ -92,9 +88,6 @@ export function useAutomationHost({
   const panelProps = useMemo<AutomationPanelProps>(
     () => ({
       filteredItems,
-      items,
-      filter,
-      onFilterChange,
       job: automation.folderJob,
       startingJobType: automation.startingJobType,
       canStart: !automation.folderHasActiveJob,
@@ -114,13 +107,10 @@ export function useAutomationHost({
       automation.folderHasActiveJob,
       automation.folderJob,
       automation.startingJobType,
-      filter,
       filteredItems,
-      items,
       jobAvailability,
       issueCount,
       onEditSysprompt,
-      onFilterChange,
       onResolveIssues,
       requestStart,
       sysprompt,

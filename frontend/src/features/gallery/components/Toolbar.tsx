@@ -21,6 +21,7 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { JobsButton } from "@/features/jobs/components/JobsButton";
+import { StatsButton } from "./StatsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
 
@@ -41,6 +42,8 @@ interface ToolbarProps {
   filterCounts: Record<CaptionFilter, number>;
   mediaTypeFilter: MediaTypeFilter;
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
+  statsOpen: boolean;
+  onToggleStats: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchRegexChange: (value: boolean) => void;
   onSearchNamesChange: (value: boolean) => void;
@@ -191,6 +194,8 @@ export function Toolbar({
   filterCounts,
   mediaTypeFilter,
   mediaTypeFilterCounts,
+  statsOpen,
+  onToggleStats,
   onSearchQueryChange,
   onSearchRegexChange,
   onSearchNamesChange,
@@ -310,6 +315,8 @@ export function Toolbar({
           onFilterChange={onFilterChange}
           onMediaTypeFilterChange={onMediaTypeFilterChange}
         />
+
+        <StatsButton open={statsOpen} onToggle={onToggleStats} />
 
         <JobsButton />
       </div>
