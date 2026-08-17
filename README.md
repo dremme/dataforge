@@ -117,26 +117,30 @@ Two things are narrower than the list, because the formats themselves are:
 - Copy the current folder path, or open it in File Explorer (Windows)
 - Drive and folder picker
 - Search by file name, folder name, or caption, with optional regex (**Ctrl+K** / **⌘K** focuses search)
-- Filters for all / captioned / issues / missing caption, and images / videos (GIFs count as videos)
+- Filters for all / captioned / issues / missing caption, and images / videos (GIFs count as videos),
+  plus a duplicates toggle that narrows whatever the other two chose
 - Sort by name, modified date, caption length, or megapixels
 - WebP thumbnails and a responsive layout
-- Folder cards flag when a folder has caption issues
+- Folder cards flag when a folder has caption issues or duplicates
 
 ### Captions and metadata
 
 - In-place caption editing for `.json` and `.txt` sidecars
 - JSON caption editor with a bounding-box overlay — view and edit when present
 - Issue resolver — step through flagged files to edit, resolve, or skip
+- Duplicate resolver — walk each duplicate group side by side, with a suggested keeper, and delete the rest
+  (on Windows they go to the Recycle Bin; elsewhere the deletion is confirmed by name first)
 - Click-to-zoom in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
 - Save any playable video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
 - Per-folder `.sysprompt` (markdown) to steer AI captioning
 - Caption status on cards and in the detail view
-- Dataset statistics panel — caption coverage, caption-length spread, the most frequent caption words,
-  media types, and megapixel buckets; the coverage rows apply the matching gallery filter on click
+- Dataset statistics drawer — caption coverage, files missing a caption, caption issues and duplicate
+  groups, caption-length spread, the most frequent caption words, media types, and megapixel buckets;
+  always the whole folder, not the filtered view
 - Detection of embedded ComfyUI workflows in PNGs and MP4-family videos
 - Drag-and-drop import for media, sidecars, and `.sysprompt`
-- Delete media along with matching sidecars, including `.issue.json`
+- Delete media along with matching sidecars, including `.issue.json` and `.duplicate.json`
 - Move or copy selected files, and create subfolders
 
 ### Automation jobs
@@ -148,9 +152,9 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | --- | --- |
 | **Auto-caption** | Completes short drafts with a local vision LLM (reasoning or instruct mode, with a **[reasoning effort](docs/configuration.md#reasoning-effort)** setting), optionally sending each clip's **[audio](docs/configuration.md#audio-captioning)** alongside its keyframes |
 | **Set captions** | Apply the same text to many files |
-| **Find & replace** | Bulk caption edits — replace matching text (literal or regex), or prepend and append a trigger word — with a live count and before/after samples before anything is written |
-| **Verify captions** | Checks captions against the media — videos via keyframes, GIFs as stills — and writes `.issue.json` when something is wrong |
-| **Find duplicates** | Flags duplicate and near-duplicate media as caption issues, so the issue filter and resolver step through them |
+| **Find & replace** | Bulk caption edits — replace matching text (literal or regex), or prepend and append a trigger word — with a live count and before/after samples that highlight the changed span before anything is written |
+| **Verify captions** | Checks captions against the media — videos via keyframes, GIFs as stills — and writes `.issue.json` per file when something is wrong, leaving the rest of the folder's findings alone |
+| **Find duplicates** | Perceptually hashes the folder and groups the matches at an **exact**, **near**, or **loose** threshold, writing each member a `.duplicate.json`; the duplicates filter and the duplicate resolver then work through the groups |
 | **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
 | **Rename** | Numbered rename of media plus related sidecars |
 | **Watermark** | Burn text onto JPG, PNG, WebP, BMP, MP4, MOV, and M4V copies in a `watermarked` subfolder (size, opacity, position) |
@@ -168,7 +172,7 @@ images in the automation panel, and an external card in the jobs drawer.
 
 | Kind | Location |
 | --- | --- |
-| Captions, issues, `.sysprompt` | Next to your media, so they travel with the dataset |
+| Captions, caption issues, duplicate groups, `.sysprompt` | Next to your media, so they travel with the dataset |
 | App preferences, job history, thumbnails | `backend/data/` — gitignored SQLite plus cache |
 | UI session state (search, gallery filters) | Browser session storage |
 
