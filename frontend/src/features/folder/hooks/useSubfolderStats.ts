@@ -16,7 +16,8 @@ function mergeStats(
     if (
       counts.file_count === subfolder.file_count &&
       counts.captioned_count === subfolder.captioned_count &&
-      counts.issue_count === subfolder.issue_count
+      counts.issue_count === subfolder.issue_count &&
+      counts.duplicate_count === subfolder.duplicate_count
     ) {
       return subfolder;
     }
@@ -27,6 +28,7 @@ function mergeStats(
       file_count: counts.file_count,
       captioned_count: counts.captioned_count,
       issue_count: counts.issue_count,
+      duplicate_count: counts.duplicate_count,
     };
   });
 

@@ -466,3 +466,25 @@ def load_issue_summary(media_path: Path) -> tuple[list[str], bool]:
         return [], False
 
     return list(_issue_fixes_from_file(issue_path)), True
+
+
+def save_issue_fixes(media_path: Path, fixes: list[str]) -> None:
+    """Write the sidecar's fixes, or remove it when there are none left to record.
+
+    Verify-captions is the only writer. Duplicate findings live in their own
+    ``.duplicate.json`` (see :mod:`duplicates`) precisely so that this can stay true:
+    two jobs sharing one file meant neither could clear its own findings without
+    reasoning about the other's, and the issue resolver could delete both at once.
+    """
+    capped = normalize_issue_fixes(fixes)
+    issue_path = issue_file_path(media_path)
+
+    if not capped:
+        if issue_path.is_file():
+            issue_path.unlink()
+        return
+
+    issue_path.write_text(
+        json.dumps({"fixes": capped}, indent=2) + "\n",
+        encoding="utf-8",
+    )

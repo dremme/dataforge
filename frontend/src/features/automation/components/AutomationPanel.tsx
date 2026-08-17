@@ -1,17 +1,18 @@
 import { useId, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  iconAlertTriangle,
   iconBan,
   iconCircleCheck,
   iconCircleAlert,
   iconDot,
+  iconFileCheck,
   iconFilePen,
   iconFilePlus,
   iconHammer,
   iconInfo,
   iconLoader2,
   iconTriangleAlert,
+  iconMessageCheck,
 } from "@/shared/icons";
 import type { GalleryItem, Job, JobType } from "@/shared/types";
 import {
@@ -78,6 +79,9 @@ export interface AutomationPanelProps {
   cancellingJob?: boolean;
   issueCount?: number;
   onResolveIssues?: () => void;
+  /** Groups, not files: the resolver steps through one group at a time. */
+  duplicateGroupCount?: number;
+  onResolveDuplicates?: () => void;
 }
 
 export function AutomationPanel({
@@ -94,6 +98,8 @@ export function AutomationPanel({
   cancellingJob = false,
   issueCount = 0,
   onResolveIssues,
+  duplicateGroupCount = 0,
+  onResolveDuplicates,
 }: AutomationPanelProps) {
   const stickySentinelRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -104,6 +110,7 @@ export function AutomationPanel({
   const startingPrimary = startingJobType === PRIMARY_JOB_TYPE;
   const primaryMeta = JOB_TYPE_META[PRIMARY_JOB_TYPE];
   const showResolveIssues = issueCount > 0 && Boolean(onResolveIssues);
+  const showResolveDuplicates = duplicateGroupCount > 0 && Boolean(onResolveDuplicates);
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
   const specsPanelId = useId();
 
@@ -116,6 +123,9 @@ export function AutomationPanel({
   const statusIcon = job ? jobStatusIcon(job) : null;
   const trainingSamples = useTrainingSamples(job);
   const issueLabel = `${issueCount} caption ${issueCount === 1 ? "issue" : "issues"}`;
+  const duplicateLabel = `${duplicateGroupCount} duplicate ${
+    duplicateGroupCount === 1 ? "group" : "groups"
+  }`;
   const jobLabel = job ? jobTypeLabel(job).toLowerCase() : "";
 
   const startTooltip = startingPrimary
@@ -223,8 +233,23 @@ export function AutomationPanel({
                       disabled={starting}
                       aria-label={`Resolve ${issueLabel}`}
                     >
-                      <Icon icon={iconAlertTriangle} className="automation__btn-icon" />
+                      <Icon icon={iconMessageCheck} className="automation__btn-icon" />
                       Resolve issues
+                    </button>
+                  </Tooltip>
+                )}
+
+                {showResolveDuplicates && (
+                  <Tooltip content={`Compare and clear ${duplicateLabel}`}>
+                    <button
+                      type="button"
+                      className="automation__resolve-duplicates"
+                      onClick={onResolveDuplicates}
+                      disabled={starting}
+                      aria-label={`Resolve ${duplicateLabel}`}
+                    >
+                      <Icon icon={iconFileCheck} className="automation__btn-icon" />
+                      Resolve duplicates
                     </button>
                   </Tooltip>
                 )}

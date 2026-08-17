@@ -16,13 +16,21 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
-from constants import CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX
+from constants import (
+    CAPTION_SIDECAR_EXTENSIONS,
+    DUPLICATE_SIDECAR_SUFFIX,
+    ISSUE_SIDECAR_SUFFIX,
+)
 from folder_scan import FolderScan, folder_entries_in_order, scan_folder
 
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]
 
-_SIDECAR_EXTENSIONS = (*CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX)
+_SIDECAR_EXTENSIONS = (
+    *CAPTION_SIDECAR_EXTENSIONS,
+    ISSUE_SIDECAR_SUFFIX,
+    DUPLICATE_SIDECAR_SUFFIX,
+)
 
 #: Two generations for each of a handful of folders: enough to answer the next poll
 #: for the folder in view and the one just navigated away from, without holding an

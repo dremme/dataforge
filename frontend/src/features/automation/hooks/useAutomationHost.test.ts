@@ -39,6 +39,7 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
       automation: automation as never,
       onEditSysprompt: vi.fn(),
       issueCount: 0,
+      duplicateGroupCount: 0,
     }),
   );
 

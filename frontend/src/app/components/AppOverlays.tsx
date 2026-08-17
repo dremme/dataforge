@@ -6,6 +6,8 @@ import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal
 import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
+import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateResolverModal";
+import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
 
@@ -22,6 +24,8 @@ export function AppOverlays({
   gallery,
   issueResolver,
   sysprompt,
+  stats,
+  duplicateResolver,
   jobStart,
   automation,
   fileImport,
@@ -31,6 +35,8 @@ export function AppOverlays({
     <>
       <JobsDrawer currentFolder={currentFolder} onOpenFolder={onOpenFolder} />
 
+      <StatsDrawer open={stats.open} items={stats.items} onClose={stats.onClose} />
+
       {issueResolver.open && issueResolver.items.length > 0 && (
         <IssueResolverModal
           items={issueResolver.items}
@@ -38,6 +44,17 @@ export function AppOverlays({
           onClose={issueResolver.onClose}
           onIndexChange={issueResolver.onIndexChange}
           onCaptionSaved={onCaptionSaved}
+        />
+      )}
+
+      {duplicateResolver.open && duplicateResolver.groups.length > 0 && (
+        <DuplicateResolverModal
+          groups={duplicateResolver.groups}
+          index={duplicateResolver.index}
+          onClose={duplicateResolver.onClose}
+          onIndexChange={duplicateResolver.onIndexChange}
+          deletesToTrash={duplicateResolver.deletesToTrash}
+          onResolved={duplicateResolver.onResolved}
         />
       )}
 

@@ -11,6 +11,7 @@ function item(name: string, overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_caption_file: false,
     issue_fixes: [],
     has_issue_file: false,
+    has_duplicate_file: false,
     caption_status: "none",
     caption_file_type: null,
     media_type: "image",

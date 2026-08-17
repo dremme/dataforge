@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SORT_OPTIONS,
-  type CaptionFilter,
+  type ItemFilter,
   type MediaTypeFilter,
   type SortOption,
 } from "@/features/gallery/lib/query";
@@ -21,6 +21,7 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { JobsButton } from "@/features/jobs/components/JobsButton";
+import { StatsButton } from "./StatsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
 
@@ -37,16 +38,21 @@ interface ToolbarProps {
   searchRegex: boolean;
   searchNames: boolean;
   sort: SortOption;
-  filter: CaptionFilter;
-  filterCounts: Record<CaptionFilter, number>;
+  filter: ItemFilter;
+  filterCounts: Record<ItemFilter, number>;
   mediaTypeFilter: MediaTypeFilter;
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
+  duplicatesOnly: boolean;
+  duplicateCount: number;
+  statsOpen: boolean;
+  onToggleStats: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchRegexChange: (value: boolean) => void;
   onSearchNamesChange: (value: boolean) => void;
   onSortChange: (value: SortOption) => void;
-  onFilterChange: (value: CaptionFilter) => void;
+  onFilterChange: (value: ItemFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
+  onDuplicatesOnlyChange: (value: boolean) => void;
 }
 
 interface ToolbarSearchProps {
@@ -191,12 +197,17 @@ export function Toolbar({
   filterCounts,
   mediaTypeFilter,
   mediaTypeFilterCounts,
+  duplicatesOnly,
+  duplicateCount,
+  statsOpen,
+  onToggleStats,
   onSearchQueryChange,
   onSearchRegexChange,
   onSearchNamesChange,
   onSortChange,
   onFilterChange,
   onMediaTypeFilterChange,
+  onDuplicatesOnlyChange,
 }: ToolbarProps) {
   const allCaptioned = captionedCount === fileCount;
   const captionPercent =
@@ -307,9 +318,14 @@ export function Toolbar({
           filterCounts={filterCounts}
           mediaTypeFilter={mediaTypeFilter}
           mediaTypeFilterCounts={mediaTypeFilterCounts}
+          duplicatesOnly={duplicatesOnly}
+          duplicateCount={duplicateCount}
           onFilterChange={onFilterChange}
           onMediaTypeFilterChange={onMediaTypeFilterChange}
+          onDuplicatesOnlyChange={onDuplicatesOnlyChange}
         />
+
+        <StatsButton open={statsOpen} onToggle={onToggleStats} />
 
         <JobsButton />
       </div>

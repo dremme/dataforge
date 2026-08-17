@@ -264,11 +264,204 @@
 .batch-rename-dialog,
 .create-folder-dialog,
 .set-captions-dialog,
+.find-duplicates-dialog,
 .verify-captions-dialog,
 .auto-caption-dialog,
 .train-lora-dialog,
 .watermark-dialog {
   width: min(32rem, 100%);
+}
+
+// Find & replace: a live preview of arbitrary, unbounded caption text sits under
+// the form. The form itself is a fixed size, so the panel gives whatever height is
+// left to the sample list and that list is the only thing that ever scrolls -
+// nothing above it moves as the preview arrives.
+//
+// A little wider than the other form dialogs (matching move-media): the two terms
+// sit side by side, and every extra character of width is one less wrapped line in
+// a sample.
+.confirm-dialog__panel.replace-captions-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(36rem, 100%);
+  max-height: min(88vh, 46rem);
+  // `__body` below owns the layout; the panel's own default overflow would add a
+  // redundant scrollbar around it.
+  overflow: hidden;
+}
+
+.replace-captions-dialog {
+  &__body {
+    @include app-scrollbar;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    // Only reachable on a viewport too short for the form itself, once the sample
+    // list has already given up every pixel it can.
+    overflow-y: auto;
+  }
+
+  // The search term and its replacement are one thought, and side by side they cost
+  // one field of height instead of two.
+  &__terms {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  // Inputs carry an intrinsic minimum width; without this they widen their grid
+  // column instead of shrinking, and the row spills past the panel.
+  &__term {
+    min-width: 0;
+  }
+
+  // Two short toggles read better side by side than stacked, and the row gap keeps
+  // them from crowding each other when a narrow panel wraps them.
+  &__toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.75rem;
+  }
+
+  // The shared checkbox is only as tall as its 1rem box, which is a thin target.
+  // Padding grows the label's hit area without moving the box off the text baseline.
+  &__toggle {
+    padding: 0.25rem 0;
+  }
+
+  // Takes the height the form leaves over. Column flex items default to
+  // `min-height: auto` and so refuse to shrink below their content - opting these
+  // two out is what lets the sample list, and only the sample list, give way.
+  &__preview-field {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  &__preview {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    transition: opacity var(--transition);
+
+    &--error {
+      border-color: var(--danger-border);
+      background: var(--danger-soft);
+    }
+
+    // A request is in flight: the previous answer stays put so the panel does not
+    // jump, but it is dimmed so stale counts are not mistaken for fresh ones.
+    &--pending {
+      opacity: 0.55;
+    }
+  }
+
+  &__preview-summary {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0.5rem 0.625rem;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--text-muted);
+
+    strong {
+      color: var(--text);
+      font-weight: var(--font-semibold);
+    }
+  }
+
+  &__preview--error &__preview-summary {
+    color: var(--danger);
+    overflow-wrap: anywhere;
+  }
+
+  &__preview-empty {
+    margin: 0;
+    padding: 0.5rem 0.625rem;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--text-subtle);
+  }
+
+  // The one scroller in the dialog. It grows into the height the form leaves over,
+  // stops at three comfortable samples, and shrinks to a two-line window before the
+  // panel itself would ever have to scroll.
+  &__samples {
+    @include app-scrollbar;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 3.5rem;
+    max-height: 10rem;
+    margin: 0;
+    padding: 0.5rem 0.625rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-top: 1px solid var(--border);
+    list-style: none;
+  }
+
+  &__sample {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+
+  &__sample-name {
+    @include truncate;
+    font-size: var(--text-2xs);
+    color: var(--text-subtle);
+    letter-spacing: var(--tracking-caps);
+  }
+
+  &__sample-text {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--text-muted);
+    // Captions carry arbitrary punctuation and no spaces are guaranteed, so a long
+    // run breaks mid-word rather than stretching the panel.
+    overflow-wrap: anywhere;
+  }
+
+  // The two halves of the change sit flush against each other, so each carries a
+  // tint of its own: colour alone would read "dogcat" as one word.
+  &__removed,
+  &__added {
+    padding: 0.0625rem 0.1875rem;
+    border-radius: 0.1875rem;
+    text-decoration: none;
+  }
+
+  &__removed {
+    background: var(--danger-soft);
+    color: var(--danger);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  &__added {
+    background: var(--success-soft);
+    color: var(--success);
+  }
+
+  // Only a swap needs the seam; a pure insertion should sit flush with its prefix.
+  &__removed + &__added {
+    margin-left: 0.1875rem;
+  }
+
+  &__samples-more {
+    font-size: var(--text-2xs);
+    color: var(--text-subtle);
+  }
 }
 
 // Move-media needs extra width + internal flex layout for the folder tree.

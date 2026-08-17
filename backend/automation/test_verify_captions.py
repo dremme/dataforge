@@ -35,7 +35,7 @@ from automation.vision import (
     load_media_images,
     media_kind_for,
 )
-from captions import issue_file_path
+from captions import issue_file_path, load_issue_summary
 from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
     TempMediaFolder,
@@ -568,7 +568,8 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(result["stats"]["issues_found"], 0)
 
-    def test_run_job_clears_existing_issue_sidecars_at_start(self) -> None:
+    def test_run_job_leaves_unselected_files_alone(self) -> None:
+        """Only the files the job verified are rewritten; the rest keep their findings."""
         with TempMediaFolder() as root:
             selected = write_media(root, "selected.png")
             unselected = write_media(root, "unselected.png")
@@ -584,9 +585,9 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                 run_verify_captions_job(root, selected_paths=[selected])
 
             self.assertFalse(issue_file_path(selected).exists())
-            self.assertFalse(issue_file_path(unselected).exists())
+            self.assertEqual(load_issue_summary(unselected)[0], ["old-unselected"])
 
-    def test_run_job_removes_stale_issue_file_when_reverified_ok(self) -> None:
+    def test_run_job_removes_a_sidecar_holding_only_stale_caption_findings(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
             write_txt_caption(media, "A red car.")

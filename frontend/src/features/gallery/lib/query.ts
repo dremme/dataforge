@@ -1,4 +1,5 @@
 import { isResolvableIssueItem } from "./issues";
+import { isDuplicateItem } from "./duplicates";
 import { isMotion } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem, Subfolder } from "@/shared/types";
 
@@ -12,17 +13,23 @@ export type SortOption =
   | "megapixels-asc"
   | "megapixels-desc";
 
-export type CaptionFilter = "all" | "captioned" | "issue" | "uncaptioned";
+/**
+ * One caption state at a time. `duplicate` used to live in here, which is what the name
+ * `ItemFilter` was chosen for - but a duplicate is a property of the file rather than of
+ * its caption, so it now filters on its own axis (`applyDuplicateFilter`) and composes
+ * with this one instead of displacing it.
+ */
+export type ItemFilter = "all" | "captioned" | "issue" | "uncaptioned";
 
 /** `video` means "has motion", so it covers GIFs as well as MP4s. */
 export type MediaTypeFilter = "all" | "image" | "video";
 
-const CAPTION_FILTER_VALUES = new Set<CaptionFilter>(["all", "captioned", "issue", "uncaptioned"]);
+const ITEM_FILTER_VALUES = new Set<ItemFilter>(["all", "captioned", "issue", "uncaptioned"]);
 
 const MEDIA_TYPE_FILTER_VALUES = new Set<MediaTypeFilter>(["all", "image", "video"]);
 
-export function isCaptionFilter(value: string | null): value is CaptionFilter {
-  return value !== null && CAPTION_FILTER_VALUES.has(value as CaptionFilter);
+export function isItemFilter(value: string | null): value is ItemFilter {
+  return value !== null && ITEM_FILTER_VALUES.has(value as ItemFilter);
 }
 
 export function isMediaTypeFilter(value: string | null): value is MediaTypeFilter {
@@ -169,11 +176,19 @@ export function filterSubfoldersBySearch(
   return folders.filter((folder) => matchesSearchQuery(trimmed, pattern, regex, true, folder.name));
 }
 
-export function applyCaptionFilter(items: GalleryItem[], filter: CaptionFilter): GalleryItem[] {
+export function applyItemFilter(items: GalleryItem[], filter: ItemFilter): GalleryItem[] {
   if (filter === "captioned") return items.filter((item) => item.has_description);
   if (filter === "issue") return items.filter(isResolvableIssueItem);
   if (filter === "uncaptioned") return items.filter((item) => !item.has_description);
   return items;
+}
+
+/**
+ * Its own axis rather than a value of `ItemFilter`, so "duplicates" narrows whatever the
+ * caption filter already chose instead of replacing it.
+ */
+export function applyDuplicateFilter(items: GalleryItem[], duplicatesOnly: boolean): GalleryItem[] {
+  return duplicatesOnly ? items.filter(isDuplicateItem) : items;
 }
 
 /**
@@ -197,8 +212,9 @@ export function applyMediaTypeFilter(items: GalleryItem[], filter: MediaTypeFilt
 export function processGalleryItems(
   items: GalleryItem[],
   options: {
-    filter: CaptionFilter;
+    filter: ItemFilter;
     mediaTypeFilter: MediaTypeFilter;
+    duplicatesOnly: boolean;
     searchQuery: string;
     searchRegex: boolean;
     searchNames: boolean;
@@ -207,7 +223,10 @@ export function processGalleryItems(
 ): GalleryItem[] {
   return sortGalleryItems(
     filterBySearch(
-      applyCaptionFilter(applyMediaTypeFilter(items, options.mediaTypeFilter), options.filter),
+      applyDuplicateFilter(
+        applyItemFilter(applyMediaTypeFilter(items, options.mediaTypeFilter), options.filter),
+        options.duplicatesOnly,
+      ),
       options.searchQuery,
       options.searchRegex,
       options.searchNames,

@@ -1,6 +1,11 @@
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
-import type { CaptionSaveResponse, GalleryItem, SysPromptSaveResponse } from "@/shared/types";
+import type {
+  CaptionSaveResponse,
+  DuplicateGroup,
+  GalleryItem,
+  SysPromptSaveResponse,
+} from "@/shared/types";
 
 type CaptionSavedHandler = (
   path: string,
@@ -37,6 +42,24 @@ type SysPromptOverlayState = {
   onClose: () => void;
 };
 
+type DuplicateResolverOverlayState = {
+  open: boolean;
+  groups: DuplicateGroup[];
+  index: number;
+  onClose: () => void;
+  onIndexChange: (index: number) => void;
+  /** False where a delete is permanent, which is what earns the extra confirmation. */
+  deletesToTrash: boolean;
+  onResolved: () => void;
+};
+
+type StatsOverlayState = {
+  open: boolean;
+  /** The whole folder: the dataset overview ignores the search and filters. */
+  items: GalleryItem[];
+  onClose: () => void;
+};
+
 type JobStartConfirmState = {
   pending: ConfirmableJobType | null;
   folderLabel: string;
@@ -67,6 +90,8 @@ export type AppOverlaysProps = {
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;
   sysprompt: SysPromptOverlayState;
+  stats: StatsOverlayState;
+  duplicateResolver: DuplicateResolverOverlayState;
   jobStart: JobStartConfirmState;
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;

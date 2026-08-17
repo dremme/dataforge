@@ -165,6 +165,13 @@
     @include pill-btn-warning(0.4rem);
   }
 
+  // Ghost rather than warning: a duplicate is a housekeeping decision, not a defect
+  // in the caption, so it should not compete with the issue button for alarm.
+  &__resolve-duplicates {
+    @include pill-btn-ghost(0.4rem);
+    --bg-elevated: #{$color-bg-soft};
+  }
+
   &__cancel {
     @include pill-btn-ghost(0.4rem);
     --bg-elevated: #{$color-bg-soft};

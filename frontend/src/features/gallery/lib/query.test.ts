@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyCaptionFilter,
+  applyDuplicateFilter,
+  applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
   countMediaType,
@@ -37,6 +38,7 @@ function item(
     has_caption_file: false,
     issue_fixes: [],
     has_issue_file: false,
+    has_duplicate_file: false,
     caption_status: "none",
     caption_file_type: null,
     media_type: mediaType,
@@ -95,6 +97,7 @@ describe("processGalleryItems", () => {
     const result = processGalleryItems(items, {
       filter: "captioned",
       mediaTypeFilter: "video",
+      duplicatesOnly: false,
       searchQuery: "",
       searchRegex: false,
       searchNames: true,
@@ -102,6 +105,47 @@ describe("processGalleryItems", () => {
     });
 
     expect(result.map((entry) => entry.name)).toEqual(["b.mp4"]);
+  });
+
+  // The point of the separate axis: duplicates narrows the caption filter's result rather
+  // than replacing it.
+  it("narrows the caption filter by duplicates instead of replacing it", () => {
+    const mixed = [
+      { ...item("kept.png", "image"), has_description: true, has_duplicate_file: true },
+      { ...item("captioned.png", "image"), has_description: true },
+      { ...item("dupe.png", "image"), has_duplicate_file: true },
+    ];
+
+    const result = processGalleryItems(mixed, {
+      filter: "captioned",
+      mediaTypeFilter: "all",
+      duplicatesOnly: true,
+      searchQuery: "",
+      searchRegex: false,
+      searchNames: true,
+      sort: "name-asc",
+    });
+
+    expect(result.map((entry) => entry.name)).toEqual(["kept.png"]);
+  });
+});
+
+describe("applyDuplicateFilter", () => {
+  const items = [
+    item("a.png", "image"),
+    { ...item("b.png", "image"), has_duplicate_file: true },
+    { ...item("c.png", "image"), has_duplicate_file: true },
+  ];
+
+  it("passes everything through when off", () => {
+    expect(applyDuplicateFilter(items, false)).toBe(items);
+  });
+
+  it("keeps only duplicates when on", () => {
+    expect(applyDuplicateFilter(items, true).map((entry) => entry.name)).toEqual([
+      "b.png",
+      "c.png",
+    ]);
   });
 });
 
@@ -270,17 +314,17 @@ describe("filterSubfoldersBySearch", () => {
   });
 });
 
-describe("applyCaptionFilter", () => {
+describe("applyItemFilter", () => {
   const items = [
     item("captioned.png", "image", { has_description: true }),
     item("missing.png", "image"),
   ];
 
   it("filters captioned and uncaptioned items", () => {
-    expect(applyCaptionFilter(items, "captioned").map((entry) => entry.name)).toEqual([
+    expect(applyItemFilter(items, "captioned").map((entry) => entry.name)).toEqual([
       "captioned.png",
     ]);
-    expect(applyCaptionFilter(items, "uncaptioned").map((entry) => entry.name)).toEqual([
+    expect(applyItemFilter(items, "uncaptioned").map((entry) => entry.name)).toEqual([
       "missing.png",
     ]);
   });

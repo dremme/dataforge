@@ -41,6 +41,8 @@ type JobType = Literal[
     "auto_caption",
     "strip_metadata",
     "set_captions",
+    "replace_captions",
+    "find_duplicates",
     "verify_captions",
     "batch_rename",
     "backup_captions",
@@ -48,6 +50,14 @@ type JobType = Literal[
     "train_lora",
     "watermark",
 ]
+
+#: How a bulk caption edit changes each caption. ``replace`` uses the search term;
+#: ``prepend`` and ``append`` ignore it and only add ``replacement``.
+type CaptionReplaceMode = Literal["replace", "prepend", "append"]
+
+#: How alike two files must be to count as duplicates. Named rather than a raw
+#: distance so the wire does not depend on the hash width.
+type DuplicateThreshold = Literal["exact", "near", "loose"]
 
 
 class Breadcrumb(BaseModel):
@@ -68,6 +78,7 @@ class Subfolder(BaseModel):
     file_count: int | None = None
     captioned_count: int | None = None
     issue_count: int | None = None
+    duplicate_count: int | None = None
 
 
 class SubfolderStats(BaseModel):
@@ -75,6 +86,7 @@ class SubfolderStats(BaseModel):
     file_count: int
     captioned_count: int
     issue_count: int = 0
+    duplicate_count: int = 0
 
 
 class SubfolderStatsResponse(BaseModel):
@@ -90,6 +102,11 @@ class GalleryItem(BaseModel):
     has_caption_file: bool
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
+    #: The duplicate group this file belongs to, or None when it is not in one. Carried
+    #: on the item so a card can open the resolver at its own group; the group's
+    #: membership comes from ``/api/duplicates``, never from the item.
+    duplicate_group: str | None = None
+    has_duplicate_file: bool = False
     caption_status: CaptionStatus
     caption_file_type: CaptionFileType | None
     media_type: MediaType
@@ -97,6 +114,47 @@ class GalleryItem(BaseModel):
     height: int | None = None
     size: int | None = None
     modified_at: str | None = None
+
+
+class DuplicateGroup(BaseModel):
+    """One set of files find-duplicates judged to be the same media.
+
+    ``members`` is resolved fresh from the folder on every request rather than stored,
+    so a group that lost a file to a delete or a move reports what is actually there.
+    """
+
+    group: str
+    #: The group's worst pairwise Hamming distance. 0 means identical after downscaling.
+    max_distance: int
+    threshold: str
+    members: list[GalleryItem]
+
+
+class DuplicateGroupsResponse(BaseModel):
+    folder: str
+    groups: list[DuplicateGroup]
+    #: Files whose group has no other member left, so their sidecar says nothing. The
+    #: resolver clears these rather than presenting a group of one.
+    stale: list[str] = Field(default_factory=list)
+    #: Whether discarding a duplicate is recoverable. Rides on this response rather
+    #: than a capability endpoint of its own because the resolver is its only reader,
+    #: and it already fetches this. Required, so a new route cannot omit it and
+    #: silently drop the confirmation that guards an irreversible delete.
+    deletes_to_trash: bool
+
+
+class DuplicateResolveRequest(BaseModel):
+    #: The file to keep. Its sidecar is cleared once the rest are gone.
+    keep: str
+    #: The files to remove. Deleted through the same path as any other media delete,
+    #: which means the Recycle Bin on Windows.
+    discard: list[str]
+
+
+class DuplicateResolveResponse(BaseModel):
+    kept: str
+    deleted: list[str]
+    failed: list[str] = Field(default_factory=list)
 
 
 class FolderFingerprintResponse(BaseModel):
@@ -238,6 +296,53 @@ class AutoCaptionStartRequest(JobSelectionRequest):
 class SetCaptionsStartRequest(JobSelectionRequest):
     caption: str = ""
     overwrite: bool = False
+
+
+class CaptionReplaceRequest(BaseModel):
+    """The edit itself, shared by the job start and its preview.
+
+    ``search`` and the flags are deliberately unconstrained so a refusal (an empty
+    term, a regex that does not compile) comes back as the job's own 400 message
+    rather than a pydantic validation blob.
+    """
+
+    mode: CaptionReplaceMode = "replace"
+    search: str = ""
+    replacement: str = ""
+    use_regex: bool = False
+    case_sensitive: bool = False
+
+
+class ReplaceCaptionsStartRequest(JobSelectionRequest, CaptionReplaceRequest):
+    pass
+
+
+class ReplaceCaptionsPreviewRequest(JobSelectionRequest, CaptionReplaceRequest):
+    pass
+
+
+class CaptionReplacePreviewSample(BaseModel):
+    name: str
+    before: str
+    after: str
+
+
+class ReplaceCaptionsPreviewResponse(BaseModel):
+    """What the edit would do, for the dialog to show before anything is written.
+
+    ``error`` carries an unusable edit (bad regex, empty term) instead of a 400, so
+    the dialog can show it inline while the user is still typing.
+    """
+
+    folder: str
+    total: int = 0
+    matched: int = 0
+    samples: list[CaptionReplacePreviewSample] = Field(default_factory=list)
+    error: str | None = None
+
+
+class FindDuplicatesStartRequest(JobSelectionRequest):
+    threshold: DuplicateThreshold = "near"
 
 
 class StripMetadataStartRequest(JobSelectionRequest):

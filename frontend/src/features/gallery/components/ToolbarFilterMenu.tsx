@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FILTER_OPTIONS, MEDIA_TYPE_FILTER_OPTIONS } from "@/features/gallery/lib/filters";
-import type { CaptionFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
+import {
+  DUPLICATE_FILTER_OPTION,
+  FILTER_OPTIONS,
+  MEDIA_TYPE_FILTER_OPTIONS,
+} from "@/features/gallery/lib/filters";
+import type { ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { iconFilter, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -9,12 +13,15 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface ToolbarFilterMenuProps {
   searchQuery: string;
-  filter: CaptionFilter;
-  filterCounts: Record<CaptionFilter, number>;
+  filter: ItemFilter;
+  filterCounts: Record<ItemFilter, number>;
   mediaTypeFilter: MediaTypeFilter;
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
-  onFilterChange: (value: CaptionFilter) => void;
+  duplicatesOnly: boolean;
+  duplicateCount: number;
+  onFilterChange: (value: ItemFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
+  onDuplicatesOnlyChange: (value: boolean) => void;
 }
 
 interface FilterMenuGroupProps<T extends string> {
@@ -86,15 +93,66 @@ function FilterMenuGroup<T extends string>({
   );
 }
 
-/** Media type and caption status filters, folded into one dropdown to spare toolbar width. */
+/**
+ * A section per axis, so the three compose instead of overwriting each other. Media type and
+ * caption status are one-of-many choices; duplicates is a toggle that narrows whatever those
+ * two already chose, which is why it gets checkbox semantics rather than a fourth radio.
+ */
+function FilterMenuToggle({
+  label,
+  option,
+  count,
+  active,
+  searchQuery,
+  onChange,
+}: {
+  label: string;
+  option: { label: string; ariaLabel: string; icon: AppIcon };
+  count: number;
+  active: boolean;
+  searchQuery: string;
+  onChange: (value: boolean) => void;
+}) {
+  const labelId = useId();
+
+  return (
+    <div className="toolbar__filter-menu-group" role="group" aria-labelledby={labelId}>
+      <span id={labelId} className="toolbar__filter-menu-group-label">
+        {label}
+      </span>
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={active}
+        aria-label={filterCountLabel(option.ariaLabel, count, searchQuery)}
+        className={classNames(
+          "toolbar__filter-menu-option",
+          active && "toolbar__filter-menu-option--active",
+        )}
+        onClick={() => onChange(!active)}
+      >
+        <Icon icon={option.icon} className="toolbar__filter-menu-option-icon" />
+        <span className="toolbar__filter-menu-option-label">{option.label}</span>
+        <span className="toolbar__filter-menu-option-count" aria-hidden="true">
+          {count}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** Media type, caption status and duplicate filters, folded into one dropdown to spare toolbar width. */
 export function ToolbarFilterMenu({
   searchQuery,
   filter,
   filterCounts,
   mediaTypeFilter,
   mediaTypeFilterCounts,
+  duplicatesOnly,
+  duplicateCount,
   onFilterChange,
   onMediaTypeFilterChange,
+  onDuplicatesOnlyChange,
 }: ToolbarFilterMenuProps) {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -123,11 +181,15 @@ export function ToolbarFilterMenu({
   if (filter !== "all") {
     activeLabels.push(optionLabelFor(FILTER_OPTIONS, filter));
   }
+  // Last, matching the panel order, so the summary reads in the order the sections appear.
+  if (duplicatesOnly) {
+    activeLabels.push(DUPLICATE_FILTER_OPTION.label);
+  }
 
   const filtering = activeLabels.length > 0;
   const tooltip = filtering
     ? `Filtering by ${activeLabels.join(" & ")}`
-    : "Filter by media type and caption status";
+    : "Filter by media type, caption status and duplicates";
 
   return (
     <div
@@ -169,6 +231,14 @@ export function ToolbarFilterMenu({
             value={filter}
             searchQuery={searchQuery}
             onChange={onFilterChange}
+          />
+          <FilterMenuToggle
+            label="Files"
+            option={DUPLICATE_FILTER_OPTION}
+            count={duplicateCount}
+            active={duplicatesOnly}
+            searchQuery={searchQuery}
+            onChange={onDuplicatesOnlyChange}
           />
         </div>
       )}

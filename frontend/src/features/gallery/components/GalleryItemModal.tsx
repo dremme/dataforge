@@ -29,8 +29,8 @@ import {
   iconCopy,
   iconFolderInput,
   iconLoader2,
+  iconMessageCheck,
   iconTrash2,
-  iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
@@ -594,7 +594,7 @@ export function GalleryItemModal({
                     aria-label={`Resolve caption issue for ${item.name}`}
                   >
                     <Icon
-                      icon={iconTriangleAlert}
+                      icon={iconMessageCheck}
                       className="gallery-item-modal__caption-action-icon"
                     />
                     Resolve issue

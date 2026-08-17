@@ -36,7 +36,9 @@
   }
 }
 
-@keyframes jobs-drawer-slide-in {
+// Shared by every right-hand drawer (jobs, stats), so it is named for the shape
+// rather than for whichever one happened to need it first.
+@keyframes drawer-slide-in {
   from {
     transform: translateX(100%);
   }
@@ -114,7 +116,7 @@
   }
 }
 
-@keyframes jobs-drawer-slide-out {
+@keyframes drawer-slide-out {
   from {
     transform: translateX(0);
   }

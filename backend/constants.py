@@ -56,6 +56,11 @@ IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
 # `Path.suffix` both mis-read it; resolve names against this instead of guessing.
 ISSUE_SIDECAR_SUFFIX = ".issue.json"
 
+# Duplicate groups written by find-duplicates. Its own file rather than a share of the
+# issue sidecar: a caption issue is fixed by editing text, a duplicate by deleting a file,
+# so they need different resolvers and must not be able to clear each other.
+DUPLICATE_SIDECAR_SUFFIX = ".duplicate.json"
+
 # A caption is reviewed by hand, so the model is asked for the few changes that matter
 # most rather than an exhaustive list. The prompt states this cap and the parser enforces it.
 MAX_ISSUE_FIXES = 3

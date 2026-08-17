@@ -89,6 +89,8 @@ class JobResponseSchemaTests(unittest.TestCase):
             "auto_caption",
             "strip_metadata",
             "set_captions",
+            "replace_captions",
+            "find_duplicates",
             "verify_captions",
             "batch_rename",
             "backup_captions",

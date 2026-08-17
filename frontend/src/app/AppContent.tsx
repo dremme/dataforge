@@ -20,6 +20,8 @@ export function AppContent() {
     fileDrop,
     gallery,
     automation,
+    statsDrawer,
+    duplicateResolver,
   } = useAppWorkspace();
 
   const {
@@ -74,6 +76,10 @@ export function AppContent() {
               filterCounts: query.filterCounts,
               mediaTypeFilter: query.mediaTypeFilter,
               mediaTypeFilterCounts: query.mediaTypeFilterCounts,
+              duplicatesOnly: query.duplicatesOnly,
+              duplicateCount: query.duplicateCount,
+              statsOpen: statsDrawer.statsOpen,
+              onToggleStats: statsDrawer.toggleStats,
               // Narrowing the view is not a selection change: a path stays selected
               // while it is filtered out, so the pick survives refining a search.
               onSearchQueryChange: query.setSearchQuery,
@@ -82,6 +88,7 @@ export function AppContent() {
               onSortChange: query.setSort,
               onFilterChange: query.setFilter,
               onMediaTypeFilterChange: query.setMediaTypeFilter,
+              onDuplicatesOnlyChange: query.setDuplicatesOnly,
             }}
           />
         )}
@@ -145,6 +152,12 @@ export function AppContent() {
             item: gallery.syspromptModalItem,
             onClose: gallery.closeSysPrompt,
           }}
+          stats={{
+            open: statsDrawer.statsOpen,
+            items,
+            onClose: statsDrawer.closeStats,
+          }}
+          duplicateResolver={duplicateResolver.overlay}
           jobStart={automation.jobStartConfirm}
           automation={automation.dialogs}
           fileImport={{

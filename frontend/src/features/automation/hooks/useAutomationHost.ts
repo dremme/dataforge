@@ -15,6 +15,7 @@ type FolderAutomation = ReturnType<typeof useFolderAutomation>;
 type UseAutomationHostOptions = {
   folder: string | undefined;
   breadcrumbs: Breadcrumb[];
+  /** Every item in the folder; only the default job size is derived from it. */
   items: GalleryItem[];
   filteredItems: GalleryItem[];
   sysprompt: GalleryItem | null;
@@ -25,6 +26,9 @@ type UseAutomationHostOptions = {
   onEditSysprompt: () => void;
   issueCount: number;
   onResolveIssues?: () => void;
+  /** Groups, not files: the resolver walks one group per step. */
+  duplicateGroupCount: number;
+  onResolveDuplicates?: () => void;
 };
 
 /**
@@ -44,6 +48,8 @@ export function useAutomationHost({
   onEditSysprompt,
   issueCount,
   onResolveIssues,
+  duplicateGroupCount,
+  onResolveDuplicates,
 }: UseAutomationHostOptions) {
   const { startJob } = automation;
   const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
@@ -99,6 +105,8 @@ export function useAutomationHost({
       onCancelJob: automation.cancelFolderJob,
       issueCount,
       onResolveIssues,
+      duplicateGroupCount,
+      onResolveDuplicates,
     }),
     [
       automation.cancelFolderJob,
@@ -109,8 +117,10 @@ export function useAutomationHost({
       filteredItems,
       jobAvailability,
       issueCount,
+      duplicateGroupCount,
       onEditSysprompt,
       onResolveIssues,
+      onResolveDuplicates,
       requestStart,
       sysprompt,
     ],

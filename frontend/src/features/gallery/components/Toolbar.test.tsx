@@ -6,7 +6,7 @@ import {
   releaseScrollLock,
   resetScrollLockManagerForTests,
 } from "@/shared/hooks/scrollLockManager";
-import type { CaptionFilter, MediaTypeFilter, SortOption } from "@/features/gallery/lib/query";
+import type { ItemFilter, MediaTypeFilter, SortOption } from "@/features/gallery/lib/query";
 import { Toolbar } from "./Toolbar";
 
 vi.mock("@/features/jobs/components/JobsButton", () => ({
@@ -23,7 +23,7 @@ const defaultProps = {
   searchRegex: false,
   searchNames: true,
   sort: "name-asc" as SortOption,
-  filter: "all" as CaptionFilter,
+  filter: "all" as ItemFilter,
   filterCounts: {
     all: 3,
     captioned: 2,
@@ -36,12 +36,17 @@ const defaultProps = {
     image: 2,
     video: 1,
   },
+  duplicatesOnly: false,
+  duplicateCount: 2,
+  statsOpen: false,
+  onToggleStats: vi.fn(),
   onSearchQueryChange: vi.fn(),
   onSearchRegexChange: vi.fn(),
   onSearchNamesChange: vi.fn(),
   onSortChange: vi.fn(),
   onFilterChange: vi.fn(),
   onMediaTypeFilterChange: vi.fn(),
+  onDuplicatesOnlyChange: vi.fn(),
 };
 
 function renderToolbar(props: Partial<typeof defaultProps> = {}) {
@@ -120,7 +125,7 @@ describe("Toolbar", () => {
     expect(screen.getByRole("searchbox", { name: "Search captions" })).toBeInTheDocument();
   });
 
-  it("opens both filter groups from the filter menu", async () => {
+  it("opens every filter group from the filter menu", async () => {
     const user = userEvent.setup();
     renderToolbar({ mediaTypeFilter: "video" });
 
@@ -131,12 +136,78 @@ describe("Toolbar", () => {
     const menu = screen.getByRole("menu", { name: "Filters" });
     expect(within(menu).getByRole("group", { name: "Media type" })).toBeInTheDocument();
     expect(within(menu).getByRole("group", { name: "Caption status" })).toBeInTheDocument();
+    // Duplicates is a property of the file, so it gets its own axis rather than sitting
+    // among the caption states.
+    expect(within(menu).getByRole("group", { name: "Files" })).toBeInTheDocument();
     expect(within(menu).getByRole("menuitemradio", { name: "Videos and GIFs (1)" })).toBeChecked();
 
     await user.click(within(menu).getByRole("menuitemradio", { name: "Images (2)" }));
     expect(defaultProps.onMediaTypeFilterChange).toHaveBeenCalledWith("image");
     // Picking one axis leaves the menu open for the other.
     expect(screen.getByRole("menu", { name: "Filters" })).toBeInTheDocument();
+  });
+
+  it("keeps the Duplicates toggle out of the caption status group", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+
+    const menu = screen.getByRole("menu", { name: "Filters" });
+    const captionGroup = within(menu).getByRole("group", { name: "Caption status" });
+    const filesGroup = within(menu).getByRole("group", { name: "Files" });
+
+    expect(within(captionGroup).queryByRole("menuitemradio", { name: /Duplicates/ })).toBeNull();
+    expect(
+      within(filesGroup).getByRole("menuitemcheckbox", { name: "Duplicates (2)" }),
+    ).toBeInTheDocument();
+  });
+
+  // A checkbox, not a radio: a one-option radio group would have no way to switch itself off.
+  it("toggles duplicates on and off", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+
+    const off = screen.getByRole("menuitemcheckbox", { name: "Duplicates (2)" });
+    expect(off).toHaveAttribute("aria-checked", "false");
+
+    await user.click(off);
+    expect(defaultProps.onDuplicatesOnlyChange).toHaveBeenCalledWith(true);
+    // Same as the other axes: selecting does not close the menu.
+    expect(screen.getByRole("menu", { name: "Filters" })).toBeInTheDocument();
+
+    unmount();
+    vi.clearAllMocks();
+    renderToolbar({ duplicatesOnly: true });
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+
+    const on = screen.getByRole("menuitemcheckbox", { name: "Duplicates (2)" });
+    expect(on).toHaveAttribute("aria-checked", "true");
+
+    await user.click(on);
+    expect(defaultProps.onDuplicatesOnlyChange).toHaveBeenCalledWith(false);
+  });
+
+  it("counts the Duplicates toggle against the active search", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ searchQuery: "sun" });
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: 'Duplicates (2 matching "sun")' }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the trigger as filtering when duplicates is the only active axis", () => {
+    renderToolbar({ duplicatesOnly: true });
+
+    expect(screen.getByRole("button", { name: "Filter media" })).toHaveClass(
+      "toolbar__filter-menu-trigger--filtering",
+    );
   });
 
   it("closes the filter menu on Escape", async () => {

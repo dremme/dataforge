@@ -20,10 +20,19 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
+from automation.find_duplicates import (
+    DEFAULT_THRESHOLD as DEFAULT_DUPLICATE_THRESHOLD,
+)
+from automation.find_duplicates import (
+    run_find_duplicates_job,
+    validate_find_duplicates_folder,
+)
 from automation.job_messages import (
     auto_caption_failure_message,
     backup_captions_error_message,
+    find_duplicates_error_message,
     rename_media_error_message,
+    replace_captions_error_message,
     resolve_job_error,
     restore_captions_error_message,
     set_captions_error_message,
@@ -32,6 +41,13 @@ from automation.job_messages import (
     watermark_error_message,
 )
 from automation.rename_media import run_rename_media_job, validate_rename_media_folder
+from automation.replace_captions import (
+    DEFAULT_MODE as DEFAULT_REPLACE_MODE,
+)
+from automation.replace_captions import (
+    run_replace_captions_job,
+    validate_replace_captions_folder,
+)
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
 from automation.train_lora import run_train_lora_job, validate_train_lora_folder
@@ -199,6 +215,24 @@ def _validate_rename_media(folder: Path, **params: object) -> None:
     )
 
 
+def _validate_replace_captions(folder: Path, **params: object) -> None:
+    validate_replace_captions_folder(
+        folder,
+        mode=str(params.get("mode", DEFAULT_REPLACE_MODE)),
+        search=str(params.get("search", "")),
+        replacement=str(params.get("replacement", "")),
+        use_regex=bool(params.get("use_regex", False)),
+        case_sensitive=bool(params.get("case_sensitive", False)),
+    )
+
+
+def _validate_find_duplicates(folder: Path, **params: object) -> None:
+    validate_find_duplicates_folder(
+        folder,
+        threshold=str(params.get("threshold", DEFAULT_DUPLICATE_THRESHOLD)),
+    )
+
+
 def _validate_watermark(folder: Path, **params: object) -> None:
     validate_watermark_folder(
         folder,
@@ -271,6 +305,18 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_set_captions_job,
         resolve_status=_resolve_stats_errors(set_captions_error_message),
         validate=_folder_only(validate_set_captions_folder),
+    ),
+    "replace_captions": JobSpec(
+        thread_prefix="replace-captions",
+        run=run_replace_captions_job,
+        resolve_status=_resolve_stats_errors(replace_captions_error_message),
+        validate=_validate_replace_captions,
+    ),
+    "find_duplicates": JobSpec(
+        thread_prefix="find-duplicates",
+        run=run_find_duplicates_job,
+        resolve_status=_resolve_stats_errors(find_duplicates_error_message),
+        validate=_validate_find_duplicates,
     ),
     "batch_rename": JobSpec(
         thread_prefix="rename-media",

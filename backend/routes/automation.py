@@ -3,13 +3,18 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 
 from automation.jobs import JobType, job_manager
+from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
 from routes._helpers import job_response, resolve_folder
 from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    FindDuplicatesStartRequest,
     JobResponse,
+    ReplaceCaptionsPreviewRequest,
+    ReplaceCaptionsPreviewResponse,
+    ReplaceCaptionsStartRequest,
     RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
     StripMetadataStartRequest,
@@ -71,6 +76,65 @@ def start_set_captions_job(
         body.paths,
         caption=body.caption,
         overwrite=body.overwrite,
+    )
+
+
+@router.post("/automation/replace-captions", response_model=JobResponse)
+def start_replace_captions_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: ReplaceCaptionsStartRequest = ReplaceCaptionsStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "replace_captions",
+        resolve_folder(path),
+        body.paths,
+        mode=body.mode,
+        search=body.search,
+        replacement=body.replacement,
+        use_regex=body.use_regex,
+        case_sensitive=body.case_sensitive,
+    )
+
+
+@router.post("/automation/replace-captions/preview", response_model=ReplaceCaptionsPreviewResponse)
+def preview_replace_captions_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: ReplaceCaptionsPreviewRequest = ReplaceCaptionsPreviewRequest(),
+) -> ReplaceCaptionsPreviewResponse:
+    """Count the captions the edit would change. POST despite being read-only:
+    a regular expression is awkward to encode in a query string and can be long.
+    """
+    folder = resolve_folder(path)
+
+    try:
+        selected_paths = resolve_selected_media(folder, body.paths)
+        preview = preview_caption_replacements(
+            folder,
+            mode=body.mode,
+            search=body.search,
+            replacement=body.replacement,
+            use_regex=body.use_regex,
+            case_sensitive=body.case_sensitive,
+            selected_paths=selected_paths,
+        )
+    except ValueError as exc:
+        # An unusable edit is the normal state while typing, so it is a body field
+        # rather than a 400 the dialog would have to special-case.
+        return ReplaceCaptionsPreviewResponse(folder=str(folder), error=str(exc))
+
+    return ReplaceCaptionsPreviewResponse(**preview)
+
+
+@router.post("/automation/find-duplicates", response_model=JobResponse)
+def start_find_duplicates_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: FindDuplicatesStartRequest = FindDuplicatesStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "find_duplicates",
+        resolve_folder(path),
+        body.paths,
+        threshold=body.threshold,
     )
 
 

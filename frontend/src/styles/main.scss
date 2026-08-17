@@ -22,6 +22,7 @@
 @use "components/breadcrumbs";
 @use "components/code-editor";
 @use "components/confirm-dialog";
+@use "components/duplicate-resolver-modal";
 @use "components/empty-state";
 @use "components/folder-grid";
 @use "components/open-folder-modal";
@@ -35,6 +36,7 @@
 @use "components/modal-panel";
 @use "components/notifications";
 @use "components/sections";
+@use "components/stats-drawer";
 @use "components/sysprompt-modal";
 @use "components/toolbar";
 @use "components/tooltip";

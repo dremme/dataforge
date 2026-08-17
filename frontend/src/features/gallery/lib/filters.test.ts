@@ -11,6 +11,7 @@ import { getFilterEmptyState } from "./filters";
 const baseOptions = {
   filter: "all" as const,
   mediaTypeFilter: "all" as const,
+  duplicatesOnly: false,
   searchQuery: "",
   hasFilterMatches: false,
   imageCount: 3,
@@ -75,6 +76,42 @@ describe("getFilterEmptyState", () => {
     expect(state.icon).toBe(iconMessageDashed);
     expect(state.title).toBe("No captioned files");
     expect(state.variant).toBe("default");
+  });
+
+  it("celebrates a folder with no duplicates", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      duplicatesOnly: true,
+    });
+
+    expect(state.icon).toBe(iconCircleCheck);
+    expect(state.title).toBe("No duplicates");
+    expect(state.variant).toBe("success");
+  });
+
+  // "No duplicates" would be a lie here: the folder may well have them, just none that the
+  // caption filter also keeps.
+  it("blames the combination when duplicates and a caption filter are both active", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      duplicatesOnly: true,
+      filter: "uncaptioned",
+    });
+
+    expect(state.title).toBe("No matching duplicates");
+    expect(state.description).toContain("caption filter");
+    expect(state.variant).toBe("muted");
+  });
+
+  it("reports a missing media type ahead of duplicates", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      duplicatesOnly: true,
+      mediaTypeFilter: "video",
+      videoCount: 0,
+    });
+
+    expect(state.title).toBe("No videos");
   });
 
   it("falls back to a generic no-matches state", () => {
