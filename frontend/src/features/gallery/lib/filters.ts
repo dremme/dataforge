@@ -32,18 +32,23 @@ export const FILTER_OPTIONS = [
     ariaLabel: "Missing caption",
     icon: iconMessageDashed,
   },
-  {
-    value: "duplicate" as const,
-    label: "Duplicates",
-    ariaLabel: "Duplicates",
-    icon: iconFiles,
-  },
 ] satisfies ReadonlyArray<{
   value: ItemFilter;
   label: string;
   ariaLabel: string;
   icon: AppIcon;
 }>;
+
+/**
+ * The Files axis holds one toggle, not a choice, so it has no `value` and no "All" entry -
+ * it is either narrowing the gallery to duplicates or it is off. Declared here anyway so
+ * the menu keeps reading its labels and icon from data like the two axes above.
+ */
+export const DUPLICATE_FILTER_OPTION = {
+  label: "Duplicates",
+  ariaLabel: "Duplicates",
+  icon: iconFiles,
+} satisfies { label: string; ariaLabel: string; icon: AppIcon };
 
 export const MEDIA_TYPE_FILTER_OPTIONS = [
   { value: "all" as const, label: "All", ariaLabel: "All types", icon: iconImages },
@@ -68,6 +73,7 @@ export interface FilterEmptyState {
 export function getFilterEmptyState(options: {
   filter: ItemFilter;
   mediaTypeFilter: MediaTypeFilter;
+  duplicatesOnly: boolean;
   searchQuery: string;
   hasFilterMatches: boolean;
   imageCount: number;
@@ -103,6 +109,31 @@ export function getFilterEmptyState(options: {
     };
   }
 
+  // Ahead of the caption branches: duplicates is the narrower, more surprising reason for
+  // an empty grid, and "All files captioned" would misdirect when the real cause is that
+  // nothing here is a duplicate.
+  if (options.duplicatesOnly) {
+    // Checked first, or this would claim "No duplicates" in a folder that has plenty -
+    // just none that the caption filter also keeps.
+    if (options.filter !== "all") {
+      return {
+        icon: iconSearch,
+        title: "No matching duplicates",
+        description:
+          "Nothing in this folder is both flagged as a duplicate and matched by the caption filter.",
+        variant: "muted",
+      };
+    }
+
+    return {
+      icon: iconCircleCheck,
+      title: "No duplicates",
+      description:
+        "Nothing in this folder is flagged as a duplicate. Run find duplicates to check.",
+      variant: "success",
+    };
+  }
+
   if (options.filter === "uncaptioned") {
     return {
       icon: iconCircleCheck,
@@ -117,16 +148,6 @@ export function getFilterEmptyState(options: {
       icon: iconCircleCheck,
       title: "No files with issues",
       description: "None of the files in this folder have caption issues.",
-      variant: "success",
-    };
-  }
-
-  if (options.filter === "duplicate") {
-    return {
-      icon: iconCircleCheck,
-      title: "No duplicates",
-      description:
-        "Nothing in this folder is flagged as a duplicate. Run find duplicates to check.",
       variant: "success",
     };
   }

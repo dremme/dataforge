@@ -76,6 +76,8 @@ export function AppContent() {
               filterCounts: query.filterCounts,
               mediaTypeFilter: query.mediaTypeFilter,
               mediaTypeFilterCounts: query.mediaTypeFilterCounts,
+              duplicatesOnly: query.duplicatesOnly,
+              duplicateCount: query.duplicateCount,
               statsOpen: statsDrawer.statsOpen,
               onToggleStats: statsDrawer.toggleStats,
               // Narrowing the view is not a selection change: a path stays selected
@@ -86,6 +88,7 @@ export function AppContent() {
               onSortChange: query.setSort,
               onFilterChange: query.setFilter,
               onMediaTypeFilterChange: query.setMediaTypeFilter,
+              onDuplicatesOnlyChange: query.setDuplicatesOnly,
             }}
           />
         )}

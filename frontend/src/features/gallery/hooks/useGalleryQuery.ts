@@ -7,6 +7,7 @@ import {
 } from "@/features/gallery/lib/sessionPreferences";
 import {
   DEFAULT_SORT,
+  applyDuplicateFilter,
   applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
@@ -30,6 +31,9 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const [filter, setFilterState] = useState<ItemFilter>(() => readGallerySessionQuery().filter);
   const [mediaTypeFilter, setMediaTypeFilterState] = useState<MediaTypeFilter>(
     () => readGallerySessionQuery().mediaTypeFilter,
+  );
+  const [duplicatesOnly, setDuplicatesOnlyState] = useState(
+    () => readGallerySessionQuery().duplicatesOnly,
   );
   const [searchQuery, setSearchQueryState] = useState(() => readGallerySessionQuery().searchQuery);
   const [searchRegex, setSearchRegexState] = useState(() => readGallerySessionQuery().searchRegex);
@@ -60,6 +64,11 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const setMediaTypeFilter = useCallback((value: MediaTypeFilter) => {
     setMediaTypeFilterState(value);
     cacheGallerySessionQuery({ mediaTypeFilter: value });
+  }, []);
+
+  const setDuplicatesOnly = useCallback((value: boolean) => {
+    setDuplicatesOnlyState(value);
+    cacheGallerySessionQuery({ duplicatesOnly: value });
   }, []);
 
   const setSearchQuery = useCallback((value: string) => {
@@ -96,31 +105,59 @@ export function useGalleryQuery(items: GalleryItem[]) {
     [mediaTypeFilteredItems, filter],
   );
 
+  /** Everything the filters keep, before the search narrows it further. */
+  const filterMatchedItems = useMemo(
+    () => applyDuplicateFilter(captionFilteredItems, duplicatesOnly),
+    [captionFilteredItems, duplicatesOnly],
+  );
+
   const filteredItems = useMemo(
     () =>
       processGalleryItems(items, {
         filter,
         mediaTypeFilter,
+        duplicatesOnly,
         searchQuery,
         searchRegex,
         searchNames,
         sort,
       }),
-    [items, filter, mediaTypeFilter, searchQuery, searchRegex, searchNames, sort],
+    [items, filter, mediaTypeFilter, duplicatesOnly, searchQuery, searchRegex, searchNames, sort],
   );
 
   const hasActiveSearch = searchQuery.trim().length > 0;
-  const hasActiveFilters = filter !== "all" || mediaTypeFilter !== "all";
+  const hasActiveFilters = filter !== "all" || mediaTypeFilter !== "all" || duplicatesOnly;
   const captionedCount = useMemo(() => countCaptioned(items), [items]);
 
+  // Each axis is counted with every *other* axis applied, so a count in the menu always
+  // equals what picking it would leave on screen. Miss one and the numbers quietly lie.
   const captionFilterCountItems = useMemo(
-    () => filterBySearch(mediaTypeFilteredItems, searchQuery, searchRegex, searchNames),
-    [mediaTypeFilteredItems, searchQuery, searchRegex, searchNames],
+    () =>
+      filterBySearch(
+        applyDuplicateFilter(mediaTypeFilteredItems, duplicatesOnly),
+        searchQuery,
+        searchRegex,
+        searchNames,
+      ),
+    [mediaTypeFilteredItems, duplicatesOnly, searchQuery, searchRegex, searchNames],
   );
 
   const mediaTypeFilterCountItems = useMemo(
-    () => filterBySearch(captionScopedItems, searchQuery, searchRegex, searchNames),
-    [captionScopedItems, searchQuery, searchRegex, searchNames],
+    () =>
+      filterBySearch(
+        applyDuplicateFilter(captionScopedItems, duplicatesOnly),
+        searchQuery,
+        searchRegex,
+        searchNames,
+      ),
+    [captionScopedItems, duplicatesOnly, searchQuery, searchRegex, searchNames],
+  );
+
+  // Deliberately not duplicate-scoped: this is the count on the toggle itself, so it has to
+  // say what turning it on would find, which means measuring with it off.
+  const duplicateFilterCountItems = useMemo(
+    () => filterBySearch(captionFilteredItems, searchQuery, searchRegex, searchNames),
+    [captionFilteredItems, searchQuery, searchRegex, searchNames],
   );
 
   const filterCounts = useMemo(() => {
@@ -131,11 +168,15 @@ export function useGalleryQuery(items: GalleryItem[]) {
       captioned,
       issue,
       uncaptioned: captionFilterCountItems.length - captioned,
-      // Files, not groups: this count sits beside the others in the filter menu and
-      // says how many items the filter would leave on screen.
-      duplicate: countDuplicates(captionFilterCountItems),
     } as const;
   }, [captionFilterCountItems]);
+
+  // Files, not groups: this count sits beside the others in the filter menu and says how
+  // many items the filter would leave on screen.
+  const duplicateCount = useMemo(
+    () => countDuplicates(duplicateFilterCountItems),
+    [duplicateFilterCountItems],
+  );
 
   const mediaTypeFilterCounts = useMemo(() => {
     const images = countMediaType(mediaTypeFilterCountItems, "image");
@@ -152,12 +193,13 @@ export function useGalleryQuery(items: GalleryItem[]) {
       getFilterEmptyState({
         filter,
         mediaTypeFilter,
+        duplicatesOnly,
         searchQuery,
-        hasFilterMatches: captionFilteredItems.length > 0,
+        hasFilterMatches: filterMatchedItems.length > 0,
         imageCount: countMediaType(items, "image"),
         videoCount: countMediaType(items, "video"),
       }),
-    [captionFilteredItems.length, filter, items, mediaTypeFilter, searchQuery],
+    [filterMatchedItems.length, filter, items, mediaTypeFilter, duplicatesOnly, searchQuery],
   );
 
   return {
@@ -165,6 +207,8 @@ export function useGalleryQuery(items: GalleryItem[]) {
     setFilter,
     mediaTypeFilter,
     setMediaTypeFilter,
+    duplicatesOnly,
+    setDuplicatesOnly,
     searchQuery,
     searchRegex,
     searchNames,
@@ -179,6 +223,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     captionedCount,
     filterCounts,
     mediaTypeFilterCounts,
+    duplicateCount,
     filterEmptyState,
   };
 }

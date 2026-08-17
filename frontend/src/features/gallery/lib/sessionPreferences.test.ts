@@ -21,6 +21,7 @@ describe("gallery session preferences", () => {
       JSON.stringify({
         filter: "captioned",
         mediaTypeFilter: "image",
+        duplicatesOnly: false,
         searchQuery: "sunset",
         searchRegex: true,
         searchNames: false,
@@ -29,6 +30,7 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery()).toEqual({
       filter: "captioned",
       mediaTypeFilter: "image",
+      duplicatesOnly: false,
       searchQuery: "sunset",
       searchRegex: true,
       searchNames: false,
@@ -39,6 +41,9 @@ describe("gallery session preferences", () => {
     cacheGallerySessionQuery({
       filter: "uncaptioned",
       mediaTypeFilter: "all",
+      // Left out of the second write below, so this also covers a `true` boolean surviving
+      // a partial merge rather than being read as absent.
+      duplicatesOnly: true,
       searchQuery: "lake",
       searchRegex: false,
       searchNames: true,
@@ -49,6 +54,7 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery()).toEqual({
       filter: "uncaptioned",
       mediaTypeFilter: "all",
+      duplicatesOnly: true,
       searchQuery: "mountain",
       searchRegex: false,
       searchNames: true,
@@ -61,6 +67,7 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery()).toEqual({
       filter: "all",
       mediaTypeFilter: "all",
+      duplicatesOnly: false,
       searchQuery: "",
       searchRegex: false,
       searchNames: true,
@@ -82,6 +89,7 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery()).toEqual({
       filter: "all",
       mediaTypeFilter: "all",
+      duplicatesOnly: false,
       searchQuery: "",
       searchRegex: false,
       searchNames: true,
@@ -100,6 +108,36 @@ describe("gallery session preferences", () => {
     );
 
     expect(readGallerySessionQuery().searchNames).toBe(true);
+  });
+
+  // `filter: "duplicate"` predates duplicates becoming their own axis. It no longer passes
+  // `isItemFilter`, so without the migration a session in flight would silently drop the
+  // filter it was showing instead of carrying it over.
+  it("carries the retired duplicate filter value over to its own axis", () => {
+    window.sessionStorage.setItem(
+      SESSION_QUERY_CACHE_KEY,
+      JSON.stringify({
+        filter: "duplicate",
+        mediaTypeFilter: "all",
+        searchQuery: "",
+        searchRegex: false,
+        searchNames: true,
+      }),
+    );
+
+    const query = readGallerySessionQuery();
+
+    expect(query.duplicatesOnly).toBe(true);
+    expect(query.filter).toBe("all");
+  });
+
+  it("prefers a stored duplicatesOnly over the retired filter value", () => {
+    window.sessionStorage.setItem(
+      SESSION_QUERY_CACHE_KEY,
+      JSON.stringify({ filter: "duplicate", duplicatesOnly: false }),
+    );
+
+    expect(readGallerySessionQuery().duplicatesOnly).toBe(false);
   });
 
   it("honours the pre-rename searchFolders key", () => {
