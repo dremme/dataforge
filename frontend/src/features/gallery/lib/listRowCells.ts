@@ -5,12 +5,11 @@ import {
 import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import {
   iconBraces,
-  iconCopy,
   iconFileImage,
+  iconFiles,
   iconMessageCheck,
   iconMessageDashed,
   iconMessageWarning,
-  iconTriangleAlert,
   iconVideo,
   type AppIcon,
 } from "@/shared/icons";
@@ -47,7 +46,7 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
   if (item.has_issue_file) {
     markers.push({
       key: "issue",
-      icon: iconTriangleAlert,
+      icon: iconMessageWarning,
       label: "Caption issue",
       variant: "issue",
     });
@@ -55,7 +54,7 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
   if (item.has_duplicate_file) {
     markers.push({
       key: "duplicate",
-      icon: iconCopy,
+      icon: iconFiles,
       label: "Duplicate",
       variant: "duplicate",
     });

@@ -1,18 +1,18 @@
 import { useId, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  iconAlertTriangle,
   iconBan,
   iconCircleCheck,
   iconCircleAlert,
-  iconCopy,
   iconDot,
+  iconFileCheck,
   iconFilePen,
   iconFilePlus,
   iconHammer,
   iconInfo,
   iconLoader2,
   iconTriangleAlert,
+  iconMessageCheck,
 } from "@/shared/icons";
 import type { GalleryItem, Job, JobType } from "@/shared/types";
 import {
@@ -233,7 +233,7 @@ export function AutomationPanel({
                       disabled={starting}
                       aria-label={`Resolve ${issueLabel}`}
                     >
-                      <Icon icon={iconAlertTriangle} className="automation__btn-icon" />
+                      <Icon icon={iconMessageCheck} className="automation__btn-icon" />
                       Resolve issues
                     </button>
                   </Tooltip>
@@ -248,7 +248,7 @@ export function AutomationPanel({
                       disabled={starting}
                       aria-label={`Resolve ${duplicateLabel}`}
                     >
-                      <Icon icon={iconCopy} className="automation__btn-icon" />
+                      <Icon icon={iconFileCheck} className="automation__btn-icon" />
                       Resolve duplicates
                     </button>
                   </Tooltip>

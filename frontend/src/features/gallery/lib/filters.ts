@@ -1,7 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import {
   iconCircleCheck,
-  iconCopy,
+  iconFiles,
   iconMessageCheck,
   iconMessageDashed,
   iconMessageWarning,
@@ -36,7 +36,7 @@ export const FILTER_OPTIONS = [
     value: "duplicate" as const,
     label: "Duplicates",
     ariaLabel: "Duplicates",
-    icon: iconCopy,
+    icon: iconFiles,
   },
 ] satisfies ReadonlyArray<{
   value: ItemFilter;

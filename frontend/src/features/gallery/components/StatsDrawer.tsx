@@ -4,7 +4,14 @@ import {
   type DatasetStats,
   type StatBucket,
 } from "@/features/gallery/lib/datasetStats";
-import { iconChartBar, iconCircleCheck, iconCopy, iconTriangleAlert, iconX } from "@/shared/icons";
+import {
+  iconChartBar,
+  iconFiles,
+  iconMessageCheck,
+  iconMessageDashed,
+  iconMessageWarning,
+  iconX,
+} from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { GalleryItem } from "@/shared/types";
@@ -181,14 +188,14 @@ function Overview({ stats }: { stats: DatasetStats }) {
       {/* Status is never colour alone: each of these carries its own icon and words. */}
       {missingCaption > 0 && (
         <p className="stats-drawer__status stats-drawer__status--warning">
-          <Icon icon={iconTriangleAlert} className="stats-drawer__status-icon" />
+          <Icon icon={iconMessageDashed} className="stats-drawer__status-icon" />
           {missingCaption} {missingCaption === 1 ? "file is" : "files are"} missing a caption
         </p>
       )}
 
       {captionIssues > 0 && (
         <p className="stats-drawer__status stats-drawer__status--warning">
-          <Icon icon={iconTriangleAlert} className="stats-drawer__status-icon" />
+          <Icon icon={iconMessageWarning} className="stats-drawer__status-icon" />
           {captionIssues} {captionIssues === 1 ? "file has" : "files have"} a caption issue
         </p>
       )}
@@ -198,7 +205,7 @@ function Overview({ stats }: { stats: DatasetStats }) {
           should not compete with the rows above for alarm. */}
       {duplicates > 0 && (
         <p className="stats-drawer__status stats-drawer__status--info">
-          <Icon icon={iconCopy} className="stats-drawer__status-icon" />
+          <Icon icon={iconFiles} className="stats-drawer__status-icon" />
           {duplicates} {duplicates === 1 ? "file is" : "files are"} in {duplicateGroups}{" "}
           {duplicateGroups === 1 ? "duplicate group" : "duplicate groups"}
         </p>
@@ -206,7 +213,7 @@ function Overview({ stats }: { stats: DatasetStats }) {
 
       {clear && (
         <p className="stats-drawer__status stats-drawer__status--good">
-          <Icon icon={iconCircleCheck} className="stats-drawer__status-icon" />
+          <Icon icon={iconMessageCheck} className="stats-drawer__status-icon" />
           Every file is captioned, with no issues or duplicates
         </p>
       )}

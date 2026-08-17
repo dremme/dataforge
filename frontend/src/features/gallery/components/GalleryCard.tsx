@@ -2,11 +2,12 @@ import { memo } from "react";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
   iconBraces,
-  iconCopy,
   iconCheck,
   iconExpand,
   iconFileImage,
+  iconFiles,
   iconMessageDashed,
+  iconMessageWarning,
   iconPlay,
   iconTriangleAlert,
   iconVideo,
@@ -94,10 +95,10 @@ export const GalleryCard = memo(function GalleryCard({
         {itemIsVideo && <CardBadge icon={iconVideo} label="Video" variant="video" />}
         {itemIsGif && <CardBadge icon={iconFileImage} label="GIF" variant="gif" />}
         {item.has_issue_file && (
-          <CardBadge icon={iconTriangleAlert} label="Issue" variant="issue" />
+          <CardBadge icon={iconMessageWarning} label="Issue" variant="issue" />
         )}
         {item.has_duplicate_file && (
-          <CardBadge icon={iconCopy} label="Duplicate" variant="duplicate" />
+          <CardBadge icon={iconFiles} label="Duplicate" variant="duplicate" />
         )}
         {item.caption_file_type === "json" && (
           <CardBadge

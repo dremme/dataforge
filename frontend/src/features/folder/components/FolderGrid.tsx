@@ -9,12 +9,26 @@ import type { Subfolder } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
 
+/**
+ * What the card is warning about, in the words its label uses.
+ *
+ * Caption issues and duplicates are counted from separate sidecars and one file can
+ * carry both, so they stay two clauses instead of one total: a sum could claim more
+ * findings than the folder has files.
+ *
+ * Each count is read on its own rather than requiring both to have arrived. A folder
+ * with caption issues has to keep warning while its duplicate count is still null -
+ * gating on both would drop the warning it used to show.
+ */
+function folderFindings({ issue_count: issues, duplicate_count: duplicates }: Subfolder): string[] {
+  const findings: string[] = [];
+  if (issues) findings.push(issues === 1 ? "1 caption issue" : `${issues} caption issues`);
+  if (duplicates) findings.push(duplicates === 1 ? "1 duplicate" : `${duplicates} duplicates`);
+  return findings;
+}
+
 function FolderCardStats({ folder }: { folder: Subfolder }) {
-  const {
-    file_count: fileCount,
-    captioned_count: captionedCount,
-    issue_count: issueCount,
-  } = folder;
+  const { file_count: fileCount, captioned_count: captionedCount } = folder;
 
   // Counts arrive after the cards do. The slot keeps its height either way, so
   // nothing reflows underneath the pointer once the numbers land.
@@ -34,20 +48,18 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
     >
       <Icon icon={iconImage} className="folder-card__stat-icon" />
       <strong>{captionedCount}</strong> / {fileCount} captioned
-      {issueCount != null && issueCount > 0 && (
+      {/* Same source as the label, so the icon cannot appear unexplained. */}
+      {folderFindings(folder).length > 0 && (
         <Icon icon={iconTriangleAlert} className="folder-card__issue-icon" aria-hidden="true" />
       )}
     </span>
   );
 }
 
+/** The warning icon is `aria-hidden`, so this is the only place it gets explained. */
 function folderCardLabel(folder: Subfolder): string {
-  const issueCount = folder.issue_count;
-  if (issueCount != null && issueCount > 0) {
-    const issueLabel = issueCount === 1 ? "1 caption issue" : `${issueCount} caption issues`;
-    return `${folder.name} (${issueLabel})`;
-  }
-  return folder.name;
+  const findings = folderFindings(folder);
+  return findings.length > 0 ? `${folder.name} (${findings.join(", ")})` : folder.name;
 }
 
 interface FolderGridProps {
