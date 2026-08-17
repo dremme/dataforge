@@ -79,22 +79,6 @@ export const JOB_TYPE_META = {
     startUi: "dialog" as const,
     menuDescription: "Write the same caption text to media files.",
   },
-  replace_captions: {
-    type: "replace_captions" as const,
-    group: "datasets" as const,
-    label: "Find & replace",
-    icon: iconReplace,
-    startUi: "dialog" as const,
-    menuDescription: "Search and replace, prepend, or append text across captions.",
-  },
-  find_duplicates: {
-    type: "find_duplicates" as const,
-    group: "datasets" as const,
-    label: "Find duplicates",
-    icon: iconCopy,
-    startUi: "dialog" as const,
-    menuDescription: "Flag duplicate and near-duplicate media as caption issues.",
-  },
   verify_captions: {
     type: "verify_captions" as const,
     group: "datasets" as const,
@@ -102,6 +86,14 @@ export const JOB_TYPE_META = {
     icon: iconMessageCheck,
     startUi: "dialog" as const,
     menuDescription: "Verifies captions by comparing them with their media file.",
+  },
+  replace_captions: {
+    type: "replace_captions" as const,
+    group: "datasets" as const,
+    label: "Find & replace",
+    icon: iconReplace,
+    startUi: "dialog" as const,
+    menuDescription: "Search and replace, prepend, or append text across captions.",
   },
   batch_rename: {
     type: "batch_rename" as const,
@@ -135,6 +127,14 @@ export const JOB_TYPE_META = {
       ),
       confirmLabel: "Start strip metadata",
     },
+  },
+  find_duplicates: {
+    type: "find_duplicates" as const,
+    group: "files" as const,
+    label: "Find duplicates",
+    icon: iconCopy,
+    startUi: "dialog" as const,
+    menuDescription: "Flag duplicate and near-duplicate media as caption issues.",
   },
   backup_captions: {
     type: "backup_captions" as const,

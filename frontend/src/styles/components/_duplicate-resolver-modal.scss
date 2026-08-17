@@ -27,16 +27,12 @@
   }
 
   &__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: var(--panel-padding) var(--panel-padding) 0.75rem;
+    @include modal-chrome-header;
   }
 
   &__header-text {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0.625rem;
     min-width: 0;
   }
@@ -45,49 +41,24 @@
     margin: 0;
     font-size: var(--text-md);
     font-weight: var(--font-semibold);
-    color: var(--text);
+    line-height: var(--leading-snug);
+    @include truncate;
   }
 
   &__counter {
-    @include tabular-nums;
+    @include count-pill-muted;
     flex-shrink: 0;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
   }
 
   &__close {
     @include modal-close-btn;
-    flex-shrink: 0;
-  }
-
-  &__summary {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0 var(--panel-padding) 0.875rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius-sm);
-    background: var(--bg-soft);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-
-    strong {
-      color: var(--text);
-      font-weight: var(--font-semibold);
-    }
-
-    &-icon {
-      flex-shrink: 0;
-      @include icon-size(var(--icon-size-base));
-      color: var(--accent);
-    }
   }
 
   &__body {
     @include app-scrollbar;
     flex: 1;
     overflow-y: auto;
-    padding: 0 var(--panel-padding);
+    padding: var(--panel-padding);
   }
 
   // Auto-fit so a pair sits at half width and a group of five wraps instead of
@@ -121,6 +92,7 @@
 
     &:hover:not(:disabled) {
       border-color: var(--accent-border);
+      background: var(--accent-soft);
     }
 
     &:disabled {
@@ -133,6 +105,10 @@
     &--keep {
       border-color: var(--accent);
       background: var(--accent-soft);
+
+      &:hover:not(:disabled) {
+        border-color: var(--accent);
+      }
     }
   }
 
@@ -230,9 +206,8 @@
   }
 
   &__footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    padding: 0.875rem var(--panel-padding) var(--panel-padding);
+    @include modal-chrome-footer;
+    // Tighter than the chrome default: this is a button pair, not a meta row.
+    gap: 0.5625rem;
   }
 }

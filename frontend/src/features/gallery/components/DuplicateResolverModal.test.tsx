@@ -73,12 +73,6 @@ describe("DuplicateResolverModal", () => {
     expect(screen.getByText("Group 2 / 2")).toBeInTheDocument();
   });
 
-  it("describes how alike the group is in words", () => {
-    renderModal();
-
-    expect(screen.getByText("Identical")).toBeInTheDocument();
-  });
-
   it("pre-selects the highest resolution and says why", () => {
     renderModal();
 
@@ -95,21 +89,29 @@ describe("DuplicateResolverModal", () => {
     await user.click(small as HTMLElement);
 
     expect(small).toHaveAttribute("aria-checked", "true");
-    // Picking by hand drops the suggestion label - it is no longer the default.
-    expect(screen.queryByText("Highest resolution")).not.toBeInTheDocument();
+    expect(within(small as HTMLElement).getByText("Keep")).toBeInTheDocument();
+    // The suggestion stays on the recommended file so the reason is still visible.
+    expect(screen.getByText("Highest resolution")).toBeInTheDocument();
   });
 
-  it("names how many files the button will delete", () => {
+  it("marks the kept file and the ones that will be deleted", () => {
     renderModal();
 
-    expect(screen.getByRole("button", { name: "Keep this, delete 1 other" })).toBeInTheDocument();
+    const large = screen
+      .getAllByRole("radio")
+      .find((card) => card.textContent?.includes("large.png"));
+    const small = screen
+      .getAllByRole("radio")
+      .find((card) => card.textContent?.includes("small.png"));
+    expect(within(large as HTMLElement).getByText("Keep")).toBeInTheDocument();
+    expect(within(small as HTMLElement).getByText("Delete")).toBeInTheDocument();
   });
 
   it("deletes the others and advances", async () => {
     const user = userEvent.setup();
     const props = renderModal({ groups: [group(), group({ group: "g2" })], index: 0 });
 
-    await user.click(screen.getByRole("button", { name: /Keep this, delete/ }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
 
     await waitFor(() => {
       expect(resolveGroup).toHaveBeenCalledWith(`${HOME_PATH}\\large.png`, [
@@ -124,7 +126,7 @@ describe("DuplicateResolverModal", () => {
     const user = userEvent.setup();
     const props = renderModal();
 
-    await user.click(screen.getByRole("button", { name: /Keep this, delete/ }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
 
     await waitFor(() => expect(props.onClose).toHaveBeenCalled());
   });
@@ -134,7 +136,7 @@ describe("DuplicateResolverModal", () => {
     resolveGroup.mockResolvedValue({ kept: "large.png", deleted: [], failed: ["small.png"] });
     const props = renderModal();
 
-    await user.click(screen.getByRole("button", { name: /Keep this, delete/ }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not delete small.png.");
     expect(props.onIndexChange).not.toHaveBeenCalled();
@@ -147,14 +149,15 @@ describe("DuplicateResolverModal", () => {
     });
 
     expect(screen.getAllByRole("radio")).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Keep this, delete 2 others" })).toBeInTheDocument();
+    expect(screen.getAllByText("Delete")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Resolve" })).toBeInTheDocument();
   });
 
   it("deletes without a dialog where the Recycle Bin catches the files", async () => {
     const user = userEvent.setup();
     renderModal();
 
-    await user.click(screen.getByRole("button", { name: /Keep this, delete/ }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     await waitFor(() => expect(resolveGroup).toHaveBeenCalled());
@@ -164,7 +167,7 @@ describe("DuplicateResolverModal", () => {
     const user = userEvent.setup();
     renderModal({ deletesToTrash: false });
 
-    await user.click(screen.getByRole("button", { name: /Keep this, delete/ }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
 
     // Nothing is deleted until the dialog is answered.
     expect(resolveGroup).not.toHaveBeenCalled();
@@ -182,7 +185,7 @@ describe("DuplicateResolverModal", () => {
     const user = userEvent.setup();
     renderModal({ deletesToTrash: false });
 
-    await user.click(screen.getByRole("button", { name: /Keep this, delete/ }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
     const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 

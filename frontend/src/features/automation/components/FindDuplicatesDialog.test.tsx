@@ -35,10 +35,9 @@ describe("FindDuplicatesDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("exact");
   });
 
-  it("says findings get their own sidecar and that the job deletes nothing", () => {
+  it("says matches will be marked in the gallery", () => {
     renderDialog();
 
-    expect(screen.getByText(/never clear one another/)).toBeInTheDocument();
-    expect(screen.getByText(/Nothing is deleted by the job itself/)).toBeInTheDocument();
+    expect(screen.getByText(/Duplicates will be marked in the gallery/)).toBeInTheDocument();
   });
 });

@@ -10,7 +10,7 @@ import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { formatFileSize, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
 import { classNames } from "@/shared/lib/classNames";
-import { iconCheck, iconCopy, iconTrash2, iconTriangleAlert, iconX } from "@/shared/icons";
+import { iconCheck, iconTrash2, iconTriangleAlert, iconX } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
@@ -33,13 +33,6 @@ interface DuplicateResolverModalProps {
   deletesToTrash: boolean;
   /** Fires after files are removed, so the folder listing can catch up. */
   onResolved: () => void;
-}
-
-/** How alike the group is, in words. The number alone means nothing to a reader. */
-function likenessLabel(group: DuplicateGroup): string {
-  if (group.max_distance === 0) return "Identical";
-  if (group.max_distance <= 5) return "Near-identical";
-  return "Similar";
 }
 
 export function DuplicateResolverModal({
@@ -179,14 +172,6 @@ export function DuplicateResolverModal({
           </button>
         </header>
 
-        <div className="duplicate-resolver-modal__summary">
-          <Icon icon={iconCopy} className="duplicate-resolver-modal__summary-icon" />
-          <span>
-            <strong>{likenessLabel(group)}</strong> · {group.members.length} files · keep one, the
-            rest are deleted
-          </span>
-        </div>
-
         <div className="duplicate-resolver-modal__body" data-scroll-lock-allow>
           <div
             className={classNames(
@@ -201,9 +186,7 @@ export function DuplicateResolverModal({
                 key={member.path}
                 member={member}
                 selected={member.path === selectedPath}
-                suggestedReason={
-                  suggestion?.path === member.path && keepPath === null ? suggestion.reason : null
-                }
+                suggestedReason={suggestion?.path === member.path ? suggestion.reason : null}
                 disabled={resolving || alreadyResolved}
                 onSelect={() => setKeepPath(member.path)}
               />
@@ -232,12 +215,8 @@ export function DuplicateResolverModal({
             onClick={() => goTo(index + 1)}
           />
           <DialogButton
-            label={
-              resolving
-                ? "Deleting..."
-                : `Keep this, delete ${discard.length} ${discard.length === 1 ? "other" : "others"}`
-            }
-            variant="danger"
+            label={resolving ? "Deleting..." : "Resolve"}
+            variant="primary"
             busy={resolving}
             disabled={alreadyResolved || discard.length === 0}
             onClick={requestResolve}

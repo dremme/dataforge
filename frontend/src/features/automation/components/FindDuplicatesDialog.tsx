@@ -37,8 +37,8 @@ export function FindDuplicatesDialog({
       description={
         <>
           Compare <strong>{itemCount}</strong> {itemCount === 1 ? "file" : "files"} in{" "}
-          <strong>{folderLabel}</strong> and group the matches, so the duplicate resolver can step
-          through them side by side. Nothing is deleted by the job itself.
+          <strong>{folderLabel}</strong> and group the matches. Duplicates will be marked in the
+          gallery.
         </>
       }
       panelClassName="find-duplicates-dialog"
@@ -64,12 +64,6 @@ export function FindDuplicatesDialog({
         disabled={busy}
         onChange={setThreshold}
       />
-
-      <p className="dialog__hint">
-        Each match gets its own <code>.duplicate.json</code>, separate from caption issues, so the
-        two never clear one another. Deleting happens in the resolver, where you pick which file to
-        keep.
-      </p>
     </Dialog>
   );
 }
