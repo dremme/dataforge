@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useFolderCaptionPatch } from "@/features/gallery/hooks/useFolderCaptionPatch";
 import { useGalleryDisplayMode } from "@/features/gallery/hooks/useGalleryDisplayMode";
 import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays";
@@ -42,6 +42,7 @@ export function useGallerySession({
     selectionMode,
     selectedPaths,
     selectedCount,
+    selectedPathsList,
     getJobPaths,
     enterSelectionMode,
     exitSelectionMode,
@@ -50,6 +51,22 @@ export function useGallerySession({
     removeSelectedPaths,
     clearSelectedPaths,
   } = selection;
+
+  // A selected path outlives the file it names. A rename — the batch rename job,
+  // Explorer, another window — reaches the folder as a delta, and the selection
+  // would otherwise keep pointing at a name nothing on disk answers to, so the
+  // next move, copy, or delete fails on a file the user can plainly see.
+  //
+  // Only the folder's own contents prune it. Narrowing the view (search, sort,
+  // filters) deliberately does not — see `useGallerySelection`.
+  useEffect(() => {
+    if (selectedPathsList.length === 0) return;
+    const present = new Set(items.map((item) => item.path));
+    const stale = selectedPathsList.filter((path) => !present.has(path));
+    if (stale.length > 0) {
+      removeSelectedPaths(stale);
+    }
+  }, [items, removeSelectedPaths, selectedPathsList]);
 
   const query = useGalleryQuery(items);
   const { displayMode, setDisplayMode } = useGalleryDisplayMode(folderPath);

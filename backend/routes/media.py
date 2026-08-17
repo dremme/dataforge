@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from constants import MEDIA_MIME_TYPES
@@ -113,9 +115,31 @@ def delete_media(
     return MediaDeleteResponse(**result)
 
 
+def _resolve_transfer_sources(paths: list[str]) -> tuple[list[Path], list[dict[str, str]]]:
+    """Split requested paths into the files still on disk and the ones that have vanished.
+
+    A path goes stale the moment the file behind it is renamed, moved, or deleted —
+    by a rename job, another window, or Explorer — and the client can hold the old
+    name until its next folder refresh. That is one file's problem: failing the whole
+    request over it would strand every other file in the batch, so a missing source
+    is reported per file instead, the same way a failed transfer is.
+    """
+    source_paths: list[Path] = []
+    missing: list[dict[str, str]] = []
+
+    for path in paths:
+        resolved = resolve_optional_media_file(path)
+        if resolved is None:
+            missing.append({"path": path, "detail": "Media file not found"})
+            continue
+        source_paths.append(resolved)
+
+    return source_paths, missing
+
+
 def _preview_transfer(destination: str, paths: list[str]) -> MediaTransferPreviewResponse:
     folder = resolve_folder(destination)
-    source_paths = [resolve_media_file(path) for path in paths]
+    source_paths, _missing = _resolve_transfer_sources(paths)
     return MediaTransferPreviewResponse(**preview_media_transfer(folder, source_paths))
 
 
@@ -131,8 +155,9 @@ def _transfer(
     if not paths:
         raise HTTPException(status_code=400, detail="No files were provided")
 
-    source_paths = [resolve_media_file(path) for path in paths]
+    source_paths, missing = _resolve_transfer_sources(paths)
     result = transfer_media_batch(folder, source_paths, mode=mode, overwrite=overwrite)
+    result["failed"] = [*result["failed"], *missing]
     return MediaTransferResponse(**result)
 
 

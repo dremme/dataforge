@@ -1,7 +1,12 @@
 import { vi } from "vitest";
 import { clearFolderCache } from "@/features/folder/lib/folderCache";
 import { clearFolderScrollMemory } from "@/features/folder/lib/folderScrollMemory";
-import type { CaptionSaveResponse, Job, FolderResponse } from "@/shared/types";
+import type {
+  CaptionSaveResponse,
+  FolderChangesResponse,
+  Job,
+  FolderResponse,
+} from "@/shared/types";
 import { emptyFolder, homeFolder, vacationFolder } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
@@ -84,6 +89,9 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       name: path === homeFolder.home ? "Home" : folderLeafName(path),
     })),
   });
+
+  /** Deltas the mock can describe, keyed by the baseline fingerprint they apply to. */
+  const folderDeltas: Record<string, { since: string; report: FolderChangesResponse }[]> = {};
 
   const isDriveRoot = (path: string) => /^[A-Za-z]:\\$/i.test(path);
 
@@ -235,13 +243,19 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/folders/changes") {
       const pathKey = normalizeFolderKey(url.searchParams.get("path"));
       const data = pathKey ? folderResponses[pathKey] : undefined;
-      if (!data) {
+      if (!pathKey || !data) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
-      // The mock has no per-entry history, so it answers the way the real backend
-      // does for an unknown baseline: reload in full.
+      // Only changes this mock made itself are described item by item. Anything
+      // else falls back the way the real backend does for an unknown baseline:
+      // reload in full.
       const since = url.searchParams.get("since") ?? "";
+      const delta = folderDeltas[pathKey]?.find((entry) => entry.since === since);
+      if (delta) {
+        return jsonResponse(delta.report);
+      }
+
       return jsonResponse({
         full: since !== data.fingerprint,
         fingerprint: data.fingerprint,
@@ -768,7 +782,38 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
   };
 
+  /**
+   * Rename a media file behind the app's back, the way another window would.
+   *
+   * The new name gives the item a new path, so anything still holding the old one
+   * points at a file that no longer exists. The rename is also recorded as a delta,
+   * which is how the real backend reports it: the old path removed, the new one added.
+   */
+  const renameItem = (folderPath: string, fromName: string, toName: string) => {
+    const pathKey = normalizeFolderKey(folderPath);
+    const data = pathKey ? folderResponses[pathKey] : undefined;
+    const item = data?.items.find((entry) => entry.name === fromName);
+    if (!pathKey || !data || !item) {
+      throw new Error(`No item named ${fromName} in ${folderPath}`);
+    }
+
+    const removedPath = item.path;
+    const since = data.fingerprint;
+
+    item.name = toName;
+    item.path = `${pathKey.replace(/[/\\]+$/, "")}\\${toName}`;
+    data.fingerprint = `${since}-${toName}`;
+
+    const report: FolderChangesResponse = {
+      full: false,
+      fingerprint: data.fingerprint,
+      changed: [structuredClone(item)],
+      removed: [removedPath],
+    };
+    (folderDeltas[pathKey] ??= []).push({ since, report });
+  };
+
   vi.stubGlobal("fetch", fetchMock);
 
-  return { fetchMock, removeFolder };
+  return { fetchMock, removeFolder, renameItem };
 }
