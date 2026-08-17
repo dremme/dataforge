@@ -95,9 +95,13 @@ describe("ReplaceCaptionsDialog", () => {
     await user.type(screen.getByLabelText("Search for"), "dog");
 
     await waitFor(() => {
-      expect(screen.getByText("3 of 10 captions would change.")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("3 of 10 captions would change.");
     });
-    expect(screen.getByText("a cat")).toBeInTheDocument();
+    // The sample shows only what the edit touches, not the caption twice over.
+    expect(screen.getByText("dog")).toBeInTheDocument();
+    expect(screen.getByText("cat")).toBeInTheDocument();
+    // 3 matched, 1 sampled.
+    expect(screen.getByText("and 2 more")).toBeInTheDocument();
   });
 
   it("blocks submitting an edit the backend rejected", async () => {
