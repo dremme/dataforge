@@ -4,7 +4,7 @@ import {
   type DatasetStats,
   type StatBucket,
 } from "@/features/gallery/lib/datasetStats";
-import { iconChartBar, iconCircleCheck, iconTriangleAlert, iconX } from "@/shared/icons";
+import { iconChartBar, iconCircleCheck, iconCopy, iconTriangleAlert, iconX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { GalleryItem } from "@/shared/types";
@@ -90,7 +90,7 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
 
   return (
     <div className="stats-drawer__stats">
-      <Coverage stats={stats} />
+      <Overview stats={stats} />
 
       {stats.captionLength && (
         <Section title="Caption length">
@@ -137,23 +137,25 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
 }
 
 /**
- * The headline: how much of the folder is ready to train on.
+ * The headline: how much of the folder is ready to train on, and what is not.
  *
  * A ratio against a limit is a meter, not a chart - and the percentage is the one
- * number the drawer leads with, so it gets hero treatment. Issues ride underneath
- * as a status row rather than a third slice, because they cut across the split
- * rather than partitioning it: a file can be captioned *and* flagged.
+ * number the drawer leads with, so it gets hero treatment. The findings ride
+ * underneath as status rows rather than as slices of the meter, because they cut
+ * across the captioned/missing split rather than partitioning it: a file can be
+ * captioned *and* flagged, *and* a duplicate.
+ *
+ * Titled for the whole block rather than for the meter alone, since a duplicate is a
+ * property of the file and would read as a non-sequitur under "Caption coverage".
  */
-function Coverage({ stats }: { stats: DatasetStats }) {
-  const captioned = stats.coverage.find((entry) => entry.label === "Captioned")?.count ?? 0;
-  const missing = stats.coverage.find((entry) => entry.label === "Missing caption")?.count ?? 0;
-  const issues = stats.coverage.find((entry) => entry.label === "With issues")?.count ?? 0;
+function Overview({ stats }: { stats: DatasetStats }) {
+  const { captioned, missingCaption, captionIssues, duplicates, duplicateGroups } = stats.findings;
   const percent = stats.total === 0 ? 0 : Math.round((captioned / stats.total) * 100);
-  const complete = missing === 0;
+  const clear = missingCaption === 0 && captionIssues === 0 && duplicates === 0;
 
   return (
     <section className="stats-drawer__section stats-drawer__section--lead">
-      <h3 className="stats-drawer__section-title">Caption coverage</h3>
+      <h3 className="stats-drawer__section-title">Overview</h3>
 
       <p className="stats-drawer__hero">
         <span className="stats-drawer__hero-value">{percent}</span>
@@ -177,24 +179,35 @@ function Coverage({ stats }: { stats: DatasetStats }) {
       </p>
 
       {/* Status is never colour alone: each of these carries its own icon and words. */}
-      {!complete && (
+      {missingCaption > 0 && (
         <p className="stats-drawer__status stats-drawer__status--warning">
           <Icon icon={iconTriangleAlert} className="stats-drawer__status-icon" />
-          {missing} {missing === 1 ? "file is" : "files are"} missing a caption
+          {missingCaption} {missingCaption === 1 ? "file is" : "files are"} missing a caption
         </p>
       )}
 
-      {issues > 0 && (
+      {captionIssues > 0 && (
         <p className="stats-drawer__status stats-drawer__status--warning">
           <Icon icon={iconTriangleAlert} className="stats-drawer__status-icon" />
-          {issues} {issues === 1 ? "file has" : "files have"} a caption issue
+          {captionIssues} {captionIssues === 1 ? "file has" : "files have"} a caption issue
         </p>
       )}
 
-      {complete && issues === 0 && (
+      {/* Accent rather than amber, matching the card badge and the resolver: a
+          duplicate is a housekeeping decision, not a defect in the caption, and it
+          should not compete with the rows above for alarm. */}
+      {duplicates > 0 && (
+        <p className="stats-drawer__status stats-drawer__status--info">
+          <Icon icon={iconCopy} className="stats-drawer__status-icon" />
+          {duplicates} {duplicates === 1 ? "file is" : "files are"} in {duplicateGroups}{" "}
+          {duplicateGroups === 1 ? "duplicate group" : "duplicate groups"}
+        </p>
+      )}
+
+      {clear && (
         <p className="stats-drawer__status stats-drawer__status--good">
           <Icon icon={iconCircleCheck} className="stats-drawer__status-icon" />
-          Every file is captioned and clear of issues
+          Every file is captioned, with no issues or duplicates
         </p>
       )}
     </section>

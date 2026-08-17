@@ -7,7 +7,7 @@ function captioned(name: string, description: string) {
 }
 
 describe("computeDatasetStats", () => {
-  it("counts caption coverage", () => {
+  it("counts caption coverage and issues", () => {
     const stats = computeDatasetStats([
       captioned("one.png", "a dog"),
       mediaItem("two.png", HOME_PATH),
@@ -15,11 +15,54 @@ describe("computeDatasetStats", () => {
     ]);
 
     expect(stats.total).toBe(3);
-    expect(stats.coverage).toEqual([
-      { label: "Captioned", count: 1 },
-      { label: "Missing caption", count: 2 },
-      { label: "With issues", count: 1 },
+    expect(stats.findings).toMatchObject({
+      captioned: 1,
+      missingCaption: 2,
+      captionIssues: 1,
+      duplicates: 0,
+      duplicateGroups: 0,
+    });
+  });
+
+  it("counts duplicate files and the groups they span", () => {
+    const inGroup = (name: string, group: string) =>
+      mediaItem(name, HOME_PATH, { has_duplicate_file: true, duplicate_group: group });
+
+    const stats = computeDatasetStats([
+      inGroup("a.png", "g1"),
+      inGroup("b.png", "g1"),
+      inGroup("c.png", "g2"),
+      inGroup("d.png", "g2"),
+      mediaItem("e.png", HOME_PATH),
     ]);
+
+    expect(stats.findings.duplicates).toBe(4);
+    expect(stats.findings.duplicateGroups).toBe(2);
+  });
+
+  it("counts a flagged file with no group id as a group of its own", () => {
+    // The safe direction: a group is never under-reported.
+    const stats = computeDatasetStats([
+      mediaItem("a.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" }),
+      mediaItem("b.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" }),
+      mediaItem("c.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: null }),
+    ]);
+
+    expect(stats.findings.duplicates).toBe(3);
+    expect(stats.findings.duplicateGroups).toBe(2);
+  });
+
+  it("never counts the sysprompt as a duplicate", () => {
+    const stats = computeDatasetStats([
+      mediaItem("a.png", HOME_PATH),
+      mediaItem(".sysprompt", HOME_PATH, {
+        media_type: "sysprompt",
+        has_duplicate_file: true,
+        duplicate_group: "g1",
+      }),
+    ]);
+
+    expect(stats.findings.duplicates).toBe(0);
   });
 
   it("excludes the sysprompt, whose description is instructions rather than a caption", () => {

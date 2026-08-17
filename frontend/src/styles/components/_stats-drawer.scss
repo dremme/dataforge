@@ -217,6 +217,12 @@
       color: var(--warning);
     }
 
+    // Duplicates. Accent rather than amber, so it reads as work to do rather than as
+    // a defect, and matches the accent the card badge and the resolver already use.
+    &--info {
+      color: var(--accent);
+    }
+
     &--good {
       color: var(--success);
     }

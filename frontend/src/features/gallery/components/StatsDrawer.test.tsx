@@ -48,6 +48,62 @@ describe("StatsDrawer", () => {
     expect(screen.getByText("1 file has a caption issue")).toBeInTheDocument();
   });
 
+  it("reports duplicates as files and groups, in words", () => {
+    renderDrawer({
+      items: [
+        mediaItem("a.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" }),
+        mediaItem("b.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" }),
+        mediaItem("c.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g2" }),
+        mediaItem("d.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g2" }),
+      ],
+    });
+
+    expect(screen.getByText("4 files are in 2 duplicate groups")).toBeInTheDocument();
+  });
+
+  it("says nothing about duplicates when there are none", () => {
+    renderDrawer();
+
+    expect(screen.queryByText(/duplicate group/)).not.toBeInTheDocument();
+  });
+
+  it("puts a single duplicate pair in the singular", () => {
+    renderDrawer({
+      items: [
+        mediaItem("a.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" }),
+        mediaItem("b.png", HOME_PATH, { has_duplicate_file: true, duplicate_group: "g1" }),
+      ],
+    });
+
+    expect(screen.getByText("2 files are in 1 duplicate group")).toBeInTheDocument();
+  });
+
+  it("withholds the all-clear while duplicates remain", () => {
+    renderDrawer({
+      items: [
+        mediaItem("a.png", HOME_PATH, {
+          description: "a brown dog",
+          has_description: true,
+          caption_status: "text",
+          has_duplicate_file: true,
+          duplicate_group: "g1",
+        }),
+        mediaItem("b.png", HOME_PATH, {
+          description: "a brown dog",
+          has_description: true,
+          caption_status: "text",
+          has_duplicate_file: true,
+          duplicate_group: "g1",
+        }),
+      ],
+    });
+
+    // Fully captioned and issue-free, but not yet clean.
+    expect(screen.getByText("2 of 2 files captioned")).toBeInTheDocument();
+    expect(screen.queryByText(/Every file is captioned/)).not.toBeInTheDocument();
+    expect(screen.getByText("2 files are in 1 duplicate group")).toBeInTheDocument();
+  });
+
   it("congratulates a folder with full coverage and no issues", () => {
     renderDrawer({
       items: [
@@ -59,7 +115,9 @@ describe("StatsDrawer", () => {
       ],
     });
 
-    expect(screen.getByText("Every file is captioned and clear of issues")).toBeInTheDocument();
+    expect(
+      screen.getByText("Every file is captioned, with no issues or duplicates"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/missing a caption/)).not.toBeInTheDocument();
   });
 

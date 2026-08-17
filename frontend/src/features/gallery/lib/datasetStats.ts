@@ -82,15 +82,29 @@ export interface CaptionLengthStats {
   buckets: StatBucket[];
 }
 
-export interface CaptionCoverage {
-  label: string;
-  count: number;
+/**
+ * What the folder needs before it is worth training on.
+ *
+ * Named counts rather than a labelled list: these used to be rows of filter buttons,
+ * and the labels were their display text. Nothing renders them as a list any more, so
+ * reading them back out by matching on a display string would be a trap the next
+ * wording change springs.
+ */
+export interface DatasetFindings {
+  captioned: number;
+  missingCaption: number;
+  /** Files carrying a caption issue from verify-captions. */
+  captionIssues: number;
+  /** Files in a duplicate group. */
+  duplicates: number;
+  /** How many groups those files span, which is what the resolver walks. */
+  duplicateGroups: number;
 }
 
 export interface DatasetStats {
   /** Media files only; the .sysprompt is not part of the dataset. */
   total: number;
-  coverage: CaptionCoverage[];
+  findings: DatasetFindings;
   captionLength: CaptionLengthStats | null;
   topWords: WordCount[];
   mediaTypes: StatBucket[];
@@ -144,6 +158,10 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   const megapixels: number[] = [];
   let captioned = 0;
   let issues = 0;
+  let duplicates = 0;
+  // Group ids, so a folder with one four-way match reports one group rather than four.
+  const duplicateGroups = new Set<string>();
+  let ungroupedDuplicates = 0;
   let images = 0;
   let videos = 0;
   let gifs = 0;
@@ -151,6 +169,14 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
 
   for (const item of media) {
     if (item.has_issue_file) issues += 1;
+
+    if (item.has_duplicate_file) {
+      duplicates += 1;
+      // A flagged file with no group id counts as a group of its own - the safe
+      // direction, since a group is then never under-reported.
+      if (item.duplicate_group) duplicateGroups.add(item.duplicate_group);
+      else ungroupedDuplicates += 1;
+    }
 
     if (item.caption_status === "text" && item.description) {
       captioned += 1;
@@ -172,11 +198,13 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
 
   return {
     total: media.length,
-    coverage: [
-      { label: "Captioned", count: captioned },
-      { label: "Missing caption", count: media.length - captioned },
-      { label: "With issues", count: issues },
-    ],
+    findings: {
+      captioned,
+      missingCaption: media.length - captioned,
+      captionIssues: issues,
+      duplicates,
+      duplicateGroups: duplicateGroups.size + ungroupedDuplicates,
+    },
     captionLength:
       sortedLengths.length === 0
         ? null
