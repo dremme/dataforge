@@ -397,6 +397,18 @@
       border-color: rgba($color-warning, 0.6);
     }
 
+    // Bottom-left, which nothing else uses: the right-hand stack offsets each badge
+    // against the hardcoded width of the one before it, and a fourth variant in that
+    // chain would need an offset for every combination it can appear in.
+    &--duplicate {
+      top: auto;
+      bottom: 0.625rem;
+      left: 0.625rem;
+      color: var(--accent);
+      background: rgba(color.adjust($color-accent, $lightness: -25%), 0.55);
+      border-color: var(--accent-border);
+    }
+
     .card__selection-indicator ~ &--json {
       right: 0.625rem + 1.5rem + 0.375rem;
     }

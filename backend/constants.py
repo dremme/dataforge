@@ -52,15 +52,14 @@ CAPTION_SIDECAR_EXTENSIONS = (".json", ".txt")
 SIDECAR_EXTENSIONS = set(CAPTION_SIDECAR_EXTENSIONS)
 IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
 
-# Caption issues written by verify-captions and find-duplicates. Two suffixes deep, so
-# `Path.stem` and `Path.suffix` both mis-read it; resolve names against this instead of guessing.
+# Caption issues written by verify-captions. Two suffixes deep, so `Path.stem` and
+# `Path.suffix` both mis-read it; resolve names against this instead of guessing.
 ISSUE_SIDECAR_SUFFIX = ".issue.json"
 
-# Two jobs write into one sidecar, so each has to recognise its own findings to replace
-# them without destroying the other's. Find-duplicates owns the fixes starting with these;
-# verify-captions owns every other fix, its own being arbitrary model prose with no marker
-# to match on. Changing a prefix orphans the findings already on disk under the old one.
-DUPLICATE_FIX_PREFIXES = ("Duplicate of ", "Near-duplicate of ")
+# Duplicate groups written by find-duplicates. Its own file rather than a share of the
+# issue sidecar: a caption issue is fixed by editing text, a duplicate by deleting a file,
+# so they need different resolvers and must not be able to clear each other.
+DUPLICATE_SIDECAR_SUFFIX = ".duplicate.json"
 
 # A caption is reviewed by hand, so the model is asked for the few changes that matter
 # most rather than an exhaustive list. The prompt states this cap and the parser enforces it.

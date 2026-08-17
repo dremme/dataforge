@@ -21,6 +21,7 @@ export function AppContent() {
     gallery,
     automation,
     statsDrawer,
+    duplicateResolver,
   } = useAppWorkspace();
 
   const {
@@ -153,6 +154,7 @@ export function AppContent() {
             items,
             onClose: statsDrawer.closeStats,
           }}
+          duplicateResolver={duplicateResolver.overlay}
           jobStart={automation.jobStartConfirm}
           automation={automation.dialogs}
           fileImport={{

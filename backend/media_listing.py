@@ -9,7 +9,12 @@ from captions import (
     issue_summary_from_sidecar,
     resolve_caption_file_name,
 )
-from constants import CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX
+from constants import (
+    CAPTION_SIDECAR_EXTENSIONS,
+    DUPLICATE_SIDECAR_SUFFIX,
+    ISSUE_SIDECAR_SUFFIX,
+)
+from duplicates import duplicate_finding_from_sidecar
 from folder_scan import FolderScan, ScannedEntry, get_media_type, scan_folder
 from media_dimensions import media_dimensions
 
@@ -23,7 +28,12 @@ __all__ = [
     "summarize_folder_contents",
 ]
 
-_EMPTY_SUMMARY = {"file_count": 0, "captioned_count": 0, "issue_count": 0}
+_EMPTY_SUMMARY = {
+    "file_count": 0,
+    "captioned_count": 0,
+    "issue_count": 0,
+    "duplicate_count": 0,
+}
 
 
 class _SummaryCacheEntry(NamedTuple):
@@ -59,7 +69,11 @@ def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> tuple[ScannedEntr
 
 
 def _issue_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
-    return scan.files.get(f"{media.path.stem}{ISSUE_SIDECAR_SUFFIX}")
+    return scan.sidecar(media.path.stem, ISSUE_SIDECAR_SUFFIX)
+
+
+def _duplicate_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
+    return scan.sidecar(media.path.stem, DUPLICATE_SIDECAR_SUFFIX)
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +93,11 @@ def _summary_signature(scan: FolderScan) -> tuple:
         signatures.append((media.name, media.mtime_ns, media.size))
 
         stem = media.path.stem
-        for extension in (*CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX):
+        for extension in (
+            *CAPTION_SIDECAR_EXTENSIONS,
+            ISSUE_SIDECAR_SUFFIX,
+            DUPLICATE_SIDECAR_SUFFIX,
+        ):
             sidecar = scan.files.get(f"{stem}{extension}")
             if sidecar is not None:
                 signatures.append((sidecar.name, sidecar.mtime_ns, sidecar.size))
@@ -96,6 +114,7 @@ def folder_summary_fingerprint(folder: Path) -> tuple | None:
 def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
     captioned_count = 0
     issue_count = 0
+    duplicate_count = 0
 
     for media in scan.media:
         caption = _caption_sidecar(scan, media)
@@ -113,10 +132,14 @@ def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
         if _issue_sidecar(scan, media) is not None:
             issue_count += 1
 
+        if _duplicate_sidecar(scan, media) is not None:
+            duplicate_count += 1
+
     return {
         "file_count": len(scan.media),
         "captioned_count": captioned_count,
         "issue_count": issue_count,
+        "duplicate_count": duplicate_count,
     }
 
 
@@ -180,6 +203,17 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
             issue_sidecar.size,
         )
 
+    duplicate_sidecar = _duplicate_sidecar(scan, media)
+    duplicate_finding = (
+        None
+        if duplicate_sidecar is None
+        else duplicate_finding_from_sidecar(
+            duplicate_sidecar.path,
+            duplicate_sidecar.mtime_ns,
+            duplicate_sidecar.size,
+        )
+    )
+
     dimensions = media_dimensions(media.path, media_type, media.mtime_ns, media.size)
 
     return {
@@ -190,6 +224,8 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "has_caption_file": caption_status != "none",
         "issue_fixes": issue_fixes,
         "has_issue_file": has_issue_file,
+        "duplicate_group": None if duplicate_finding is None else duplicate_finding.group,
+        "has_duplicate_file": duplicate_finding is not None,
         "caption_status": caption_status,
         "caption_file_type": caption_file_type,
         "media_type": media_type,

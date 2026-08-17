@@ -17,6 +17,7 @@ from fastapi import HTTPException
 
 from captions import issue_file_path
 from constants import SIDECAR_EXTENSIONS
+from duplicates import duplicate_file_path
 from file_import import _existing_file_names
 
 logger = logging.getLogger(__name__)
@@ -33,9 +34,9 @@ def related_media_paths(media_path: Path) -> list[Path]:
         if sidecar.is_file():
             paths.append(sidecar)
 
-    issue_sidecar = issue_file_path(media_path)
-    if issue_sidecar.is_file():
-        paths.append(issue_sidecar)
+    for extra in (issue_file_path(media_path), duplicate_file_path(media_path)):
+        if extra.is_file():
+            paths.append(extra)
 
     return paths
 

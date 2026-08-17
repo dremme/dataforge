@@ -11,6 +11,7 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_caption_file: true,
     issue_fixes: ['Replace "a blue lake" with "a snow-covered mountain peak".'],
     has_issue_file: true,
+    has_duplicate_file: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",
@@ -24,8 +25,18 @@ describe("listResolvableIssueItems", () => {
       item(),
       item({ name: "clip.mp4", path: "C:\\Photos\\clip.mp4", media_type: "video" }),
       item({ name: "loop.gif", path: "C:\\Photos\\loop.gif", media_type: "gif" }),
-      item({ name: ".sysprompt", media_type: "sysprompt", has_issue_file: false }),
-      item({ name: "plain.png", has_issue_file: false, issue_fixes: [] }),
+      item({
+        name: ".sysprompt",
+        media_type: "sysprompt",
+        has_issue_file: false,
+        has_duplicate_file: false,
+      }),
+      item({
+        name: "plain.png",
+        has_issue_file: false,
+        has_duplicate_file: false,
+        issue_fixes: [],
+      }),
     ];
 
     expect(listResolvableIssueItems(items)).toHaveLength(3);

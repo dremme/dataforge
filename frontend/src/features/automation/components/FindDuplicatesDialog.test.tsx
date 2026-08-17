@@ -35,11 +35,10 @@ describe("FindDuplicatesDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("exact");
   });
 
-  it("says findings share the caption-issue sidecar", () => {
+  it("says findings get their own sidecar and that the job deletes nothing", () => {
     renderDialog();
 
-    // Resolving a caption still drops the finding, so the dialog says so rather
-    // than letting it vanish unexplained.
-    expect(screen.getByText(/issue resolver drops that file/)).toBeInTheDocument();
+    expect(screen.getByText(/never clear one another/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing is deleted by the job itself/)).toBeInTheDocument();
   });
 });

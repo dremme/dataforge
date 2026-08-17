@@ -1,16 +1,11 @@
 import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
-import {
-  isCaptionFilter,
-  isMediaTypeFilter,
-  type CaptionFilter,
-  type MediaTypeFilter,
-} from "./query";
+import { isItemFilter, isMediaTypeFilter, type ItemFilter, type MediaTypeFilter } from "./query";
 
 /** Session-scoped gallery query state (search + filters). Sort uses uiPreferences. */
 const SESSION_QUERY_CACHE_KEY = "gallery-session-query";
 
 export interface GallerySessionQuery {
-  filter: CaptionFilter;
+  filter: ItemFilter;
   mediaTypeFilter: MediaTypeFilter;
   searchQuery: string;
   searchRegex: boolean;
@@ -42,7 +37,7 @@ function parseStoredSessionQuery(value: unknown): GallerySessionQuery | null {
         ? parsed.searchFolders
         : true;
   return {
-    filter: isCaptionFilter(parsed.filter ?? null) ? parsed.filter! : "all",
+    filter: isItemFilter(parsed.filter ?? null) ? parsed.filter! : "all",
     mediaTypeFilter: isMediaTypeFilter(parsed.mediaTypeFilter ?? null)
       ? parsed.mediaTypeFilter!
       : "all",

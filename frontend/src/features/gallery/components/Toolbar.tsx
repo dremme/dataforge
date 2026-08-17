@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SORT_OPTIONS,
-  type CaptionFilter,
+  type ItemFilter,
   type MediaTypeFilter,
   type SortOption,
 } from "@/features/gallery/lib/query";
@@ -38,8 +38,8 @@ interface ToolbarProps {
   searchRegex: boolean;
   searchNames: boolean;
   sort: SortOption;
-  filter: CaptionFilter;
-  filterCounts: Record<CaptionFilter, number>;
+  filter: ItemFilter;
+  filterCounts: Record<ItemFilter, number>;
   mediaTypeFilter: MediaTypeFilter;
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
   statsOpen: boolean;
@@ -48,7 +48,7 @@ interface ToolbarProps {
   onSearchRegexChange: (value: boolean) => void;
   onSearchNamesChange: (value: boolean) => void;
   onSortChange: (value: SortOption) => void;
-  onFilterChange: (value: CaptionFilter) => void;
+  onFilterChange: (value: ItemFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
 }
 

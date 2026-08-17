@@ -1,15 +1,13 @@
-"""Utility job that finds duplicate and near-duplicate media and flags them as caption issues.
+"""Utility job that finds duplicate and near-duplicate media in a folder.
 
 Near-duplicate frames skew a LoRA, so the job hashes every file perceptually, groups
-files whose hashes are close, and records each group in the ``.issue.json`` sidecars the
-gallery already filters, badges, and steps through.
+files whose hashes are close, and writes each member a ``.duplicate.json`` naming its
+group. The duplicate resolver then walks those groups side by side.
 
-Reusing the issue sidecar buys the whole review UI for free. The file is shared with
-verify-captions, so each job rewrites only the fixes it owns - this one's are the ones
-prefixed with ``DUPLICATE_FIX_PREFIXES`` - and the two sets of findings coexist.
-
-One collision remains: resolving a caption in the issue resolver deletes the whole
-sidecar, dropping a duplicate finding that is still true. Re-running this job restores it.
+Findings deliberately do **not** go in the caption-issue sidecar. A caption issue is
+resolved by editing text; a duplicate by deleting a file. Sharing one file meant the
+issue resolver's "save and clear" deleted still-true duplicate findings, and the two
+concerns competed for the same three-fix budget. See :mod:`duplicates`.
 """
 
 from __future__ import annotations
@@ -24,8 +22,8 @@ from PIL import Image
 from automation.job_runner import FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import extract_video_keyframes, load_image_rgb, media_kind_for
-from captions import load_issue_fix_groups, save_issue_fixes
-from constants import DUPLICATE_FIX_PREFIXES, MEDIA_EXTENSIONS
+from constants import MEDIA_EXTENSIONS
+from duplicates import DuplicateFinding, group_id_for, save_duplicate_finding
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -41,14 +39,6 @@ DEFAULT_THRESHOLD = "near"
 
 #: Side length of the hash grid. 8 gives the 64-bit hash the distances above assume.
 HASH_SIZE = 8
-
-#: Partners named in the issue text before it collapses into a count.
-MAX_NAMED_PARTNERS = 3
-
-#: Every fix this job writes starts with one of ``DUPLICATE_FIX_PREFIXES``, which is how
-#: a re-run replaces its own previous finding instead of stacking a second copy beside it,
-#: and how verify-captions tells this job's findings from its own.
-EXACT_FIX_PREFIX, NEAR_FIX_PREFIX = DUPLICATE_FIX_PREFIXES
 
 
 def difference_hash(image: Image.Image, size: int = HASH_SIZE) -> int:
@@ -123,30 +113,18 @@ def _group_duplicates(hashes: dict[Path, int], max_distance: int) -> list[list[P
     return [sorted(group) for group in groups.values() if len(group) > 1]
 
 
-def _duplicate_fix(media_path: Path, group: list[Path], exact: bool) -> str:
-    partners = [path.name for path in group if path != media_path]
-    named = partners[:MAX_NAMED_PARTNERS]
-    remaining = len(partners) - len(named)
-    listed = ", ".join(named)
-    if remaining > 0:
-        listed += f" and {remaining} more"
+def _group_max_distance(group: list[Path], hashes: dict[Path, int]) -> int:
+    """The group's worst pairwise distance.
 
-    prefix = EXACT_FIX_PREFIX if exact else NEAR_FIX_PREFIX
-    return f"{prefix}{listed}."
-
-
-def _write_duplicate_fix(media_path: Path, fix: str | None) -> None:
-    """Replace this file's duplicate finding, keeping its caption findings beside it.
-
-    The sidecar is shared with verify-captions, so a file that is no longer a duplicate
-    passes ``None``, which removes the sidecar only if nothing else is on it.
+    Measured rather than inherited from the threshold: under ``near``, two identical
+    files are still identical, and calling them "near-duplicates" because the run
+    allowed slack would misstate the finding.
     """
-    _previous_duplicate_fixes, caption_fixes = load_issue_fix_groups(media_path)
-    save_issue_fixes(
-        media_path,
-        duplicate_fixes=[fix] if fix else [],
-        caption_fixes=caption_fixes,
-    )
+    worst = 0
+    for index, left in enumerate(group):
+        for right in group[index + 1 :]:
+            worst = max(worst, hamming_distance(hashes[left], hashes[right]))
+    return worst
 
 
 def list_find_duplicates_media(folder: Path) -> list[Path]:
@@ -218,19 +196,28 @@ def run_find_duplicates_job(
         return result
 
     groups = _group_duplicates(hashes, max_distance)
-    flagged = {path: group for group in groups for path in group}
 
+    findings: dict[Path, DuplicateFinding] = {}
+    for group in groups:
+        finding = DuplicateFinding(
+            group=group_id_for([path.name for path in group]),
+            max_distance=_group_max_distance(group, hashes),
+            threshold=threshold,
+        )
+        for path in group:
+            findings[path] = finding
+
+    # Every hashed file is written, not only the flagged ones: a file that was a
+    # duplicate on the last run and is not on this one has to lose its sidecar, or the
+    # resolver keeps offering a group that is no longer there.
     for media_path in hashes:
-        group = flagged.get(media_path)
-        fix = _duplicate_fix(media_path, group, exact=max_distance == 0) if group else None
-
         try:
-            _write_duplicate_fix(media_path, fix)
+            save_duplicate_finding(media_path, findings.get(media_path))
         except OSError as exc:
-            logger.warning("Failed to write issue sidecar for %s: %s", media_path.name, exc)
+            logger.warning("Failed to write duplicate sidecar for %s: %s", media_path.name, exc)
             stats["write_error"] = stats.get("write_error", 0) + 1
 
-    stats["duplicate"] = len(flagged)
+    stats["duplicate"] = len(findings)
     stats["group"] = len(groups)
     return result
 

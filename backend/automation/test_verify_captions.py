@@ -40,7 +40,6 @@ from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
-    write_issue_sidecar,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -587,55 +586,6 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             self.assertFalse(issue_file_path(selected).exists())
             self.assertEqual(load_issue_summary(unselected)[0], ["old-unselected"])
-
-    def test_run_job_keeps_duplicate_findings_it_does_not_own(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A blue car in the rain.")
-            write_issue_sidecar(media, "Duplicate of copy.png.", "old caption finding")
-
-            with patch(
-                "automation.verify_captions.verify_caption",
-                return_value=_fixes_json('Replace "blue" with "red".'),
-            ):
-                run_verify_captions_job(root)
-
-            # The duplicate finding survives; the previous caption finding is replaced.
-            self.assertEqual(
-                load_issue_summary(media)[0],
-                ["Duplicate of copy.png.", 'Replace "blue" with "red".'],
-            )
-
-    def test_run_job_keeps_duplicate_findings_when_the_caption_verifies_clean(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A red car.")
-            write_issue_sidecar(media, "Duplicate of copy.png.", "old caption finding")
-
-            with patch(
-                "automation.verify_captions.verify_caption",
-                return_value=_fixes_json(),
-            ):
-                run_verify_captions_job(root)
-
-            self.assertEqual(load_issue_summary(media)[0], ["Duplicate of copy.png."])
-
-    def test_run_job_caps_the_merged_fixes_and_cuts_caption_findings_first(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A blue car in the rain.")
-            write_issue_sidecar(media, "Duplicate of copy.png.")
-
-            with patch(
-                "automation.verify_captions.verify_caption",
-                return_value=_fixes_json("First.", "Second.", "Third."),
-            ):
-                run_verify_captions_job(root)
-
-            self.assertEqual(
-                load_issue_summary(media)[0],
-                ["Duplicate of copy.png.", "First.", "Second."],
-            )
 
     def test_run_job_removes_a_sidecar_holding_only_stale_caption_findings(self) -> None:
         with TempMediaFolder() as root:

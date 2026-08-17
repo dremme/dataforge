@@ -6,7 +6,6 @@ from caption_cache import cached_by_stat
 from constants import (
     CAPTION_JSON_KEYS,
     CAPTION_SIDECAR_EXTENSIONS,
-    DUPLICATE_FIX_PREFIXES,
     ISSUE_FIX_SENTINELS,
     ISSUE_SIDECAR_SUFFIX,
     MAX_ISSUE_FIXES,
@@ -469,45 +468,23 @@ def load_issue_summary(media_path: Path) -> tuple[list[str], bool]:
     return list(_issue_fixes_from_file(issue_path)), True
 
 
-def is_duplicate_fix(fix: str) -> bool:
-    return fix.startswith(DUPLICATE_FIX_PREFIXES)
+def save_issue_fixes(media_path: Path, fixes: list[str]) -> None:
+    """Write the sidecar's fixes, or remove it when there are none left to record.
 
-
-def load_issue_fix_groups(media_path: Path) -> tuple[list[str], list[str]]:
-    """The sidecar's fixes split by which job owns them: (duplicate, caption).
-
-    Each job rewrites only its own group, so a verify run keeps the duplicate
-    findings and a duplicate run keeps the caption findings.
+    Verify-captions is the only writer. Duplicate findings live in their own
+    ``.duplicate.json`` (see :mod:`duplicates`) precisely so that this can stay true:
+    two jobs sharing one file meant neither could clear its own findings without
+    reasoning about the other's, and the issue resolver could delete both at once.
     """
-    fixes, _present = load_issue_summary(media_path)
-    return (
-        [fix for fix in fixes if is_duplicate_fix(fix)],
-        [fix for fix in fixes if not is_duplicate_fix(fix)],
-    )
-
-
-def save_issue_fixes(
-    media_path: Path,
-    *,
-    duplicate_fixes: list[str],
-    caption_fixes: list[str],
-) -> None:
-    """Write both groups to the sidecar, or delete it when neither has anything left.
-
-    Duplicate findings lead because they are the more actionable of the two - the fix
-    is to drop a file, not to reword it - and because a fixed order keeps the sidecar
-    stable no matter which job wrote it last. Past ``MAX_ISSUE_FIXES`` the caption
-    findings are the ones cut, which the model was asked to order most important first.
-    """
-    fixes = [*duplicate_fixes, *caption_fixes][:MAX_ISSUE_FIXES]
+    capped = normalize_issue_fixes(fixes)
     issue_path = issue_file_path(media_path)
 
-    if not fixes:
+    if not capped:
         if issue_path.is_file():
             issue_path.unlink()
         return
 
     issue_path.write_text(
-        json.dumps({"fixes": fixes}, indent=2) + "\n",
+        json.dumps({"fixes": capped}, indent=2) + "\n",
         encoding="utf-8",
     )

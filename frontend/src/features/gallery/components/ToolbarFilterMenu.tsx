@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FILTER_OPTIONS, MEDIA_TYPE_FILTER_OPTIONS } from "@/features/gallery/lib/filters";
-import type { CaptionFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
+import type { ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { iconFilter, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -9,11 +9,11 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface ToolbarFilterMenuProps {
   searchQuery: string;
-  filter: CaptionFilter;
-  filterCounts: Record<CaptionFilter, number>;
+  filter: ItemFilter;
+  filterCounts: Record<ItemFilter, number>;
   mediaTypeFilter: MediaTypeFilter;
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
-  onFilterChange: (value: CaptionFilter) => void;
+  onFilterChange: (value: ItemFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
 }
 

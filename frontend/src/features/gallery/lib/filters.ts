@@ -1,6 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import {
   iconCircleCheck,
+  iconCopy,
   iconMessageCheck,
   iconMessageDashed,
   iconMessageWarning,
@@ -9,7 +10,7 @@ import {
   iconImages,
   iconVideo,
 } from "@/shared/icons";
-import type { CaptionFilter, MediaTypeFilter } from "./query";
+import type { ItemFilter, MediaTypeFilter } from "./query";
 
 export const FILTER_OPTIONS = [
   { value: "all" as const, label: "All", ariaLabel: "All media", icon: iconImages },
@@ -31,8 +32,14 @@ export const FILTER_OPTIONS = [
     ariaLabel: "Missing caption",
     icon: iconMessageDashed,
   },
+  {
+    value: "duplicate" as const,
+    label: "Duplicates",
+    ariaLabel: "Duplicates",
+    icon: iconCopy,
+  },
 ] satisfies ReadonlyArray<{
-  value: CaptionFilter;
+  value: ItemFilter;
   label: string;
   ariaLabel: string;
   icon: AppIcon;
@@ -59,7 +66,7 @@ export interface FilterEmptyState {
 }
 
 export function getFilterEmptyState(options: {
-  filter: CaptionFilter;
+  filter: ItemFilter;
   mediaTypeFilter: MediaTypeFilter;
   searchQuery: string;
   hasFilterMatches: boolean;
@@ -110,6 +117,16 @@ export function getFilterEmptyState(options: {
       icon: iconCircleCheck,
       title: "No files with issues",
       description: "None of the files in this folder have caption issues.",
+      variant: "success",
+    };
+  }
+
+  if (options.filter === "duplicate") {
+    return {
+      icon: iconCircleCheck,
+      title: "No duplicates",
+      description:
+        "Nothing in this folder is flagged as a duplicate. Run find duplicates to check.",
       variant: "success",
     };
   }

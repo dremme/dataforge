@@ -29,7 +29,6 @@ from automation.vision import (
 )
 from captions import (
     NO_CAPTION_STATUS,
-    load_issue_fix_groups,
     load_reference_caption,
     normalize_issue_fixes,
     save_issue_fixes,
@@ -497,14 +496,13 @@ def _initial_job_stats(total: int) -> dict[str, int]:
 
 
 def _write_caption_fixes(media_path: Path, fixes: list[str]) -> None:
-    """Replace this file's caption findings, keeping any duplicate findings beside them.
+    """Replace this file's findings, removing the sidecar when it verifies clean.
 
-    The sidecar is shared with find-duplicates, so the previous caption findings are
-    dropped by writing over them rather than by deleting the file. A file that verifies
-    clean passes no fixes, which removes the sidecar only if nothing else is on it.
+    Per file rather than per folder: the old folder-wide clear at job start ran before
+    the selection was applied, so verifying a handful of files wiped the findings of
+    every other file in the folder.
     """
-    duplicate_fixes, _previous_caption_fixes = load_issue_fix_groups(media_path)
-    save_issue_fixes(media_path, duplicate_fixes=duplicate_fixes, caption_fixes=fixes)
+    save_issue_fixes(media_path, fixes)
 
 
 def _failure_outcome(status: str, message: str | None) -> FileOutcome:

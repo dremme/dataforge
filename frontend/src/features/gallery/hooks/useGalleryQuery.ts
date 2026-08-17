@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { countDuplicates } from "@/features/gallery/lib/duplicates";
 import { getFilterEmptyState } from "@/features/gallery/lib/filters";
 import {
   cacheGallerySessionQuery,
@@ -6,7 +7,7 @@ import {
 } from "@/features/gallery/lib/sessionPreferences";
 import {
   DEFAULT_SORT,
-  applyCaptionFilter,
+  applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
   countIssues,
@@ -14,7 +15,7 @@ import {
   filterBySearch,
   parseSortOption,
   processGalleryItems,
-  type CaptionFilter,
+  type ItemFilter,
   type MediaTypeFilter,
   type SortOption,
 } from "@/features/gallery/lib/query";
@@ -26,7 +27,7 @@ import {
 } from "@/shared/preferences/uiPreferences";
 
 export function useGalleryQuery(items: GalleryItem[]) {
-  const [filter, setFilterState] = useState<CaptionFilter>(() => readGallerySessionQuery().filter);
+  const [filter, setFilterState] = useState<ItemFilter>(() => readGallerySessionQuery().filter);
   const [mediaTypeFilter, setMediaTypeFilterState] = useState<MediaTypeFilter>(
     () => readGallerySessionQuery().mediaTypeFilter,
   );
@@ -51,7 +52,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     };
   }, []);
 
-  const setFilter = useCallback((value: CaptionFilter) => {
+  const setFilter = useCallback((value: ItemFilter) => {
     setFilterState(value);
     cacheGallerySessionQuery({ filter: value });
   }, []);
@@ -88,10 +89,10 @@ export function useGalleryQuery(items: GalleryItem[]) {
     [items, mediaTypeFilter],
   );
 
-  const captionScopedItems = useMemo(() => applyCaptionFilter(items, filter), [items, filter]);
+  const captionScopedItems = useMemo(() => applyItemFilter(items, filter), [items, filter]);
 
   const captionFilteredItems = useMemo(
-    () => applyCaptionFilter(mediaTypeFilteredItems, filter),
+    () => applyItemFilter(mediaTypeFilteredItems, filter),
     [mediaTypeFilteredItems, filter],
   );
 
@@ -130,6 +131,9 @@ export function useGalleryQuery(items: GalleryItem[]) {
       captioned,
       issue,
       uncaptioned: captionFilterCountItems.length - captioned,
+      // Files, not groups: this count sits beside the others in the filter menu and
+      // says how many items the filter would leave on screen.
+      duplicate: countDuplicates(captionFilterCountItems),
     } as const;
   }, [captionFilterCountItems]);
 

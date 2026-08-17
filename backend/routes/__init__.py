@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from routes import (
     automation,
     captions,
+    duplicates,
     events,
     external_jobs,
     files,
@@ -25,6 +26,7 @@ for module in (
     folder_contents,
     media,
     captions,
+    duplicates,
     files,
     preferences,
     jobs,

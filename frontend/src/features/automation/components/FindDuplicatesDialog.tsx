@@ -37,8 +37,8 @@ export function FindDuplicatesDialog({
       description={
         <>
           Compare <strong>{itemCount}</strong> {itemCount === 1 ? "file" : "files"} in{" "}
-          <strong>{folderLabel}</strong> and flag matches as caption issues, so the issue filter and
-          resolver can step through them. Captions are not changed.
+          <strong>{folderLabel}</strong> and group the matches, so the duplicate resolver can step
+          through them side by side. Nothing is deleted by the job itself.
         </>
       }
       panelClassName="find-duplicates-dialog"
@@ -66,9 +66,9 @@ export function FindDuplicatesDialog({
       />
 
       <p className="dialog__hint">
-        Findings share the caption-issue sidecar with verify-captions and sit alongside its
-        findings. Resolving a caption in the issue resolver drops that file&rsquo;s finding; run
-        this job again to bring it back.
+        Each match gets its own <code>.duplicate.json</code>, separate from caption issues, so the
+        two never clear one another. Deleting happens in the resolver, where you pick which file to
+        keep.
       </p>
     </Dialog>
   );

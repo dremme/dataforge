@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyCaptionFilter,
+  applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
   countMediaType,
@@ -37,6 +37,7 @@ function item(
     has_caption_file: false,
     issue_fixes: [],
     has_issue_file: false,
+    has_duplicate_file: false,
     caption_status: "none",
     caption_file_type: null,
     media_type: mediaType,
@@ -270,17 +271,17 @@ describe("filterSubfoldersBySearch", () => {
   });
 });
 
-describe("applyCaptionFilter", () => {
+describe("applyItemFilter", () => {
   const items = [
     item("captioned.png", "image", { has_description: true }),
     item("missing.png", "image"),
   ];
 
   it("filters captioned and uncaptioned items", () => {
-    expect(applyCaptionFilter(items, "captioned").map((entry) => entry.name)).toEqual([
+    expect(applyItemFilter(items, "captioned").map((entry) => entry.name)).toEqual([
       "captioned.png",
     ]);
-    expect(applyCaptionFilter(items, "uncaptioned").map((entry) => entry.name)).toEqual([
+    expect(applyItemFilter(items, "uncaptioned").map((entry) => entry.name)).toEqual([
       "missing.png",
     ]);
   });

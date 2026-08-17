@@ -23,6 +23,7 @@ function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryIt
     has_caption_file: true,
     issue_fixes: [],
     has_issue_file: false,
+    has_duplicate_file: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",

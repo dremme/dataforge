@@ -18,8 +18,14 @@ from automation.find_duplicates import (
     run_find_duplicates_job,
     validate_find_duplicates_folder,
 )
-from captions import issue_file_path, load_issue_summary
-from testing_fixtures import TempMediaFolder, write_image, write_issue_sidecar, write_media
+from captions import load_issue_summary
+from duplicates import duplicate_file_path, group_id_for, load_duplicate_finding
+from testing_fixtures import (
+    TempMediaFolder,
+    write_image,
+    write_issue_sidecar,
+    write_media,
+)
 
 
 def write_patterned_image(root: Path, name: str, *, seed: int, size: int = 64) -> Path:
@@ -43,8 +49,10 @@ def write_patterned_image(root: Path, name: str, *, seed: int, size: int = 64) -
     return media
 
 
-def fixes_for(media: Path) -> list[str]:
-    return load_issue_summary(media)[0]
+def group_of(media: Path) -> str:
+    finding = load_duplicate_finding(media)
+    assert finding is not None, f"{media.name} carries no duplicate finding"
+    return finding.group
 
 
 class DifferenceHashTests(unittest.TestCase):
@@ -90,7 +98,7 @@ class GroupDuplicatesTests(unittest.TestCase):
         self.assertEqual(_group_duplicates(hashes, max_distance=0), [])
 
     def test_grouping_is_transitive(self) -> None:
-        """A chains to B and B to C, so all three land in one group even though A and C are further apart."""
+        """A chains to B and B to C, so all three group even though A and C are further apart."""
         hashes = {Path("a.png"): 0b0000, Path("b.png"): 0b0001, Path("c.png"): 0b0011}
 
         groups = _group_duplicates(hashes, max_distance=1)
@@ -101,6 +109,14 @@ class GroupDuplicatesTests(unittest.TestCase):
         hashes = {Path("a.png"): 0b0000, Path("b.png"): 0b1111}
 
         self.assertEqual(_group_duplicates(hashes, max_distance=1), [])
+
+
+class GroupIdTests(unittest.TestCase):
+    def test_membership_decides_the_id_regardless_of_order(self) -> None:
+        self.assertEqual(group_id_for(["b.png", "a.png"]), group_id_for(["a.png", "b.png"]))
+
+    def test_a_different_membership_is_a_different_group(self) -> None:
+        self.assertNotEqual(group_id_for(["a.png", "b.png"]), group_id_for(["a.png", "c.png"]))
 
 
 class FindDuplicatesValidationTests(unittest.TestCase):
@@ -129,8 +145,10 @@ class FindDuplicatesJobTests(unittest.TestCase):
             self.assertEqual(result["stats"]["hashed"], 2)
             self.assertEqual(result["stats"]["duplicate"], 2)
             self.assertEqual(result["stats"]["group"], 1)
-            self.assertEqual(fixes_for(first), ["Duplicate of two.png."])
-            self.assertEqual(fixes_for(second), ["Duplicate of one.png."])
+
+            # The shared group id is the only thing linking the two files.
+            self.assertEqual(group_of(first), group_of(second))
+            self.assertEqual(group_of(first), group_id_for(["one.png", "two.png"]))
 
     def test_leaves_unique_media_unflagged(self) -> None:
         with TempMediaFolder() as root:
@@ -140,20 +158,25 @@ class FindDuplicatesJobTests(unittest.TestCase):
             result = run_find_duplicates_job(root, threshold="exact")
 
             self.assertEqual(result["stats"]["duplicate"], 0)
-            self.assertFalse(issue_file_path(first).exists())
-            self.assertFalse(issue_file_path(second).exists())
+            self.assertFalse(duplicate_file_path(first).exists())
+            self.assertFalse(duplicate_file_path(second).exists())
 
-    def test_near_threshold_says_near_duplicate(self) -> None:
+    def test_identical_files_read_as_exact_under_a_loose_threshold(self) -> None:
+        """The distance describes the files, not the slack the run happened to allow."""
         with TempMediaFolder() as root:
             first = write_patterned_image(root, "one.png", seed=7)
             shutil.copyfile(first, root / "two.png")
 
-            run_find_duplicates_job(root, threshold="near")
+            run_find_duplicates_job(root, threshold="loose")
 
-            self.assertEqual(fixes_for(first), ["Near-duplicate of two.png."])
+            finding = load_duplicate_finding(first)
+            assert finding is not None
+            self.assertEqual(finding.max_distance, 0)
+            self.assertTrue(finding.exact)
+            self.assertEqual(finding.threshold, "loose")
 
-    def test_existing_caption_issues_survive(self) -> None:
-        """Unlike verify-captions, this job must not clear the sidecars it did not write."""
+    def test_caption_issues_are_untouched(self) -> None:
+        """Separate sidecars: neither job can reach the other's findings."""
         with TempMediaFolder() as root:
             first = write_patterned_image(root, "one.png", seed=7)
             shutil.copyfile(first, root / "two.png")
@@ -162,22 +185,22 @@ class FindDuplicatesJobTests(unittest.TestCase):
             run_find_duplicates_job(root, threshold="exact")
 
             self.assertEqual(
-                fixes_for(first),
-                [
-                    "Duplicate of two.png.",
-                    "The caption says night but the photo is daylight.",
-                ],
+                load_issue_summary(first)[0],
+                ["The caption says night but the photo is daylight."],
             )
+            self.assertIsNotNone(load_duplicate_finding(first))
 
-    def test_rerunning_replaces_rather_than_stacks_its_own_finding(self) -> None:
+    def test_rerunning_leaves_the_sidecar_byte_identical(self) -> None:
+        """The group id is derived, so an unchanged folder does not churn mtimes."""
         with TempMediaFolder() as root:
             first = write_patterned_image(root, "one.png", seed=7)
             shutil.copyfile(first, root / "two.png")
 
             run_find_duplicates_job(root, threshold="exact")
+            before = duplicate_file_path(first).read_bytes()
             run_find_duplicates_job(root, threshold="exact")
 
-            self.assertEqual(fixes_for(first), ["Duplicate of two.png."])
+            self.assertEqual(duplicate_file_path(first).read_bytes(), before)
 
     def test_a_finding_is_dropped_once_the_duplicate_is_gone(self) -> None:
         with TempMediaFolder() as root:
@@ -189,39 +212,22 @@ class FindDuplicatesJobTests(unittest.TestCase):
             second.unlink()
             run_find_duplicates_job(root, threshold="exact")
 
-            self.assertFalse(issue_file_path(first).exists())
+            self.assertFalse(duplicate_file_path(first).exists())
 
-    def test_a_stale_finding_goes_without_taking_caption_issues_with_it(self) -> None:
+    def test_a_group_larger_than_two_shares_one_id(self) -> None:
         with TempMediaFolder() as root:
             first = write_patterned_image(root, "one.png", seed=7)
-            second = root / "two.png"
-            shutil.copyfile(first, second)
-
-            run_find_duplicates_job(root, threshold="exact")
-            write_issue_sidecar(
-                first,
-                "Duplicate of two.png.",
-                "The caption says night but the photo is daylight.",
-            )
-            second.unlink()
-            run_find_duplicates_job(root, threshold="exact")
-
-            self.assertEqual(
-                fixes_for(first),
-                ["The caption says night but the photo is daylight."],
-            )
-
-    def test_names_beyond_the_cap_collapse_into_a_count(self) -> None:
-        with TempMediaFolder() as root:
-            first = write_patterned_image(root, "one.png", seed=7)
+            copies = []
             for index in range(2, 7):
-                shutil.copyfile(first, root / f"copy{index}.png")
+                copy = root / f"copy{index}.png"
+                shutil.copyfile(first, copy)
+                copies.append(copy)
 
-            run_find_duplicates_job(root, threshold="exact")
+            result = run_find_duplicates_job(root, threshold="exact")
 
-            fix = fixes_for(first)[0]
-            self.assertTrue(fix.startswith("Duplicate of copy2.png, copy3.png, copy4.png"), fix)
-            self.assertIn("and 2 more", fix)
+            self.assertEqual(result["stats"]["group"], 1)
+            self.assertEqual(result["stats"]["duplicate"], 6)
+            self.assertEqual(len({group_of(path) for path in [first, *copies]}), 1)
 
     def test_an_unreadable_file_is_reported_and_skipped(self) -> None:
         with TempMediaFolder() as root:
@@ -244,7 +250,7 @@ class FindDuplicatesJobTests(unittest.TestCase):
 
             self.assertEqual(result["stats"]["cancelled"], 2)
             self.assertEqual(result["stats"]["duplicate"], 0)
-            self.assertFalse(issue_file_path(first).exists())
+            self.assertFalse(duplicate_file_path(first).exists())
 
     def test_selection_limits_the_comparison(self) -> None:
         with TempMediaFolder() as root:
@@ -260,17 +266,19 @@ class FindDuplicatesJobTests(unittest.TestCase):
             )
 
             self.assertEqual(result["total"], 2)
-            self.assertFalse(issue_file_path(second).exists())
+            self.assertFalse(duplicate_file_path(second).exists())
 
-    def test_the_sidecar_holds_only_the_fixes_key(self) -> None:
+    def test_the_sidecar_holds_the_group_distance_and_threshold(self) -> None:
         with TempMediaFolder() as root:
             first = write_patterned_image(root, "one.png", seed=7)
             shutil.copyfile(first, root / "two.png")
 
             run_find_duplicates_job(root, threshold="exact")
 
-            payload = json.loads(issue_file_path(first).read_text(encoding="utf-8"))
-            self.assertEqual(list(payload), ["fixes"])
+            payload = json.loads(duplicate_file_path(first).read_text(encoding="utf-8"))
+            self.assertEqual(sorted(payload), ["group", "max_distance", "threshold"])
+            # Deliberately no member list - see the duplicates module docstring.
+            self.assertNotIn("members", payload)
 
 
 if __name__ == "__main__":

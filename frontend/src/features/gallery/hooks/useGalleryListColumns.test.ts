@@ -29,6 +29,7 @@ function item(overrides: Partial<GalleryItem>): GalleryItem {
     has_caption_file: true,
     issue_fixes: [],
     has_issue_file: false,
+    has_duplicate_file: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",
@@ -83,7 +84,12 @@ describe("useGalleryListColumns", () => {
   it("sizes the marker column to the most markers any item carries", () => {
     const one = renderColumns([item({ media_type: "video" })]);
     const three = renderColumns([
-      item({ media_type: "video", has_issue_file: true, caption_file_type: "json" }),
+      item({
+        media_type: "video",
+        has_issue_file: true,
+        has_duplicate_file: false,
+        caption_file_type: "json",
+      }),
     ]);
 
     expect(one?.["--gallery-list-col-markers"]).toBe("12px");

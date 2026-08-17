@@ -6,7 +6,7 @@ import {
   releaseScrollLock,
   resetScrollLockManagerForTests,
 } from "@/shared/hooks/scrollLockManager";
-import type { CaptionFilter, MediaTypeFilter, SortOption } from "@/features/gallery/lib/query";
+import type { ItemFilter, MediaTypeFilter, SortOption } from "@/features/gallery/lib/query";
 import { Toolbar } from "./Toolbar";
 
 vi.mock("@/features/jobs/components/JobsButton", () => ({
@@ -23,12 +23,13 @@ const defaultProps = {
   searchRegex: false,
   searchNames: true,
   sort: "name-asc" as SortOption,
-  filter: "all" as CaptionFilter,
+  filter: "all" as ItemFilter,
   filterCounts: {
     all: 3,
     captioned: 2,
     issue: 0,
     uncaptioned: 1,
+    duplicate: 0,
   },
   mediaTypeFilter: "all" as MediaTypeFilter,
   mediaTypeFilterCounts: {

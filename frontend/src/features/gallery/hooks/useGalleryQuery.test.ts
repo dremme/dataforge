@@ -17,6 +17,7 @@ function item(
     has_caption_file: hasDescription,
     issue_fixes: hasIssue ? ["Mention the mountain peak."] : [],
     has_issue_file: hasIssue,
+    has_duplicate_file: false,
     caption_status: hasDescription ? "text" : "none",
     caption_file_type: hasDescription ? "txt" : null,
     media_type: mediaType,
@@ -39,6 +40,7 @@ describe("useGalleryQuery", () => {
       captioned: 2,
       issue: 1,
       uncaptioned: 2,
+      duplicate: 0,
     });
 
     act(() => {
@@ -50,6 +52,7 @@ describe("useGalleryQuery", () => {
       captioned: 1,
       issue: 0,
       uncaptioned: 1,
+      duplicate: 0,
     });
   });
 
@@ -123,6 +126,7 @@ describe("useGalleryQuery", () => {
       captioned: 2,
       issue: 2,
       uncaptioned: 0,
+      duplicate: 0,
     });
     expect(result.current.filteredItems).toHaveLength(2);
   });

@@ -27,6 +27,7 @@ function makeIssueItem(name: string, overrides: Partial<GalleryItem> = {}): Gall
       'Remove "parked at the curb" - the car is moving.',
     ],
     has_issue_file: true,
+    has_duplicate_file: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",

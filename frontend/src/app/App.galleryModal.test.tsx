@@ -11,7 +11,12 @@ const issueFolder: FolderResponse = {
   ...homeFolder,
   items: homeFolder.items.map((item) =>
     item.name === "sunset.png"
-      ? { ...item, has_issue_file: true, issue_fixes: ['Replace "lake" with "river".'] }
+      ? {
+          ...item,
+          has_issue_file: true,
+          has_duplicate_file: false,
+          issue_fixes: ['Replace "lake" with "river".'],
+        }
       : item,
   ),
 };

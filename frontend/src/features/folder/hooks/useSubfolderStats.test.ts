@@ -69,7 +69,9 @@ describe("useSubfolderStats", () => {
   it("fills in counts for subfolders that arrived without them", async () => {
     const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue({
       folder: FOLDER,
-      subfolders: [{ path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1 }],
+      subfolders: [
+        { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
+      ],
     });
 
     const { view } = renderWithFolder(makeFolder([makeSubfolder()]));
@@ -80,6 +82,7 @@ describe("useSubfolderStats", () => {
       file_count: 3,
       captioned_count: 2,
       issue_count: 1,
+      duplicate_count: 0,
     });
   });
 
@@ -95,7 +98,9 @@ describe("useSubfolderStats", () => {
   it("settles after merging instead of refetching in a loop", async () => {
     const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue({
       folder: FOLDER,
-      subfolders: [{ path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1 }],
+      subfolders: [
+        { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
+      ],
     });
 
     const { view } = renderWithFolder(makeFolder([makeSubfolder()]));
@@ -116,11 +121,15 @@ describe("useSubfolderStats", () => {
       .spyOn(api, "fetchSubfolderStats")
       .mockResolvedValueOnce({
         folder: FOLDER,
-        subfolders: [{ path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1 }],
+        subfolders: [
+          { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
+        ],
       })
       .mockResolvedValueOnce({
         folder: FOLDER,
-        subfolders: [{ path: ALBUM, file_count: 5, captioned_count: 2, issue_count: 1 }],
+        subfolders: [
+          { path: ALBUM, file_count: 5, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
+        ],
       });
 
     const { view, silentReload } = renderWithFolder(makeFolder([makeSubfolder()]));

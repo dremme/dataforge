@@ -5,6 +5,7 @@ import {
 import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import {
   iconBraces,
+  iconCopy,
   iconFileImage,
   iconMessageCheck,
   iconMessageDashed,
@@ -49,6 +50,14 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
       icon: iconTriangleAlert,
       label: "Caption issue",
       variant: "issue",
+    });
+  }
+  if (item.has_duplicate_file) {
+    markers.push({
+      key: "duplicate",
+      icon: iconCopy,
+      label: "Duplicate",
+      variant: "duplicate",
     });
   }
   if (item.caption_file_type === "json") {

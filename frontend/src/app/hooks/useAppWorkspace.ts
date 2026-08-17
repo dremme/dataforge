@@ -10,6 +10,8 @@ import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScroll
 import { useSubfolderStats } from "@/features/folder/hooks/useSubfolderStats";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
+import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplicateResolverOverlay";
+import { countDuplicateGroups } from "@/features/gallery/lib/duplicates";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
@@ -111,6 +113,11 @@ export function useAppWorkspace() {
 
   const statsDrawer = useStatsDrawer();
 
+  // Refreshing on close rather than per deletion: the resolver removes files, and the
+  // watcher's own push would otherwise race the modal's frozen queue.
+  const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
+  const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
+
   const automation = useAutomationHost({
     folder: folder?.path,
     breadcrumbs: folder?.breadcrumbs ?? [],
@@ -125,6 +132,11 @@ export function useAppWorkspace() {
     issueCount: gallery.issueCount,
     onResolveIssues:
       gallery.issueCount > 0 ? () => gallery.issueResolver.openIssueResolver(items) : undefined,
+    duplicateGroupCount,
+    onResolveDuplicates:
+      duplicateGroupCount > 0 && folder?.path
+        ? () => void duplicateResolver.openDuplicateResolver(folder.path)
+        : undefined,
   });
 
   return {
@@ -143,5 +155,6 @@ export function useAppWorkspace() {
     gallery,
     automation,
     statsDrawer,
+    duplicateResolver,
   };
 }

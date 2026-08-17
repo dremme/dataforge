@@ -6,6 +6,7 @@ from pathlib import Path
 
 from captions import issue_file_path
 from constants import SIDECAR_EXTENSIONS
+from duplicates import duplicate_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,19 @@ def delete_path(path: Path) -> None:
     path.unlink()
 
 
+def deletes_to_trash() -> bool:
+    """Whether :func:`delete_path` puts a file somewhere it can be recovered from.
+
+    Reported to the UI so a flow that deletes without asking can ask where the
+    deletion is final. Deliberately phrased as a capability rather than as
+    "is Windows": adding a freedesktop trash implementation should flip this and
+    silence the extra confirmation, with nothing in the frontend to change.
+
+    Kept beside ``delete_path`` so the two cannot drift apart.
+    """
+    return sys.platform == "win32"
+
+
 def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
     deleted: list[str] = []
 
@@ -84,13 +98,16 @@ def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
         except OSError as exc:
             logger.warning("Failed to delete sidecar %s: %s", sidecar.name, exc)
 
-    issue_sidecar = issue_file_path(file_path)
-    if issue_sidecar.is_file():
+    # Named explicitly rather than folded into SIDECAR_EXTENSIONS: both are two suffixes
+    # deep, so `with_suffix` would collapse them onto the caption sidecar's `.json`.
+    for extra in (issue_file_path(file_path), duplicate_file_path(file_path)):
+        if not extra.is_file():
+            continue
         try:
-            delete_path(issue_sidecar)
-            deleted.append(issue_sidecar.name)
+            delete_path(extra)
+            deleted.append(extra.name)
         except OSError as exc:
-            logger.warning("Failed to delete issue sidecar %s: %s", issue_sidecar.name, exc)
+            logger.warning("Failed to delete sidecar %s: %s", extra.name, exc)
 
     return {
         "path": str(file_path),
