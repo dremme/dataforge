@@ -2,15 +2,10 @@ import { useCallback, useState } from "react";
 import { openFolderInExplorer } from "@/features/folder/api/folders";
 import { formatApiError } from "@/shared/api/http";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
-import {
-  iconArrowUpRight,
-  iconChevronRight,
-  iconCopy,
-  iconFolderOpen,
-  iconLoader2,
-} from "@/shared/icons";
+import { iconArrowUpRight, iconCopy, iconFolderOpen, iconLoader2 } from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
+import { BreadcrumbCrumbMenu } from "./BreadcrumbCrumbMenu";
 import { OpenFolderModal } from "./OpenFolderModal";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -18,6 +13,12 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 interface BreadcrumbBarProps {
   breadcrumbs: Breadcrumb[];
   currentFolder: string;
+  /**
+   * Whether the current folder has any children — the caller already knows, and
+   * a dropdown is only worth offering on the trailing crumb when it does. Every
+   * earlier crumb has at least the next crumb to list.
+   */
+  hasSubfolders: boolean;
   folderNotFound?: boolean;
   onNavigate: (path: string) => void;
 }
@@ -25,6 +26,7 @@ interface BreadcrumbBarProps {
 export function BreadcrumbBar({
   breadcrumbs,
   currentFolder,
+  hasSubfolders,
   folderNotFound = false,
   onNavigate,
 }: BreadcrumbBarProps) {
@@ -77,7 +79,6 @@ export function BreadcrumbBar({
             const isLast = index === breadcrumbs.length - 1;
             return (
               <li key={crumb.path} className="breadcrumbs__item">
-                {index > 0 && <Icon icon={iconChevronRight} className="breadcrumbs__sep" />}
                 {isLast ? (
                   <span
                     className={classNames(
@@ -98,6 +99,17 @@ export function BreadcrumbBar({
                   >
                     {crumb.name}
                   </button>
+                )}
+                {/* The chevron trails its own crumb, so it lists that crumb's children —
+                    and the last crumb gets one too, for drilling down, unless the
+                    folder is a leaf and the dropdown would open on nothing. */}
+                {(!isLast || (hasSubfolders && !folderNotFound)) && (
+                  <BreadcrumbCrumbMenu
+                    folderPath={crumb.path}
+                    label={crumb.name}
+                    activeChildPath={breadcrumbs[index + 1]?.path}
+                    onNavigate={onNavigate}
+                  />
                 )}
               </li>
             );

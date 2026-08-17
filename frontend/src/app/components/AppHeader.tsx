@@ -25,6 +25,7 @@ export function AppHeader({
         <BreadcrumbBar
           breadcrumbs={folder.breadcrumbs}
           currentFolder={folder.path}
+          hasSubfolders={folder.subfolder_count > 0}
           folderNotFound={folderNotFound}
           onNavigate={onNavigate}
         />

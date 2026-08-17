@@ -39,7 +39,9 @@ describe("folders API", () => {
 
     await fetchFolderChildren("C:\\Photos");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/children?path=C%3A%5CPhotos");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/children?path=C%3A%5CPhotos", {
+      signal: undefined,
+    });
   });
 
   it("fetches folder favorites", async () => {

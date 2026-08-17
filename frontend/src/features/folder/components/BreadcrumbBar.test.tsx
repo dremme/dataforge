@@ -1,9 +1,24 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { homeFolder } from "@/test/fixtures";
+import type { ComponentProps } from "react";
+import { homeFolder, vacationFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { BreadcrumbBar } from "./BreadcrumbBar";
+
+type BarProps = ComponentProps<typeof BreadcrumbBar>;
+
+function renderBar(props: Partial<BarProps> = {}) {
+  return render(
+    <BreadcrumbBar
+      breadcrumbs={homeFolder.breadcrumbs}
+      currentFolder={homeFolder.path}
+      hasSubfolders
+      onNavigate={vi.fn()}
+      {...props}
+    />,
+  );
+}
 
 describe("BreadcrumbBar", () => {
   afterEach(() => {
@@ -11,14 +26,7 @@ describe("BreadcrumbBar", () => {
   });
 
   it("disables path actions when the current folder is missing", () => {
-    render(
-      <BreadcrumbBar
-        breadcrumbs={homeFolder.breadcrumbs}
-        currentFolder={homeFolder.path}
-        folderNotFound
-        onNavigate={vi.fn()}
-      />,
-    );
+    renderBar({ folderNotFound: true });
 
     expect(screen.getByRole("button", { name: "Copy path" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Open in File Explorer" })).toBeDisabled();
@@ -28,13 +36,7 @@ describe("BreadcrumbBar", () => {
     const user = userEvent.setup();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
 
-    render(
-      <BreadcrumbBar
-        breadcrumbs={homeFolder.breadcrumbs}
-        currentFolder={homeFolder.path}
-        onNavigate={vi.fn()}
-      />,
-    );
+    renderBar();
 
     await user.click(screen.getByRole("button", { name: "Copy path" }));
 
@@ -46,13 +48,7 @@ describe("BreadcrumbBar", () => {
     const user = userEvent.setup();
     const { fetchMock } = installMockBackend();
 
-    render(
-      <BreadcrumbBar
-        breadcrumbs={homeFolder.breadcrumbs}
-        currentFolder={homeFolder.path}
-        onNavigate={vi.fn()}
-      />,
-    );
+    renderBar();
 
     await user.click(screen.getByRole("button", { name: "Open in File Explorer" }));
 
@@ -62,5 +58,83 @@ describe("BreadcrumbBar", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
+  });
+
+  it("lists the current folder's subfolders from the trailing chevron", async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    installMockBackend();
+
+    renderBar({ onNavigate });
+
+    await user.click(screen.getByRole("button", { name: "Subfolders of Photos" }));
+
+    await user.click(await screen.findByRole("menuitem", { name: "Vacation" }));
+
+    expect(onNavigate).toHaveBeenCalledWith(vacationFolder.path);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("marks the subfolder the path is currently inside", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+
+    renderBar({
+      breadcrumbs: vacationFolder.breadcrumbs,
+      currentFolder: vacationFolder.path,
+      hasSubfolders: false,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Subfolders of Photos" }));
+
+    expect(await screen.findByRole("menuitem", { name: "Vacation" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("leaves the trailing chevron off a folder with no subfolders", () => {
+    installMockBackend();
+
+    renderBar({
+      breadcrumbs: vacationFolder.breadcrumbs,
+      currentFolder: vacationFolder.path,
+      hasSubfolders: false,
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Subfolders of Vacation" }),
+    ).not.toBeInTheDocument();
+    // Earlier crumbs keep theirs — they always have the next crumb to list.
+    expect(screen.getByRole("button", { name: "Subfolders of Photos" })).toBeInTheDocument();
+  });
+
+  it("says so when a folder turns out to have no subfolders after all", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+
+    renderBar();
+
+    // The mock knows the drive root exists but has no children under it.
+    await user.click(screen.getByRole("button", { name: "Subfolders of C:" }));
+
+    expect(await screen.findByText("No subfolders")).toBeInTheDocument();
+  });
+
+  it("shows the failure inside the menu when the children cannot be listed", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+
+    // The mock backend only knows the fixture folders, so this one 404s.
+    const ghostPath = `${homeFolder.path}\\Ghost`;
+
+    renderBar({
+      breadcrumbs: [...homeFolder.breadcrumbs, { name: "Ghost", path: ghostPath }],
+      currentFolder: ghostPath,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Subfolders of Ghost" }));
+
+    expect(await screen.findByText("Folder not found")).toBeInTheDocument();
   });
 });

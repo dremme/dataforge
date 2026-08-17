@@ -12,9 +12,12 @@ export async function fetchFolderRoots(): Promise<FolderRootsResponse> {
 }
 
 /** Immediate child folders only — cheaper than full /api/folders/contents for tree UIs. */
-export async function fetchFolderChildren(folderPath: string): Promise<FolderChildrenResponse> {
+export async function fetchFolderChildren(
+  folderPath: string,
+  signal?: AbortSignal,
+): Promise<FolderChildrenResponse> {
   const params = new URLSearchParams({ path: folderPath });
-  return requestJson<FolderChildrenResponse>(`/api/folders/children?${params}`);
+  return requestJson<FolderChildrenResponse>(`/api/folders/children?${params}`, { signal });
 }
 
 export async function fetchFolderFavorites(): Promise<FolderFavoritesResponse> {

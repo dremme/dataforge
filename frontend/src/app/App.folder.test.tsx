@@ -154,7 +154,8 @@ describe("App: folder navigation", () => {
 
     const listingsBeforeReturn = pathsListed().length;
 
-    await user.click(screen.getByRole("button", { name: /Photos/ }));
+    // Exact name: the crumb's chevron is "Subfolders of Photos" and would match a regex.
+    await user.click(screen.getByRole("button", { name: "Photos" }));
 
     // The cached payload paints immediately - no skeleton in between.
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
