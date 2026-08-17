@@ -225,6 +225,37 @@ class MediaMoveEndpointTests(unittest.TestCase):
             self.assertTrue((destination_dir / "sunset.png").is_file())
             self.assertTrue((destination_dir / "sunset.txt").is_file())
 
+    def test_move_reports_a_vanished_source_without_failing_the_batch(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir = root / "Source"
+            destination_dir = root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+
+            media = write_media(source_dir, "sunset.png")
+            # The name the client still holds for a file that has since been renamed.
+            stale = source_dir / "beach.png"
+
+            preview_response = client.post(
+                f"/api/media/move/preview?destination={quote(str(destination_dir))}",
+                json={"paths": [str(stale), str(media)]},
+            )
+            self.assertEqual(preview_response.status_code, 200)
+            self.assertEqual(preview_response.json()["eligible"], ["sunset.png"])
+
+            move_response = client.post(
+                f"/api/media/move?destination={quote(str(destination_dir))}",
+                json={"paths": [str(stale), str(media)]},
+            )
+
+            self.assertEqual(move_response.status_code, 200)
+            payload = move_response.json()
+            self.assertEqual(len(payload["transferred"]), 1)
+            self.assertEqual(
+                payload["failed"], [{"path": str(stale), "detail": "Media file not found"}]
+            )
+            self.assertTrue((destination_dir / "sunset.png").is_file())
+
     def test_move_preview_reports_conflicts(self) -> None:
         with TempMediaFolder() as root:
             source_dir = root / "Source"

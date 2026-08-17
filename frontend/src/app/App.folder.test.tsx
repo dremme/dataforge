@@ -43,6 +43,29 @@ describe("App: folder navigation", () => {
     });
   });
 
+  it("drops a selected file from the selection when it is renamed in the background", async () => {
+    const user = userEvent.setup();
+    const { renameItem } = installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    await user.click(screen.getByRole("button", { name: "Select beach.jpg" }));
+    expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
+
+    renameItem(HOME_PATH, "sunset.png", "sunrise.png");
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Select sunrise.png" })).toBeInTheDocument();
+    });
+
+    // Nothing on disk answers to the old name any more, so it cannot stay in the
+    // selection: a move or delete built from it would fail on a file the user can see.
+    expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
+    expect(screen.getByRole("button", { name: "Deselect beach.jpg" })).toBeInTheDocument();
+  });
+
   it("shows an initial loading state before the home folder renders", async () => {
     installMockBackend({ folderDelayMs: 50 });
     await renderApp();
