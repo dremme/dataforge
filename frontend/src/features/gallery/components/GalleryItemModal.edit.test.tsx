@@ -106,6 +106,9 @@ describe("GalleryItemModal", () => {
       ["a still image", makeItem("sunset.png")],
       ["a GIF", makeItem("loop.gif", { media_type: "gif" })],
       ["a container it cannot mux", makeItem("clip.avi", { media_type: "video" })],
+      // ffmpeg would render an MKV happily; the browser cannot decode one, and the
+      // whole panel is driven off the `<video>` element.
+      ["a container the browser cannot decode", makeItem("clip.mkv", { media_type: "video" })],
     ])("does not offer the toggle for %s", async (_label, item) => {
       renderModal(item);
 

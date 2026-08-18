@@ -22,7 +22,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import video_edit
-from constants import VIDEO_EDIT_STALE_SUFFIX, VIDEO_EDIT_TEMP_SUFFIX
+from constants import VIDEO_EDIT_MUXERS, VIDEO_EDIT_STALE_SUFFIX, VIDEO_EDIT_TEMP_SUFFIX
 from ffmpeg_run import FfmpegCancelled
 from schemas import VideoCropRect, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_mp4_video
@@ -166,11 +166,11 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertEqual(cropped[cropped.index("-c:a") + 1], "copy")
         self.assertEqual(trimmed[trimmed.index("-c:a") + 1], "aac")
 
-    def test_faststart_is_only_for_the_mp4_family(self) -> None:
-        for muxer, expected in (("mp4", True), ("mov", True), ("matroska", False)):
-            with self.subTest(muxer=muxer):
+    def test_every_supported_container_is_named_and_gets_faststart(self) -> None:
+        for extension, muxer in VIDEO_EDIT_MUXERS.items():
+            with self.subTest(extension=extension):
                 command = command_for(VideoEditSpec(), muxer=muxer)
-                self.assertEqual("-movflags" in command, expected)
+                self.assertIn("-movflags", command)
                 self.assertEqual(command[command.index("-f") + 1], muxer)
 
     def test_the_muxer_is_named_because_the_temp_file_has_no_media_suffix(self) -> None:

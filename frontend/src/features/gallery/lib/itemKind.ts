@@ -33,9 +33,10 @@ export function isVideo(item: GalleryItem): boolean {
 /**
  * Whether the item can be trimmed, cropped, retimed and rescaled in place.
  *
- * Narrower than `isVideo`: the render writes h264/aac with `-movflags`, which the asf
- * and flv muxers reject outright and which avi cannot be relied on to take. The backend
- * refuses the rest by container, and this keeps the toggle from offering what it would.
+ * Narrower than `isVideo`, and for the same reason playback is: the editor reads its
+ * duration and frame size off the `<video>` element and previews the trim, speed and
+ * crop through it, so a container the browser cannot decode would give a toggle onto a
+ * panel that never becomes usable. Matroska is the trap here - ffmpeg renders it fine.
  */
 export function isEditableVideo(item: GalleryItem): boolean {
   if (!isVideo(item)) return false;

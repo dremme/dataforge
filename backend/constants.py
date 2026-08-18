@@ -27,12 +27,16 @@ COMFY_WORKFLOW_EXTENSIONS = {".png"} | ISOBMFF_EXTENSIONS
 # always accept from an arbitrary source stream.
 WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
 
-# In-place video editing re-encodes to h264/aac and carries `-movflags`, which the asf
-# and flv muxers reject and which avi cannot be relied on to accept. Matroska joins the
-# MP4 family here - unlike watermarking it never needs `-c:a copy` from an arbitrary
-# source stream, and the muxer is named explicitly rather than guessed from the suffix.
-VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS | {".mkv"}
-VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov", ".mkv": "matroska"}
+# In-place video editing is held to what the *browser* can decode, which is a stricter
+# question than what ffmpeg can re-mux. The editor reads its duration and frame size off
+# the `<video>` element and previews the trim, speed and crop through it, so a container
+# that does not play there gives a toggle onto a panel that can never become usable -
+# matroska in particular renders fine through ffmpeg and not at all through Chromium.
+#
+# Widening this means revisiting `video_edit.build_video_edit_command`: every muxer here
+# accepts `-movflags`, which the matroska, asf and flv muxers do not.
+VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
+VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
 
 # The untouched original, kept beside the edited file. Appended to the whole filename
 # rather than replacing the suffix, so `clip.mp4` and `clip.mov` keep distinct backups.

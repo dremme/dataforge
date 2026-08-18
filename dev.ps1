@@ -12,6 +12,10 @@
   Use this directly, or double-click dev.bat for the same behavior. For a
   production run - bundled UI, one process, no hot reload - use start.ps1.
 
+  The frontend's generated API types are rebuilt from backend/schemas.py on every
+  launch. They are gitignored, so a branch switch leaves the other branch's shape
+  in place and nothing else would notice.
+
 .PARAMETER BackendOnly
   Start only the API (port from DATAFORGE_API_PORT, default 8080).
 
@@ -95,6 +99,11 @@ if ($startBackend) { Write-Host ('  Backend  : {0}' -f $DevApiUrl) }
 if ($startFrontend) { Write-Host ('  Frontend : {0}' -f $DevUiUrl) }
 Write-Host '================================================'
 Write-Host ''
+
+# Ahead of the check below, not instead of it: regenerating is what keeps the three
+# gitignored sources in step with backend\schemas.py across a branch switch, and the
+# check stays as the backstop for a clone that has no venv to generate them with.
+if ($startFrontend) { Update-DevGeneratedSources | Out-Null }
 
 if (-not (Test-DevPrerequisites -SkipBackend:(-not $startBackend) -SkipFrontend:(-not $startFrontend))) {
     Exit-Launcher

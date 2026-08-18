@@ -55,8 +55,6 @@ MAX_ATEMPO = 2.0
 
 IDENTITY_EPSILON = 1e-9
 
-FASTSTART_MUXERS = {"mp4", "mov"}
-
 
 BUSY_MESSAGE = "This video is already being edited"
 
@@ -328,8 +326,9 @@ def build_video_edit_command(
     else:
         command += ["-c:a", "copy"]
 
-    if muxer in FASTSTART_MUXERS:
-        command += ["-movflags", "+faststart"]
+    # Unconditional because every muxer in `VIDEO_EDIT_MUXERS` accepts it. Adding one
+    # that does not - matroska, asf, flv - means putting the branch back.
+    command += ["-movflags", "+faststart"]
 
     command += ["-f", muxer, str(destination)]
     return command
