@@ -10,6 +10,7 @@ import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
 import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateResolverModal";
 import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
+import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepOverlay";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
@@ -26,6 +27,7 @@ export function AppOverlays({
   folderPicker,
   quickAction,
   selectionActions,
+  sidecarSweep,
   onCaptionSaved,
   gallery,
   issueResolver,
@@ -44,6 +46,8 @@ export function AppOverlays({
       <StatsDrawer open={stats.open} items={stats.items} onClose={stats.onClose} />
 
       <SelectionActionOverlays {...selectionActions} />
+
+      <SidecarSweepOverlay {...sidecarSweep} />
 
       {quickAction.open && (
         <QuickActionBar

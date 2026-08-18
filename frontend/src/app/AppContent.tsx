@@ -25,6 +25,7 @@ export function AppContent() {
     quickAction,
     statsDrawer,
     duplicateResolver,
+    sidecarSweep,
   } = useAppWorkspace();
 
   const {
@@ -138,6 +139,7 @@ export function AppContent() {
           folderPicker={folderPicker}
           quickAction={quickAction}
           selectionActions={selectionActions.overlay}
+          sidecarSweep={sidecarSweep.overlay}
           onCaptionSaved={gallery.onCaptionSaved}
           gallery={{
             selectedPath: gallery.selectedPath,

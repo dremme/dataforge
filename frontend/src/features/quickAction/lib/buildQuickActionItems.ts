@@ -17,8 +17,20 @@ import {
   jobTypeIconFor,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
+import {
+  SIDECAR_SWEEP_COPY,
+  SIDECAR_SWEEP_KINDS,
+  sidecarSweepDetail,
+} from "@/features/gallery/lib/sidecarSweep";
 import { iconBrain, iconFolder, iconStar, type AppIcon } from "@/shared/icons";
-import type { ExternalOstrisJob, FolderFavorite, Job, JobType, Subfolder } from "@/shared/types";
+import type {
+  ExternalOstrisJob,
+  FolderFavorite,
+  Job,
+  JobType,
+  SidecarKind,
+  Subfolder,
+} from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 
 /** Every job type, primary first — the palette lists them all, unlike the "More" menu. */
@@ -172,4 +184,42 @@ export function buildRunJobItems({
       run: () => onRequestStart(type),
     };
   });
+}
+
+export interface SidecarSweepOptions {
+  /** False when the folder is missing: there is nothing on disk to sweep. */
+  hasFolder: boolean;
+  counts: Record<SidecarKind, number>;
+  /** True while a sweep is already in flight — one confirmation at a time. */
+  busy: boolean;
+  onSweep: (kind: SidecarKind) => void;
+}
+
+/**
+ * Listed whenever a folder is open, disabled when that kind has nothing to delete.
+ *
+ * Unlike the selection actions, these are not hidden at zero: a row that only exists
+ * once a job has flagged something is a row nobody discovers, and the detail line
+ * already answers whether running it would do anything.
+ */
+export function buildSidecarSweepItems({
+  hasFolder,
+  counts,
+  busy,
+  onSweep,
+}: SidecarSweepOptions): QuickActionItem[] {
+  if (!hasFolder) return [];
+
+  return SIDECAR_SWEEP_KINDS.map((kind) => ({
+    id: `cmd:delete-${kind}-sidecars`,
+    section: "commands",
+    // Named for the suffix, not the finding: "Delete all duplicates" would read as
+    // deleting the duplicate media, which is the one dangerous misreading here.
+    label: SIDECAR_SWEEP_COPY[kind].label,
+    detail: sidecarSweepDetail(kind, counts[kind]),
+    icon: SIDECAR_SWEEP_COPY[kind].icon,
+    keywords: SIDECAR_SWEEP_COPY[kind].keywords,
+    disabled: busy || counts[kind] === 0,
+    run: () => onSweep(kind),
+  }));
 }
