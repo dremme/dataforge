@@ -1,0 +1,277 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+$track-height: 6px;
+$handle-width: 0.5rem;
+$handle-height: 1.125rem;
+
+.video-edit-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0.625rem;
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem 1.5rem;
+  }
+
+  &__group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &__group--crop {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__group-label {
+    @include inline-flex-center;
+    gap: 0.375rem;
+    --icon-size: #{$icon-size-sm};
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+
+  &__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  &__preset {
+    @include pill-btn-compact(default);
+    @include tabular-nums;
+    min-width: 2.75rem;
+  }
+
+  &__preset--active {
+    @include btn-surface-accent;
+  }
+
+  &__fields {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  &__field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    font-size: var(--text-2xs);
+    color: var(--text-subtle);
+
+    input {
+      @include dialog-form-input(var(--control-height-sm));
+      @include tabular-nums;
+      width: 4.5rem;
+      padding: 0.25rem 0.375rem;
+      font-size: var(--text-xs);
+      text-align: right;
+    }
+  }
+
+  &__reset-crop {
+    @include pill-btn-compact(default);
+  }
+
+  &__actions {
+    @include modal-chrome-footer(space-between);
+    gap: 0.75rem;
+    padding: 0.625rem 0 0;
+    border-top: 1px solid var(--border);
+    background: transparent;
+  }
+
+  &__summary {
+    @include truncate;
+    @include tabular-nums;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  &__buttons,
+  &__progress-row {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__progress-row {
+    flex: 1;
+    min-width: 0;
+    max-width: 24rem;
+  }
+
+  &__progress {
+    @include progress-track;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__progress-fill {
+    @include progress-bar-fill;
+    display: block;
+    width: var(--edit-progress, 0%);
+  }
+
+  // No predictable output length means no honest percentage, so the bar paces itself
+  // instead of pretending to a position it does not have.
+  &__progress-fill--unknown {
+    width: 35%;
+    animation: video-edit-progress-drift 1.4s ease-in-out infinite alternate;
+  }
+
+  &__action {
+    @include pill-btn-compact(default);
+  }
+
+  &__action--revert {
+    @include btn-surface-warning;
+  }
+
+  &__action--apply {
+    @include btn-surface-accent;
+    min-width: 5.5rem;
+  }
+}
+
+@keyframes video-edit-progress-drift {
+  from {
+    margin-left: 0;
+  }
+  to {
+    margin-left: 65%;
+  }
+}
+
+// The vendor pseudo-elements are absent here on purpose: this timeline is built from
+// plain elements rather than a range input, so it needs none of that dance.
+.video-edit-timeline {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+
+  &__play {
+    @include icon-btn-sm;
+  }
+
+  &__track {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: $handle-height;
+    cursor: pointer;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      top: 50%;
+      height: $track-height;
+      transform: translateY(-50%);
+      border-radius: var(--radius-pill);
+      background: var(--border);
+    }
+  }
+
+  &__selection {
+    position: absolute;
+    top: 50%;
+    left: var(--trim-start, 0%);
+    width: calc(var(--trim-end, 100%) - var(--trim-start, 0%));
+    height: $track-height;
+    transform: translateY(-50%);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  &__playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--playhead, 0%);
+    width: 2px;
+    transform: translateX(-1px);
+    border-radius: var(--radius-pill);
+    background: var(--text);
+    pointer-events: none;
+  }
+
+  &__handle {
+    @include focus-ring;
+    position: absolute;
+    top: 50%;
+    width: $handle-width;
+    height: $handle-height;
+    padding: 0;
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--bg-card);
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    cursor: ew-resize;
+    transition: transform var(--transition);
+
+    &:hover:not(:disabled) {
+      transform: translate(-50%, -50%) scaleY(1.15);
+    }
+
+    &:disabled {
+      @include disabled-state;
+    }
+  }
+
+  &__handle--start {
+    left: var(--trim-start, 0%);
+  }
+
+  &__handle--end {
+    left: var(--trim-end, 100%);
+  }
+
+  &__set {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.25rem;
+
+    button {
+      @include pill-btn-compact(default);
+    }
+  }
+
+  &__times {
+    @include tabular-nums;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: baseline;
+    gap: 0.25rem;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+
+  &__time-current {
+    color: var(--text);
+    font-weight: var(--font-semibold);
+  }
+
+  &__time-divider {
+    color: var(--text-subtle);
+  }
+}

@@ -6,8 +6,6 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-import os
-import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -22,7 +20,6 @@ from automation.watermark import (
     WATERMARK_STALE_MARKER,
     WATERMARK_TEMP_MARKER,
     WatermarkCancelled,
-    _publish_watermarked_file,
     build_drawtext_filter,
     escape_drawtext_path,
     escape_drawtext_text,
@@ -501,91 +498,6 @@ class WatermarkVideoTests(unittest.TestCase):
 
             leftovers = list((root / WATERMARK_DIR_NAME).glob(f"*{WATERMARK_TEMP_MARKER}.*"))
             self.assertEqual(leftovers, [])
-
-
-class PublishWatermarkedFileTests(unittest.TestCase):
-    def test_replaces_when_the_destination_is_free(self) -> None:
-        with TempMediaFolder() as root:
-            final_path = root / "photo.png"
-            temp_path = root / f"photo{WATERMARK_TEMP_MARKER}.png"
-            final_path.write_bytes(b"old")
-            temp_path.write_bytes(b"new")
-
-            _publish_watermarked_file(temp_path, final_path)
-
-            self.assertEqual(final_path.read_bytes(), b"new")
-            self.assertFalse(temp_path.exists())
-
-    def test_falls_back_when_direct_replace_is_denied(self) -> None:
-        """Windows can refuse ``os.replace`` onto a streamed destination (WinError 5)."""
-        with TempMediaFolder() as root:
-            final_path = root / "photo.png"
-            temp_path = root / f"photo{WATERMARK_TEMP_MARKER}.png"
-            final_path.write_bytes(b"old")
-            temp_path.write_bytes(b"new")
-            calls = {"count": 0}
-            real_replace = os.replace
-
-            def replace(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> None:
-                calls["count"] += 1
-                if calls["count"] == 1:
-                    raise PermissionError(13, "Access is denied")
-                real_replace(source, dest)
-
-            with patch("automation.watermark.os.replace", side_effect=replace):
-                _publish_watermarked_file(temp_path, final_path)
-
-            self.assertEqual(final_path.read_bytes(), b"new")
-            self.assertFalse(temp_path.exists())
-            self.assertFalse(
-                (root / f"photo{WATERMARK_STALE_MARKER}.png").exists(),
-            )
-
-    def test_restores_the_previous_output_when_install_fails(self) -> None:
-        with TempMediaFolder() as root:
-            final_path = root / "photo.png"
-            temp_path = root / f"photo{WATERMARK_TEMP_MARKER}.png"
-            final_path.write_bytes(b"old")
-            temp_path.write_bytes(b"new")
-            calls = {"count": 0}
-            real_replace = os.replace
-
-            def replace(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> None:
-                calls["count"] += 1
-                if calls["count"] == 1:
-                    raise PermissionError(13, "Access is denied")
-                if calls["count"] == 3:
-                    # After the destination was moved aside, refuse the install.
-                    raise OSError("disk full")
-                real_replace(source, dest)
-
-            with patch("automation.watermark.os.replace", side_effect=replace):
-                with self.assertRaises(OSError):
-                    _publish_watermarked_file(temp_path, final_path)
-
-            self.assertEqual(final_path.read_bytes(), b"old")
-            self.assertTrue(temp_path.exists())
-
-    @unittest.skipUnless(sys.platform == "win32", "FILE_SHARE_DELETE is a Windows concern")
-    def test_replaces_a_destination_open_for_shared_read(self) -> None:
-        """Matches a gallery video still streaming the previous watermarked copy."""
-        from media_file_response import open_shared_read
-
-        with TempMediaFolder() as root:
-            final_path = root / "clip.mp4"
-            temp_path = root / f"clip{WATERMARK_TEMP_MARKER}.mp4"
-            final_path.write_bytes(b"old-bytes")
-            temp_path.write_bytes(b"new-bytes")
-
-            with open_shared_read(final_path) as handle:
-                handle.read(1)
-                _publish_watermarked_file(temp_path, final_path)
-
-            self.assertEqual(final_path.read_bytes(), b"new-bytes")
-            self.assertFalse(temp_path.exists())
-            self.assertFalse(
-                (root / f"clip{WATERMARK_STALE_MARKER}.mp4").exists(),
-            )
 
 
 class WatermarkOutputFolderTests(unittest.TestCase):

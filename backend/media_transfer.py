@@ -19,6 +19,7 @@ from captions import issue_file_path
 from constants import SIDECAR_EXTENSIONS
 from duplicates import duplicate_file_path
 from file_import import _existing_file_names
+from video_edit import backup_path_for, edit_spec_path
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,15 @@ def related_media_paths(media_path: Path) -> list[Path]:
         if sidecar.is_file():
             paths.append(sidecar)
 
-    for extra in (issue_file_path(media_path), duplicate_file_path(media_path)):
+    # Named explicitly for the same reason the issue and duplicate sidecars are: none of
+    # these is one `with_suffix` away from the media name. The backup travels because a
+    # file that arrives without it silently stops being revertible.
+    for extra in (
+        issue_file_path(media_path),
+        duplicate_file_path(media_path),
+        backup_path_for(media_path),
+        edit_spec_path(media_path),
+    ):
         if extra.is_file():
             paths.append(extra)
 

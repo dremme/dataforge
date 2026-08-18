@@ -1,8 +1,11 @@
 from pathlib import Path
+from time import monotonic
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
+import events
 from constants import MEDIA_MIME_TYPES
+from ffmpeg_run import FfmpegCancelled
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from gif_frames import (
     GifFrameError,
@@ -14,6 +17,7 @@ from media_delete import delete_media_with_sidecars
 from media_file_response import MediaFileResponse
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
+    resolve_editable_video,
     resolve_folder,
     resolve_gif_file,
     resolve_image_file,
@@ -29,6 +33,10 @@ from schemas import (
     MediaTransferPreviewResponse,
     MediaTransferRequest,
     MediaTransferResponse,
+    VideoEditEvent,
+    VideoEditResponse,
+    VideoEditSpec,
+    VideoEditStateResponse,
 )
 from thumbnails import (
     DEFAULT_THUMBNAIL_WIDTH,
@@ -38,8 +46,25 @@ from thumbnails import (
     ThumbnailUnavailableError,
     get_or_create_thumbnail,
 )
+from video_edit import (
+    FFMPEG_MISSING_MESSAGE,
+    VideoEditBusyError,
+    apply_video_edit,
+    backup_path_for,
+    cancel_render,
+    expected_output_seconds,
+    is_identity_spec,
+    read_edit_spec,
+    render_slot,
+    revert_video_edit,
+)
 
 router = APIRouter()
+
+_ORIGINAL_DESCRIPTION = (
+    "Serve the untouched original kept beside an edited video, so the editor can work "
+    "against the source its spec is expressed in rather than the last render"
+)
 
 _OPTIONAL_DESCRIPTION = (
     "Treat a file that is gone as normal: answer 204 rather than 404, "
@@ -66,6 +91,7 @@ def serve_media(
         description="Client cache-busting token derived from file metadata",
     ),
     optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
+    original: bool = Query(False, description=_ORIGINAL_DESCRIPTION),
 ) -> Response:
     if optional:
         file_path = resolve_optional_media_file(path)
@@ -74,6 +100,14 @@ def serve_media(
     else:
         file_path = resolve_media_file(path)
 
+    # The content type still comes from the media path: the backup deliberately carries
+    # a non-media suffix so nothing else in the app treats it as a file of its own.
+    served_path = file_path
+    if original:
+        backup = backup_path_for(file_path)
+        if backup.is_file():
+            served_path = backup
+
     # A versioned URL names one revision of the file, so it can be cached hard.
     # Without one, the response must be revalidated: browsers otherwise apply
     # heuristic freshness and keep serving an edited file's old bytes.
@@ -81,7 +115,7 @@ def serve_media(
     # MediaFileResponse: share-delete open + cancel on disconnect so a video
     # range request cannot leave the source locked against delete on Windows.
     return MediaFileResponse(
-        file_path,
+        served_path,
         media_type=MEDIA_MIME_TYPES.get(file_path.suffix.lower()),
         headers={"Cache-Control": cache_control},
     )
@@ -302,3 +336,110 @@ def serve_thumbnail(
         media_type="image/webp",
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
+
+
+#: Progress frames are thinned the way job frames are: the bar has one width, and the
+#: encoder reports far more often than it is worth waking every reader for.
+VIDEO_EDIT_EVENT_MIN_INTERVAL_SECONDS = 0.25
+
+
+def _video_edit_progress(media: Path, tab: str, duration: float | None):
+    """A callback that pushes render progress to the one tab waiting on it.
+
+    Returns ``None`` when there is no tab to address, so the encode is not asked to
+    report into nothing.
+    """
+    if not tab:
+        return None
+
+    last_published = 0.0
+
+    def publish(seconds: float) -> None:
+        nonlocal last_published
+        now = monotonic()
+        if now - last_published < VIDEO_EDIT_EVENT_MIN_INTERVAL_SECONDS:
+            return
+
+        last_published = now
+        events.publish_to_tabs(
+            [tab],
+            VideoEditEvent(path=str(media), seconds=seconds, duration=duration).model_dump(),
+        )
+
+    return publish
+
+
+def _video_edit_failure(exc: Exception) -> HTTPException:
+    if isinstance(exc, VideoEditBusyError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, FfmpegCancelled):
+        return HTTPException(status_code=409, detail="The edit was cancelled")
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
+    if isinstance(exc, RuntimeError) and str(exc) == FFMPEG_MISSING_MESSAGE:
+        return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/media/video-edit", response_model=VideoEditStateResponse)
+def read_video_edit(
+    path: str = Query(..., description="Absolute path to a video file"),
+) -> VideoEditStateResponse:
+    """What the editor needs to re-open on a file it has already changed."""
+    media = resolve_editable_video(path)
+
+    return VideoEditStateResponse(
+        path=str(media),
+        has_backup=backup_path_for(media).is_file(),
+        spec=read_edit_spec(media),
+    )
+
+
+@router.post("/media/video-edit", response_model=VideoEditResponse)
+def edit_video(
+    path: str = Query(..., description="Absolute path to a video file"),
+    tab: str = Query("", description="Client tab id, so progress reaches the right stream"),
+    body: VideoEditSpec = ...,
+) -> VideoEditResponse:
+    """Render the spec from the untouched original and put it back under the same name.
+
+    A plain ``def`` on purpose: FastAPI runs it on the threadpool, so a long encode never
+    stalls the event loop that carries its own progress frames.
+    """
+    media = resolve_editable_video(path)
+
+    if is_identity_spec(body):
+        raise HTTPException(status_code=400, detail="This edit would not change the video")
+
+    on_progress = _video_edit_progress(media, tab, expected_output_seconds(body))
+
+    try:
+        with render_slot(media) as should_cancel:
+            return apply_video_edit(
+                media, body, on_progress=on_progress, should_cancel=should_cancel
+            )
+    except (VideoEditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+        raise _video_edit_failure(exc) from exc
+
+
+@router.post("/media/video-edit/cancel", status_code=204)
+def cancel_video_edit(
+    path: str = Query(..., description="Absolute path to a video file"),
+) -> Response:
+    """Stop an in-flight render. Silent when there is none: it may have just finished."""
+    cancel_render(resolve_editable_video(path))
+
+    return Response(status_code=204)
+
+
+@router.post("/media/video-edit/revert", response_model=VideoEditResponse)
+def revert_video(
+    path: str = Query(..., description="Absolute path to a video file"),
+) -> VideoEditResponse:
+    media = resolve_editable_video(path)
+
+    try:
+        with render_slot(media):
+            return revert_video_edit(media)
+    except (VideoEditBusyError, ValueError, OSError) as exc:
+        raise _video_edit_failure(exc) from exc

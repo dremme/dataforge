@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from captions import issue_file_path
 from media_delete import delete_media_with_sidecars, delete_path
-from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
+from testing_fixtures import TempMediaFolder, write_media, write_mp4_video, write_txt_caption
 
 
 class DeletePathTests(unittest.TestCase):
@@ -101,6 +101,23 @@ class DeleteMediaWithSidecarsTests(unittest.TestCase):
 
             self.assertEqual(result["deleted"], ["sunset.png"])
             self.assertTrue(any("Failed to delete sidecar" in line for line in logs.output))
+
+
+class DeleteVideoEditSidecarTests(unittest.TestCase):
+    def test_deleting_a_video_takes_its_original_and_its_edit_spec(self) -> None:
+        """A backup left behind is an original nothing in the app can reach again."""
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            backup = root / "clip.mp4.bak"
+            backup.write_bytes(b"pristine-original")
+            spec = root / "clip.edit.json"
+            spec.write_text("{}", encoding="utf-8")
+
+            result = delete_media_with_sidecars(media)
+
+            self.assertEqual(set(result["deleted"]), {"clip.mp4", "clip.mp4.bak", "clip.edit.json"})
+            self.assertFalse(backup.exists())
+            self.assertFalse(spec.exists())
 
 
 if __name__ == "__main__":

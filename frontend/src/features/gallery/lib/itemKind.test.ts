@@ -18,6 +18,7 @@ function item(name: string, mediaType: GalleryItem["media_type"] | undefined): G
     issue_fixes: [],
     has_issue_file: false,
     has_duplicate_file: false,
+    has_backup: false,
     caption_status: "none",
     caption_file_type: null,
     media_type: mediaType,

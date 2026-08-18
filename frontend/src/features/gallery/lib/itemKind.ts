@@ -1,7 +1,8 @@
-import { GIF_EXTENSION, VIDEO_EXTENSIONS } from "@/shared/constants";
+import { GIF_EXTENSION, VIDEO_EDIT_EXTENSIONS, VIDEO_EXTENSIONS } from "@/shared/constants";
 import type { GalleryItem } from "@/shared/types";
 
 const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
+const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
 
 export function isSysPrompt(item: GalleryItem): boolean {
   return item.media_type === "sysprompt";
@@ -27,6 +28,20 @@ export function isVideo(item: GalleryItem): boolean {
 
   const extension = extensionOf(item);
   return extension !== null && VIDEO_EXTENSION_SET.has(extension);
+}
+
+/**
+ * Whether the item can be trimmed, cropped, retimed and rescaled in place.
+ *
+ * Narrower than `isVideo`: the render writes h264/aac with `-movflags`, which the asf
+ * and flv muxers reject outright and which avi cannot be relied on to take. The backend
+ * refuses the rest by container, and this keeps the toggle from offering what it would.
+ */
+export function isEditableVideo(item: GalleryItem): boolean {
+  if (!isVideo(item)) return false;
+
+  const extension = extensionOf(item);
+  return extension !== null && VIDEO_EDIT_EXTENSION_SET.has(extension);
 }
 
 export function isGif(item: GalleryItem): boolean {

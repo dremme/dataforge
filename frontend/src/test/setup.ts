@@ -126,6 +126,24 @@ Object.defineProperty(HTMLMediaElement.prototype, "load", {
   value: function load(this: HTMLMediaElement) {},
 });
 
+// jsdom implements no EventSource, and `renderWithProviders` mounts the real
+// `ServerEventsProvider` so components can subscribe to push the way they do in the app.
+// A test that wants to deliver frames re-stubs this through `installFakeEventSource`.
+class InertEventSource {
+  onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onmessage: ((message: { data: string }) => void) | null = null;
+
+  close(): void {}
+}
+
+Object.defineProperty(window, "EventSource", {
+  value: InertEventSource,
+  writable: true,
+  // `installFakeEventSource` stubs over this, which a non-configurable property refuses.
+  configurable: true,
+});
+
 class ResizeObserverMock {
   observe(): void {}
   unobserve(): void {}

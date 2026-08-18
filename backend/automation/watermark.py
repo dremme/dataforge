@@ -16,15 +16,11 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import re
-import subprocess
-import threading
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from time import monotonic
 from typing import Literal
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -33,12 +29,13 @@ from automation.job_runner import CANCELLED, FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import VIDEO_EXTENSIONS, WATERMARK_DIR_NAME, WATERMARK_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
+from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
+from file_publish import publish_replacing
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 WatermarkSizeName = Literal["small", "medium", "large"]
 WatermarkOpacity = Literal[25, 50, 75]
@@ -81,16 +78,11 @@ MAX_WATERMARK_TEXT_LENGTH = 120
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
 WATERMARK_TEMP_MARKER = ".watermark-tmp"
-# Destination displaced while open for streaming (see ``_publish_watermarked_file``).
+# Destination displaced while open for streaming (see ``file_publish``).
 WATERMARK_STALE_MARKER = ".watermark-stale"
 JPEG_SUFFIXES = {".jpg", ".jpeg"}
 JPEG_QUALITY = 92
 WEBP_QUALITY = 92
-
-FFMPEG_POLL_SECONDS = 0.2
-FFMPEG_TIMEOUT_SECONDS = 3600
-FFMPEG_TERMINATE_SECONDS = 2.0
-FFMPEG_READER_JOIN_SECONDS = 5.0
 
 FONT_CANDIDATES: tuple[str, ...] = (
     r"C:\Windows\Fonts\segoeui.ttf",
@@ -110,8 +102,9 @@ FONT_MISSING_MESSAGE = (
 FFMPEG_MISSING_MESSAGE = "ffmpeg is required to add a watermark to videos"
 
 
-class WatermarkCancelled(Exception):
-    """Raised when the job is cancelled while a file is still being written."""
+#: The job's own name for a cancel raised mid-encode, kept so the runner's generic
+#: exception still reads correctly at the call sites below.
+WatermarkCancelled = FfmpegCancelled
 
 
 class WatermarkReadError(Exception):
@@ -387,63 +380,6 @@ def build_drawtext_filter(
     )
 
 
-def _terminate_ffmpeg(process: subprocess.Popen[bytes]) -> None:
-    process.terminate()
-    try:
-        process.wait(timeout=FFMPEG_TERMINATE_SECONDS)
-    except subprocess.TimeoutExpired:
-        process.kill()
-
-
-def _run_ffmpeg(command: list[str], *, should_cancel: ShouldCancel | None) -> None:
-    """Run ffmpeg, polling so a cancelled job does not have to wait out an encode.
-
-    ``run_media_job`` only checks for cancellation between files, so a long encode would
-    otherwise ignore the cancel entirely.
-    """
-    try:
-        process = subprocess.Popen(
-            command,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-    except OSError as exc:
-        raise RuntimeError(f"Failed to run ffmpeg: {exc}") from exc
-
-    stderr_pipe = process.stderr
-    stderr_output: list[bytes] = []
-
-    with process:
-        # Drained on a thread: while we poll, nothing else reads the pipe, and a chatty
-        # ffmpeg would block on a full buffer forever.
-        reader = threading.Thread(
-            target=lambda: stderr_output.append(stderr_pipe.read() if stderr_pipe else b"")
-        )
-        reader.start()
-        deadline = monotonic() + FFMPEG_TIMEOUT_SECONDS
-        try:
-            while True:
-                try:
-                    process.wait(timeout=FFMPEG_POLL_SECONDS)
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
-
-                if should_cancel and should_cancel():
-                    _terminate_ffmpeg(process)
-                    raise WatermarkCancelled
-                if monotonic() > deadline:
-                    _terminate_ffmpeg(process)
-                    raise RuntimeError("ffmpeg timed out while adding the watermark")
-        finally:
-            reader.join(timeout=FFMPEG_READER_JOIN_SECONDS)
-
-    if process.returncode != 0:
-        message = b"".join(stderr_output).decode("utf-8", errors="replace").strip()
-        raise RuntimeError(message or "ffmpeg failed to add the watermark")
-
-
 def watermark_video(
     source: Path,
     destination: Path,
@@ -490,7 +426,12 @@ def watermark_video(
         "+faststart",
         str(destination),
     ]
-    _run_ffmpeg(command, should_cancel=should_cancel)
+    run_ffmpeg(command, should_cancel=should_cancel)
+
+
+def _stale_path(final_path: Path) -> Path:
+    """Where a destination still open for streaming is parked while it is replaced."""
+    return final_path.with_name(f"{final_path.stem}{WATERMARK_STALE_MARKER}{final_path.suffix}")
 
 
 def _sweep_temp_files(output_dir: Path) -> None:
@@ -499,39 +440,6 @@ def _sweep_temp_files(output_dir: Path) -> None:
         for marker in (WATERMARK_TEMP_MARKER, WATERMARK_STALE_MARKER):
             for leftover in output_dir.glob(f"*{marker}.*"):
                 leftover.unlink(missing_ok=True)
-
-
-def _publish_watermarked_file(temp_path: Path, final_path: Path) -> None:
-    """Move the finished temp file onto the public output name.
-
-    ``os.replace`` onto a path the gallery is still streaming fails on Windows
-    with WinError 5, even when the open handle shares delete
-    (see ``media_file_response``). Renaming that open destination out of the
-    way first succeeds, so the new file can take its name.
-    """
-    try:
-        os.replace(temp_path, final_path)
-        return
-    except OSError:
-        if not final_path.exists():
-            raise
-
-    stale_path = final_path.with_name(
-        f"{final_path.stem}{WATERMARK_STALE_MARKER}{final_path.suffix}"
-    )
-    with suppress(OSError):
-        stale_path.unlink(missing_ok=True)
-
-    os.replace(final_path, stale_path)
-    try:
-        os.replace(temp_path, final_path)
-    except OSError:
-        with suppress(OSError):
-            os.replace(stale_path, final_path)
-        raise
-
-    with suppress(OSError):
-        stale_path.unlink(missing_ok=True)
 
 
 def _watermark_file(
@@ -576,7 +484,8 @@ def _watermark_file(
             )
             kind = "image"
 
-        _publish_watermarked_file(temp_path, output_dir / media_path.name)
+        final_path = output_dir / media_path.name
+        publish_replacing(temp_path, final_path, _stale_path(final_path))
     finally:
         # A no-op once the replace above succeeded.
         with suppress(OSError):
