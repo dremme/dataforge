@@ -20,6 +20,7 @@ function makeItem(name: string): GalleryItem {
     issue_fixes: [],
     has_issue_file: false,
     has_duplicate_file: false,
+    has_backup: false,
     caption_file_type: null,
     caption_status: "none",
     media_type: "image",

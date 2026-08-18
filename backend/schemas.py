@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # Every alias here is a PEP 695 ``type`` statement rather than a plain assignment,
 # which is what makes pydantic emit it as a named schema instead of inlining its
@@ -118,6 +118,9 @@ class GalleryItem(BaseModel):
     height: int | None = None
     size: int | None = None
     modified_at: str | None = None
+    #: Whether an untouched original sits beside this file, so an edit can still be
+    #: undone. Free to answer: the folder scan already holds every filename.
+    has_backup: bool = False
 
 
 class DuplicateGroup(BaseModel):
@@ -658,6 +661,87 @@ class MediaTransferResponse(BaseModel):
     failed: list[MediaTransferFailure] = Field(default_factory=list)
 
 
+#: What one in-place video edit may change. Speed is bounded by what a browser can
+#: preview through ``playbackRate``, so the panel never promises what it cannot show.
+MIN_EDIT_SPEED = 0.25
+MAX_EDIT_SPEED = 4.0
+MIN_EDIT_SCALE = 0.05
+MIN_TRIM_SECONDS = 0.1
+
+#: Float noise from a normalized drag can push a full-width rect a hair past 1.0.
+CROP_BOUNDS_EPSILON = 1e-6
+
+
+class VideoCropRect(BaseModel):
+    """The region to keep, as fractions of the source frame.
+
+    Normalized rather than pixels so the ffmpeg filter can be written against ``iw``
+    and ``ih``: the server never has to learn the source's dimensions, which it has no
+    ffprobe to ask for, and the client never has to undo ``object-fit: contain`` to
+    produce them.
+    """
+
+    x: float = Field(0.0, ge=0.0, lt=1.0)
+    y: float = Field(0.0, ge=0.0, lt=1.0)
+    width: float = Field(1.0, gt=0.0, le=1.0)
+    height: float = Field(1.0, gt=0.0, le=1.0)
+
+
+class VideoEditSpec(BaseModel):
+    """One whole edit, always applied to the untouched original in a single pass.
+
+    Every field is optional and defaults to identity, so a spec describes the finished
+    result rather than a step: re-applying with one value changed keeps the rest.
+    """
+
+    trim_start: float = Field(0.0, ge=0.0)
+    #: ``None`` runs to the end of the source, so the client never has to be right about
+    #: a duration the browser may still be reporting as ``Infinity``.
+    trim_end: float | None = Field(None, gt=0.0)
+    crop: VideoCropRect | None = None
+    speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
+    #: Output size as a fraction of the cropped frame.
+    scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
+
+    @model_validator(mode="after")
+    def _check(self) -> "VideoEditSpec":
+        if self.trim_end is not None:
+            if self.trim_end <= self.trim_start:
+                raise ValueError("The trim end must come after the trim start")
+            if self.trim_end - self.trim_start < MIN_TRIM_SECONDS:
+                raise ValueError(f"A trim must keep at least {MIN_TRIM_SECONDS} seconds")
+
+        crop = self.crop
+        if crop is not None:
+            if crop.x + crop.width > 1.0 + CROP_BOUNDS_EPSILON:
+                raise ValueError("The crop reaches past the right edge of the frame")
+            if crop.y + crop.height > 1.0 + CROP_BOUNDS_EPSILON:
+                raise ValueError("The crop reaches past the bottom edge of the frame")
+            # Normalized here rather than at each reader, so "no crop" has one spelling
+            # on both sides of the wire and identity detection cannot disagree.
+            if crop.x == 0.0 and crop.y == 0.0 and crop.width == 1.0 and crop.height == 1.0:
+                self.crop = None
+
+        return self
+
+
+class VideoEditStateResponse(BaseModel):
+    """What the editor needs to re-open on a file it has already changed."""
+
+    path: str
+    has_backup: bool
+    spec: VideoEditSpec | None
+
+
+class VideoEditResponse(BaseModel):
+    path: str
+    size: int
+    modified_at: str
+    width: int | None = None
+    height: int | None = None
+    has_backup: bool
+
+
 class JobEvent(BaseModel):
     """One job's whole current state, pushed whenever it changes."""
 
@@ -702,8 +786,24 @@ class FolderEvent(BaseModel):
 #:
 #: Every event carries a complete current snapshot of what it describes, never a delta,
 #: so a client that misses one loses nothing once the next arrives.
+class VideoEditEvent(BaseModel):
+    """How far one in-place video render has got.
+
+    Addressed to the tab that asked for the edit rather than broadcast: no other tab is
+    waiting on it, and the render blocks that tab's request until it finishes.
+    """
+
+    type: Literal["video_edit"] = "video_edit"
+    path: str
+    #: Position reached in the rendered output, in seconds.
+    seconds: float
+    #: Expected length of the output, or ``None`` when the source duration was unknown.
+    #: The client divides, so the fraction is computed where the bar is drawn.
+    duration: float | None = None
+
+
 type ServerEvent = Annotated[
-    JobEvent | ExternalJobsEvent | HeartbeatEvent | FolderEvent,
+    JobEvent | ExternalJobsEvent | HeartbeatEvent | FolderEvent | VideoEditEvent,
     Field(discriminator="type"),
 ]
 

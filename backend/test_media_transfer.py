@@ -16,6 +16,7 @@ from testing_fixtures import (
     TempMediaFolder,
     write_json_caption,
     write_media,
+    write_mp4_video,
     write_txt_caption,
 )
 
@@ -295,6 +296,24 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
             )
             self.assertFalse(issue_file_path(destination_dir / "sunset.png").exists())
             self.assertTrue(media.is_file())
+
+
+class TransferVideoEditSidecarTests(unittest.TestCase):
+    def test_a_moved_video_keeps_the_original_it_can_be_reverted_to(self) -> None:
+        with TempMediaFolder() as root:
+            source_folder = root / "source"
+            destination = root / "destination"
+            source_folder.mkdir()
+            destination.mkdir()
+            media = write_mp4_video(source_folder, "clip.mp4")
+            (source_folder / "clip.mp4.bak").write_bytes(b"pristine-original")
+            (source_folder / "clip.edit.json").write_text("{}", encoding="utf-8")
+
+            result = transfer_media_with_sidecars(media, destination, mode="move")
+
+            self.assertEqual(set(result["files"]), {"clip.mp4", "clip.mp4.bak", "clip.edit.json"})
+            self.assertEqual((destination / "clip.mp4.bak").read_bytes(), b"pristine-original")
+            self.assertEqual(list(source_folder.glob("*")), [])
 
 
 if __name__ == "__main__":

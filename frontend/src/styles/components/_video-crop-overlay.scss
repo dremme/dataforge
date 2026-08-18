@@ -1,0 +1,157 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+$handle-size: 0.75rem;
+$scrim: rgb(0 0 0 / 0.55);
+
+// Positioned by the component against the box the video actually paints, not the
+// element: `object-fit: contain` letterboxes the frame, and a rect laid over the element
+// would sit off by exactly the bars.
+.video-crop-overlay {
+  position: absolute;
+  z-index: 1;
+
+  &__scrim {
+    position: absolute;
+    background: $scrim;
+    pointer-events: none;
+  }
+
+  // Four plain rectangles rather than one clip-path cut-out: each is a box with two
+  // known edges, so there is no path arithmetic to get subtly wrong.
+  &__scrim--top {
+    inset-inline: 0;
+    top: 0;
+    height: var(--crop-y);
+  }
+
+  &__scrim--bottom {
+    inset-inline: 0;
+    top: calc(var(--crop-y) + var(--crop-h));
+    bottom: 0;
+  }
+
+  &__scrim--left {
+    left: 0;
+    top: var(--crop-y);
+    width: var(--crop-x);
+    height: var(--crop-h);
+  }
+
+  &__scrim--right {
+    left: calc(var(--crop-x) + var(--crop-w));
+    right: 0;
+    top: var(--crop-y);
+    height: var(--crop-h);
+  }
+
+  &__rect {
+    position: absolute;
+    left: var(--crop-x);
+    top: var(--crop-y);
+    width: var(--crop-w);
+    height: var(--crop-h);
+    box-shadow: inset 0 0 0 1px var(--accent);
+    cursor: move;
+    touch-action: none;
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        transparent 0 calc(33.333% - 1px),
+        rgb(255 255 255 / 0.25) calc(33.333% - 1px) 33.333%
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0 calc(33.333% - 1px),
+        rgb(255 255 255 / 0.25) calc(33.333% - 1px) 33.333%
+      );
+  }
+
+  &__readout {
+    @include tabular-nums;
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 0.25rem);
+    padding: 0.125rem 0.375rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  &__handle {
+    @include focus-ring;
+    position: absolute;
+    width: $handle-size;
+    height: $handle-size;
+    padding: 0;
+    border: 1px solid var(--bg-card);
+    border-radius: 2px;
+    background: var(--accent);
+    touch-action: none;
+
+    &:disabled {
+      display: none;
+    }
+  }
+
+  &__handle--nw {
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    cursor: nwse-resize;
+  }
+
+  &__handle--n {
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -50%);
+    cursor: ns-resize;
+  }
+
+  &__handle--ne {
+    left: 100%;
+    top: 0;
+    transform: translate(-50%, -50%);
+    cursor: nesw-resize;
+  }
+
+  &__handle--e {
+    left: 100%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: ew-resize;
+  }
+
+  &__handle--se {
+    left: 100%;
+    top: 100%;
+    transform: translate(-50%, -50%);
+    cursor: nwse-resize;
+  }
+
+  &__handle--s {
+    left: 50%;
+    top: 100%;
+    transform: translate(-50%, -50%);
+    cursor: ns-resize;
+  }
+
+  &__handle--sw {
+    left: 0;
+    top: 100%;
+    transform: translate(-50%, -50%);
+    cursor: nesw-resize;
+  }
+
+  &__handle--w {
+    left: 0;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    cursor: ew-resize;
+  }
+}

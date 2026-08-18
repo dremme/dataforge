@@ -27,6 +27,32 @@ COMFY_WORKFLOW_EXTENSIONS = {".png"} | ISOBMFF_EXTENSIONS
 # always accept from an arbitrary source stream.
 WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
 
+# In-place video editing is held to what the *browser* can decode, which is a stricter
+# question than what ffmpeg can re-mux. The editor reads its duration and frame size off
+# the `<video>` element and previews the trim, speed and crop through it, so a container
+# that does not play there gives a toggle onto a panel that can never become usable -
+# matroska in particular renders fine through ffmpeg and not at all through Chromium.
+#
+# Widening this means revisiting `video_edit.build_video_edit_command`: every muxer here
+# accepts `-movflags`, which the matroska, asf and flv muxers do not.
+VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
+VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
+
+# The untouched original, kept beside the edited file. Appended to the whole filename
+# rather than replacing the suffix, so `clip.mp4` and `clip.mov` keep distinct backups.
+VIDEO_BACKUP_SUFFIX = ".bak"
+
+# The edit that produced the current file, so re-opening the editor shows what is
+# applied. Two suffixes deep like the issue and duplicate sidecars, and read through
+# `video_edit.edit_spec_path` rather than `with_suffix` for the same reason.
+VIDEO_EDIT_SIDECAR_SUFFIX = ".edit.json"
+
+# Both are appended to the full filename so the final suffix is not a media one: a temp
+# file named `clip.edit-tmp.mp4` would surface as a phantom gallery item for the length
+# of every render, because `folder_scan` classifies on the last suffix alone.
+VIDEO_EDIT_TEMP_SUFFIX = ".edit-tmp"
+VIDEO_EDIT_STALE_SUFFIX = ".edit-stale"
+
 # Served with the file rather than guessed from it: `mimetypes.guess_type` reads the
 # registry on Windows, where a machine missing a `.webp` or `.mkv` entry would fall
 # through to `text/plain` and the browser would refuse to render the media at all.
@@ -115,6 +141,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "CAPTION_SIDECAR_EXTENSIONS": list(CAPTION_SIDECAR_EXTENSIONS),
     "SYSPROMPT_FILENAME": SYSPROMPT_FILENAME,
     "VIDEO_EXTENSIONS": sorted(VIDEO_EXTENSIONS),
+    "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
     "COMFY_WORKFLOW_EXTENSIONS": sorted(COMFY_WORKFLOW_EXTENSIONS),
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GalleryItem } from "@/shared/types";
-import { isGif, isMotion, isVideo, mediaLabelFor } from "./itemKind";
+import { isEditableVideo, isGif, isMotion, isVideo, mediaLabelFor } from "./itemKind";
 
 /**
  * `media_type` is required on the wire, so the extension fallback is only ever
@@ -18,6 +18,7 @@ function item(name: string, mediaType: GalleryItem["media_type"] | undefined): G
     issue_fixes: [],
     has_issue_file: false,
     has_duplicate_file: false,
+    has_backup: false,
     caption_status: "none",
     caption_file_type: null,
     media_type: mediaType,
@@ -49,6 +50,27 @@ describe("isVideo", () => {
     const names = ["photo.jpg", "photo.webp", "photo.bmp", "loop.gif"];
 
     expect(names.filter((name) => isVideo(item(name, undefined)))).toEqual([]);
+  });
+});
+
+describe("isEditableVideo", () => {
+  it.each([["clip.mp4"], ["clip.mov"], ["clip.m4v"]])("offers editing for %s", (name) => {
+    expect(isEditableVideo(item(name, "video"))).toBe(true);
+  });
+
+  it("refuses a container the browser cannot decode", () => {
+    // ffmpeg re-muxes matroska without complaint. The editor cannot: it reads its
+    // duration and frame size off the `<video>` element, which never decodes one.
+    expect(isEditableVideo(item("clip.mkv", "video"))).toBe(false);
+  });
+
+  it.each([["clip.avi"], ["clip.wmv"], ["clip.flv"]])("refuses %s", (name) => {
+    expect(isEditableVideo(item(name, "video"))).toBe(false);
+  });
+
+  it("refuses anything that is not a video at all", () => {
+    expect(isEditableVideo(item("sunset.png", "image"))).toBe(false);
+    expect(isEditableVideo(item("loop.gif", "gif"))).toBe(false);
   });
 });
 

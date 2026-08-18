@@ -2,13 +2,20 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from constants import GIF_EXTENSION, IMAGE_EXTENSIONS, MEDIA_EXTENSIONS, SYSPROMPT_FILENAME
+from constants import (
+    GIF_EXTENSION,
+    IMAGE_EXTENSIONS,
+    MEDIA_EXTENSIONS,
+    SYSPROMPT_FILENAME,
+    VIDEO_EDIT_EXTENSIONS,
+)
 from filesystem import normalize_user_path, resolve_folder
 from schemas import JobResponse
 
 # Re-export so route modules keep a single import style.
 __all__ = [
     "job_response",
+    "resolve_editable_video",
     "resolve_folder",
     "resolve_gif_file",
     "resolve_image_file",
@@ -46,6 +53,18 @@ def resolve_image_file(path: str) -> Path:
     if file_path.suffix.lower() not in IMAGE_EXTENSIONS:
         raise HTTPException(
             status_code=400, detail="Only image files can be opened in the image viewer"
+        )
+
+    return file_path
+
+
+def resolve_editable_video(path: str) -> Path:
+    file_path = resolve_media_file(path)
+
+    if file_path.suffix.lower() not in VIDEO_EDIT_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{file_path.suffix} videos cannot be edited",
         )
 
     return file_path

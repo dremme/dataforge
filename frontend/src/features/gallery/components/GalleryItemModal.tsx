@@ -17,6 +17,7 @@ import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture"
 import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
+import { useVideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapture";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useNotify } from "@/shared/notifications/notifications";
@@ -30,11 +31,18 @@ import {
   iconFolderInput,
   iconLoader2,
   iconMessageCheck,
+  iconScissors,
   iconTrash2,
   iconX,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
-import { isGif, isMotion, isVideo, mediaLabelFor } from "@/features/gallery/lib/itemKind";
+import {
+  isEditableVideo,
+  isGif,
+  isMotion,
+  isVideo,
+  mediaLabelFor,
+} from "@/features/gallery/lib/itemKind";
 import type { FrameCapture } from "@/features/gallery/lib/frameCapture";
 import { formatFrameOrdinal } from "@/features/gallery/lib/gifFrameCapture";
 import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
@@ -53,7 +61,10 @@ import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { TransferMediaDialog } from "./TransferMediaDialog";
 import { FrameCaptureBar } from "./FrameCaptureBar";
+import { VideoCropOverlay } from "./VideoCropOverlay";
+import { VideoEditPanel } from "./VideoEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
+import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
 
 /** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
 const noop = () => {};
@@ -132,6 +143,11 @@ export function GalleryItemModal({
   // Each capture hook used to hold its own flag, which dropped mode on every
   // item swap and could not stick when switching video <-> GIF.
   const [frameMode, setFrameMode] = useState(false);
+  // Owned here for the same reason, and mutually exclusive with it: one `<video>`
+  // cannot serve a capture scrubber and an edit timeline at once. The draft resets
+  // per item, but the mode itself survives navigation.
+  const [editMode, setEditMode] = useState(false);
+  const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -180,13 +196,24 @@ export function GalleryItemModal({
   });
   const frameCapture: FrameCapture = itemIsGif ? gifCapture : videoCapture;
 
+  const videoEdit = useVideoEdit({
+    item,
+    // The capture hook already owns the ref on the one `<video>`, and only one of
+    // the two modes can be on, so they share it rather than racing for it.
+    videoRef: videoCapture.videoRef,
+    onEdited: onCopied,
+    editMode,
+    setEditMode,
+  });
+
   const { transferPicker, overwritePrompt, transferring } = transfer;
   /** Modal work other than a frame save — the capture bar locks itself on this. */
   const otherWorkBusy = deleting || transferring !== null;
-  const busy = otherWorkBusy || frameCapture.saving;
+  const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying;
   // Frame mode stays out of this flag: it feeds `ModalShell`'s `suspended`, which
   // makes the panel inert, and the slider has to stay reachable.
-  const childOverlayOpen = deleteConfirmOpen || jsonEditorOpen || transfer.transferDialogOpen;
+  const childOverlayOpen =
+    deleteConfirmOpen || revertConfirmOpen || jsonEditorOpen || transfer.transferDialogOpen;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
   const jsonEditorContent = useMemo(
@@ -215,6 +242,15 @@ export function GalleryItemModal({
       setFrameMode(false);
     }
   }, [item, currentFolder, itemIsVideo, itemIsGif]);
+
+  // Editing needs no destination folder - it rewrites the file where it already is - so
+  // this only drops the mode when the item itself cannot be edited.
+  useEffect(() => {
+    if (!item || !isEditableVideo(item)) {
+      setEditMode(false);
+      setRevertConfirmOpen(false);
+    }
+  }, [item]);
 
   // Warm next/previous full-size media (idle/low priority) so nav does not flash empty.
   useEffect(() => {
@@ -253,6 +289,16 @@ export function GalleryItemModal({
     },
     [handleJsonContentSave],
   );
+
+  const toggleFrameMode = useCallback(() => {
+    setEditMode(false);
+    frameCapture.toggleFrameMode();
+  }, [frameCapture]);
+
+  const toggleEditMode = useCallback(() => {
+    setFrameMode(false);
+    videoEdit.toggleEditMode();
+  }, [videoEdit]);
 
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
@@ -336,6 +382,8 @@ export function GalleryItemModal({
   // In frame mode Escape steps back to plain viewing instead of closing outright.
   // `ModalShell` stands down for the duration via its `escape` prop below.
   useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);
+  // The two modes are mutually exclusive, so these can never both be live.
+  useEscapeKey(videoEdit.exitEditMode, editMode && !busy);
 
   if (!item) return null;
 
@@ -350,6 +398,7 @@ export function GalleryItemModal({
   // Only the destination folder is required; a missing `onCopied` costs the refresh,
   // not the save, so it must not gate the toggle the way `canTransfer` does.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
+  const canEditVideo = isEditableVideo(item);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
@@ -365,7 +414,7 @@ export function GalleryItemModal({
         // the whole overlay session. That leaves the depth non-zero here, so the
         // nesting decision has to be stated rather than measured.
         nested={false}
-        escape={frameCapture.frameMode ? "none" : "bubble"}
+        escape={frameCapture.frameMode || editMode ? "none" : "bubble"}
         panelRef={modalRef}
       >
         <header className="gallery-item-modal__header">
@@ -394,6 +443,25 @@ export function GalleryItemModal({
                 </button>
               </Tooltip>
             )}
+            {canEditVideo && (
+              <Tooltip content={editMode ? "Exit video editing" : "Edit video"}>
+                <button
+                  type="button"
+                  className={classNames(
+                    "gallery-item-modal__edit-toggle",
+                    editMode && "gallery-item-modal__edit-toggle--active",
+                  )}
+                  onClick={toggleEditMode}
+                  disabled={busy}
+                  aria-pressed={editMode}
+                  aria-label={
+                    editMode ? `Exit video editing for ${item.name}` : `Edit ${item.name}`
+                  }
+                >
+                  <Icon icon={iconScissors} />
+                </button>
+              </Tooltip>
+            )}
             {canCaptureFrame && (
               <Tooltip
                 content={frameCapture.frameMode ? "Exit frame capture" : "Save a frame as JPG"}
@@ -404,7 +472,7 @@ export function GalleryItemModal({
                     "gallery-item-modal__frame-toggle",
                     frameCapture.frameMode && "gallery-item-modal__frame-toggle--active",
                   )}
-                  onClick={frameCapture.toggleFrameMode}
+                  onClick={toggleFrameMode}
                   disabled={busy}
                   aria-pressed={frameCapture.frameMode}
                   aria-label={
@@ -486,26 +554,45 @@ export function GalleryItemModal({
           </button>
 
           {itemIsVideo ? (
-            <video
-              key={item.path}
-              ref={videoCapture.videoRef}
-              className="gallery-item-modal__video"
-              src={galleryItemMediaUrl(item)}
-              // The native timeline would let the user seek behind the capture
-              // slider's back, so frame mode owns scrubbing outright.
-              controls={!frameCapture.frameMode}
-              autoPlay
-              muted
-              playsInline
-              onLoadedMetadata={(event) => {
-                const video = event.currentTarget;
-                recordResolution(video.videoWidth, video.videoHeight, item.path);
-                videoCapture.handleLoadedMetadata(video);
-              }}
-              // Streamed MP4s report `Infinity` at `loadedmetadata` and only settle
-              // on a real duration later, which would strand the slider without this.
-              onDurationChange={(event) => videoCapture.handleLoadedMetadata(event.currentTarget)}
-            />
+            <>
+              <video
+                // Editing plays the untouched original, so the source has to change with
+                // the mode, not just its bytes - hence the key.
+                key={editMode ? `${item.path}#original` : item.path}
+                ref={videoCapture.videoRef}
+                className="gallery-item-modal__video"
+                src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
+                // The native timeline would let the user seek behind the capture
+                // slider's or the trim handles' back, so both modes own scrubbing.
+                controls={!frameCapture.frameMode && !editMode}
+                autoPlay={!editMode}
+                muted
+                playsInline
+                onLoadedMetadata={(event) => {
+                  const video = event.currentTarget;
+                  recordResolution(video.videoWidth, video.videoHeight, item.path);
+                  videoCapture.handleLoadedMetadata(video);
+                  videoEdit.handleLoadedMetadata(video);
+                }}
+                // Streamed MP4s report `Infinity` at `loadedmetadata` and only settle
+                // on a real duration later, which would strand the slider without this.
+                onDurationChange={(event) => {
+                  videoCapture.handleLoadedMetadata(event.currentTarget);
+                  videoEdit.handleLoadedMetadata(event.currentTarget);
+                }}
+              />
+              {editMode && videoEdit.cropActive && (
+                <VideoCropOverlay
+                  videoRef={videoCapture.videoRef}
+                  crop={videoEdit.draft.crop}
+                  sourceWidth={videoEdit.sourceWidth}
+                  sourceHeight={videoEdit.sourceHeight}
+                  aspectRatio={videoEdit.aspectRatio}
+                  disabled={busy}
+                  onCropChange={videoEdit.setCrop}
+                />
+              )}
+            </>
           ) : (
             <ZoomableImage
               // Frame mode swaps in a still, so it needs a fresh instance: a zoom
@@ -571,83 +658,96 @@ export function GalleryItemModal({
             />
           ))}
 
-        <footer className="gallery-item-modal__footer">
-          <GalleryItemModalMeta
-            item={item}
-            resolution={resolution}
-            hasComfyWorkflow={hasComfyWorkflow}
-            captionCharacterCount={captionCharacterCount}
+        {editMode && (
+          <VideoEditPanel
+            edit={videoEdit}
+            busy={otherWorkBusy}
+            onRevertRequested={() => setRevertConfirmOpen(true)}
           />
+        )}
 
-          <div className="gallery-item-modal__caption-editor">
-            <div className="gallery-item-modal__caption-toolbar">
-              <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
-                Caption
-              </label>
-              <div className="gallery-item-modal__caption-actions">
-                {canResolveIssue && (
-                  <button
-                    type="button"
-                    className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
-                    onClick={handleResolveIssue}
-                    disabled={busy}
-                    aria-label={`Resolve caption issue for ${item.name}`}
-                  >
-                    <Icon
-                      icon={iconMessageCheck}
-                      className="gallery-item-modal__caption-action-icon"
-                    />
-                    Resolve issue
-                  </button>
-                )}
-                {hasJsonCaption && (
-                  <button
-                    type="button"
-                    className="gallery-item-modal__caption-action"
-                    onClick={openJsonEditor}
-                    disabled={!canEditJson}
-                    aria-label="Edit JSON caption"
-                  >
-                    <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
-                    Edit JSON
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={classNames(
-                    "gallery-item-modal__caption-action",
-                    copyState === "copied" && "gallery-item-modal__caption-action--copied",
-                    copyState === "error" && "gallery-item-modal__caption-action--error",
-                  )}
-                  onClick={() => {
-                    void copyText(copyContent);
-                  }}
-                  disabled={!canCopyCaption}
-                  aria-label={copyLabel}
-                >
-                  <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
-                  {copyLabel}
-                </button>
-              </div>
-            </div>
-            <CaptionEditor
-              // A fresh editor per item: CodeMirror maps its selection through the
-              // document swap, so a reused one lands selected on the next caption.
-              key={item.path}
-              id="gallery-item-caption"
-              value={caption}
-              placeholder={placeholder}
-              variant={captionDisplay.variant}
-              saveState={saveState}
-              searchQuery={searchQuery}
-              searchRegex={searchRegex}
-              aria-label={`Caption for ${item.name}`}
-              aria-invalid={saveState === "error"}
-              title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
-              onChange={handleCaptionChange}
+        {/* Hidden while editing rather than merely ignored: the caption and the meta
+            strip have nothing to do with a cut, and the height they give back goes to
+            the stage, where a larger frame is worth more than either of them. */}
+        {!editMode && (
+          <footer className="gallery-item-modal__footer">
+            <GalleryItemModalMeta
+              item={item}
+              resolution={resolution}
+              hasComfyWorkflow={hasComfyWorkflow}
+              captionCharacterCount={captionCharacterCount}
             />
-          </div>
-        </footer>
+
+            <div className="gallery-item-modal__caption-editor">
+              <div className="gallery-item-modal__caption-toolbar">
+                <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
+                  Caption
+                </label>
+                <div className="gallery-item-modal__caption-actions">
+                  {canResolveIssue && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
+                      onClick={handleResolveIssue}
+                      disabled={busy}
+                      aria-label={`Resolve caption issue for ${item.name}`}
+                    >
+                      <Icon
+                        icon={iconMessageCheck}
+                        className="gallery-item-modal__caption-action-icon"
+                      />
+                      Resolve issue
+                    </button>
+                  )}
+                  {hasJsonCaption && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action"
+                      onClick={openJsonEditor}
+                      disabled={!canEditJson}
+                      aria-label="Edit JSON caption"
+                    >
+                      <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
+                      Edit JSON
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={classNames(
+                      "gallery-item-modal__caption-action",
+                      copyState === "copied" && "gallery-item-modal__caption-action--copied",
+                      copyState === "error" && "gallery-item-modal__caption-action--error",
+                    )}
+                    onClick={() => {
+                      void copyText(copyContent);
+                    }}
+                    disabled={!canCopyCaption}
+                    aria-label={copyLabel}
+                  >
+                    <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
+                    {copyLabel}
+                  </button>
+                </div>
+              </div>
+              <CaptionEditor
+                // A fresh editor per item: CodeMirror maps its selection through the
+                // document swap, so a reused one lands selected on the next caption.
+                key={item.path}
+                id="gallery-item-caption"
+                value={caption}
+                placeholder={placeholder}
+                variant={captionDisplay.variant}
+                saveState={saveState}
+                searchQuery={searchQuery}
+                searchRegex={searchRegex}
+                aria-label={`Caption for ${item.name}`}
+                aria-invalid={saveState === "error"}
+                title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
+                onChange={handleCaptionChange}
+              />
+            </div>
+          </footer>
+        )}
       </ModalShell>
 
       {deleteConfirmOpen && (
@@ -655,8 +755,9 @@ export function GalleryItemModal({
           title="Delete file?"
           description={
             <span>
-              This will delete <strong>{item.name}</strong> and any matching caption sidecars (
-              {CAPTION_SIDECAR_EXTENSION_LIST}) in this folder.
+              This will delete <strong>{item.name}</strong>, any matching caption sidecars (
+              {CAPTION_SIDECAR_EXTENSION_LIST}) in this folder, and the stored original if the file
+              has been edited.
               <br />
               On Windows, files are moved to the Recycle Bin.
             </span>
@@ -668,6 +769,26 @@ export function GalleryItemModal({
             void confirmDelete();
           }}
           onCancel={cancelDeleteConfirm}
+        />
+      )}
+
+      {revertConfirmOpen && (
+        <ConfirmDialog
+          title="Restore the original?"
+          description={
+            <span>
+              This replaces <strong>{item.name}</strong> with the untouched original stored beside
+              it, and discards every edit applied so far.
+            </span>
+          }
+          confirmLabel="Restore"
+          confirmVariant="danger"
+          busy={videoEdit.applying}
+          onConfirm={() => {
+            setRevertConfirmOpen(false);
+            videoEdit.revert();
+          }}
+          onCancel={() => setRevertConfirmOpen(false)}
         />
       )}
 

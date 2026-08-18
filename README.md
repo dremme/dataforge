@@ -37,6 +37,7 @@ and generates the frontend's view of the backend API — see [Generated frontend
 
 **2. Run** — double-click `start.bat`, or run `.\start.ps1` in PowerShell. The launcher:
 
+- Regenerates the frontend's view of the backend API, so a branch switch cannot bundle a stale one
 - Builds the frontend when a source changed since the last build, and skips it otherwise
 - Frees the app port, if a previous run left a server behind
 - Starts **one** server in its own console, serving the bundled UI and the API together
@@ -102,9 +103,10 @@ in that list lists, thumbnails, captions, and trains.
 
 Two things are narrower than the list, because the formats themselves are:
 
-- **In-app video playback and frame saving** need a container the browser can decode, which means MP4, MOV,
-  and M4V. An AVI, WMV, FLV, or MKV still gets a thumbnail and a caption; it just will not play in the
-  detail view.
+- **In-app video playback, frame saving, and editing** need a container the browser can decode, which means
+  MP4, MOV, and M4V. An AVI, WMV, FLV, or MKV still gets a thumbnail and a caption; it just will not play in
+  the detail view. Editing shares the limit because the editor drives its timeline and crop off that same
+  player — ffmpeg would happily re-encode an MKV, but nothing would be there to scrub.
 - **Megapixels, watermarking, and ComfyUI workflow detection** are MP4, MOV, and M4V only. The other
   containers hide their headers somewhere the readers here cannot reach, or cannot be re-muxed cleanly.
 
@@ -135,6 +137,9 @@ Two things are narrower than the list, because the formats themselves are:
 - Click-to-zoom in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
 - Save any playable video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
+- Video editing in place — trim, crop, speed up or slow down, and rescale, applied in one pass. The original
+  is stored once as `<name>.<ext>.bak` and every edit re-renders from it, so changing one setting later keeps
+  the rest and nothing is ever an encode of an encode. Revert restores it
 - Per-folder `.sysprompt` (markdown) to steer AI captioning
 - Caption status on cards and in the detail view
 - Dataset statistics drawer — caption coverage, files missing a caption, caption issues and duplicate
@@ -142,7 +147,8 @@ Two things are narrower than the list, because the formats themselves are:
   always the whole folder, not the filtered view
 - Detection of embedded ComfyUI workflows in PNGs and MP4-family videos
 - Drag-and-drop import for media, sidecars, and `.sysprompt`
-- Delete media along with matching sidecars, including `.issue.json` and `.duplicate.json`
+- Delete media along with matching sidecars, including `.issue.json`, `.duplicate.json`, and a stored
+  original from video editing
 - Move or copy selected files, and create subfolders
 
 ### Automation jobs
@@ -175,6 +181,7 @@ images in the automation panel, and an external card in the jobs drawer.
 | Kind | Location |
 | --- | --- |
 | Captions, caption issues, duplicate groups, `.sysprompt` | Next to your media, so they travel with the dataset |
+| Video-edit originals (`.bak`) and the edit that produced the current file (`.edit.json`) | Next to the video; hidden from the gallery, and carried along by move, copy, rename, and delete |
 | App preferences, job history, thumbnails | `backend/data/` — gitignored SQLite plus cache |
 | UI session state (search, gallery filters) | Browser session storage |
 
@@ -185,7 +192,8 @@ Verify-captions **additional context** is stored **per folder** in the app datab
 
 ### App only
 
-Enough for gallery browsing, caption editing, strip metadata, watermark, set captions, and rename.
+Enough for gallery browsing, caption editing, video editing, strip metadata, watermark, set captions, and
+rename. Video work uses the ffmpeg that ships with the Python dependencies — no GPU involved.
 
 | | Minimum | Recommended |
 | --- | --- | --- |

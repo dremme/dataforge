@@ -123,6 +123,28 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertEqual(item["media_type"], "video")
             self.assertNotIn("fps", item)
 
+    def test_reports_whether_an_edited_video_can_still_be_reverted(self) -> None:
+        """The scan already holds every filename, so this costs no extra file access."""
+        with TempMediaFolder() as root:
+            write_mp4_video(root, "plain.mp4")
+            write_mp4_video(root, "edited.mp4")
+            (root / "edited.mp4.bak").write_bytes(b"pristine-original")
+
+            items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
+            by_name = {item["name"]: item for item in items}
+
+            self.assertTrue(by_name["edited.mp4"]["has_backup"])
+            self.assertFalse(by_name["plain.mp4"]["has_backup"])
+
+    def test_a_stored_original_is_not_listed_as_media_of_its_own(self) -> None:
+        with TempMediaFolder() as root:
+            write_mp4_video(root, "clip.mp4")
+            (root / "clip.mp4.bak").write_bytes(b"pristine-original")
+
+            items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
+
+            self.assertEqual([item["name"] for item in items], ["clip.mp4"])
+
     def test_lists_gif_as_its_own_media_type(self) -> None:
         with TempMediaFolder() as root:
             write_gif(root, "loop.gif", frames=8)

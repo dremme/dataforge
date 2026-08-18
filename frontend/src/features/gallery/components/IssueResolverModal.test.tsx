@@ -28,6 +28,7 @@ function makeIssueItem(name: string, overrides: Partial<GalleryItem> = {}): Gall
     ],
     has_issue_file: true,
     has_duplicate_file: false,
+    has_backup: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",

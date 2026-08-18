@@ -12,6 +12,7 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     issue_fixes: ['Replace "a blue lake" with "a snow-covered mountain peak".'],
     has_issue_file: true,
     has_duplicate_file: false,
+    has_backup: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",
@@ -30,11 +31,13 @@ describe("listResolvableIssueItems", () => {
         media_type: "sysprompt",
         has_issue_file: false,
         has_duplicate_file: false,
+        has_backup: false,
       }),
       item({
         name: "plain.png",
         has_issue_file: false,
         has_duplicate_file: false,
+        has_backup: false,
         issue_fixes: [],
       }),
     ];

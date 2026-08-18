@@ -1,7 +1,8 @@
-import { GIF_EXTENSION, VIDEO_EXTENSIONS } from "@/shared/constants";
+import { GIF_EXTENSION, VIDEO_EDIT_EXTENSIONS, VIDEO_EXTENSIONS } from "@/shared/constants";
 import type { GalleryItem } from "@/shared/types";
 
 const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
+const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
 
 export function isSysPrompt(item: GalleryItem): boolean {
   return item.media_type === "sysprompt";
@@ -27,6 +28,21 @@ export function isVideo(item: GalleryItem): boolean {
 
   const extension = extensionOf(item);
   return extension !== null && VIDEO_EXTENSION_SET.has(extension);
+}
+
+/**
+ * Whether the item can be trimmed, cropped, retimed and rescaled in place.
+ *
+ * Narrower than `isVideo`, and for the same reason playback is: the editor reads its
+ * duration and frame size off the `<video>` element and previews the trim, speed and
+ * crop through it, so a container the browser cannot decode would give a toggle onto a
+ * panel that never becomes usable. Matroska is the trap here - ffmpeg renders it fine.
+ */
+export function isEditableVideo(item: GalleryItem): boolean {
+  if (!isVideo(item)) return false;
+
+  const extension = extensionOf(item);
+  return extension !== null && VIDEO_EDIT_EXTENSION_SET.has(extension);
 }
 
 export function isGif(item: GalleryItem): boolean {

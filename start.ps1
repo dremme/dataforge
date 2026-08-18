@@ -12,6 +12,11 @@
   makes the usual launch near-instant. This window stays open as a supervisor: press
   any key in it, or just close it, to stop the server cleanly.
 
+  The frontend's generated API types are rebuilt from backend/schemas.py first. They
+  are gitignored, so a branch switch leaves the other branch's shape in place, and a
+  dist bundled from it would measure as up to date. Regenerating only rewrites what
+  changed, so an unchanged shape still skips the build.
+
   Use this directly, or double-click start.bat for the same behavior. For hot
   reload while developing, use dev.ps1.
 
@@ -70,6 +75,11 @@ Write-Host ('  App      : {0}' -f $DevUiUrl)
 Write-Host '  Mode     : production - bundled UI, no hot reload'
 Write-Host '================================================'
 Write-Host ''
+
+# Ahead of both the check below and the freshness test: the generated sources are
+# gitignored, so a branch switch leaves the other branch's shape in place, and a dist
+# built from it would otherwise still measure as up to date.
+Update-DevGeneratedSources | Out-Null
 
 if (-not (Test-DevPrerequisites)) { Exit-Launcher }
 Test-DependencyDrift | Out-Null

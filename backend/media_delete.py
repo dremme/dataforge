@@ -7,6 +7,7 @@ from pathlib import Path
 from captions import issue_file_path
 from constants import SIDECAR_EXTENSIONS
 from duplicates import duplicate_file_path
+from video_edit import backup_path_for, edit_spec_path
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +99,16 @@ def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
         except OSError as exc:
             logger.warning("Failed to delete sidecar %s: %s", sidecar.name, exc)
 
-    # Named explicitly rather than folded into SIDECAR_EXTENSIONS: both are two suffixes
-    # deep, so `with_suffix` would collapse them onto the caption sidecar's `.json`.
-    for extra in (issue_file_path(file_path), duplicate_file_path(file_path)):
+    # Named explicitly rather than folded into SIDECAR_EXTENSIONS: none of these is one
+    # `with_suffix` away from the media name - the first two are two suffixes deep, and
+    # the backup keeps the whole filename. Leaving the backup behind would litter the
+    # folder with an original nothing can ever reach again.
+    for extra in (
+        issue_file_path(file_path),
+        duplicate_file_path(file_path),
+        backup_path_for(file_path),
+        edit_spec_path(file_path),
+    ):
         if not extra.is_file():
             continue
         try:

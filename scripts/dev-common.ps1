@@ -127,6 +127,52 @@ function Get-NpmCommand {
 # them carry real values - so the frontend neither starts nor builds without them.
 $DevGeneratedSources = @('types.ts', 'constants.ts', 'wireGuards.ts')
 
+function Update-DevGeneratedSources {
+    <#
+    .SYNOPSIS
+      Regenerates frontend\src\shared\{types,constants,wireGuards}.ts from
+      backend\schemas.py. Returns $false only when the generator ran and failed.
+
+    .DESCRIPTION
+      Always regenerates rather than comparing timestamps. The three files are
+      gitignored, so git leaves them untouched across a branch switch and they keep
+      the other branch's shape with a perfectly plausible mtime - there is no
+      freshness test that would catch it, which is why Test-DevPrerequisites checking
+      only that they exist was never enough. The generator costs well under a second.
+
+      A missing venv is not this function's error to report: Test-DevPrerequisites
+      names it alongside the generated files it could not create, and points at
+      setup.bat. Nor is a failed generation fatal - the previous files are still on
+      disk, and a schemas.py broken enough to stop the generator stops the backend
+      too, which the readiness wait reports far more clearly.
+    #>
+    $paths = Get-DevPaths
+    if (-not (Test-Path $paths.VenvPy)) { return $true }
+
+    Write-Host 'Generating the frontend API types...' -NoNewline
+    try {
+        # The generator rewrites a file only when its content actually changed, so an
+        # unchanged shape leaves every mtime alone and Test-DistFresh still reports a
+        # dist built before this launch as fresh.
+        & $paths.VenvPy (Join-Path $paths.Scripts 'generate_types.py') | Out-Null
+        $exitCode = $LASTEXITCODE
+    } catch {
+        Write-Host ' FAILED.' -ForegroundColor Red
+        Write-Host ('[WARN] Could not run the generator: {0}' -f $_.Exception.Message) -ForegroundColor Yellow
+        return $false
+    }
+
+    if ($exitCode -ne 0) {
+        Write-Host ' FAILED.' -ForegroundColor Red
+        Write-Host '[WARN] The frontend API types were left as they were. The UI may not match the API.' -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-Host ' done.' -ForegroundColor Green
+    return $true
+}
+
+
 function Test-DevPrerequisites {
     <#
     .SYNOPSIS

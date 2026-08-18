@@ -18,6 +18,7 @@ export function makeItem(name: string, overrides: Partial<GalleryItem> = {}): Ga
     issue_fixes: [],
     has_issue_file: false,
     has_duplicate_file: false,
+    has_backup: false,
     caption_status: "text",
     caption_file_type: "txt",
     media_type: "image",

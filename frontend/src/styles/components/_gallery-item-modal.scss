@@ -59,7 +59,8 @@ $json-color: #fcd34d;
   &__preview,
   &__copy,
   &__move,
-  &__frame-toggle {
+  &__frame-toggle,
+  &__edit-toggle {
     @include modal-close-btn;
 
     &:hover:not(:disabled) {
@@ -69,6 +70,7 @@ $json-color: #fcd34d;
     }
   }
 
+  &__edit-toggle--active,
   &__frame-toggle--active {
     @include btn-surface-success;
   }
