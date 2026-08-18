@@ -13,6 +13,7 @@ import {
   isIdentityEdit,
   outputDimensions,
   outputDuration,
+  specsEqual,
   toVideoEditSpec,
   type CropRect,
   type VideoEditDraft,
@@ -54,6 +55,8 @@ export interface VideoEdit {
   hasBackup: boolean;
   dirty: boolean;
   cropActive: boolean;
+  /** Whether the preview is silent. The element is muted everywhere else. */
+  muted: boolean;
   playing: boolean;
   playheadTime: number;
   outputWidth: number;
@@ -67,6 +70,7 @@ export interface VideoEdit {
   setTrimEndAtPlayhead: () => void;
   setCrop: (crop: CropRect) => void;
   setCropActive: (active: boolean) => void;
+  toggleMuted: () => void;
   setSpeed: (speed: number) => void;
   setScale: (scale: number) => void;
   seekTo: (seconds: number) => void;
@@ -107,6 +111,10 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const [applying, setApplying] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [cropActive, setCropActive] = useState(false);
+  // Not reset with the item: this is a volume setting, and those stay where you put
+  // them. The element is remounted per item and per mode, so the effect below and
+  // `handleLoadedMetadata` are what carry the choice onto each new one.
+  const [muted, setMuted] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [playheadTime, setPlayheadTime] = useState(0);
 
@@ -114,6 +122,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   draftRef.current = draft;
   const durationRef = useRef(duration);
   durationRef.current = duration;
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
 
   const ready = hasUsableDuration(duration) && sourceWidth > 0 && sourceHeight > 0;
 
@@ -124,18 +134,28 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     };
   }, []);
 
-  // `applying` is deliberately absent: a render in flight against the previous item must
-  // run its own `finally`, and clearing the flag here would race it.
+  // Keyed on the path alone. `has_backup` must stay out of it: an apply flips that field
+  // when the folder reloads, and since the element is not reloaded with it - the editor
+  // was already playing the original - nothing would fire `loadedmetadata` a second time
+  // to put back the duration and frame size this clears.
+  //
+  // `applying` is deliberately absent for a different reason: a render in flight against
+  // the previous item must run its own `finally`, and clearing the flag here would race it.
   useEffect(() => {
     setDuration(Number.NaN);
     setSourceWidth(0);
     setSourceHeight(0);
     setDraft(emptyDraft(Number.NaN));
     setSavedDraft(null);
-    setHasBackup(item?.has_backup ?? false);
     setCropActive(false);
     setPlaying(false);
     setPlayheadTime(0);
+  }, [item?.path]);
+
+  // Seeded separately so a listing that learns about a backup can say so without
+  // resetting the editor around it.
+  useEffect(() => {
+    setHasBackup(item?.has_backup ?? false);
   }, [item?.path, item?.has_backup]);
 
   // The stored spec is what makes re-editing coherent. Loading it on entry rather than
@@ -194,6 +214,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       if (optionsRef.current.editMode) {
         video.pause();
         video.currentTime = seeded.trimStart;
+        video.muted = mutedRef.current;
         setPlaying(false);
       }
     },
@@ -244,6 +265,18 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     if (!video) return;
     video.playbackRate = editMode ? draft.speed : 1;
   }, [draft.speed, editMode, videoRef]);
+
+  // Only while editing. Everywhere else the element carries a `muted` attribute and the
+  // native controls own the volume, and remounting per mode is what restores that.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !editMode) return;
+    video.muted = muted;
+  }, [editMode, muted, videoRef]);
+
+  const toggleMuted = useCallback(() => {
+    setMuted((current) => !current);
+  }, []);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -329,6 +362,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     (
       request: (path: string) => Promise<{ has_backup: boolean; width?: number | null }>,
       describe: (path: string) => string,
+      settle: () => void,
     ) => {
       // The guard reads a ref: a double click lands before `applying` has re-rendered
       // the button into its disabled form.
@@ -351,9 +385,11 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
           if (mountedRef.current) setHasBackup(result.has_backup);
           notify({ variant: "success", message: describe(name) });
           await onEdited?.();
-          // Leaving the mode is what puts the result on screen: the modal swaps back to
-          // the rendered file, where staying would keep showing the original.
-          if (mountedRef.current) exitEditMode();
+          // The mode stays on. Nothing about the surface needs to change: the editor was
+          // already playing the original and the spec is expressed against it, so the
+          // element is not even reloaded. `settle` records what is now on disk, which is
+          // what makes Apply go quiet until something is changed again.
+          if (mountedRef.current) settle();
         } catch (error) {
           // Unguarded by `mountedRef`: the notification store outlives this modal, so a
           // render that finishes after a close still reports.
@@ -370,7 +406,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         }
       })();
     },
-    [exitEditMode, notify],
+    [notify],
   );
 
   const apply = useCallback(() => {
@@ -382,11 +418,21 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     runEdit(
       (path) => applyVideoEdit(path, spec),
       (name) => `Edited ${name} - ${formatFrameTime(seconds)} long.`,
+      () => setSavedDraft(currentDraft),
     );
   }, [runEdit]);
 
   const revert = useCallback(() => {
-    runEdit(revertVideoEdit, (name) => `Restored the original ${name}.`);
+    runEdit(
+      revertVideoEdit,
+      (name) => `Restored the original ${name}.`,
+      () => {
+        // The file is the original again, so the draft that described the edit is no
+        // longer true of anything.
+        setSavedDraft(null);
+        setDraft(emptyDraft(durationRef.current));
+      },
+    );
   }, [runEdit]);
 
   const cancel = useCallback(() => {
@@ -394,6 +440,16 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     if (!currentItem || !applyingRef.current) return;
     void cancelVideoEdit(currentItem.path);
   }, []);
+
+  // Apply asks whether this differs from what was last written, not from an untouched
+  // source: the mode outlives an apply now, so "already rendered exactly this" has to
+  // read as nothing to do. An identity draft is excluded outright - the server refuses
+  // one, and undoing an edit is what Revert is for, at the cost of a copy not a re-encode.
+  const savedSpec = savedDraft ? toVideoEditSpec(savedDraft, duration) : null;
+  const dirty =
+    ready &&
+    !isIdentityEdit(draft, duration) &&
+    !(savedSpec !== null && specsEqual(toVideoEditSpec(draft, duration), savedSpec));
 
   const output = outputDimensions(
     { width: sourceWidth, height: sourceHeight },
@@ -411,8 +467,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     sourceWidth,
     sourceHeight,
     hasBackup,
-    dirty: ready && !isIdentityEdit(draft, duration),
+    dirty,
     cropActive,
+    muted,
     playing,
     playheadTime,
     outputWidth: output.width,
@@ -426,6 +483,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setTrimEndAtPlayhead,
     setCrop,
     setCropActive,
+    toggleMuted,
     setSpeed,
     setScale,
     seekTo,

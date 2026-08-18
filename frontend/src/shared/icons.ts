@@ -91,5 +91,7 @@ export {
   Undo2 as iconUndo2,
   Unlink as iconUnlink,
   Video as iconVideo,
+  Volume2 as iconVolume2,
+  VolumeX as iconVolumeX,
   X as iconX,
 } from "lucide-react";

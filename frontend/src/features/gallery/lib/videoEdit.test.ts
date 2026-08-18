@@ -8,7 +8,6 @@ import {
   clampTrimStart,
   containedVideoBox,
   cropForAspect,
-  cropFromPixels,
   cropToPixels,
   draftFromSpec,
   emptyDraft,
@@ -20,7 +19,9 @@ import {
   outputDimensions,
   outputDuration,
   resizeCrop,
+  scaleForTargetHeight,
   scaleForTargetWidth,
+  specsEqual,
   toVideoEditSpec,
   type CropRect,
   type VideoEditDraft,
@@ -206,12 +207,10 @@ describe("crop geometry", () => {
     expect(wide.y).toBeCloseTo(0.25);
   });
 
-  it("round trips through the pixel fields the panel shows", () => {
+  it("reports the rectangle in source pixels for the overlay readout", () => {
     const crop: CropRect = { x: 0.25, y: 0.5, width: 0.5, height: 0.25 };
 
-    const pixels = cropToPixels(crop, HD);
-    expect(pixels).toEqual({ x: 480, y: 540, width: 960, height: 270 });
-    expect(cropFromPixels(pixels, HD)).toEqual(crop);
+    expect(cropToPixels(crop, HD)).toEqual({ x: 480, y: 540, width: 960, height: 270 });
   });
 });
 
@@ -266,6 +265,42 @@ describe("wire conversion", () => {
   });
 });
 
+describe("specsEqual", () => {
+  const base = () => toVideoEditSpec(draft({ trimStart: 1, trimEnd: 8, speed: 2, scale: 0.5 }), 12);
+
+  it("matches a spec against itself", () => {
+    expect(specsEqual(base(), base())).toBe(true);
+  });
+
+  it("tolerates the float noise a round trip through the wire leaves", () => {
+    const drifted = { ...base(), speed: 2 + 1e-12 };
+
+    expect(specsEqual(base(), drifted)).toBe(true);
+  });
+
+  it.each([
+    ["a trim in", { trim_start: 2 }],
+    ["a trim out", { trim_end: 9 }],
+    ["a speed", { speed: 4 }],
+    ["a scale", { scale: 0.25 }],
+  ])("sees a change of %s", (_label, overrides) => {
+    expect(specsEqual(base(), { ...base(), ...overrides })).toBe(false);
+  });
+
+  it("treats an open-ended trim as different from one that stops", () => {
+    expect(specsEqual(base(), { ...base(), trim_end: null })).toBe(false);
+    expect(specsEqual({ ...base(), trim_end: null }, { ...base(), trim_end: null })).toBe(true);
+  });
+
+  it("compares crops, including one being absent", () => {
+    const crop = { x: 0, y: 0, width: 0.5, height: 1 };
+
+    expect(specsEqual({ ...base(), crop }, { ...base(), crop: { ...crop } })).toBe(true);
+    expect(specsEqual({ ...base(), crop }, base())).toBe(false);
+    expect(specsEqual({ ...base(), crop }, { ...base(), crop: { ...crop, x: 0.1 } })).toBe(false);
+  });
+});
+
 describe("readouts", () => {
   it("divides the kept span by the speed", () => {
     expect(outputDuration(draft({ trimStart: 2, trimEnd: 10, speed: 2 }))).toBe(4);
@@ -278,8 +313,23 @@ describe("readouts", () => {
     ).toEqual({ width: 960, height: 540 });
   });
 
+  it("finds the scale that lands closest to a target height", () => {
+    expect(scaleForTargetHeight(HD, IDENTITY_CROP, 540)).toBeCloseTo(0.5);
+  });
+
+  it("keeps the two dimensions on the source aspect, whichever one is set", () => {
+    // Both write the one `scale` the spec carries, so they cannot disagree.
+    const byWidth = scaleForTargetWidth(HD, IDENTITY_CROP, 960);
+    const byHeight = scaleForTargetHeight(HD, IDENTITY_CROP, 540);
+
+    expect(outputDimensions(HD, IDENTITY_CROP, byWidth)).toEqual(
+      outputDimensions(HD, IDENTITY_CROP, byHeight),
+    );
+  });
+
   it("never asks for an upscale", () => {
     expect(scaleForTargetWidth(HD, IDENTITY_CROP, 4000)).toBe(1);
+    expect(scaleForTargetHeight(HD, IDENTITY_CROP, 4000)).toBe(1);
   });
 
   it("labels speeds and scales the way the buttons read", () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { VideoEditPanel } from "./VideoEditPanel";
 import { emptyDraft, type VideoEditDraft } from "@/features/gallery/lib/videoEdit";
@@ -19,6 +19,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     hasBackup: false,
     dirty: false,
     cropActive: false,
+    muted: true,
     playing: false,
     playheadTime: 0,
     outputWidth: 1920,
@@ -32,6 +33,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     setTrimEndAtPlayhead: vi.fn(),
     setCrop: vi.fn(),
     setCropActive: vi.fn(),
+    toggleMuted: vi.fn(),
     setSpeed: vi.fn(),
     setScale: vi.fn(),
     seekTo: vi.fn(),
@@ -62,109 +64,242 @@ function renderPanel(
   return props;
 }
 
+/** Matches on the prefix: a tool holding a value reads "Speed, changed". */
+const tool = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}`) });
+
 describe("VideoEditPanel", () => {
-  it("cannot apply an edit that would change nothing", () => {
-    renderPanel(makeEdit({ dirty: false }));
+  describe("tools", () => {
+    it("opens on the trim tool with the others collapsed", () => {
+      renderPanel(makeEdit());
 
-    expect(screen.getByRole("button", { name: /Apply/ })).toBeDisabled();
+      expect(tool("Trim")).toHaveAttribute("aria-pressed", "true");
+      expect(tool("Speed")).toHaveAttribute("aria-pressed", "false");
+      expect(screen.queryByRole("button", { name: "2x" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Set in" })).toBeInTheDocument();
+    });
+
+    it("shows one tool at a time", () => {
+      renderPanel(makeEdit());
+
+      fireEvent.click(tool("Speed"));
+
+      expect(screen.getByRole("button", { name: "2x" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Set in" })).not.toBeInTheDocument();
+    });
+
+    it("brings the crop handles out with the crop tool, and puts them away after", () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      fireEvent.click(tool("Crop"));
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(true);
+
+      fireEvent.click(tool("Size"));
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(false);
+    });
+
+    it("marks a tool whose value is no longer the default", () => {
+      // The whole point of collapsing them: nothing may hide behind a closed tool.
+      const draft = { ...emptyDraft(12), speed: 2 };
+      renderPanel(makeEdit({ draft }));
+
+      expect(screen.getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
+      expect(tool("Size")).toBeInTheDocument();
+    });
+
+    it.each([
+      ["Trim", { trimEnd: 8 }],
+      ["Crop", { crop: { x: 0, y: 0, width: 0.5, height: 1 } }],
+      ["Speed", { speed: 2 }],
+      ["Size", { scale: 0.5 }],
+    ])("marks %s when it holds a value", (label, overrides) => {
+      renderPanel(makeEdit({ draft: { ...emptyDraft(12), ...overrides } }));
+
+      expect(screen.getByRole("button", { name: `${label}, changed` })).toBeInTheDocument();
+    });
   });
 
-  it("offers Apply once the draft differs from the file", () => {
-    renderPanel(makeEdit({ dirty: true }));
+  describe("the output readout", () => {
+    it("stays visible whichever tool is open", () => {
+      renderPanel(makeEdit({ outputWidth: 960, outputHeight: 540, outputSeconds: 4 }));
 
-    expect(screen.getByRole("button", { name: /Apply/ })).toBeEnabled();
+      const shown = () => screen.getByText(/960 x 540/);
+      expect(shown()).toBeInTheDocument();
+      fireEvent.click(tool("Crop"));
+      expect(shown()).toBeInTheDocument();
+    });
+
+    it("reports the source and what it will become", () => {
+      renderPanel(makeEdit({ outputWidth: 960, outputHeight: 540, outputSeconds: 4 }));
+
+      expect(screen.getByText(/1920 x 1080/)).toBeInTheDocument();
+      expect(screen.getByText(/960 x 540/)).toBeInTheDocument();
+      expect(screen.getByText(/0:04.000/)).toBeInTheDocument();
+    });
+
+    it("says the timeline is still loading before metadata lands", () => {
+      renderPanel(makeEdit({ ready: false }));
+
+      expect(screen.getByText("The timeline loads with the video.")).toBeInTheDocument();
+    });
   });
 
-  it("marks the active speed and scale presets", () => {
-    const draft = { ...emptyDraft(12), speed: 2, scale: 0.5 };
-    renderPanel(makeEdit({ draft }));
+  describe("controls", () => {
+    it("takes the in and out points from the playhead", () => {
+      const edit = makeEdit();
+      renderPanel(edit);
 
-    expect(screen.getByRole("button", { name: "2x" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "50%" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "1x" })).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(screen.getByRole("button", { name: "Set in" }));
+      fireEvent.click(screen.getByRole("button", { name: "Set out" }));
+
+      expect(edit.setTrimStartAtPlayhead).toHaveBeenCalled();
+      expect(edit.setTrimEndAtPlayhead).toHaveBeenCalled();
+    });
+
+    it("changes the speed from a preset", () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      fireEvent.click(tool("Speed"));
+      fireEvent.click(screen.getByRole("button", { name: "0.5x" }));
+
+      expect(edit.setSpeed).toHaveBeenCalledWith(0.5);
+    });
+
+    it("marks the active speed and scale presets", () => {
+      const draft = { ...emptyDraft(12), speed: 2, scale: 0.5 };
+      renderPanel(makeEdit({ draft }));
+
+      fireEvent.click(tool("Speed"));
+      expect(screen.getByRole("button", { name: "2x" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "1x" })).toHaveAttribute("aria-pressed", "false");
+
+      fireEvent.click(tool("Size"));
+      expect(screen.getByRole("button", { name: "50%" })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("offers a free rectangle and a shape for each orientation, and no fields", () => {
+      renderPanel(makeEdit());
+
+      fireEvent.click(tool("Crop"));
+
+      const shapes = within(screen.getByRole("group", { name: "Aspect" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent?.trim());
+      expect(shapes).toEqual(["Free", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16"]);
+      expect(screen.queryByLabelText("X")).not.toBeInTheDocument();
+    });
+
+    it("starts free and locks to the shape that is picked", () => {
+      const props = renderPanel(makeEdit());
+
+      fireEvent.click(tool("Crop"));
+      expect(screen.getByRole("button", { name: "Free" })).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(screen.getByRole("button", { name: "1:1" }));
+
+      expect(props.onAspectChange).toHaveBeenCalledWith("1:1");
+    });
+
+    it("sets both output dimensions, either one moving the other", () => {
+      const edit = makeEdit({ outputWidth: 1920, outputHeight: 1080 });
+      renderPanel(edit);
+
+      fireEvent.click(tool("Size"));
+      expect(screen.getByLabelText("W")).toHaveValue(1920);
+      expect(screen.getByLabelText("H")).toHaveValue(1080);
+
+      fireEvent.change(screen.getByLabelText("H"), { target: { value: "540" } });
+
+      expect(edit.setScale).toHaveBeenCalledWith(0.5);
+    });
+
+    it("offers every speed from a quarter to double", () => {
+      renderPanel(makeEdit());
+
+      fireEvent.click(tool("Speed"));
+
+      const speeds = within(screen.getByRole("group", { name: "Playback" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent?.trim());
+      expect(speeds).toEqual(["0.25x", "0.5x", "0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"]);
+    });
   });
 
-  it("changes the speed from a preset", () => {
-    const edit = makeEdit();
-    renderPanel(edit);
+  describe("actions", () => {
+    it("cannot apply an edit that would change nothing", () => {
+      renderPanel(makeEdit({ dirty: false }));
 
-    fireEvent.click(screen.getByRole("button", { name: "0.5x" }));
+      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    });
 
-    expect(edit.setSpeed).toHaveBeenCalledWith(0.5);
-  });
+    it("offers Apply once the draft differs from the file", () => {
+      renderPanel(makeEdit({ dirty: true }));
 
-  it("reports the source and the predicted output", () => {
-    renderPanel(makeEdit({ outputWidth: 960, outputHeight: 540, outputSeconds: 4, duration: 12 }));
+      expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+    });
 
-    expect(screen.getByText(/1920 x 1080 to 960 x 540/)).toBeInTheDocument();
-    expect(screen.getByText(/0:12.000 to 0:04.000/)).toBeInTheDocument();
-  });
+    it("hands the only reset there is back to the saved state", () => {
+      const edit = makeEdit({ dirty: true });
+      renderPanel(edit);
 
-  it("says the timeline is still loading before metadata lands", () => {
-    renderPanel(makeEdit({ ready: false }));
+      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 
-    expect(screen.getByText("The timeline loads with the video.")).toBeInTheDocument();
-  });
+      expect(edit.resetDraft).toHaveBeenCalled();
+    });
 
-  it("hides Revert until an original has been stored", () => {
-    renderPanel(makeEdit({ hasBackup: false }));
+    it("hides Revert until an original has been stored", () => {
+      renderPanel(makeEdit({ hasBackup: false }));
 
-    expect(screen.queryByRole("button", { name: /Revert original/ })).not.toBeInTheDocument();
-  });
+      expect(screen.queryByRole("button", { name: /Revert original/ })).not.toBeInTheDocument();
+    });
 
-  it("asks before reverting rather than doing it outright", () => {
-    const edit = makeEdit({ hasBackup: true });
-    const props = renderPanel(edit);
+    it("asks before reverting rather than doing it outright", () => {
+      const edit = makeEdit({ hasBackup: true });
+      const props = renderPanel(edit);
 
-    fireEvent.click(screen.getByRole("button", { name: /Revert original/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Revert original/ }));
 
-    expect(props.onRevertRequested).toHaveBeenCalled();
-    expect(edit.revert).not.toHaveBeenCalled();
-  });
+      expect(props.onRevertRequested).toHaveBeenCalled();
+      expect(edit.revert).not.toHaveBeenCalled();
+    });
 
-  it("shows a progress bar and a cancel while rendering", () => {
-    const edit = makeEdit({ applying: true, progress: 0.4 });
-    renderPanel(edit);
+    it("stays in place when the tool changes", () => {
+      renderPanel(makeEdit({ dirty: true }));
 
-    const bar = screen.getByRole("progressbar", { name: "Rendering" });
-    expect(bar).toHaveAttribute("aria-valuenow", "40");
-    expect(bar).toHaveStyle({ "--edit-progress": "40%" });
-    expect(screen.queryByRole("button", { name: /Apply/ })).not.toBeInTheDocument();
+      fireEvent.click(tool("Crop"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(edit.cancel).toHaveBeenCalled();
-  });
+      expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
+    });
 
-  it("leaves the bar unpositioned when the output length is unknown", () => {
-    renderPanel(makeEdit({ applying: true, progress: null }));
+    it("shows a progress bar and a cancel while rendering", () => {
+      const edit = makeEdit({ applying: true, progress: 0.4 });
+      renderPanel(edit);
 
-    expect(screen.getByRole("progressbar", { name: "Rendering" })).not.toHaveAttribute(
-      "aria-valuenow",
-    );
-  });
+      const bar = screen.getByRole("progressbar", { name: "Rendering" });
+      expect(bar).toHaveAttribute("aria-valuenow", "40");
+      expect(bar).toHaveStyle({ "--edit-progress": "40%" });
+      expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
 
-  it("shows the crop rectangle in source pixels", () => {
-    const draft = { ...emptyDraft(12), crop: { x: 0.25, y: 0, width: 0.5, height: 1 } };
-    renderPanel(makeEdit({ draft }));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(edit.cancel).toHaveBeenCalled();
+    });
 
-    expect(screen.getByLabelText("X")).toHaveValue(480);
-    expect(screen.getByLabelText("W")).toHaveValue(960);
-  });
+    it("leaves the bar unpositioned when the output length is unknown", () => {
+      renderPanel(makeEdit({ applying: true, progress: null }));
 
-  it("resets the crop back to the whole frame", () => {
-    const edit = makeEdit();
-    const props = renderPanel(edit);
+      expect(screen.getByRole("progressbar", { name: "Rendering" })).not.toHaveAttribute(
+        "aria-valuenow",
+      );
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset crop" }));
+    it("locks every control while other modal work is in flight", () => {
+      renderPanel(makeEdit({ dirty: true }), { busy: true });
 
-    expect(edit.setCrop).toHaveBeenCalledWith({ x: 0, y: 0, width: 1, height: 1 });
-    expect(props.onAspectChange).toHaveBeenCalledWith("free");
-  });
-
-  it("locks every control while other modal work is in flight", () => {
-    renderPanel(makeEdit({ dirty: true }), { busy: true });
-
-    expect(screen.getByRole("button", { name: "2x" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Apply/ })).toBeDisabled();
+      expect(tool("Speed")).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Set in" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    });
   });
 });

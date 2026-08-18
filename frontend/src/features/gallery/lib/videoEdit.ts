@@ -10,12 +10,10 @@ import type { VideoCropRect, VideoEditSpec } from "@/shared/types";
  * `test_video_edit.py` asserts the same table.
  */
 
-export const SPEED_PRESETS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
+export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
 
-/** Matches the bounds `VideoEditSpec` enforces server-side. */
-export const MIN_SPEED = 0.25;
-export const MAX_SPEED = 4;
+/** Matches the lower bound `VideoEditSpec` enforces server-side. */
 export const MIN_SCALE = 0.05;
 export const MIN_TRIM_SECONDS = 0.1;
 
@@ -55,12 +53,16 @@ export interface CropAspect {
   ratio: number | null;
 }
 
+/** How a crop may be shaped: freely, or locked to one of these, in orientation pairs. */
 export const CROP_ASPECTS: readonly CropAspect[] = [
   { id: "free", label: "Free", ratio: null },
   { id: "1:1", label: "1:1", ratio: 1 },
+  { id: "4:3", label: "4:3", ratio: 4 / 3 },
+  { id: "3:4", label: "3:4", ratio: 3 / 4 },
+  { id: "3:2", label: "3:2", ratio: 3 / 2 },
+  { id: "2:3", label: "2:3", ratio: 2 / 3 },
   { id: "16:9", label: "16:9", ratio: 16 / 9 },
   { id: "9:16", label: "9:16", ratio: 9 / 16 },
-  { id: "4:3", label: "4:3", ratio: 4 / 3 },
 ];
 
 export const IDENTITY_CROP: CropRect = { x: 0, y: 0, width: 1, height: 1 };
@@ -240,6 +242,18 @@ export function scaleForTargetWidth(source: Size, crop: CropRect, targetWidth: n
   return clamp(targetWidth / cropped.width, MIN_SCALE, 1);
 }
 
+/**
+ * The same for a target height.
+ *
+ * Both axes resolve to the one `scale` the spec carries, which is what keeps the output
+ * on the source's aspect: setting either dimension moves the other with it.
+ */
+export function scaleForTargetHeight(source: Size, crop: CropRect, targetHeight: number): number {
+  const cropped = croppedSize(source, crop);
+  if (cropped.height <= 0) return 1;
+  return clamp(targetHeight / cropped.height, MIN_SCALE, 1);
+}
+
 export function outputDuration(draft: VideoEditDraft): number {
   return Math.max(0, draft.trimEnd - draft.trimStart) / draft.speed;
 }
@@ -251,16 +265,6 @@ export function cropToPixels(crop: CropRect, source: Size): CropRect {
     width: evenTrunc(source.width * crop.width),
     height: evenTrunc(source.height * crop.height),
   };
-}
-
-export function cropFromPixels(pixels: CropRect, source: Size): CropRect {
-  if (source.width <= 0 || source.height <= 0) return IDENTITY_CROP;
-  return clampCrop({
-    x: pixels.x / source.width,
-    y: pixels.y / source.height,
-    width: pixels.width / source.width,
-    height: pixels.height / source.height,
-  });
 }
 
 export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoEditSpec {
@@ -289,6 +293,40 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
 
 function toCropRect(crop: VideoCropRect): CropRect {
   return { x: crop.x, y: crop.y, width: crop.width, height: crop.height };
+}
+
+function sameNumber(a: number, b: number): boolean {
+  return Math.abs(a - b) < IDENTITY_EPSILON;
+}
+
+function sameCrop(a: VideoCropRect | null, b: VideoCropRect | null): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    sameNumber(a.x, b.x) &&
+    sameNumber(a.y, b.y) &&
+    sameNumber(a.width, b.width) &&
+    sameNumber(a.height, b.height)
+  );
+}
+
+/**
+ * Whether two specs would render the same file.
+ *
+ * Compared as specs rather than as drafts because `toVideoEditSpec` has already
+ * normalized the two ways of saying "no change" - a trim that reaches the end, and a
+ * crop that is the whole frame - so this cannot report a difference the backend would
+ * not see.
+ */
+export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
+  return (
+    sameNumber(a.trim_start, b.trim_start) &&
+    (a.trim_end == null || b.trim_end == null
+      ? a.trim_end == b.trim_end
+      : sameNumber(a.trim_end, b.trim_end)) &&
+    sameCrop(a.crop ?? null, b.crop ?? null) &&
+    sameNumber(a.speed, b.speed) &&
+    sameNumber(a.scale, b.scale)
+  );
 }
 
 export function formatSpeed(speed: number): string {

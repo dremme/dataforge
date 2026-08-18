@@ -12,14 +12,14 @@ function renderTimeline(overrides: Partial<Props> = {}) {
     trimEnd: 8,
     playheadTime: 3,
     playing: false,
+    muted: true,
     ready: true,
     disabled: false,
     onTrimStartChange: vi.fn(),
     onTrimEndChange: vi.fn(),
     onSeek: vi.fn(),
     onTogglePlay: vi.fn(),
-    onSetStartAtPlayhead: vi.fn(),
-    onSetEndAtPlayhead: vi.fn(),
+    onToggleMuted: vi.fn(),
     ...overrides,
   };
 
@@ -38,6 +38,17 @@ describe("VideoEditTimeline", () => {
     expect(startHandle()).toHaveAttribute("aria-valuetext", "0:02.000");
     expect(endHandle()).toHaveAttribute("aria-valuenow", "8");
     expect(endHandle()).toHaveAttribute("aria-valuemax", "12");
+  });
+
+  it("takes focus on pointerdown, which the drag guard would otherwise suppress", () => {
+    // Focus is what exempts the handle from the modal's next/prev arrows. Without it a
+    // nudge moves to the next gallery item instead of the trim point.
+    renderTimeline();
+    Element.prototype.setPointerCapture = vi.fn();
+
+    fireEvent.pointerDown(startHandle(), { pointerId: 1, clientX: 100 });
+
+    expect(startHandle()).toHaveFocus();
   });
 
   it("steps one frame per arrow press", () => {
@@ -74,16 +85,6 @@ describe("VideoEditTimeline", () => {
     expect(props.onTrimStartChange).not.toHaveBeenCalled();
   });
 
-  it("takes the in and out points from the playhead", () => {
-    const props = renderTimeline();
-
-    fireEvent.click(screen.getByRole("button", { name: "Set in" }));
-    fireEvent.click(screen.getByRole("button", { name: "Set out" }));
-
-    expect(props.onSetStartAtPlayhead).toHaveBeenCalled();
-    expect(props.onSetEndAtPlayhead).toHaveBeenCalled();
-  });
-
   it("shows the transport as play or pause", () => {
     renderTimeline({ playing: true });
 
@@ -100,12 +101,41 @@ describe("VideoEditTimeline", () => {
     });
   });
 
+  it("offers the audio the native controls no longer provide here", () => {
+    const props = renderTimeline({ muted: true });
+
+    const button = screen.getByRole("button", { name: "Unmute preview" });
+    fireEvent.click(button);
+
+    expect(props.onToggleMuted).toHaveBeenCalled();
+  });
+
+  it("says what the next press will do", () => {
+    renderTimeline({ muted: false });
+
+    expect(screen.getByRole("button", { name: "Mute preview" })).toBeInTheDocument();
+  });
+
+  it("keeps audio reachable even while everything else is locked", () => {
+    // Hearing the clip is not an edit, so a render in flight is no reason to take it away.
+    renderTimeline({ ready: false, disabled: true });
+
+    expect(screen.getByRole("button", { name: "Unmute preview" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Play preview" })).toBeDisabled();
+  });
+
+  it("shows the kept span against the source length", () => {
+    renderTimeline();
+
+    expect(screen.getByText("0:02.000 - 0:08.000")).toBeInTheDocument();
+    expect(screen.getByText("of 0:12.000")).toBeInTheDocument();
+  });
+
   it("locks every control while the source is still loading", () => {
     renderTimeline({ ready: false });
 
     expect(startHandle()).toBeDisabled();
     expect(endHandle()).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Set in" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Play preview" })).toBeDisabled();
   });
 

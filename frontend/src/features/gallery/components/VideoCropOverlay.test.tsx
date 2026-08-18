@@ -5,14 +5,26 @@ import { VideoCropOverlay } from "./VideoCropOverlay";
 import { IDENTITY_CROP, type CropRect } from "@/features/gallery/lib/videoEdit";
 
 const SOURCE = { width: 1920, height: 1080 };
-/** The painted box: jsdom has no layout, so the element reports what a test needs. */
+/** The painted box: jsdom has no layout, so the elements report what a test needs. */
 const BOX = { width: 800, height: 450 };
+/** Where the video sits inside the stage, which pads it in and centres it. */
+const VIDEO_OFFSET = { left: 60, top: 20 };
 
 function videoRefWithBox() {
+  // jsdom lays nothing out, so the video is told where it sits and how big it is.
+  const host = document.createElement("div");
   const video = document.createElement("video");
-  Object.defineProperty(video, "clientWidth", { value: BOX.width, configurable: true });
-  Object.defineProperty(video, "clientHeight", { value: BOX.height, configurable: true });
-  document.body.appendChild(video);
+  host.appendChild(video);
+  document.body.appendChild(host);
+
+  const define = (key: string, value: unknown) =>
+    Object.defineProperty(video, key, { value, configurable: true });
+
+  define("offsetParent", host);
+  define("offsetLeft", VIDEO_OFFSET.left);
+  define("offsetTop", VIDEO_OFFSET.top);
+  define("offsetWidth", BOX.width);
+  define("offsetHeight", BOX.height);
 
   const ref = createRef<HTMLVideoElement>();
   (ref as { current: HTMLVideoElement }).current = video;
@@ -77,6 +89,45 @@ describe("VideoCropOverlay", () => {
     renderOverlay({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } });
 
     expect(screen.getByText("960 x 540")).toBeInTheDocument();
+  });
+
+  it("sits over the painted frame, not over the box it is positioned in", () => {
+    // It is absolutely positioned against the stage, which pads the video in and
+    // centres it. Measuring only inside the element put the whole rect up and to the
+    // left by exactly that padding. Layout offsets are used rather than a client rect
+    // so an ancestor transform - the modal's own entrance animation carries one -
+    // cannot scale the result a second time on the way into `left` and `width`.
+    renderOverlay();
+
+    const overlay = screen.getByRole("group", { name: "Crop region" });
+    expect(overlay).toHaveStyle({
+      left: `${VIDEO_OFFSET.left}px`,
+      top: `${VIDEO_OFFSET.top}px`,
+      width: `${BOX.width}px`,
+      height: `${BOX.height}px`,
+    });
+  });
+
+  it("adds the letterbox bars to that offset", () => {
+    // A 1:1 source in a 16:9 element paints a 450-wide column, centred.
+    renderOverlay({ sourceWidth: 1080, sourceHeight: 1080 });
+
+    const overlay = screen.getByRole("group", { name: "Crop region" });
+    expect(overlay).toHaveStyle({
+      left: `${VIDEO_OFFSET.left + (BOX.width - BOX.height) / 2}px`,
+      top: `${VIDEO_OFFSET.top}px`,
+      width: `${BOX.height}px`,
+    });
+  });
+
+  it("takes focus on pointerdown, which the drag guard would otherwise suppress", () => {
+    // Unfocused, the arrow keys fall through to the modal and navigate the gallery.
+    renderOverlay();
+    const handle = screen.getByRole("button", { name: "Crop bottom-right corner" });
+
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 100, clientY: 100 });
+
+    expect(handle).toHaveFocus();
   });
 
   it("turns a corner drag into a fraction of the painted frame", () => {

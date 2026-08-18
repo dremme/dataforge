@@ -31,6 +31,8 @@ const HANDLE_LABELS: Record<CropHandle, string> = {
   w: "Crop left edge",
 };
 
+const EMPTY_BOX = { left: 0, top: 0, width: 0, height: 0 };
+
 interface VideoCropOverlayProps {
   /** The element the frame is painted into, so the overlay can find the picture in it. */
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -59,7 +61,7 @@ export function VideoCropOverlay({
   disabled,
   onCropChange,
 }: VideoCropOverlayProps) {
-  const [box, setBox] = useState({ left: 0, top: 0, width: 0, height: 0 });
+  const [box, setBox] = useState(EMPTY_BOX);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
 
   // The painted box moves with the window, the panel and the video's own metadata, so it
@@ -69,12 +71,43 @@ export function VideoCropOverlay({
     if (!video) return;
 
     const measure = () => {
-      setBox(containedVideoBox(video.clientWidth, video.clientHeight, sourceWidth, sourceHeight));
+      // `containedVideoBox` answers in the video element's own coordinates, but this
+      // overlay is absolutely positioned against the stage, which pads the video in and
+      // centres it. Without the element's own offset inside that box the whole rectangle
+      // lands up and to the left by exactly the padding.
+      //
+      // Layout offsets rather than `getBoundingClientRect`, for two reasons: `offsetLeft`
+      // is already measured from `offsetParent`'s padding box, which is the very box an
+      // absolutely positioned sibling is placed against, and offsets are untransformed.
+      // A rect is not - it comes back scaled by any ancestor transform, and writing that
+      // straight into `left`/`width` would scale it a second time. The modal panel really
+      // does carry one while its entrance animation runs.
+      if (!video.offsetParent) {
+        setBox(EMPTY_BOX);
+        return;
+      }
+
+      const painted = containedVideoBox(
+        video.offsetWidth,
+        video.offsetHeight,
+        sourceWidth,
+        sourceHeight,
+      );
+
+      setBox({
+        left: video.offsetLeft + painted.left,
+        top: video.offsetTop + painted.top,
+        width: painted.width,
+        height: painted.height,
+      });
     };
 
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(video);
+    // The host too: a stage that grows taller re-centres a video already clamped by
+    // `max-height`, moving it without ever resizing it.
+    observer.observe(video.offsetParent ?? video);
     return () => observer.disconnect();
   }, [sourceHeight, sourceWidth, videoRef]);
 
@@ -96,8 +129,12 @@ export function VideoCropOverlay({
   const startDrag = useCallback(
     (event: PointerEvent<HTMLElement>) => {
       if (disabled) return;
+      // `preventDefault` suppresses the click's own focus along with the drag-select it
+      // is there to stop, so focus is taken by hand: a handle only answers the arrow
+      // keys once it holds it, and unfocused arrows navigate the gallery instead.
       event.preventDefault();
       event.stopPropagation();
+      event.currentTarget.focus();
       event.currentTarget.setPointerCapture(event.pointerId);
       dragRef.current = { x: event.clientX, y: event.clientY };
     },

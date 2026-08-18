@@ -1,5 +1,5 @@
 import { useCallback, useRef, type CSSProperties, type PointerEvent } from "react";
-import { iconPause, iconPlay } from "@/shared/icons";
+import { iconPause, iconPlay, iconVolume2, iconVolumeX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
 
@@ -14,18 +14,19 @@ interface VideoEditTimelineProps {
   trimEnd: number;
   playheadTime: number;
   playing: boolean;
+  muted: boolean;
   ready: boolean;
   disabled: boolean;
   onTrimStartChange: (seconds: number) => void;
   onTrimEndChange: (seconds: number) => void;
   onSeek: (seconds: number) => void;
   onTogglePlay: () => void;
-  onSetStartAtPlayhead: () => void;
-  onSetEndAtPlayhead: () => void;
+  onToggleMuted: () => void;
 }
 
 /**
- * The in/out band over the source's full length.
+ * The kept span over the source's full length, and the only control that is on screen
+ * whichever tool is selected.
  *
  * A custom track rather than two overlaid range inputs: overlaid thumbs need
  * pointer-events gymnastics to decide which one a click belongs to, cannot paint a
@@ -38,14 +39,14 @@ export function VideoEditTimeline({
   trimEnd,
   playheadTime,
   playing,
+  muted,
   ready,
   disabled,
   onTrimStartChange,
   onTrimEndChange,
   onSeek,
   onTogglePlay,
-  onSetStartAtPlayhead,
-  onSetEndAtPlayhead,
+  onToggleMuted,
 }: VideoEditTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const locked = !ready || disabled;
@@ -66,7 +67,12 @@ export function VideoEditTimeline({
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
       if (locked) return;
+      // `preventDefault` stops the text selection a drag would otherwise start, and with
+      // it the click's own focus. Focus has to land on the handle for the arrow keys to
+      // reach it at all: `isEditableTarget` exempts a focused `role="slider"` from the
+      // modal's next/prev arrows, and without focus they navigate the gallery instead.
       event.preventDefault();
+      event.currentTarget.focus();
       event.currentTarget.setPointerCapture(event.pointerId);
     },
     [locked],
@@ -129,6 +135,17 @@ export function VideoEditTimeline({
         <Icon icon={playing ? iconPause : iconPlay} />
       </button>
 
+      {/* Not tied to `locked`: hearing the clip is not an edit, so there is no reason to
+          take it away while a render is running or the source is still loading. */}
+      <button
+        type="button"
+        className="video-edit-timeline__mute"
+        onClick={onToggleMuted}
+        aria-label={muted ? "Unmute preview" : "Mute preview"}
+      >
+        <Icon icon={muted ? iconVolumeX : iconVolume2} />
+      </button>
+
       <div
         ref={trackRef}
         className="video-edit-timeline__track"
@@ -143,6 +160,10 @@ export function VideoEditTimeline({
         role="group"
         aria-label="Trim range"
       >
+        {/* Dimming what is dropped rather than tinting what is kept: the cut is the
+            thing being decided, and it reads at a glance without a legend. */}
+        <div className="video-edit-timeline__dropped video-edit-timeline__dropped--head" />
+        <div className="video-edit-timeline__dropped video-edit-timeline__dropped--tail" />
         <div className="video-edit-timeline__selection" />
         <div className="video-edit-timeline__playhead" />
         <button
@@ -175,20 +196,11 @@ export function VideoEditTimeline({
         />
       </div>
 
-      <div className="video-edit-timeline__set">
-        <button type="button" onClick={onSetStartAtPlayhead} disabled={locked}>
-          Set in
-        </button>
-        <button type="button" onClick={onSetEndAtPlayhead} disabled={locked}>
-          Set out
-        </button>
-      </div>
-
       <span className="video-edit-timeline__times">
-        <span className="video-edit-timeline__time-current">{formatFrameTime(trimStart)}</span>
-        <span className="video-edit-timeline__time-divider">-</span>
-        <span className="video-edit-timeline__time-current">{formatFrameTime(trimEnd)}</span>
-        <span className="video-edit-timeline__time-total">
+        <span className="video-edit-timeline__span">
+          {formatFrameTime(trimStart)} - {formatFrameTime(trimEnd)}
+        </span>
+        <span className="video-edit-timeline__total">
           of {ready ? formatFrameTime(duration) : "--"}
         </span>
       </span>

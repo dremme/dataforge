@@ -1,22 +1,30 @@
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   CROP_ASPECTS,
-  IDENTITY_CROP,
   SCALE_PRESETS,
   SPEED_PRESETS,
-  cropFromPixels,
-  cropToPixels,
   formatScale,
   formatSpeed,
+  isIdentityCrop,
+  scaleForTargetHeight,
   scaleForTargetWidth,
-  type CropRect,
 } from "@/features/gallery/lib/videoEdit";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import { iconCrop, iconGauge, iconMaximize2, iconScissors, iconUndo2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { VideoEditTimeline } from "./VideoEditTimeline";
+import type { AppIcon } from "@/shared/icons";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
+
+type ToolId = "trim" | "crop" | "speed" | "size";
+
+const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
+  { id: "trim", label: "Trim", icon: iconScissors },
+  { id: "crop", label: "Crop", icon: iconCrop },
+  { id: "speed", label: "Speed", icon: iconGauge },
+  { id: "size", label: "Size", icon: iconMaximize2 },
+];
 
 interface VideoEditPanelProps {
   edit: VideoEdit;
@@ -27,6 +35,16 @@ interface VideoEditPanelProps {
   onRevertRequested: () => void;
 }
 
+/**
+ * The editing surface: one always-present timeline, one tool at a time.
+ *
+ * Every control used to be on screen at once, which put roughly two dozen targets in a
+ * strip and left the timeline - the only one that matters continuously - competing with
+ * the rest for width. Tools are exclusive instead, and each one carries a dot when its
+ * value is no longer the default, so collapsing them costs nothing you could previously
+ * see at a glance. The output readout stays put for the same reason: it is the answer to
+ * "what will I get", and it must not move when the tool does.
+ */
 export function VideoEditPanel({
   edit,
   busy,
@@ -34,19 +52,25 @@ export function VideoEditPanel({
   onAspectChange,
   onRevertRequested,
 }: VideoEditPanelProps) {
+  const [activeTool, setActiveTool] = useState<ToolId>("trim");
+
   const locked = !edit.ready || busy || edit.applying;
   const source = useMemo(
     () => ({ width: edit.sourceWidth, height: edit.sourceHeight }),
     [edit.sourceHeight, edit.sourceWidth],
   );
-  const pixels = useMemo(() => cropToPixels(edit.draft.crop, source), [edit.draft.crop, source]);
-
-  const setCropPixel = (field: keyof CropRect, value: number) => {
-    edit.setCrop(cropFromPixels({ ...pixels, [field]: value }, source));
+  const modified: Record<ToolId, boolean> = {
+    trim: edit.draft.trimStart > 0 || (edit.ready && edit.draft.trimEnd < edit.duration),
+    crop: !isIdentityCrop(edit.draft.crop),
+    speed: edit.draft.speed !== 1,
+    size: edit.draft.scale !== 1,
   };
 
-  const setTargetWidth = (width: number) => {
-    edit.setScale(scaleForTargetWidth(source, edit.draft.crop, width));
+  const selectTool = (tool: ToolId) => {
+    setActiveTool(tool);
+    // Selecting the crop tool is what brings the handles out, the way picking a tool
+    // reveals its gizmo anywhere else. It replaces a button that did nothing but that.
+    edit.setCropActive(tool === "crop");
   };
 
   return (
@@ -57,156 +81,178 @@ export function VideoEditPanel({
         trimEnd={edit.draft.trimEnd}
         playheadTime={edit.playheadTime}
         playing={edit.playing}
+        muted={edit.muted}
         ready={edit.ready}
         disabled={busy || edit.applying}
         onTrimStartChange={edit.setTrimStart}
         onTrimEndChange={edit.setTrimEnd}
         onSeek={edit.seekTo}
         onTogglePlay={edit.togglePlay}
-        onSetStartAtPlayhead={edit.setTrimStartAtPlayhead}
-        onSetEndAtPlayhead={edit.setTrimEndAtPlayhead}
+        onToggleMuted={edit.toggleMuted}
       />
 
-      <div className="video-edit-panel__controls">
-        <div className="video-edit-panel__group">
-          <span className="video-edit-panel__group-label">
-            <Icon icon={iconGauge} />
-            Speed
-          </span>
-          <div className="video-edit-panel__presets">
-            {SPEED_PRESETS.map((speed) => (
-              <button
-                key={speed}
-                type="button"
-                className={classNames(
-                  "video-edit-panel__preset",
-                  edit.draft.speed === speed && "video-edit-panel__preset--active",
-                )}
-                aria-pressed={edit.draft.speed === speed}
-                disabled={locked}
-                onClick={() => edit.setSpeed(speed)}
-              >
-                {formatSpeed(speed)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="video-edit-panel__group">
-          <span className="video-edit-panel__group-label">
-            <Icon icon={iconMaximize2} />
-            Size
-          </span>
-          <div className="video-edit-panel__presets">
-            {SCALE_PRESETS.map((scale) => (
-              <button
-                key={scale}
-                type="button"
-                className={classNames(
-                  "video-edit-panel__preset",
-                  edit.draft.scale === scale && "video-edit-panel__preset--active",
-                )}
-                aria-pressed={edit.draft.scale === scale}
-                disabled={locked}
-                onClick={() => edit.setScale(scale)}
-              >
-                {formatScale(scale)}
-              </button>
-            ))}
-          </div>
-          <label className="video-edit-panel__field">
-            <span>Width</span>
-            <input
-              type="number"
-              min={2}
-              step={2}
-              value={edit.outputWidth}
-              disabled={locked}
-              onChange={(event) => setTargetWidth(Number(event.target.value))}
-            />
-          </label>
-        </div>
-
-        <div className="video-edit-panel__group video-edit-panel__group--crop">
-          <span className="video-edit-panel__group-label">
-            <Icon icon={iconCrop} />
-            Crop
-          </span>
-          <div className="video-edit-panel__presets">
-            {CROP_ASPECTS.map((aspect) => (
-              <button
-                key={aspect.id}
-                type="button"
-                className={classNames(
-                  "video-edit-panel__preset",
-                  aspectId === aspect.id && "video-edit-panel__preset--active",
-                )}
-                aria-pressed={aspectId === aspect.id}
-                disabled={locked}
-                onClick={() => onAspectChange(aspect.id)}
-              >
-                {aspect.label}
-              </button>
-            ))}
+      <div className="video-edit-panel__bar">
+        {/* Toggle buttons rather than a tablist or a radio group: both of those promise
+            arrow-key navigation, and arrows already belong to the trim handles and to
+            gallery navigation in this modal. */}
+        <div className="video-edit-panel__tools" role="group" aria-label="Editing tool">
+          {TOOLS.map((tool) => (
             <button
+              key={tool.id}
               type="button"
               className={classNames(
-                "video-edit-panel__preset",
-                edit.cropActive && "video-edit-panel__preset--active",
+                "video-edit-panel__tool",
+                activeTool === tool.id && "video-edit-panel__tool--active",
+                modified[tool.id] && "video-edit-panel__tool--modified",
               )}
-              aria-pressed={edit.cropActive}
+              aria-pressed={activeTool === tool.id}
+              aria-label={modified[tool.id] ? `${tool.label}, changed` : tool.label}
               disabled={locked}
-              onClick={() => edit.setCropActive(!edit.cropActive)}
+              onClick={() => selectTool(tool.id)}
             >
-              {edit.cropActive ? "Hide handles" : "Show handles"}
+              <Icon icon={tool.icon} />
+              {tool.label}
             </button>
-          </div>
-          <div className="video-edit-panel__fields">
-            {(["x", "y", "width", "height"] as const).map((field) => (
-              <label key={field} className="video-edit-panel__field">
-                <span>
-                  {field === "width" ? "W" : field === "height" ? "H" : field.toUpperCase()}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  step={2}
-                  value={pixels[field]}
-                  disabled={locked}
-                  onChange={(event) => setCropPixel(field, Number(event.target.value))}
-                />
-              </label>
-            ))}
-            <button
-              type="button"
-              className="video-edit-panel__reset-crop"
-              disabled={locked}
-              onClick={() => {
-                onAspectChange("free");
-                edit.setCrop(IDENTITY_CROP);
-              }}
-            >
-              Reset crop
-            </button>
-          </div>
+          ))}
         </div>
-      </div>
 
-      <div className="video-edit-panel__actions">
-        <p className="video-edit-panel__summary">
+        <p className="video-edit-panel__output">
           {edit.ready ? (
             <>
-              {edit.sourceWidth} x {edit.sourceHeight} to {edit.outputWidth} x {edit.outputHeight}
-              {" · "}
-              {formatFrameTime(edit.duration)} to {formatFrameTime(edit.outputSeconds)}
+              <span className="video-edit-panel__output-part">
+                {edit.sourceWidth} x {edit.sourceHeight}
+                <span className="video-edit-panel__output-arrow"> to </span>
+                <strong>
+                  {edit.outputWidth} x {edit.outputHeight}
+                </strong>
+              </span>
+              <span className="video-edit-panel__output-part">
+                {formatFrameTime(edit.duration)}
+                <span className="video-edit-panel__output-arrow"> to </span>
+                <strong>{formatFrameTime(edit.outputSeconds)}</strong>
+              </span>
             </>
           ) : (
-            "The timeline loads with the video."
+            <span className="video-edit-panel__output-part">
+              The timeline loads with the video.
+            </span>
           )}
         </p>
+      </div>
+
+      <div className="video-edit-panel__bar video-edit-panel__bar--tool">
+        <div className="video-edit-panel__tool-controls">
+          {activeTool === "trim" && (
+            <>
+              <button
+                type="button"
+                className="video-edit-panel__control"
+                disabled={locked}
+                onClick={edit.setTrimStartAtPlayhead}
+              >
+                Set in
+              </button>
+              <button
+                type="button"
+                className="video-edit-panel__control"
+                disabled={locked}
+                onClick={edit.setTrimEndAtPlayhead}
+              >
+                Set out
+              </button>
+              <span className="video-edit-panel__hint">
+                Both follow the playhead. Drag a handle, or nudge it with the arrow keys.
+              </span>
+            </>
+          )}
+
+          {activeTool === "crop" && (
+            <>
+              <ToolPresets label="Aspect">
+                {CROP_ASPECTS.map((aspect) => (
+                  <PresetButton
+                    key={aspect.id}
+                    active={aspectId === aspect.id}
+                    disabled={locked}
+                    onClick={() => onAspectChange(aspect.id)}
+                  >
+                    {aspect.label}
+                  </PresetButton>
+                ))}
+              </ToolPresets>
+              <span className="video-edit-panel__hint">Or drag the rectangles on the frame.</span>
+            </>
+          )}
+
+          {activeTool === "speed" && (
+            <ToolPresets label="Playback">
+              {SPEED_PRESETS.map((speed) => (
+                <PresetButton
+                  key={speed}
+                  active={edit.draft.speed === speed}
+                  disabled={locked}
+                  onClick={() => edit.setSpeed(speed)}
+                >
+                  {formatSpeed(speed)}
+                </PresetButton>
+              ))}
+            </ToolPresets>
+          )}
+
+          {activeTool === "size" && (
+            <>
+              <ToolPresets label="Scale">
+                {SCALE_PRESETS.map((scale) => (
+                  <PresetButton
+                    key={scale}
+                    active={edit.draft.scale === scale}
+                    disabled={locked}
+                    onClick={() => edit.setScale(scale)}
+                  >
+                    {formatScale(scale)}
+                  </PresetButton>
+                ))}
+              </ToolPresets>
+              {/* Both write the one `scale` the spec carries, so setting either moves the
+                  other with it and the output never leaves the source's aspect. */}
+              <div className="video-edit-panel__fields">
+                <label className="video-edit-panel__field">
+                  <span>W</span>
+                  <input
+                    type="number"
+                    min={2}
+                    step={2}
+                    value={edit.outputWidth}
+                    disabled={locked}
+                    onChange={(event) =>
+                      edit.setScale(
+                        scaleForTargetWidth(source, edit.draft.crop, Number(event.target.value)),
+                      )
+                    }
+                  />
+                </label>
+                <label className="video-edit-panel__field">
+                  <span>H</span>
+                  <input
+                    type="number"
+                    min={2}
+                    step={2}
+                    value={edit.outputHeight}
+                    disabled={locked}
+                    onChange={(event) =>
+                      edit.setScale(
+                        scaleForTargetHeight(source, edit.draft.crop, Number(event.target.value)),
+                      )
+                    }
+                  />
+                </label>
+              </div>
+            </>
+          )}
+        </div>
 
         {edit.applying ? (
-          <div className="video-edit-panel__progress-row">
+          <div className="video-edit-panel__actions">
             <div
               className="video-edit-panel__progress"
               style={{ "--edit-progress": `${(edit.progress ?? 0) * 100}%` } as CSSProperties}
@@ -223,24 +269,16 @@ export function VideoEditPanel({
                 )}
               />
             </div>
-            <button type="button" className="video-edit-panel__action" onClick={edit.cancel}>
+            <button type="button" className="video-edit-panel__control" onClick={edit.cancel}>
               Cancel
             </button>
           </div>
         ) : (
-          <div className="video-edit-panel__buttons">
-            <button
-              type="button"
-              className="video-edit-panel__action"
-              disabled={locked || !edit.dirty}
-              onClick={edit.resetDraft}
-            >
-              Reset
-            </button>
+          <div className="video-edit-panel__actions">
             {edit.hasBackup && (
               <button
                 type="button"
-                className="video-edit-panel__action video-edit-panel__action--revert"
+                className="video-edit-panel__control video-edit-panel__control--revert"
                 disabled={locked}
                 onClick={onRevertRequested}
               >
@@ -250,16 +288,58 @@ export function VideoEditPanel({
             )}
             <button
               type="button"
-              className="video-edit-panel__action video-edit-panel__action--apply"
+              className="video-edit-panel__control"
+              disabled={locked || !edit.dirty}
+              onClick={edit.resetDraft}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className="video-edit-panel__apply"
               disabled={locked || !edit.dirty}
               onClick={edit.apply}
             >
-              <Icon icon={iconScissors} />
               Apply
             </button>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function ToolPresets({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="video-edit-panel__presets" role="group" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
+function PresetButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={classNames(
+        "video-edit-panel__preset",
+        active && "video-edit-panel__preset--active",
+      )}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }

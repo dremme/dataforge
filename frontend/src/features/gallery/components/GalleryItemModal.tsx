@@ -305,8 +305,13 @@ export function GalleryItemModal({
   const selectCropAspect = useCallback(
     (aspectId: string) => {
       setCropAspectId(aspectId);
+
+      // Free only releases the lock: the rectangle the user has already shaped is theirs
+      // to keep, and reshaping it to nothing in particular would be a strange thing to do
+      // to it.
       const ratio = CROP_ASPECTS.find((aspect) => aspect.id === aspectId)?.ratio ?? null;
       if (ratio === null) return;
+
       // Picking a shape is asking to frame with it, so the handles come out with it.
       videoEdit.setCropActive(true);
       // Expressed in frame fractions, so the source's own aspect divides out first.
@@ -686,83 +691,88 @@ export function GalleryItemModal({
           />
         )}
 
-        <footer className="gallery-item-modal__footer">
-          <GalleryItemModalMeta
-            item={item}
-            resolution={resolution}
-            hasComfyWorkflow={hasComfyWorkflow}
-            captionCharacterCount={captionCharacterCount}
-          />
-
-          <div className="gallery-item-modal__caption-editor">
-            <div className="gallery-item-modal__caption-toolbar">
-              <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
-                Caption
-              </label>
-              <div className="gallery-item-modal__caption-actions">
-                {canResolveIssue && (
-                  <button
-                    type="button"
-                    className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
-                    onClick={handleResolveIssue}
-                    disabled={busy}
-                    aria-label={`Resolve caption issue for ${item.name}`}
-                  >
-                    <Icon
-                      icon={iconMessageCheck}
-                      className="gallery-item-modal__caption-action-icon"
-                    />
-                    Resolve issue
-                  </button>
-                )}
-                {hasJsonCaption && (
-                  <button
-                    type="button"
-                    className="gallery-item-modal__caption-action"
-                    onClick={openJsonEditor}
-                    disabled={!canEditJson}
-                    aria-label="Edit JSON caption"
-                  >
-                    <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
-                    Edit JSON
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={classNames(
-                    "gallery-item-modal__caption-action",
-                    copyState === "copied" && "gallery-item-modal__caption-action--copied",
-                    copyState === "error" && "gallery-item-modal__caption-action--error",
-                  )}
-                  onClick={() => {
-                    void copyText(copyContent);
-                  }}
-                  disabled={!canCopyCaption}
-                  aria-label={copyLabel}
-                >
-                  <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
-                  {copyLabel}
-                </button>
-              </div>
-            </div>
-            <CaptionEditor
-              // A fresh editor per item: CodeMirror maps its selection through the
-              // document swap, so a reused one lands selected on the next caption.
-              key={item.path}
-              id="gallery-item-caption"
-              value={caption}
-              placeholder={placeholder}
-              variant={captionDisplay.variant}
-              saveState={saveState}
-              searchQuery={searchQuery}
-              searchRegex={searchRegex}
-              aria-label={`Caption for ${item.name}`}
-              aria-invalid={saveState === "error"}
-              title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
-              onChange={handleCaptionChange}
+        {/* Hidden while editing rather than merely ignored: the caption and the meta
+            strip have nothing to do with a cut, and the height they give back goes to
+            the stage, where a larger frame is worth more than either of them. */}
+        {!editMode && (
+          <footer className="gallery-item-modal__footer">
+            <GalleryItemModalMeta
+              item={item}
+              resolution={resolution}
+              hasComfyWorkflow={hasComfyWorkflow}
+              captionCharacterCount={captionCharacterCount}
             />
-          </div>
-        </footer>
+
+            <div className="gallery-item-modal__caption-editor">
+              <div className="gallery-item-modal__caption-toolbar">
+                <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
+                  Caption
+                </label>
+                <div className="gallery-item-modal__caption-actions">
+                  {canResolveIssue && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
+                      onClick={handleResolveIssue}
+                      disabled={busy}
+                      aria-label={`Resolve caption issue for ${item.name}`}
+                    >
+                      <Icon
+                        icon={iconMessageCheck}
+                        className="gallery-item-modal__caption-action-icon"
+                      />
+                      Resolve issue
+                    </button>
+                  )}
+                  {hasJsonCaption && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action"
+                      onClick={openJsonEditor}
+                      disabled={!canEditJson}
+                      aria-label="Edit JSON caption"
+                    >
+                      <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
+                      Edit JSON
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={classNames(
+                      "gallery-item-modal__caption-action",
+                      copyState === "copied" && "gallery-item-modal__caption-action--copied",
+                      copyState === "error" && "gallery-item-modal__caption-action--error",
+                    )}
+                    onClick={() => {
+                      void copyText(copyContent);
+                    }}
+                    disabled={!canCopyCaption}
+                    aria-label={copyLabel}
+                  >
+                    <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
+                    {copyLabel}
+                  </button>
+                </div>
+              </div>
+              <CaptionEditor
+                // A fresh editor per item: CodeMirror maps its selection through the
+                // document swap, so a reused one lands selected on the next caption.
+                key={item.path}
+                id="gallery-item-caption"
+                value={caption}
+                placeholder={placeholder}
+                variant={captionDisplay.variant}
+                saveState={saveState}
+                searchQuery={searchQuery}
+                searchRegex={searchRegex}
+                aria-label={`Caption for ${item.name}`}
+                aria-invalid={saveState === "error"}
+                title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
+                onChange={handleCaptionChange}
+              />
+            </div>
+          </footer>
+        )}
       </ModalShell>
 
       {deleteConfirmOpen && (
