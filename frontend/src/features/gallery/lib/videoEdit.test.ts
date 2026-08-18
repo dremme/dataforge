@@ -3,6 +3,7 @@ import {
   IDENTITY_CROP,
   MIN_CROP_FRACTION,
   MIN_TRIM_SECONDS,
+  aspectIdForCrop,
   clampCrop,
   clampTrimEnd,
   clampTrimStart,
@@ -28,6 +29,7 @@ import {
 } from "./videoEdit";
 
 const HD = { width: 1920, height: 1080 };
+const ZERO_SIZE = { width: 0, height: 0 };
 
 function draft(overrides: Partial<VideoEditDraft> = {}): VideoEditDraft {
   return { ...emptyDraft(12), ...overrides };
@@ -211,6 +213,30 @@ describe("crop geometry", () => {
     const crop: CropRect = { x: 0.25, y: 0.5, width: 0.5, height: 0.25 };
 
     expect(cropToPixels(crop, HD)).toEqual({ x: 480, y: 540, width: 960, height: 270 });
+  });
+
+  describe("aspectIdForCrop", () => {
+    it.each([
+      ["a square", { x: 0.21875, y: 0, width: 0.5625, height: 1 }, "1:1"],
+      ["a portrait 9:16", { x: 0.32, y: 0, width: 0.31640625, height: 1 }, "9:16"],
+      ["a landscape 4:3", { x: 0.03, y: 0, width: 0.75, height: 1 }, "4:3"],
+    ])("names %s by the shape it already has", (_label, crop, expected) => {
+      expect(aspectIdForCrop(crop, HD)).toBe(expected);
+    });
+
+    it("reads a full frame as free rather than as its own aspect", () => {
+      // 1920x1080 is 16:9, and calling that a lock would put the overlay's handles under
+      // a constraint the user never asked for.
+      expect(aspectIdForCrop(IDENTITY_CROP, HD)).toBe("free");
+    });
+
+    it("reads a rectangle matching nothing on the list as free", () => {
+      expect(aspectIdForCrop({ x: 0, y: 0, width: 0.9, height: 0.4 }, HD)).toBe("free");
+    });
+
+    it("says free rather than dividing by a frame that has no size yet", () => {
+      expect(aspectIdForCrop({ x: 0, y: 0, width: 0.5, height: 0.5 }, ZERO_SIZE)).toBe("free");
+    });
   });
 });
 

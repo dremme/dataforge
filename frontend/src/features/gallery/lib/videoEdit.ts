@@ -26,6 +26,9 @@ export const CROP_NUDGE_MULTIPLIER = 5;
 const TRIM_END_EPSILON = 1e-3;
 const IDENTITY_EPSILON = 1e-9;
 
+/** How far a rectangle may sit from a listed shape and still count as that shape. */
+const ASPECT_TOLERANCE = 0.005;
+
 export interface CropRect {
   x: number;
   y: number;
@@ -188,6 +191,26 @@ export function resizeCrop(
   }
 
   return clampCrop({ x, y, width, height });
+}
+
+/**
+ * Which of `CROP_ASPECTS` a rectangle already has, or "free" when it has none of them.
+ *
+ * Seeding the panel from a stored spec has to restore the shape the crop was made with,
+ * not just its numbers: the rect would otherwise come back locked to nothing while
+ * sitting at a locked shape, and the first handle drag would quietly break the ratio.
+ * The tolerance covers the even-pixel rounding the render applies to the fractions.
+ */
+export function aspectIdForCrop(crop: CropRect, source: Size): string {
+  const width = source.width * crop.width;
+  const height = source.height * crop.height;
+  if (isIdentityCrop(crop) || !(width > 0) || !(height > 0)) return "free";
+
+  const ratio = width / height;
+  const match = CROP_ASPECTS.find(
+    (aspect) => aspect.ratio !== null && Math.abs(aspect.ratio - ratio) <= ASPECT_TOLERANCE * ratio,
+  );
+  return match?.id ?? "free";
 }
 
 /** A crop of ``ratio`` centred in the frame, as large as it will go. */

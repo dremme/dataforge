@@ -228,6 +228,150 @@ describe("GalleryItemModal", () => {
       expect(transport()).toHaveAccessibleName("Play preview");
     });
 
+    it("re-seeds from the item it navigated to, not the one it left", async () => {
+      // The spec is fetched in seconds and seeded against the duration the element
+      // reports, so the fetch has to wait for it. Firing on the item alone seeded a
+      // duration of NaN, which collapsed the timeline to 0:00-0:00 until a second,
+      // accidental fetch happened to correct it.
+      const user = userEvent.setup();
+      const items = [videoItem(), makeItem("second.mp4", { media_type: "video" })];
+      const props = {
+        items,
+        index: 0,
+        currentFolder: HOME_PATH,
+        onClose: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onCaptionSaved: vi.fn(),
+        onCopied: vi.fn(),
+      };
+      fetchStateMock.mockImplementation(async (mediaPath: string) => ({
+        path: mediaPath,
+        has_backup: mediaPath.endsWith("second.mp4"),
+        spec: mediaPath.endsWith("second.mp4")
+          ? { trim_start: 3, trim_end: 9, crop: null, speed: 2, scale: 1 }
+          : null,
+      }));
+
+      const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
+      const dialog = await openEditMode(user);
+      const trimStart = () => within(dialog).getByRole("slider", { name: "Trim start" });
+      const trimEnd = () => within(dialog).getByRole("slider", { name: "Trim end" });
+
+      await waitFor(() => expect(trimStart()).toHaveAttribute("aria-valuenow", "0"));
+
+      rerender(<GalleryItemModal {...props} index={1} />);
+      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+
+      await waitFor(() => expect(trimStart()).toHaveAttribute("aria-valuenow", "3"));
+      expect(trimEnd()).toHaveAttribute("aria-valuenow", "9");
+      expect(within(dialog).getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
+
+      // ...and back the other way: the second clip's values must not follow the first.
+      rerender(<GalleryItemModal {...props} index={0} />);
+      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+
+      await waitFor(() => expect(trimEnd()).toHaveAttribute("aria-valuenow", "12"));
+      expect(trimStart()).toHaveAttribute("aria-valuenow", "0");
+      expect(within(dialog).getByRole("button", { name: "Speed" })).toBeInTheDocument();
+    });
+
+    it("restores the shape a stored crop was framed with", async () => {
+      const user = userEvent.setup();
+      fetchStateMock.mockResolvedValue({
+        path: `${HOME_PATH}\\clip.mp4`,
+        has_backup: true,
+        spec: {
+          trim_start: 0,
+          trim_end: null,
+          // 1080 wide of a 1920x1080 frame: square.
+          crop: { x: 0.21875, y: 0, width: 0.5625, height: 1 },
+          speed: 1,
+          scale: 1,
+        },
+      });
+      renderModal(videoItem({ has_backup: true }));
+      const dialog = await openEditMode(user);
+
+      await user.click(within(dialog).getByRole("button", { name: /^Crop/ }));
+
+      await waitFor(() => {
+        expect(within(dialog).getByRole("button", { name: "1:1" })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+      });
+    });
+
+    it("forgets the shape when navigation lands on another video", async () => {
+      const user = userEvent.setup();
+      const items = [videoItem(), makeItem("second.mp4", { media_type: "video" })];
+      const props = {
+        items,
+        index: 0,
+        currentFolder: HOME_PATH,
+        onClose: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onCaptionSaved: vi.fn(),
+        onCopied: vi.fn(),
+      };
+      const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
+      const dialog = await openEditMode(user);
+
+      await user.click(within(dialog).getByRole("button", { name: /^Crop/ }));
+      await user.click(within(dialog).getByRole("button", { name: "1:1" }));
+      expect(within(dialog).getByRole("button", { name: "1:1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+
+      rerender(<GalleryItemModal {...props} index={1} />);
+      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+
+      // The crop tool is still the selected one, so the shapes are still on screen -
+      // reading "1:1" over a frame that is no longer cropped at all was the bug.
+      await waitFor(() => {
+        expect(within(dialog).getByRole("button", { name: "Free" })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+      });
+      expect(within(dialog).getByRole("button", { name: /^Crop/ })).toHaveAccessibleName("Crop");
+    });
+
+    it("puts the original back when every value is dialled to where it started", async () => {
+      // An edited clip has to be able to return to 1x. Comparing against an untouched
+      // source rather than against what is on disk left Apply permanently disabled for
+      // exactly that draft, with Revert the only way out.
+      const user = userEvent.setup();
+      fetchStateMock.mockResolvedValue({
+        path: `${HOME_PATH}\\clip.mp4`,
+        has_backup: true,
+        spec: { trim_start: 0, trim_end: null, crop: null, speed: 2, scale: 1 },
+      });
+      renderModal(videoItem({ has_backup: true }));
+      const dialog = await openEditMode(user);
+
+      await user.click(within(dialog).getByRole("button", { name: /^Speed/ }));
+      await waitFor(() => {
+        expect(within(dialog).getByRole("button", { name: "2x" })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+      });
+      expect(within(dialog).getByRole("button", { name: "Apply" })).toBeDisabled();
+
+      await user.click(within(dialog).getByRole("button", { name: "1x" }));
+
+      expect(within(dialog).getByRole("button", { name: "Apply" })).toBeEnabled();
+      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+
+      // Restored rather than re-encoded: the backup already holds exactly this file.
+      await waitFor(() => expect(revertMock).toHaveBeenCalledWith(`${HOME_PATH}\\clip.mp4`));
+      expect(applyMock).not.toHaveBeenCalled();
+    });
+
     it("can unmute the preview, which edit mode otherwise leaves no way to hear", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());

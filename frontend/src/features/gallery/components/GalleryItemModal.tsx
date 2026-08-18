@@ -65,7 +65,6 @@ import { VideoCropOverlay } from "./VideoCropOverlay";
 import { VideoEditPanel } from "./VideoEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
-import { CROP_ASPECTS, cropForAspect } from "@/features/gallery/lib/videoEdit";
 
 /** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
 const noop = () => {};
@@ -148,7 +147,6 @@ export function GalleryItemModal({
   // cannot serve a capture scrubber and an edit timeline at once. The draft resets
   // per item, but the mode itself survives navigation.
   const [editMode, setEditMode] = useState(false);
-  const [cropAspectId, setCropAspectId] = useState("free");
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -302,26 +300,6 @@ export function GalleryItemModal({
     videoEdit.toggleEditMode();
   }, [videoEdit]);
 
-  const selectCropAspect = useCallback(
-    (aspectId: string) => {
-      setCropAspectId(aspectId);
-
-      // Free only releases the lock: the rectangle the user has already shaped is theirs
-      // to keep, and reshaping it to nothing in particular would be a strange thing to do
-      // to it.
-      const ratio = CROP_ASPECTS.find((aspect) => aspect.id === aspectId)?.ratio ?? null;
-      if (ratio === null) return;
-
-      // Picking a shape is asking to frame with it, so the handles come out with it.
-      videoEdit.setCropActive(true);
-      // Expressed in frame fractions, so the source's own aspect divides out first.
-      const frame = videoEdit.sourceWidth / videoEdit.sourceHeight;
-      if (!Number.isFinite(frame) || frame <= 0) return;
-      videoEdit.setCrop(cropForAspect(ratio / frame));
-    },
-    [videoEdit],
-  );
-
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
   const closeModal = useCallback(() => {
@@ -421,7 +399,6 @@ export function GalleryItemModal({
   // not the save, so it must not gate the toggle the way `canTransfer` does.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
   const canEditVideo = isEditableVideo(item);
-  const cropAspectRatio = CROP_ASPECTS.find((aspect) => aspect.id === cropAspectId)?.ratio ?? null;
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
@@ -610,7 +587,7 @@ export function GalleryItemModal({
                   crop={videoEdit.draft.crop}
                   sourceWidth={videoEdit.sourceWidth}
                   sourceHeight={videoEdit.sourceHeight}
-                  aspectRatio={cropAspectRatio}
+                  aspectRatio={videoEdit.aspectRatio}
                   disabled={busy}
                   onCropChange={videoEdit.setCrop}
                 />
@@ -685,8 +662,6 @@ export function GalleryItemModal({
           <VideoEditPanel
             edit={videoEdit}
             busy={otherWorkBusy}
-            aspectId={cropAspectId}
-            onAspectChange={selectCropAspect}
             onRevertRequested={() => setRevertConfirmOpen(true)}
           />
         )}

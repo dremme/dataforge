@@ -48,9 +48,11 @@ AUDIO_COPY = ["-c:a", "copy"]
 FASTSTART = ["-movflags", "+faststart"]
 
 
-def command_for(spec: VideoEditSpec, *, muxer: str = "mp4") -> list[str]:
+def command_for(
+    spec: VideoEditSpec, *, muxer: str = "mp4", frame_rate: float | None = None
+) -> list[str]:
     return video_edit.build_video_edit_command(
-        SOURCE, DESTINATION, spec, executable="ffmpeg", muxer=muxer
+        SOURCE, DESTINATION, spec, executable="ffmpeg", muxer=muxer, frame_rate=frame_rate
     )
 
 
@@ -145,6 +147,36 @@ class BuildVideoEditCommandTests(unittest.TestCase):
     def test_an_identity_spec_carries_no_filters(self) -> None:
         self.assertNotIn("-vf", command_for(VideoEditSpec()))
         self.assertNotIn("-af", command_for(VideoEditSpec()))
+
+    def test_retiming_pins_the_rate_back_to_the_source(self) -> None:
+        """`setpts` keeps every frame and compresses the timestamps, so without this a
+        2x speedup emits double the source's rate - and a training set with two rates in
+        it is not one rate."""
+        command = command_for(VideoEditSpec(speed=2.0), frame_rate=24.0)
+
+        self.assertEqual(
+            command[command.index("-vf") + 1],
+            "setpts=PTS/2.000000,fps=24.000000",
+        )
+
+    def test_the_rate_is_pinned_after_the_retime_not_before(self) -> None:
+        # Ordered the other way it would resample the source and then retime the result,
+        # which changes the rate right back.
+        filters = command_for(VideoEditSpec(speed=0.5), frame_rate=30.0)
+        chain = filters[filters.index("-vf") + 1].split(",")
+
+        self.assertEqual([name.split("=")[0] for name in chain], ["setpts", "fps"])
+
+    def test_an_unreadable_rate_leaves_the_output_rate_to_ffmpeg(self) -> None:
+        command = command_for(VideoEditSpec(speed=2.0), frame_rate=None)
+
+        self.assertEqual(command[command.index("-vf") + 1], "setpts=PTS/2.000000")
+
+    def test_an_edit_that_does_not_retime_is_left_at_its_own_rate(self) -> None:
+        """Resampling a clip whose timing nothing touched would only cost it frames."""
+        command = command_for(VideoEditSpec(scale=0.5), frame_rate=24.0)
+
+        self.assertNotIn("fps=", command[command.index("-vf") + 1])
 
     def test_speeding_up_retimes_the_audio_too(self) -> None:
         command = command_for(VideoEditSpec(speed=2.0))
@@ -264,6 +296,59 @@ class SpecHelperTests(unittest.TestCase):
             video_edit.resolve_muxer(Path("clip.avi"))
 
 
+class SourceFrameRateTests(unittest.TestCase):
+    """The bounds around the probe. A fake capture keeps a real one - and the C++ level
+    warning an unreadable file draws out of OpenCV - away from the suite."""
+
+    #: The real cv2 value, so a capture handed the wrong one is still recognisable.
+    CAP_PROP_FPS = 5
+
+    def _fake_cv2(self, *, fps: float, opened: bool = True):
+        released: list[bool] = []
+
+        class FakeCapture:
+            def isOpened(inner) -> bool:  # mirrors the cv2 API
+                return opened
+
+            def get(inner, prop: int) -> float:
+                assert prop == SourceFrameRateTests.CAP_PROP_FPS
+                return fps
+
+            def release(inner) -> None:
+                released.append(True)
+
+        fake = type(
+            "cv2",
+            (),
+            {
+                "VideoCapture": staticmethod(lambda _path: FakeCapture()),
+                "CAP_PROP_FPS": self.CAP_PROP_FPS,
+            },
+        )
+        return fake, released
+
+    def _rate(self, **kwargs) -> tuple[float | None, list[bool]]:
+        fake, released = self._fake_cv2(**kwargs)
+        with patch.dict("sys.modules", {"cv2": fake}):
+            return video_edit.source_frame_rate(Path("clip.mp4")), released
+
+    def test_reports_a_plausible_rate(self) -> None:
+        self.assertEqual(self._rate(fps=23.976)[0], 23.976)
+
+    def test_releases_the_capture_even_when_it_never_opened(self) -> None:
+        # An unreleased capture holds the file on Windows, against the very replace
+        # this render is about to perform.
+        rate, released = self._rate(fps=24.0, opened=False)
+
+        self.assertIsNone(rate)
+        self.assertEqual(released, [True])
+
+    def test_rejects_a_rate_the_container_cannot_mean(self) -> None:
+        for fps in (0.0, -1.0, float("nan"), float("inf"), video_edit.MAX_PLAUSIBLE_FPS + 1):
+            with self.subTest(fps=fps):
+                self.assertIsNone(self._rate(fps=fps)[0])
+
+
 class EditSpecSidecarTests(unittest.TestCase):
     def test_a_written_spec_reads_back_unchanged(self) -> None:
         with TempMediaFolder() as root:
@@ -330,6 +415,13 @@ class EnsureBackupTests(unittest.TestCase):
 class ApplyVideoEditTests(unittest.TestCase):
     """The runner is replaced; what is checked is what it was asked to do."""
 
+    def setUp(self) -> None:
+        # The fixtures are header-only, so a real probe would both fail and log a C++
+        # level warning past the test output. What the probe answers is its own test.
+        patcher = patch("video_edit.source_frame_rate", return_value=24.0)
+        self.frame_rate = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _render(self, content: bytes = b"rendered"):
         def run(command, **_kwargs):
             Path(command[-1]).write_bytes(content)
@@ -356,6 +448,23 @@ class ApplyVideoEditTests(unittest.TestCase):
             self.assertEqual(media.read_bytes(), b"rendered")
             self.assertTrue(result.has_backup)
             self.assertEqual(result.path, str(media))
+
+    def test_the_rate_is_read_from_the_backup_the_render_reads(self) -> None:
+        # Not from the live file: an earlier edit may already have retimed that one.
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            captured: list[list[str]] = []
+
+            def run(command, **kwargs):
+                captured.append(command)
+                self._render()(command, **kwargs)
+
+            with patch("video_edit.run_ffmpeg", side_effect=run):
+                video_edit.apply_video_edit(media, VideoEditSpec(speed=2.0), ffmpeg="ffmpeg")
+
+            self.frame_rate.assert_called_once_with(root / "clip.mp4.bak")
+            command = captured[0]
+            self.assertIn("fps=24.000000", command[command.index("-vf") + 1])
 
     def test_a_second_edit_still_starts_from_the_untouched_original(self) -> None:
         """The whole of "changes are taken from the backup", as one assertion."""

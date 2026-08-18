@@ -19,6 +19,8 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     hasBackup: false,
     dirty: false,
     cropActive: false,
+    aspectId: "free",
+    aspectRatio: null,
     muted: true,
     playing: false,
     playheadTime: 0,
@@ -33,6 +35,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     setTrimEndAtPlayhead: vi.fn(),
     setCrop: vi.fn(),
     setCropActive: vi.fn(),
+    selectAspect: vi.fn(),
     toggleMuted: vi.fn(),
     setSpeed: vi.fn(),
     setScale: vi.fn(),
@@ -54,8 +57,6 @@ function renderPanel(
   const props = {
     edit,
     busy: false,
-    aspectId: "free",
-    onAspectChange: vi.fn(),
     onRevertRequested: vi.fn(),
     ...overrides,
   };
@@ -191,14 +192,24 @@ describe("VideoEditPanel", () => {
     });
 
     it("starts free and locks to the shape that is picked", () => {
-      const props = renderPanel(makeEdit());
+      const edit = makeEdit();
+      renderPanel(edit);
 
       fireEvent.click(tool("Crop"));
       expect(screen.getByRole("button", { name: "Free" })).toHaveAttribute("aria-pressed", "true");
 
       fireEvent.click(screen.getByRole("button", { name: "1:1" }));
 
-      expect(props.onAspectChange).toHaveBeenCalledWith("1:1");
+      expect(edit.selectAspect).toHaveBeenCalledWith("1:1");
+    });
+
+    it("shows the shape the editor holds, so a restored crop is not read as free", () => {
+      renderPanel(makeEdit({ aspectId: "16:9", aspectRatio: 16 / 9 }));
+
+      fireEvent.click(tool("Crop"));
+
+      expect(screen.getByRole("button", { name: "16:9" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Free" })).toHaveAttribute("aria-pressed", "false");
     });
 
     it("sets both output dimensions, either one moving the other", () => {
@@ -273,25 +284,27 @@ describe("VideoEditPanel", () => {
       expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
     });
 
-    it("shows a progress bar and a cancel while rendering", () => {
+    it("counts the render down as a percentage, with a cancel beside it", () => {
       const edit = makeEdit({ applying: true, progress: 0.4 });
       renderPanel(edit);
 
-      const bar = screen.getByRole("progressbar", { name: "Rendering" });
-      expect(bar).toHaveAttribute("aria-valuenow", "40");
-      expect(bar).toHaveStyle({ "--edit-progress": "40%" });
+      const readout = screen.getByRole("progressbar", { name: "Rendering" });
+      expect(readout).toHaveAttribute("aria-valuenow", "40");
+      expect(readout).toHaveTextContent("40%");
       expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
       expect(edit.cancel).toHaveBeenCalled();
     });
 
-    it("leaves the bar unpositioned when the output length is unknown", () => {
+    it("names no number when the output length could not be predicted", () => {
+      // The spinner carries it alone rather than inventing a position.
       renderPanel(makeEdit({ applying: true, progress: null }));
 
-      expect(screen.getByRole("progressbar", { name: "Rendering" })).not.toHaveAttribute(
-        "aria-valuenow",
-      );
+      const readout = screen.getByRole("progressbar", { name: "Rendering" });
+      expect(readout).not.toHaveAttribute("aria-valuenow");
+      expect(readout).toHaveTextContent("Rendering");
+      expect(readout.textContent).not.toMatch(/%/);
     });
 
     it("locks every control while other modal work is in flight", () => {

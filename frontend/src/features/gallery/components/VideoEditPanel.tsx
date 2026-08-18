@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   CROP_ASPECTS,
   SCALE_PRESETS,
@@ -10,7 +10,14 @@ import {
   scaleForTargetWidth,
 } from "@/features/gallery/lib/videoEdit";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
-import { iconCrop, iconGauge, iconMaximize2, iconScissors, iconUndo2 } from "@/shared/icons";
+import {
+  iconCrop,
+  iconGauge,
+  iconLoader2,
+  iconMaximize2,
+  iconScissors,
+  iconUndo2,
+} from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { VideoEditTimeline } from "./VideoEditTimeline";
@@ -30,8 +37,6 @@ interface VideoEditPanelProps {
   edit: VideoEdit;
   /** Modal work other than this render - the panel locks itself rather than racing it. */
   busy: boolean;
-  aspectId: string;
-  onAspectChange: (aspectId: string) => void;
   onRevertRequested: () => void;
 }
 
@@ -45,13 +50,7 @@ interface VideoEditPanelProps {
  * see at a glance. The output readout stays put for the same reason: it is the answer to
  * "what will I get", and it must not move when the tool does.
  */
-export function VideoEditPanel({
-  edit,
-  busy,
-  aspectId,
-  onAspectChange,
-  onRevertRequested,
-}: VideoEditPanelProps) {
+export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanelProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("trim");
 
   const locked = !edit.ready || busy || edit.applying;
@@ -172,9 +171,9 @@ export function VideoEditPanel({
                 {CROP_ASPECTS.map((aspect) => (
                   <PresetButton
                     key={aspect.id}
-                    active={aspectId === aspect.id}
+                    active={edit.aspectId === aspect.id}
                     disabled={locked}
-                    onClick={() => onAspectChange(aspect.id)}
+                    onClick={() => edit.selectAspect(aspect.id)}
                   >
                     {aspect.label}
                   </PresetButton>
@@ -253,22 +252,19 @@ export function VideoEditPanel({
 
         {edit.applying ? (
           <div className="video-edit-panel__actions">
-            <div
-              className="video-edit-panel__progress"
-              style={{ "--edit-progress": `${(edit.progress ?? 0) * 100}%` } as CSSProperties}
+            {/* A bar sized to a whole row overstated a step that is usually seconds, so
+                this says the same thing in the space a button takes. */}
+            <span
+              className="video-edit-panel__rendering"
               role="progressbar"
               aria-label="Rendering"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={edit.progress == null ? undefined : Math.round(edit.progress * 100)}
             >
-              <span
-                className={classNames(
-                  "video-edit-panel__progress-fill",
-                  edit.progress == null && "video-edit-panel__progress-fill--unknown",
-                )}
-              />
-            </div>
+              <Icon icon={iconLoader2} spin />
+              {edit.progress == null ? "Rendering" : `${Math.round(edit.progress * 100)}%`}
+            </span>
             <button type="button" className="video-edit-panel__control" onClick={edit.cancel}>
               Cancel
             </button>

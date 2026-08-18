@@ -9,16 +9,19 @@ That is also why the spec is kept beside the file, in ``clip.edit.json``. Withou
 editor would re-open on an already-trimmed clip with an empty draft, and the next apply
 would silently drop the trim.
 
-Frame rate is deliberately left alone. Retiming to 2x on a 30 fps source yields 60 fps
-and 0.5x yields 15 fps; neither this module nor the browser knows the source's rate -
-there is no ffprobe here, see ``automation/audio.py`` - so any ``fps=`` filter would be a
-guess dressed up as a decision. Frame interpolation is out of scope.
+Frame rate is held to the source's. ``setpts`` alone leaves the frames untouched and
+compresses their timestamps, so a 2x speedup on 24 fps emits 48 fps - and a training set
+that changes rate depending on which clips were retimed is not one rate any more. An
+``fps`` filter pinned to the source drops frames when speeding up and repeats them when
+slowing down, which is coarse and entirely destructive, and exactly right here: the
+untouched original is one revert away.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import shutil
 import threading
@@ -54,6 +57,9 @@ MIN_ATEMPO = 0.5
 MAX_ATEMPO = 2.0
 
 IDENTITY_EPSILON = 1e-9
+
+#: Above this a container is lying rather than reporting, so the rate is not used.
+MAX_PLAUSIBLE_FPS = 1000.0
 
 
 BUSY_MESSAGE = "This video is already being edited"
@@ -198,6 +204,32 @@ def ensure_backup(media: Path) -> Path:
     return backup
 
 
+def source_frame_rate(media: Path) -> float | None:
+    """The clip's frame rate, or None when the container will not say usefully.
+
+    OpenCV rather than ffprobe, which this project does not ship, and which is how
+    ``automation/vision.py`` already asks the same question.
+    """
+    import cv2
+
+    # release() covers the failed-open branch too: a capture that never opened still
+    # holds the file on Windows, which would lock the very video about to be replaced.
+    cap = cv2.VideoCapture(str(media))
+    try:
+        if not cap.isOpened():
+            return None
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+    except Exception:
+        logger.debug("No frame rate for %s", media.name, exc_info=True)
+        return None
+    finally:
+        cap.release()
+
+    if not math.isfinite(fps) or fps <= 0 or fps > MAX_PLAUSIBLE_FPS:
+        return None
+    return fps
+
+
 def resolve_muxer(media: Path) -> str:
     """The muxer to name explicitly, since the temp file carries no media suffix."""
     muxer = VIDEO_EDIT_MUXERS.get(media.suffix.lower())
@@ -232,7 +264,7 @@ def atempo_chain(speed: float) -> str:
     return ",".join(f"atempo={_fraction(link)}" for link in links)
 
 
-def build_video_filters(spec: VideoEditSpec) -> str:
+def build_video_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> str:
     """The video chain: crop, then scale, then retime.
 
     Each filter's variables refer to its own input, so ``scale``'s ``iw`` is already the
@@ -263,6 +295,11 @@ def build_video_filters(spec: VideoEditSpec) -> str:
 
     if abs(spec.speed - 1.0) > IDENTITY_EPSILON:
         filters.append(f"setpts=PTS/{_fraction(spec.speed)}")
+        # Retiming moves the timestamps and leaves the frames, so the rate comes out
+        # multiplied. Pinning it back drops or repeats frames to restore it. Without a
+        # readable rate there is nothing to pin to, and the output keeps ffmpeg's.
+        if frame_rate is not None:
+            filters.append(f"fps={_fraction(frame_rate)}")
 
     return ",".join(filters)
 
@@ -274,6 +311,7 @@ def build_video_edit_command(
     *,
     executable: str,
     muxer: str,
+    frame_rate: float | None = None,
 ) -> list[str]:
     """One pass that applies the whole spec.
 
@@ -307,7 +345,7 @@ def build_video_edit_command(
     # whether the source has a track, and an unmatched optional stream is not an error.
     command += ["-map", "0:v:0", "-map", "0:a:0?"]
 
-    video_filters = build_video_filters(spec)
+    video_filters = build_video_filters(spec, frame_rate)
     if video_filters:
         command += ["-vf", video_filters]
 
@@ -370,7 +408,16 @@ def apply_video_edit(
 
     source = ensure_backup(media)
     temp_path = _temp_path(media)
-    command = build_video_edit_command(source, temp_path, spec, executable=executable, muxer=muxer)
+    # Read off the backup, which is what the render reads: the live file may already have
+    # been retimed by an earlier edit, and its rate is pinned to this same answer anyway.
+    command = build_video_edit_command(
+        source,
+        temp_path,
+        spec,
+        executable=executable,
+        muxer=muxer,
+        frame_rate=source_frame_rate(source),
+    )
 
     try:
         run_ffmpeg(
