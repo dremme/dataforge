@@ -6,6 +6,7 @@ import {
 } from "@/features/folder/lib/folderFavorites";
 import { folderPathsEqual } from "@/features/folder/lib/folderPath";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
+import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSweep";
 import { readRecentFolderPaths } from "@/features/folder/lib/folderPreferences";
 import { openFolderInExplorer } from "@/features/folder/api/folders";
 import { useJobs } from "@/features/jobs/context/JobsContext";
@@ -31,6 +32,7 @@ import {
   buildJobItems,
   buildRecentFolderItems,
   buildRunJobItems,
+  buildSidecarSweepItems,
   buildSubfolderItems,
   folderPathFromQuickActionId,
   folderQuickAction,
@@ -58,6 +60,8 @@ interface UseQuickActionHostOptions {
   /** Delete / move / copy for the gallery selection, as the toolbar drives them. */
   selection: GallerySelectionActions;
   selectedCount: number;
+  /** Delete every finding sidecar of one kind, as a folder-scoped batch. */
+  sidecarSweep: SidecarSweepActions;
 }
 
 /**
@@ -77,6 +81,7 @@ export function useQuickActionHost({
   panel,
   selection,
   selectedCount,
+  sidecarSweep,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
   const { jobs, externalJobs } = useJobs();
@@ -224,6 +229,15 @@ export function useQuickActionHost({
       });
     }
 
+    commands.push(
+      ...buildSidecarSweepItems({
+        hasFolder: !folderNotFound,
+        counts: sidecarSweep.counts,
+        busy: sidecarSweep.busy,
+        onSweep: sidecarSweep.openSweep,
+      }),
+    );
+
     // Only while something is selected: these read as dead weight otherwise, and
     // the flows they start would have nothing to act on.
     if (selectedCount > 0) {
@@ -314,6 +328,7 @@ export function useQuickActionHost({
     revealInExplorer,
     selectedCount,
     selection,
+    sidecarSweep,
   ]);
 
   // Keyed by section rather than concatenated, so `QUICK_ACTION_SECTIONS` alone

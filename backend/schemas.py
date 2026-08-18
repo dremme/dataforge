@@ -59,6 +59,10 @@ type CaptionReplaceMode = Literal["replace", "prepend", "append"]
 #: distance so the wire does not depend on the hash width.
 type DuplicateThreshold = Literal["exact", "near", "loose"]
 
+#: Which finding sidecar a folder-scoped sweep removes. The suffix never crosses
+#: the wire: the frontend names a kind, the backend resolves the filename.
+type SidecarKind = Literal["issue", "duplicate"]
+
 
 class Breadcrumb(BaseModel):
     name: str
@@ -155,6 +159,22 @@ class DuplicateResolveResponse(BaseModel):
     kept: str
     deleted: list[str]
     failed: list[str] = Field(default_factory=list)
+
+
+class SidecarDeleteRequest(BaseModel):
+    folder: str
+    kind: SidecarKind
+
+
+class SidecarDeleteResponse(BaseModel):
+    folder: str
+    kind: SidecarKind
+    #: Names, not paths: every entry lived in ``folder``.
+    deleted: list[str]
+    #: A locked file lands here rather than aborting the sweep.
+    failed: list[str]
+    #: Whether the sweep put files somewhere they can be recovered from.
+    deletes_to_trash: bool
 
 
 class FolderFingerprintResponse(BaseModel):

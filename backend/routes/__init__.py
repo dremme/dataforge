@@ -13,6 +13,7 @@ from routes import (
     jobs,
     media,
     preferences,
+    sidecars,
     system,
 )
 
@@ -27,6 +28,7 @@ for module in (
     media,
     captions,
     duplicates,
+    sidecars,
     files,
     preferences,
     jobs,

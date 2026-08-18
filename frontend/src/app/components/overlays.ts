@@ -1,6 +1,7 @@
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
+import type { SidecarSweepOverlayProps } from "@/features/gallery/components/SidecarSweepOverlay";
 import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
 import type {
   CaptionSaveResponse,
@@ -97,6 +98,7 @@ export type AppOverlaysProps = {
   folderPicker: FolderPickerOverlayState;
   quickAction: QuickActionOverlayState;
   selectionActions: SelectionActionOverlaysProps;
+  sidecarSweep: SidecarSweepOverlayProps;
   onCaptionSaved: CaptionSavedHandler;
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;

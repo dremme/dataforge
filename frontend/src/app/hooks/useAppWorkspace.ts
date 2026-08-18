@@ -12,7 +12,8 @@ import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelectio
 import { useGallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplicateResolverOverlay";
-import { countDuplicateGroups } from "@/features/gallery/lib/duplicates";
+import { useSidecarSweep } from "@/features/gallery/hooks/useSidecarSweep";
+import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
@@ -126,6 +127,15 @@ export function useAppWorkspace() {
     onCopied: gallery.onGalleryItemsCopied,
   });
 
+  const duplicateFileCount = useMemo(() => countDuplicates(items), [items]);
+  const sidecarSweep = useSidecarSweep({
+    folderPath: folder?.path,
+    folderLabel,
+    issueCount: gallery.issueCount,
+    duplicateCount: duplicateFileCount,
+    onSwept: refreshFolder,
+  });
+
   const statsDrawer = useStatsDrawer();
 
   // Refreshing on close rather than per deletion: the resolver removes files, and the
@@ -170,6 +180,7 @@ export function useAppWorkspace() {
     panel: automation.panelProps,
     selection: selectionActions,
     selectedCount: selection.selectedCount,
+    sidecarSweep,
   });
 
   return {
@@ -192,6 +203,7 @@ export function useAppWorkspace() {
     fileDrop,
     gallery,
     selectionActions,
+    sidecarSweep,
     automation,
     quickAction,
     statsDrawer,
