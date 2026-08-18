@@ -10,7 +10,7 @@ import {
 } from "@/shared/hooks/scrollLockManager";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { withGallerySelection } from "@/test/gallerySelection";
+import { withGallerySelectionActions } from "@/test/gallerySelection";
 import type { GallerySelectionValue } from "@/features/gallery/context/GallerySelectionContext";
 import { GallerySelectionControls } from "./GallerySelectionControls";
 
@@ -31,17 +31,22 @@ const previewMediaTransferMock = vi.mocked(mediaApi.previewMediaTransfer);
 const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
 /**
- * The folder is a prop; everything about the selection comes from context.
+ * Everything about the selection comes from context, batch actions included —
+ * the harness mounts the real ones with their dialogs, the way the app does.
  * `totalCount` stays 2 so "all selected" matches BOTH_SELECTED.
  */
 function renderControls(selection: Partial<GallerySelectionValue> = {}) {
   return renderWithProviders(
-    withGallerySelection(<GallerySelectionControls currentFolder={HOME_PATH} totalCount={2} />, {
-      selectionMode: true,
-      selectedCount: 2,
-      selectedPaths: BOTH_SELECTED,
-      ...selection,
-    }),
+    withGallerySelectionActions(
+      <GallerySelectionControls totalCount={2} />,
+      {
+        selectionMode: true,
+        selectedCount: 2,
+        selectedPaths: BOTH_SELECTED,
+        ...selection,
+      },
+      { currentFolder: HOME_PATH, totalCount: 2 },
+    ),
   );
 }
 

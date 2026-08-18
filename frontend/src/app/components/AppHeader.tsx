@@ -9,6 +9,7 @@ type AppHeaderProps = {
   /** A reload running underneath content that stays on screen. */
   refreshing?: boolean;
   onNavigate: (path?: string) => void;
+  onOpenFolderPicker: () => void;
   toolbarProps: ComponentProps<typeof Toolbar>;
 };
 
@@ -17,6 +18,7 @@ export function AppHeader({
   folderNotFound,
   refreshing = false,
   onNavigate,
+  onOpenFolderPicker,
   toolbarProps,
 }: AppHeaderProps) {
   return (
@@ -28,6 +30,7 @@ export function AppHeader({
           hasSubfolders={folder.subfolder_count > 0}
           folderNotFound={folderNotFound}
           onNavigate={onNavigate}
+          onOpenPicker={onOpenFolderPicker}
         />
         <Toolbar {...toolbarProps} />
       </div>

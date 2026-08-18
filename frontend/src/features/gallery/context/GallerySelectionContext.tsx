@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 
 /**
  * Multi-select state for the gallery grid.
@@ -25,6 +26,12 @@ export interface GallerySelectionValue {
   onMoved: (paths: string[]) => void | Promise<void>;
   /** Takes no paths: a copy leaves this folder's items exactly where they were. */
   onCopied: () => void | Promise<void>;
+  /**
+   * Delete / move / copy for the selection. Owned at the workspace level so the
+   * quick action bar drives the same flows these buttons do; already memoised by
+   * its hook, so it costs this context one dependency rather than a dozen.
+   */
+  actions: GallerySelectionActions;
 }
 
 const GallerySelectionContext = createContext<GallerySelectionValue | null>(null);
@@ -45,6 +52,7 @@ export function GallerySelectionProvider({
     onDeleted,
     onMoved,
     onCopied,
+    actions,
   } = value;
 
   const contextValue = useMemo<GallerySelectionValue>(
@@ -60,6 +68,7 @@ export function GallerySelectionProvider({
       onDeleted,
       onMoved,
       onCopied,
+      actions,
     }),
     [
       selectionMode,
@@ -73,6 +82,7 @@ export function GallerySelectionProvider({
       onDeleted,
       onMoved,
       onCopied,
+      actions,
     ],
   );
 

@@ -2,11 +2,14 @@ import { lazy, Suspense } from "react";
 import { AutomationDialogOverlays } from "@/features/automation/components/AutomationDialogOverlays";
 import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
+import { OpenFolderModal } from "@/features/folder/components/OpenFolderModal";
+import { QuickActionBar } from "@/features/quickAction/components/QuickActionBar";
 import { GalleryItemModal } from "@/features/gallery/components/GalleryItemModal";
 import { IssueResolverModal } from "@/features/gallery/components/IssueResolverModal";
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
 import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateResolverModal";
+import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
@@ -20,6 +23,9 @@ const SysPromptModal = lazy(() =>
 export function AppOverlays({
   currentFolder,
   onOpenFolder,
+  folderPicker,
+  quickAction,
+  selectionActions,
   onCaptionSaved,
   gallery,
   issueResolver,
@@ -36,6 +42,24 @@ export function AppOverlays({
       <JobsDrawer currentFolder={currentFolder} onOpenFolder={onOpenFolder} />
 
       <StatsDrawer open={stats.open} items={stats.items} onClose={stats.onClose} />
+
+      <SelectionActionOverlays {...selectionActions} />
+
+      {quickAction.open && (
+        <QuickActionBar
+          items={quickAction.items}
+          recentItems={quickAction.recentItems}
+          onClose={quickAction.close}
+        />
+      )}
+
+      {folderPicker.open && currentFolder && (
+        <OpenFolderModal
+          currentFolder={currentFolder}
+          onClose={folderPicker.closePicker}
+          onOpenFolder={onOpenFolder}
+        />
+      )}
 
       {issueResolver.open && issueResolver.items.length > 0 && (
         <IssueResolverModal

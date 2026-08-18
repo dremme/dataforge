@@ -17,9 +17,12 @@ export function AppContent() {
     items,
     navigateTo,
     createFolder,
+    folderPicker,
     fileDrop,
     gallery,
+    selectionActions,
     automation,
+    quickAction,
     statsDrawer,
     duplicateResolver,
   } = useAppWorkspace();
@@ -53,6 +56,7 @@ export function AppContent() {
       onDeleted={onGalleryItemsDeleted}
       onMoved={onGalleryItemsMoved}
       onCopied={onGalleryItemsCopied}
+      actions={selectionActions}
     >
       <div className="app">
         {folder && (
@@ -61,6 +65,7 @@ export function AppContent() {
             folderNotFound={folderNotFound}
             refreshing={refreshing}
             onNavigate={navigateTo}
+            onOpenFolderPicker={folderPicker.openPicker}
             toolbarProps={{
               subfolderCount: folder.subfolder_count,
               fileCount: items.length,
@@ -130,6 +135,9 @@ export function AppContent() {
         <AppOverlays
           currentFolder={folder?.path}
           onOpenFolder={navigateTo}
+          folderPicker={folderPicker}
+          quickAction={quickAction}
+          selectionActions={selectionActions.overlay}
           onCaptionSaved={gallery.onCaptionSaved}
           gallery={{
             selectedPath: gallery.selectedPath,

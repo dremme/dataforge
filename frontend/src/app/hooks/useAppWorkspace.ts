@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost";
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useCreateFolderDialog } from "@/features/folder/hooks/useCreateFolderDialog";
@@ -9,11 +9,13 @@ import { useFolderNavigation } from "@/features/folder/hooks/useFolderNavigation
 import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScrollPosition";
 import { useSubfolderStats } from "@/features/folder/hooks/useSubfolderStats";
 import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
+import { useGallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplicateResolverOverlay";
 import { countDuplicateGroups } from "@/features/gallery/lib/duplicates";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useJobs } from "@/features/jobs/context/JobsContext";
+import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 import type { FolderChangesResponse } from "@/shared/types";
@@ -111,12 +113,31 @@ export function useAppWorkspace() {
     [subfolders, searchQuery, searchRegex, searchNames],
   );
 
+  const selectionActions = useGallerySelectionActions({
+    currentFolder: folder?.path,
+    // The visible set, not the whole folder: a batch that clears everything on
+    // screen is what ends selection mode.
+    totalCount: gallery.query.filteredItems.length,
+    selectedPaths: selection.selectedPaths,
+    selectedCount: selection.selectedCount,
+    exitSelectionMode: selection.exitSelectionMode,
+    onDeleted: gallery.onGalleryItemsDeleted,
+    onMoved: gallery.onGalleryItemsMoved,
+    onCopied: gallery.onGalleryItemsCopied,
+  });
+
   const statsDrawer = useStatsDrawer();
 
   // Refreshing on close rather than per deletion: the resolver removes files, and the
   // watcher's own push would otherwise race the modal's frozen queue.
   const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
   const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
+
+  // Owned here rather than inside `BreadcrumbBar` so the quick action bar can open
+  // the same picker the breadcrumb button does.
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const openFolderPicker = useCallback(() => setFolderPickerOpen(true), []);
+  const closeFolderPicker = useCallback(() => setFolderPickerOpen(false), []);
 
   const automation = useAutomationHost({
     folder: folder?.path,
@@ -139,6 +160,18 @@ export function useAppWorkspace() {
         : undefined,
   });
 
+  const quickAction = useQuickActionHost({
+    folder,
+    folderNotFound,
+    navigateTo,
+    refreshFolder,
+    onOpenFolderPicker: openFolderPicker,
+    onCreateFolder: createFolder.openDialog,
+    panel: automation.panelProps,
+    selection: selectionActions,
+    selectedCount: selection.selectedCount,
+  });
+
   return {
     mainRef,
     folder,
@@ -151,9 +184,16 @@ export function useAppWorkspace() {
     items,
     navigateTo,
     createFolder,
+    folderPicker: {
+      open: folderPickerOpen,
+      openPicker: openFolderPicker,
+      closePicker: closeFolderPicker,
+    },
     fileDrop,
     gallery,
+    selectionActions,
     automation,
+    quickAction,
     statsDrawer,
     duplicateResolver,
   };

@@ -127,10 +127,7 @@ export function AppFolderContent({
                       items.length > 0 ? (
                         <div className="gallery-section__actions">
                           {filteredItems.length > 0 && (
-                            <GallerySelectionControls
-                              currentFolder={folder.path}
-                              totalCount={filteredItems.length}
-                            />
+                            <GallerySelectionControls totalCount={filteredItems.length} />
                           )}
                           <GalleryDisplayMenu value={displayMode} onChange={onDisplayModeChange} />
                         </div>

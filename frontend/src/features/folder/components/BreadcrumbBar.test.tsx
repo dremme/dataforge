@@ -15,6 +15,7 @@ function renderBar(props: Partial<BarProps> = {}) {
       currentFolder={homeFolder.path}
       hasSubfolders
       onNavigate={vi.fn()}
+      onOpenPicker={vi.fn()}
       {...props}
     />,
   );

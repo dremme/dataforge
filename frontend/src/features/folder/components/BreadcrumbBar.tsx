@@ -6,7 +6,6 @@ import { iconArrowUpRight, iconCopy, iconFolderOpen, iconLoader2 } from "@/share
 import type { Breadcrumb } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { BreadcrumbCrumbMenu } from "./BreadcrumbCrumbMenu";
-import { OpenFolderModal } from "./OpenFolderModal";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
@@ -21,6 +20,8 @@ interface BreadcrumbBarProps {
   hasSubfolders: boolean;
   folderNotFound?: boolean;
   onNavigate: (path: string) => void;
+  /** The picker itself is mounted with the other overlays, in `AppOverlays`. */
+  onOpenPicker: () => void;
 }
 
 export function BreadcrumbBar({
@@ -29,8 +30,8 @@ export function BreadcrumbBar({
   hasSubfolders,
   folderNotFound = false,
   onNavigate,
+  onOpenPicker,
 }: BreadcrumbBarProps) {
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [openingInExplorer, setOpeningInExplorer] = useState(false);
   const [explorerError, setExplorerError] = useState<string | null>(null);
   const { copyState, copyText } = useCopyFeedback();
@@ -61,107 +62,95 @@ export function BreadcrumbBar({
   if (breadcrumbs.length === 0) return null;
 
   return (
-    <>
-      <nav className="breadcrumbs" aria-label="Folder path">
-        <button
-          type="button"
-          className="breadcrumbs__picker"
-          onClick={() => setPickerOpen(true)}
-          title="Open another folder"
-          aria-label="Open folder"
-        >
-          <Icon icon={iconFolderOpen} className="breadcrumbs__picker-icon" />
-          Open folder
-        </button>
+    <nav className="breadcrumbs" aria-label="Folder path">
+      <button
+        type="button"
+        className="breadcrumbs__picker"
+        onClick={onOpenPicker}
+        title="Open another folder"
+        aria-label="Open folder"
+      >
+        <Icon icon={iconFolderOpen} className="breadcrumbs__picker-icon" />
+        Open folder
+      </button>
 
-        <ol className="breadcrumbs__list">
-          {breadcrumbs.map((crumb, index) => {
-            const isLast = index === breadcrumbs.length - 1;
-            return (
-              <li key={crumb.path} className="breadcrumbs__item">
-                {isLast ? (
-                  <span
-                    className={classNames(
-                      "breadcrumbs__current",
-                      folderNotFound && "breadcrumbs__current--not-found",
-                    )}
-                    aria-current="page"
-                    title={crumb.path}
-                  >
-                    {crumb.name}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="breadcrumbs__link"
-                    onClick={() => onNavigate(crumb.path)}
-                    title={crumb.path}
-                  >
-                    {crumb.name}
-                  </button>
-                )}
-                {/* The chevron trails its own crumb, so it lists that crumb's children —
+      <ol className="breadcrumbs__list">
+        {breadcrumbs.map((crumb, index) => {
+          const isLast = index === breadcrumbs.length - 1;
+          return (
+            <li key={crumb.path} className="breadcrumbs__item">
+              {isLast ? (
+                <span
+                  className={classNames(
+                    "breadcrumbs__current",
+                    folderNotFound && "breadcrumbs__current--not-found",
+                  )}
+                  aria-current="page"
+                  title={crumb.path}
+                >
+                  {crumb.name}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="breadcrumbs__link"
+                  onClick={() => onNavigate(crumb.path)}
+                  title={crumb.path}
+                >
+                  {crumb.name}
+                </button>
+              )}
+              {/* The chevron trails its own crumb, so it lists that crumb's children —
                     and the last crumb gets one too, for drilling down, unless the
                     folder is a leaf and the dropdown would open on nothing. */}
-                {(!isLast || (hasSubfolders && !folderNotFound)) && (
-                  <BreadcrumbCrumbMenu
-                    folderPath={crumb.path}
-                    label={crumb.name}
-                    activeChildPath={breadcrumbs[index + 1]?.path}
-                    onNavigate={onNavigate}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ol>
+              {(!isLast || (hasSubfolders && !folderNotFound)) && (
+                <BreadcrumbCrumbMenu
+                  folderPath={crumb.path}
+                  label={crumb.name}
+                  activeChildPath={breadcrumbs[index + 1]?.path}
+                  onNavigate={onNavigate}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
 
-        <div className="breadcrumbs__actions">
-          <Tooltip content={folderNotFound ? "Folder not found" : copyPathLabel}>
-            <button
-              type="button"
-              className="breadcrumbs__explorer"
-              onClick={handleCopyPath}
-              disabled={folderNotFound || !currentFolder}
-              aria-label={copyPathLabel}
-            >
-              <Icon icon={iconCopy} className="breadcrumbs__explorer-icon" />
-            </button>
-          </Tooltip>
-
-          <Tooltip
-            content={
-              folderNotFound ? "Folder not found" : (explorerError ?? "Open in File Explorer")
-            }
+      <div className="breadcrumbs__actions">
+        <Tooltip content={folderNotFound ? "Folder not found" : copyPathLabel}>
+          <button
+            type="button"
+            className="breadcrumbs__explorer"
+            onClick={handleCopyPath}
+            disabled={folderNotFound || !currentFolder}
+            aria-label={copyPathLabel}
           >
-            <button
-              type="button"
-              className="breadcrumbs__explorer"
-              onClick={() => {
-                void handleOpenInExplorer();
-              }}
-              disabled={openingInExplorer || folderNotFound}
-              aria-label="Open in File Explorer"
-            >
-              <Icon
-                icon={openingInExplorer ? iconLoader2 : iconArrowUpRight}
-                className={classNames(
-                  "breadcrumbs__explorer-icon",
-                  openingInExplorer && "breadcrumbs__explorer-icon--spin",
-                )}
-              />
-            </button>
-          </Tooltip>
-        </div>
-      </nav>
+            <Icon icon={iconCopy} className="breadcrumbs__explorer-icon" />
+          </button>
+        </Tooltip>
 
-      {pickerOpen && (
-        <OpenFolderModal
-          currentFolder={currentFolder}
-          onClose={() => setPickerOpen(false)}
-          onOpenFolder={onNavigate}
-        />
-      )}
-    </>
+        <Tooltip
+          content={folderNotFound ? "Folder not found" : (explorerError ?? "Open in File Explorer")}
+        >
+          <button
+            type="button"
+            className="breadcrumbs__explorer"
+            onClick={() => {
+              void handleOpenInExplorer();
+            }}
+            disabled={openingInExplorer || folderNotFound}
+            aria-label="Open in File Explorer"
+          >
+            <Icon
+              icon={openingInExplorer ? iconLoader2 : iconArrowUpRight}
+              className={classNames(
+                "breadcrumbs__explorer-icon",
+                openingInExplorer && "breadcrumbs__explorer-icon--spin",
+              )}
+            />
+          </button>
+        </Tooltip>
+      </div>
+    </nav>
   );
 }

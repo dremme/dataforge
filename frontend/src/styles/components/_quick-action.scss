@@ -1,0 +1,200 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .quick-action
+//
+// The Ctrl+Space palette. Top-anchored rather than centred, the way Spotlight
+// and every command palette sits: the list grows downward from a fixed input, so
+// the field does not walk up the screen as results come and go.
+// ---------------------------------------------------------------------------
+
+.quick-action {
+  @include modal-shell($z-index-confirm);
+  align-items: flex-start;
+  // Scales with the window so even a short one clears the tallest list the row
+  // cap allows — 8 rows spread across every section — without a scrollbar.
+  padding-top: min(6vh, 5rem);
+
+  &__backdrop {
+    @include modal-backdrop;
+  }
+
+  &__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(40rem, 100%);
+    // Sizes to its content: the result list is capped at MAX_RESULT_ROWS, so the
+    // panel is short by construction and simply ends where the rows do. The
+    // percentage is the flex container's content box — the viewport less its
+    // top offset and gutter — and only bites on a window too short for 8 rows.
+    max-height: 100%;
+    overflow: hidden;
+    @include modal-panel-surface;
+  }
+
+  &__search {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.125rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  &__search-icon {
+    flex-shrink: 0;
+    @include icon-block;
+    @include icon-size(var(--icon-size-base));
+    @include icon-muted;
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: var(--text-md);
+    line-height: var(--leading-snug);
+
+    // The panel border already frames the field; a focus ring inside it would
+    // read as a second, nested control.
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--text-subtle);
+    }
+  }
+
+  &__results {
+    @include app-scrollbar;
+    display: flex;
+    // Grows to its content rather than filling the panel, so a two-row result
+    // does not leave a tall empty well below it.
+    flex: 0 1 auto;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-height: 0;
+    // A safety valve for a window too short to fit the capped list, never the
+    // normal case — hence no `scrollbar-gutter`, which would reserve a visible
+    // gutter on every open for a scrollbar that never appears.
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.375rem;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  &__group-label {
+    padding: 0.125rem 0.5625rem;
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  &__option {
+    @include dropdown-menu-option;
+    align-items: center;
+    gap: 0.6875rem;
+    padding: 0.3125rem 0.5625rem;
+    line-height: var(--leading-snug);
+    cursor: pointer;
+
+    // Keyboard and pointer must agree on what "active" looks like: hovering a row
+    // makes it the active row, so the mixin's own hover styling is redundant here
+    // and has to go — left in, it also *outranks* the active state, because
+    // `.a:hover` scores above a plain `.a--active` and would strip the highlight
+    // off the very row the pointer is on.
+    &:hover {
+      background: transparent;
+      color: var(--text-muted);
+    }
+
+    // Matched on the attribute the markup already carries, which ties with
+    // `:hover` on specificity and wins on source order.
+    &[aria-selected="true"] {
+      color: var(--text);
+      background: var(--accent-soft);
+    }
+
+    &--disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+  }
+
+  &__option-icon {
+    flex-shrink: 0;
+    @include dropdown-menu-option-icon;
+  }
+
+  &__option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.0625rem;
+    min-width: 0;
+  }
+
+  &__option-label {
+    @include truncate;
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+  }
+
+  &__option-detail {
+    @include truncate;
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
+    font-weight: var(--font-normal);
+  }
+
+  &__match {
+    background: transparent;
+    color: var(--accent);
+    font-weight: var(--font-semibold);
+  }
+
+  &__empty {
+    margin: 0;
+    padding: 1.25rem 0.5625rem;
+    color: var(--text-subtle);
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+
+  &__hint {
+    display: flex;
+    flex-shrink: 0;
+    gap: 1rem;
+    padding: 0.375rem 1.125rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
+
+    kbd {
+      display: inline-block;
+      min-width: 1.25rem;
+      margin-right: 0.1875rem;
+      padding: 0.0625rem 0.25rem;
+      border: 1px solid var(--border);
+      border-radius: 0.25rem;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: var(--text-xs);
+      text-align: center;
+      box-shadow: 0 1px var(--border);
+    }
+  }
+}

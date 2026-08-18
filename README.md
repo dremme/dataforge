@@ -117,6 +117,8 @@ Two things are narrower than the list, because the formats themselves are:
 - Copy the current folder path, or open it in File Explorer (Windows)
 - Drive and folder picker
 - Search by file name, folder name, or caption, with optional regex (**Ctrl+K** / **⌘K** focuses search)
+- Quick action bar (**Ctrl+Space**) — a Spotlight-style palette over subfolders, recent and favorite
+  folders, jobs, every automation job, and app commands; arrow keys to move, Enter to run
 - Filters for all / captioned / issues / missing caption, and images / videos (GIFs count as videos),
   plus a duplicates toggle that narrows whatever the other two chose
 - Sort by name, modified date, caption length, or megapixels

@@ -1,5 +1,7 @@
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
+import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
+import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
 import type {
   CaptionSaveResponse,
   DuplicateGroup,
@@ -83,9 +85,18 @@ type CreateFolderOverlayState = {
   onCancel: () => void;
 };
 
+type FolderPickerOverlayState = {
+  open: boolean;
+  openPicker: () => void;
+  closePicker: () => void;
+};
+
 export type AppOverlaysProps = {
   currentFolder: string | undefined;
   onOpenFolder: (path?: string) => void;
+  folderPicker: FolderPickerOverlayState;
+  quickAction: QuickActionOverlayState;
+  selectionActions: SelectionActionOverlaysProps;
   onCaptionSaved: CaptionSavedHandler;
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;
