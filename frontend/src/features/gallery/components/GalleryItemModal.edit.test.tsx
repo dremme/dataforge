@@ -194,6 +194,40 @@ describe("GalleryItemModal", () => {
       expect(square).toHaveAttribute("aria-pressed", "false");
     });
 
+    it("keeps the transport working after navigating with the mode sticky", async () => {
+      // The `<video>` is keyed on the item as well as the mode, so next/prev remounts it.
+      // A ref never re-runs an effect on its own, so listeners bound only to the mode were
+      // left on the discarded element: the play icon stopped answering and so did the loop.
+      const user = userEvent.setup();
+      const items = [videoItem(), makeItem("second.mp4", { media_type: "video" })];
+      const props = {
+        items,
+        index: 0,
+        currentFolder: HOME_PATH,
+        onClose: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onCaptionSaved: vi.fn(),
+        onCopied: vi.fn(),
+      };
+      const { rerender } = renderWithProviders(<GalleryItemModal {...props} />);
+      const dialog = await openEditMode(user);
+      const transport = () => within(dialog).getByRole("button", { name: /(Play|Pause) preview/ });
+
+      fireEvent.play(dialog.querySelector("video")!);
+      expect(transport()).toHaveAccessibleName("Pause preview");
+
+      rerender(<GalleryItemModal {...props} index={1} />);
+      const swapped = dialog.querySelector("video")!;
+      fireEvent.loadedMetadata(swapped);
+
+      fireEvent.play(swapped);
+      expect(transport()).toHaveAccessibleName("Pause preview");
+
+      fireEvent.pause(swapped);
+      expect(transport()).toHaveAccessibleName("Play preview");
+    });
+
     it("can unmute the preview, which edit mode otherwise leaves no way to hear", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());

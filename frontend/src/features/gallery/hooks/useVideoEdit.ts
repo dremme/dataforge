@@ -233,9 +233,18 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   // Playback is clamped to the kept span rather than merely started there: dialling in
   // an out point is a lot of small adjustments, and each one should replay the result.
+  // Re-run on the item as well as the mode. The `<video>` is keyed on both, so both
+  // remount it - and a ref never re-runs an effect by itself, so navigating with the
+  // mode sticky used to leave these listeners on a discarded element: the play icon
+  // stopped answering and the trim loop stopped looping.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !editMode) return;
+
+    // Read off the element rather than assumed: the listeners below report changes from
+    // here on, and the element can already be playing by the time they attach.
+    setPlaying(!video.paused);
+    setPlayheadTime(video.currentTime);
 
     const handleTimeUpdate = () => {
       const { trimStart, trimEnd } = draftRef.current;
@@ -255,7 +264,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
     };
-  }, [editMode, videoRef]);
+  }, [editMode, item?.path, videoRef]);
 
   // The preview is honest about speed, and deliberately flattering about slow motion:
   // the browser plays every source frame at half rate, where `setpts` produces a file
