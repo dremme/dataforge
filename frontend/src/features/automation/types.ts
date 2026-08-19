@@ -49,7 +49,9 @@ export type AutomationDialogsState = {
   findDuplicates: FolderBusyDialogState<(threshold: DuplicateThreshold) => void> & {
     itemCount: number;
   };
-  batchRename: FolderBusyDialogState<(stem: string) => void> & { itemCount: number };
+  batchRename: FolderBusyDialogState<(stem: string, startNumber: number) => void> & {
+    itemCount: number;
+  };
   trainLora: FolderBusyDialogState<(settings: TrainLoraSettings) => void> & { itemCount: number };
   watermark: FolderBusyDialogState<
     (

@@ -387,6 +387,9 @@ class StripMetadataStartRequest(JobSelectionRequest):
 
 class BatchRenameStartRequest(JobSelectionRequest):
     stem: str = ""
+    # Unconstrained like ``stem``: an out-of-range number comes back as the job's own
+    # 400 message rather than a pydantic validation blob.
+    start_number: int = 1
 
 
 class BackupCaptionsStartRequest(JobSelectionRequest):

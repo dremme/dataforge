@@ -33,8 +33,20 @@ def normalize_name_stem(stem: str) -> str:
     return trimmed
 
 
-def sequence_padding(count: int) -> int:
-    return max(3, len(str(count)))
+def normalize_start_number(start_number: object) -> int:
+    try:
+        value = int(start_number)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Start number must be a whole number") from exc
+    if value < 0:
+        raise ValueError("Start number cannot be negative")
+    return value
+
+
+def sequence_padding(count: int, start_number: int = 1) -> int:
+    """Digits wide enough for the highest number in the sequence, never fewer than three."""
+    highest = max(start_number + count - 1, start_number)
+    return max(3, len(str(highest)))
 
 
 def build_target_name(stem: str, index: int, padding: int, suffix: str) -> str:
@@ -65,17 +77,19 @@ def _check_target_conflict(target_path: Path, moving_sources: set[Path]) -> None
     raise ValueError(f'Cannot rename files: "{target_path.name}" already exists in this folder.')
 
 
-def _validate_target_names(folder: Path, media_files: list[Path], stem: str) -> None:
+def _validate_target_names(
+    folder: Path, media_files: list[Path], stem: str, start_number: int
+) -> None:
     if not media_files:
         return
-    padding = sequence_padding(len(media_files))
+    padding = sequence_padding(len(media_files), start_number)
 
     moving_sources: set[Path] = set()
     for media_path in media_files:
         for related in related_media_paths(media_path):
             moving_sources.add(related.resolve())
 
-    for index, media_path in enumerate(media_files, start=1):
+    for index, media_path in enumerate(media_files, start=start_number):
         target_media = folder / build_target_name(stem, index, padding, media_path.suffix.lower())
         _check_target_conflict(target_media, moving_sources)
 
@@ -86,7 +100,11 @@ def _validate_target_names(folder: Path, media_files: list[Path], stem: str) -> 
 
 
 def validate_rename_media_folder(
-    folder: Path, *, stem: str, selected_paths: list[Path] | None = None
+    folder: Path,
+    *,
+    stem: str,
+    start_number: int = 1,
+    selected_paths: list[Path] | None = None,
 ) -> None:
     if not folder.is_dir():
         raise ValueError("Folder not found")
@@ -97,7 +115,8 @@ def validate_rename_media_folder(
         raise ValueError("No supported images or videos found in folder")
 
     normalized_stem = normalize_name_stem(stem)
-    _validate_target_names(folder, media_files, normalized_stem)
+    normalized_start = normalize_start_number(start_number)
+    _validate_target_names(folder, media_files, normalized_stem, normalized_start)
 
 
 def _rollback_temp_entries(temp_entries: list[tuple[Path, Path, Path]]) -> None:
@@ -127,16 +146,23 @@ def run_rename_media_job(
     folder: Path,
     *,
     stem: str,
+    start_number: int = 1,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     normalized_stem = normalize_name_stem(stem)
-    validate_rename_media_folder(folder, stem=normalized_stem, selected_paths=selected_paths)
+    normalized_start = normalize_start_number(start_number)
+    validate_rename_media_folder(
+        folder,
+        stem=normalized_stem,
+        start_number=normalized_start,
+        selected_paths=selected_paths,
+    )
 
     media_files = filter_media_list(list_rename_media(folder), selected_paths)
     total = len(media_files)
-    padding = sequence_padding(total)
+    padding = sequence_padding(total, normalized_start)
     stats: dict[str, int] = {
         "total": total,
         "success": 0,
@@ -151,7 +177,7 @@ def run_rename_media_job(
             media_path,
             folder / build_target_name(normalized_stem, index, padding, media_path.suffix.lower()),
         )
-        for index, media_path in enumerate(media_files, start=1)
+        for index, media_path in enumerate(media_files, start=normalized_start)
     ]
 
     # Two rename passes per file (to temp, then to final). Report one continuous
@@ -273,11 +299,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("folder", type=Path, help="Folder containing images and/or videos")
     parser.add_argument("--stem", required=True, help='Name stem, e.g. "portugal"')
+    parser.add_argument(
+        "--start-number",
+        type=int,
+        default=1,
+        help="Number the first file gets (default: 1)",
+    )
     args = parser.parse_args(argv)
 
     folder = args.folder.expanduser().resolve()
     try:
-        result = run_rename_media_job(folder, stem=args.stem)
+        result = run_rename_media_job(folder, stem=args.stem, start_number=args.start_number)
     except ValueError as exc:
         logger.error("%s", exc)
         return 1

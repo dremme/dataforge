@@ -40,7 +40,11 @@ from automation.job_messages import (
     verify_captions_failure_message,
     watermark_error_message,
 )
-from automation.rename_media import run_rename_media_job, validate_rename_media_folder
+from automation.rename_media import (
+    normalize_start_number,
+    run_rename_media_job,
+    validate_rename_media_folder,
+)
 from automation.replace_captions import (
     DEFAULT_MODE as DEFAULT_REPLACE_MODE,
 )
@@ -211,6 +215,7 @@ def _validate_rename_media(folder: Path, **params: object) -> None:
     validate_rename_media_folder(
         folder,
         stem=str(params.get("stem", "")),
+        start_number=normalize_start_number(params.get("start_number", 1)),
         selected_paths=_selected_paths(params),
     )
 

@@ -14,6 +14,7 @@ from automation.rename_media import (
     build_target_name,
     list_rename_media,
     normalize_name_stem,
+    normalize_start_number,
     run_rename_media_job,
     sequence_padding,
     validate_rename_media_folder,
@@ -38,6 +39,18 @@ class RenameMediaHelpersTests(unittest.TestCase):
 
     def test_build_target_name(self) -> None:
         self.assertEqual(build_target_name("portugal", 1, 3, ".png"), "portugal_001.png")
+
+    def test_sequence_padding_counts_from_the_start_number(self) -> None:
+        # The highest number decides the width, not how many files there are.
+        self.assertEqual(sequence_padding(5, 996), 4)
+        self.assertEqual(sequence_padding(5, 100), 3)
+
+    def test_normalize_start_number_rejects_invalid_values(self) -> None:
+        self.assertEqual(normalize_start_number("42"), 42)
+        with self.assertRaisesRegex(ValueError, "whole number"):
+            normalize_start_number("ten")
+        with self.assertRaisesRegex(ValueError, "negative"):
+            normalize_start_number(-1)
 
     def test_normalize_name_stem_rejects_invalid_values(self) -> None:
         with self.assertRaisesRegex(ValueError, "cannot be empty"):
@@ -91,6 +104,46 @@ class RenameMediaJobTests(unittest.TestCase):
             )
             self.assertFalse(first.exists())
             self.assertFalse(second.exists())
+
+    def test_numbers_from_the_requested_start_number(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "alpha.png")
+            second = write_media(root, "beta.png")
+            write_txt_caption(first, "Caption one.")
+
+            now = time.time()
+            os.utime(first, (now - 20, now - 20))
+            os.utime(second, (now - 10, now - 10))
+
+            result = run_rename_media_job(root, stem="portugal", start_number=7)
+
+            self.assertEqual(result["stats"]["success"], 2)
+            self.assertTrue((root / "portugal_007.png").is_file())
+            self.assertTrue((root / "portugal_008.png").is_file())
+            self.assertTrue((root / "portugal_007.txt").is_file())
+
+    def test_start_number_widens_padding_when_the_sequence_passes_999(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "alpha.png")
+            second = write_media(root, "beta.png")
+
+            now = time.time()
+            os.utime(first, (now - 20, now - 20))
+            os.utime(second, (now - 10, now - 10))
+
+            run_rename_media_job(root, stem="portugal", start_number=999)
+
+            self.assertTrue((root / "portugal_0999.png").is_file())
+            self.assertTrue((root / "portugal_1000.png").is_file())
+
+    def test_rejects_conflicts_against_the_start_number_range(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            (root / "portugal_005.png").mkdir()
+
+            validate_rename_media_folder(root, stem="portugal")
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                validate_rename_media_folder(root, stem="portugal", start_number=5)
 
     def test_renames_txt_json_and_issue_sidecars_together(self) -> None:
         with TempMediaFolder() as root:

@@ -151,7 +151,8 @@ export function useAutomationDialogOverlays({
       batchRename: {
         ...shared("batch_rename"),
         itemCount,
-        onConfirm: (stem: string) => startJobFromDialog("batch_rename", { stem }),
+        onConfirm: (stem: string, startNumber: number) =>
+          startJobFromDialog("batch_rename", { stem, start_number: startNumber }),
       },
       trainLora: {
         ...shared("train_lora"),

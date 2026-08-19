@@ -151,7 +151,13 @@ def start_batch_rename_job(
     path: str = Query(..., description="Absolute path to folder with images and videos"),
     body: BatchRenameStartRequest = BatchRenameStartRequest(),
 ) -> JobResponse:
-    return _start_job("batch_rename", resolve_folder(path), body.paths, stem=body.stem)
+    return _start_job(
+        "batch_rename",
+        resolve_folder(path),
+        body.paths,
+        stem=body.stem,
+        start_number=body.start_number,
+    )
 
 
 @router.post("/automation/backup-captions", response_model=JobResponse)
