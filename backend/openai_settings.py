@@ -82,7 +82,7 @@ def _env_str(name: str) -> str:
 
 
 def env_int(name: str, default: int) -> int:
-    """Public because ``automation.vision`` parses its frame-budget vars with it."""
+    """Public because callers outside this module parse their own vars with it."""
     raw = _env_str(name)
     if not raw:
         return default
@@ -90,6 +90,18 @@ def env_int(name: str, default: int) -> int:
         return int(raw)
     except ValueError:
         return default
+
+
+def positive_env_int(name: str, default: int) -> int:
+    """Env-configured count, ignoring a value that would switch the thing off.
+
+    Zero and below are not smaller settings, they are silent disablements: a keyframe
+    cap of 0 sends no frames, a pixel budget of 0 sends no image, and a caption
+    threshold of 0 puts every generated caption past the length check. Each comes back
+    as a bad caption rather than as an error, so the default wins instead.
+    """
+    value = env_int(name, default)
+    return value if value > 0 else default
 
 
 def _env_float(name: str, default: float) -> float:

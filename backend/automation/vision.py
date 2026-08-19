@@ -31,10 +31,10 @@ from openai_settings import (
     assistant_message_text,
     build_sampling_extra_body,
     create_openai_client,
-    env_int,
     get_max_tokens,
     get_openai_model,
     get_sampling_profile,
+    positive_env_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,37 +69,47 @@ MIN_HONORED_MAX_PIXELS = QWEN_MIN_SIDE_PX * QWEN_MIN_SIDE_PX
 # Multi-frame payloads stay smaller than stills so the request remains tractable. Near
 # the bottom of the useful range: frames cannot be bought by shrinking them.
 VIDEO_FRAME_MAX_PIXELS = 500_000
+# A still is the only image in its request, so it can afford detail a keyframe sent
+# sixty at a time cannot - and fact-checking one often turns on a small part of the
+# frame. Both caption jobs share this budget.
+IMAGE_MAX_PIXELS = 1_500_000
 
-# The three values above are defaults. The cap is what makes a brief action vanish from a
+# The four values above are defaults. The cap is what makes a brief action vanish from a
 # long clip - 64 frames over two minutes is 0.5 fps - so each is env-configurable to make
 # that measurable. Read per call, not at import.
 KEYFRAMES_PER_SECOND_VAR = "VIDEO_KEYFRAMES_PER_SECOND"
 MAX_VIDEO_KEYFRAMES_VAR = "VIDEO_MAX_KEYFRAMES"
 VIDEO_FRAME_MAX_PIXELS_VAR = "VIDEO_FRAME_MAX_PIXELS"
-
-
-def _positive_env_int(name: str, default: int) -> int:
-    """Env-configured count, ignoring values that would send no frames at all.
-
-    A cap of 0 comes back as a caption of nothing rather than as an error.
-    """
-    value = env_int(name, default)
-    return value if value > 0 else default
+IMAGE_MAX_PIXELS_VAR = "IMAGE_MAX_PIXELS"
 
 
 def get_keyframes_per_second() -> int:
-    return _positive_env_int(KEYFRAMES_PER_SECOND_VAR, KEYFRAMES_PER_SECOND)
+    return positive_env_int(KEYFRAMES_PER_SECOND_VAR, KEYFRAMES_PER_SECOND)
 
 
 def get_max_video_keyframes() -> int:
-    return _positive_env_int(MAX_VIDEO_KEYFRAMES_VAR, MAX_VIDEO_KEYFRAME_COUNT)
+    return positive_env_int(MAX_VIDEO_KEYFRAMES_VAR, MAX_VIDEO_KEYFRAME_COUNT)
 
 
 def get_video_frame_max_pixels() -> int:
-    return _positive_env_int(VIDEO_FRAME_MAX_PIXELS_VAR, VIDEO_FRAME_MAX_PIXELS)
+    return positive_env_int(VIDEO_FRAME_MAX_PIXELS_VAR, VIDEO_FRAME_MAX_PIXELS)
+
+
+def get_image_max_pixels() -> int:
+    return positive_env_int(IMAGE_MAX_PIXELS_VAR, IMAGE_MAX_PIXELS)
 
 
 MediaKind = Literal["image", "video"]
+
+
+def media_kind_max_pixels(media_kind: MediaKind) -> int:
+    """Per-frame pixel budget. Stills get the larger one; keyframes are sent dozens at a time.
+
+    A function rather than the dict this was: a module-level dict resolves both
+    configurable budgets once at import, so a set value never reaches a frame.
+    """
+    return get_image_max_pixels() if media_kind == "image" else get_video_frame_max_pixels()
+
 
 # How often a waiting job re-checks for cancellation while the model request is in flight.
 CANCEL_POLL_SECONDS = 0.1

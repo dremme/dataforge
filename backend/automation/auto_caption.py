@@ -19,10 +19,10 @@ from automation.vision import (
     call_with_retries,
     clean_model_text,
     close_vision_client,
-    get_video_frame_max_pixels,
     keyframe_sentence,
     load_media_images,
     media_kind_for,
+    media_kind_max_pixels,
     request_vision_text,
     vision_client,
 )
@@ -34,13 +34,22 @@ from openai_settings import (
     DEFAULT_REASONING_EFFORT,
     get_max_tokens,
     get_openai_model,
+    positive_env_int,
 )
 from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
 
+#: Characters. One knob, two gates: a reference caption longer than this is already a
+#: finished caption and is left alone, and a freshly generated one this short or shorter
+#: is not an answer and is retried. Read per call so a configured value reaches both.
 DRAFT_CAPTION_THRESHOLD = 256
-IMAGE_MAX_PIXELS = 1_500_000
+DRAFT_CAPTION_THRESHOLD_VAR = "DRAFT_CAPTION_THRESHOLD"
+
+
+def get_draft_caption_threshold() -> int:
+    return positive_env_int(DRAFT_CAPTION_THRESHOLD_VAR, DRAFT_CAPTION_THRESHOLD)
+
 
 AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
@@ -67,15 +76,6 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 
 MEDIA_KINDS: tuple[MediaKind, ...] = ("image", "video")
-
-
-def media_kind_max_pixels(media_kind: MediaKind) -> int:
-    """Per-frame pixel budget. Stills get the larger one; keyframes are sent dozens at a time.
-
-    A function rather than the dict this was: a module-level dict resolves the
-    configurable video budget once at import, so a set value never reaches a frame.
-    """
-    return IMAGE_MAX_PIXELS if media_kind == "image" else get_video_frame_max_pixels()
 
 
 #: Added to every video prompt. Without it a walking subject gets captioned as standing:
@@ -259,7 +259,7 @@ def _read_draft_caption(media_path: Path) -> tuple[str | None, str]:
     if status != "ok" or ref_caption is None:
         return None, status
 
-    if len(ref_caption) > DRAFT_CAPTION_THRESHOLD:
+    if len(ref_caption) > get_draft_caption_threshold():
         return None, "skipped_long"
 
     return ref_caption, "ok"
@@ -318,7 +318,7 @@ def process_media(
             return ModelOutcome(status="api_error")
 
         clean_text = clean_model_text(raw_caption)
-        if len(clean_text.strip()) <= DRAFT_CAPTION_THRESHOLD:
+        if len(clean_text.strip()) <= get_draft_caption_threshold():
             return ModelOutcome(status="too_short", value=clean_text)
         return ModelOutcome(status="success", value=clean_text)
 

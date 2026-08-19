@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import os
 import unittest
+from io import BytesIO
 from unittest.mock import patch
 
 from testing_fixtures import isolate_test_database
@@ -27,6 +30,8 @@ from automation.verify_captions import (
 )
 from automation.vision import (
     FRAME_ERROR,
+    IMAGE_MAX_PIXELS,
+    IMAGE_MAX_PIXELS_VAR,
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
     VIDEO_KEYFRAME_COUNT,
@@ -359,7 +364,52 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         self.assertIn("a single frame", text.lower())
 
 
+def _sent_image_pixels(captured: dict) -> int:
+    """Decode the still this request actually carried, at the size it was sent."""
+    parts = captured["messages"][1]["content"]
+    url = next(part["image_url"]["url"] for part in parts if part["type"] == "image_url")
+    image = Image.open(BytesIO(base64.b64decode(url.split(",", 1)[1])))
+    return image.width * image.height
+
+
 class VerifyCaptionsApiTests(unittest.TestCase):
+    def test_a_configured_still_budget_reaches_the_request(self) -> None:
+        # Verify-captions and auto-caption share one still budget now, and it is read
+        # per call: bound at import, the frame would go out at the default size.
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            frames = [Image.new("RGB", (2000, 2000), color="blue")]
+
+            fake_client, captured = _make_fake_verify_client()
+            with patch.dict(os.environ, {IMAGE_MAX_PIXELS_VAR: "400000"}):
+                verify_caption(
+                    fake_client,
+                    media,
+                    build_verification_system_prompt(),
+                    "A blue car in the rain.",
+                    images=frames,
+                )
+
+            self.assertLessEqual(_sent_image_pixels(captured), 400_000)
+
+    def test_a_still_defaults_to_the_shared_image_budget(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            frames = [Image.new("RGB", (2000, 2000), color="blue")]
+
+            fake_client, captured = _make_fake_verify_client()
+            verify_caption(
+                fake_client,
+                media,
+                build_verification_system_prompt(),
+                "A blue car in the rain.",
+                images=frames,
+            )
+
+            pixels = _sent_image_pixels(captured)
+            self.assertLessEqual(pixels, IMAGE_MAX_PIXELS)
+            self.assertGreater(pixels, 400_000)
+
     def test_verify_caption_uses_instruct_params_when_requested(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "img.png")

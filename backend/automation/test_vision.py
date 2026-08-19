@@ -22,6 +22,8 @@ from automation.vision import (
     CANCEL_POLL_SECONDS,
     CANCELLED,
     FRAME_ERROR,
+    IMAGE_MAX_PIXELS,
+    IMAGE_MAX_PIXELS_VAR,
     KEYFRAMES_PER_SECOND,
     KEYFRAMES_PER_SECOND_VAR,
     MAX_VIDEO_KEYFRAME_COUNT,
@@ -36,6 +38,7 @@ from automation.vision import (
     close_vision_client,
     describe_empty_completion,
     describe_exception,
+    get_image_max_pixels,
     get_keyframes_per_second,
     get_max_video_keyframes,
     get_video_frame_max_pixels,
@@ -44,6 +47,7 @@ from automation.vision import (
     load_image_rgb,
     load_media_images,
     media_kind_for,
+    media_kind_max_pixels,
     run_vision_completion,
     vision_client,
     vision_messages,
@@ -467,6 +471,7 @@ class FrameBudgetEnvTests(unittest.TestCase):
         self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
         self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
         self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
+        self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
     def test_a_higher_rate_samples_a_clip_more_densely(self) -> None:
         with patch.dict(os.environ, {KEYFRAMES_PER_SECOND_VAR: "4"}):
@@ -496,6 +501,24 @@ class FrameBudgetEnvTests(unittest.TestCase):
                 self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
             with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: raw}):
                 self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
+            with patch.dict(os.environ, {IMAGE_MAX_PIXELS_VAR: raw}):
+                self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
+
+    def test_each_media_kind_reads_its_own_configured_budget(self) -> None:
+        # One helper, two knobs, and neither may be bound at import: a still and a
+        # keyframe have to come back at the sizes actually configured for them.
+        with patch.dict(
+            os.environ,
+            {IMAGE_MAX_PIXELS_VAR: "900000", VIDEO_FRAME_MAX_PIXELS_VAR: "262144"},
+        ):
+            self.assertEqual(media_kind_max_pixels("image"), 900_000)
+            self.assertEqual(media_kind_max_pixels("video"), 262_144)
+
+    def test_the_two_budgets_are_independent(self) -> None:
+        # They were separate constants in two job modules before they were one pair of
+        # knobs; setting the video one must not drag the still one down with it.
+        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "262144"}):
+            self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
 
 
 class KeyframeSentenceTests(unittest.TestCase):

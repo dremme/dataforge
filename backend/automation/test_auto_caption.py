@@ -19,18 +19,18 @@ from automation.audio import AUDIO_MAX_SECONDS
 from automation.auto_caption import (
     AUDIO_OBJECTIVE_SENTENCE,
     AUDIO_USER_SENTENCE,
-    IMAGE_MAX_PIXELS,
+    DRAFT_CAPTION_THRESHOLD_VAR,
     MOTION_OBJECTIVE_SENTENCE,
     build_system_prompt,
     complete_caption,
     list_auto_caption_media,
-    media_kind_max_pixels,
     process_media,
     run_auto_caption_job,
     validate_auto_caption_folder,
 )
 from automation.job_messages import auto_caption_failure_message
 from automation.vision import (
+    IMAGE_MAX_PIXELS,
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
     MAX_VIDEO_KEYFRAME_COUNT,
@@ -44,6 +44,7 @@ from automation.vision import (
     extract_video_keyframes,
     load_media_images,
     media_kind_for,
+    media_kind_max_pixels,
     prepare_images_for_api,
     resize_for_qwen,
 )
@@ -867,6 +868,51 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             self.assertEqual(caption, "short")
             self.assertFalse(audio_missing)
             self.assertEqual(mock_complete.call_count, MAX_MODEL_ATTEMPTS)
+
+    def test_a_lowered_threshold_accepts_a_caption_the_default_calls_too_short(self) -> None:
+        # The output gate, read per call: bound at import instead, this caption is
+        # rejected and retried until the attempts run out.
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Draft.")
+
+            with (
+                patch.dict(os.environ, {DRAFT_CAPTION_THRESHOLD_VAR: "8"}),
+                patch(
+                    "automation.auto_caption.complete_caption",
+                    return_value="A short caption.",
+                ) as mock_complete,
+            ):
+                _path, caption, status, _message, _audio_missing = process_media(
+                    object(),
+                    media,
+                    {"image": "system prompt", "video": "system prompt"},
+                )
+
+            self.assertEqual(status, "success")
+            self.assertEqual(caption, "A short caption.")
+            self.assertEqual(mock_complete.call_count, 1)
+
+    def test_a_lowered_threshold_leaves_a_draft_the_default_would_complete(self) -> None:
+        # The input gate reads the same knob, so a threshold low enough to make the
+        # draft look finished skips the file without asking the model at all.
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Draft.")
+
+            with (
+                patch.dict(os.environ, {DRAFT_CAPTION_THRESHOLD_VAR: "4"}),
+                patch("automation.auto_caption.complete_caption") as mock_complete,
+            ):
+                _path, caption, status, _message, _audio_missing = process_media(
+                    object(),
+                    media,
+                    {"image": "system prompt", "video": "system prompt"},
+                )
+
+            self.assertEqual(status, "skipped_long")
+            self.assertIsNone(caption)
+            mock_complete.assert_not_called()
 
     def test_run_job_writes_completed_caption(self) -> None:
         with TempMediaFolder() as root:

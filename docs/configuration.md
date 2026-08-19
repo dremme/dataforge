@@ -115,6 +115,16 @@ Per-mode temperature, penalties, and top-p/k:
 `repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
 DataForge at one of those servers.
 
+## Still image detail
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `IMAGE_MAX_PIXELS` | `1500000` | Per-image pixel budget for a still |
+
+A still is the only image in its request, so it affords detail a keyframe cannot — both caption jobs
+send them at this one budget. Lower it the way you would lower the video budget below, if a still
+ever runs into the same VRAM wall.
+
 ## Video keyframe sampling
 
 A video is sent as still keyframes, sampled twice a second plus both endpoints, each labelled with its
@@ -151,6 +161,19 @@ reports on a run that succeeds.
 
 - A smaller quantization, or a shorter context
 - Send less per request: `VIDEO_FRAME_MAX_PIXELS=262144`
+
+## Draft caption length
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DRAFT_CAPTION_THRESHOLD` | `256` | Characters. Both ends of what auto-caption counts as a caption |
+
+One knob, two gates. A draft **longer** than this is already a finished caption, so auto-caption
+leaves it alone and counts it `skipped_long`. A caption the model returns **at or under** it is not
+an answer, so it is retried and, if it stays short, counted `too_short`. Raise it to demand more
+detail; lower it to accept shorter captions and to stop re-visiting drafts you consider done.
+
+Verify-captions ignores it — it checks captions rather than writing them.
 
 ## Reasoning effort
 

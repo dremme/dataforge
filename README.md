@@ -130,7 +130,7 @@ Two things are narrower than the list, because the formats themselves are:
 ### Captions and metadata
 
 - In-place caption editing for `.json` and `.txt` sidecars
-- JSON caption editor with a bounding-box overlay — view and edit when present
+- JSON caption editor — view and edit when present
 - Issue resolver — step through flagged files to edit, resolve, or skip
 - Duplicate resolver — walk each duplicate group side by side, with a suggested keeper, and delete the rest
   (on Windows they go to the Recycle Bin; elsewhere the deletion is confirmed by name first)
