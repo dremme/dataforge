@@ -587,6 +587,74 @@ def clean_model_text(raw_text: str) -> str:
     return text.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip()
 
 
+def _field(source: object, name: str) -> object:
+    """Read ``name`` off a response object or the dict a stub stands in for it with."""
+    if isinstance(source, dict):
+        return source.get(name)
+    return getattr(source, name, None)
+
+
+def describe_exception(exc: BaseException) -> str:
+    """The exception's own words plus the chain that actually explains it.
+
+    ``str(exc)`` is frequently the least informative part: the OpenAI SDK reports
+    every transport failure as ``APIConnectionError("Connection error.")`` and
+    leaves the socket error that caused it - a reset, a half-closed connection, a
+    server that died mid-upload - reachable only through ``__cause__``. Logging the
+    bare string is what turned a wedged model server into an unexplained
+    ``api_error``, so the causes are walked and the HTTP status and body of a
+    status error are pulled in alongside.
+    """
+    parts: list[str] = []
+    current: BaseException | None = exc
+    while current is not None and len(parts) < 4:
+        detail = f"{type(current).__name__}: {current}".strip()
+        status = _field(current, "status_code")
+        if status is not None:
+            detail = f"{detail} [HTTP {status}]"
+        body = _field(current, "body")
+        if body:
+            detail = f"{detail} body={repr(body)[:300]}"
+        parts.append(detail)
+        current = current.__cause__ or current.__context__
+
+    return " <- ".join(parts)
+
+
+def describe_empty_completion(response: object) -> str:
+    """Why a request that the server answered normally carried no caption.
+
+    This is the failure that reports nothing anywhere: the server returns 200, the
+    choice says it stopped of its own accord, ``completion_tokens`` is 0, and the
+    content is an empty string - so the model server logs a served request, the SDK
+    raises nothing, and the job used to record a bare ``api_error``. Everything the
+    response does carry is worth having, because which field looks wrong is what
+    separates the causes: a ``length`` finish means the generation budget ran out,
+    a ``prompt_tokens`` well below what the same file reports on its own means the
+    server reused a prompt prefix that did not belong to these frames, and content
+    that is empty while ``reasoning_content`` is not means the model spent the whole
+    budget thinking.
+    """
+    choices = _field(response, "choices") or []
+    if not choices:
+        return "the response carried no choices"
+
+    choice = choices[0]
+    message = _field(choice, "message")
+    usage = _field(response, "usage")
+    content = _field(message, "content") if message is not None else None
+    reasoning = _field(message, "reasoning_content") if message is not None else None
+
+    details = [
+        f"finish_reason={_field(choice, 'finish_reason')}",
+        f"prompt_tokens={_field(usage, 'prompt_tokens') if usage is not None else None}",
+        f"completion_tokens={_field(usage, 'completion_tokens') if usage is not None else None}",
+        f"content_chars={len(content) if isinstance(content, str) else 0}",
+        f"reasoning_chars={len(reasoning) if isinstance(reasoning, str) else 0}",
+    ]
+    return ", ".join(details)
+
+
 def run_vision_completion(
     client,
     messages: list[dict],
@@ -597,8 +665,15 @@ def run_vision_completion(
     model: str | None = None,
     max_tokens: int | None = None,
 ) -> str | None:
-    """Send a vision chat completion, returning the assistant text or ``None`` on failure."""
+    """Send a vision chat completion, returning the assistant text or ``None`` on failure.
+
+    Both ways of coming back empty are logged before ``None`` is returned. Neither
+    used to be: an exception was reduced to ``str(exc)``, and a well-formed response
+    that simply contained no text was returned as ``None`` in complete silence, which
+    is the whole reason a failed video looked like nothing had happened at all.
+    """
     profile = get_sampling_profile(mode)
+    resolved_model = model if model is not None else get_openai_model()
     outbound = messages
     if mode == "instruct":
         # Empty-think prefill skips reasoning on hybrid Qwen models; kwargs for servers
@@ -607,7 +682,7 @@ def run_vision_completion(
 
     try:
         response = client.chat.completions.create(
-            model=model if model is not None else get_openai_model(),
+            model=resolved_model,
             messages=outbound,
             max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),
             temperature=profile.temperature,
@@ -619,14 +694,28 @@ def run_vision_completion(
                 preserve_thinking=preserve_thinking,
             ),
         )
-        raw = assistant_message_text(
-            response.choices[0].message,
+    except Exception as exc:
+        logger.error("Vision request to %s failed: %s", resolved_model, describe_exception(exc))
+        return None
+
+    choices = _field(response, "choices") or []
+    raw = (
+        assistant_message_text(
+            _field(choices[0], "message"),
             allow_reasoning_fallback=mode == "instruct",
         )
-        return raw or None
-    except Exception as exc:
-        logger.error("API/Vision error: %s", exc)
+        if choices
+        else ""
+    )
+    if not raw:
+        logger.error(
+            "Vision request to %s returned no usable text (%s)",
+            resolved_model,
+            describe_empty_completion(response),
+        )
         return None
+
+    return raw
 
 
 @dataclass(frozen=True)

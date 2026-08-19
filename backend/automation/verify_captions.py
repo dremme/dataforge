@@ -43,7 +43,7 @@ from schemas import AutomationMode
 
 logger = logging.getLogger(__name__)
 
-IMAGE_MAX_PIXELS = 1_750_000
+IMAGE_MAX_PIXELS = 1_500_000
 
 
 def media_kind_max_pixels(media_kind: MediaKind) -> int:

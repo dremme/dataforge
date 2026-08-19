@@ -28,7 +28,7 @@ DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:8888/v1"
 DEFAULT_OPENAI_API_KEY = "EMPTY"
 DEFAULT_OPENAI_MODEL = "qwen38"
 
-DEFAULT_MAX_TOKENS = 8192
+DEFAULT_MAX_TOKENS = 16384
 DEFAULT_TOP_K = 20
 
 # Generous enough for a slow local GPU working through a long thinking-mode generation.

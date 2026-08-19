@@ -8,6 +8,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import patch
 
 from testing_fixtures import isolate_test_database
@@ -33,6 +34,8 @@ from automation.vision import (
     ModelOutcome,
     call_with_retries,
     close_vision_client,
+    describe_empty_completion,
+    describe_exception,
     get_keyframes_per_second,
     get_max_video_keyframes,
     get_video_frame_max_pixels,
@@ -41,6 +44,7 @@ from automation.vision import (
     load_image_rgb,
     load_media_images,
     media_kind_for,
+    run_vision_completion,
     vision_client,
     vision_messages,
 )
@@ -776,3 +780,108 @@ class CloseVisionClientTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EmptyCompletionDiagnosticsTests(unittest.TestCase):
+    """A 200 that carries no caption has to say so; it used to return None in silence."""
+
+    @staticmethod
+    def _response(**overrides: object) -> dict:
+        message = {"content": "", "reasoning_content": "", **overrides.pop("message", {})}
+        return {
+            "choices": [{"finish_reason": "stop", "message": message}],
+            "usage": {"prompt_tokens": 997, "completion_tokens": 0},
+            **overrides,
+        }
+
+    def test_describes_the_fields_that_separate_the_causes(self) -> None:
+        detail = describe_empty_completion(self._response())
+
+        self.assertIn("finish_reason=stop", detail)
+        self.assertIn("prompt_tokens=997", detail)
+        self.assertIn("completion_tokens=0", detail)
+        self.assertIn("content_chars=0", detail)
+
+    def test_reports_reasoning_that_consumed_the_budget(self) -> None:
+        detail = describe_empty_completion(
+            self._response(
+                message={"reasoning_content": "x" * 4096},
+                usage={"prompt_tokens": 6591, "completion_tokens": 8192},
+            )
+        )
+
+        self.assertIn("reasoning_chars=4096", detail)
+        self.assertIn("completion_tokens=8192", detail)
+
+    def test_survives_a_response_with_no_choices(self) -> None:
+        self.assertIn("no choices", describe_empty_completion({"choices": []}))
+
+    def test_run_vision_completion_logs_the_empty_response(self) -> None:
+        client = _StubClient(self._response())
+
+        with self.assertLogs("automation.vision", level="ERROR") as logs:
+            self.assertIsNone(run_vision_completion(client, [], mode="thinking"))
+
+        self.assertIn("finish_reason=stop", logs.output[0])
+        self.assertIn("prompt_tokens=997", logs.output[0])
+
+
+class DescribeExceptionTests(unittest.TestCase):
+    """``str(exc)`` alone is what made a dead server look like an unexplained failure."""
+
+    def test_includes_the_type_and_the_cause_chain(self) -> None:
+        try:
+            try:
+                raise ConnectionResetError(10054, "existing connection was forcibly closed")
+            except ConnectionResetError as cause:
+                raise RuntimeError("Connection error.") from cause
+        except RuntimeError as exc:
+            detail = describe_exception(exc)
+
+        self.assertIn("RuntimeError: Connection error.", detail)
+        self.assertIn("ConnectionResetError", detail)
+        self.assertIn("forcibly closed", detail)
+
+    def test_includes_http_status_and_body(self) -> None:
+        class StatusError(Exception):
+            status_code: ClassVar[int] = 400
+            body: ClassVar[dict] = {"error": {"message": "context size exceeded"}}
+
+        detail = describe_exception(StatusError("Bad request"))
+
+        self.assertIn("[HTTP 400]", detail)
+        self.assertIn("context size exceeded", detail)
+
+    def test_run_vision_completion_logs_the_failure(self) -> None:
+        client = _RaisingClient(RuntimeError("boom"))
+
+        with self.assertLogs("automation.vision", level="ERROR") as logs:
+            self.assertIsNone(run_vision_completion(client, [], mode="thinking"))
+
+        self.assertIn("RuntimeError: boom", logs.output[0])
+
+
+class _StubCompletions:
+    def __init__(self, response: object) -> None:
+        self._response = response
+
+    def create(self, **_kwargs: object) -> object:
+        return self._response
+
+
+class _StubClient:
+    def __init__(self, response: object) -> None:
+        self.chat = type("Chat", (), {"completions": _StubCompletions(response)})()
+
+
+class _RaisingCompletions:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def create(self, **_kwargs: object) -> object:
+        raise self._error
+
+
+class _RaisingClient:
+    def __init__(self, error: Exception) -> None:
+        self.chat = type("Chat", (), {"completions": _RaisingCompletions(error)})()

@@ -38,6 +38,7 @@ running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — no
 | Model | Notes |
 | --- | --- |
 | [Qwen3.8 27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Recommended dense default |
+| [Qwen3.8 27B GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF) | Recommended dense quantizations; for example `UD-Q4_K_XL` |
 | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Recommended MoE default |
 | [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) | MoE alternative with fewer refusals |
 | [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) | Omni MoE that also **hears audio** — the one to load for [audio captioning](#audio-captioning) |
@@ -56,7 +57,7 @@ Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in i
 | `OPENAI_API_BASE_URL` | `http://127.0.0.1:8888/v1` | OpenAI-compatible base URL |
 | `OPENAI_API_KEY` | `EMPTY` | Not a credential. Local servers ignore it unless started with `--api-key` |
 | `OPENAI_MODEL` | `qwen38` | Chat `model` id, matching what your server exposes |
-| `OPENAI_MAX_TOKENS` | `8192` | Completion max tokens |
+| `OPENAI_MAX_TOKENS` | `16384` | Completion max tokens |
 | `OPENAI_TIMEOUT` | `600` | Seconds to wait for a response before giving up |
 
 Many single-model servers answer even with a wrong `OPENAI_MODEL`. Multi-model servers need the id to match.
@@ -132,8 +133,24 @@ tokens before the prompt.
 
 **Lowering `VIDEO_FRAME_MAX_PIXELS` does not buy those frames.** Neither side is scaled below 512px,
 and the floor applies per side, so a 1920×1080 frame goes 928×512 at `500000`, 640×512 at `250000`
-(squashed to 1.25 from 1.78), and 512×512 at `125000`. Raise this knob for detail; do not lower it
-for headroom.
+(squashed to 1.25 from 1.78), and 512×512 at `125000`. Raise this knob for detail, not for headroom —
+the one reason to lower it is the failure below.
+
+### Videos that come back with an empty caption
+
+**Symptom.** A job logs `api_error` for clips that caption fine on their own, and the model server
+reports nothing wrong. It answered `200` with `finish_reason=stop`, `completion_tokens=0`, and no
+content — which the backend logs, along with the response's token counts.
+
+**Cause.** Weights, KV cache, and the vision encoder's working buffer share one VRAM pool, and the
+server sizes that buffer when the model loads. Leave it too little and large multi-frame requests get
+their image payload silently truncated. The tell is a `prompt_tokens` well below what that same file
+reports on a run that succeeds.
+
+**Fixes** — free VRAM, or ask for less of it:
+
+- A smaller quantization, or a shorter context
+- Send less per request: `VIDEO_FRAME_MAX_PIXELS=262144`
 
 ## Reasoning effort
 
