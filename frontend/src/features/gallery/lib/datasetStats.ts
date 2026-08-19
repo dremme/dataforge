@@ -65,6 +65,26 @@ const LENGTH_BUCKETS = [
   { label: "> 1000", max: Number.POSITIVE_INFINITY },
 ] as const;
 
+/**
+ * Named training buckets, square first, then landscape widening, then the matching
+ * portraits. Anything farther than 15% from all of these is "Other" — ultrawide
+ * and odd phone crops, not a silent snap to 16:9.
+ */
+const ASPECT_RATIO_BUCKETS = [
+  { label: "1:1", ratio: 1 },
+  { label: "4:3", ratio: 4 / 3 },
+  { label: "3:4", ratio: 3 / 4 },
+  { label: "3:2", ratio: 3 / 2 },
+  { label: "2:3", ratio: 2 / 3 },
+  { label: "16:9", ratio: 16 / 9 },
+  { label: "9:16", ratio: 9 / 16 },
+] as const;
+
+const OTHER_ASPECT_LABEL = "Other";
+
+/** Relative drift from a named ratio before a file is counted as Other. */
+const ASPECT_RATIO_MAX_DRIFT = 1.15;
+
 export interface StatBucket {
   label: string;
   count: number;
@@ -109,6 +129,7 @@ export interface DatasetStats {
   topWords: WordCount[];
   mediaTypes: StatBucket[];
   megapixels: StatBucket[];
+  aspectRatios: StatBucket[];
   /** Files whose dimensions are unknown, e.g. every non-MP4-family video. */
   unknownResolution: number;
 }
@@ -127,6 +148,37 @@ function bucketize(values: number[], buckets: ReadonlyArray<{ label: string; max
     counts[index === -1 ? counts.length - 1 : index].count += 1;
   }
   return counts;
+}
+
+function aspectRatioLabel(width: number, height: number): string {
+  const ratio = width / height;
+  let bestLabel = OTHER_ASPECT_LABEL;
+  let bestDrift = Number.POSITIVE_INFINITY;
+
+  for (const bucket of ASPECT_RATIO_BUCKETS) {
+    const drift = ratio > bucket.ratio ? ratio / bucket.ratio : bucket.ratio / ratio;
+    if (drift < bestDrift) {
+      bestDrift = drift;
+      bestLabel = bucket.label;
+    }
+  }
+
+  return bestDrift <= ASPECT_RATIO_MAX_DRIFT ? bestLabel : OTHER_ASPECT_LABEL;
+}
+
+function countAspectRatios(labels: string[]): StatBucket[] {
+  const counts = new Map<string, number>();
+  for (const label of labels) {
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+
+  return [
+    ...ASPECT_RATIO_BUCKETS.map((bucket) => ({
+      label: bucket.label,
+      count: counts.get(bucket.label) ?? 0,
+    })),
+    { label: OTHER_ASPECT_LABEL, count: counts.get(OTHER_ASPECT_LABEL) ?? 0 },
+  ];
 }
 
 function countWords(captions: string[]): WordCount[] {
@@ -156,6 +208,7 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   const captions: string[] = [];
   const lengths: number[] = [];
   const megapixels: number[] = [];
+  const aspectRatioLabels: string[] = [];
   let captioned = 0;
   let issues = 0;
   let duplicates = 0;
@@ -190,8 +243,12 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
 
     const width = item.width ?? 0;
     const height = item.height ?? 0;
-    if (width > 0 && height > 0) megapixels.push((width * height) / 1_000_000);
-    else unknownResolution += 1;
+    if (width > 0 && height > 0) {
+      megapixels.push((width * height) / 1_000_000);
+      aspectRatioLabels.push(aspectRatioLabel(width, height));
+    } else {
+      unknownResolution += 1;
+    }
   }
 
   const sortedLengths = [...lengths].sort((a, b) => a - b);
@@ -221,6 +278,7 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
       { label: "GIFs", count: gifs },
     ],
     megapixels: bucketize(megapixels, MEGAPIXEL_BUCKETS),
+    aspectRatios: countAspectRatios(aspectRatioLabels),
     unknownResolution,
   };
 }

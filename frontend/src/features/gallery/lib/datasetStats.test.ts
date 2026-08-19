@@ -150,6 +150,40 @@ describe("computeDatasetStats", () => {
     ]);
   });
 
+  it("buckets known aspect ratios and leaves unknown dimensions out", () => {
+    const stats = computeDatasetStats([
+      mediaItem("square.png", HOME_PATH, { width: 1024, height: 1024 }),
+      mediaItem("four-three.png", HOME_PATH, { width: 1440, height: 1080 }),
+      mediaItem("three-two.png", HOME_PATH, { width: 1500, height: 1000 }),
+      mediaItem("wide.png", HOME_PATH, { width: 1920, height: 1080 }),
+      mediaItem("three-four.png", HOME_PATH, { width: 1080, height: 1440 }),
+      mediaItem("two-three.png", HOME_PATH, { width: 1000, height: 1500 }),
+      mediaItem("tall.png", HOME_PATH, { width: 1080, height: 1920 }),
+      mediaItem("ultrawide.png", HOME_PATH, { width: 2560, height: 1080 }),
+      mediaItem("clip.mkv", HOME_PATH, { width: null, height: null }),
+    ]);
+
+    expect(stats.aspectRatios).toEqual([
+      { label: "1:1", count: 1 },
+      { label: "4:3", count: 1 },
+      { label: "3:4", count: 1 },
+      { label: "3:2", count: 1 },
+      { label: "2:3", count: 1 },
+      { label: "16:9", count: 1 },
+      { label: "9:16", count: 1 },
+      { label: "Other", count: 1 },
+    ]);
+  });
+
+  it("snaps near-square images to 1:1 rather than inventing a fourth-odd ratio", () => {
+    const stats = computeDatasetStats([
+      mediaItem("almost.png", HOME_PATH, { width: 1024, height: 1000 }),
+    ]);
+
+    expect(stats.aspectRatios.find((bucket) => bucket.label === "1:1")?.count).toBe(1);
+    expect(stats.aspectRatios.find((bucket) => bucket.label === "Other")?.count).toBe(0);
+  });
+
   it("handles an empty folder", () => {
     const stats = computeDatasetStats([]);
 

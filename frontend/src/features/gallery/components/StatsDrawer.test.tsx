@@ -138,6 +138,21 @@ describe("StatsDrawer", () => {
     expect(within(chart).getByText("dog")).toBeInTheDocument();
   });
 
+  it("charts aspect ratios from the files that have dimensions", () => {
+    renderDrawer({
+      items: [
+        mediaItem("square.png", HOME_PATH, { width: 1024, height: 1024 }),
+        mediaItem("wide.png", HOME_PATH, { width: 1920, height: 1080 }),
+        mediaItem("tall.png", HOME_PATH, { width: 1080, height: 1920 }),
+      ],
+    });
+
+    const chart = screen.getByRole("figure", { name: "Distribution by aspect ratio" });
+    expect(within(chart).getByText("1:1")).toBeInTheDocument();
+    expect(within(chart).getByText("16:9")).toBeInTheDocument();
+    expect(within(chart).getByText("9:16")).toBeInTheDocument();
+  });
+
   it("closes from the header button", async () => {
     const user = userEvent.setup();
     const onClose = renderDrawer();

@@ -130,6 +130,12 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
         )}
       </Section>
 
+      {stats.aspectRatios.some((bucket) => bucket.count > 0) && (
+        <Section title="Aspect ratio">
+          <BarChart buckets={stats.aspectRatios} unit="aspect ratio" />
+        </Section>
+      )}
+
       {stats.topWords.length > 0 && (
         <Section title="Most frequent words">
           <BarChart
