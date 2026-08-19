@@ -69,7 +69,7 @@ class DeleteMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(result["path"], str(media))
             self.assertEqual(
                 set(result["deleted"]),
-                {"sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"},
             )
 
     def test_main_file_failure_propagates(self) -> None:

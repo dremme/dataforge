@@ -207,7 +207,9 @@
 
   &__footer {
     @include modal-chrome-footer;
-    // Tighter than the chrome default: this is a button pair, not a meta row.
+    // Tighter than the chrome default: this is a row of buttons, not a meta row.
     gap: 0.5625rem;
+    // Four actions, so a narrow panel wraps them instead of pushing Back off the edge.
+    flex-wrap: wrap;
   }
 }

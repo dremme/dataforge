@@ -10,7 +10,7 @@ import os
 import unittest
 
 from caption_cache import clear_caption_cache_for_tests
-from captions import caption_summary_from_sidecar, issue_summary_from_sidecar
+from captions import caption_summary_from_sidecar, issue_file_path, issue_summary_from_sidecar
 from folder_scan import get_media_type, scan_folder
 from media_listing import list_media_in_folder
 from testing_fixtures import (
@@ -234,7 +234,7 @@ class CaptionCacheTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "alpha.png")
             write_issue_sidecar(media, 'Replace "a" with "b".')
-            issue_path = media.with_suffix(".issue.json")
+            issue_path = issue_file_path(media)
             stat = issue_path.stat()
 
             first, _ = issue_summary_from_sidecar(issue_path, stat.st_mtime_ns, stat.st_size)

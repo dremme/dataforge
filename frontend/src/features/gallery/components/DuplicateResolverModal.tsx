@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
+import { dismissDuplicateGroup, resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
 import {
   KEEPER_REASON_LABEL,
   chooseKeeper,
@@ -16,6 +16,8 @@ import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { DuplicateGroup, GalleryItem } from "@/shared/types";
+
+type PendingAction = "resolve" | "dismiss" | null;
 
 interface DuplicateResolverModalProps {
   groups: DuplicateGroup[];
@@ -49,10 +51,14 @@ export function DuplicateResolverModal({
   const group = queue[index];
 
   const [keepPath, setKeepPath] = useState<string | null>(null);
-  const [resolving, setResolving] = useState(false);
+  // Which request is in flight, so the two footer actions can spin their own button
+  // while both block the rest of the modal.
+  const [pending, setPending] = useState<PendingAction>(null);
   const [error, setError] = useState<string | null>(null);
-  const [resolvedGroups, setResolvedGroups] = useState<ReadonlySet<string>>(() => new Set());
+  const [settledGroups, setSettledGroups] = useState<ReadonlySet<string>>(() => new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const busy = pending !== null;
 
   const suggestion = useMemo(() => (group ? chooseKeeper(group.members) : null), [group]);
 
@@ -60,12 +66,12 @@ export function DuplicateResolverModal({
   useEffect(() => {
     setKeepPath(null);
     setError(null);
-    setResolving(false);
+    setPending(null);
     setConfirmOpen(false);
   }, [group?.group]);
 
   const selectedPath = keepPath ?? suggestion?.path ?? null;
-  const alreadyResolved = group ? resolvedGroups.has(group.group) : false;
+  const alreadySettled = group ? settledGroups.has(group.group) : false;
 
   const discard = useMemo(
     () =>
@@ -76,23 +82,39 @@ export function DuplicateResolverModal({
   );
 
   const closeModal = useCallback(() => {
-    if (resolving) return;
+    if (busy) return;
     onClose();
-  }, [onClose, resolving]);
+  }, [busy, onClose]);
 
   const goTo = useCallback(
     (next: number) => {
-      if (resolving) return;
+      if (busy) return;
       if (next >= 0 && next < queue.length) onIndexChange(next);
     },
-    [onIndexChange, queue.length, resolving],
+    [busy, onIndexChange, queue.length],
+  );
+
+  // A settled group is behind the user either way, whether its extra copies were
+  // deleted or the whole finding was thrown away.
+  const settle = useCallback(
+    (groupId: string) => {
+      setSettledGroups((current) => new Set(current).add(groupId));
+      onResolved();
+
+      if (index < queue.length - 1) {
+        onIndexChange(index + 1);
+      } else {
+        onClose();
+      }
+    },
+    [index, onClose, onIndexChange, onResolved, queue.length],
   );
 
   const handleResolve = useCallback(async () => {
-    if (!group || selectedPath === null || resolving || discard.length === 0) return;
+    if (!group || selectedPath === null || busy || discard.length === 0) return;
 
     setConfirmOpen(false);
-    setResolving(true);
+    setPending("resolve");
     setError(null);
 
     try {
@@ -103,34 +125,40 @@ export function DuplicateResolverModal({
 
       if (result.failed.length > 0) {
         setError(`Could not delete ${result.failed.join(", ")}.`);
-        setResolving(false);
         return;
       }
 
-      setResolvedGroups((current) => new Set(current).add(group.group));
-      onResolved();
-
-      if (index < queue.length - 1) {
-        onIndexChange(index + 1);
-      } else {
-        onClose();
-      }
+      settle(group.group);
     } catch (caught) {
       setError(formatApiError(caught));
     } finally {
-      setResolving(false);
+      setPending(null);
     }
-  }, [
-    discard,
-    group,
-    index,
-    onClose,
-    onIndexChange,
-    onResolved,
-    queue.length,
-    resolving,
-    selectedPath,
-  ]);
+  }, [busy, discard, group, selectedPath, settle]);
+
+  // The answer to a false positive: two shots of the same subject hash alike often
+  // enough that "keep one, delete the rest" cannot be the only way out of a group.
+  const handleDismiss = useCallback(async () => {
+    if (!group || busy) return;
+
+    setPending("dismiss");
+    setError(null);
+
+    try {
+      const result = await dismissDuplicateGroup(group.members.map((member) => member.path));
+
+      if (result.failed.length > 0) {
+        setError(`Could not clear the finding for ${result.failed.join(", ")}.`);
+        return;
+      }
+
+      settle(group.group);
+    } catch (caught) {
+      setError(formatApiError(caught));
+    } finally {
+      setPending(null);
+    }
+  }, [busy, group, settle]);
 
   // Where a delete is recoverable this is the whole action; where it is not, the
   // dialog stands between the click and the files.
@@ -150,7 +178,7 @@ export function DuplicateResolverModal({
         block="duplicate-resolver-modal"
         label={`Resolve duplicate group ${index + 1} of ${queue.length}`}
         onClose={closeModal}
-        busy={resolving}
+        busy={busy}
         suspended={confirmOpen}
         scrollLock="duplicate-resolver-modal-open"
       >
@@ -165,7 +193,7 @@ export function DuplicateResolverModal({
             type="button"
             className="duplicate-resolver-modal__close"
             onClick={closeModal}
-            disabled={resolving}
+            disabled={busy}
             aria-label="Close"
           >
             <Icon icon={iconX} />
@@ -187,7 +215,7 @@ export function DuplicateResolverModal({
                 member={member}
                 selected={member.path === selectedPath}
                 suggestedReason={suggestion?.path === member.path ? suggestion.reason : null}
-                disabled={resolving || alreadyResolved}
+                disabled={busy || alreadySettled}
                 onSelect={() => setKeepPath(member.path)}
               />
             ))}
@@ -205,20 +233,29 @@ export function DuplicateResolverModal({
           <DialogButton
             label="Back"
             variant="secondary"
-            disabled={resolving || index === 0}
+            disabled={busy || index === 0}
             onClick={() => goTo(index - 1)}
           />
           <DialogButton
             label="Skip"
             variant="secondary"
-            disabled={resolving || index === queue.length - 1}
+            disabled={busy || index === queue.length - 1}
             onClick={() => goTo(index + 1)}
           />
           <DialogButton
-            label={resolving ? "Deleting..." : "Resolve"}
+            label={pending === "dismiss" ? "Clearing..." : "Not duplicates"}
+            variant="warning"
+            busy={pending === "dismiss"}
+            disabled={busy || alreadySettled}
+            onClick={() => {
+              void handleDismiss();
+            }}
+          />
+          <DialogButton
+            label={pending === "resolve" ? "Deleting..." : "Resolve"}
             variant="primary"
-            busy={resolving}
-            disabled={alreadyResolved || discard.length === 0}
+            busy={pending === "resolve"}
+            disabled={busy || alreadySettled || discard.length === 0}
             onClick={requestResolve}
           />
         </footer>
@@ -236,12 +273,12 @@ export function DuplicateResolverModal({
           } is kept.`}
           confirmLabel="Delete permanently"
           confirmVariant="danger"
-          busy={resolving}
+          busy={busy}
           onConfirm={() => {
             void handleResolve();
           }}
           onCancel={() => {
-            if (!resolving) setConfirmOpen(false);
+            if (!busy) setConfirmOpen(false);
           }}
         />
       )}

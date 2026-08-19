@@ -7,6 +7,7 @@ from unittest.mock import patch
 from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
+from captions import issue_file_path
 from constants import LAST_FOLDER_KEY
 from db import get_preference, set_preference
 from folder_fingerprint import compute_folder_fingerprint
@@ -267,7 +268,7 @@ class FolderContentsEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "resolved.png")
             write_txt_caption(media, "A mountain peak.")
-            media.with_suffix(".issue.json").write_text(
+            issue_file_path(media).write_text(
                 '{"correct": false, "issues": "Wrong peak.", "suggestions": "Fix it."}',
                 encoding="utf-8",
             )

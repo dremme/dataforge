@@ -113,7 +113,7 @@ class RenameMediaJobTests(unittest.TestCase):
             )
             self.assertIn(
                 'Change \\"standing\\" to \\"kneeling\\".',
-                (root / "portugal_001.issue.json").read_text(encoding="utf-8"),
+                (root / "portugal_001.png.issue.json").read_text(encoding="utf-8"),
             )
             self.assertFalse(issue_file_path(media).exists())
 
@@ -124,7 +124,7 @@ class RenameMediaJobTests(unittest.TestCase):
 
             run_rename_media_job(root, stem="portugal")
 
-            self.assertTrue((root / "portugal_001.issue.json").is_file())
+            self.assertTrue((root / "portugal_001.png.issue.json").is_file())
             # The issue sidecar must not be turned into a caption sidecar.
             self.assertFalse((root / "portugal_001.json").exists())
 

@@ -666,6 +666,7 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
   &__markers {
     display: inline-flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.25rem;
     // The column is measured from the most markers any item in the folder carries,
     // so this only ever clips if a row somehow outgrows that count.

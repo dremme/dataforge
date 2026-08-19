@@ -281,5 +281,58 @@ class FindDuplicatesJobTests(unittest.TestCase):
             self.assertNotIn("members", payload)
 
 
+class StemSharingTests(unittest.TestCase):
+    """A generated folder holds a video beside the still that previews it.
+
+    Both sit under one stem, and a stem-named sidecar would be one file for the two of
+    them. Order decided the damage: the run wrote the video's finding, reached the still
+    it does not group, and cleared what it had just written - leaving a group of one that
+    no re-run could repair, because every re-run did the same thing.
+
+    The fixtures stand in for that shape with images, and the extensions are chosen so the
+    unique file sorts *after* the duplicate one, the way ``clip.png`` follows ``clip.mp4``.
+    """
+
+    def test_a_still_sharing_a_stem_does_not_clear_the_media_finding(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_patterned_image(root, "clip.jpg", seed=11)
+            second = root / "clip-copy.jpg"
+            shutil.copy(first, second)
+            # Same stem as the duplicate, nothing like it to look at, sorted after it.
+            write_patterned_image(root, "clip.png", seed=29)
+
+            run_find_duplicates_job(root, threshold="exact")
+
+            self.assertEqual(group_of(first), group_of(second))
+            self.assertIsNone(load_duplicate_finding(root / "clip.png"))
+
+    def test_the_group_survives_a_second_run(self) -> None:
+        """The clobber was reproducible, so repairing it has to be too."""
+        with TempMediaFolder() as root:
+            first = write_patterned_image(root, "clip.jpg", seed=11)
+            second = root / "clip-copy.jpg"
+            shutil.copy(first, second)
+            write_patterned_image(root, "clip.png", seed=29)
+
+            run_find_duplicates_job(root, threshold="exact")
+            run_find_duplicates_job(root, threshold="exact")
+
+            self.assertEqual(group_of(first), group_of(second))
+
+    def test_two_stem_sharers_can_each_hold_their_own_finding(self) -> None:
+        """One sidecar per stem could only ever record one of the two groups."""
+        with TempMediaFolder() as root:
+            video_like = write_patterned_image(root, "clip.jpg", seed=11)
+            still_like = write_patterned_image(root, "clip.png", seed=29)
+            shutil.copy(video_like, root / "other.jpg")
+            shutil.copy(still_like, root / "other.png")
+
+            run_find_duplicates_job(root, threshold="exact")
+
+            self.assertEqual(group_of(video_like), group_of(root / "other.jpg"))
+            self.assertEqual(group_of(still_like), group_of(root / "other.png"))
+            self.assertNotEqual(group_of(video_like), group_of(still_like))
+
+
 if __name__ == "__main__":
     unittest.main()

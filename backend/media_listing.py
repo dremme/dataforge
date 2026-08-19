@@ -69,12 +69,13 @@ def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> tuple[ScannedEntr
     return None if sidecar is None else (sidecar, caption_file_type)
 
 
+# Findings hang off the whole filename, captions off the stem - see `FolderScan.sidecar`.
 def _issue_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
-    return scan.sidecar(media.path.stem, ISSUE_SIDECAR_SUFFIX)
+    return scan.sidecar(media.name, ISSUE_SIDECAR_SUFFIX)
 
 
 def _duplicate_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
-    return scan.sidecar(media.path.stem, DUPLICATE_SIDECAR_SUFFIX)
+    return scan.sidecar(media.name, DUPLICATE_SIDECAR_SUFFIX)
 
 
 # ---------------------------------------------------------------------------
@@ -93,15 +94,17 @@ def _summary_signature(scan: FolderScan) -> tuple:
     for media in scan.media:
         signatures.append((media.name, media.mtime_ns, media.size))
 
-        stem = media.path.stem
-        for extension in (
-            *CAPTION_SIDECAR_EXTENSIONS,
-            ISSUE_SIDECAR_SUFFIX,
-            DUPLICATE_SIDECAR_SUFFIX,
-        ):
-            sidecar = scan.files.get(f"{stem}{extension}")
+        for extension in CAPTION_SIDECAR_EXTENSIONS:
+            sidecar = scan.sidecar(media.path.stem, extension)
             if sidecar is not None:
                 signatures.append((sidecar.name, sidecar.mtime_ns, sidecar.size))
+
+        # A job that writes nothing but findings changes nothing else in the folder, so
+        # leaving these out would keep serving counts from before the run.
+        for suffix in (ISSUE_SIDECAR_SUFFIX, DUPLICATE_SIDECAR_SUFFIX):
+            finding = scan.sidecar(media.name, suffix)
+            if finding is not None:
+                signatures.append((finding.name, finding.mtime_ns, finding.size))
 
     return tuple(sorted(signatures))
 

@@ -1,9 +1,13 @@
 """Copy caption sidecars into a `.backup` folder, and restore them from it again.
 
-Covers caption sidecars and the caption issues verify-captions writes alongside them.
+Captions only. A caption is written work, and losing one costs the writing; findings -
+the caption issues verify-captions writes, the duplicate groups find-duplicates writes -
+are derived from the media and the caption, and a job re-run rebuilds them in seconds.
+Storing them here would only let a restore put back a verdict the folder has since
+disproved.
 
 Neither direction ever deletes anything, so a backup is a safety net rather than an
-exact snapshot. Restoring always overwrites the current sidecar, which is the point of
+exact snapshot. Restoring always overwrites the current caption, which is the point of
 restoring. Backing up keeps what is already stored unless ``overwrite`` is set, so a
 second run cannot bury a good copy under a caption that was edited by mistake.
 """
@@ -21,9 +25,7 @@ from automation.selection import filter_media_list, list_folder_media
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
     CAPTION_SIDECAR_EXTENSIONS,
-    ISSUE_SIDECAR_SUFFIX,
     MEDIA_EXTENSIONS,
-    SIDECAR_EXTENSIONS,
 )
 from logging_config import configure_logging, log_job_summary
 
@@ -31,9 +33,6 @@ logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
-
-# Everything a backup captures for one media file, in a stable order.
-BACKUP_SIDECAR_SUFFIXES = (*CAPTION_SIDECAR_EXTENSIONS, ISSUE_SIDECAR_SUFFIX)
 
 
 def caption_backup_dir(folder: Path) -> Path:
@@ -44,21 +43,23 @@ def list_backup_captions_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, MEDIA_EXTENSIONS, order="name")
 
 
-def media_sidecars(media_path: Path) -> list[Path]:
-    """Every caption and issue sidecar of ``media_path``, caption JSON first.
+def caption_sidecars(media_path: Path) -> list[Path]:
+    """Every caption sidecar of ``media_path``, JSON first.
 
-    Both caption suffixes are collected rather than just the winning one, so
-    restoring reproduces the same precedence that was in effect at backup time.
+    Both suffixes are collected rather than just the winning one, so restoring
+    reproduces the same precedence that was in effect at backup time.
     """
     candidates = [
-        media_path.parent / f"{media_path.stem}{suffix}" for suffix in BACKUP_SIDECAR_SUFFIXES
+        media_path.parent / f"{media_path.stem}{suffix}" for suffix in CAPTION_SIDECAR_EXTENSIONS
     ]
     return [path for path in candidates if path.is_file()]
 
 
 def list_backup_sidecars(folder: Path) -> list[Path]:
-    """Caption and issue files sitting in the folder's `.backup` directory."""
-    return list_folder_media(caption_backup_dir(folder), SIDECAR_EXTENSIONS, order="name")
+    """Caption files sitting in the folder's `.backup` directory."""
+    return list_folder_media(
+        caption_backup_dir(folder), set(CAPTION_SIDECAR_EXTENSIONS), order="name"
+    )
 
 
 def has_caption_backup(folder: Path) -> bool:
@@ -70,21 +71,13 @@ def has_caption_backup(folder: Path) -> bool:
     return bool(list_backup_sidecars(folder))
 
 
-def backed_up_media_stem(sidecar: Path) -> str:
-    """The media stem ``sidecar`` belongs to, e.g. ``photo`` for ``photo.issue.json``.
-
-    ``Path.stem`` strips only the last suffix, so it would leave ``photo.issue``
-    and no media file would ever match it.
-    """
-    name = sidecar.name
-    if name.endswith(ISSUE_SIDECAR_SUFFIX):
-        return name[: -len(ISSUE_SIDECAR_SUFFIX)]
-    return sidecar.stem
-
-
 def _has_media_for(folder: Path, sidecar: Path) -> bool:
-    stem = backed_up_media_stem(sidecar)
-    return any((folder / f"{stem}{extension}").is_file() for extension in MEDIA_EXTENSIONS)
+    """Whether the media a caption was written for is still in ``folder``.
+
+    A caption is named after its media's stem, so the media is whichever file wears that
+    stem with a media extension.
+    """
+    return any((folder / f"{sidecar.stem}{extension}").is_file() for extension in MEDIA_EXTENSIONS)
 
 
 def _select_backup_sidecars(folder: Path, selected_paths: list[Path] | None) -> list[Path]:
@@ -93,7 +86,7 @@ def _select_backup_sidecars(folder: Path, selected_paths: list[Path] | None) -> 
         return sidecars
 
     selected_stems = {path.stem for path in selected_paths}
-    filtered = [sidecar for sidecar in sidecars if backed_up_media_stem(sidecar) in selected_stems]
+    filtered = [sidecar for sidecar in sidecars if sidecar.stem in selected_stems]
     if not filtered:
         raise ValueError("No backed up captions found for the selection")
     return filtered
@@ -107,7 +100,7 @@ def validate_backup_captions_folder(folder: Path) -> None:
     if not media_files:
         raise ValueError("No supported images or videos found in folder")
 
-    if not any(media_sidecars(media_path) for media_path in media_files):
+    if not any(caption_sidecars(media_path) for media_path in media_files):
         raise ValueError("No captions found to back up")
 
 
@@ -138,7 +131,7 @@ def run_backup_captions_job(
         raise ValueError(f"Could not create {CAPTION_BACKUP_DIR_NAME} folder: {exc}") from exc
 
     def process(media_path: Path) -> FileOutcome:
-        sidecars = media_sidecars(media_path)
+        sidecars = caption_sidecars(media_path)
         if not sidecars:
             return FileOutcome(
                 status="skipped",
@@ -146,8 +139,8 @@ def run_backup_captions_job(
                 fields={"message": "No sidecar to back up"},
             )
 
-        # Filtered per sidecar, not per media file: a caption can already be stored
-        # while the issue written next to it later is not.
+        # Filtered per sidecar, not per media file: the JSON caption can already be
+        # stored while the .txt written next to it later is not.
         pending = (
             sidecars
             if overwrite
@@ -249,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "action",
         choices=("backup", "restore"),
-        help="Copy captions and issues into the backup folder, or copy them back out",
+        help="Copy captions into the backup folder, or copy them back out",
     )
     parser.add_argument(
         "folder",

@@ -164,6 +164,19 @@ class DuplicateResolveResponse(BaseModel):
     failed: list[str] = Field(default_factory=list)
 
 
+class DuplicateDismissRequest(BaseModel):
+    """A group the user judged to be a false positive."""
+
+    #: Every member of the group. Their findings are cleared and no media is touched,
+    #: which is what separates this from a resolve with nothing to discard.
+    paths: list[str]
+
+
+class DuplicateDismissResponse(BaseModel):
+    cleared: list[str]
+    failed: list[str] = Field(default_factory=list)
+
+
 class SidecarDeleteRequest(BaseModel):
     folder: str
     kind: SidecarKind

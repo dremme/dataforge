@@ -27,9 +27,8 @@ export function BackupCaptionsDialog({
       title="Back up captions?"
       description={
         <>
-          This copies captions and caption issues in <strong>{folderLabel}</strong> into{" "}
-          <strong>.backup</strong>. Copies already in the backup are kept, and other files there are
-          left untouched.
+          This copies captions in <strong>{folderLabel}</strong> into <strong>.backup</strong>.
+          Copies already in the backup are kept, and other files there are left untouched.
         </>
       }
       panelClassName="backup-captions-dialog"

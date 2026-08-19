@@ -31,7 +31,7 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             payload = delete_sidecars(root, "issue")
 
-            self.assertCountEqual(payload["deleted"], ["one.issue.json", "two.issue.json"])
+            self.assertCountEqual(payload["deleted"], ["one.png.issue.json", "two.png.issue.json"])
             self.assertEqual(payload["failed"], [])
             self.assertEqual(payload["kind"], "issue")
             self.assertEqual(payload["folder"], str(root.resolve()))
@@ -48,7 +48,7 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             payload = delete_sidecars(root, "issue")
 
-            self.assertEqual(payload["deleted"], ["one.issue.json"])
+            self.assertEqual(payload["deleted"], ["one.png.issue.json"])
             self.assertFalse(issue_file_path(media).exists())
             self.assertTrue(duplicate_file_path(media).is_file())
             self.assertTrue(media.is_file())
@@ -63,7 +63,9 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             payload = delete_sidecars(root, "duplicate")
 
-            self.assertCountEqual(payload["deleted"], ["one.duplicate.json", "two.duplicate.json"])
+            self.assertCountEqual(
+                payload["deleted"], ["one.png.duplicate.json", "two.png.duplicate.json"]
+            )
             self.assertFalse(duplicate_file_path(first).exists())
             self.assertFalse(duplicate_file_path(second).exists())
             # The media a finding pointed at, and the other kind of sidecar, both stay.
@@ -79,8 +81,8 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             payload = delete_sidecars(root, "issue")
 
-            self.assertEqual(payload["deleted"], ["gone.issue.json"])
-            self.assertFalse((root / "gone.issue.json").exists())
+            self.assertEqual(payload["deleted"], ["gone.png.issue.json"])
+            self.assertFalse((root / "gone.png.issue.json").exists())
 
     def test_keeps_a_caption_that_only_looks_like_a_sidecar(self) -> None:
         with TempMediaFolder() as root:
@@ -104,7 +106,7 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             payload = delete_sidecars(root, "issue")
 
-            self.assertEqual(payload["deleted"], ["top.issue.json"])
+            self.assertEqual(payload["deleted"], ["top.png.issue.json"])
             self.assertTrue(issue_file_path(nested).is_file())
             self.assertTrue(nested.is_file())
 
@@ -159,8 +161,8 @@ class DeleteSidecarsTests(unittest.TestCase):
             with patch("routes.sidecars.delete_path", side_effect=delete_or_lock):
                 payload = delete_sidecars(root, "issue")
 
-            self.assertCountEqual(payload["deleted"], ["two.issue.json"])
-            self.assertEqual(payload["failed"], ["one.issue.json"])
+            self.assertCountEqual(payload["deleted"], ["two.png.issue.json"])
+            self.assertEqual(payload["failed"], ["one.png.issue.json"])
             self.assertTrue(locked.is_file())
             self.assertFalse(issue_file_path(second).exists())
 
@@ -186,7 +188,7 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             self.assertEqual(
                 payload["deleted"],
-                ["Alpha.issue.json", "beta.issue.json", "gamma.issue.json"],
+                ["Alpha.png.issue.json", "beta.png.issue.json", "gamma.png.issue.json"],
             )
 
 

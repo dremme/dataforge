@@ -12,6 +12,8 @@ from media_delete import delete_media_with_sidecars, deletes_to_trash
 from media_listing import media_items_named
 from routes._helpers import resolve_folder, resolve_media_file
 from schemas import (
+    DuplicateDismissRequest,
+    DuplicateDismissResponse,
     DuplicateGroup,
     DuplicateGroupsResponse,
     DuplicateResolveRequest,
@@ -106,3 +108,34 @@ def resolve_duplicate_group(request: DuplicateResolveRequest) -> DuplicateResolv
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return DuplicateResolveResponse(kept=keep_path.name, deleted=deleted, failed=failed)
+
+
+@router.post("/duplicates/dismiss", response_model=DuplicateDismissResponse)
+def dismiss_duplicate_group(request: DuplicateDismissRequest) -> DuplicateDismissResponse:
+    """Clear a group's findings, leaving every file where it is.
+
+    The way out of a false positive: perceptual hashing groups two shots of the same
+    subject often enough that the resolver needs an answer other than picking a file to
+    delete. Only the ``.duplicate.json`` sidecars go, so the group stops being offered
+    without anything in the dataset changing.
+
+    The dismissal lives in the absence of those sidecars, not in a record of its own, so
+    a later find-duplicates run judges the folder fresh and may flag the pair again -
+    which is the honest outcome for a run the user asked for at a new threshold.
+    """
+    if len(request.paths) < 2:
+        raise HTTPException(status_code=400, detail="A duplicate group needs at least two members")
+
+    paths = [resolve_media_file(raw) for raw in request.paths]
+
+    cleared: list[str] = []
+    failed: list[str] = []
+    for path in paths:
+        try:
+            delete_duplicate_file(path)
+        except OSError:
+            failed.append(path.name)
+            continue
+        cleared.append(path.name)
+
+    return DuplicateDismissResponse(cleared=cleared, failed=failed)

@@ -394,7 +394,19 @@ def save_caption(
 
 
 def issue_file_path(media_path: Path) -> Path:
-    return media_path.with_suffix(ISSUE_SIDECAR_SUFFIX)
+    """Where ``media_path``'s findings are written: ``clip.mp4`` -> ``clip.mp4.issue.json``.
+
+    Named after the whole filename for the reason the duplicate finding is (see
+    :func:`duplicates.duplicate_file_path`): a generated folder holds ``clip.mp4`` beside
+    the ``clip.png`` that previews it, and a stem-named sidecar is one file for the two of
+    them. Verify-captions clears the findings of a file that reads clean, so the still
+    verifying clean deleted the video's findings - order deciding which survived.
+
+    Only this name is read. A folder written before the rename reports no findings until
+    verify-captions runs again, and the files it leaves behind are what the folder-wide
+    sidecar sweep is for.
+    """
+    return media_path.with_name(media_path.name + ISSUE_SIDECAR_SUFFIX)
 
 
 def delete_issue_file(media_path: Path) -> None:

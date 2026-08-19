@@ -11,17 +11,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 from automation.backup_captions import (
-    backed_up_media_stem,
     caption_backup_dir,
+    caption_sidecars,
     has_caption_backup,
     list_backup_sidecars,
-    media_sidecars,
     run_backup_captions_job,
     run_restore_captions_job,
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
-from captions import issue_file_path
+from captions import issue_file_path, load_issue_summary
 from constants import CAPTION_BACKUP_DIR_NAME
 from testing_fixtures import (
     TempMediaFolder,
@@ -32,7 +31,7 @@ from testing_fixtures import (
 )
 
 
-class MediaSidecarTests(unittest.TestCase):
+class CaptionSidecarTests(unittest.TestCase):
     def test_collects_both_suffixes_with_json_first(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
@@ -40,39 +39,24 @@ class MediaSidecarTests(unittest.TestCase):
             write_json_caption(media, {"description": "A structured caption."})
 
             self.assertEqual(
-                [path.name for path in media_sidecars(media)],
+                [path.name for path in caption_sidecars(media)],
                 ["sunset.json", "sunset.txt"],
             )
 
-    def test_collects_the_issue_sidecar_too(self) -> None:
+    def test_leaves_findings_out(self) -> None:
+        """A finding is derived from the caption; a job re-run is what restores it."""
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "A plain caption.")
             write_issue_sidecar(media, "The caption omits the mountains.")
 
-            self.assertEqual(
-                [path.name for path in media_sidecars(media)],
-                ["sunset.txt", "sunset.issue.json"],
-            )
+            self.assertEqual([path.name for path in caption_sidecars(media)], ["sunset.txt"])
 
     def test_returns_empty_without_captions(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
 
-            self.assertEqual(media_sidecars(media), [])
-
-
-class BackedUpMediaStemTests(unittest.TestCase):
-    def test_strips_the_double_issue_suffix(self) -> None:
-        self.assertEqual(backed_up_media_stem(Path("sunset.issue.json")), "sunset")
-
-    def test_strips_a_single_caption_suffix(self) -> None:
-        self.assertEqual(backed_up_media_stem(Path("sunset.json")), "sunset")
-        self.assertEqual(backed_up_media_stem(Path("sunset.txt")), "sunset")
-
-    def test_keeps_dots_that_belong_to_the_stem(self) -> None:
-        self.assertEqual(backed_up_media_stem(Path("my.sunset.issue.json")), "my.sunset")
-        self.assertEqual(backed_up_media_stem(Path("my.sunset.txt")), "my.sunset")
+            self.assertEqual(caption_sidecars(media), [])
 
 
 class BackupCaptionsJobTests(unittest.TestCase):
@@ -110,7 +94,7 @@ class BackupCaptionsJobTests(unittest.TestCase):
             self.assertEqual(stats["skipped"], 1)
             self.assertEqual(stats["write_error"], 0)
 
-    def test_copies_caption_issue_sidecars(self) -> None:
+    def test_stores_the_caption_and_not_the_findings_beside_it(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "A plain caption.")
@@ -120,21 +104,24 @@ class BackupCaptionsJobTests(unittest.TestCase):
 
             self.assertEqual(
                 {path.name for path in caption_backup_dir(root).iterdir()},
-                {"sunset.txt", "sunset.issue.json"},
+                {"sunset.txt"},
             )
-            self.assertEqual(result["stats"]["sidecars"], 2)
+            self.assertEqual(result["stats"]["sidecars"], 1)
 
-    def test_backs_up_an_issue_sidecar_without_a_caption(self) -> None:
+    def test_a_file_carrying_only_findings_has_nothing_to_back_up(self) -> None:
         with TempMediaFolder() as root:
+            captioned = write_media(root, "harbor.png")
+            write_txt_caption(captioned, "A harbour at dusk.")
             media = write_media(root, "sunset.png")
             write_issue_sidecar(media, "There is no caption at all.")
 
-            run_backup_captions_job(root)
+            result = run_backup_captions_job(root)
 
             self.assertEqual(
                 {path.name for path in caption_backup_dir(root).iterdir()},
-                {"sunset.issue.json"},
+                {"harbor.txt"},
             )
+            self.assertEqual(result["stats"]["skipped"], 1)
 
     def test_backing_up_again_keeps_the_stored_copy(self) -> None:
         with TempMediaFolder() as root:
@@ -175,7 +162,7 @@ class BackupCaptionsJobTests(unittest.TestCase):
             run_backup_captions_job(root)
 
             write_txt_caption(media, "Second caption.")
-            write_issue_sidecar(media, "The caption omits the mountains.")
+            write_json_caption(media, {"description": "A structured caption."})
             result = run_backup_captions_job(root)
 
             backup_dir = caption_backup_dir(root)
@@ -183,7 +170,7 @@ class BackupCaptionsJobTests(unittest.TestCase):
                 backup_dir.joinpath("sunset.txt").read_text(encoding="utf-8"),
                 "First caption.",
             )
-            self.assertTrue(backup_dir.joinpath("sunset.issue.json").is_file())
+            self.assertTrue(backup_dir.joinpath("sunset.json").is_file())
             self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(result["stats"]["sidecars"], 1)
 
@@ -306,55 +293,23 @@ class RestoreCaptionsJobTests(unittest.TestCase):
 
             self.assertTrue(media.with_suffix(".json").is_file())
 
-    def test_restores_a_caption_issue_sidecar(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.png")
-            write_txt_caption(media, "A plain caption.")
-            issue_path = write_issue_sidecar(media, "The caption omits the mountains.")
-            run_backup_captions_job(root)
-
-            issue_path.unlink()
-
-            result = run_restore_captions_job(root)
-
-            self.assertTrue(issue_path.is_file())
-            self.assertIn("omits the mountains", issue_path.read_text(encoding="utf-8"))
-            self.assertEqual(result["stats"]["orphaned"], 0)
-            self.assertEqual(result["stats"]["success"], 2)
-
-    def test_restoring_an_issue_sidecar_makes_the_issue_visible_again(self) -> None:
-        from captions import load_issue_summary
-
+    def test_a_restore_brings_back_no_findings(self) -> None:
+        """Restoring a caption must not resurrect the verdict written against it."""
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "A plain caption.")
             write_issue_sidecar(media, "The caption omits the mountains.")
             run_backup_captions_job(root)
 
+            media.with_suffix(".txt").unlink()
             issue_file_path(media).unlink()
+
+            result = run_restore_captions_job(root)
+
+            self.assertTrue(media.with_suffix(".txt").is_file())
+            self.assertFalse(issue_file_path(media).exists())
             self.assertEqual(load_issue_summary(media), ([], False))
-
-            run_restore_captions_job(root)
-
-            fixes, has_issue_file = load_issue_summary(media)
-            self.assertEqual(fixes, ["The caption omits the mountains."])
-            self.assertTrue(has_issue_file)
-
-    def test_honours_a_selection_for_issue_sidecars(self) -> None:
-        with TempMediaFolder() as root:
-            first = write_media(root, "sunset.png")
-            write_issue_sidecar(first, "Sunset issue.")
-            second = write_media(root, "harbor.png")
-            write_issue_sidecar(second, "Harbor issue.")
-            run_backup_captions_job(root)
-
-            issue_file_path(first).unlink()
-            issue_file_path(second).unlink()
-
-            run_restore_captions_job(root, selected_paths=[first])
-
-            self.assertTrue(issue_file_path(first).is_file())
-            self.assertFalse(issue_file_path(second).exists())
+            self.assertEqual(result["stats"]["success"], 1)
 
     def test_skips_backed_up_captions_without_media(self) -> None:
         with TempMediaFolder() as root:

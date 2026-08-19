@@ -1,4 +1,5 @@
 import { isSysPrompt } from "@/features/gallery/lib/itemKind";
+import type { NotifyOptions } from "@/shared/notifications/notifications";
 import type { GalleryItem } from "@/shared/types";
 
 /**
@@ -97,3 +98,32 @@ export const KEEPER_REASON_LABEL: Record<KeeperReason, string> = {
   caption: "Only one with a caption",
   name: "First by name",
 };
+
+/**
+ * What to say about an open that shows nothing, and nothing when it shows a queue.
+ *
+ * The resolver is opened from a count of sidecars and served a count of groups, and the
+ * two disagree whenever a flagged file has outlived its partners: the file keeps the
+ * finding that says it was in a group, and the group it names has nobody left in it.
+ * Saying so is the whole job here - the findings themselves are left alone, because a
+ * job re-run is what rebuilds them and this cannot tell a spent finding from one the
+ * folder lost some other way.
+ *
+ * Returns null for the ordinary open, where the modal itself is the feedback.
+ */
+export function duplicateOpenOutcome(staleCount: number, groupCount: number): NotifyOptions | null {
+  if (groupCount > 0) return null;
+
+  if (staleCount > 0) {
+    const one = staleCount === 1;
+    const findings = `${staleCount} duplicate ${one ? "finding has" : "findings have"}`;
+    return {
+      variant: "warning",
+      message: `${findings} no partner left to compare. Re-run find duplicates to rebuild ${
+        one ? "it" : "them"
+      }.`,
+    };
+  }
+
+  return { variant: "warning", message: "No duplicate groups left in this folder." };
+}

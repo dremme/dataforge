@@ -109,6 +109,25 @@ class ListDuplicatesTests(unittest.TestCase):
         with patch("media_delete.sys.platform", "linux"):
             self.assertFalse(deletes_to_trash())
 
+    def test_a_still_sharing_the_video_stem_does_not_hide_the_group(self) -> None:
+        """The generated-folder shape: clip.mp4 and clip.png sit under one stem."""
+        with TempMediaFolder() as root:
+            first = write_media(root, "clip.mp4")
+            second = write_media(root, "clip-copy.mp4")
+            preview = write_media(root, "clip.png")
+            save_duplicate_finding(first, FINDING)
+            save_duplicate_finding(second, FINDING)
+            save_duplicate_finding(preview, None)
+
+            payload = list_duplicates(root)
+
+            self.assertEqual(len(payload["groups"]), 1)
+            self.assertEqual(
+                [member["name"] for member in payload["groups"][0]["members"]],
+                ["clip-copy.mp4", "clip.mp4"],
+            )
+            self.assertEqual(payload["stale"], [])
+
 
 class ResolveDuplicateTests(unittest.TestCase):
     def test_deletes_the_discards_and_clears_the_keeper(self) -> None:
@@ -182,6 +201,83 @@ class ResolveDuplicateTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 404)
             self.assertTrue(keep.is_file())
+
+
+class DismissDuplicateTests(unittest.TestCase):
+    def test_clears_every_finding_and_keeps_the_files(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "one.png")
+            second = write_media(root, "two.png")
+            write_txt_caption(first, "A red car.")
+            save_duplicate_finding(first, FINDING)
+            save_duplicate_finding(second, FINDING)
+
+            response = client.post(
+                "/api/duplicates/dismiss",
+                json={"paths": [str(first), str(second)]},
+            )
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["cleared"], ["one.png", "two.png"])
+            self.assertEqual(response.json()["failed"], [])
+            self.assertTrue(first.is_file())
+            self.assertTrue(second.is_file())
+            self.assertTrue(first.with_suffix(".txt").is_file())
+            self.assertFalse(duplicate_file_path(first).exists())
+            self.assertFalse(duplicate_file_path(second).exists())
+
+    def test_the_group_is_gone_from_the_listing(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "one.png")
+            second = write_media(root, "two.png")
+            save_duplicate_finding(first, FINDING)
+            save_duplicate_finding(second, FINDING)
+
+            client.post("/api/duplicates/dismiss", json={"paths": [str(first), str(second)]})
+
+            payload = list_duplicates(root)
+            self.assertEqual(payload["groups"], [])
+            # Not stale either: a stale member still carries a sidecar, these do not.
+            self.assertEqual(payload["stale"], [])
+
+    def test_a_member_without_a_finding_is_still_reported_as_cleared(self) -> None:
+        """A half-written group dismisses in one go rather than erroring."""
+        with TempMediaFolder() as root:
+            first = write_media(root, "one.png")
+            second = write_media(root, "two.png")
+            save_duplicate_finding(first, FINDING)
+
+            response = client.post(
+                "/api/duplicates/dismiss",
+                json={"paths": [str(first), str(second)]},
+            )
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["cleared"], ["one.png", "two.png"])
+
+    def test_refuses_a_group_of_one(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "one.png")
+            save_duplicate_finding(first, FINDING)
+
+            response = client.post("/api/duplicates/dismiss", json={"paths": [str(first)]})
+
+            self.assertEqual(response.status_code, 400)
+            self.assertTrue(duplicate_file_path(first).is_file())
+
+    def test_a_missing_file_is_a_404(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "one.png")
+            save_duplicate_finding(first, FINDING)
+
+            response = client.post(
+                "/api/duplicates/dismiss",
+                json={"paths": [str(first), str(root / "gone.png")]},
+            )
+
+            self.assertEqual(response.status_code, 404)
+            # Nothing is cleared when one member cannot be resolved.
+            self.assertTrue(duplicate_file_path(first).is_file())
 
 
 if __name__ == "__main__":

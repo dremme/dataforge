@@ -601,6 +601,30 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             self.assertFalse(issue_file_path(media).exists())
 
+    def test_a_clean_file_does_not_clear_a_stem_sharer_findings(self) -> None:
+        """A generated folder holds clip.mp4 beside the clip.png that previews it.
+
+        Both once shared one stem-named sidecar, and the job clears the findings of every
+        file that verifies clean - so whichever the run reached last decided what the
+        folder remembered. The still sorts after the video, so it always won.
+        """
+        with TempMediaFolder() as root:
+            flagged = write_media(root, "clip.jpg")
+            clean = write_media(root, "clip.png")
+            write_txt_caption(flagged, "A caption that misses something.")
+            write_txt_caption(clean, "An accurate caption.")
+
+            def verdict(_client, media_path, *_args, **_kwargs):
+                if media_path.name == flagged.name:
+                    return _fixes_json("The caption omits the mountains.")
+                return _fixes_json()
+
+            with patch("automation.verify_captions.verify_caption", side_effect=verdict):
+                run_verify_captions_job(root)
+
+            self.assertEqual(load_issue_summary(flagged)[0], ["The caption omits the mountains."])
+            self.assertEqual(load_issue_summary(clean), ([], False))
+
     def test_run_job_records_api_errors(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")

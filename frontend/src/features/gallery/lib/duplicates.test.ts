@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { chooseKeeper, countDuplicateGroups, countDuplicates, isDuplicateItem } from "./duplicates";
+import {
+  chooseKeeper,
+  countDuplicateGroups,
+  countDuplicates,
+  duplicateOpenOutcome,
+  isDuplicateItem,
+} from "./duplicates";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 
 function duplicate(name: string, group: string, overrides = {}) {
@@ -109,5 +115,33 @@ describe("chooseKeeper", () => {
 
   it("returns nothing for an empty group", () => {
     expect(chooseKeeper([])).toBeNull();
+  });
+});
+
+describe("duplicateOpenOutcome", () => {
+  it("stays quiet when there are groups to compare", () => {
+    expect(duplicateOpenOutcome(0, 3)).toBeNull();
+    expect(duplicateOpenOutcome(4, 3)).toBeNull();
+  });
+
+  it("points at a re-run when every finding lost its partner", () => {
+    expect(duplicateOpenOutcome(2, 0)).toEqual({
+      variant: "warning",
+      message:
+        "2 duplicate findings have no partner left to compare. Re-run find duplicates to rebuild them.",
+    });
+  });
+
+  it("reads as English for a single finding", () => {
+    expect(duplicateOpenOutcome(1, 0)?.message).toBe(
+      "1 duplicate finding has no partner left to compare. Re-run find duplicates to rebuild it.",
+    );
+  });
+
+  it("says the folder is clean when there was nothing to compare at all", () => {
+    expect(duplicateOpenOutcome(0, 0)).toEqual({
+      variant: "warning",
+      message: "No duplicate groups left in this folder.",
+    });
   });
 });

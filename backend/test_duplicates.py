@@ -186,5 +186,55 @@ class GroupingTests(unittest.TestCase):
             self.assertEqual(len(groups["def456"]), 2)
 
 
+class SidecarNamingTests(unittest.TestCase):
+    """One sidecar per media file, not per stem.
+
+    A folder of generated media holds ``clip.mp4`` beside the ``clip.png`` that previews
+    it. Under a stem-named sidecar those two shared one file, and whichever the job
+    reached last decided what it said.
+    """
+
+    def test_the_name_carries_the_media_extension(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "clip.png")
+
+            self.assertEqual(duplicate_file_path(media).name, "clip.png.duplicate.json")
+
+    def test_two_media_under_one_stem_keep_their_own_findings(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "clip.png")
+            second = write_media(root, "clip.jpg")
+            other = DuplicateFinding(group="def456", max_distance=2, threshold="near")
+
+            save_duplicate_finding(first, FINDING)
+            save_duplicate_finding(second, other)
+
+            self.assertEqual(load_duplicate_finding(first), FINDING)
+            self.assertEqual(load_duplicate_finding(second), other)
+
+    def test_clearing_one_leaves_the_other_alone(self) -> None:
+        """The bug itself: the unique file's clear took the duplicate's finding with it."""
+        with TempMediaFolder() as root:
+            flagged = write_media(root, "clip.png")
+            unique = write_media(root, "clip.jpg")
+            save_duplicate_finding(flagged, FINDING)
+
+            save_duplicate_finding(unique, None)
+
+            self.assertEqual(load_duplicate_finding(flagged), FINDING)
+
+    def test_the_stem_sharer_gets_a_sidecar_of_its_own(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "clip.png")
+            second = write_media(root, "clip.jpg")
+
+            save_duplicate_finding(first, FINDING)
+            save_duplicate_finding(second, FINDING)
+
+            self.assertNotEqual(duplicate_file_path(first), duplicate_file_path(second))
+            self.assertTrue(duplicate_file_path(first).is_file())
+            self.assertTrue(duplicate_file_path(second).is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

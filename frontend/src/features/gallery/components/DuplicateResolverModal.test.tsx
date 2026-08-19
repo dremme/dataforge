@@ -1,16 +1,18 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
+import { dismissDuplicateGroup, resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
 import type { DuplicateGroup } from "@/shared/types";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { DuplicateResolverModal } from "./DuplicateResolverModal";
 
 vi.mock("@/features/gallery/api/duplicates", () => ({
   resolveDuplicateGroup: vi.fn(),
+  dismissDuplicateGroup: vi.fn(),
 }));
 
 const resolveGroup = vi.mocked(resolveDuplicateGroup);
+const dismissGroup = vi.mocked(dismissDuplicateGroup);
 
 function member(name: string, overrides = {}) {
   return mediaItem(name, HOME_PATH, {
@@ -51,6 +53,7 @@ function renderModal(overrides: Partial<Parameters<typeof DuplicateResolverModal
 beforeEach(() => {
   vi.clearAllMocks();
   resolveGroup.mockResolvedValue({ kept: "large.png", deleted: ["small.png"], failed: [] });
+  dismissGroup.mockResolvedValue({ cleared: ["small.png", "large.png"], failed: [] });
 });
 
 describe("DuplicateResolverModal", () => {
@@ -193,6 +196,56 @@ describe("DuplicateResolverModal", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     // Back to the comparison, with the group still intact.
     expect(screen.getAllByRole("radio")).toHaveLength(2);
+  });
+
+  it("clears a false positive without deleting anything, then advances", async () => {
+    const user = userEvent.setup();
+    const props = renderModal({ groups: [group(), group({ group: "g2" })], index: 0 });
+
+    await user.click(screen.getByRole("button", { name: "Not duplicates" }));
+
+    await waitFor(() => {
+      expect(dismissGroup).toHaveBeenCalledWith([
+        `${HOME_PATH}\\small.png`,
+        `${HOME_PATH}\\large.png`,
+      ]);
+    });
+    expect(resolveGroup).not.toHaveBeenCalled();
+    expect(props.onResolved).toHaveBeenCalled();
+    expect(props.onIndexChange).toHaveBeenCalledWith(1);
+  });
+
+  it("never confirms a dismissal, even where a delete would be permanent", async () => {
+    const user = userEvent.setup();
+    renderModal({ deletesToTrash: false });
+
+    await user.click(screen.getByRole("button", { name: "Not duplicates" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(dismissGroup).toHaveBeenCalled());
+  });
+
+  it("reports a finding it could not clear instead of moving on", async () => {
+    const user = userEvent.setup();
+    dismissGroup.mockResolvedValue({ cleared: [], failed: ["small.png"] });
+    const props = renderModal();
+
+    await user.click(screen.getByRole("button", { name: "Not duplicates" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not clear the finding for small.png.",
+    );
+    expect(props.onIndexChange).not.toHaveBeenCalled();
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes after dismissing the last group", async () => {
+    const user = userEvent.setup();
+    const props = renderModal();
+
+    await user.click(screen.getByRole("button", { name: "Not duplicates" }));
+
+    await waitFor(() => expect(props.onClose).toHaveBeenCalled());
   });
 
   it("renders nothing when the index is past the queue", () => {

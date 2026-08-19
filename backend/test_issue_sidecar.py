@@ -9,7 +9,12 @@ isolate_test_database()
 import json
 import unittest
 
-from captions import issue_file_path, load_issue_summary, save_issue_fixes
+from captions import (
+    delete_issue_file,
+    issue_file_path,
+    load_issue_summary,
+    save_issue_fixes,
+)
 from constants import MAX_ISSUE_FIXES
 from testing_fixtures import TempMediaFolder, write_issue_sidecar, write_media
 
@@ -96,6 +101,59 @@ class SaveIssueFixesTests(unittest.TestCase):
             save_issue_fixes(media, [])
 
             self.assertFalse(issue_file_path(media).exists())
+
+
+class SidecarNamingTests(unittest.TestCase):
+    """One sidecar per media file, not per stem.
+
+    A generated folder holds ``clip.mp4`` beside the ``clip.png`` that previews it. Under
+    a stem-named sidecar those two shared one file, and verify-captions clears the findings
+    of whatever reads clean - so the still cleared the video's.
+    """
+
+    def test_the_name_carries_the_media_extension(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "clip.png")
+
+            self.assertEqual(issue_file_path(media).name, "clip.png.issue.json")
+
+    def test_two_media_under_one_stem_keep_their_own_findings(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_media(root, "clip.png")
+            second = write_media(root, "clip.jpg")
+
+            save_issue_fixes(first, ["The caption omits the mountains."])
+            save_issue_fixes(second, ["The caption says dusk, the sky is bright."])
+
+            self.assertEqual(load_issue_summary(first)[0], ["The caption omits the mountains."])
+            self.assertEqual(
+                load_issue_summary(second)[0], ["The caption says dusk, the sky is bright."]
+            )
+
+    def test_clearing_one_leaves_the_other_alone(self) -> None:
+        """The bug itself: the clean file's clear took the flagged file's findings."""
+        with TempMediaFolder() as root:
+            flagged = write_media(root, "clip.png")
+            clean = write_media(root, "clip.jpg")
+            save_issue_fixes(flagged, ["The caption omits the mountains."])
+
+            save_issue_fixes(clean, [])
+
+            self.assertEqual(
+                load_issue_summary(flagged), (["The caption omits the mountains."], True)
+            )
+
+    def test_deleting_removes_only_this_file_findings(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "clip.png")
+            stem_sharer = write_media(root, "clip.jpg")
+            save_issue_fixes(media, ["The caption omits the mountains."])
+            save_issue_fixes(stem_sharer, ["The caption says dusk, the sky is bright."])
+
+            delete_issue_file(media)
+
+            self.assertFalse(issue_file_path(media).exists())
+            self.assertTrue(issue_file_path(stem_sharer).is_file())
 
 
 if __name__ == "__main__":

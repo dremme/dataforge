@@ -11,6 +11,18 @@ findings survive the things that happen to a dataset between a scan and a review
 A stored member list would go stale on all three, in each case naming a file that is no
 longer where the list says. The id is the only cross-file reference, and it is derived
 from the group's sorted names so an unchanged group keeps its id across re-runs.
+
+The sidecar is named after the media's **whole filename** - ``clip.mp4`` is recorded in
+``clip.mp4.duplicate.json``, not ``clip.duplicate.json``. A stem-based name is one file
+shared by every media that happens to sit under the same stem, which is the ordinary
+shape of a generated folder: a video beside the still that previews it. Sharing it is
+not a naming quibble - the writer clears the findings of files it no longer groups, so
+the still being unique deleted the video's finding in the same pass that wrote it, and
+every re-run reproduced it.
+
+Only that name is read. A folder written before the rename reports no findings until the
+job runs again, which takes seconds and is the only thing that can rebuild them anyway;
+the files it leaves behind are what the folder-wide sidecar sweep is for.
 """
 
 from __future__ import annotations
@@ -50,7 +62,8 @@ class DuplicateFinding:
 
 
 def duplicate_file_path(media_path: Path) -> Path:
-    return media_path.with_suffix(DUPLICATE_SIDECAR_SUFFIX)
+    """Where ``media_path``'s finding is written: ``clip.mp4`` -> ``clip.mp4.duplicate.json``."""
+    return media_path.with_name(media_path.name + DUPLICATE_SIDECAR_SUFFIX)
 
 
 def group_id_for(names: list[str]) -> str:
@@ -184,7 +197,7 @@ def findings_in_scan(scan: FolderScan) -> Iterator[tuple[Path, DuplicateFinding]
     media gone from under it - is ignored rather than reported as a group member.
     """
     for media in scan.media:
-        sidecar = scan.sidecar(media.path.stem, DUPLICATE_SIDECAR_SUFFIX)
+        sidecar = scan.sidecar(media.name, DUPLICATE_SIDECAR_SUFFIX)
         if sidecar is None:
             continue
 

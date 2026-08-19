@@ -73,7 +73,7 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             self.assertFalse(media.exists())
             self.assertTrue((destination_dir / "sunset.txt").is_file())
             self.assertTrue((destination_dir / "sunset.json").is_file())
-            self.assertTrue((destination_dir / "sunset.issue.json").is_file())
+            self.assertTrue((destination_dir / "sunset.png.issue.json").is_file())
             self.assertFalse(media.with_suffix(".txt").exists())
             self.assertFalse(media.with_suffix(".json").exists())
             self.assertFalse(issue_file_path(media).exists())
@@ -81,7 +81,7 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(result["destination"], str(destination_media))
             self.assertEqual(
                 set(result["files"]),
-                {"sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"},
             )
 
     def test_rejects_move_without_overwrite_when_destination_exists(self) -> None:
@@ -219,7 +219,7 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
 
             result = transfer_media_with_sidecars(media, destination_dir, mode="copy")
 
-            for name in ("sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"):
+            for name in ("sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"):
                 self.assertTrue((destination_dir / name).is_file(), name)
                 self.assertTrue((source_dir / name).is_file(), f"original {name} was removed")
 
@@ -230,7 +230,7 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(result["destination"], str(destination_dir / "sunset.png"))
             self.assertEqual(
                 set(result["files"]),
-                {"sunset.png", "sunset.txt", "sunset.json", "sunset.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"},
             )
 
     def test_rejects_copy_without_overwrite_when_destination_exists(self) -> None:

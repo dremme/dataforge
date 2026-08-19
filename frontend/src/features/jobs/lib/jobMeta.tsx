@@ -142,7 +142,7 @@ export const JOB_TYPE_META = {
     label: "Backup captions",
     icon: iconArchive,
     startUi: "dialog" as const,
-    menuDescription: "Copy captions and caption issues into the .backup folder.",
+    menuDescription: "Copy captions into the .backup folder.",
   },
   restore_captions: {
     type: "restore_captions" as const,
@@ -150,14 +150,13 @@ export const JOB_TYPE_META = {
     label: "Restore captions",
     icon: iconArchiveRestore,
     startUi: "confirm" as const,
-    menuDescription: "Bring captions and caption issues back from the .backup folder.",
+    menuDescription: "Bring captions back from the .backup folder.",
     confirm: {
       title: "Restore captions from backup?",
       description: (folderLabel: string) => (
         <>
-          This overwrites current captions and caption issues in <strong>{folderLabel}</strong> with
-          the copies in <strong>.backup</strong>. Files that are not in the backup are left
-          untouched.
+          This overwrites current captions in <strong>{folderLabel}</strong> with the copies in{" "}
+          <strong>.backup</strong>. Files that are not in the backup are left untouched.
         </>
       ),
       confirmLabel: "Restore captions",

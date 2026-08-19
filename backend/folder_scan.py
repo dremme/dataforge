@@ -54,9 +54,14 @@ class FolderScan:
     media: list[ScannedEntry]
     sysprompt: ScannedEntry | None
 
-    def sidecar(self, stem: str, extension: str) -> ScannedEntry | None:
-        """The sidecar named ``<stem><extension>``, or ``None`` if absent."""
-        return self.files.get(f"{stem}{extension}")
+    def sidecar(self, prefix: str, extension: str) -> ScannedEntry | None:
+        """The sidecar named ``<prefix><extension>``, or ``None`` if absent.
+
+        Captions hang off the media's stem, a convention the training tools own. Findings
+        hang off its whole filename, so that ``clip.mp4`` and ``clip.png`` cannot end up
+        sharing one.
+        """
+        return self.files.get(f"{prefix}{extension}")
 
 
 def get_media_type(path: Path) -> str | None:
