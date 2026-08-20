@@ -39,6 +39,12 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["sort"], "megapixels-desc")
 
+    def test_update_duration_sort(self) -> None:
+        response = client.put("/api/preferences/ui", json={"sort": "duration-desc"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["sort"], "duration-desc")
+
     def test_invalid_sort_falls_back_to_default(self) -> None:
         response = client.put("/api/preferences/ui", json={"sort": "not-a-real-sort"})
 

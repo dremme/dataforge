@@ -17,7 +17,7 @@ from constants import (
 )
 from duplicates import duplicate_finding_from_sidecar
 from folder_scan import FolderScan, ScannedEntry, get_media_type, scan_folder
-from media_dimensions import media_dimensions
+from media_dimensions import media_info
 
 __all__ = [
     "clear_folder_summary_cache_for_tests",
@@ -218,7 +218,7 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         )
     )
 
-    dimensions = media_dimensions(media.path, media_type, media.mtime_ns, media.size)
+    info = media_info(media.path, media_type, media.mtime_ns, media.size)
 
     return {
         "name": media.name,
@@ -233,8 +233,9 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "caption_status": caption_status,
         "caption_file_type": caption_file_type,
         "media_type": media_type,
-        "width": dimensions[0] if dimensions else None,
-        "height": dimensions[1] if dimensions else None,
+        "width": info.width,
+        "height": info.height,
+        "duration": info.duration,
         "size": media.size,
         "modified_at": datetime.fromtimestamp(media.mtime, tz=UTC).isoformat(),
         "has_backup": f"{media.name}{EDIT_BACKUP_SUFFIX}" in scan.files,

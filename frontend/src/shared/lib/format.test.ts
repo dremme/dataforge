@@ -3,6 +3,7 @@ import {
   countWords,
   formatBytes,
   formatBytesValue,
+  formatDurationSeconds,
   formatModifiedAt,
   parseJsonContent,
 } from "./format";
@@ -16,6 +17,19 @@ describe("formatModifiedAt", () => {
 
   it("returns null for invalid timestamps", () => {
     expect(formatModifiedAt("not-a-date")).toBeNull();
+  });
+});
+
+describe("formatDurationSeconds", () => {
+  it("formats a video length as whole seconds", () => {
+    expect(formatDurationSeconds(5.4)).toBe("5 s");
+    expect(formatDurationSeconds(10)).toBe("10 s");
+  });
+
+  it("returns an empty string when the length is missing", () => {
+    expect(formatDurationSeconds(0)).toBe("");
+    expect(formatDurationSeconds(Number.NaN)).toBe("");
+    expect(formatDurationSeconds(null)).toBe("");
   });
 });
 

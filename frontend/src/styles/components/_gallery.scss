@@ -580,8 +580,8 @@ $gallery-list-col-name-min: 8rem;
 
 $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min, 1fr)
   var(--gallery-list-col-markers, 3.25rem) var(--gallery-list-col-status, 4rem)
-  var(--gallery-list-col-megapixels, 3rem) var(--gallery-list-col-size, 3.75rem)
-  var(--gallery-list-col-modified, 8rem);
+  var(--gallery-list-col-megapixels, 3rem) var(--gallery-list-col-duration, 3.25rem)
+  var(--gallery-list-col-size, 3.75rem) var(--gallery-list-col-modified, 8rem);
 
 .gallery-list-row {
   @include control-interactive;

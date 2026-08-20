@@ -157,6 +157,7 @@ describe("sortGalleryItems", () => {
       size: 200,
       width: 1280,
       height: 720,
+      duration: 5,
       description: "y".repeat(50),
     }),
     item("alpha.png", "image", {
@@ -164,6 +165,7 @@ describe("sortGalleryItems", () => {
       size: 100,
       width: 1920,
       height: 1080,
+      duration: 10,
       description: "x".repeat(100),
     }),
     item("charlie.png", "image", {
@@ -171,6 +173,7 @@ describe("sortGalleryItems", () => {
       size: 300,
       width: 640,
       height: 480,
+      duration: 1,
       description: "z".repeat(10),
     }),
   ];
@@ -184,6 +187,8 @@ describe("sortGalleryItems", () => {
     ["caption-desc", ["alpha.png", "bravo.png", "charlie.png"]],
     ["megapixels-asc", ["charlie.png", "bravo.png", "alpha.png"]],
     ["megapixels-desc", ["alpha.png", "bravo.png", "charlie.png"]],
+    ["duration-asc", ["charlie.png", "bravo.png", "alpha.png"]],
+    ["duration-desc", ["alpha.png", "bravo.png", "charlie.png"]],
   ])("sorts by %s", (sort, expectedNames) => {
     expect(sortGalleryItems(items, sort).map((entry) => entry.name)).toEqual(expectedNames);
   });
@@ -199,6 +204,20 @@ describe("sortGalleryItems", () => {
       "missing.png",
       "small.png",
       "large.png",
+    ]);
+  });
+
+  it("places items without a duration first when sorting duration ascending", () => {
+    const withMissing = [
+      item("long.mp4", "video", { duration: 20 }),
+      item("still.png", "image"),
+      item("short.mp4", "video", { duration: 2 }),
+    ];
+
+    expect(sortGalleryItems(withMissing, "duration-asc").map((entry) => entry.name)).toEqual([
+      "still.png",
+      "short.mp4",
+      "long.mp4",
     ]);
   });
 });
@@ -344,5 +363,6 @@ describe("parseSortOption", () => {
     expect(parseSortOption("not-a-sort")).toBe("name-asc");
     expect(parseSortOption("date-desc")).toBe("date-desc");
     expect(parseSortOption("megapixels-desc")).toBe("megapixels-desc");
+    expect(parseSortOption("duration-desc")).toBe("duration-desc");
   });
 });

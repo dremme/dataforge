@@ -175,6 +175,9 @@ class ScanBackedListingTests(unittest.TestCase):
             self.assertEqual(sizes["alpha.png"], (800, 600))
             self.assertEqual(sizes["loop.gif"], (320, 240))
             self.assertEqual(sizes["clip.mp4"], (1920, 1080))
+            self.assertIsNone(by_name["alpha.png"]["duration"])
+            self.assertIsNone(by_name["loop.gif"]["duration"])
+            self.assertEqual(by_name["clip.mp4"]["duration"], 10.0)
 
     def test_listing_leaves_dimensions_empty_when_they_cannot_be_read(self) -> None:
         with TempMediaFolder() as root:

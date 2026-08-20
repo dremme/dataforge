@@ -9,7 +9,7 @@ isolate_test_database()
 import unittest
 
 from caption_cache import clear_caption_cache_for_tests
-from media_dimensions import media_dimensions
+from media_dimensions import media_dimensions, media_info
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
@@ -21,9 +21,17 @@ from testing_fixtures import (
 )
 
 
-def _dimensions(path, media_type: str):
+def _stat_args(path):
     stat = path.stat()
-    return media_dimensions(path, media_type, stat.st_mtime_ns, stat.st_size)
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _info(path, media_type: str):
+    return media_info(path, media_type, *_stat_args(path))
+
+
+def _dimensions(path, media_type: str):
+    return media_dimensions(path, media_type, *_stat_args(path))
 
 
 class ImageDimensionTests(unittest.TestCase):
@@ -121,6 +129,31 @@ class VideoDimensionTests(unittest.TestCase):
             video.write_bytes(video.read_bytes()[:12])
 
             self.assertIsNone(_dimensions(video, "video"))
+
+
+class VideoDurationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_caption_cache_for_tests()
+
+    def test_reads_seconds_from_the_media_header(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, sample_count=54, timescale=10, sample_delta=1)
+
+            self.assertEqual(_info(video, "video").duration, 5.4)
+
+    def test_leaves_duration_empty_for_a_still(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.png")
+
+            self.assertIsNone(_info(photo, "image").duration)
+
+    def test_leaves_duration_empty_outside_the_mp4_family(self) -> None:
+        with TempMediaFolder() as root:
+            disguised = write_mp4_video(
+                root, "clip.mkv", sample_count=54, timescale=10, sample_delta=1
+            )
+
+            self.assertIsNone(_info(disguised, "video").duration)
 
 
 class DimensionCacheTests(unittest.TestCase):

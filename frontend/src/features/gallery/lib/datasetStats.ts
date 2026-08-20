@@ -7,6 +7,7 @@
  */
 
 import { isGif, isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
+import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
 
 /** Words too common to say anything about a dataset. */
@@ -56,6 +57,17 @@ const MEGAPIXEL_BUCKETS = [
   { label: "4 – 20 MP", max: 20 },
   { label: "20 – 48 MP", max: 48 },
   { label: "> 48 MP", max: Number.POSITIVE_INFINITY },
+] as const;
+
+/** Upper bound of each video-duration bucket, in seconds. */
+const DURATION_BUCKETS = [
+  { label: "0 – 2 s", max: 2 },
+  { label: "2 – 4 s", max: 4 },
+  { label: "4 – 6 s", max: 6 },
+  { label: "6 – 8 s", max: 8 },
+  { label: "8 – 10 s", max: 10 },
+  { label: "10 – 15 s", max: 15 },
+  { label: "> 15 s", max: Number.POSITIVE_INFINITY },
 ] as const;
 
 /** Upper bound of each caption-length bucket, in characters. */
@@ -151,6 +163,10 @@ export interface DatasetStats {
   aspectRatios: StatBucket[];
   /** Files whose dimensions are unknown, e.g. every non-MP4-family video. */
   unknownResolution: number;
+  /** Video length in seconds; stills, GIFs, and videos without a header duration stay out. */
+  durations: StatBucket[];
+  /** Videos whose length is unknown, e.g. every non-MP4-family container. */
+  unknownDuration: number;
 }
 
 function median(sorted: number[]): number {
@@ -255,6 +271,7 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   const captions: string[] = [];
   const lengths: number[] = [];
   const megapixels: number[] = [];
+  const durations: number[] = [];
   const aspectRatioLabels: string[] = [];
   let captioned = 0;
   let issues = 0;
@@ -269,6 +286,7 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   const videoExtensions = new Map<string, number>();
   const gifExtensions = new Map<string, number>();
   let unknownResolution = 0;
+  let unknownDuration = 0;
 
   for (const item of media) {
     if (item.has_issue_file) issues += 1;
@@ -293,6 +311,9 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
     } else if (isVideo(item)) {
       videos += 1;
       bumpExtension(videoExtensions, item.name);
+      const duration = durationSeconds(item.duration);
+      if (duration == null) unknownDuration += 1;
+      else durations.push(duration);
     } else {
       images += 1;
       bumpExtension(imageExtensions, item.name);
@@ -343,5 +364,7 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
     megapixels: bucketize(megapixels, MEGAPIXEL_BUCKETS),
     aspectRatios: countAspectRatios(aspectRatioLabels),
     unknownResolution,
+    durations: bucketize(durations, DURATION_BUCKETS),
+    unknownDuration,
   };
 }

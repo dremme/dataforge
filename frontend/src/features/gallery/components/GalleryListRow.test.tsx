@@ -104,8 +104,18 @@ describe("GalleryListRow", () => {
 
     // Dropping the cells would slide every later column out of the list's table.
     const cells = [...container.querySelectorAll(".gallery-list-row__meta-item")];
-    expect(cells).toHaveLength(3);
-    expect(cells.map((cell) => cell.textContent)).toEqual(["", "", ""]);
+    expect(cells).toHaveLength(4);
+    expect(cells.map((cell) => cell.textContent)).toEqual(["", "", "", ""]);
+  });
+
+  it("shows a video's length in seconds", () => {
+    const { container } = render(
+      <GalleryListRow item={{ ...uncaptionedVideo, duration: 5.4 }} onSelect={vi.fn()} />,
+    );
+
+    expect(container.querySelector(".gallery-list-row__meta-item--duration")?.textContent).toBe(
+      "5 s",
+    );
   });
 
   it("keeps the marker column for an item with no markers", () => {

@@ -127,6 +127,7 @@
 
   &__menu-option-label {
     @include truncate;
+    overflow: visible; // TODO: fix for letters like g, p and y getting cut off at the buttom
   }
 
   &__menu-status {

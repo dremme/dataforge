@@ -71,14 +71,15 @@ describe("useGalleryListColumns", () => {
     const narrow = renderColumns([small]);
     const widened = renderColumns([small, large]);
 
-    expect(narrow?.["--gallery-list-col-size"]).toBe("8px");
-    expect(widened?.["--gallery-list-col-size"]).toBe("9px");
+    expect(narrow?.["--gallery-list-col-size"]).toBe("8.5px");
+    expect(widened?.["--gallery-list-col-size"]).toBe("9.5px");
   });
 
   it("collapses a column no item in the folder has a value for", () => {
     const columns = renderColumns([item({ width: null, height: null })]);
 
     expect(columns?.["--gallery-list-col-megapixels"]).toBe("0px");
+    expect(columns?.["--gallery-list-col-duration"]).toBe("0px");
     expect(columns?.["--gallery-list-col-size"]).not.toBe("0px");
   });
 
@@ -94,8 +95,8 @@ describe("useGalleryListColumns", () => {
       }),
     ]);
 
-    expect(one?.["--gallery-list-col-markers"]).toBe("12px");
-    expect(three?.["--gallery-list-col-markers"]).toBe("32px");
+    expect(one?.["--gallery-list-col-markers"]).toBe("12.5px");
+    expect(three?.["--gallery-list-col-markers"]).toBe("32.5px");
   });
 
   it("measures nothing outside list mode", () => {

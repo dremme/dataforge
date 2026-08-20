@@ -1,17 +1,10 @@
 import { isResolvableIssueItem } from "./issues";
 import { isDuplicateItem } from "./duplicates";
 import { isMotion } from "@/features/gallery/lib/itemKind";
-import type { GalleryItem, Subfolder } from "@/shared/types";
+import { durationSeconds } from "@/shared/lib/format";
+import type { GalleryItem, GallerySort, Subfolder } from "@/shared/types";
 
-export type SortOption =
-  | "name-asc"
-  | "name-desc"
-  | "date-asc"
-  | "date-desc"
-  | "caption-asc"
-  | "caption-desc"
-  | "megapixels-asc"
-  | "megapixels-desc";
+export type SortOption = GallerySort;
 
 /**
  * One caption state at a time. `duplicate` used to live in here, which is what the name
@@ -47,6 +40,8 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "caption-desc", label: "Caption length (longest)" },
   { value: "megapixels-asc", label: "Megapixels (smallest)" },
   { value: "megapixels-desc", label: "Megapixels (largest)" },
+  { value: "duration-asc", label: "Duration (shortest)" },
+  { value: "duration-desc", label: "Duration (longest)" },
 ];
 
 const SORT_OPTION_VALUES = new Set<SortOption>(SORT_OPTIONS.map((option) => option.value));
@@ -80,33 +75,39 @@ function totalMegapixels(item: GalleryItem): number {
   return (width * height) / 1_000_000;
 }
 
+function videoDuration(item: GalleryItem): number {
+  return durationSeconds(item.duration) ?? 0;
+}
+
+type NumericSort = Exclude<SortOption, "name-asc" | "name-desc">;
+
+const NUMERIC_SORT: Record<NumericSort, (item: GalleryItem) => number> = {
+  "date-asc": modifiedTimestamp,
+  "date-desc": modifiedTimestamp,
+  "caption-asc": captionLength,
+  "caption-desc": captionLength,
+  "megapixels-asc": totalMegapixels,
+  "megapixels-desc": totalMegapixels,
+  "duration-asc": videoDuration,
+  "duration-desc": videoDuration,
+};
+
 export function sortGalleryItems(items: GalleryItem[], sort: SortOption): GalleryItem[] {
-  const sorted = [...items];
+  if (sort === "name-asc") return [...items].sort(compareNames);
+  if (sort === "name-desc") return [...items].sort((a, b) => compareNames(b, a));
 
-  sorted.sort((a, b) => {
-    switch (sort) {
-      case "name-asc":
-        return compareNames(a, b);
-      case "name-desc":
-        return compareNames(b, a);
-      case "date-desc":
-        return modifiedTimestamp(b) - modifiedTimestamp(a) || compareNames(a, b);
-      case "date-asc":
-        return modifiedTimestamp(a) - modifiedTimestamp(b) || compareNames(a, b);
-      case "caption-desc":
-        return captionLength(b) - captionLength(a) || compareNames(a, b);
-      case "caption-asc":
-        return captionLength(a) - captionLength(b) || compareNames(a, b);
-      case "megapixels-desc":
-        return totalMegapixels(b) - totalMegapixels(a) || compareNames(a, b);
-      case "megapixels-asc":
-        return totalMegapixels(a) - totalMegapixels(b) || compareNames(a, b);
-      default:
-        return compareNames(a, b);
-    }
-  });
+  const valueOf = NUMERIC_SORT[sort];
+  if (!valueOf) return [...items].sort(compareNames);
 
-  return sorted;
+  const descending = sort.endsWith("-desc");
+  return items
+    .map((item) => ({ item, value: valueOf(item) }))
+    .sort(
+      (left, right) =>
+        (descending ? right.value - left.value : left.value - right.value) ||
+        compareNames(left.item, right.item),
+    )
+    .map((entry) => entry.item);
 }
 
 function compileSearchRegex(pattern: string): RegExp | null {

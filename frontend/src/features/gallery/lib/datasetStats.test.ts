@@ -262,5 +262,57 @@ describe("computeDatasetStats", () => {
     expect(stats.total).toBe(0);
     expect(stats.topWords).toEqual([]);
     expect(stats.captionLength).toBeNull();
+    expect(stats.unknownDuration).toBe(0);
+  });
+
+  it("buckets video duration into two-second steps, then 10-15 and over 15", () => {
+    const stats = computeDatasetStats([
+      mediaItem("half.mp4", HOME_PATH, { duration: 0.5 }),
+      mediaItem("two.mp4", HOME_PATH, { duration: 2 }),
+      mediaItem("five.mp4", HOME_PATH, { duration: 5.4 }),
+      mediaItem("eight.mp4", HOME_PATH, { duration: 8 }),
+      mediaItem("twelve.mp4", HOME_PATH, { duration: 12 }),
+      mediaItem("twenty.mp4", HOME_PATH, { duration: 20 }),
+    ]);
+
+    expect(stats.durations).toEqual([
+      { label: "0 – 2 s", count: 1 },
+      { label: "2 – 4 s", count: 1 },
+      { label: "4 – 6 s", count: 1 },
+      { label: "6 – 8 s", count: 0 },
+      { label: "8 – 10 s", count: 1 },
+      { label: "10 – 15 s", count: 1 },
+      { label: "> 15 s", count: 1 },
+    ]);
+    expect(stats.unknownDuration).toBe(0);
+  });
+
+  it("keeps videos without a duration out of the length buckets", () => {
+    const stats = computeDatasetStats([
+      mediaItem("clip.mp4", HOME_PATH, { duration: 5.4 }),
+      mediaItem("other.mkv", HOME_PATH, { duration: null }),
+      mediaItem("still.png", HOME_PATH),
+    ]);
+
+    expect(stats.unknownDuration).toBe(1);
+    expect(stats.durations).toEqual([
+      { label: "0 – 2 s", count: 0 },
+      { label: "2 – 4 s", count: 0 },
+      { label: "4 – 6 s", count: 1 },
+      { label: "6 – 8 s", count: 0 },
+      { label: "8 – 10 s", count: 0 },
+      { label: "10 – 15 s", count: 0 },
+      { label: "> 15 s", count: 0 },
+    ]);
+  });
+
+  it("does not treat stills or GIFs as videos when counting duration", () => {
+    const stats = computeDatasetStats([
+      mediaItem("photo.png", HOME_PATH, { duration: 3 }),
+      mediaItem("loop.gif", HOME_PATH, { duration: 4 }),
+    ]);
+
+    expect(stats.unknownDuration).toBe(0);
+    expect(stats.durations.every((bucket) => bucket.count === 0)).toBe(true);
   });
 });

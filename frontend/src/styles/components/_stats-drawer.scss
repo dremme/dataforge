@@ -248,18 +248,6 @@
     + .stats-drawer__mix {
       margin-top: 0.875rem;
     }
-
-    // Media tiles wrap in a tooltip for their extensions; fill the grid cell.
-    > .tooltip {
-      display: flex;
-      min-width: 0;
-      max-width: none;
-    }
-
-    > .tooltip .stats-drawer__tile {
-      flex: 1;
-      width: 100%;
-    }
   }
 
   &__tile {
@@ -272,6 +260,7 @@
     background: var(--bg-soft);
 
     &-value {
+      @include tabular-nums;
       font-size: var(--text-md);
       font-weight: var(--font-semibold);
       line-height: 1.1;

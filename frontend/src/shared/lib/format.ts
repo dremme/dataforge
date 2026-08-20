@@ -34,6 +34,18 @@ export function countWords(text: string): number {
   return trimmed.split(/\s+/).length;
 }
 
+/** Finite positive seconds, or ``null`` when the listing had no length. */
+export function durationSeconds(seconds: number | null | undefined): number | null {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
+  return seconds;
+}
+
+/** Video length for the list's duration column, e.g. ``5 s``. */
+export function formatDurationSeconds(seconds: number | null | undefined): string {
+  const value = durationSeconds(seconds);
+  return value == null ? "" : `${value.toFixed(0)} s`;
+}
+
 export function formatBytes(bytes: number): string {
   return `${formatBytesValue(bytes)} GB`;
 }

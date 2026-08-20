@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useCountUp } from "@/features/gallery/hooks/useCountUp";
 import {
   computeDatasetStats,
   type DatasetStats,
@@ -8,6 +9,7 @@ import {
   iconBookOpen,
   iconChartBar,
   iconFiles,
+  iconHourglass,
   iconImages,
   iconMessageCheck,
   iconMessageDashed,
@@ -120,24 +122,24 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
 
       <Section title="Media" icon={iconImages}>
         <div className="stats-drawer__tiles">
-          <Tile
-            value={stats.mediaTypes.images}
-            label="Images"
-            extensions={stats.mediaTypes.extensions.images}
-          />
-          <Tile
-            value={stats.mediaTypes.videos}
-            label="Videos"
-            extensions={stats.mediaTypes.extensions.videos}
-          />
-          <Tile
-            value={stats.mediaTypes.gifs}
-            label="GIFs"
-            extensions={stats.mediaTypes.extensions.gifs}
-          />
+          <Tile value={stats.mediaTypes.images} label="Images" />
+          <Tile value={stats.mediaTypes.videos} label="Videos" />
+          <Tile value={stats.mediaTypes.gifs} label="GIFs" />
         </div>
         <MediaMix buckets={stats.mediaTypes.byExtension} total={stats.total} />
       </Section>
+
+      {stats.mediaTypes.videos > 0 && (
+        <Section title="Video duration" icon={iconHourglass}>
+          <BarChart buckets={stats.durations} unit="video duration in seconds" />
+          {stats.unknownDuration > 0 && (
+            <p className="stats-drawer__note">
+              {stats.unknownDuration} {stats.unknownDuration === 1 ? "video has" : "videos have"} an
+              unknown duration.
+            </p>
+          )}
+        </Section>
+      )}
 
       <Section title="Resolution" icon={iconRulerDimensionLine}>
         <BarChart buckets={stats.megapixels} unit="megapixels" />
@@ -266,26 +268,19 @@ function Section({
   );
 }
 
-/** Headline numbers, side by side. Proportional figures: these are display sizes. */
-function Tile({
-  value,
-  label,
-  extensions = [],
-}: {
-  value: number;
-  label: string;
-  extensions?: string[];
-}) {
-  const tile = (
-    <div className="stats-drawer__tile">
-      <span className="stats-drawer__tile-value">{compactCount(value)}</span>
+/** Headline numbers, side by side. Tabular figures: they tick through a count-up. */
+function Tile({ value, label }: { value: number; label: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const displayed = useCountUp(value, ref);
+
+  return (
+    <div ref={ref} className="stats-drawer__tile">
+      <span className="stats-drawer__tile-value" aria-label={String(value)}>
+        {displayed}
+      </span>
       <span className="stats-drawer__tile-label">{label}</span>
     </div>
   );
-
-  const suffixList = extensions.map(formatName).join(", ");
-  if (!suffixList) return tile;
-  return <Tooltip content={suffixList}>{tile}</Tooltip>;
 }
 
 /** User-facing format name: `.jpeg` is JPEG. */

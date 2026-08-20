@@ -116,6 +116,10 @@ class GalleryItem(BaseModel):
     media_type: MediaType
     width: int | None = None
     height: int | None = None
+    #: Length in seconds for a video whose header we can read. Stills, GIFs, and
+    #: containers outside the MP4 family leave this empty, which the list view
+    #: already treats as a blank cell.
+    duration: float | None = None
     size: int | None = None
     modified_at: str | None = None
     #: Whether an untouched original sits beside this file, so an edit can still be
@@ -253,6 +257,8 @@ type GallerySort = Literal[
     "caption-desc",
     "megapixels-asc",
     "megapixels-desc",
+    "duration-asc",
+    "duration-desc",
 ]
 
 

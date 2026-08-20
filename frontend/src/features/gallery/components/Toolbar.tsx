@@ -294,7 +294,7 @@ export function Toolbar({
           onNamesChange={onSearchNamesChange}
         />
 
-        <Tooltip content="Sort files by name, date, caption, or megapixels">
+        <Tooltip content="Sort files by name, date, caption, megapixels, or duration">
           <label className="toolbar__sort">
             <Icon icon={iconArrowDownWideNarrow} className="toolbar__sort-icon" />
             <select

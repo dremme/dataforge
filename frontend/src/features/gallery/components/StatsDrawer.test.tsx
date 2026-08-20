@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { COUNT_UP_MS } from "@/features/gallery/lib/countUp";
 import { StatsDrawer } from "./StatsDrawer";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 
@@ -18,6 +19,50 @@ function renderDrawer(overrides: Partial<Parameters<typeof StatsDrawer>[0]> = {}
   const onClose = vi.fn();
   render(<StatsDrawer open items={items} onClose={onClose} {...overrides} />);
   return onClose;
+}
+
+function tileFigure(label: string): HTMLElement {
+  const value = screen.getByText(label).previousElementSibling;
+  if (!(value instanceof HTMLElement)) {
+    throw new Error(`No figure next to ${label}`);
+  }
+  return value;
+}
+
+function stubCountUpFrames() {
+  const callbacks: FrameRequestCallback[] = [];
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callbacks.push(callback);
+    return callbacks.length;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+    callbacks[id - 1] = () => {};
+  });
+
+  return {
+    playTo(elapsed: number) {
+      now = elapsed;
+      act(() => {
+        const pending = callbacks.splice(0, callbacks.length);
+        for (const callback of pending) callback(elapsed);
+      });
+    },
+  };
+}
+
+function stubReducedMotion(reduced: boolean) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: reduced && query.includes("prefers-reduced-motion"),
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }));
 }
 
 describe("StatsDrawer", () => {
@@ -180,6 +225,7 @@ describe("StatsDrawer", () => {
   });
 
   it("counts media types as tiles", () => {
+    const frames = stubCountUpFrames();
     renderDrawer({
       items: [
         mediaItem("one.png", HOME_PATH),
@@ -187,10 +233,40 @@ describe("StatsDrawer", () => {
         mediaItem("loop.gif", HOME_PATH),
       ],
     });
+    frames.playTo(COUNT_UP_MS);
 
-    expect(screen.getByText("Images").previousElementSibling).toHaveTextContent("1");
-    expect(screen.getByText("Videos").previousElementSibling).toHaveTextContent("1");
-    expect(screen.getByText("GIFs").previousElementSibling).toHaveTextContent("1");
+    expect(tileFigure("Images")).toHaveTextContent("1");
+    expect(tileFigure("Videos")).toHaveTextContent("1");
+    expect(tileFigure("GIFs")).toHaveTextContent("1");
+  });
+
+  it("counts a tile up once it is on screen", () => {
+    const frames = stubCountUpFrames();
+    const photos = Array.from({ length: 40 }, (_, index) =>
+      mediaItem(`photo-${index}.png`, HOME_PATH),
+    );
+    renderDrawer({ items: photos });
+
+    expect(tileFigure("Images")).toHaveTextContent("0");
+
+    frames.playTo(COUNT_UP_MS / 2);
+    const midway = Number(tileFigure("Images").textContent);
+    expect(midway).toBeGreaterThan(0);
+    expect(midway).toBeLessThan(40);
+
+    frames.playTo(COUNT_UP_MS);
+    expect(tileFigure("Images")).toHaveTextContent("40");
+  });
+
+  it("shows the final figure immediately when motion is reduced", () => {
+    stubReducedMotion(true);
+    stubCountUpFrames();
+    const photos = Array.from({ length: 40 }, (_, index) =>
+      mediaItem(`photo-${index}.png`, HOME_PATH),
+    );
+    renderDrawer({ items: photos });
+
+    expect(tileFigure("Images")).toHaveTextContent("40");
   });
 
   it("draws a mix bar whose segments follow each extension's share of the folder", () => {
@@ -247,5 +323,42 @@ describe("StatsDrawer", () => {
     renderDrawer({ items: [] });
 
     expect(screen.getByText("No media in this folder.")).toBeInTheDocument();
+  });
+
+  it("withholds video duration until the folder holds a video", () => {
+    renderDrawer();
+
+    expect(screen.queryByRole("heading", { name: "Video duration" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("figure", { name: "Distribution by video duration in seconds" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("charts video duration when the folder holds clips", () => {
+    renderDrawer({
+      items: [
+        mediaItem("short.mp4", HOME_PATH, { duration: 1.2 }),
+        mediaItem("mid.mp4", HOME_PATH, { duration: 5.4 }),
+        mediaItem("long.mp4", HOME_PATH, { duration: 20 }),
+        mediaItem("still.png", HOME_PATH),
+      ],
+    });
+
+    const chart = screen.getByRole("figure", { name: "Distribution by video duration in seconds" });
+    expect(within(chart).getByText("0 – 2 s")).toBeInTheDocument();
+    expect(within(chart).getByText("4 – 6 s")).toBeInTheDocument();
+    expect(within(chart).getByText("> 15 s")).toBeInTheDocument();
+    expect(within(chart).queryByText("2 – 4 s")).not.toBeInTheDocument();
+  });
+
+  it("says so when a video has no duration", () => {
+    renderDrawer({
+      items: [
+        mediaItem("clip.mp4", HOME_PATH, { duration: 5.4 }),
+        mediaItem("other.mkv", HOME_PATH, { duration: null }),
+      ],
+    });
+
+    expect(screen.getByText("1 video has an unknown duration.")).toBeInTheDocument();
   });
 });

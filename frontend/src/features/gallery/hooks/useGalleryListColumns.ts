@@ -4,7 +4,14 @@ import type { GalleryItem } from "@/shared/types";
 
 type TextColumn = RowMetaColumn;
 
-const TEXT_COLUMNS: TextColumn[] = ["megapixels", "size", "modified"];
+const TEXT_COLUMNS = [
+  "megapixels",
+  "duration",
+  "size",
+  "modified",
+] as const satisfies readonly TextColumn[];
+
+const WIDTH_COLUMNS = ["markers", "status", ...TEXT_COLUMNS] as const;
 
 /**
  * How many of a column's distinct values get measured.
@@ -17,7 +24,7 @@ const TEXT_COLUMNS: TextColumn[] = ["megapixels", "size", "modified"];
 const MEASURED_CANDIDATES = 6;
 
 /** Guards against a fractional measurement rounding a column into an ellipsis. */
-const COLUMN_SLACK_PX = 2;
+const COLUMN_SLACK_PX = 2.5;
 
 interface ListColumnContent {
   values: Record<TextColumn, string[]>;
@@ -25,7 +32,14 @@ interface ListColumnContent {
 }
 
 /** The two icon columns are sized by their icons, not by any text they carry. */
-type ColumnWidths = Record<TextColumn | "markers" | "status", number>;
+type ColumnWidths = Record<(typeof WIDTH_COLUMNS)[number], number>;
+
+function emptyTextColumns<T>(value: () => T): Record<TextColumn, T> {
+  return Object.fromEntries(TEXT_COLUMNS.map((column) => [column, value()])) as Record<
+    TextColumn,
+    T
+  >;
+}
 
 function longestFirst(values: Set<string>): string[] {
   return [...values].sort((a, b) => b.length - a.length).slice(0, MEASURED_CANDIDATES);
@@ -39,11 +53,7 @@ function longestFirst(values: Set<string>): string[] {
  * as the list scrolls.
  */
 function collectColumnContent(items: GalleryItem[]): ListColumnContent {
-  const distinct: Record<TextColumn, Set<string>> = {
-    megapixels: new Set(),
-    size: new Set(),
-    modified: new Set(),
-  };
+  const distinct = emptyTextColumns(() => new Set<string>());
   let markerCount = 0;
 
   for (const item of items) {
@@ -54,11 +64,9 @@ function collectColumnContent(items: GalleryItem[]): ListColumnContent {
   }
 
   return {
-    values: {
-      megapixels: longestFirst(distinct.megapixels),
-      size: longestFirst(distinct.size),
-      modified: longestFirst(distinct.modified),
-    },
+    values: Object.fromEntries(
+      TEXT_COLUMNS.map((column) => [column, longestFirst(distinct[column])]),
+    ) as Record<TextColumn, string[]>,
     markerCount,
   };
 }
@@ -128,13 +136,7 @@ function measureColumns(host: HTMLElement, content: ListColumnContent): ColumnWi
   cells.push({ column: "status", element: status });
 
   host.appendChild(probe);
-  const widths: ColumnWidths = {
-    markers: 0,
-    status: 0,
-    megapixels: 0,
-    size: 0,
-    modified: 0,
-  };
+  const widths = Object.fromEntries(WIDTH_COLUMNS.map((column) => [column, 0])) as ColumnWidths;
   for (const { column, element } of cells) {
     widths[column] = Math.max(widths[column], element.getBoundingClientRect().width);
   }
@@ -147,13 +149,9 @@ function toStyle(widths: ColumnWidths): CSSProperties {
   const track = (value: number) =>
     value === 0 ? "0px" : `${Math.ceil(value) + COLUMN_SLACK_PX}px`;
 
-  return {
-    "--gallery-list-col-markers": track(widths.markers),
-    "--gallery-list-col-status": track(widths.status),
-    "--gallery-list-col-megapixels": track(widths.megapixels),
-    "--gallery-list-col-size": track(widths.size),
-    "--gallery-list-col-modified": track(widths.modified),
-  } as CSSProperties;
+  return Object.fromEntries(
+    WIDTH_COLUMNS.map((column) => [`--gallery-list-col-${column}`, track(widths[column])]),
+  ) as CSSProperties;
 }
 
 /**

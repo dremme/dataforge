@@ -13,7 +13,12 @@ import {
   iconVideo,
   type AppIcon,
 } from "@/shared/icons";
-import { formatFileSize, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
+import {
+  formatDurationSeconds,
+  formatFileSize,
+  formatMegapixels,
+  formatModifiedAt,
+} from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
 
 export interface RowMarker {
@@ -28,7 +33,7 @@ export interface RowMetaCell {
   value: string;
 }
 
-export type RowMetaColumn = "megapixels" | "size" | "modified";
+export type RowMetaColumn = "megapixels" | "duration" | "size" | "modified";
 
 /**
  * Icon-only counterpart of the card's `CardBadge`. A row has one line to spend,
@@ -67,13 +72,15 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
 }
 
 /**
- * Megapixels, size, and modified date. A fact the item lacks stays as an empty
- * string rather than dropping out: each one owns a column of the list, and a
- * missing value that collapsed would slide every later fact out of alignment.
+ * Megapixels, duration, size, and modified date. A fact the item lacks stays as
+ * an empty string rather than dropping out: each one owns a column of the list,
+ * and a missing value that collapsed would slide every later fact out of
+ * alignment.
  *
  * Resolution is megapixels rather than `w × h` for the same reason the modals
  * report it that way — one short number reads down a column, where a dimension
- * pair is two numbers to compare per row.
+ * pair is two numbers to compare per row. Duration is seconds for the same
+ * reason: one short number, not a clock readout, down the column.
  */
 export function rowMetaCells(item: GalleryItem): RowMetaCell[] {
   const modified = item.modified_at ? formatModifiedAt(item.modified_at) : null;
@@ -83,6 +90,7 @@ export function rowMetaCells(item: GalleryItem): RowMetaCell[] {
       key: "megapixels",
       value: item.width && item.height ? formatMegapixels(item.width, item.height) : "",
     },
+    { key: "duration", value: formatDurationSeconds(item.duration) },
     { key: "size", value: item.size ? formatFileSize(item.size) : "" },
     { key: "modified", value: modified ?? "" },
   ];
