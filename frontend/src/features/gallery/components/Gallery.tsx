@@ -13,6 +13,7 @@ import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { GalleryBackToTop } from "./GalleryBackToTop";
 import { GalleryCard } from "./GalleryCard";
 import { GalleryListRow } from "./GalleryListRow";
+import { GalleryMasonry } from "./GalleryMasonry";
 
 interface GalleryProps {
   items: GalleryItem[];
@@ -27,10 +28,26 @@ function estimateRowSize(row: GalleryItem[], layout: GalleryModeLayout): number 
 }
 
 export function Gallery({ items, onSelect, displayMode = DEFAULT_DISPLAY_MODE }: GalleryProps) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  if (displayMode === "large") {
+    return <GalleryMasonry items={items} onSelect={onSelect} />;
+  }
+
+  return <GalleryUniformGrid items={items} onSelect={onSelect} displayMode={displayMode} />;
+}
+
+function GalleryUniformGrid({
+  items,
+  onSelect,
+  displayMode,
+}: GalleryProps & { displayMode: Exclude<GalleryDisplayMode, "large"> }) {
   const { selectionMode, selectedPaths, toggleSelectedPath } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor(displayMode);
-  const columnCount = useGalleryColumns(listRef, displayMode);
+  const { columnCount } = useGalleryColumns(listRef, displayMode);
   const rowCount = Math.ceil(items.length / columnCount);
   const { scrollElement, scrollMargin } = useGalleryScrollMargin(listRef, [
     items.length,
@@ -51,9 +68,6 @@ export function Gallery({ items, onSelect, displayMode = DEFAULT_DISPLAY_MODE }:
     enabled: rowCount > 0,
   });
 
-  // Row keys are path-based, so a mode switch that happens to keep the same
-  // column count (large to small in a narrow window) would otherwise reuse the
-  // heights measured for the previous card size.
   const { measure } = virtualizer;
   useEffect(() => {
     measure();
@@ -62,10 +76,6 @@ export function Gallery({ items, onSelect, displayMode = DEFAULT_DISPLAY_MODE }:
   useGalleryVisiblePrefetch(scrollElement, rows, virtualizer);
   const { visible: backToTopVisible, scrollToTop } = useGalleryBackToTop(scrollElement);
   const listColumns = useGalleryListColumns(listRef, items, displayMode === "list");
-
-  if (items.length === 0) {
-    return null;
-  }
 
   return (
     <>

@@ -137,6 +137,10 @@
   width: 100%;
 }
 
+.gallery-masonry-item {
+  position: absolute;
+}
+
 // ---------------------------------------------------------------------------
 // .gallery-back-to-top
 // ---------------------------------------------------------------------------
@@ -261,6 +265,11 @@
     aspect-ratio: 4 / 3;
     background: var(--bg-media);
     overflow: hidden;
+  }
+
+  &--large &__media {
+    // Native aspect comes from the inline style on the node; 4:3 is small-grid only.
+    aspect-ratio: auto;
   }
 
   &__media-surface {

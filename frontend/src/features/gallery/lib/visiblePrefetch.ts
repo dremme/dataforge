@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import {
   isGalleryScrollActive,
@@ -22,15 +22,16 @@ export function collectGalleryPreviewTargets(
   rows: GalleryItem[][],
   virtualItems: { index: number }[],
   includePrefetch: boolean,
+  neighbors: { before?: number; after?: number } = {},
 ): PreviewTarget[] {
   if (virtualItems.length === 0) return [];
 
+  const before = neighbors.before ?? PREFETCH_ROWS_BEFORE;
+  const after = neighbors.after ?? PREFETCH_ROWS_AFTER;
   const minIndex = virtualItems[0].index;
   const maxIndex = virtualItems[virtualItems.length - 1].index;
-  const start = includePrefetch ? Math.max(0, minIndex - PREFETCH_ROWS_BEFORE) : minIndex;
-  const end = includePrefetch
-    ? Math.min(rows.length - 1, maxIndex + PREFETCH_ROWS_AFTER)
-    : maxIndex;
+  const start = includePrefetch ? Math.max(0, minIndex - before) : minIndex;
+  const end = includePrefetch ? Math.min(rows.length - 1, maxIndex + after) : maxIndex;
 
   const targets: PreviewTarget[] = [];
 
@@ -52,23 +53,31 @@ export function prefetchGalleryVisibleRange(
   rows: GalleryItem[][],
   virtualItems: { index: number }[],
   includePrefetch = true,
+  neighbors?: { before?: number; after?: number },
 ): void {
-  syncGalleryPreviewTargets(collectGalleryPreviewTargets(rows, virtualItems, includePrefetch));
+  syncGalleryPreviewTargets(
+    collectGalleryPreviewTargets(rows, virtualItems, includePrefetch, neighbors),
+  );
 }
 
-export function useGalleryVisiblePrefetch(
+function usePrefetchRange(
   scrollElement: HTMLElement | null,
   rows: GalleryItem[][],
-  virtualizer: Virtualizer<HTMLElement, Element>,
+  getVirtualItems: () => { index: number }[],
+  rangeKey: unknown,
+  neighbors?: { before?: number; after?: number },
 ): void {
+  const getVirtualItemsRef = useRef(getVirtualItems);
+  getVirtualItemsRef.current = getVirtualItems;
+
   const rafRef = useRef<number | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runPrefetch = useCallback(
     (includePrefetch: boolean) => {
-      prefetchGalleryVisibleRange(rows, virtualizer.getVirtualItems(), includePrefetch);
+      prefetchGalleryVisibleRange(rows, getVirtualItemsRef.current(), includePrefetch, neighbors);
     },
-    [rows, virtualizer],
+    [neighbors, rows],
   );
 
   const markScrollActive = useCallback(() => {
@@ -87,7 +96,7 @@ export function useGalleryVisiblePrefetch(
 
   useEffect(() => {
     runPrefetch(!isGalleryScrollActive());
-  }, [runPrefetch, virtualizer.scrollOffset, rows.length]);
+  }, [rangeKey, rows.length, runPrefetch]);
 
   useEffect(() => {
     if (!scrollElement) return;
@@ -117,4 +126,35 @@ export function useGalleryVisiblePrefetch(
       setGalleryScrollPhase("idle");
     };
   }, [markScrollActive, runPrefetch, scrollElement]);
+}
+
+export function useGalleryItemPrefetch(
+  scrollElement: HTMLElement | null,
+  items: GalleryItem[],
+  range: { min: number; max: number } | null,
+  neighbors?: { before?: number; after?: number },
+): void {
+  const rows = useMemo(() => items.map((item) => [item]), [items]);
+  usePrefetchRange(
+    scrollElement,
+    rows,
+    () => (range == null ? [] : [{ index: range.min }, { index: range.max }]),
+    range == null ? "empty" : `${range.min}:${range.max}`,
+    neighbors,
+  );
+}
+
+export function useGalleryVisiblePrefetch(
+  scrollElement: HTMLElement | null,
+  rows: GalleryItem[][],
+  virtualizer: Virtualizer<HTMLElement, Element>,
+  neighbors?: { before?: number; after?: number },
+): void {
+  usePrefetchRange(
+    scrollElement,
+    rows,
+    () => virtualizer.getVirtualItems(),
+    virtualizer.scrollOffset,
+    neighbors,
+  );
 }

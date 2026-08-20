@@ -16,16 +16,18 @@ export interface GalleryModeLayout {
 }
 
 /**
- * Per-mode geometry. Large carries the numbers the gallery used before display
- * modes existed, so the default layout is unchanged.
+ * Per-mode geometry. Large is equal-width columns with native-aspect heights,
+ * filled round-robin so sort order stays left-to-right along the top and each
+ * column stacks tightly. Small keeps a uniform 4:3 grid. List is a table.
  *
- * List overscan is far higher on purpose: its rows are ~84px, so the 3 rows that
+ * List overscan is far higher on purpose: its rows are ~40px, so the 3 rows that
  * cover three screens of cards would not even fill one viewport.
  */
 export const GALLERY_MODE_LAYOUT: Record<GalleryDisplayMode, GalleryModeLayout> = {
   large: {
     minColumnWidth: 280,
-    // Media 4:3 + body, and taller again when the row may include captions.
+    // 4:3 media at min column width + body. Native-aspect columns use the body
+    // portion of these numbers plus each file's own media height.
     rowEstimate: 320,
     captionRowEstimate: 400,
     gap: GALLERY_GAP_PX,

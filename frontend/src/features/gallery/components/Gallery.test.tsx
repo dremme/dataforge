@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import * as captionStatus from "@/features/gallery/lib/captionStatus";
 import * as scrollRoot from "@/features/gallery/lib/scrollRoot";
+import { galleryLayoutFor } from "@/features/gallery/lib/layout";
+import { estimateCardHeight, galleryColumnWidth } from "@/features/gallery/lib/mediaAspect";
 import { HOME_PATH } from "@/test/fixtures";
 import { withGallerySelection } from "@/test/gallerySelection";
 import type { GalleryItem } from "@/shared/types";
@@ -102,6 +104,106 @@ describe("Gallery", () => {
     rerender(gallery(new Set([imageItem.path])));
 
     expect(cardRenderSpy.mock.calls.map(([item]) => item.path)).toEqual([imageItem.path]);
+  });
+
+  it("packs large cards into sorted columns without row-height gaps", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get() {
+        return 1000;
+      },
+    });
+
+    try {
+      const first: GalleryItem = {
+        ...imageItem,
+        name: "alpha.png",
+        path: `${HOME_PATH}\\alpha.png`,
+        width: 1600,
+        height: 900,
+      };
+      const second: GalleryItem = {
+        ...imageItem,
+        name: "bravo.png",
+        path: `${HOME_PATH}\\bravo.png`,
+        width: 900,
+        height: 1600,
+      };
+      const third: GalleryItem = {
+        ...imageItem,
+        name: "charlie.png",
+        path: `${HOME_PATH}\\charlie.png`,
+        width: 1200,
+        height: 1200,
+      };
+      const fourth: GalleryItem = {
+        ...imageItem,
+        name: "delta.png",
+        path: `${HOME_PATH}\\delta.png`,
+        width: 1600,
+        height: 900,
+      };
+
+      const { container } = render(
+        withGallerySelection(
+          <main className="main">
+            <Gallery
+              items={[first, second, third, fourth]}
+              onSelect={vi.fn()}
+              displayMode="large"
+            />
+          </main>,
+        ),
+      );
+
+      const cells = [...container.querySelectorAll(".gallery-masonry-item")] as HTMLElement[];
+      expect(cells.map((cell) => cell.querySelector(".card__title")?.textContent)).toEqual([
+        "alpha.png",
+        "bravo.png",
+        "charlie.png",
+        "delta.png",
+      ]);
+      expect(cells.map((cell) => cell.dataset.lane)).toEqual(["0", "1", "2", "0"]);
+
+      const alpha = cells[0];
+      const bravo = cells[1];
+      const delta = cells[3];
+      const layout = galleryLayoutFor("large");
+      const columnWidth = galleryColumnWidth(1000, 3, layout.gap);
+      const alphaHeight = estimateCardHeight(first, columnWidth, layout);
+      const bravoHeight = estimateCardHeight(second, columnWidth, layout);
+
+      expect(Number.parseFloat(alpha.style.top)).toBe(0);
+      expect(Number.parseFloat(bravo.style.top)).toBe(0);
+      expect(Number.parseFloat(delta.style.left)).toBe(Number.parseFloat(alpha.style.left));
+      expect(Number.parseFloat(delta.style.top)).toBeCloseTo(alphaHeight + layout.gap);
+      expect(Number.parseFloat(delta.style.top)).toBeLessThan(bravoHeight);
+
+      expect(
+        screen.getByRole("button", { name: `View ${first.name}` }).querySelector(".card__media"),
+      ).toHaveStyle({ aspectRatio: `${1600 / 900}` });
+      expect(
+        screen.getByRole("button", { name: `View ${second.name}` }).querySelector(".card__media"),
+      ).toHaveStyle({ aspectRatio: `${900 / 1600}` });
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", descriptor);
+      }
+    }
+  });
+
+  it("keeps small mode on equal-width columns", () => {
+    const { container } = render(
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} displayMode="small" />
+        </main>,
+      ),
+    );
+
+    const row = container.querySelector(".gallery-row") as HTMLElement;
+    expect(row.style.gridTemplateColumns).toContain("repeat");
   });
 
   it("puts one item per row in list mode", () => {
