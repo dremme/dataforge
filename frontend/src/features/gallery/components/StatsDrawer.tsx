@@ -21,6 +21,7 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import type { GalleryItem } from "@/shared/types";
 
 interface StatsDrawerProps {
@@ -119,10 +120,23 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
 
       <Section title="Media" icon={iconImages}>
         <div className="stats-drawer__tiles">
-          <Tile value={stats.mediaTypes.images} label="Images" />
-          <Tile value={stats.mediaTypes.videos} label="Videos" />
-          <Tile value={stats.mediaTypes.gifs} label="GIFs" />
+          <Tile
+            value={stats.mediaTypes.images}
+            label="Images"
+            extensions={stats.mediaTypes.extensions.images}
+          />
+          <Tile
+            value={stats.mediaTypes.videos}
+            label="Videos"
+            extensions={stats.mediaTypes.extensions.videos}
+          />
+          <Tile
+            value={stats.mediaTypes.gifs}
+            label="GIFs"
+            extensions={stats.mediaTypes.extensions.gifs}
+          />
         </div>
+        <MediaMix buckets={stats.mediaTypes.byExtension} total={stats.total} />
       </Section>
 
       <Section title="Resolution" icon={iconRulerDimensionLine}>
@@ -253,12 +267,62 @@ function Section({
 }
 
 /** Headline numbers, side by side. Proportional figures: these are display sizes. */
-function Tile({ value, label }: { value: number; label: string }) {
-  return (
+function Tile({
+  value,
+  label,
+  extensions = [],
+}: {
+  value: number;
+  label: string;
+  extensions?: string[];
+}) {
+  const tile = (
     <div className="stats-drawer__tile">
       <span className="stats-drawer__tile-value">{compactCount(value)}</span>
       <span className="stats-drawer__tile-label">{label}</span>
     </div>
+  );
+
+  const suffixList = extensions.map(formatName).join(", ");
+  if (!suffixList) return tile;
+  return <Tooltip content={suffixList}>{tile}</Tooltip>;
+}
+
+/** User-facing format name: `.jpeg` is JPEG. */
+function formatName(extension: string): string {
+  return extension.replace(/^\./, "").toUpperCase();
+}
+
+/**
+ * A single stacked bar of the folder's filename suffixes.
+ *
+ * Colour names the suffix and width is its share, the way GitHub names languages.
+ * Hovering a slice spells the format in a tooltip, so the hues are never the only
+ * encoding.
+ */
+function MediaMix({ buckets, total }: { buckets: StatBucket[]; total: number }) {
+  if (buckets.length === 0 || total === 0) return null;
+
+  const summary = buckets
+    .map((bucket) => `${formatName(bucket.label)} ${Math.round((bucket.count / total) * 100)}%`)
+    .join(", ");
+
+  return (
+    <figure className="stats-drawer__mix" aria-label={`File extensions: ${summary}`}>
+      <div className="stats-drawer__mix-track">
+        {buckets.map((bucket) => (
+          <Tooltip
+            key={bucket.label}
+            content={formatName(bucket.label)}
+            delay={0}
+            className="stats-drawer__mix-cell"
+            style={{ flexGrow: bucket.count }}
+          >
+            <span className="stats-drawer__mix-segment" data-extension={bucket.label} />
+          </Tooltip>
+        ))}
+      </div>
+    </figure>
   );
 }
 

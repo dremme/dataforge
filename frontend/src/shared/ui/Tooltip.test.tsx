@@ -30,6 +30,19 @@ describe("Tooltip", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("Missing caption");
   });
 
+  it("puts extra classes on the hover wrapper", () => {
+    render(
+      <Tooltip content=".png" className="stats-drawer__mix-cell">
+        <span>slice</span>
+      </Tooltip>,
+    );
+
+    expect(screen.getByText("slice").parentElement).toHaveClass(
+      "tooltip",
+      "stats-drawer__mix-cell",
+    );
+  });
+
   it("does not duplicate aria-describedby when tooltip content matches aria-label", async () => {
     vi.useFakeTimers();
 

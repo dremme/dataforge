@@ -127,7 +127,40 @@ describe("computeDatasetStats", () => {
       mediaItem("loop.gif", HOME_PATH),
     ]);
 
-    expect(stats.mediaTypes).toEqual({ images: 1, videos: 1, gifs: 1 });
+    expect(stats.mediaTypes).toEqual({
+      images: 1,
+      videos: 1,
+      gifs: 1,
+      extensions: { images: [".png"], videos: [".mp4"], gifs: [".gif"] },
+      byExtension: [
+        { label: ".gif", count: 1 },
+        { label: ".mp4", count: 1 },
+        { label: ".png", count: 1 },
+      ],
+    });
+  });
+
+  it("ranks extensions inside a media type by how often they appear", () => {
+    const stats = computeDatasetStats([
+      mediaItem("one.png", HOME_PATH),
+      mediaItem("two.png", HOME_PATH),
+      mediaItem("three.jpg", HOME_PATH),
+      mediaItem("clip.mp4", HOME_PATH),
+      mediaItem("take.mp4", HOME_PATH),
+      mediaItem("other.mov", HOME_PATH),
+    ]);
+
+    expect(stats.mediaTypes.extensions).toEqual({
+      images: [".png", ".jpg"],
+      videos: [".mp4", ".mov"],
+      gifs: [],
+    });
+    expect(stats.mediaTypes.byExtension).toEqual([
+      { label: ".mp4", count: 2 },
+      { label: ".png", count: 2 },
+      { label: ".jpg", count: 1 },
+      { label: ".mov", count: 1 },
+    ]);
   });
 
   it("keeps files with unknown dimensions out of the megapixel buckets", () => {

@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type FocusEvent,
   type ReactElement,
   type ReactNode,
@@ -32,6 +33,9 @@ interface TooltipProps {
   delay?: number;
   disabled?: boolean;
   trigger?: "hover-focus";
+  /** Extra classes on the hover wrapper, e.g. when it has to be a flex item. */
+  className?: string;
+  style?: CSSProperties;
 }
 
 export function Tooltip({
@@ -40,6 +44,8 @@ export function Tooltip({
   delay = 400,
   disabled = false,
   trigger = "hover-focus",
+  className,
+  style,
 }: TooltipProps) {
   const id = useId();
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -131,7 +137,9 @@ export function Tooltip({
         "tooltip",
         visible && "tooltip--visible",
         childDisabled && "tooltip--disabled-wrap",
+        className,
       )}
+      style={style}
       onMouseEnter={show}
       onMouseLeave={hide}
     >

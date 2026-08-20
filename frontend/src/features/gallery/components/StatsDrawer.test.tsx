@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { StatsDrawer } from "./StatsDrawer";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 
@@ -21,6 +21,10 @@ function renderDrawer(overrides: Partial<Parameters<typeof StatsDrawer>[0]> = {}
 }
 
 describe("StatsDrawer", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders nothing while closed", () => {
     const { container } = render(<StatsDrawer open={false} items={items} onClose={vi.fn()} />);
 
@@ -187,6 +191,56 @@ describe("StatsDrawer", () => {
     expect(screen.getByText("Images").previousElementSibling).toHaveTextContent("1");
     expect(screen.getByText("Videos").previousElementSibling).toHaveTextContent("1");
     expect(screen.getByText("GIFs").previousElementSibling).toHaveTextContent("1");
+  });
+
+  it("draws a mix bar whose segments follow each extension's share of the folder", () => {
+    renderDrawer({
+      items: [
+        mediaItem("one.png", HOME_PATH),
+        mediaItem("two.png", HOME_PATH),
+        mediaItem("clip.mp4", HOME_PATH),
+        mediaItem("loop.gif", HOME_PATH),
+      ],
+    });
+
+    const mix = screen.getByRole("figure", { name: /file extensions/i });
+    expect(mix).toHaveAccessibleName("File extensions: PNG 50%, GIF 25%, MP4 25%");
+
+    const cells = mix.querySelectorAll(".stats-drawer__mix-cell");
+    expect(cells).toHaveLength(3);
+    expect(cells[0]).toHaveStyle({ flexGrow: 2 });
+    expect(cells[1]).toHaveStyle({ flexGrow: 1 });
+    expect(cells[2]).toHaveStyle({ flexGrow: 1 });
+  });
+
+  it("omits missing extensions from the mix bar", () => {
+    renderDrawer();
+
+    const mix = screen.getByRole("figure", { name: /file extensions/i });
+    expect(mix).toHaveAccessibleName("File extensions: PNG 100%");
+    expect(mix.querySelectorAll(".stats-drawer__mix-cell")).toHaveLength(1);
+  });
+
+  it("names the extension in a mix segment's tooltip", async () => {
+    vi.useFakeTimers();
+    renderDrawer({
+      items: [
+        mediaItem("one.png", HOME_PATH),
+        mediaItem("two.png", HOME_PATH),
+        mediaItem("three.jpeg", HOME_PATH),
+        mediaItem("clip.mp4", HOME_PATH),
+      ],
+    });
+
+    const jpeg = document.querySelector(`.stats-drawer__mix-segment[data-extension=".jpeg"]`);
+    expect(jpeg).not.toBeNull();
+    fireEvent.mouseEnter(jpeg!.closest(".tooltip")!);
+
+    await act(async () => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("JPEG");
   });
 
   it("says so when the folder holds no media", () => {

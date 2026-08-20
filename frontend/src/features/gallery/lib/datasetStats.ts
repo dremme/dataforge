@@ -104,6 +104,14 @@ export interface MediaTypeStats {
   images: number;
   videos: number;
   gifs: number;
+  /** Filename suffixes present in each type, most common first. Dotted lowercase. */
+  extensions: {
+    images: string[];
+    videos: string[];
+    gifs: string[];
+  };
+  /** Every suffix in the folder with its file count, most common first. The mix bar. */
+  byExtension: StatBucket[];
 }
 
 export interface CaptionLengthStats {
@@ -192,6 +200,34 @@ function countAspectRatios(labels: string[]): StatBucket[] {
   ];
 }
 
+function fileExtension(name: string): string | null {
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0) return null;
+  return name.slice(dot).toLowerCase();
+}
+
+function bumpExtension(counts: Map<string, number>, name: string) {
+  const extension = fileExtension(name);
+  if (!extension) return;
+  counts.set(extension, (counts.get(extension) ?? 0) + 1);
+}
+
+function rankedExtensions(counts: Map<string, number>): string[] {
+  return rankedExtensionBuckets(counts).map((bucket) => bucket.label);
+}
+
+function rankedExtensionBuckets(...maps: Map<string, number>[]): StatBucket[] {
+  const merged = new Map<string, number>();
+  for (const map of maps) {
+    for (const [label, count] of map) {
+      merged.set(label, (merged.get(label) ?? 0) + count);
+    }
+  }
+  return [...merged.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([label, count]) => ({ label, count }));
+}
+
 function countWords(captions: string[]): WordCount[] {
   const counts = new Map<string, number>();
 
@@ -229,6 +265,9 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   let images = 0;
   let videos = 0;
   let gifs = 0;
+  const imageExtensions = new Map<string, number>();
+  const videoExtensions = new Map<string, number>();
+  const gifExtensions = new Map<string, number>();
   let unknownResolution = 0;
 
   for (const item of media) {
@@ -248,9 +287,16 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
       lengths.push(item.description.length);
     }
 
-    if (isGif(item)) gifs += 1;
-    else if (isVideo(item)) videos += 1;
-    else images += 1;
+    if (isGif(item)) {
+      gifs += 1;
+      bumpExtension(gifExtensions, item.name);
+    } else if (isVideo(item)) {
+      videos += 1;
+      bumpExtension(videoExtensions, item.name);
+    } else {
+      images += 1;
+      bumpExtension(imageExtensions, item.name);
+    }
 
     const width = item.width ?? 0;
     const height = item.height ?? 0;
@@ -287,6 +333,12 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
       images,
       videos,
       gifs,
+      extensions: {
+        images: rankedExtensions(imageExtensions),
+        videos: rankedExtensions(videoExtensions),
+        gifs: rankedExtensions(gifExtensions),
+      },
+      byExtension: rankedExtensionBuckets(imageExtensions, videoExtensions, gifExtensions),
     },
     megapixels: bucketize(megapixels, MEGAPIXEL_BUCKETS),
     aspectRatios: countAspectRatios(aspectRatioLabels),
