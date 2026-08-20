@@ -22,6 +22,7 @@
 @use "components/breadcrumbs";
 @use "components/code-editor";
 @use "components/confirm-dialog";
+@use "components/crop-overlay";
 @use "components/duplicate-resolver-modal";
 @use "components/empty-state";
 @use "components/folder-grid";
@@ -30,6 +31,8 @@
 @use "components/gallery-drop";
 @use "components/gallery-item-json-editor";
 @use "components/gallery-item-modal";
+@use "components/image-edit-panel";
+@use "components/image-edit-stage";
 @use "components/issue-resolver-modal";
 @use "components/jobs-drawer";
 @use "components/messages";
@@ -43,7 +46,6 @@
 @use "components/tooltip";
 @use "components/training-sample-modal";
 @use "components/training-samples";
-@use "components/video-crop-overlay";
 @use "components/video-edit-panel";
 @use "components/video-frame-bar";
 @use "components/zoomable-image";

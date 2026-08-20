@@ -537,14 +537,14 @@ class WatermarkOutputFolderTests(unittest.TestCase):
             write_media(root, "a_photo.png")
             write_media(root, "b_photo.png")
 
-            real_save = watermark_module._save_watermarked_image
+            real_save = watermark_module.save_image_preserving_format
 
             def save(merged: Image.Image, destination: Path, **kwargs: object) -> None:
                 if destination.name.startswith("b_photo"):
                     raise OSError("disk full")
                 real_save(merged, destination, **kwargs)  # type: ignore[arg-type]
 
-            with patch.object(watermark_module, "_save_watermarked_image", side_effect=save):
+            with patch.object(watermark_module, "save_image_preserving_format", side_effect=save):
                 result = run_watermark_job(root, text="Sample Studio")
 
             stats = result["stats"]

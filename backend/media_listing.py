@@ -12,8 +12,8 @@ from captions import (
 from constants import (
     CAPTION_SIDECAR_EXTENSIONS,
     DUPLICATE_SIDECAR_SUFFIX,
+    EDIT_BACKUP_SUFFIX,
     ISSUE_SIDECAR_SUFFIX,
-    VIDEO_BACKUP_SUFFIX,
 )
 from duplicates import duplicate_finding_from_sidecar
 from folder_scan import FolderScan, ScannedEntry, get_media_type, scan_folder
@@ -237,7 +237,7 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "height": dimensions[1] if dimensions else None,
         "size": media.size,
         "modified_at": datetime.fromtimestamp(media.mtime, tz=UTC).isoformat(),
-        "has_backup": f"{media.name}{VIDEO_BACKUP_SUFFIX}" in scan.files,
+        "has_backup": f"{media.name}{EDIT_BACKUP_SUFFIX}" in scan.files,
     }
 
 

@@ -5,19 +5,22 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent,
+  type RefObject,
 } from "react";
 import {
   CROP_HANDLES,
   CROP_NUDGE_FRACTION,
   CROP_NUDGE_MULTIPLIER,
-  containedVideoBox,
-  cropToPixels,
+  UPRIGHT,
+  containedBox,
   isCornerHandle,
   moveCrop,
   resizeCrop,
+  screenDeltaToSource,
   type CropHandle,
   type CropRect,
-} from "@/features/gallery/lib/videoEdit";
+  type Orientation,
+} from "@/features/gallery/lib/crop";
 import { classNames } from "@/shared/lib/classNames";
 
 const HANDLE_LABELS: Record<CropHandle, string> = {
@@ -33,15 +36,26 @@ const HANDLE_LABELS: Record<CropHandle, string> = {
 
 const EMPTY_BOX = { left: 0, top: 0, width: 0, height: 0 };
 
-interface VideoCropOverlayProps {
+interface CropOverlayProps {
   /** The element the frame is painted into, so the overlay can find the picture in it. */
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  mediaRef: RefObject<HTMLElement | null>;
   crop: CropRect;
   sourceWidth: number;
   sourceHeight: number;
   /** Width over height for the locked shape, or null while the rect is free. */
   aspectRatio: number | null;
   disabled: boolean;
+  /**
+   * How the preview is turned, when the host renders this inside the same transform the
+   * picture carries. Video never sets it; the image editor rotates and mirrors in place.
+   */
+  orientation?: Orientation;
+  /**
+   * How the readout turns fractions into pixels. The default rounds, which is what Pillow
+   * is asked for; the video editor passes `evenTrunc`, because `yuv420p` cannot express an
+   * odd dimension and a readout that disagreed with the render would quietly lie.
+   */
+  round?: (value: number) => number;
   onCropChange: (crop: CropRect) => void;
 }
 
@@ -49,54 +63,64 @@ interface VideoCropOverlayProps {
  * The crop rectangle, drawn on the frame rather than beside it.
  *
  * Everything here works in fractions of the source and is positioned against the box the
- * video actually paints: `object-fit: contain` letterboxes the picture inside the
+ * media actually paints: `object-fit: contain` letterboxes the picture inside the
  * element, so a rect laid over the element would sit off by exactly the bars.
+ *
+ * When the host has turned the preview, this rides inside that transform - so the browser
+ * puts the rectangle on the pixels the user sees for free, and the only thing left to
+ * undo is the direction a drag reads in. That is `screenDeltaToSource`. The handles keep
+ * their source-relative names, which is why the top-left one appears elsewhere under a
+ * quarter turn: naming them by where they land would make the labels disagree with the
+ * numbers they change.
  */
-export function VideoCropOverlay({
-  videoRef,
+export function CropOverlay({
+  mediaRef,
   crop,
   sourceWidth,
   sourceHeight,
   aspectRatio,
   disabled,
+  orientation = UPRIGHT,
+  round = Math.round,
   onCropChange,
-}: VideoCropOverlayProps) {
+}: CropOverlayProps) {
   const [box, setBox] = useState(EMPTY_BOX);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
 
-  // The painted box moves with the window, the panel and the video's own metadata, so it
+  // The painted box moves with the window, the panel and the media's own metadata, so it
   // is measured rather than derived once.
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const media = mediaRef.current;
+    if (!media) return;
 
     const measure = () => {
-      // `containedVideoBox` answers in the video element's own coordinates, but this
-      // overlay is absolutely positioned against the stage, which pads the video in and
-      // centres it. Without the element's own offset inside that box the whole rectangle
-      // lands up and to the left by exactly the padding.
+      // `containedBox` answers in the media element's own coordinates, but this overlay
+      // is absolutely positioned against its host, which pads the media in and centres
+      // it. Without the element's own offset inside that box the whole rectangle lands
+      // up and to the left by exactly the padding.
       //
       // Layout offsets rather than `getBoundingClientRect`, for two reasons: `offsetLeft`
       // is already measured from `offsetParent`'s padding box, which is the very box an
       // absolutely positioned sibling is placed against, and offsets are untransformed.
-      // A rect is not - it comes back scaled by any ancestor transform, and writing that
-      // straight into `left`/`width` would scale it a second time. The modal panel really
-      // does carry one while its entrance animation runs.
-      if (!video.offsetParent) {
+      // A rect is not - it comes back scaled and turned by any ancestor transform, and
+      // writing that straight into `left`/`width` would apply it a second time. The modal
+      // panel really does carry one while its entrance animation runs, and the image
+      // editor's stage carries one for as long as the preview is rotated.
+      if (!media.offsetParent) {
         setBox(EMPTY_BOX);
         return;
       }
 
-      const painted = containedVideoBox(
-        video.offsetWidth,
-        video.offsetHeight,
+      const painted = containedBox(
+        media.offsetWidth,
+        media.offsetHeight,
         sourceWidth,
         sourceHeight,
       );
 
       setBox({
-        left: video.offsetLeft + painted.left,
-        top: video.offsetTop + painted.top,
+        left: media.offsetLeft + painted.left,
+        top: media.offsetTop + painted.top,
         width: painted.width,
         height: painted.height,
       });
@@ -104,12 +128,12 @@ export function VideoCropOverlay({
 
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(video);
-    // The host too: a stage that grows taller re-centres a video already clamped by
+    observer.observe(media);
+    // The host too: a stage that grows taller re-centres media already clamped by
     // `max-height`, moving it without ever resizing it.
-    observer.observe(video.offsetParent ?? video);
+    observer.observe(media.offsetParent ?? media);
     return () => observer.disconnect();
-  }, [sourceHeight, sourceWidth, videoRef]);
+  }, [sourceHeight, sourceWidth, mediaRef]);
 
   // Aspect is a ratio of real pixels; this rectangle is in fractions of the frame, so the
   // frame's own aspect divides out before the two can be compared.
@@ -118,12 +142,17 @@ export function VideoCropOverlay({
       ? aspectRatio / (sourceWidth / sourceHeight)
       : null;
 
+  // Un-turned in pixels, before the division: `box` is the untransformed layout box, so
+  // its width already corresponds to the source's width whichever way the preview faces.
   const fractionDelta = useCallback(
-    (dx: number, dy: number) => ({
-      dx: box.width > 0 ? dx / box.width : 0,
-      dy: box.height > 0 ? dy / box.height : 0,
-    }),
-    [box.height, box.width],
+    (screenDx: number, screenDy: number) => {
+      const { dx, dy } = screenDeltaToSource(screenDx, screenDy, orientation);
+      return {
+        dx: box.width > 0 ? dx / box.width : 0,
+        dy: box.height > 0 ? dy / box.height : 0,
+      };
+    },
+    [box.height, box.width, orientation],
   );
 
   const startDrag = useCallback(
@@ -186,14 +215,20 @@ export function VideoCropOverlay({
       if (!move) return;
 
       event.preventDefault();
-      onCropChange(resizeCrop(crop, handle, move[0], move[1], rectRatio));
+      // Through the same mapping as a drag: the arrow keys point at the screen, and under
+      // a quarter turn the screen's right is not the frame's.
+      const { dx, dy } = screenDeltaToSource(move[0], move[1], orientation);
+      onCropChange(resizeCrop(crop, handle, dx, dy, rectRatio));
     },
-    [crop, disabled, onCropChange, rectRatio],
+    [crop, disabled, onCropChange, orientation, rectRatio],
   );
 
   if (box.width <= 0 || box.height <= 0) return null;
 
-  const pixels = cropToPixels(crop, { width: sourceWidth, height: sourceHeight });
+  const pixels = {
+    width: round(sourceWidth * crop.width),
+    height: round(sourceHeight * crop.height),
+  };
   const style = {
     left: `${box.left}px`,
     top: `${box.top}px`,
@@ -203,33 +238,35 @@ export function VideoCropOverlay({
     "--crop-y": `${crop.y * 100}%`,
     "--crop-w": `${crop.width * 100}%`,
     "--crop-h": `${crop.height * 100}%`,
+    // The readout rides the host's transform with everything else, so it carries the
+    // inverse and stays upright. Each mirror is its own inverse, hence the same signs.
+    "--crop-readout-transform":
+      `rotate(${-orientation.rotate}deg)` +
+      ` scaleX(${orientation.mirrorH ? -1 : 1}) scaleY(${orientation.mirrorV ? -1 : 1})`,
   } as CSSProperties;
 
   return (
-    <div className="video-crop-overlay" style={style} role="group" aria-label="Crop region">
-      <div className="video-crop-overlay__scrim video-crop-overlay__scrim--top" />
-      <div className="video-crop-overlay__scrim video-crop-overlay__scrim--bottom" />
-      <div className="video-crop-overlay__scrim video-crop-overlay__scrim--left" />
-      <div className="video-crop-overlay__scrim video-crop-overlay__scrim--right" />
+    <div className="crop-overlay" style={style} role="group" aria-label="Crop region">
+      <div className="crop-overlay__scrim crop-overlay__scrim--top" />
+      <div className="crop-overlay__scrim crop-overlay__scrim--bottom" />
+      <div className="crop-overlay__scrim crop-overlay__scrim--left" />
+      <div className="crop-overlay__scrim crop-overlay__scrim--right" />
 
       <div
-        className="video-crop-overlay__rect"
+        className="crop-overlay__rect"
         onPointerDown={startDrag}
         onPointerMove={dragRect}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <span className="video-crop-overlay__readout">
+        <span className="crop-overlay__readout">
           {pixels.width} x {pixels.height}
         </span>
         {CROP_HANDLES.map((handle) => (
           <button
             key={handle}
             type="button"
-            className={classNames(
-              "video-crop-overlay__handle",
-              `video-crop-overlay__handle--${handle}`,
-            )}
+            className={classNames("crop-overlay__handle", `crop-overlay__handle--${handle}`)}
             aria-label={HANDLE_LABELS[handle]}
             // An edge drag has no second axis to derive the locked dimension from, so
             // under a ratio only the corners can preserve it without guessing.

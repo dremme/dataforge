@@ -17,6 +17,7 @@ import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture"
 import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
+import { useImageEdit } from "@/features/gallery/hooks/useImageEdit";
 import { useVideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapture";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
@@ -28,6 +29,7 @@ import {
   iconChevronLeft,
   iconChevronRight,
   iconCopy,
+  iconCrop,
   iconFolderInput,
   iconLoader2,
   iconMessageCheck,
@@ -37,6 +39,7 @@ import {
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import {
+  isEditableImage,
   isEditableVideo,
   isGif,
   isMotion,
@@ -61,10 +64,14 @@ import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { TransferMediaDialog } from "./TransferMediaDialog";
 import { FrameCaptureBar } from "./FrameCaptureBar";
-import { VideoCropOverlay } from "./VideoCropOverlay";
+import { CropOverlay } from "./CropOverlay";
+import { ImageEditPanel } from "./ImageEditPanel";
+import { ImageEditStage } from "./ImageEditStage";
 import { VideoEditPanel } from "./VideoEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
+import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
+import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 
 /** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
 const noop = () => {};
@@ -146,6 +153,10 @@ export function GalleryItemModal({
   // Owned here for the same reason, and mutually exclusive with it: one `<video>`
   // cannot serve a capture scrubber and an edit timeline at once. The draft resets
   // per item, but the mode itself survives navigation.
+  //
+  // One flag for both editors rather than two. Which one it turns on follows from the
+  // item, and the two can never apply to the same file, so a second piece of state
+  // could only ever disagree with this one.
   const [editMode, setEditMode] = useState(false);
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
 
@@ -206,10 +217,17 @@ export function GalleryItemModal({
     setEditMode,
   });
 
+  const imageEdit = useImageEdit({
+    item,
+    onEdited: onCopied,
+    editMode,
+    setEditMode,
+  });
+
   const { transferPicker, overwritePrompt, transferring } = transfer;
   /** Modal work other than a frame save — the capture bar locks itself on this. */
   const otherWorkBusy = deleting || transferring !== null;
-  const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying;
+  const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
   // Frame mode stays out of this flag: it feeds `ModalShell`'s `suspended`, which
   // makes the panel inert, and the slider has to stay reachable.
   const childOverlayOpen =
@@ -244,9 +262,9 @@ export function GalleryItemModal({
   }, [item, currentFolder, itemIsVideo, itemIsGif]);
 
   // Editing needs no destination folder - it rewrites the file where it already is - so
-  // this only drops the mode when the item itself cannot be edited.
+  // this only drops the mode when the item itself cannot be edited by either editor.
   useEffect(() => {
-    if (!item || !isEditableVideo(item)) {
+    if (!item || (!isEditableVideo(item) && !isEditableImage(item))) {
       setEditMode(false);
       setRevertConfirmOpen(false);
     }
@@ -295,10 +313,15 @@ export function GalleryItemModal({
     frameCapture.toggleFrameMode();
   }, [frameCapture]);
 
-  const toggleEditMode = useCallback(() => {
+  const toggleVideoEditMode = useCallback(() => {
     setFrameMode(false);
     videoEdit.toggleEditMode();
   }, [videoEdit]);
+
+  const toggleImageEditMode = useCallback(() => {
+    setFrameMode(false);
+    imageEdit.toggleEditMode();
+  }, [imageEdit]);
 
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
@@ -379,11 +402,17 @@ export function GalleryItemModal({
     };
   }, [busy, childOverlayOpen, onPrevious, onNext]);
 
+  // Which editor the one `editMode` flag drives. Derived here, above the early return,
+  // so the hooks below can be gated on it without any of them being called conditionally.
+  const canEditVideoItem = item ? isEditableVideo(item) : false;
+  const canEditImageItem = item ? isEditableImage(item) : false;
+
   // In frame mode Escape steps back to plain viewing instead of closing outright.
   // `ModalShell` stands down for the duration via its `escape` prop below.
   useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);
-  // The two modes are mutually exclusive, so these can never both be live.
-  useEscapeKey(videoEdit.exitEditMode, editMode && !busy);
+  // A file is one kind or the other, so these can never both be live.
+  useEscapeKey(videoEdit.exitEditMode, editMode && canEditVideoItem && !busy);
+  useEscapeKey(imageEdit.exitEditMode, editMode && canEditImageItem && !busy);
 
   if (!item) return null;
 
@@ -398,7 +427,6 @@ export function GalleryItemModal({
   // Only the destination folder is required; a missing `onCopied` costs the refresh,
   // not the save, so it must not gate the toggle the way `canTransfer` does.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
-  const canEditVideo = isEditableVideo(item);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
 
@@ -443,7 +471,7 @@ export function GalleryItemModal({
                 </button>
               </Tooltip>
             )}
-            {canEditVideo && (
+            {canEditVideoItem && (
               <Tooltip content={editMode ? "Exit video editing" : "Edit video"}>
                 <button
                   type="button"
@@ -451,7 +479,7 @@ export function GalleryItemModal({
                     "gallery-item-modal__edit-toggle",
                     editMode && "gallery-item-modal__edit-toggle--active",
                   )}
-                  onClick={toggleEditMode}
+                  onClick={toggleVideoEditMode}
                   disabled={busy}
                   aria-pressed={editMode}
                   aria-label={
@@ -459,6 +487,25 @@ export function GalleryItemModal({
                   }
                 >
                   <Icon icon={iconScissors} />
+                </button>
+              </Tooltip>
+            )}
+            {canEditImageItem && (
+              <Tooltip content={editMode ? "Exit image editing" : "Edit image"}>
+                <button
+                  type="button"
+                  className={classNames(
+                    "gallery-item-modal__edit-toggle",
+                    editMode && "gallery-item-modal__edit-toggle--active",
+                  )}
+                  onClick={toggleImageEditMode}
+                  disabled={busy}
+                  aria-pressed={editMode}
+                  aria-label={
+                    editMode ? `Exit image editing for ${item.name}` : `Edit ${item.name}`
+                  }
+                >
+                  <Icon icon={iconCrop} />
                 </button>
               </Tooltip>
             )}
@@ -582,17 +629,28 @@ export function GalleryItemModal({
                 }}
               />
               {editMode && videoEdit.cropActive && (
-                <VideoCropOverlay
-                  videoRef={videoCapture.videoRef}
+                <CropOverlay
+                  mediaRef={videoCapture.videoRef}
                   crop={videoEdit.draft.crop}
                   sourceWidth={videoEdit.sourceWidth}
                   sourceHeight={videoEdit.sourceHeight}
                   aspectRatio={videoEdit.aspectRatio}
+                  round={evenTrunc}
                   disabled={busy}
                   onCropChange={videoEdit.setCrop}
                 />
               )}
             </>
+          ) : editMode && canEditImageItem ? (
+            // The untouched original, for the same reason the video editor plays one:
+            // the draft is expressed against it. Zooming is deliberately given up for
+            // the duration - the stage carries the rotation instead.
+            <ImageEditStage
+              edit={imageEdit}
+              src={imageOriginalUrl(item.path)}
+              alt={item.name}
+              disabled={busy}
+            />
           ) : (
             <ZoomableImage
               // Frame mode swaps in a still, so it needs a fresh instance: a zoom
@@ -658,9 +716,17 @@ export function GalleryItemModal({
             />
           ))}
 
-        {editMode && (
+        {editMode && canEditVideoItem && (
           <VideoEditPanel
             edit={videoEdit}
+            busy={otherWorkBusy}
+            onRevertRequested={() => setRevertConfirmOpen(true)}
+          />
+        )}
+
+        {editMode && canEditImageItem && (
+          <ImageEditPanel
+            edit={imageEdit}
             busy={otherWorkBusy}
             onRevertRequested={() => setRevertConfirmOpen(true)}
           />
@@ -783,10 +849,11 @@ export function GalleryItemModal({
           }
           confirmLabel="Restore"
           confirmVariant="danger"
-          busy={videoEdit.applying}
+          busy={videoEdit.applying || imageEdit.applying}
           onConfirm={() => {
             setRevertConfirmOpen(false);
-            videoEdit.revert();
+            if (canEditVideoItem) videoEdit.revert();
+            else imageEdit.revert();
           }}
           onCancel={() => setRevertConfirmOpen(false)}
         />

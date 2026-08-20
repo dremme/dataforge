@@ -38,20 +38,26 @@ WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
 VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
 VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
 
+# In-place image editing is held to the stills Pillow can re-encode without losing what
+# makes them what they are. GIF is excluded on purpose: a Pillow round-trip flattens the
+# animation to one frame, and the GIF affordance in the gallery modal is frame *capture*,
+# which writes a new JPG and leaves the source alone.
+IMAGE_EDIT_EXTENSIONS = IMAGE_EXTENSIONS
+
 # The untouched original, kept beside the edited file. Appended to the whole filename
 # rather than replacing the suffix, so `clip.mp4` and `clip.mov` keep distinct backups.
-VIDEO_BACKUP_SUFFIX = ".bak"
+EDIT_BACKUP_SUFFIX = ".bak"
 
 # The edit that produced the current file, so re-opening the editor shows what is
 # applied. Two suffixes deep like the issue and duplicate sidecars, and read through
-# `video_edit.edit_spec_path` rather than `with_suffix` for the same reason.
-VIDEO_EDIT_SIDECAR_SUFFIX = ".edit.json"
+# `edit_sidecars.edit_spec_path` rather than `with_suffix` for the same reason.
+EDIT_SIDECAR_SUFFIX = ".edit.json"
 
 # Both are appended to the full filename so the final suffix is not a media one: a temp
 # file named `clip.edit-tmp.mp4` would surface as a phantom gallery item for the length
 # of every render, because `folder_scan` classifies on the last suffix alone.
-VIDEO_EDIT_TEMP_SUFFIX = ".edit-tmp"
-VIDEO_EDIT_STALE_SUFFIX = ".edit-stale"
+EDIT_TEMP_SUFFIX = ".edit-tmp"
+EDIT_STALE_SUFFIX = ".edit-stale"
 
 # Served with the file rather than guessed from it: `mimetypes.guess_type` reads the
 # registry on Windows, where a machine missing a `.webp` or `.mkv` entry would fall
@@ -142,6 +148,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "SYSPROMPT_FILENAME": SYSPROMPT_FILENAME,
     "VIDEO_EXTENSIONS": sorted(VIDEO_EXTENSIONS),
     "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
+    "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
     "COMFY_WORKFLOW_EXTENSIONS": sorted(COMFY_WORKFLOW_EXTENSIONS),
 }

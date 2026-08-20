@@ -1,24 +1,24 @@
 import { createRef } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { VideoCropOverlay } from "./VideoCropOverlay";
-import { IDENTITY_CROP, type CropRect } from "@/features/gallery/lib/videoEdit";
+import { CropOverlay } from "./CropOverlay";
+import { IDENTITY_CROP, type CropRect, type Orientation } from "@/features/gallery/lib/crop";
 
 const SOURCE = { width: 1920, height: 1080 };
 /** The painted box: jsdom has no layout, so the elements report what a test needs. */
 const BOX = { width: 800, height: 450 };
-/** Where the video sits inside the stage, which pads it in and centres it. */
+/** Where the media sits inside its host, which pads it in and centres it. */
 const VIDEO_OFFSET = { left: 60, top: 20 };
 
-function videoRefWithBox() {
-  // jsdom lays nothing out, so the video is told where it sits and how big it is.
+function mediaRefWithBox(tag: "video" | "img" = "video") {
+  // jsdom lays nothing out, so the element is told where it sits and how big it is.
   const host = document.createElement("div");
-  const video = document.createElement("video");
-  host.appendChild(video);
+  const media = document.createElement(tag);
+  host.appendChild(media);
   document.body.appendChild(host);
 
   const define = (key: string, value: unknown) =>
-    Object.defineProperty(video, key, { value, configurable: true });
+    Object.defineProperty(media, key, { value, configurable: true });
 
   define("offsetParent", host);
   define("offsetLeft", VIDEO_OFFSET.left);
@@ -26,16 +26,16 @@ function videoRefWithBox() {
   define("offsetWidth", BOX.width);
   define("offsetHeight", BOX.height);
 
-  const ref = createRef<HTMLVideoElement>();
-  (ref as { current: HTMLVideoElement }).current = video;
+  const ref = createRef<HTMLElement>();
+  (ref as { current: HTMLElement }).current = media;
   return ref;
 }
 
-type Props = Parameters<typeof VideoCropOverlay>[0];
+type Props = Parameters<typeof CropOverlay>[0];
 
 function renderOverlay(overrides: Partial<Props> = {}) {
   const props: Props = {
-    videoRef: videoRefWithBox(),
+    mediaRef: mediaRefWithBox(),
     crop: IDENTITY_CROP,
     sourceWidth: SOURCE.width,
     sourceHeight: SOURCE.height,
@@ -45,7 +45,7 @@ function renderOverlay(overrides: Partial<Props> = {}) {
     ...overrides,
   };
 
-  render(<VideoCropOverlay {...props} />);
+  render(<CropOverlay {...props} />);
   return props;
 }
 
@@ -76,7 +76,7 @@ beforeEach(() => {
   Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(true);
 });
 
-describe("VideoCropOverlay", () => {
+describe("CropOverlay", () => {
   it("labels every handle", () => {
     renderOverlay();
 
@@ -169,7 +169,7 @@ describe("VideoCropOverlay", () => {
     const crop: CropRect = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
     const props = renderOverlay({ crop });
 
-    drag(document.querySelector(".video-crop-overlay__rect")!, 80, 0);
+    drag(document.querySelector(".crop-overlay__rect")!, 80, 0);
 
     const next = vi.mocked(props.onCropChange).mock.calls[0][0];
     expect(next.x).toBeCloseTo(0.35);
@@ -196,10 +196,10 @@ describe("VideoCropOverlay", () => {
   });
 
   it("renders nothing until the frame has been measured", () => {
-    const ref = createRef<HTMLVideoElement>();
+    const ref = createRef<HTMLElement>();
     render(
-      <VideoCropOverlay
-        videoRef={ref}
+      <CropOverlay
+        mediaRef={ref}
         crop={IDENTITY_CROP}
         sourceWidth={0}
         sourceHeight={0}
@@ -215,8 +215,76 @@ describe("VideoCropOverlay", () => {
   it("refuses to drag while other work is in flight", () => {
     const props = renderOverlay({ disabled: true });
 
-    drag(document.querySelector(".video-crop-overlay__rect")!, 80, 0);
+    drag(document.querySelector(".crop-overlay__rect")!, 80, 0);
 
     expect(props.onCropChange).not.toHaveBeenCalled();
+  });
+
+  describe("on a turned preview", () => {
+    // The overlay rides inside the host's transform, so the browser puts the rectangle on
+    // the rotated pixels for free. What it cannot do is tell a drag which way it went:
+    // these cover the mapping back into the frame the crop is measured in.
+    const turned = (overrides: Partial<Orientation>): Orientation => ({
+      rotate: 0,
+      mirrorH: false,
+      mirrorV: false,
+      ...overrides,
+    });
+
+    it("reads a rightward drag as downward when the preview is turned clockwise", () => {
+      const crop: CropRect = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
+      const props = renderOverlay({ crop, orientation: turned({ rotate: 90 }) });
+
+      // Screen-right, on a frame whose top now faces right, is the source's up - so the
+      // bottom edge comes in, and the 80px is measured across the box's *height*.
+      drag(screen.getByRole("button", { name: "Crop bottom-right corner" }), 80, 0);
+
+      const next = vi.mocked(props.onCropChange).mock.calls[0][0];
+      expect(next.width).toBeCloseTo(0.5);
+      expect(next.height).toBeCloseTo(0.5 - 80 / BOX.height);
+    });
+
+    it("reads a rightward drag backwards on a mirrored preview", () => {
+      const crop: CropRect = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
+      const props = renderOverlay({ crop, orientation: turned({ mirrorH: true }) });
+
+      drag(screen.getByRole("button", { name: "Crop right edge" }), 80, 0);
+
+      const next = vi.mocked(props.onCropChange).mock.calls[0][0];
+      expect(next.width).toBeCloseTo(0.4);
+    });
+
+    it("maps an arrow key the same way a drag is mapped", () => {
+      // The arrows point at the screen too, so a nudge that skipped the mapping would
+      // move the rectangle at right angles to the key that was pressed.
+      const props = renderOverlay({
+        crop: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 },
+        orientation: turned({ rotate: 90 }),
+      });
+
+      fireEvent.keyDown(screen.getByRole("button", { name: "Crop bottom-right corner" }), {
+        key: "ArrowRight",
+      });
+
+      const next = vi.mocked(props.onCropChange).mock.calls[0][0];
+      expect(next.width).toBeCloseTo(0.5);
+      expect(next.height).toBeCloseTo(0.49);
+    });
+
+    it("hands the readout the inverse transform so it stays upright", () => {
+      renderOverlay({ orientation: turned({ rotate: 90, mirrorH: true }) });
+
+      expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
+        "--crop-readout-transform": "rotate(-90deg) scaleX(-1) scaleY(1)",
+      });
+    });
+
+    it("leaves an upright preview without a transform to undo", () => {
+      renderOverlay();
+
+      expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
+        "--crop-readout-transform": "rotate(0deg) scaleX(1) scaleY(1)",
+      });
+    });
   });
 });

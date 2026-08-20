@@ -7,7 +7,7 @@ from pathlib import Path
 from captions import issue_file_path
 from constants import SIDECAR_EXTENSIONS
 from duplicates import duplicate_file_path
-from video_edit import backup_path_for, edit_spec_path
+from edit_sidecars import backup_path_for, edit_spec_path
 
 logger = logging.getLogger(__name__)
 

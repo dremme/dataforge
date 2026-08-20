@@ -19,23 +19,21 @@ untouched original is one revert away.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
-import os
-import shutil
-import threading
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
-from constants import (
-    VIDEO_BACKUP_SUFFIX,
-    VIDEO_EDIT_MUXERS,
-    VIDEO_EDIT_SIDECAR_SUFFIX,
-    VIDEO_EDIT_STALE_SUFFIX,
-    VIDEO_EDIT_TEMP_SUFFIX,
+from constants import VIDEO_EDIT_MUXERS
+from edit_sidecars import (
+    ensure_backup,
+    read_spec,
+    restore_backup,
+    stale_path_for,
+    sweep_edit_temp_files,
+    temp_path_for,
+    write_spec,
 )
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
@@ -46,7 +44,6 @@ from schemas import VideoEditResponse, VideoEditSpec
 logger = logging.getLogger(__name__)
 
 FFMPEG_MISSING_MESSAGE = "ffmpeg is required to edit a video"
-NO_BACKUP_MESSAGE = "No original is stored for this file"
 
 #: Long enough for a lengthy clip, short enough that a wedged encode is not a leak.
 VIDEO_EDIT_TIMEOUT_SECONDS = 1800
@@ -62,95 +59,8 @@ IDENTITY_EPSILON = 1e-9
 MAX_PLAUSIBLE_FPS = 1000.0
 
 
-BUSY_MESSAGE = "This video is already being edited"
-
-
-class VideoEditBusyError(Exception):
-    """Raised when a render for the same file is already running."""
-
-
-_renders: dict[str, threading.Event] = {}
-_renders_lock = threading.Lock()
-
-
-def _render_key(media: Path) -> str:
-    return os.path.normcase(str(media))
-
-
-@contextmanager
-def render_slot(media: Path) -> Iterator[Callable[[], bool]]:
-    """Hold the one render slot for ``media``, yielding its cancellation check.
-
-    A second request for the same file is refused rather than queued: the caller is a
-    double-clicked Apply far more often than it is two people, and stacking encodes onto
-    one file would have the later one publish over the earlier one's result.
-    """
-    key = _render_key(media)
-    cancelled = threading.Event()
-
-    with _renders_lock:
-        if key in _renders:
-            raise VideoEditBusyError(BUSY_MESSAGE)
-        _renders[key] = cancelled
-
-    try:
-        yield cancelled.is_set
-    finally:
-        with _renders_lock:
-            _renders.pop(key, None)
-
-
-def cancel_render(media: Path) -> bool:
-    """Ask an in-flight render for ``media`` to stop. False if there is none."""
-    with _renders_lock:
-        cancelled = _renders.get(_render_key(media))
-
-    if cancelled is None:
-        return False
-
-    cancelled.set()
-    return True
-
-
-def backup_path_for(media: Path) -> Path:
-    """``clip.mp4`` -> ``clip.mp4.bak``, appended so containers keep distinct backups."""
-    return media.with_name(f"{media.name}{VIDEO_BACKUP_SUFFIX}")
-
-
-def edit_spec_path(media: Path) -> Path:
-    return media.with_suffix(VIDEO_EDIT_SIDECAR_SUFFIX)
-
-
-def _temp_path(media: Path) -> Path:
-    return media.with_name(f"{media.name}{VIDEO_EDIT_TEMP_SUFFIX}")
-
-
-def _stale_path(media: Path) -> Path:
-    return media.with_name(f"{media.name}{VIDEO_EDIT_STALE_SUFFIX}")
-
-
 def read_edit_spec(media: Path) -> VideoEditSpec | None:
-    """The edit that produced the current file, or None if it has never been edited."""
-    path = edit_spec_path(media)
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-    try:
-        return VideoEditSpec.model_validate(json.loads(raw))
-    except ValueError:
-        logger.warning("Ignoring unreadable edit spec %s", path.name, exc_info=True)
-        return None
-
-
-def write_edit_spec(media: Path, spec: VideoEditSpec) -> None:
-    edit_spec_path(media).write_text(json.dumps(spec.model_dump(), indent=2), encoding="utf-8")
-
-
-def clear_edit_spec(media: Path) -> None:
-    with suppress(OSError):
-        edit_spec_path(media).unlink(missing_ok=True)
+    return read_spec(media, VideoEditSpec)
 
 
 def is_identity_spec(spec: VideoEditSpec) -> bool:
@@ -169,39 +79,6 @@ def expected_output_seconds(spec: VideoEditSpec) -> float | None:
     if spec.trim_end is None:
         return None
     return (spec.trim_end - spec.trim_start) / spec.speed
-
-
-def sweep_edit_temp_files(folder: Path) -> None:
-    """Drop what a hard kill left behind; this is a folder the user browses."""
-    with suppress(OSError):
-        for suffix in (VIDEO_EDIT_TEMP_SUFFIX, VIDEO_EDIT_STALE_SUFFIX):
-            for leftover in folder.glob(f"*{suffix}"):
-                leftover.unlink(missing_ok=True)
-
-
-def ensure_backup(media: Path) -> Path:
-    """Store the untouched original, once. An existing backup is never rewritten.
-
-    A copy rather than a rename: the browser may be streaming ``media`` right now, and
-    renaming it away would make its path vanish for the length of the encode - which the
-    folder watcher pushes, and which the open modal answers by closing itself.
-
-    The copy lands on a temp name first, so a crash or a full disk cannot leave a
-    truncated file sitting at the backup name, where nothing would ever notice it.
-    """
-    backup = backup_path_for(media)
-    if backup.exists():
-        return backup
-
-    pending = backup.with_name(f"{backup.name}-tmp")
-    try:
-        shutil.copy2(media, pending)
-        os.replace(pending, backup)
-    finally:
-        with suppress(OSError):
-            pending.unlink(missing_ok=True)
-
-    return backup
 
 
 def source_frame_rate(media: Path) -> float | None:
@@ -407,7 +284,7 @@ def apply_video_edit(
     sweep_edit_temp_files(media.parent)
 
     source = ensure_backup(media)
-    temp_path = _temp_path(media)
+    temp_path = temp_path_for(media)
     # Read off the backup, which is what the render reads: the live file may already have
     # been retimed by an earlier edit, and its rate is pinned to this same answer anyway.
     command = build_video_edit_command(
@@ -426,37 +303,17 @@ def apply_video_edit(
             on_progress=on_progress,
             timeout=VIDEO_EDIT_TIMEOUT_SECONDS,
         )
-        publish_replacing(temp_path, media, _stale_path(media))
+        publish_replacing(temp_path, media, stale_path_for(media))
     finally:
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
 
-    write_edit_spec(media, spec)
+    write_spec(media, spec)
     return describe_edited(media, has_backup=True)
 
 
 def revert_video_edit(media: Path) -> VideoEditResponse:
-    """Put the untouched original back and forget the edit that replaced it.
-
-    The backup is copied rather than renamed so a failure to install it still leaves a
-    recoverable original, and it is only removed once the live file matches it.
-    """
-    backup = backup_path_for(media)
-    if not backup.is_file():
-        raise ValueError(NO_BACKUP_MESSAGE)
-
-    sweep_edit_temp_files(media.parent)
-    temp_path = _temp_path(media)
-
-    try:
-        shutil.copy2(backup, temp_path)
-        publish_replacing(temp_path, media, _stale_path(media))
-    finally:
-        with suppress(OSError):
-            temp_path.unlink(missing_ok=True)
-
-    with suppress(OSError):
-        backup.unlink(missing_ok=True)
-    clear_edit_spec(media)
+    """Put the untouched original back and forget the edit that replaced it."""
+    restore_backup(media)
 
     return describe_edited(media, has_backup=False)

@@ -103,7 +103,6 @@ describe("GalleryItemModal", () => {
     });
 
     it.each([
-      ["a still image", makeItem("sunset.png")],
       ["a GIF", makeItem("loop.gif", { media_type: "gif" })],
       ["a container it cannot mux", makeItem("clip.avi", { media_type: "video" })],
       // ffmpeg would render an MKV happily; the browser cannot decode one, and the
@@ -114,6 +113,21 @@ describe("GalleryItemModal", () => {
 
       const dialog = await screen.findByRole("dialog", { name: `Viewing ${item.name}` });
       expect(within(dialog).queryByRole("button", { name: /^Edit /i })).not.toBeInTheDocument();
+    });
+
+    it("hands a still image to the image editor rather than this one", async () => {
+      // Both editors share one toggle label and one mode flag, so a still reaching the
+      // video panel would be a silent mix-up rather than a missing button.
+      const user = userEvent.setup();
+      renderModal(makeItem("sunset.png"));
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      await user.click(within(dialog).getByRole("button", { name: "Edit sunset.png" }));
+
+      expect(
+        within(dialog).queryByRole("group", { name: "Video editing" }),
+      ).not.toBeInTheDocument();
+      expect(within(dialog).getByRole("group", { name: "Image editing" })).toBeInTheDocument();
     });
 
     it("opens the panel and surrenders the native controls", async () => {

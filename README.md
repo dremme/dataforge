@@ -101,8 +101,11 @@ Images are JPG, JPEG, PNG, WebP, BMP, and GIF; videos are MP4, AVI, MOV, MKV, WM
 set [AI-Toolkit](https://github.com/ostris/ai-toolkit) trains on, minus audio-only files and SVG. Everything
 in that list lists, thumbnails, captions, and trains.
 
-Two things are narrower than the list, because the formats themselves are:
+Three things are narrower than the list, because the formats themselves are:
 
+- **In-app image editing** is JPG, JPEG, PNG, WebP, and BMP — every still except GIF, which carries a frame
+  sequence that a single re-encode would flatten to one frame. A GIF keeps frame saving instead, which writes
+  a new JPG and leaves the source untouched.
 - **In-app video playback, frame saving, and editing** need a container the browser can decode, which means
   MP4, MOV, and M4V. An AVI, WMV, FLV, or MKV still gets a thumbnail and a caption; it just will not play in
   the detail view. Editing shares the limit because the editor drives its timeline and crop off that same
@@ -137,6 +140,9 @@ Two things are narrower than the list, because the formats themselves are:
 - Click-to-zoom in the detail and issue-resolver views
 - Open the current image in the OS image viewer (Windows)
 - Save any playable video or GIF frame as a JPG beside the source; scrub to the frame and the filename carries its timestamp (video) or frame index (GIF), so each frame is its own file
+- Image editing in place — crop, rotate in quarter turns, mirror, and rescale, on the same terms: one pass
+  from the same stored original, so a later change keeps the rest and Revert puts it back. The crop rectangle
+  turns with the preview, so it always frames the pixels you can see
 - Video editing in place — trim, crop, speed up or slow down, and rescale, applied in one pass. The original
   is stored once as `<name>.<ext>.bak` and every edit re-renders from it, so changing one setting later keeps
   the rest and nothing is ever an encode of an encode. Revert restores it
@@ -148,7 +154,7 @@ Two things are narrower than the list, because the formats themselves are:
 - Detection of embedded ComfyUI workflows in PNGs and MP4-family videos
 - Drag-and-drop import for media, sidecars, and `.sysprompt`
 - Delete media along with matching sidecars, including `.issue.json`, `.duplicate.json`, and a stored
-  original from video editing
+  original from image or video editing
 - Move or copy selected files, and create subfolders
 
 ### Automation jobs
@@ -181,7 +187,7 @@ images in the automation panel, and an external card in the jobs drawer.
 | Kind | Location |
 | --- | --- |
 | Captions, caption issues, duplicate groups, `.sysprompt` | Next to your media, so they travel with the dataset |
-| Video-edit originals (`.bak`) and the edit that produced the current file (`.edit.json`) | Next to the video; hidden from the gallery, and carried along by move, copy, rename, and delete |
+| Edit originals (`.bak`) and the edit that produced the current file (`.edit.json`) | Next to the image or video; hidden from the gallery, and carried along by move, copy, rename, and delete |
 | App preferences, job history, thumbnails | `backend/data/` — gitignored SQLite plus cache |
 | UI session state (search, gallery filters) | Browser session storage |
 
@@ -192,8 +198,9 @@ Verify-captions **additional context** is stored **per folder** in the app datab
 
 ### App only
 
-Enough for gallery browsing, caption editing, video editing, strip metadata, watermark, set captions, and
-rename. Video work uses the ffmpeg that ships with the Python dependencies — no GPU involved.
+Enough for gallery browsing, caption editing, image and video editing, strip metadata, watermark, set
+captions, and rename. Video work uses the ffmpeg that ships with the Python dependencies, image work uses
+Pillow — no GPU involved.
 
 | | Minimum | Recommended |
 | --- | --- | --- |

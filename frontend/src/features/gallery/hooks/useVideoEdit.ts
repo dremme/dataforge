@@ -7,9 +7,13 @@ import {
 } from "@/features/gallery/api/videoEdit";
 import {
   aspectIdForCrop,
+  cropForAspect,
+  CROP_ASPECTS,
+  type CropRect,
+} from "@/features/gallery/lib/crop";
+import {
   clampTrimEnd,
   clampTrimStart,
-  cropForAspect,
   draftFromSpec,
   emptyDraft,
   isIdentityEdit,
@@ -17,8 +21,6 @@ import {
   outputDuration,
   specsEqual,
   toVideoEditSpec,
-  CROP_ASPECTS,
-  type CropRect,
   type VideoEditDraft,
 } from "@/features/gallery/lib/videoEdit";
 import { hasUsableDuration, formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";

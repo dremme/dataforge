@@ -1,8 +1,14 @@
-import { GIF_EXTENSION, VIDEO_EDIT_EXTENSIONS, VIDEO_EXTENSIONS } from "@/shared/constants";
+import {
+  GIF_EXTENSION,
+  IMAGE_EDIT_EXTENSIONS,
+  VIDEO_EDIT_EXTENSIONS,
+  VIDEO_EXTENSIONS,
+} from "@/shared/constants";
 import type { GalleryItem } from "@/shared/types";
 
 const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
 const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
+const IMAGE_EDIT_EXTENSION_SET = new Set<string>(IMAGE_EDIT_EXTENSIONS);
 
 export function isSysPrompt(item: GalleryItem): boolean {
   return item.media_type === "sysprompt";
@@ -43,6 +49,21 @@ export function isEditableVideo(item: GalleryItem): boolean {
 
   const extension = extensionOf(item);
   return extension !== null && VIDEO_EDIT_EXTENSION_SET.has(extension);
+}
+
+/**
+ * Whether the item can be cropped, mirrored, turned and rescaled in place.
+ *
+ * Guarded on `isMotion` as well as the extension list, because the two questions can
+ * disagree: a `.png` that the backend has typed as something else is not a still, and a
+ * GIF is excluded on both counts - a Pillow round-trip would flatten its animation, and
+ * the affordance a GIF gets in this modal is frame capture, which writes a new file.
+ */
+export function isEditableImage(item: GalleryItem): boolean {
+  if (isMotion(item) || isSysPrompt(item)) return false;
+
+  const extension = extensionOf(item);
+  return extension !== null && IMAGE_EDIT_EXTENSION_SET.has(extension);
 }
 
 export function isGif(item: GalleryItem): boolean {

@@ -7,7 +7,7 @@ $scrim: rgb(0 0 0 / 0.55);
 // Positioned by the component against the box the video actually paints, not the
 // element: `object-fit: contain` letterboxes the frame, and a rect laid over the element
 // would sit off by exactly the bars.
-.video-crop-overlay {
+.crop-overlay {
   position: absolute;
   z-index: 1;
 
@@ -79,8 +79,16 @@ $scrim: rgb(0 0 0 / 0.55);
     color: var(--text);
     font-size: var(--text-2xs);
     font-weight: var(--font-semibold);
+    // Stated rather than inherited: this badge sizes itself from its line box, and a
+    // host that collapses `line-height` - as a stage killing an inline image's descender
+    // gap would - leaves the background sitting behind nothing but the padding.
+    line-height: normal;
     white-space: nowrap;
     pointer-events: none;
+    // Undoes whatever the host has turned the preview by, so the pixel count stays
+    // readable while the rectangle it belongs to sits on its side.
+    transform: var(--crop-readout-transform, none);
+    transform-origin: left bottom;
   }
 
   &__handle {

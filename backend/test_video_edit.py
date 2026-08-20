@@ -21,10 +21,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import edit_sidecars
 import video_edit
-from constants import VIDEO_EDIT_MUXERS, VIDEO_EDIT_STALE_SUFFIX, VIDEO_EDIT_TEMP_SUFFIX
+from constants import EDIT_STALE_SUFFIX, EDIT_TEMP_SUFFIX, VIDEO_EDIT_MUXERS
 from ffmpeg_run import FfmpegCancelled
-from schemas import VideoCropRect, VideoEditSpec
+from schemas import EditCropRect, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_mp4_video
 
 SOURCE = Path("clip.mp4.bak")
@@ -118,7 +119,7 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertEqual(command[command.index("-t") + 1], "3.000")
 
     def test_crop_is_expressed_against_the_frame_variables(self) -> None:
-        spec = VideoEditSpec(crop=VideoCropRect(x=0.1, y=0.2, width=0.5, height=0.6))
+        spec = VideoEditSpec(crop=EditCropRect(x=0.1, y=0.2, width=0.5, height=0.6))
 
         self.assertEqual(
             command_for(spec)[command_for(spec).index("-vf") + 1],
@@ -136,7 +137,7 @@ class BuildVideoEditCommandTests(unittest.TestCase):
 
     def test_filters_run_crop_then_scale_then_retime(self) -> None:
         spec = VideoEditSpec(
-            crop=VideoCropRect(x=0.0, y=0.25, width=1.0, height=0.5), speed=2.0, scale=0.5
+            crop=EditCropRect(x=0.0, y=0.25, width=1.0, height=0.5), speed=2.0, scale=0.5
         )
         command = command_for(spec)
 
@@ -192,7 +193,7 @@ class BuildVideoEditCommandTests(unittest.TestCase):
                 self.assertIn("0:a:0?", command_for(spec))
 
     def test_audio_is_copied_only_when_nothing_disturbs_it(self) -> None:
-        cropped = command_for(VideoEditSpec(crop=VideoCropRect(width=0.5)))
+        cropped = command_for(VideoEditSpec(crop=EditCropRect(width=0.5)))
         trimmed = command_for(VideoEditSpec(trim_end=2.0))
 
         self.assertEqual(cropped[cropped.index("-c:a") + 1], "copy")
@@ -269,7 +270,7 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(trim_end=3.0),
             VideoEditSpec(speed=2.0),
             VideoEditSpec(scale=0.5),
-            VideoEditSpec(crop=VideoCropRect(width=0.5)),
+            VideoEditSpec(crop=EditCropRect(width=0.5)),
         )
         for spec in changed:
             with self.subTest(spec=spec):
@@ -285,11 +286,13 @@ class SpecHelperTests(unittest.TestCase):
 
     def test_the_backup_is_named_after_the_whole_filename(self) -> None:
         """`with_suffix` would give `clip.bak` and collide across containers."""
-        self.assertEqual(video_edit.backup_path_for(Path("/data/clip.mp4")).name, "clip.mp4.bak")
-        self.assertEqual(video_edit.backup_path_for(Path("/data/clip.mov")).name, "clip.mov.bak")
+        self.assertEqual(edit_sidecars.backup_path_for(Path("/data/clip.mp4")).name, "clip.mp4.bak")
+        self.assertEqual(edit_sidecars.backup_path_for(Path("/data/clip.mov")).name, "clip.mov.bak")
 
     def test_the_spec_sidecar_sits_two_suffixes_deep(self) -> None:
-        self.assertEqual(video_edit.edit_spec_path(Path("/data/clip.mp4")).name, "clip.edit.json")
+        self.assertEqual(
+            edit_sidecars.edit_spec_path(Path("/data/clip.mp4")).name, "clip.edit.json"
+        )
 
     def test_an_uneditable_container_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
@@ -349,69 +352,6 @@ class SourceFrameRateTests(unittest.TestCase):
                 self.assertIsNone(self._rate(fps=fps)[0])
 
 
-class EditSpecSidecarTests(unittest.TestCase):
-    def test_a_written_spec_reads_back_unchanged(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            spec = VideoEditSpec(
-                trim_start=1.0,
-                trim_end=5.0,
-                speed=2.0,
-                scale=0.5,
-                crop=VideoCropRect(x=0.1, y=0.1, width=0.8, height=0.8),
-            )
-
-            video_edit.write_edit_spec(media, spec)
-
-            self.assertEqual(video_edit.read_edit_spec(media), spec)
-
-    def test_an_unedited_file_has_no_spec(self) -> None:
-        with TempMediaFolder() as root:
-            self.assertIsNone(video_edit.read_edit_spec(write_mp4_video(root, "clip.mp4")))
-
-    def test_an_unreadable_spec_is_ignored_rather_than_raised(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            video_edit.edit_spec_path(media).write_text("{not json", encoding="utf-8")
-
-            with self.assertLogs(video_edit.logger, level="WARNING"):
-                self.assertIsNone(video_edit.read_edit_spec(media))
-
-
-class EnsureBackupTests(unittest.TestCase):
-    def test_the_first_edit_stores_the_original(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            original = media.read_bytes()
-
-            backup = video_edit.ensure_backup(media)
-
-            self.assertEqual(backup.name, "clip.mp4.bak")
-            self.assertEqual(backup.read_bytes(), original)
-            self.assertEqual(media.read_bytes(), original)
-
-    def test_an_existing_backup_is_never_rewritten(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            backup = video_edit.backup_path_for(media)
-            backup.write_bytes(b"the-real-original")
-
-            video_edit.ensure_backup(media)
-
-            self.assertEqual(backup.read_bytes(), b"the-real-original")
-
-    def test_a_failed_copy_leaves_no_partial_backup(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-
-            with patch("video_edit.shutil.copy2", side_effect=OSError("disk full")):
-                with self.assertRaises(OSError):
-                    video_edit.ensure_backup(media)
-
-            self.assertFalse(video_edit.backup_path_for(media).exists())
-            self.assertEqual(list(root.glob("*-tmp")), [])
-
-
 class ApplyVideoEditTests(unittest.TestCase):
     """The runner is replaced; what is checked is what it was asked to do."""
 
@@ -444,7 +384,7 @@ class ApplyVideoEditTests(unittest.TestCase):
 
             command = captured[0]
             self.assertEqual(command[command.index("-i") + 1], str(root / "clip.mp4.bak"))
-            self.assertEqual(command[-1], str(root / f"clip.mp4{VIDEO_EDIT_TEMP_SUFFIX}"))
+            self.assertEqual(command[-1], str(root / f"clip.mp4{EDIT_TEMP_SUFFIX}"))
             self.assertEqual(media.read_bytes(), b"rendered")
             self.assertTrue(result.has_backup)
             self.assertEqual(result.path, str(media))
@@ -470,7 +410,7 @@ class ApplyVideoEditTests(unittest.TestCase):
         """The whole of "changes are taken from the backup", as one assertion."""
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            video_edit.backup_path_for(media).write_bytes(b"pristine-original")
+            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
             captured: list[list[str]] = []
 
             def run(command, **kwargs):
@@ -481,7 +421,9 @@ class ApplyVideoEditTests(unittest.TestCase):
                 video_edit.apply_video_edit(media, VideoEditSpec(speed=2.0), ffmpeg="ffmpeg")
                 video_edit.apply_video_edit(media, VideoEditSpec(scale=0.5), ffmpeg="ffmpeg")
 
-            self.assertEqual(video_edit.backup_path_for(media).read_bytes(), b"pristine-original")
+            self.assertEqual(
+                edit_sidecars.backup_path_for(media).read_bytes(), b"pristine-original"
+            )
             for command in captured:
                 self.assertEqual(command[command.index("-i") + 1], str(root / "clip.mp4.bak"))
 
@@ -508,8 +450,8 @@ class ApplyVideoEditTests(unittest.TestCase):
             with patch("video_edit.run_ffmpeg", side_effect=run):
                 video_edit.apply_video_edit(media, VideoEditSpec(scale=0.5), ffmpeg="ffmpeg")
 
-            self.assertEqual(seen, [VIDEO_EDIT_TEMP_SUFFIX])
-            self.assertEqual(list(root.glob(f"*{VIDEO_EDIT_TEMP_SUFFIX}")), [])
+            self.assertEqual(seen, [EDIT_TEMP_SUFFIX])
+            self.assertEqual(list(root.glob(f"*{EDIT_TEMP_SUFFIX}")), [])
 
     def test_a_failed_render_leaves_the_file_untouched(self) -> None:
         with TempMediaFolder() as root:
@@ -521,7 +463,7 @@ class ApplyVideoEditTests(unittest.TestCase):
                     video_edit.apply_video_edit(media, VideoEditSpec(scale=0.5), ffmpeg="ffmpeg")
 
             self.assertEqual(media.read_bytes(), original)
-            self.assertEqual(list(root.glob(f"*{VIDEO_EDIT_TEMP_SUFFIX}")), [])
+            self.assertEqual(list(root.glob(f"*{EDIT_TEMP_SUFFIX}")), [])
             self.assertIsNone(video_edit.read_edit_spec(media))
 
     def test_a_failed_render_keeps_the_backup_it_just_made(self) -> None:
@@ -532,7 +474,7 @@ class ApplyVideoEditTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     video_edit.apply_video_edit(media, VideoEditSpec(scale=0.5), ffmpeg="ffmpeg")
 
-            self.assertTrue(video_edit.backup_path_for(media).is_file())
+            self.assertTrue(edit_sidecars.backup_path_for(media).is_file())
 
     def test_a_cancelled_render_leaves_nothing_behind(self) -> None:
         with TempMediaFolder() as root:
@@ -548,19 +490,19 @@ class ApplyVideoEditTests(unittest.TestCase):
                     video_edit.apply_video_edit(media, VideoEditSpec(scale=0.5), ffmpeg="ffmpeg")
 
             self.assertEqual(media.read_bytes(), original)
-            self.assertEqual(list(root.glob(f"*{VIDEO_EDIT_TEMP_SUFFIX}")), [])
+            self.assertEqual(list(root.glob(f"*{EDIT_TEMP_SUFFIX}")), [])
 
     def test_leftovers_from_a_hard_kill_are_swept_first(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            (root / f"other.mp4{VIDEO_EDIT_TEMP_SUFFIX}").write_bytes(b"junk")
-            (root / f"other.mp4{VIDEO_EDIT_STALE_SUFFIX}").write_bytes(b"junk")
+            (root / f"other.mp4{EDIT_TEMP_SUFFIX}").write_bytes(b"junk")
+            (root / f"other.mp4{EDIT_STALE_SUFFIX}").write_bytes(b"junk")
 
             with patch("video_edit.run_ffmpeg", side_effect=self._render()):
                 video_edit.apply_video_edit(media, VideoEditSpec(scale=0.5), ffmpeg="ffmpeg")
 
-            self.assertEqual(list(root.glob(f"*{VIDEO_EDIT_TEMP_SUFFIX}")), [])
-            self.assertEqual(list(root.glob(f"*{VIDEO_EDIT_STALE_SUFFIX}")), [])
+            self.assertEqual(list(root.glob(f"*{EDIT_TEMP_SUFFIX}")), [])
+            self.assertEqual(list(root.glob(f"*{EDIT_STALE_SUFFIX}")), [])
 
     def test_a_missing_ffmpeg_is_reported_rather_than_guessed_at(self) -> None:
         with TempMediaFolder() as root:
@@ -588,14 +530,14 @@ class RevertVideoEditTests(unittest.TestCase):
     def test_the_original_comes_back_and_both_sidecars_go(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            video_edit.backup_path_for(media).write_bytes(b"pristine-original")
-            video_edit.write_edit_spec(media, VideoEditSpec(scale=0.5))
+            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
+            edit_sidecars.write_spec(media, VideoEditSpec(scale=0.5))
 
             result = video_edit.revert_video_edit(media)
 
             self.assertEqual(media.read_bytes(), b"pristine-original")
-            self.assertFalse(video_edit.backup_path_for(media).exists())
-            self.assertFalse(video_edit.edit_spec_path(media).exists())
+            self.assertFalse(edit_sidecars.backup_path_for(media).exists())
+            self.assertFalse(edit_sidecars.edit_spec_path(media).exists())
             self.assertFalse(result.has_backup)
 
     def test_reverting_without_a_backup_is_rejected(self) -> None:
@@ -608,15 +550,15 @@ class RevertVideoEditTests(unittest.TestCase):
     def test_a_failed_install_keeps_the_backup(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            backup = video_edit.backup_path_for(media)
+            backup = edit_sidecars.backup_path_for(media)
             backup.write_bytes(b"pristine-original")
 
-            with patch("video_edit.publish_replacing", side_effect=OSError("denied")):
+            with patch("edit_sidecars.publish_replacing", side_effect=OSError("denied")):
                 with self.assertRaises(OSError):
                     video_edit.revert_video_edit(media)
 
             self.assertEqual(backup.read_bytes(), b"pristine-original")
-            self.assertEqual(list(root.glob(f"*{VIDEO_EDIT_TEMP_SUFFIX}")), [])
+            self.assertEqual(list(root.glob(f"*{EDIT_TEMP_SUFFIX}")), [])
 
 
 if __name__ == "__main__":

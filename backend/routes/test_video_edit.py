@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
-import video_edit
+import edit_sidecars
 from ffmpeg_run import FfmpegCancelled
 from routes._test_client import client
 from schemas import VideoEditSpec
@@ -43,8 +43,8 @@ class VideoEditStateTests(unittest.TestCase):
     def test_an_edited_video_reports_the_spec_it_was_rendered_with(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            video_edit.backup_path_for(media).write_bytes(b"original")
-            video_edit.write_edit_spec(media, VideoEditSpec(trim_start=1.0, trim_end=4.0))
+            edit_sidecars.backup_path_for(media).write_bytes(b"original")
+            edit_sidecars.write_spec(media, VideoEditSpec(trim_start=1.0, trim_end=4.0))
 
             payload = client.get(edit_url(media)).json()
 
@@ -291,15 +291,15 @@ class RevertVideoEditTests(unittest.TestCase):
     def test_reverting_restores_the_original(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
-            video_edit.backup_path_for(media).write_bytes(b"pristine-original")
-            video_edit.write_edit_spec(media, VideoEditSpec(scale=0.5))
+            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
+            edit_sidecars.write_spec(media, VideoEditSpec(scale=0.5))
 
             response = client.post(edit_url(media, "/revert"))
 
             self.assertEqual(response.status_code, 200)
             self.assertFalse(response.json()["has_backup"])
             self.assertEqual(media.read_bytes(), b"pristine-original")
-            self.assertFalse(video_edit.edit_spec_path(media).exists())
+            self.assertFalse(edit_sidecars.edit_spec_path(media).exists())
 
     def test_reverting_without_a_backup_is_a_400(self) -> None:
         with TempMediaFolder() as root:
@@ -308,7 +308,7 @@ class RevertVideoEditTests(unittest.TestCase):
             response = client.post(edit_url(media, "/revert"))
 
             self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.json()["detail"], video_edit.NO_BACKUP_MESSAGE)
+            self.assertEqual(response.json()["detail"], edit_sidecars.NO_BACKUP_MESSAGE)
 
 
 class ServeOriginalTests(unittest.TestCase):
@@ -316,7 +316,7 @@ class ServeOriginalTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
             media.write_bytes(b"edited-bytes")
-            video_edit.backup_path_for(media).write_bytes(b"pristine-original")
+            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
 
             response = client.get(f"/api/media?path={quote(str(media))}&original=1")
 
@@ -337,7 +337,7 @@ class ServeOriginalTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
             media.write_bytes(b"edited-bytes")
-            video_edit.backup_path_for(media).write_bytes(b"pristine-original")
+            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
 
             response = client.get(f"/api/media?path={quote(str(media))}")
 

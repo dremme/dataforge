@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 
 import events
 from constants import MEDIA_MIME_TYPES
+from edit_sidecars import EditBusyError, backup_path_for, cancel_render, render_slot
 from ffmpeg_run import FfmpegCancelled
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from gif_frames import (
@@ -13,10 +14,14 @@ from gif_frames import (
     extract_gif_frame,
     gif_frame_count,
 )
+from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
+from image_edit import is_identity_spec as is_identity_image_spec
+from image_io import ImageReadError
 from media_delete import delete_media_with_sidecars
 from media_file_response import MediaFileResponse
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
+    resolve_editable_image,
     resolve_editable_video,
     resolve_folder,
     resolve_gif_file,
@@ -27,6 +32,9 @@ from routes._helpers import (
 )
 from schemas import (
     GifInfoResponse,
+    ImageEditResponse,
+    ImageEditSpec,
+    ImageEditStateResponse,
     MediaDeleteResponse,
     MediaOpenResponse,
     MediaTransferPreviewRequest,
@@ -48,21 +56,17 @@ from thumbnails import (
 )
 from video_edit import (
     FFMPEG_MISSING_MESSAGE,
-    VideoEditBusyError,
     apply_video_edit,
-    backup_path_for,
-    cancel_render,
     expected_output_seconds,
     is_identity_spec,
     read_edit_spec,
-    render_slot,
     revert_video_edit,
 )
 
 router = APIRouter()
 
 _ORIGINAL_DESCRIPTION = (
-    "Serve the untouched original kept beside an edited video, so the editor can work "
+    "Serve the untouched original kept beside an edited file, so the editor can work "
     "against the source its spec is expressed in rather than the last render"
 )
 
@@ -370,7 +374,7 @@ def _video_edit_progress(media: Path, tab: str, duration: float | None):
 
 
 def _video_edit_failure(exc: Exception) -> HTTPException:
-    if isinstance(exc, VideoEditBusyError):
+    if isinstance(exc, EditBusyError):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, FfmpegCancelled):
         return HTTPException(status_code=409, detail="The edit was cancelled")
@@ -418,7 +422,7 @@ def edit_video(
             return apply_video_edit(
                 media, body, on_progress=on_progress, should_cancel=should_cancel
             )
-    except (VideoEditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+    except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
         raise _video_edit_failure(exc) from exc
 
 
@@ -441,5 +445,63 @@ def revert_video(
     try:
         with render_slot(media):
             return revert_video_edit(media)
-    except (VideoEditBusyError, ValueError, OSError) as exc:
+    except (EditBusyError, ValueError, OSError) as exc:
         raise _video_edit_failure(exc) from exc
+
+
+def _image_edit_failure(exc: Exception) -> HTTPException:
+    if isinstance(exc, EditBusyError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/media/image-edit", response_model=ImageEditStateResponse)
+def read_image_edit(
+    path: str = Query(..., description="Absolute path to an image file"),
+) -> ImageEditStateResponse:
+    """What the editor needs to re-open on a file it has already changed."""
+    media = resolve_editable_image(path)
+
+    return ImageEditStateResponse(
+        path=str(media),
+        has_backup=backup_path_for(media).is_file(),
+        spec=read_image_edit_spec(media),
+    )
+
+
+@router.post("/media/image-edit", response_model=ImageEditResponse)
+def edit_image(
+    path: str = Query(..., description="Absolute path to an image file"),
+    body: ImageEditSpec = ...,
+) -> ImageEditResponse:
+    """Render the spec from the untouched original and put it back under the same name.
+
+    A plain ``def`` on purpose: FastAPI runs it on the threadpool, so a large resample
+    never stalls the event loop. There is no progress channel and no cancel - a Pillow
+    pass finishes in the time it would take to draw a bar.
+    """
+    media = resolve_editable_image(path)
+
+    if is_identity_image_spec(body):
+        raise HTTPException(status_code=400, detail="This edit would not change the image")
+
+    try:
+        with render_slot(media):
+            return apply_image_edit(media, body)
+    except (EditBusyError, ValueError, ImageReadError, OSError) as exc:
+        raise _image_edit_failure(exc) from exc
+
+
+@router.post("/media/image-edit/revert", response_model=ImageEditResponse)
+def revert_image(
+    path: str = Query(..., description="Absolute path to an image file"),
+) -> ImageEditResponse:
+    media = resolve_editable_image(path)
+
+    try:
+        with render_slot(media):
+            return revert_image_edit(media)
+    except (EditBusyError, ValueError, OSError) as exc:
+        raise _image_edit_failure(exc) from exc

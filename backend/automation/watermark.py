@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
 from automation.job_runner import CANCELLED, FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
@@ -31,6 +31,7 @@ from constants import VIDEO_EXTENSIONS, WATERMARK_DIR_NAME, WATERMARK_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
+from image_io import ImageReadError, load_image_for_edit, save_image_preserving_format
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -80,9 +81,6 @@ _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 WATERMARK_TEMP_MARKER = ".watermark-tmp"
 # Destination displaced while open for streaming (see ``file_publish``).
 WATERMARK_STALE_MARKER = ".watermark-stale"
-JPEG_SUFFIXES = {".jpg", ".jpeg"}
-JPEG_QUALITY = 92
-WEBP_QUALITY = 92
 
 FONT_CANDIDATES: tuple[str, ...] = (
     r"C:\Windows\Fonts\segoeui.ttf",
@@ -107,8 +105,10 @@ FFMPEG_MISSING_MESSAGE = "ffmpeg is required to add a watermark to videos"
 WatermarkCancelled = FfmpegCancelled
 
 
-class WatermarkReadError(Exception):
-    """Raised when the source media cannot be decoded, as opposed to written."""
+#: Raised by ``image_io.load_image_for_edit`` when the source cannot be decoded, as
+#: opposed to written. Aliased for the same reason ``WatermarkCancelled`` is: the call
+#: sites below read as watermark failures, and this module owns that vocabulary.
+WatermarkReadError = ImageReadError
 
 
 def list_watermark_files(folder: Path) -> list[Path]:
@@ -221,24 +221,6 @@ def validate_watermark_folder(
         raise ValueError(FONT_MISSING_MESSAGE)
 
 
-def _load_image_for_watermark(source: Path) -> tuple[Image.Image, str, Image.Exif]:
-    """Return the source as detached RGBA pixels, plus its original mode and EXIF.
-
-    Everything that touches the file happens inside the ``with`` block and the result
-    outlives the handle, so the destination write can never race a lock still held on
-    a multi-frame JPEG or APNG. See ``automation/vision.py`` for the same hazard.
-    """
-    try:
-        with Image.open(source) as opened:
-            opened.load()
-            # Rotates the pixels and drops the Orientation tag, so the mark lands in the
-            # corner the viewer sees rather than the corner the sensor recorded.
-            oriented = ImageOps.exif_transpose(opened) or opened
-            return oriented.convert("RGBA"), oriented.mode, oriented.getexif()
-    except OSError as exc:
-        raise WatermarkReadError(str(exc)) from exc
-
-
 def _composite_watermark(
     base: Image.Image,
     *,
@@ -272,46 +254,6 @@ def _composite_watermark(
     return Image.alpha_composite(base, overlay)
 
 
-def _save_watermarked_image(
-    merged: Image.Image,
-    destination: Path,
-    *,
-    source_mode: str,
-    exif: Image.Exif,
-) -> None:
-    suffix = destination.suffix.lower()
-
-    if suffix in JPEG_SUFFIXES:
-        # 4:4:4 rather than the default 4:2:0: chroma subsampling halves the resolution
-        # of the thin white strokes and turns small text to mush.
-        merged.convert("RGB").save(
-            destination,
-            format="JPEG",
-            quality=JPEG_QUALITY,
-            subsampling=0,
-            optimize=True,
-            **({"exif": exif.tobytes()} if exif else {}),
-        )
-        return
-
-    if suffix == ".bmp":
-        # BMP has no alpha a viewer can be relied on to read, so the mark is flattened
-        # rather than written into a channel half the decoders in the world ignore.
-        merged.convert("RGB").save(destination, format="BMP")
-        return
-
-    keeps_alpha = source_mode in {"RGBA", "LA", "PA"} or (
-        source_mode == "P" and "transparency" in merged.info
-    )
-    image = merged if keeps_alpha else merged.convert("RGB")
-
-    if suffix == ".webp":
-        image.save(destination, format="WEBP", quality=WEBP_QUALITY, method=6)
-        return
-
-    image.save(destination, format="PNG", optimize=True)
-
-
 def watermark_image(
     source: Path,
     destination: Path,
@@ -322,11 +264,13 @@ def watermark_image(
     alpha: float,
     position: WatermarkPosition,
 ) -> None:
-    base, source_mode, exif = _load_image_for_watermark(source)
+    base, source_mode, exif = load_image_for_edit(source)
     merged = _composite_watermark(
         base, text=text, font_path=font_path, size=size, alpha=alpha, position=position
     )
-    _save_watermarked_image(merged, destination, source_mode=source_mode, exif=exif)
+    save_image_preserving_format(
+        merged, destination, suffix=destination.suffix, source_mode=source_mode, exif=exif
+    )
 
 
 def escape_drawtext_path(path: Path) -> str:

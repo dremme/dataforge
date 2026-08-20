@@ -677,8 +677,8 @@ class MediaTransferResponse(BaseModel):
     failed: list[MediaTransferFailure] = Field(default_factory=list)
 
 
-#: What one in-place video edit may change. Speed is bounded by what a browser can
-#: preview through ``playbackRate``, so the panel never promises what it cannot show.
+#: What one in-place edit may change. Speed is bounded by what a browser can preview
+#: through ``playbackRate``, so the panel never promises what it cannot show.
 MIN_EDIT_SPEED = 0.25
 MAX_EDIT_SPEED = 4.0
 MIN_EDIT_SCALE = 0.05
@@ -688,19 +688,41 @@ MIN_TRIM_SECONDS = 0.1
 CROP_BOUNDS_EPSILON = 1e-6
 
 
-class VideoCropRect(BaseModel):
+class EditCropRect(BaseModel):
     """The region to keep, as fractions of the source frame.
 
     Normalized rather than pixels so the ffmpeg filter can be written against ``iw``
     and ``ih``: the server never has to learn the source's dimensions, which it has no
     ffprobe to ask for, and the client never has to undo ``object-fit: contain`` to
-    produce them.
+    produce them. The image editor keeps the same shape so one crop overlay, and one
+    set of crop arithmetic, serves both.
     """
 
     x: float = Field(0.0, ge=0.0, lt=1.0)
     y: float = Field(0.0, ge=0.0, lt=1.0)
     width: float = Field(1.0, gt=0.0, le=1.0)
     height: float = Field(1.0, gt=0.0, le=1.0)
+
+
+def validated_crop(crop: EditCropRect | None) -> EditCropRect | None:
+    """Bounds-check one crop, and give "no crop" a single spelling.
+
+    A rectangle covering the whole frame is normalized to ``None`` here rather than at
+    each reader, so identity detection on either side of the wire cannot disagree with
+    the other about whether an edit changes anything.
+    """
+    if crop is None:
+        return None
+
+    if crop.x + crop.width > 1.0 + CROP_BOUNDS_EPSILON:
+        raise ValueError("The crop reaches past the right edge of the frame")
+    if crop.y + crop.height > 1.0 + CROP_BOUNDS_EPSILON:
+        raise ValueError("The crop reaches past the bottom edge of the frame")
+
+    if crop.x == 0.0 and crop.y == 0.0 and crop.width == 1.0 and crop.height == 1.0:
+        return None
+
+    return crop
 
 
 class VideoEditSpec(BaseModel):
@@ -714,7 +736,7 @@ class VideoEditSpec(BaseModel):
     #: ``None`` runs to the end of the source, so the client never has to be right about
     #: a duration the browser may still be reporting as ``Infinity``.
     trim_end: float | None = Field(None, gt=0.0)
-    crop: VideoCropRect | None = None
+    crop: EditCropRect | None = None
     speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
     #: Output size as a fraction of the cropped frame.
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
@@ -727,16 +749,7 @@ class VideoEditSpec(BaseModel):
             if self.trim_end - self.trim_start < MIN_TRIM_SECONDS:
                 raise ValueError(f"A trim must keep at least {MIN_TRIM_SECONDS} seconds")
 
-        crop = self.crop
-        if crop is not None:
-            if crop.x + crop.width > 1.0 + CROP_BOUNDS_EPSILON:
-                raise ValueError("The crop reaches past the right edge of the frame")
-            if crop.y + crop.height > 1.0 + CROP_BOUNDS_EPSILON:
-                raise ValueError("The crop reaches past the bottom edge of the frame")
-            # Normalized here rather than at each reader, so "no crop" has one spelling
-            # on both sides of the wire and identity detection cannot disagree.
-            if crop.x == 0.0 and crop.y == 0.0 and crop.width == 1.0 and crop.height == 1.0:
-                self.crop = None
+        self.crop = validated_crop(self.crop)
 
         return self
 
@@ -750,6 +763,49 @@ class VideoEditStateResponse(BaseModel):
 
 
 class VideoEditResponse(BaseModel):
+    path: str
+    size: int
+    modified_at: str
+    width: int | None = None
+    height: int | None = None
+    has_backup: bool
+
+
+class ImageEditSpec(BaseModel):
+    """One whole edit, always applied to the untouched original in a single pass.
+
+    The order is fixed and shared with ``frontend/src/features/gallery/lib/imageEdit.ts``:
+    **crop, then mirror, then rotate, then scale**. Crop is therefore expressed against
+    the source frame the browser painted - orientation already applied - which is what
+    lets the crop overlay hand over the numbers it measured without undoing a rotation
+    first.
+    """
+
+    crop: EditCropRect | None = None
+    mirror_h: bool = False
+    mirror_v: bool = False
+    #: Clockwise degrees, applied after the mirrors.
+    rotate: Literal[0, 90, 180, 270] = 0
+    #: Output size as a fraction of the cropped frame. Capped at 1: this downscales, and
+    #: resampling a still up invents detail the caption would then describe.
+    scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
+
+    @model_validator(mode="after")
+    def _check(self) -> "ImageEditSpec":
+        self.crop = validated_crop(self.crop)
+
+        return self
+
+
+class ImageEditStateResponse(BaseModel):
+    """What the editor needs to re-open on a file it has already changed."""
+
+    path: str
+    has_backup: bool
+    spec: ImageEditSpec | None
+
+
+class ImageEditResponse(BaseModel):
     path: str
     size: int
     modified_at: str

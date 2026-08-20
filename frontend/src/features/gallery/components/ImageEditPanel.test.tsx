@@ -1,0 +1,345 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { ImageEditPanel } from "./ImageEditPanel";
+import {
+  emptyDraft,
+  orientationOf,
+  outputDimensions,
+  type ImageEditDraft,
+} from "@/features/gallery/lib/imageEdit";
+import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
+
+const SOURCE = { width: 1920, height: 1080 };
+
+function makeEdit(overrides: Partial<ImageEdit> = {}): ImageEdit {
+  const draft: ImageEditDraft = overrides.draft ?? emptyDraft();
+  const output = outputDimensions(SOURCE, draft.crop, draft.rotate, draft.scale);
+
+  return {
+    editMode: true,
+    ready: true,
+    applying: false,
+    draft,
+    sourceWidth: SOURCE.width,
+    sourceHeight: SOURCE.height,
+    hasBackup: false,
+    dirty: false,
+    cropActive: false,
+    aspectId: "free",
+    aspectRatio: null,
+    orientation: orientationOf(draft),
+    outputWidth: output.width,
+    outputHeight: output.height,
+    toggleEditMode: vi.fn(),
+    exitEditMode: vi.fn(),
+    setCrop: vi.fn(),
+    setCropActive: vi.fn(),
+    selectAspect: vi.fn(),
+    rotateClockwise: vi.fn(),
+    rotateCounterClockwise: vi.fn(),
+    toggleMirrorH: vi.fn(),
+    toggleMirrorV: vi.fn(),
+    setScale: vi.fn(),
+    resetDraft: vi.fn(),
+    apply: vi.fn(),
+    revert: vi.fn(),
+    handleLoad: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderPanel(
+  edit: ImageEdit,
+  overrides: Partial<Parameters<typeof ImageEditPanel>[0]> = {},
+) {
+  const props = {
+    edit,
+    busy: false,
+    onRevertRequested: vi.fn(),
+    ...overrides,
+  };
+
+  render(<ImageEditPanel {...props} />);
+  return props;
+}
+
+function draftWith(overrides: Partial<ImageEditDraft>): ImageEditDraft {
+  return { ...emptyDraft(), ...overrides };
+}
+
+function tools() {
+  return within(screen.getByRole("group", { name: "Editing tool" }));
+}
+
+describe("ImageEditPanel", () => {
+  describe("tools", () => {
+    it("opens on the crop tool", () => {
+      renderPanel(makeEdit());
+
+      expect(tools().getByRole("button", { name: "Crop" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("group", { name: "Aspect" })).toBeInTheDocument();
+    });
+
+    it("shows one tool's controls at a time", async () => {
+      const user = userEvent.setup();
+      renderPanel(makeEdit());
+
+      await user.click(tools().getByRole("button", { name: "Size" }));
+
+      expect(screen.getByRole("group", { name: "Scale" })).toBeInTheDocument();
+      expect(screen.queryByRole("group", { name: "Aspect" })).not.toBeInTheDocument();
+    });
+
+    it("arms the crop handles when the crop tool is selected, and stows them otherwise", async () => {
+      const user = userEvent.setup();
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      await user.click(tools().getByRole("button", { name: "Rotate" }));
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(false);
+
+      await user.click(tools().getByRole("button", { name: "Crop" }));
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(true);
+    });
+
+    it.each([
+      ["Crop", draftWith({ crop: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 } })],
+      ["Rotate", draftWith({ rotate: 90 })],
+      ["Rotate", draftWith({ mirrorH: true })],
+      ["Rotate", draftWith({ mirrorV: true })],
+      ["Size", draftWith({ scale: 0.5 })],
+    ])("says %s holds a value once it is off its default", (label, draft) => {
+      // Collapsed, the tool is the only thing that can say it carries a change - which is
+      // what makes hiding the controls safe.
+      renderPanel(makeEdit({ draft }));
+
+      expect(tools().getByRole("button", { name: `${label}, changed` })).toBeInTheDocument();
+    });
+
+    it("says nothing extra while every tool is at its default", () => {
+      renderPanel(makeEdit());
+
+      expect(tools().queryByRole("button", { name: /, changed$/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("rotate", () => {
+    async function openRotate() {
+      const user = userEvent.setup();
+      await user.click(tools().getByRole("button", { name: /^Rotate/ }));
+      return user;
+    }
+
+    it.each([
+      ["Rotate left 90°", "rotateCounterClockwise"],
+      ["Rotate right 90°", "rotateClockwise"],
+    ] as const)("turns through %s", async (label, method) => {
+      const edit = makeEdit();
+      renderPanel(edit);
+      const user = await openRotate();
+
+      await user.click(screen.getByRole("button", { name: label }));
+
+      expect(edit[method]).toHaveBeenCalled();
+    });
+
+    it("offers the quarter turns alone, since two of one are a half turn", async () => {
+      renderPanel(makeEdit());
+      await openRotate();
+
+      expect(screen.queryByRole("button", { name: "180°" })).not.toBeInTheDocument();
+    });
+
+    it("leaves the quarter turns unpressed, because they compose rather than latch", async () => {
+      renderPanel(makeEdit({ draft: draftWith({ rotate: 90 }) }));
+      await openRotate();
+
+      expect(screen.getByRole("button", { name: "Rotate right 90°" })).not.toHaveAttribute(
+        "aria-pressed",
+      );
+    });
+
+    it.each([
+      ["Mirror horizontally", "toggleMirrorH", { mirrorH: true }],
+      ["Mirror vertically", "toggleMirrorV", { mirrorV: true }],
+    ] as const)("holds %s pressed while it is on", async (label, method, applied) => {
+      const edit = makeEdit({ draft: draftWith(applied) });
+      renderPanel(edit);
+      const user = await openRotate();
+
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toHaveAttribute("aria-pressed", "true");
+
+      await user.click(button);
+      expect(edit[method]).toHaveBeenCalled();
+    });
+  });
+
+  describe("crop", () => {
+    it("locks the rectangle to a listed shape", async () => {
+      const user = userEvent.setup();
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      await user.click(within(screen.getByRole("group", { name: "Aspect" })).getByText("1:1"));
+
+      expect(edit.selectAspect).toHaveBeenCalledWith("1:1");
+    });
+
+    it("shows which shape the rectangle already has", () => {
+      renderPanel(makeEdit({ aspectId: "16:9" }));
+
+      const aspects = within(screen.getByRole("group", { name: "Aspect" }));
+      expect(aspects.getByRole("button", { name: "16:9" })).toHaveAttribute("aria-pressed", "true");
+      expect(aspects.getByRole("button", { name: "Free" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+  });
+
+  describe("size", () => {
+    async function openSize() {
+      const user = userEvent.setup();
+      await user.click(tools().getByRole("button", { name: /^Size/ }));
+      return user;
+    }
+
+    it("sets a scale from a preset", async () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+      const user = await openSize();
+
+      await user.click(within(screen.getByRole("group", { name: "Scale" })).getByText("50%"));
+
+      expect(edit.setScale).toHaveBeenCalledWith(0.5);
+    });
+
+    it("shows the output size in both fields", async () => {
+      renderPanel(makeEdit({ draft: draftWith({ scale: 0.5 }) }));
+      await openSize();
+
+      expect(screen.getByLabelText("W")).toHaveValue(960);
+      expect(screen.getByLabelText("H")).toHaveValue(540);
+    });
+
+    it("resolves a typed width into the one scale the spec carries", async () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+      await openSize();
+
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "960" } });
+
+      expect(vi.mocked(edit.setScale).mock.calls[0][0]).toBeCloseTo(0.5);
+    });
+
+    it("measures a typed width against the turned frame", async () => {
+      // Sideways, 1080 is the whole width. Resolving 540 against the unrotated 1920 would
+      // shrink the picture to a little over half of what was asked for.
+      const edit = makeEdit({ draft: draftWith({ rotate: 90 }) });
+      renderPanel(edit);
+      await openSize();
+
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "540" } });
+
+      expect(vi.mocked(edit.setScale).mock.calls[0][0]).toBeCloseTo(0.5);
+    });
+  });
+
+  describe("the output readout", () => {
+    it("says what the file measures now and what it will measure", () => {
+      renderPanel(makeEdit({ draft: draftWith({ scale: 0.5 }) }));
+
+      expect(screen.getByText(/1920 x 1080/)).toBeInTheDocument();
+      expect(screen.getByText("960 x 540")).toBeInTheDocument();
+    });
+
+    it("swaps the axes under a quarter turn", () => {
+      renderPanel(makeEdit({ draft: draftWith({ rotate: 90 }) }));
+
+      expect(screen.getByText("1080 x 1920")).toBeInTheDocument();
+    });
+
+    it("names the angle only once there is one", () => {
+      renderPanel(makeEdit());
+      expect(screen.queryByText(/°/)).not.toBeInTheDocument();
+    });
+
+    it("spells out the turn and the mirrors together", () => {
+      renderPanel(makeEdit({ draft: draftWith({ rotate: 270, mirrorH: true }) }));
+
+      expect(screen.getByText(/270°/)).toHaveTextContent("mirrored");
+    });
+
+    it("says the tools are still loading before the image has decoded", () => {
+      renderPanel(makeEdit({ ready: false }));
+
+      expect(screen.getByText("The tools load with the image.")).toBeInTheDocument();
+    });
+  });
+
+  describe("the actions", () => {
+    it("keeps Apply and Reset away until something has changed", () => {
+      renderPanel(makeEdit({ dirty: false }));
+
+      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
+    });
+
+    it("writes on Apply and goes back on Reset", async () => {
+      const user = userEvent.setup();
+      const edit = makeEdit({ dirty: true });
+      renderPanel(edit);
+
+      await user.click(screen.getByRole("button", { name: "Apply" }));
+      await user.click(screen.getByRole("button", { name: "Reset" }));
+
+      expect(edit.apply).toHaveBeenCalled();
+      expect(edit.resetDraft).toHaveBeenCalled();
+    });
+
+    it("offers Revert only when an original is stored", () => {
+      renderPanel(makeEdit({ hasBackup: false }));
+      expect(screen.queryByRole("button", { name: /Revert/ })).not.toBeInTheDocument();
+    });
+
+    it("asks the modal to confirm a revert rather than doing it", async () => {
+      // Revert throws away every edit applied so far, so the confirm belongs to the owner
+      // that can put a dialog over the whole modal.
+      const user = userEvent.setup();
+      const edit = makeEdit({ hasBackup: true });
+      const props = renderPanel(edit);
+
+      await user.click(screen.getByRole("button", { name: "Revert original" }));
+
+      expect(props.onRevertRequested).toHaveBeenCalled();
+      expect(edit.revert).not.toHaveBeenCalled();
+    });
+
+    it("locks every control until the image has decoded", () => {
+      renderPanel(makeEdit({ ready: false, dirty: true, hasBackup: true }));
+
+      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Revert original" })).toBeDisabled();
+    });
+
+    it("locks the panel while it is busy elsewhere in the modal", () => {
+      renderPanel(makeEdit({ dirty: true, hasBackup: true }), { busy: true });
+
+      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Revert original" })).toBeDisabled();
+      expect(tools().getByRole("button", { name: "Rotate" })).toBeDisabled();
+    });
+
+    it("says it is saving instead of offering the actions, with nothing to cancel", () => {
+      // Unlike the video panel: a Pillow pass finishes inside the request, so there is no
+      // progress to report on the way and no encode to interrupt.
+      renderPanel(makeEdit({ applying: true, dirty: true, hasBackup: true }));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Saving");
+      expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    });
+  });
+});

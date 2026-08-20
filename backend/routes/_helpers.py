@@ -4,6 +4,7 @@ from fastapi import HTTPException
 
 from constants import (
     GIF_EXTENSION,
+    IMAGE_EDIT_EXTENSIONS,
     IMAGE_EXTENSIONS,
     MEDIA_EXTENSIONS,
     SYSPROMPT_FILENAME,
@@ -15,6 +16,7 @@ from schemas import JobResponse
 # Re-export so route modules keep a single import style.
 __all__ = [
     "job_response",
+    "resolve_editable_image",
     "resolve_editable_video",
     "resolve_folder",
     "resolve_gif_file",
@@ -53,6 +55,18 @@ def resolve_image_file(path: str) -> Path:
     if file_path.suffix.lower() not in IMAGE_EXTENSIONS:
         raise HTTPException(
             status_code=400, detail="Only image files can be opened in the image viewer"
+        )
+
+    return file_path
+
+
+def resolve_editable_image(path: str) -> Path:
+    file_path = resolve_media_file(path)
+
+    if file_path.suffix.lower() not in IMAGE_EDIT_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{file_path.suffix} images cannot be edited",
         )
 
     return file_path
