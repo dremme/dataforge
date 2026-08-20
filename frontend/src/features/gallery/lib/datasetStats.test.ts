@@ -125,11 +125,7 @@ describe("computeDatasetStats", () => {
       mediaItem("loop.gif", HOME_PATH),
     ]);
 
-    expect(stats.mediaTypes).toEqual([
-      { label: "Images", count: 1 },
-      { label: "Videos", count: 1 },
-      { label: "GIFs", count: 1 },
-    ]);
+    expect(stats.mediaTypes).toEqual({ images: 1, videos: 1, gifs: 1 });
   });
 
   it("keeps files with unknown dimensions out of the megapixel buckets", () => {
@@ -140,13 +136,14 @@ describe("computeDatasetStats", () => {
     ]);
 
     expect(stats.unknownResolution).toBe(1);
-    // 1920x1080 is 2.07 MP, past the top bucket's lower bound.
+    // 1920x1080 is 2.07 MP, just over the 2 MP boundary.
     expect(stats.megapixels).toEqual([
       { label: "< 0.3 MP", count: 0 },
       { label: "0.3 – 0.5 MP", count: 0 },
       { label: "0.5 – 1 MP", count: 0 },
       { label: "1 – 2 MP", count: 0 },
-      { label: "> 2 MP", count: 1 },
+      { label: "2 – 4 MP", count: 1 },
+      { label: "> 4 MP", count: 0 },
     ]);
   });
 

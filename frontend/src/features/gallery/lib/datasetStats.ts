@@ -52,7 +52,8 @@ const MEGAPIXEL_BUCKETS = [
   { label: "0.3 – 0.5 MP", max: 0.5 },
   { label: "0.5 – 1 MP", max: 1 },
   { label: "1 – 2 MP", max: 2 },
-  { label: "> 2 MP", max: Number.POSITIVE_INFINITY },
+  { label: "2 – 4 MP", max: 4 },
+  { label: "> 4 MP", max: Number.POSITIVE_INFINITY },
 ] as const;
 
 /** Upper bound of each caption-length bucket, in characters. */
@@ -95,6 +96,12 @@ export interface WordCount {
   count: number;
 }
 
+export interface MediaTypeStats {
+  images: number;
+  videos: number;
+  gifs: number;
+}
+
 export interface CaptionLengthStats {
   min: number;
   median: number;
@@ -127,7 +134,7 @@ export interface DatasetStats {
   findings: DatasetFindings;
   captionLength: CaptionLengthStats | null;
   topWords: WordCount[];
-  mediaTypes: StatBucket[];
+  mediaTypes: MediaTypeStats;
   megapixels: StatBucket[];
   aspectRatios: StatBucket[];
   /** Files whose dimensions are unknown, e.g. every non-MP4-family video. */
@@ -272,11 +279,11 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
             buckets: bucketize(sortedLengths, LENGTH_BUCKETS),
           },
     topWords: countWords(captions),
-    mediaTypes: [
-      { label: "Images", count: images },
-      { label: "Videos", count: videos },
-      { label: "GIFs", count: gifs },
-    ],
+    mediaTypes: {
+      images,
+      videos,
+      gifs,
+    },
     megapixels: bucketize(megapixels, MEGAPIXEL_BUCKETS),
     aspectRatios: countAspectRatios(aspectRatioLabels),
     unknownResolution,

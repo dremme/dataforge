@@ -39,12 +39,11 @@ running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — no
 | --- | --- |
 | [Qwen3.8 27B](https://huggingface.co/Qwen/Qwen3.8-27B) | Recommended dense default |
 | [Qwen3.8 27B GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF) | Recommended dense quantizations; for example `UD-Q4_K_XL` |
+| [Qwen3.8 27B Uncensored](https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF) | Dense alternative with fewer refusals |
 | [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) | Recommended MoE default |
 | [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) | MoE alternative with fewer refusals |
 | [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) | Omni MoE that also **hears audio** — the one to load for [audio captioning](#audio-captioning) |
-| [Qwen3.6 27B](https://huggingface.co/Qwen/Qwen3.6-27B) | Dense alternative |
 | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) | Lighter VLM for smaller GPUs |
-| [Qwen3.5 9B](https://huggingface.co/Qwen/Qwen3.5-9B) | Weak; usable only when VRAM is tight |
 
 [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it) and [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
 also work with some tuning. Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`, where the

@@ -151,6 +151,7 @@ describe("StatsDrawer", () => {
     expect(within(chart).getByText("1:1")).toBeInTheDocument();
     expect(within(chart).getByText("16:9")).toBeInTheDocument();
     expect(within(chart).getByText("9:16")).toBeInTheDocument();
+    expect(within(chart).queryByText("4:3")).not.toBeInTheDocument();
   });
 
   it("closes from the header button", async () => {
@@ -162,15 +163,30 @@ describe("StatsDrawer", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("draws no mark for an empty bucket", () => {
+  it("omits empty buckets from the charts", () => {
     renderDrawer();
 
     const chart = screen.getByRole("figure", { name: /caption length/ });
     const rows = within(chart).getAllByRole("term");
     const bars = chart.querySelectorAll(".stats-drawer__bar-fill");
 
-    // Every bucket gets a row; only the non-empty ones get a bar.
-    expect(rows.length).toBeGreaterThan(bars.length);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("< 250");
+    expect(bars).toHaveLength(1);
+  });
+
+  it("counts media types as tiles", () => {
+    renderDrawer({
+      items: [
+        mediaItem("one.png", HOME_PATH),
+        mediaItem("clip.mp4", HOME_PATH),
+        mediaItem("loop.gif", HOME_PATH),
+      ],
+    });
+
+    expect(screen.getByText("Images").previousElementSibling).toHaveTextContent("1");
+    expect(screen.getByText("Videos").previousElementSibling).toHaveTextContent("1");
+    expect(screen.getByText("GIFs").previousElementSibling).toHaveTextContent("1");
   });
 
   it("says so when the folder holds no media", () => {

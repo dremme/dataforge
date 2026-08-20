@@ -5,13 +5,20 @@ import {
   type StatBucket,
 } from "@/features/gallery/lib/datasetStats";
 import {
+  iconBookOpen,
   iconChartBar,
   iconFiles,
+  iconImages,
   iconMessageCheck,
   iconMessageDashed,
+  iconMessageSquareText,
   iconMessageWarning,
+  iconProportions,
+  iconRulerDimensionLine,
   iconX,
+  type AppIcon,
 } from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import type { GalleryItem } from "@/shared/types";
@@ -100,7 +107,7 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
       <Overview stats={stats} />
 
       {stats.captionLength && (
-        <Section title="Caption length">
+        <Section title="Caption length" icon={iconMessageSquareText}>
           <div className="stats-drawer__tiles">
             <Tile value={stats.captionLength.min} label="Shortest" />
             <Tile value={stats.captionLength.median} label="Median" />
@@ -110,17 +117,15 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
         </Section>
       )}
 
-      <Section title="Media">
-        <dl className="stats-drawer__rows">
-          {stats.mediaTypes
-            .filter((entry) => entry.count > 0)
-            .map((entry) => (
-              <Row key={entry.label} label={entry.label} value={entry.count} />
-            ))}
-        </dl>
+      <Section title="Media" icon={iconImages}>
+        <div className="stats-drawer__tiles">
+          <Tile value={stats.mediaTypes.images} label="Images" />
+          <Tile value={stats.mediaTypes.videos} label="Videos" />
+          <Tile value={stats.mediaTypes.gifs} label="GIFs" />
+        </div>
       </Section>
 
-      <Section title="Resolution">
+      <Section title="Resolution" icon={iconRulerDimensionLine}>
         <BarChart buckets={stats.megapixels} unit="megapixels" />
         {stats.unknownResolution > 0 && (
           <p className="stats-drawer__note">
@@ -131,13 +136,13 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
       </Section>
 
       {stats.aspectRatios.some((bucket) => bucket.count > 0) && (
-        <Section title="Aspect ratio">
+        <Section title="Aspect ratio" icon={iconProportions}>
           <BarChart buckets={stats.aspectRatios} unit="aspect ratio" />
         </Section>
       )}
 
       {stats.topWords.length > 0 && (
-        <Section title="Most frequent words">
+        <Section title="Most frequent words" icon={iconBookOpen}>
           <BarChart
             buckets={stats.topWords.map((entry) => ({ label: entry.word, count: entry.count }))}
             unit="how often each word appears"
@@ -167,9 +172,7 @@ function Overview({ stats }: { stats: DatasetStats }) {
   const clear = missingCaption === 0 && captionIssues === 0 && duplicates === 0;
 
   return (
-    <section className="stats-drawer__section stats-drawer__section--lead">
-      <h3 className="stats-drawer__section-title">Overview</h3>
-
+    <Section title="Overview" lead>
       <p className="stats-drawer__hero">
         <span className="stats-drawer__hero-value">{percent}</span>
         <span className="stats-drawer__hero-unit">%</span>
@@ -223,14 +226,27 @@ function Overview({ stats }: { stats: DatasetStats }) {
           Every file is captioned, with no issues or duplicates
         </p>
       )}
-    </section>
+    </Section>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  lead = false,
+  children,
+}: {
+  title: string;
+  icon?: AppIcon;
+  lead?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="stats-drawer__section">
-      <h3 className="stats-drawer__section-title">{title}</h3>
+    <section className={classNames("stats-drawer__section", lead && "stats-drawer__section--lead")}>
+      <h3 className="stats-drawer__section-title">
+        {icon ? <Icon icon={icon} className="stats-drawer__section-title-icon" /> : null}
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -246,15 +262,6 @@ function Tile({ value, label }: { value: number; label: string }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="stats-drawer__row">
-      <dt className="stats-drawer__row-label">{label}</dt>
-      <dd className="stats-drawer__row-value">{value}</dd>
-    </div>
-  );
-}
-
 /**
  * A horizontal bar per category, sized against the fullest one rather than the
  * total, so a lopsided distribution still shows its shape.
@@ -262,6 +269,9 @@ function Row({ label, value }: { label: string; value: number }) {
  * One hue for every bar: length already encodes the count, and spending the colour
  * channel on the same fact would double-encode it. The value sits at the bar's tip
  * in a text token, never in the bar's own colour, so nothing is gated behind hover.
+ *
+ * Empty buckets draw no row at all: a wall of zero counts says nothing about the
+ * dataset and only clutters the drawer, so the chart shows what it actually holds.
  */
 function BarChart({
   buckets,
@@ -272,30 +282,26 @@ function BarChart({
   unit: string;
   labelWidth?: "narrow" | "wide";
 }) {
-  const peak = Math.max(...buckets.map((bucket) => bucket.count));
-  if (peak === 0) return null;
+  const visible = buckets.filter((bucket) => bucket.count > 0);
+  if (visible.length === 0) return null;
+  const peak = Math.max(...visible.map((bucket) => bucket.count));
 
   return (
     // A figure is what a chart is, and it takes an accessible name - a bare <dl>
     // exposes no role for the label to attach to.
     <figure className="stats-drawer__chart" aria-label={`Distribution by ${unit}`}>
       <dl className={`stats-drawer__bars stats-drawer__bars--${labelWidth}`}>
-        {buckets.map((bucket) => (
+        {visible.map((bucket) => (
           <div key={bucket.label} className="stats-drawer__bar-row">
             <dt className="stats-drawer__bar-label" title={bucket.label}>
               {bucket.label}
             </dt>
             <dd className="stats-drawer__bar-value">
               <span className="stats-drawer__bar-track">
-                {/* An empty bucket draws no mark at all - the fill carries a
-                    minimum width so one file stays visible, which would otherwise
-                    render zero as a sliver and overstate it. */}
-                {bucket.count > 0 && (
-                  <span
-                    className="stats-drawer__bar-fill"
-                    style={{ width: `${(bucket.count / peak) * 100}%` }}
-                  />
-                )}
+                <span
+                  className="stats-drawer__bar-fill"
+                  style={{ width: `${(bucket.count / peak) * 100}%` }}
+                />
               </span>
               <span className="stats-drawer__bar-count">{compactCount(bucket.count)}</span>
             </dd>
