@@ -60,6 +60,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
     enterSelectionMode,
     exitSelectionMode,
     selectAllPaths,
+    invertSelectedPaths,
     clearSelectedPaths,
     actions,
   } = useGallerySelectionContext();
@@ -124,6 +125,14 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         disabled={busy || selectedCount === totalCount}
       >
         All
+      </button>
+      <button
+        type="button"
+        className="gallery-controls__btn"
+        onClick={invertSelectedPaths}
+        disabled={busy || totalCount === 0}
+      >
+        Invert
       </button>
       <button
         type="button"

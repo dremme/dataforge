@@ -53,17 +53,21 @@ const MEGAPIXEL_BUCKETS = [
   { label: "0.5 – 1 MP", max: 1 },
   { label: "1 – 2 MP", max: 2 },
   { label: "2 – 4 MP", max: 4 },
-  { label: "> 4 MP", max: Number.POSITIVE_INFINITY },
+  { label: "4 – 20 MP", max: 20 },
+  { label: "20 – 48 MP", max: 48 },
+  { label: "> 48 MP", max: Number.POSITIVE_INFINITY },
 ] as const;
 
 /** Upper bound of each caption-length bucket, in characters. */
 const LENGTH_BUCKETS = [
-  { label: "< 250", max: 250 },
-  { label: "250 – 400", max: 400 },
+  { label: "< 256", max: 256 },
+  { label: "256 – 400", max: 400 },
   { label: "400 – 600", max: 600 },
   { label: "600 – 800", max: 800 },
   { label: "800 – 1000", max: 1000 },
-  { label: "> 1000", max: Number.POSITIVE_INFINITY },
+  { label: "1000 – 1200", max: 1200 },
+  { label: "1200 – 1400", max: 1400 },
+  { label: "> 1400", max: Number.POSITIVE_INFINITY },
 ] as const;
 
 /**

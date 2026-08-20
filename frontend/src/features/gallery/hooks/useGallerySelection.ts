@@ -48,6 +48,22 @@ export function useGallerySelection() {
     setSelectedPaths(new Set(paths));
   }, []);
 
+  /**
+   * Flip membership of the given paths, leaving anything outside that set as it
+   * is — a path that is selected but filtered out of the current view stays
+   * selected, the same way narrowing a search does not shrink the selection.
+   */
+  const invertSelectedPaths = useCallback((paths: string[]) => {
+    setSelectedPaths((current) => {
+      const next = new Set(current);
+      for (const path of paths) {
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
   const removeSelectedPaths = useCallback((paths: readonly string[]) => {
     setSelectedPaths((current) => {
       const next = new Set(current);
@@ -81,6 +97,7 @@ export function useGallerySelection() {
     exitSelectionMode,
     toggleSelectedPath,
     selectAllPaths,
+    invertSelectedPaths,
     removeSelectedPaths,
     clearSelectedPaths,
   };

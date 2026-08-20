@@ -22,7 +22,17 @@ import {
   SIDECAR_SWEEP_KINDS,
   sidecarSweepDetail,
 } from "@/features/gallery/lib/sidecarSweep";
-import { iconBrain, iconFolder, iconStar, type AppIcon } from "@/shared/icons";
+import {
+  iconArrowLeftRight,
+  iconBrain,
+  iconCopy,
+  iconFolder,
+  iconFolderInput,
+  iconListChecks,
+  iconStar,
+  iconTrash2,
+  type AppIcon,
+} from "@/shared/icons";
 import type {
   ExternalOstrisJob,
   FolderFavorite,
@@ -198,9 +208,8 @@ export interface SidecarSweepOptions {
 /**
  * Listed whenever a folder is open, disabled when that kind has nothing to delete.
  *
- * Unlike the selection actions, these are not hidden at zero: a row that only exists
- * once a job has flagged something is a row nobody discovers, and the detail line
- * already answers whether running it would do anything.
+ * A row that only exists once a job has flagged something is a row nobody discovers,
+ * and the detail line already answers whether running it would do anything.
  */
 export function buildSidecarSweepItems({
   hasFolder,
@@ -222,4 +231,108 @@ export function buildSidecarSweepItems({
     disabled: busy || counts[kind] === 0,
     run: () => onSweep(kind),
   }));
+}
+
+export interface SelectionCommandOptions {
+  /** False when the folder is missing: there is no gallery to act on. */
+  hasFolder: boolean;
+  selectionMode: boolean;
+  selectedCount: number;
+  /** Items visible under the active filters — select all and invert act on these. */
+  visibleCount: number;
+  /** True while a delete or transfer is already in flight. */
+  busy: boolean;
+  onSelectAll: () => void;
+  onInvertSelection: () => void;
+  onMove: () => void;
+  onCopy: () => void;
+  onDelete: () => void;
+}
+
+function selectedCountDetail(count: number): string {
+  if (count === 0) return "Nothing selected";
+  return `${count} selected file${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * Select all, invert, and the batch actions that follow from a selection.
+ *
+ * Listed whenever a folder is open, the same way the sidecar sweeps are: hiding
+ * a row until the user is already in selection mode is a row nobody discovers.
+ * Disabled rows say why on the detail line.
+ */
+export function buildSelectionCommandItems({
+  hasFolder,
+  selectionMode,
+  selectedCount,
+  visibleCount,
+  busy,
+  onSelectAll,
+  onInvertSelection,
+  onMove,
+  onCopy,
+  onDelete,
+}: SelectionCommandOptions): QuickActionItem[] {
+  if (!hasFolder) return [];
+
+  const nothingVisible = visibleCount === 0;
+  const allVisibleSelected = visibleCount > 0 && selectedCount === visibleCount;
+  const canActOnSelection = selectedCount > 0 && !busy;
+  const selectionDetail = selectedCountDetail(selectedCount);
+  let invertDetail = "Swap selected and unselected in this view";
+  if (!selectionMode) invertDetail = "Not in selection mode";
+  else if (nothingVisible) invertDetail = "No files in this view";
+
+  return [
+    {
+      id: "cmd:select-all",
+      section: "commands",
+      label: "Select all",
+      detail: nothingVisible ? "No files in this view" : "Every file in this view",
+      icon: iconListChecks,
+      keywords: "selection everything",
+      disabled: busy || nothingVisible || allVisibleSelected,
+      run: onSelectAll,
+    },
+    {
+      id: "cmd:invert-selection",
+      section: "commands",
+      label: "Invert selection",
+      detail: invertDetail,
+      icon: iconArrowLeftRight,
+      keywords: "selection toggle flip opposite",
+      disabled: busy || !selectionMode || nothingVisible,
+      run: onInvertSelection,
+    },
+    {
+      id: "cmd:move-selected",
+      section: "commands",
+      label: "Move selected files",
+      detail: selectionDetail,
+      icon: iconFolderInput,
+      keywords: "selection transfer relocate",
+      disabled: !canActOnSelection,
+      run: onMove,
+    },
+    {
+      id: "cmd:copy-selected",
+      section: "commands",
+      label: "Copy selected files",
+      detail: selectionDetail,
+      icon: iconCopy,
+      keywords: "selection transfer duplicate",
+      disabled: !canActOnSelection,
+      run: onCopy,
+    },
+    {
+      id: "cmd:delete-selected",
+      section: "commands",
+      label: "Delete selected files",
+      detail: selectionDetail,
+      icon: iconTrash2,
+      keywords: "selection remove trash",
+      disabled: !canActOnSelection,
+      run: onDelete,
+    },
+  ];
 }

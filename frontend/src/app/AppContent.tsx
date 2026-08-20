@@ -38,6 +38,7 @@ export function AppContent() {
     toggleSelectedPath,
     clearSelectedPaths,
     handleSelectAllPaths,
+    handleInvertSelection,
     openGalleryItem,
     onGalleryItemsDeleted,
     onGalleryItemsMoved,
@@ -54,6 +55,7 @@ export function AppContent() {
       toggleSelectedPath={toggleSelectedPath}
       clearSelectedPaths={clearSelectedPaths}
       selectAllPaths={handleSelectAllPaths}
+      invertSelectedPaths={handleInvertSelection}
       onDeleted={onGalleryItemsDeleted}
       onMoved={onGalleryItemsMoved}
       onCopied={onGalleryItemsCopied}

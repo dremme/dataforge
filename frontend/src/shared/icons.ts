@@ -5,6 +5,7 @@ export type AppIcon = LucideIcon;
 export {
   AlertTriangle as iconAlertTriangle,
   ArrowDownWideNarrow as iconArrowDownWideNarrow,
+  ArrowLeftRight as iconArrowLeftRight,
   ArrowUp as iconArrowUp,
   ArrowUpRight as iconArrowUpRight,
   Archive as iconArchive,
@@ -58,6 +59,7 @@ export {
   Italic as iconItalic,
   Link as iconLink,
   List as iconList,
+  ListChecks as iconListChecks,
   ListOrdered as iconListOrdered,
   Loader2 as iconLoader2,
   Maximize2 as iconMaximize2,

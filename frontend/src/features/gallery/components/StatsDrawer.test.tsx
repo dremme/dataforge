@@ -171,7 +171,7 @@ describe("StatsDrawer", () => {
     const bars = chart.querySelectorAll(".stats-drawer__bar-fill");
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveTextContent("< 250");
+    expect(rows[0]).toHaveTextContent("< 256");
     expect(bars).toHaveLength(1);
   });
 

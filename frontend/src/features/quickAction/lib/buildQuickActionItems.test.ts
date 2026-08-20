@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildSidecarSweepItems, type SidecarSweepOptions } from "./buildQuickActionItems";
+import {
+  buildSelectionCommandItems,
+  buildSidecarSweepItems,
+  type SelectionCommandOptions,
+  type SidecarSweepOptions,
+} from "./buildQuickActionItems";
 
 function sweepItems(overrides: Partial<SidecarSweepOptions> = {}) {
   return buildSidecarSweepItems({
@@ -68,5 +73,122 @@ describe("buildSidecarSweepItems", () => {
     const [issue, duplicate] = sweepItems();
 
     expect(issue.icon).not.toBe(duplicate.icon);
+  });
+});
+
+function selectionItems(overrides: Partial<SelectionCommandOptions> = {}) {
+  return buildSelectionCommandItems({
+    hasFolder: true,
+    selectionMode: false,
+    selectedCount: 0,
+    visibleCount: 3,
+    busy: false,
+    onSelectAll: vi.fn(),
+    onInvertSelection: vi.fn(),
+    onMove: vi.fn(),
+    onCopy: vi.fn(),
+    onDelete: vi.fn(),
+    ...overrides,
+  });
+}
+
+describe("buildSelectionCommandItems", () => {
+  it("offers nothing without a folder", () => {
+    expect(selectionItems({ hasFolder: false })).toEqual([]);
+  });
+
+  it("lists select all, invert, and the batch actions under stable ids", () => {
+    expect(selectionItems().map((item) => item.id)).toEqual([
+      "cmd:select-all",
+      "cmd:invert-selection",
+      "cmd:move-selected",
+      "cmd:copy-selected",
+      "cmd:delete-selected",
+    ]);
+  });
+
+  it("keeps select all enabled outside selection mode, and disables invert and the batch actions", () => {
+    const [selectAll, invert, move, copy, remove] = selectionItems();
+
+    expect(selectAll.disabled).toBe(false);
+    expect(invert.disabled).toBe(true);
+    expect(invert.detail).toBe("Not in selection mode");
+    expect(move.disabled).toBe(true);
+    expect(copy.disabled).toBe(true);
+    expect(remove.disabled).toBe(true);
+    expect(move.detail).toBe("Nothing selected");
+  });
+
+  it("enables invert once selection mode is on, even with nothing selected", () => {
+    const [, invert] = selectionItems({ selectionMode: true });
+
+    expect(invert.disabled).toBe(false);
+    expect(invert.detail).toBe("Swap selected and unselected in this view");
+  });
+
+  it("enables the batch actions once files are selected", () => {
+    const [, , move, copy, remove] = selectionItems({
+      selectionMode: true,
+      selectedCount: 2,
+    });
+
+    expect(move.disabled).toBe(false);
+    expect(copy.disabled).toBe(false);
+    expect(remove.disabled).toBe(false);
+    expect(move.detail).toBe("2 selected files");
+  });
+
+  it("disables select all once every visible file is already selected", () => {
+    const [selectAll] = selectionItems({
+      selectionMode: true,
+      selectedCount: 3,
+      visibleCount: 3,
+    });
+
+    expect(selectAll.disabled).toBe(true);
+  });
+
+  it("disables select all and invert when the view is empty", () => {
+    const [selectAll, invert] = selectionItems({ selectionMode: true, visibleCount: 0 });
+
+    expect(selectAll.disabled).toBe(true);
+    expect(selectAll.detail).toBe("No files in this view");
+    expect(invert.disabled).toBe(true);
+    expect(invert.detail).toBe("No files in this view");
+  });
+
+  it("disables every row while a batch action is already running", () => {
+    expect(
+      selectionItems({ selectionMode: true, selectedCount: 2, busy: true }).every(
+        (item) => item.disabled,
+      ),
+    ).toBe(true);
+  });
+
+  it("runs the matching handler", () => {
+    const onSelectAll = vi.fn();
+    const onInvertSelection = vi.fn();
+    const onMove = vi.fn();
+    const onCopy = vi.fn();
+    const onDelete = vi.fn();
+    const [selectAll, invert, move, copy, remove] = selectionItems({
+      onSelectAll,
+      onInvertSelection,
+      onMove,
+      onCopy,
+      onDelete,
+    });
+
+    selectAll.run();
+    invert.run();
+    move.run();
+    copy.run();
+    remove.run();
+
+    expect(onSelectAll).toHaveBeenCalledTimes(1);
+    expect(onInvertSelection).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onCopy).toHaveBeenCalledTimes(1);
+    expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });

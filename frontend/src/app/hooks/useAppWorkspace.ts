@@ -180,6 +180,10 @@ export function useAppWorkspace() {
     panel: automation.panelProps,
     selection: selectionActions,
     selectedCount: selection.selectedCount,
+    selectionMode: selection.selectionMode,
+    visibleCount: gallery.query.filteredItems.length,
+    onSelectAll: gallery.handleSelectAllPaths,
+    onInvertSelection: gallery.handleInvertSelection,
     sidecarSweep,
   });
 

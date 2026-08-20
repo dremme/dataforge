@@ -88,12 +88,14 @@ describe("computeDatasetStats", () => {
 
     expect(stats.captionLength).toMatchObject({ min: 10, median: 100, max: 400 });
     expect(stats.captionLength?.buckets).toEqual([
-      { label: "< 250", count: 2 },
-      { label: "250 – 400", count: 0 },
+      { label: "< 256", count: 2 },
+      { label: "256 – 400", count: 0 },
       { label: "400 – 600", count: 1 },
       { label: "600 – 800", count: 0 },
       { label: "800 – 1000", count: 0 },
-      { label: "> 1000", count: 0 },
+      { label: "1000 – 1200", count: 0 },
+      { label: "1200 – 1400", count: 0 },
+      { label: "> 1400", count: 0 },
     ]);
   });
 
@@ -143,7 +145,47 @@ describe("computeDatasetStats", () => {
       { label: "0.5 – 1 MP", count: 0 },
       { label: "1 – 2 MP", count: 0 },
       { label: "2 – 4 MP", count: 1 },
-      { label: "> 4 MP", count: 0 },
+      { label: "4 – 20 MP", count: 0 },
+      { label: "20 – 48 MP", count: 0 },
+      { label: "> 48 MP", count: 0 },
+    ]);
+  });
+
+  it("splits high-resolution files across the upper megapixel buckets", () => {
+    const stats = computeDatasetStats([
+      mediaItem("six.png", HOME_PATH, { width: 3000, height: 2000 }),
+      mediaItem("twenty-four.png", HOME_PATH, { width: 6000, height: 4000 }),
+      mediaItem("fifty-six.png", HOME_PATH, { width: 8000, height: 7000 }),
+    ]);
+
+    expect(stats.megapixels).toEqual([
+      { label: "< 0.3 MP", count: 0 },
+      { label: "0.3 – 0.5 MP", count: 0 },
+      { label: "0.5 – 1 MP", count: 0 },
+      { label: "1 – 2 MP", count: 0 },
+      { label: "2 – 4 MP", count: 0 },
+      { label: "4 – 20 MP", count: 1 },
+      { label: "20 – 48 MP", count: 1 },
+      { label: "> 48 MP", count: 1 },
+    ]);
+  });
+
+  it("splits long captions across the upper length buckets", () => {
+    const stats = computeDatasetStats([
+      captioned("short.png", "a".repeat(1100)),
+      captioned("mid.png", "a".repeat(1300)),
+      captioned("long.png", "a".repeat(1500)),
+    ]);
+
+    expect(stats.captionLength?.buckets).toEqual([
+      { label: "< 256", count: 0 },
+      { label: "256 – 400", count: 0 },
+      { label: "400 – 600", count: 0 },
+      { label: "600 – 800", count: 0 },
+      { label: "800 – 1000", count: 0 },
+      { label: "1000 – 1200", count: 1 },
+      { label: "1200 – 1400", count: 1 },
+      { label: "> 1400", count: 1 },
     ]);
   });
 

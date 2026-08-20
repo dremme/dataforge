@@ -44,6 +44,7 @@ function baseValue(overrides: Partial<GallerySelectionValue>): GallerySelectionV
     toggleSelectedPath: noop,
     clearSelectedPaths: noop,
     selectAllPaths: noop,
+    invertSelectedPaths: noop,
     onDeleted: noop,
     onMoved: noop,
     onCopied: noop,

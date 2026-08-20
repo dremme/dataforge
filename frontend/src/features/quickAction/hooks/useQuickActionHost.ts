@@ -17,13 +17,11 @@ import {
   iconCode,
   iconCopy,
   iconFiles,
-  iconFolderInput,
   iconFolderOpen,
   iconFolderPlus,
   iconHome,
   iconMessageWarning,
   iconRefresh,
-  iconTrash2,
 } from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { FolderFavorite, FolderResponse } from "@/shared/types";
@@ -32,6 +30,7 @@ import {
   buildJobItems,
   buildRecentFolderItems,
   buildRunJobItems,
+  buildSelectionCommandItems,
   buildSidecarSweepItems,
   buildSubfolderItems,
   folderPathFromQuickActionId,
@@ -60,6 +59,11 @@ interface UseQuickActionHostOptions {
   /** Delete / move / copy for the gallery selection, as the toolbar drives them. */
   selection: GallerySelectionActions;
   selectedCount: number;
+  selectionMode: boolean;
+  /** Items visible under the active filters — select all and invert act on these. */
+  visibleCount: number;
+  onSelectAll: () => void;
+  onInvertSelection: () => void;
   /** Delete every finding sidecar of one kind, as a folder-scoped batch. */
   sidecarSweep: SidecarSweepActions;
 }
@@ -81,6 +85,10 @@ export function useQuickActionHost({
   panel,
   selection,
   selectedCount,
+  selectionMode,
+  visibleCount,
+  onSelectAll,
+  onInvertSelection,
   sidecarSweep,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
@@ -236,46 +244,19 @@ export function useQuickActionHost({
         busy: sidecarSweep.busy,
         onSweep: sidecarSweep.openSweep,
       }),
+      ...buildSelectionCommandItems({
+        hasFolder: !folderNotFound,
+        selectionMode,
+        selectedCount,
+        visibleCount,
+        busy: selection.busy,
+        onSelectAll,
+        onInvertSelection,
+        onMove: () => selection.startTransfer("move"),
+        onCopy: () => selection.startTransfer("copy"),
+        onDelete: selection.openDeleteConfirm,
+      }),
     );
-
-    // Only while something is selected: these read as dead weight otherwise, and
-    // the flows they start would have nothing to act on.
-    if (selectedCount > 0) {
-      const selectionDetail = `${selectedCount} selected file${selectedCount === 1 ? "" : "s"}`;
-
-      commands.push(
-        {
-          id: "cmd:move-selected",
-          section: "commands",
-          label: "Move selected files",
-          detail: selectionDetail,
-          icon: iconFolderInput,
-          keywords: "selection transfer relocate",
-          disabled: !selection.canAct,
-          run: () => selection.startTransfer("move"),
-        },
-        {
-          id: "cmd:copy-selected",
-          section: "commands",
-          label: "Copy selected files",
-          detail: selectionDetail,
-          icon: iconCopy,
-          keywords: "selection transfer duplicate",
-          disabled: !selection.canAct,
-          run: () => selection.startTransfer("copy"),
-        },
-        {
-          id: "cmd:delete-selected",
-          section: "commands",
-          label: "Delete selected files",
-          detail: selectionDetail,
-          icon: iconTrash2,
-          keywords: "selection remove trash",
-          disabled: !selection.canAct,
-          run: selection.openDeleteConfirm,
-        },
-      );
-    }
 
     commands.push({
       id: "cmd:edit-sysprompt",
@@ -326,9 +307,13 @@ export function useQuickActionHost({
     panel.onResolveIssues,
     refreshFolder,
     revealInExplorer,
+    onInvertSelection,
+    onSelectAll,
     selectedCount,
     selection,
+    selectionMode,
     sidecarSweep,
+    visibleCount,
   ]);
 
   // Keyed by section rather than concatenated, so `QUICK_ACTION_SECTIONS` alone

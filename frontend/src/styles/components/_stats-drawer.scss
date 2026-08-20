@@ -291,7 +291,7 @@
     gap: 0.125rem;
     margin: 0;
 
-    // Bucket labels are short and uniform ("< 250"); words vary, so they get more
+    // Bucket labels are short and uniform ("< 256"); words vary, so they get more
     // room and truncate rather than wrapping the row.
     &--narrow {
       --stats-label-width: 4.75rem;

@@ -48,6 +48,7 @@ export function useGallerySession({
     exitSelectionMode,
     toggleSelectedPath,
     selectAllPaths,
+    invertSelectedPaths,
     removeSelectedPaths,
     clearSelectedPaths,
   } = selection;
@@ -170,8 +171,14 @@ export function useGallerySession({
   }, [refreshFolder]);
 
   const handleSelectAllPaths = useCallback(() => {
+    enterSelectionMode();
     selectAllPaths(query.filteredItems.map((item) => item.path));
-  }, [query.filteredItems, selectAllPaths]);
+  }, [enterSelectionMode, query.filteredItems, selectAllPaths]);
+
+  const handleInvertSelection = useCallback(() => {
+    if (!selectionMode) return;
+    invertSelectedPaths(query.filteredItems.map((item) => item.path));
+  }, [invertSelectedPaths, query.filteredItems, selectionMode]);
 
   return {
     selectionMode,
@@ -183,6 +190,7 @@ export function useGallerySession({
     toggleSelectedPath,
     clearSelectedPaths,
     handleSelectAllPaths,
+    handleInvertSelection,
     query,
     displayMode,
     setDisplayMode,

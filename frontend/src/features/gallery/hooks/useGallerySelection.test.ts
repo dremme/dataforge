@@ -44,6 +44,18 @@ describe("useGallerySelection", () => {
     expect(result.current.getJobPaths()).toBeUndefined();
   });
 
+  it("inverts the given paths and leaves anything else selected", () => {
+    const { result } = renderHook(() => useGallerySelection());
+
+    act(() => {
+      result.current.enterSelectionMode();
+      result.current.selectAllPaths(["/photos/a.png", "/photos/hidden.png"]);
+      result.current.invertSelectedPaths(["/photos/a.png", "/photos/b.png"]);
+    });
+
+    expect(result.current.getJobPaths()).toEqual(["/photos/hidden.png", "/photos/b.png"]);
+  });
+
   it("removes only the deleted paths from the current selection", () => {
     const { result } = renderHook(() => useGallerySelection());
 

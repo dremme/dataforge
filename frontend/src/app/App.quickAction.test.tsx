@@ -135,7 +135,7 @@ describe("App: quick action bar", () => {
     });
   });
 
-  it("offers no selection actions until files are selected", async () => {
+  it("lists selection actions disabled until files are selected", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -145,9 +145,12 @@ describe("App: quick action bar", () => {
     const palette = await screen.findByRole("dialog", { name: "Quick actions" });
     await user.type(within(palette).getByRole("combobox"), "selected");
 
-    expect(within(palette).queryByText("Delete selected files")).not.toBeInTheDocument();
-    expect(within(palette).queryByText("Move selected files")).not.toBeInTheDocument();
-    expect(within(palette).queryByText("Copy selected files")).not.toBeInTheDocument();
+    for (const name of ["Move selected files", "Copy selected files", "Delete selected files"]) {
+      expect(within(palette).getByRole("option", { name: new RegExp(name) })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
   });
 
   it("lists delete, move and copy once a file is selected", async () => {
@@ -174,6 +177,70 @@ describe("App: quick action bar", () => {
     expect(rows.some((row) => row.startsWith("Delete selected files"))).toBe(true);
     // The count is what tells the user what the action will act on.
     expect(rows.filter((row) => row.includes("1 selected file"))).toHaveLength(3);
+
+    for (const name of ["Move selected files", "Copy selected files", "Delete selected files"]) {
+      expect(within(palette).getByRole("option", { name: new RegExp(name) })).not.toHaveAttribute(
+        "aria-disabled",
+      );
+    }
+  });
+
+  it("selects every visible file and enters selection mode", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "select all");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
+    expect(screen.getByLabelText("3 of 3")).toHaveClass("gallery-section__count");
+  });
+
+  it("leaves invert selection disabled until selection mode is on", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "invert");
+
+    expect(within(palette).getByRole("option", { name: /Invert selection/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("inverts the visible selection from the palette", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "invert selection");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
+    expect(screen.getByRole("button", { name: "Select sunset.png" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deselect beach.jpg" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deselect waves.mp4" })).toBeInTheDocument();
   });
 
   it("opens the delete confirmation for the selection from the palette", async () => {

@@ -22,6 +22,7 @@ export interface GallerySelectionValue {
   toggleSelectedPath: (path: string) => void;
   clearSelectedPaths: () => void;
   selectAllPaths: () => void;
+  invertSelectedPaths: () => void;
   onDeleted: (paths: string[]) => void | Promise<void>;
   onMoved: (paths: string[]) => void | Promise<void>;
   /** Takes no paths: a copy leaves this folder's items exactly where they were. */
@@ -49,6 +50,7 @@ export function GallerySelectionProvider({
     toggleSelectedPath,
     clearSelectedPaths,
     selectAllPaths,
+    invertSelectedPaths,
     onDeleted,
     onMoved,
     onCopied,
@@ -65,6 +67,7 @@ export function GallerySelectionProvider({
       toggleSelectedPath,
       clearSelectedPaths,
       selectAllPaths,
+      invertSelectedPaths,
       onDeleted,
       onMoved,
       onCopied,
@@ -79,6 +82,7 @@ export function GallerySelectionProvider({
       toggleSelectedPath,
       clearSelectedPaths,
       selectAllPaths,
+      invertSelectedPaths,
       onDeleted,
       onMoved,
       onCopied,

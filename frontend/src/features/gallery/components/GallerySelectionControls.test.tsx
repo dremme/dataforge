@@ -35,17 +35,17 @@ const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.
  * the harness mounts the real ones with their dialogs, the way the app does.
  * `totalCount` stays 2 so "all selected" matches BOTH_SELECTED.
  */
-function renderControls(selection: Partial<GallerySelectionValue> = {}) {
+function renderControls(selection: Partial<GallerySelectionValue> = {}, totalCount = 2) {
   return renderWithProviders(
     withGallerySelectionActions(
-      <GallerySelectionControls totalCount={2} />,
+      <GallerySelectionControls totalCount={totalCount} />,
       {
         selectionMode: true,
         selectedCount: 2,
         selectedPaths: BOTH_SELECTED,
         ...selection,
       },
-      { currentFolder: HOME_PATH, totalCount: 2 },
+      { currentFolder: HOME_PATH, totalCount },
     ),
   );
 }
@@ -91,7 +91,50 @@ describe("GallerySelectionControls", () => {
 
     // The selection verbs keep their text, so the row still reads as a toolbar.
     expect(screen.getByRole("button", { name: "All" })).toHaveTextContent("All");
+    expect(screen.getByRole("button", { name: "Invert" })).toHaveTextContent("Invert");
     expect(screen.getByRole("button", { name: "None" })).toHaveTextContent("None");
+  });
+
+  it("places Invert between All and None", () => {
+    renderControls();
+
+    const labels = [...screen.getByRole("button", { name: "All" }).parentElement!.children]
+      .filter((node) => node instanceof HTMLButtonElement)
+      .map((button) => button.textContent || button.getAttribute("aria-label"));
+
+    expect(labels.slice(1, 4)).toEqual(["All", "Invert", "None"]);
+  });
+
+  it("inverts the selection from the header", async () => {
+    const user = userEvent.setup();
+    const invertSelectedPaths = vi.fn();
+
+    renderControls({
+      invertSelectedPaths,
+      selectedCount: 1,
+      selectedPaths: new Set([`${HOME_PATH}\\sunset.png`]),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Invert" }));
+
+    expect(invertSelectedPaths).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Invert available when everything or nothing is selected", () => {
+    const { unmount } = renderControls();
+    expect(screen.getByRole("button", { name: "All" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Invert" })).toBeEnabled();
+    unmount();
+
+    renderControls({ selectedCount: 0, selectedPaths: new Set() });
+    expect(screen.getByRole("button", { name: "None" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Invert" })).toBeEnabled();
+  });
+
+  it("disables Invert when there are no files to flip", () => {
+    renderControls({ selectedCount: 0, selectedPaths: new Set() }, 0);
+
+    expect(screen.getByRole("button", { name: "Invert" })).toBeDisabled();
   });
 
   it("deletes selected files after confirmation", async () => {

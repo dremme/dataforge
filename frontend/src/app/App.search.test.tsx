@@ -266,6 +266,23 @@ describe("App: search and filters", () => {
     expect(screen.getByRole("button", { name: "Deselect sunset.png" })).toBeInTheDocument();
   });
 
+  it("inverts the selection from the section header", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
+
+    await user.click(screen.getByRole("button", { name: "Invert" }));
+
+    expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
+    expect(screen.getByRole("button", { name: "Select sunset.png" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deselect beach.jpg" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deselect waves.mp4" })).toBeInTheDocument();
+  });
+
   it("takes two Escape presses to leave selection mode while items are selected", async () => {
     const user = userEvent.setup();
     installMockBackend();
