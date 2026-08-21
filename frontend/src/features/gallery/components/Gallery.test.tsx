@@ -1,21 +1,27 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as captionStatus from "@/features/gallery/lib/captionStatus";
 import * as scrollRoot from "@/features/gallery/lib/scrollRoot";
 import { galleryLayoutFor } from "@/features/gallery/lib/layout";
-import { estimateCardHeight, galleryColumnWidth } from "@/features/gallery/lib/mediaAspect";
+import {
+  CARD_BORDER_PX,
+  galleryColumnWidth,
+  largeCardHeight,
+} from "@/features/gallery/lib/cardGeometry";
 import { HOME_PATH } from "@/test/fixtures";
 import { withGallerySelection } from "@/test/gallerySelection";
 import type { GalleryItem } from "@/shared/types";
 import { Gallery } from "./Gallery";
 
 // GalleryCard calls this once per render, so it doubles as a render counter.
+// Not `getCardCaptionDisplay`: the masonry reads that too, to pick each card's
+// body height, so it counts layout passes as well as renders.
 vi.mock("@/features/gallery/lib/captionStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof captionStatus>();
-  return { ...actual, getCardCaptionDisplay: vi.fn(actual.getCardCaptionDisplay) };
+  return { ...actual, getCardModifierClass: vi.fn(actual.getCardModifierClass) };
 });
 
-const cardRenderSpy = vi.mocked(captionStatus.getCardCaptionDisplay);
+const cardRenderSpy = vi.mocked(captionStatus.getCardModifierClass);
 
 const imageItem: GalleryItem = {
   name: "sunset.png",
@@ -49,7 +55,114 @@ const videoItem: GalleryItem = {
   media_type: "video",
 };
 
+const LARGE_ITEMS: GalleryItem[] = [
+  { ...imageItem, name: "alpha.png", path: `${HOME_PATH}\\alpha.png`, width: 1600, height: 900 },
+  { ...imageItem, name: "bravo.png", path: `${HOME_PATH}\\bravo.png`, width: 900, height: 1600 },
+  {
+    ...imageItem,
+    name: "charlie.png",
+    path: `${HOME_PATH}\\charlie.png`,
+    width: 1200,
+    height: 1200,
+  },
+  { ...imageItem, name: "delta.png", path: `${HOME_PATH}\\delta.png`, width: 1600, height: 900 },
+];
+
+/**
+ * Overrides the width `test/setup.ts` gives every div, on the same prototype so
+ * it actually shadows it. Note `clientHeight` is still 0: masonry then falls
+ * back to its overscan (3 x 320px) for the viewport and only renders cards
+ * whose top is inside roughly 1920px, so a large-mode test with many items must
+ * stub that too or it will quietly assert against a subset.
+ */
+function stubClientWidth(width: number): void {
+  Object.defineProperty(HTMLDivElement.prototype, "clientWidth", {
+    configurable: true,
+    get() {
+      return width;
+    },
+  });
+}
+
+/** Lets a test drive the resize that `useGalleryColumns` listens for. */
+function captureResizeObservers() {
+  const callbacks: ResizeObserverCallback[] = [];
+  const original = window.ResizeObserver;
+
+  class CapturingResizeObserver {
+    constructor(callback: ResizeObserverCallback) {
+      callbacks.push(callback);
+    }
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+
+  window.ResizeObserver = CapturingResizeObserver as unknown as typeof ResizeObserver;
+
+  return {
+    fire: () => {
+      for (const callback of [...callbacks]) callback([], {} as ResizeObserver);
+    },
+    restore: () => {
+      window.ResizeObserver = original;
+    },
+  };
+}
+
+/**
+ * Asserts the whole large-mode contract at one container width: round-robin
+ * lanes, tight stacking down each lane, and — the invariant the layout rests on
+ * — a packed box that is exactly the media and body the card is pinned to.
+ */
+function expectMasonryGeometry(container: HTMLElement, items: GalleryItem[], width: number): void {
+  const layout = galleryLayoutFor("large");
+  const minColumnWidth = layout.minColumnWidth ?? 0;
+  const columnCount = Math.max(1, Math.floor((width + layout.gap) / (minColumnWidth + layout.gap)));
+  const columnWidth = galleryColumnWidth(width, columnCount, layout.gap);
+  const cells = [...container.querySelectorAll(".gallery-masonry-item")] as HTMLElement[];
+
+  expect(cells.map((cell) => cell.querySelector(".card__title")?.textContent)).toEqual(
+    items.map((item) => item.name),
+  );
+
+  const laneTops = Array.from({ length: columnCount }, () => 0);
+
+  items.forEach((item, index) => {
+    const cell = cells[index];
+    const lane = index % columnCount;
+    const height = largeCardHeight(item, columnWidth);
+
+    expect(cell.dataset.lane).toBe(String(lane));
+    expect(Number.parseFloat(cell.style.left)).toBeCloseTo(lane * (columnWidth + layout.gap));
+    expect(Number.parseFloat(cell.style.top)).toBeCloseTo(laneTops[lane]);
+    expect(Number.parseFloat(cell.style.width)).toBeCloseTo(columnWidth);
+    expect(Number.parseFloat(cell.style.height)).toBeCloseTo(height);
+
+    const media = Number.parseFloat(cell.style.getPropertyValue("--card-media-h"));
+    const body = Number.parseFloat(cell.style.getPropertyValue("--card-body-h"));
+    expect(2 * CARD_BORDER_PX + media + body).toBeCloseTo(height);
+
+    laneTops[lane] = laneTops[lane] + height + layout.gap;
+  });
+}
+
 describe("Gallery", () => {
+  // Large mode lays out from the container's measured width, and jsdom measures
+  // everything as zero, so every test needs a width to render anything at all.
+  let clientWidth: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    clientWidth = Object.getOwnPropertyDescriptor(HTMLDivElement.prototype, "clientWidth");
+    stubClientWidth(1000);
+  });
+
+  afterEach(() => {
+    if (clientWidth) {
+      Object.defineProperty(HTMLDivElement.prototype, "clientWidth", clientWidth);
+    }
+  });
+
   it("mounts image previews and video placeholders for visible virtual rows", () => {
     const { container } = render(
       withGallerySelection(
@@ -107,89 +220,49 @@ describe("Gallery", () => {
   });
 
   it("packs large cards into sorted columns without row-height gaps", () => {
-    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
-    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
-      configurable: true,
-      get() {
-        return 1000;
-      },
-    });
+    const { container } = render(
+      withGallerySelection(
+        <main className="main">
+          <Gallery items={LARGE_ITEMS} onSelect={vi.fn()} displayMode="large" />
+        </main>,
+      ),
+    );
+
+    expectMasonryGeometry(container, LARGE_ITEMS, 1000);
+
+    // Three lanes, so the fourth card sits under the first rather than under the
+    // tall portrait beside it.
+    const cells = [...container.querySelectorAll(".gallery-masonry-item")] as HTMLElement[];
+    expect(cells.map((cell) => cell.dataset.lane)).toEqual(["0", "1", "2", "0"]);
+    expect(Number.parseFloat(cells[3].style.top)).toBeLessThan(
+      largeCardHeight(LARGE_ITEMS[1], galleryColumnWidth(1000, 3, galleryLayoutFor("large").gap)),
+    );
+  });
+
+  it("re-lays out large cards from the new column width when the gallery resizes", () => {
+    const observers = captureResizeObservers();
 
     try {
-      const first: GalleryItem = {
-        ...imageItem,
-        name: "alpha.png",
-        path: `${HOME_PATH}\\alpha.png`,
-        width: 1600,
-        height: 900,
-      };
-      const second: GalleryItem = {
-        ...imageItem,
-        name: "bravo.png",
-        path: `${HOME_PATH}\\bravo.png`,
-        width: 900,
-        height: 1600,
-      };
-      const third: GalleryItem = {
-        ...imageItem,
-        name: "charlie.png",
-        path: `${HOME_PATH}\\charlie.png`,
-        width: 1200,
-        height: 1200,
-      };
-      const fourth: GalleryItem = {
-        ...imageItem,
-        name: "delta.png",
-        path: `${HOME_PATH}\\delta.png`,
-        width: 1600,
-        height: 900,
-      };
-
       const { container } = render(
         withGallerySelection(
           <main className="main">
-            <Gallery
-              items={[first, second, third, fourth]}
-              onSelect={vi.fn()}
-              displayMode="large"
-            />
+            <Gallery items={LARGE_ITEMS} onSelect={vi.fn()} displayMode="large" />
           </main>,
         ),
       );
 
+      expectMasonryGeometry(container, LARGE_ITEMS, 1000);
+
+      // Narrow enough to drop a column: nothing may survive from the old width.
+      stubClientWidth(640);
+      act(() => observers.fire());
+
+      expectMasonryGeometry(container, LARGE_ITEMS, 640);
+
       const cells = [...container.querySelectorAll(".gallery-masonry-item")] as HTMLElement[];
-      expect(cells.map((cell) => cell.querySelector(".card__title")?.textContent)).toEqual([
-        "alpha.png",
-        "bravo.png",
-        "charlie.png",
-        "delta.png",
-      ]);
-      expect(cells.map((cell) => cell.dataset.lane)).toEqual(["0", "1", "2", "0"]);
-
-      const alpha = cells[0];
-      const bravo = cells[1];
-      const delta = cells[3];
-      const layout = galleryLayoutFor("large");
-      const columnWidth = galleryColumnWidth(1000, 3, layout.gap);
-      const alphaHeight = estimateCardHeight(first, columnWidth, layout);
-      const bravoHeight = estimateCardHeight(second, columnWidth, layout);
-
-      expect(Number.parseFloat(alpha.style.top)).toBe(0);
-      expect(Number.parseFloat(bravo.style.top)).toBe(0);
-      expect(Number.parseFloat(delta.style.left)).toBe(Number.parseFloat(alpha.style.left));
-      expect(Number.parseFloat(delta.style.top)).toBeCloseTo(alphaHeight + layout.gap);
-      expect(Number.parseFloat(delta.style.top)).toBeLessThan(bravoHeight);
-
-      expect(
-        screen.getByRole("button", { name: `View ${first.name}` }).querySelector(".card__media"),
-      ).toHaveStyle({ aspectRatio: `${1600 / 900}` });
-      expect(
-        screen.getByRole("button", { name: `View ${second.name}` }).querySelector(".card__media"),
-      ).toHaveStyle({ aspectRatio: `${900 / 1600}` });
+      expect(cells.map((cell) => cell.dataset.lane)).toEqual(["0", "1", "0", "1"]);
     } finally {
-      if (descriptor) {
-        Object.defineProperty(HTMLElement.prototype, "clientWidth", descriptor);
-      }
+      observers.restore();
     }
   });
 

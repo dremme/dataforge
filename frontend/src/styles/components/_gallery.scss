@@ -139,6 +139,12 @@
 
 .gallery-masonry-item {
   position: absolute;
+
+  // The wrapper carries the height the masonry packed with, and the card fills
+  // it exactly, so a rendered card can never disagree with its packed box.
+  > .card {
+    height: 100%;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -267,9 +273,18 @@
     overflow: hidden;
   }
 
+  // Large cards are laid out by the masonry, which hands each one the exact
+  // height of its two parts. 4:3 is the small grid's crop, not theirs.
   &--large &__media {
-    // Native aspect comes from the inline style on the node; 4:3 is small-grid only.
+    flex: none;
+    height: var(--card-media-h);
     aspect-ratio: auto;
+  }
+
+  &--large &__body {
+    flex: none;
+    height: var(--card-body-h);
+    overflow: hidden;
   }
 
   &__media-surface {

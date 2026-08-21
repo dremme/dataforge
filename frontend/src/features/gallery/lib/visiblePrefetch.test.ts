@@ -36,7 +36,12 @@ describe("collectGalleryPreviewTargets", () => {
       [makeItem("row-3-a")],
     ];
 
-    const targets = collectGalleryPreviewTargets(rows, [{ index: 1 }, { index: 2 }], false);
+    const targets = collectGalleryPreviewTargets(
+      (index) => rows[index] ?? [],
+      rows.length,
+      [{ index: 1 }, { index: 2 }],
+      false,
+    );
 
     expect(targets.map((target) => target.path)).toEqual([
       `${HOME_PATH}\\row-1-a`,
@@ -77,7 +82,10 @@ describe("prefetchGalleryVisibleRange", () => {
       [makeItem("row-4-a"), makeItem("row-4-b")],
     ];
 
-    prefetchGalleryVisibleRange(rows, [{ index: 2 }, { index: 3 }]);
+    prefetchGalleryVisibleRange((index) => rows[index] ?? [], rows.length, [
+      { index: 2 },
+      { index: 3 },
+    ]);
 
     expect(loadOrder.some((url) => url.includes("row-2-a"))).toBe(true);
     expect(loadOrder.some((url) => url.includes("row-3-a"))).toBe(true);
@@ -109,7 +117,7 @@ describe("prefetchGalleryVisibleRange", () => {
       [makeItem("row-4-a")],
     ];
 
-    prefetchGalleryVisibleRange(rows, [{ index: 2 }], false);
+    prefetchGalleryVisibleRange((index) => rows[index] ?? [], rows.length, [{ index: 2 }], false);
 
     const state = getGalleryPreviewLoaderStateForTests();
     expect(state.prefetchWaitCount).toBe(0);

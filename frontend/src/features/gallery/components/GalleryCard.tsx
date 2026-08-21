@@ -13,7 +13,6 @@ import {
   iconVideo,
 } from "@/shared/icons";
 import { isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
-import { mediaAspectRatio } from "@/features/gallery/lib/mediaAspect";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { classNames } from "@/shared/lib/classNames";
@@ -77,10 +76,7 @@ export const GalleryCard = memo(function GalleryCard({
       }
       aria-pressed={selectionMode ? selected : undefined}
     >
-      <div
-        className="card__media"
-        style={displayMode === "large" ? { aspectRatio: mediaAspectRatio(item) } : undefined}
-      >
+      <div className="card__media">
         <GalleryCardMedia item={item} />
         {selectionMode && (
           <span className="card__selection-indicator" aria-hidden="true">

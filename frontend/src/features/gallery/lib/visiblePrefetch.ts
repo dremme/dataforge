@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import {
   isGalleryScrollActive,
@@ -12,6 +12,14 @@ const PREFETCH_ROWS_BEFORE = 1;
 const PREFETCH_ROWS_AFTER = 3;
 const SCROLL_IDLE_MS = 150;
 
+const NO_ITEMS: readonly GalleryItem[] = [];
+
+/**
+ * The items a virtualized index covers. Rows hold a whole row of cards; the
+ * masonry indexes single cards, so it answers with one.
+ */
+export type RowAt = (index: number) => readonly GalleryItem[];
+
 interface PreviewTarget {
   path: string;
   url: string;
@@ -19,7 +27,8 @@ interface PreviewTarget {
 }
 
 export function collectGalleryPreviewTargets(
-  rows: GalleryItem[][],
+  rowAt: RowAt,
+  rowCount: number,
   virtualItems: { index: number }[],
   includePrefetch: boolean,
   neighbors: { before?: number; after?: number } = {},
@@ -31,13 +40,13 @@ export function collectGalleryPreviewTargets(
   const minIndex = virtualItems[0].index;
   const maxIndex = virtualItems[virtualItems.length - 1].index;
   const start = includePrefetch ? Math.max(0, minIndex - before) : minIndex;
-  const end = includePrefetch ? Math.min(rows.length - 1, maxIndex + after) : maxIndex;
+  const end = includePrefetch ? Math.min(rowCount - 1, maxIndex + after) : maxIndex;
 
   const targets: PreviewTarget[] = [];
 
   for (let index = start; index <= end; index += 1) {
     const priority = index >= minIndex && index <= maxIndex ? "visible" : "prefetch";
-    for (const item of rows[index] ?? []) {
+    for (const item of rowAt(index)) {
       targets.push({
         path: item.path,
         url: galleryItemThumbnailPreviewUrl(item),
@@ -50,34 +59,46 @@ export function collectGalleryPreviewTargets(
 }
 
 export function prefetchGalleryVisibleRange(
-  rows: GalleryItem[][],
+  rowAt: RowAt,
+  rowCount: number,
   virtualItems: { index: number }[],
   includePrefetch = true,
   neighbors?: { before?: number; after?: number },
 ): void {
   syncGalleryPreviewTargets(
-    collectGalleryPreviewTargets(rows, virtualItems, includePrefetch, neighbors),
+    collectGalleryPreviewTargets(rowAt, rowCount, virtualItems, includePrefetch, neighbors),
   );
 }
 
 function usePrefetchRange(
   scrollElement: HTMLElement | null,
-  rows: GalleryItem[][],
+  rowAt: RowAt,
+  rowCount: number,
   getVirtualItems: () => { index: number }[],
-  rangeKey: unknown,
+  /** What a re-sync hangs on: the item source and the visible range. */
+  triggers: readonly unknown[],
   neighbors?: { before?: number; after?: number },
 ): void {
-  const getVirtualItemsRef = useRef(getVirtualItems);
-  getVirtualItemsRef.current = getVirtualItems;
+  // Both accessors close over the current render's data, so they are read
+  // through a ref rather than being tracked as dependencies.
+  const sourceRef = useRef({ rowAt, getVirtualItems });
+  sourceRef.current = { rowAt, getVirtualItems };
 
   const rafRef = useRef<number | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const runPrefetch = useCallback(
     (includePrefetch: boolean) => {
-      prefetchGalleryVisibleRange(rows, getVirtualItemsRef.current(), includePrefetch, neighbors);
+      const { rowAt: currentRowAt, getVirtualItems: currentItems } = sourceRef.current;
+      prefetchGalleryVisibleRange(
+        currentRowAt,
+        rowCount,
+        currentItems(),
+        includePrefetch,
+        neighbors,
+      );
     },
-    [neighbors, rows],
+    [neighbors, rowCount],
   );
 
   const markScrollActive = useCallback(() => {
@@ -96,7 +117,8 @@ function usePrefetchRange(
 
   useEffect(() => {
     runPrefetch(!isGalleryScrollActive());
-  }, [rangeKey, rows.length, runPrefetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- caller names its own triggers
+  }, [runPrefetch, ...triggers]);
 
   useEffect(() => {
     if (!scrollElement) return;
@@ -128,33 +150,42 @@ function usePrefetchRange(
   }, [markScrollActive, runPrefetch, scrollElement]);
 }
 
+/**
+ * Masonry indexes single cards, and its visible cards are a contiguous band of
+ * item indexes, so the two ends of that band stand in for the virtual items.
+ */
 export function useGalleryItemPrefetch(
   scrollElement: HTMLElement | null,
   items: GalleryItem[],
   range: { min: number; max: number } | null,
   neighbors?: { before?: number; after?: number },
 ): void {
-  const rows = useMemo(() => items.map((item) => [item]), [items]);
   usePrefetchRange(
     scrollElement,
-    rows,
+    (index) => {
+      const item = items[index];
+      return item ? [item] : NO_ITEMS;
+    },
+    items.length,
     () => (range == null ? [] : [{ index: range.min }, { index: range.max }]),
-    range == null ? "empty" : `${range.min}:${range.max}`,
+    [items, range == null ? "empty" : `${range.min}:${range.max}`],
     neighbors,
   );
 }
 
 export function useGalleryVisiblePrefetch(
   scrollElement: HTMLElement | null,
-  rows: GalleryItem[][],
+  rowAt: RowAt,
+  rowCount: number,
   virtualizer: Virtualizer<HTMLElement, Element>,
   neighbors?: { before?: number; after?: number },
 ): void {
   usePrefetchRange(
     scrollElement,
-    rows,
+    rowAt,
+    rowCount,
     () => virtualizer.getVirtualItems(),
-    virtualizer.scrollOffset,
+    [rowAt, virtualizer.scrollOffset],
     neighbors,
   );
 }

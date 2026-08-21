@@ -56,16 +56,6 @@ describe("GalleryCard", () => {
     expect(container.querySelector(".card--small")).toBeInTheDocument();
   });
 
-  it("uses the file's aspect on large cards and leaves small cards to the 4:3 crop", () => {
-    const { container: large } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
-    const { container: small } = render(
-      <GalleryCard item={captionedItem} onSelect={vi.fn()} displayMode="small" />,
-    );
-
-    expect(large.querySelector(".card__media")).toHaveStyle({ aspectRatio: `${1920 / 1080}` });
-    expect(small.querySelector(".card__media")).not.toHaveStyle({ aspectRatio: `${1920 / 1080}` });
-  });
-
   it("pins badges over the thumbnail", () => {
     const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
 

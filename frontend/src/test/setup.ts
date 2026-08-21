@@ -144,6 +144,17 @@ Object.defineProperty(window, "EventSource", {
   configurable: true,
 });
 
+// jsdom performs no layout, so every element measures zero. The gallery's
+// default mode lays its columns out from the container's width and renders
+// nothing without one, so divs get a plausible width to measure. A test that
+// cares about a specific width re-stubs this on the same prototype.
+Object.defineProperty(HTMLDivElement.prototype, "clientWidth", {
+  configurable: true,
+  get() {
+    return 1000;
+  },
+});
+
 class ResizeObserverMock {
   observe(): void {}
   unobserve(): void {}

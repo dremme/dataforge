@@ -20,14 +20,16 @@ export interface GalleryModeLayout {
  * filled round-robin so sort order stays left-to-right along the top and each
  * column stacks tightly. Small keeps a uniform 4:3 grid. List is a table.
  *
+ * Large estimates nothing: its card heights are exact (see `cardGeometry.ts`),
+ * so its two row figures survive only as the unit its overscan is counted in.
+ *
  * List overscan is far higher on purpose: its rows are ~40px, so the 3 rows that
  * cover three screens of cards would not even fill one viewport.
  */
 export const GALLERY_MODE_LAYOUT: Record<GalleryDisplayMode, GalleryModeLayout> = {
   large: {
     minColumnWidth: 280,
-    // 4:3 media at min column width + body. Native-aspect columns use the body
-    // portion of these numbers plus each file's own media height.
+    // A typical card: 4:3 media at the min column width, plus its body.
     rowEstimate: 320,
     captionRowEstimate: 400,
     gap: GALLERY_GAP_PX,

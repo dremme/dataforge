@@ -1,15 +1,20 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
 import { useGalleryBackToTop } from "@/features/gallery/hooks/useGalleryBackToTop";
 import { useGalleryColumns } from "@/features/gallery/hooks/useGalleryColumns";
 import { useGalleryScrollMargin } from "@/features/gallery/hooks/useGalleryScrollMargin";
+import { useScrollViewport } from "@/features/gallery/hooks/useScrollViewport";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { galleryLayoutFor } from "@/features/gallery/lib/layout";
-import { estimateCardHeight, galleryColumnWidth } from "@/features/gallery/lib/mediaAspect";
 import {
-  masonryItemOrigin,
+  galleryColumnWidth,
+  largeCardBox,
+  largeCardHeight,
+} from "@/features/gallery/lib/cardGeometry";
+import {
   packColumnMasonry,
   visibleMasonryCards,
   type PackedMasonryCard,
+  type PackedMasonryLayout,
 } from "@/features/gallery/lib/packColumnMasonry";
 import { useGalleryItemPrefetch } from "@/features/gallery/lib/visiblePrefetch";
 import type { GalleryItem } from "@/shared/types";
@@ -21,6 +26,14 @@ interface GalleryMasonryProps {
   onSelect: (path: string) => void;
 }
 
+const UNMEASURED: PackedMasonryLayout<GalleryItem> = { cards: [], columnCount: 1, totalHeight: 0 };
+
+/**
+ * Large mode: equal-width columns filled round-robin, each card as tall as its
+ * own media plus a fixed body. Every height is exact — the card is pinned to the
+ * numbers packed here — so the layout is a pure function of the items and the
+ * column width, with nothing to measure and nothing to shift afterwards.
+ */
 export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
   const { selectionMode, selectedPaths, toggleSelectedPath } = useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
@@ -32,28 +45,35 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
     width,
   ]);
   const { visible: backToTopVisible, scrollToTop } = useGalleryBackToTop(scrollElement);
-  const [measuredHeights, setMeasuredHeights] = useState(() => new Map<string, number>());
-  const [view, setView] = useState({ scrollTop: 0, height: 0 });
+  const viewport = useScrollViewport(scrollElement);
 
-  const columnWidth =
-    width > 0 ? galleryColumnWidth(width, columnCount, layout.gap) : (layout.minColumnWidth ?? 280);
+  const columnWidth = galleryColumnWidth(width, columnCount, layout.gap);
 
-  const { packed, totalHeight } = useMemo(
+  // Width arrives from a layout effect, so the first commit has none. Packing at
+  // a guessed width would hand the folder's scroll restore a full-length layout
+  // to land on and then contradict.
+  const packed = useMemo(
     () =>
-      packColumnMasonry(items, {
-        columnCount,
-        gap: layout.gap,
-        heightOf: (item) =>
-          measuredHeights.get(item.path) ?? estimateCardHeight(item, columnWidth, layout),
-      }),
-    [columnCount, columnWidth, items, layout, measuredHeights],
+      columnWidth > 0
+        ? packColumnMasonry(items, {
+            columnCount,
+            gap: layout.gap,
+            heightOf: (item) => largeCardHeight(item, columnWidth),
+          })
+        : UNMEASURED,
+    [columnCount, columnWidth, items, layout.gap],
   );
 
+  // `rowEstimate` no longer estimates a row here; it is only the unit the mode's
+  // overscan is counted in.
   const overscanPx = layout.overscan * layout.rowEstimate;
-  const viewHeight = view.height > 0 ? view.height : overscanPx;
-  const viewStart = view.scrollTop - scrollMargin - overscanPx;
-  const viewEnd = view.scrollTop - scrollMargin + viewHeight + overscanPx;
-  const visibleCards = visibleMasonryCards(packed, { start: viewStart, end: viewEnd });
+  const viewHeight = viewport.height > 0 ? viewport.height : overscanPx;
+  const viewTop = viewport.scrollTop - scrollMargin;
+  const visibleCards = visibleMasonryCards(packed, {
+    start: viewTop - overscanPx,
+    end: viewTop + viewHeight + overscanPx,
+  });
+
   const prefetchNeighbors = useMemo(
     () => ({ before: columnCount, after: columnCount * 3 }),
     [columnCount],
@@ -61,52 +81,20 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
   const prefetchRange =
     visibleCards.length === 0
       ? null
-      : {
-          min: visibleCards[0].index,
-          max: visibleCards[visibleCards.length - 1].index,
-        };
-
-  useLayoutEffect(() => {
-    if (!scrollElement) return;
-
-    const update = () => {
-      setView({ scrollTop: scrollElement.scrollTop, height: scrollElement.clientHeight });
-    };
-
-    update();
-    scrollElement.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(scrollElement);
-    return () => {
-      scrollElement.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
-  }, [scrollElement]);
-
-  const handleHeight = useCallback((path: string, height: number) => {
-    if (height <= 0) return;
-    setMeasuredHeights((current) => {
-      const previous = current.get(path);
-      if (previous !== undefined && Math.abs(previous - height) < 1) return current;
-      const next = new Map(current);
-      next.set(path, height);
-      return next;
-    });
-  }, []);
+      : { min: visibleCards[0].index, max: visibleCards[visibleCards.length - 1].index };
 
   useGalleryItemPrefetch(scrollElement, items, prefetchRange, prefetchNeighbors);
 
   return (
     <>
       <div ref={listRef} className="gallery-virtual gallery-virtual--large">
-        <div className="gallery-virtual__inner" style={{ height: `${totalHeight}px` }}>
+        <div className="gallery-virtual__inner" style={{ height: `${packed.totalHeight}px` }}>
           {visibleCards.map((card) => (
             <MasonryCard
               key={card.item.path}
               card={card}
               columnWidth={columnWidth}
               gap={layout.gap}
-              onHeight={handleHeight}
               onSelect={onSelect}
               selectionMode={selectionMode}
               selected={selectedPaths.has(card.item.path)}
@@ -124,7 +112,6 @@ interface MasonryCardProps {
   card: PackedMasonryCard<GalleryItem>;
   columnWidth: number;
   gap: number;
-  onHeight: (path: string, height: number) => void;
   onSelect: (path: string) => void;
   selectionMode: boolean;
   selected: boolean;
@@ -135,36 +122,29 @@ function MasonryCard({
   card,
   columnWidth,
   gap,
-  onHeight,
   onSelect,
   selectionMode,
   selected,
   onToggleSelect,
 }: MasonryCardProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const origin = masonryItemOrigin(card.lane, columnWidth, gap);
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const report = () => onHeight(card.item.path, element.offsetHeight);
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [card.item.path, onHeight]);
+  const box = largeCardBox(card.item, columnWidth);
 
   return (
     <div
-      ref={ref}
       className="gallery-masonry-item"
       data-lane={String(card.lane)}
-      style={{
-        top: `${card.top}px`,
-        left: origin.left,
-        width: origin.width,
-      }}
+      style={
+        {
+          top: `${card.top}px`,
+          left: `${card.lane * (columnWidth + gap)}px`,
+          width: `${columnWidth}px`,
+          height: `${card.height}px`,
+          // The card's two parts are pinned to the numbers this box was packed
+          // with, so the rendered card can never disagree with the packed one.
+          "--card-media-h": `${box.media}px`,
+          "--card-body-h": `${box.body}px`,
+        } as CSSProperties
+      }
     >
       <GalleryCard
         item={card.item}

@@ -11,19 +11,20 @@ export function useGalleryColumns(
   const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    const element = containerRef.current;
-    if (!element) {
-      if (minColumnWidth === null) setColumnCount(1);
+    // A null min width means the mode is single-column by definition (list), so
+    // there is nothing to measure and no observer to keep alive.
+    if (minColumnWidth === null) {
+      setColumnCount(1);
+      setWidth(0);
       return;
     }
+
+    const element = containerRef.current;
+    if (!element) return;
 
     const update = () => {
       const nextWidth = element.clientWidth;
       setWidth(nextWidth);
-      if (minColumnWidth === null) {
-        setColumnCount(1);
-        return;
-      }
       setColumnCount(
         Math.max(1, Math.floor((nextWidth + GALLERY_GAP_PX) / (minColumnWidth + GALLERY_GAP_PX))),
       );
