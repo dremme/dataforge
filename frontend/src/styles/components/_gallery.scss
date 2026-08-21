@@ -191,6 +191,9 @@
   flex-direction: column;
   width: 100%;
   padding: 0;
+  // Shift+click extends the selection; without this it drags a text selection
+  // across the grid at the same time.
+  user-select: none;
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -605,6 +608,8 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
   align-items: center;
   gap: 0.625rem;
   width: 100%;
+  // See `.card` — Shift+click must not drag a text selection down the list.
+  user-select: none;
   height: $gallery-list-row-height;
   padding: 0 0.75rem;
   background: transparent;

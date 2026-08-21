@@ -26,6 +26,7 @@ interface TooltipChildProps {
   onBlur?: (event: FocusEvent) => void;
   "aria-label"?: string;
   "aria-describedby"?: string;
+  "aria-expanded"?: boolean;
 }
 
 interface TooltipProps {
@@ -55,6 +56,7 @@ export function Tooltip({
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
+  const childExpanded = isValidElement(children) && children.props["aria-expanded"] === true;
 
   const clearShowTimeout = useCallback(() => {
     if (showTimeoutRef.current !== undefined) {
@@ -64,10 +66,10 @@ export function Tooltip({
   }, []);
 
   const show = useCallback(() => {
-    if (disabled || content == null || content === "") return;
+    if (disabled || childExpanded || content == null || content === "") return;
     clearShowTimeout();
     showTimeoutRef.current = setTimeout(() => setVisible(true), delay);
-  }, [clearShowTimeout, content, delay, disabled]);
+  }, [childExpanded, clearShowTimeout, content, delay, disabled]);
 
   const hide = useCallback(() => {
     clearShowTimeout();
@@ -75,6 +77,10 @@ export function Tooltip({
   }, [clearShowTimeout]);
 
   useEffect(() => clearShowTimeout, [clearShowTimeout]);
+
+  useEffect(() => {
+    if (childExpanded) hide();
+  }, [childExpanded, hide]);
 
   // A bubble centred on a trigger near the window edge would hang off it, so it
   // slides back into view and the arrow slides the opposite way to keep pointing
@@ -105,7 +111,10 @@ export function Tooltip({
   const childAriaLabel = childProps["aria-label"];
   const tooltipDuplicatesLabel =
     typeof childAriaLabel === "string" && typeof content === "string" && childAriaLabel === content;
-  const shown = !disabled && (open || visible);
+  // Hover must not cover the menu or drawer this trigger just opened. Forced
+  // `open` (copy confirmation) still wins, because that bubble *is* the click
+  // feedback.
+  const shown = !disabled && (open || (visible && !childExpanded));
   const describedBy = shown && !tooltipDuplicatesLabel ? id : undefined;
   const ariaDescribedBy =
     [childProps["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined;
@@ -142,6 +151,8 @@ export function Tooltip({
       style={style}
       onMouseEnter={show}
       onMouseLeave={hide}
+      onPointerDown={hide}
+      onClick={hide}
     >
       {triggerElement}
       {showBubble && (

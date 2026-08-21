@@ -1,4 +1,11 @@
-import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import { useFolderCaptionPatch } from "@/features/gallery/hooks/useFolderCaptionPatch";
 import { useGalleryDisplayMode } from "@/features/gallery/hooks/useGalleryDisplayMode";
 import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays";
@@ -47,6 +54,7 @@ export function useGallerySession({
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,
+    selectPathRange,
     selectAllPaths,
     invertSelectedPaths,
     removeSelectedPaths,
@@ -170,6 +178,40 @@ export function useGallerySession({
     await refreshFolder();
   }, [refreshFolder]);
 
+  /**
+   * Ctrl/Cmd+click, and a plain click once selection mode is on. Entering is
+   * idempotent, so the one handler covers both without the card knowing which
+   * gesture it was.
+   */
+  const handleToggleSelectPath = useCallback(
+    (path: string) => {
+      enterSelectionMode();
+      toggleSelectedPath(path);
+    },
+    [enterSelectionMode, toggleSelectedPath],
+  );
+
+  /**
+   * Shift+click. The range is measured in the order the view is showing.
+   *
+   * Read through a ref so this handler never changes identity: it reaches every
+   * card as a prop, and a new function each time the folder's items changed
+   * would re-render the whole grid — the thing `GalleryCard`'s `memo` is for.
+   */
+  const filteredItemsRef = useRef(query.filteredItems);
+  filteredItemsRef.current = query.filteredItems;
+
+  const handleExtendSelectionTo = useCallback(
+    (path: string) => {
+      enterSelectionMode();
+      selectPathRange(
+        filteredItemsRef.current.map((item) => item.path),
+        path,
+      );
+    },
+    [enterSelectionMode, selectPathRange],
+  );
+
   const handleSelectAllPaths = useCallback(() => {
     enterSelectionMode();
     selectAllPaths(query.filteredItems.map((item) => item.path));
@@ -187,7 +229,8 @@ export function useGallerySession({
     getJobPaths,
     enterSelectionMode,
     exitSelectionMode,
-    toggleSelectedPath,
+    handleToggleSelectPath,
+    handleExtendSelectionTo,
     clearSelectedPaths,
     handleSelectAllPaths,
     handleInvertSelection,

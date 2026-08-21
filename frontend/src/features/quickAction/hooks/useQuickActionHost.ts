@@ -155,7 +155,7 @@ export function useQuickActionHost({
       {
         id: "cmd:open-folder",
         section: "commands",
-        label: "Open folder…",
+        label: "Open folder...",
         detail: "Pick a folder by path, favorite or recent",
         icon: iconFolderOpen,
         keywords: "browse path picker",

@@ -35,7 +35,8 @@ export function AppContent() {
     selectedCount,
     enterSelectionMode,
     exitSelectionMode,
-    toggleSelectedPath,
+    handleToggleSelectPath,
+    handleExtendSelectionTo,
     clearSelectedPaths,
     handleSelectAllPaths,
     handleInvertSelection,
@@ -52,7 +53,8 @@ export function AppContent() {
       selectedCount={selectedCount}
       enterSelectionMode={enterSelectionMode}
       exitSelectionMode={exitSelectionMode}
-      toggleSelectedPath={toggleSelectedPath}
+      toggleSelectedPath={handleToggleSelectPath}
+      extendSelectionTo={handleExtendSelectionTo}
       clearSelectedPaths={clearSelectedPaths}
       selectAllPaths={handleSelectAllPaths}
       invertSelectedPaths={handleInvertSelection}

@@ -1,11 +1,22 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { pathRangeBetween } from "@/features/gallery/lib/selectionIntent";
 
 export function useGallerySelection() {
   const [folderResetToken, setFolderResetToken] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set());
 
+  /**
+   * The item a Shift+click measures its range from — the last one clicked.
+   *
+   * A ref, not state: every card would re-render on every click if this were in
+   * the context, which is exactly what `GalleryCard`'s `memo` exists to prevent.
+   * Nothing renders it, so nothing needs to know when it moves.
+   */
+  const selectionAnchorRef = useRef<string | null>(null);
+
   const clearSelectedPaths = useCallback(() => {
+    selectionAnchorRef.current = null;
     setSelectedPaths(new Set());
   }, []);
 
@@ -33,12 +44,35 @@ export function useGallerySelection() {
   }, [clearSelectedPaths]);
 
   const toggleSelectedPath = useCallback((path: string) => {
+    selectionAnchorRef.current = path;
     setSelectedPaths((current) => {
       const next = new Set(current);
       if (next.has(path)) {
         next.delete(path);
       } else {
         next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  /**
+   * Add the run between the anchor and `path` to the selection, in the order the
+   * view is currently showing. Additive, like every other selection action here:
+   * extending a range never drops what was picked out by hand before it.
+   *
+   * The anchor deliberately does not move, so a second Shift+click re-measures
+   * from the same start rather than walking the range along.
+   */
+  const selectPathRange = useCallback((orderedPaths: readonly string[], path: string) => {
+    const range = pathRangeBetween(orderedPaths, selectionAnchorRef.current, path);
+    if (selectionAnchorRef.current === null) {
+      selectionAnchorRef.current = path;
+    }
+    setSelectedPaths((current) => {
+      const next = new Set(current);
+      for (const item of range) {
+        next.add(item);
       }
       return next;
     });
@@ -96,6 +130,7 @@ export function useGallerySelection() {
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,
+    selectPathRange,
     selectAllPaths,
     invertSelectedPaths,
     removeSelectedPaths,

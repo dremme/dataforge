@@ -19,7 +19,10 @@ export interface GallerySelectionValue {
   selectedCount: number;
   enterSelectionMode: () => void;
   exitSelectionMode: () => void;
+  /** Ctrl/Cmd+click, and a plain click in selection mode: enters the mode, then toggles. */
   toggleSelectedPath: (path: string) => void;
+  /** Shift+click: enters the mode, then adds the run from the last-clicked item to this one. */
+  extendSelectionTo: (path: string) => void;
   clearSelectedPaths: () => void;
   selectAllPaths: () => void;
   invertSelectedPaths: () => void;
@@ -48,6 +51,7 @@ export function GallerySelectionProvider({
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,
+    extendSelectionTo,
     clearSelectedPaths,
     selectAllPaths,
     invertSelectedPaths,
@@ -65,6 +69,7 @@ export function GallerySelectionProvider({
       enterSelectionMode,
       exitSelectionMode,
       toggleSelectedPath,
+      extendSelectionTo,
       clearSelectedPaths,
       selectAllPaths,
       invertSelectedPaths,
@@ -80,6 +85,7 @@ export function GallerySelectionProvider({
       enterSelectionMode,
       exitSelectionMode,
       toggleSelectedPath,
+      extendSelectionTo,
       clearSelectedPaths,
       selectAllPaths,
       invertSelectedPaths,

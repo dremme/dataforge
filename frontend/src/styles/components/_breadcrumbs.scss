@@ -139,7 +139,9 @@
 
   &__menu-option-label {
     @include truncate;
-    overflow: visible; // TODO: fix for letters like g, p and y getting cut off at the buttom
+    // Taller than the option's line-height:1 so descenders (g, p, y) survive
+    // overflow:hidden from truncate, without disabling ellipsis on long names.
+    line-height: var(--leading-snug);
   }
 
   &__menu-status {

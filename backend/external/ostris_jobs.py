@@ -358,6 +358,23 @@ def stop_ostris_job_with_checkpoint(job_id: str) -> dict[str, Any]:
         return wait_for_job_stop(client, job_id)
 
 
+def _queue_position(raw_job: dict[str, Any]) -> int:
+    value = raw_job.get("queue_position")
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _queue_sort_key(raw_job: dict[str, Any]) -> tuple[int, int]:
+    """Match AI-Toolkit: the running job first, then queued jobs by queue_position."""
+    status = raw_job.get("status")
+    if status == "running":
+        rank = 0
+    elif status == "stopping":
+        rank = 1
+    else:
+        rank = 2
+    return (rank, _queue_position(raw_job))
+
+
 def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
     status = raw_job.get("status")
     if status not in ACTIVE_OSTRIS_STATUSES:
@@ -421,12 +438,13 @@ def fetch_active_ostris_jobs() -> tuple[list[dict[str, Any]], bool]:
     if not isinstance(raw_jobs, list):
         return [], True
 
-    jobs: list[dict[str, Any]] = []
+    ranked: list[tuple[tuple[int, int], dict[str, Any]]] = []
     for raw_job in raw_jobs:
         if not isinstance(raw_job, dict):
             continue
         normalized = normalize_ostris_job(raw_job)
         if normalized is not None:
-            jobs.append(normalized)
+            ranked.append((_queue_sort_key(raw_job), normalized))
 
-    return jobs, True
+    ranked.sort(key=lambda item: item[0])
+    return [job for _, job in ranked], True

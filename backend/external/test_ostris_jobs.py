@@ -178,6 +178,94 @@ class FetchActiveOstrisJobsTests(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]["id"], "active")
 
+    def test_orders_jobs_by_the_ostris_queue_not_created_at(self) -> None:
+        # Ostris GET /api/jobs is newest-first. The queue itself runs the lowest
+        # queue_position next, and the running job is already at the head.
+        payload = {
+            "jobs": [
+                {
+                    "id": "newest",
+                    "name": "newest_train",
+                    "status": "queued",
+                    "step": 0,
+                    "queue_position": 3000,
+                    "created_at": "2026-01-03T00:00:00.000Z",
+                    "job_config": _sample_job_config(),
+                },
+                {
+                    "id": "running",
+                    "name": "running_train",
+                    "status": "running",
+                    "step": 10,
+                    "queue_position": 1000,
+                    "created_at": "2026-01-01T00:00:00.000Z",
+                    "job_config": _sample_job_config(),
+                },
+                {
+                    "id": "next",
+                    "name": "next_train",
+                    "status": "queued",
+                    "step": 0,
+                    "queue_position": 2000,
+                    "created_at": "2026-01-02T00:00:00.000Z",
+                    "job_config": _sample_job_config(),
+                },
+            ]
+        }
+
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = payload
+
+        with patch("external.ostris_jobs.httpx.Client") as client_cls:
+            client_cls.return_value.__enter__.return_value.get.return_value = response
+
+            jobs, available = fetch_active_ostris_jobs()
+
+        self.assertTrue(available)
+        self.assertEqual([job["id"] for job in jobs], ["running", "next", "newest"])
+
+    def test_keeps_the_running_job_ahead_of_queued_jobs_even_when_reordered(self) -> None:
+        payload = {
+            "jobs": [
+                {
+                    "id": "bumped",
+                    "name": "bumped_train",
+                    "status": "queued",
+                    "step": 0,
+                    "queue_position": 500,
+                    "job_config": _sample_job_config(),
+                },
+                {
+                    "id": "running",
+                    "name": "running_train",
+                    "status": "running",
+                    "step": 10,
+                    "queue_position": 1000,
+                    "job_config": _sample_job_config(),
+                },
+                {
+                    "id": "stopping",
+                    "name": "stopping_train",
+                    "status": "stopping",
+                    "step": 90,
+                    "queue_position": 2000,
+                    "job_config": _sample_job_config(),
+                },
+            ]
+        }
+
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = payload
+
+        with patch("external.ostris_jobs.httpx.Client") as client_cls:
+            client_cls.return_value.__enter__.return_value.get.return_value = response
+
+            jobs, _available = fetch_active_ostris_jobs()
+
+        self.assertEqual([job["id"] for job in jobs], ["running", "stopping", "bumped"])
+
 
 class StopOstrisJobTests(unittest.TestCase):
     def test_wait_for_save_next_step_waits_until_checkpoint_save_finishes(self) -> None:

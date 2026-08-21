@@ -1,5 +1,6 @@
-import { memo } from "react";
+import { memo, type MouseEvent } from "react";
 import { rowMarkers, rowMetaCells, rowStatus } from "@/features/gallery/lib/listRowCells";
+import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import { iconCheck } from "@/shared/icons";
 import type { GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
@@ -12,6 +13,8 @@ interface GalleryListRowProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
+  /** Shift+click: extend the selection from the last-clicked item to this one. */
+  onExtendSelect?: (path: string) => void;
 }
 
 /**
@@ -33,13 +36,20 @@ export const GalleryListRow = memo(function GalleryListRow({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  onExtendSelect,
 }: GalleryListRowProps) {
   const status = rowStatus(item);
   const markers = rowMarkers(item);
   const metaCells = rowMetaCells(item);
 
-  const handleClick = () => {
-    if (selectionMode && onToggleSelect) {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    const intent = selectionIntentFor(event, selectionMode);
+
+    if (intent === "range" && onExtendSelect) {
+      onExtendSelect(item.path);
+      return;
+    }
+    if (intent !== "open" && onToggleSelect) {
       onToggleSelect(item.path);
       return;
     }

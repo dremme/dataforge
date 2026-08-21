@@ -76,6 +76,108 @@ describe("Tooltip", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
   });
 
+  it("hides on click so it does not sit over the control it just activated", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <Tooltip content="Display mode: Large">
+        <button type="button">Display mode</button>
+      </Tooltip>,
+    );
+
+    const button = screen.getByRole("button", { name: "Display mode" });
+    const wrapper = button.parentElement!;
+    fireEvent.mouseEnter(wrapper);
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(wrapper).toHaveClass("tooltip--visible");
+
+    fireEvent.click(button);
+
+    expect(wrapper).not.toHaveClass("tooltip--visible");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("cancels a pending show when the trigger is clicked before the delay", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <Tooltip content="Filter by media type, caption status and duplicates">
+        <button type="button">Filter media</button>
+      </Tooltip>,
+    );
+
+    const button = screen.getByRole("button", { name: "Filter media" });
+    const wrapper = button.parentElement!;
+    fireEvent.mouseEnter(wrapper);
+    fireEvent.click(button);
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(wrapper).not.toHaveClass("tooltip--visible");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("stays visible when forced open even after a click", () => {
+    render(
+      <Tooltip content="Copied!" open>
+        <button type="button">Copy</button>
+      </Tooltip>,
+    );
+
+    const button = screen.getByRole("button", { name: "Copy" });
+    fireEvent.click(button);
+
+    expect(button.parentElement).toHaveClass("tooltip--visible");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
+  });
+
+  it("hides while the trigger is expanded, then stays hidden after it collapses", async () => {
+    vi.useFakeTimers();
+
+    const { rerender } = render(
+      <Tooltip content="Automation jobs">
+        <button type="button" aria-expanded={false}>
+          Open automation jobs
+        </button>
+      </Tooltip>,
+    );
+
+    const wrapper = screen.getByRole("button", { name: "Open automation jobs" }).parentElement!;
+    fireEvent.mouseEnter(wrapper);
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(wrapper).toHaveClass("tooltip--visible");
+
+    rerender(
+      <Tooltip content="Automation jobs">
+        <button type="button" aria-expanded={true}>
+          Open automation jobs
+        </button>
+      </Tooltip>,
+    );
+
+    expect(wrapper).not.toHaveClass("tooltip--visible");
+
+    rerender(
+      <Tooltip content="Automation jobs">
+        <button type="button" aria-expanded={false}>
+          Open automation jobs
+        </button>
+      </Tooltip>,
+    );
+
+    expect(wrapper).not.toHaveClass("tooltip--visible");
+  });
+
   it("shows tooltips for disabled controls via the wrapper", async () => {
     vi.useFakeTimers();
 

@@ -182,6 +182,60 @@ describe("GalleryListRow", () => {
     expect(row?.firstElementChild).toHaveClass("gallery-list-row__thumb");
   });
 
+  it("selects on Ctrl+click without opening the item", () => {
+    const onSelect = vi.fn();
+    const onToggleSelect = vi.fn();
+    render(
+      <GalleryListRow
+        item={captionedItem}
+        onSelect={onSelect}
+        onToggleSelect={onToggleSelect}
+        onExtendSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `View ${captionedItem.name}` }), {
+      ctrlKey: true,
+    });
+
+    expect(onToggleSelect).toHaveBeenCalledWith(captionedItem.path);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("extends the selection on Shift+click", () => {
+    const onSelect = vi.fn();
+    const onToggleSelect = vi.fn();
+    const onExtendSelect = vi.fn();
+    render(
+      <GalleryListRow
+        item={captionedItem}
+        onSelect={onSelect}
+        onToggleSelect={onToggleSelect}
+        onExtendSelect={onExtendSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `View ${captionedItem.name}` }), {
+      shiftKey: true,
+    });
+
+    expect(onExtendSelect).toHaveBeenCalledWith(captionedItem.path);
+    expect(onToggleSelect).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  // A row rendered without the handler predates the gesture; it must still open.
+  it("falls back to opening when no selection handler is wired", () => {
+    const onSelect = vi.fn();
+    render(<GalleryListRow item={captionedItem} onSelect={onSelect} />);
+
+    fireEvent.click(screen.getByRole("button", { name: `View ${captionedItem.name}` }), {
+      ctrlKey: true,
+    });
+
+    expect(onSelect).toHaveBeenCalledWith(captionedItem.path);
+  });
+
   it("marks a selected row for assistive tech and styling", () => {
     const { container } = render(
       <GalleryListRow item={captionedItem} onSelect={vi.fn()} selectionMode selected />,

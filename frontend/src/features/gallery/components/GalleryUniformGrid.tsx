@@ -28,7 +28,8 @@ function estimateRowSize(row: GalleryItem[], layout: GalleryModeLayout): number 
 
 /** Equal-width, equal-height cells on virtualized rows: the small grid and the list. */
 export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUniformGridProps) {
-  const { selectionMode, selectedPaths, toggleSelectedPath } = useGallerySelectionContext();
+  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo } =
+    useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor(displayMode);
   const { columnCount } = useGalleryColumns(listRef, displayMode);
@@ -101,6 +102,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                       selectionMode={selectionMode}
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}
+                      onExtendSelect={extendSelectionTo}
                     />
                   ) : (
                     <GalleryCard
@@ -111,6 +113,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                       selectionMode={selectionMode}
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}
+                      onExtendSelect={extendSelectionTo}
                     />
                   ),
                 )}

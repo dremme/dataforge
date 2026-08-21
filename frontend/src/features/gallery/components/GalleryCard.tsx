@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type MouseEvent } from "react";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
   iconBraces,
@@ -13,6 +13,7 @@ import {
   iconVideo,
 } from "@/shared/icons";
 import { isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
+import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { classNames } from "@/shared/lib/classNames";
@@ -30,6 +31,8 @@ interface GalleryCardProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
+  /** Shift+click: extend the selection from the last-clicked item to this one. */
+  onExtendSelect?: (path: string) => void;
 }
 
 /**
@@ -43,6 +46,7 @@ export const GalleryCard = memo(function GalleryCard({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  onExtendSelect,
 }: GalleryCardProps) {
   const captionDisplay = getCardCaptionDisplay(item);
   const statusIcon = captionDisplay?.variant === "warning" ? iconTriangleAlert : iconMessageDashed;
@@ -51,8 +55,14 @@ export const GalleryCard = memo(function GalleryCard({
   const itemIsVideo = isVideo(item);
   const itemIsGif = isGif(item);
 
-  const handleClick = () => {
-    if (selectionMode && onToggleSelect) {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    const intent = selectionIntentFor(event, selectionMode);
+
+    if (intent === "range" && onExtendSelect) {
+      onExtendSelect(item.path);
+      return;
+    }
+    if (intent !== "open" && onToggleSelect) {
       onToggleSelect(item.path);
       return;
     }

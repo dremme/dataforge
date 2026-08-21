@@ -110,7 +110,7 @@ export function BreadcrumbCrumbMenu({
     onNavigate(path);
   };
 
-  const status = error ?? (children === null && loading ? "Loading…" : null);
+  const status = error ?? (children === null && loading ? "Loading..." : null);
   const showEmpty = !status && children !== null && children.length === 0;
 
   return (
