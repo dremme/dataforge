@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchFolderChildren } from "@/features/folder/api/folders";
 import { folderPathsEqual } from "@/features/folder/lib/folderPath";
 import { formatApiError } from "@/shared/api/http";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { MENU_VIEWPORT_GUTTER, useMenuViewportFit } from "@/shared/hooks/useMenuViewportFit";
+import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { iconChevronRight, iconFolder } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { horizontalViewportShift } from "@/shared/lib/viewportShift";
 import type { FolderChild } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
-
-/** Breathing room between the open menu and the edges of the window. */
-const MENU_VIEWPORT_GUTTER = 16;
 
 /**
  * Roughly ten rows. A folder can hold hundreds of children, and a list that runs
@@ -45,19 +44,11 @@ export function BreadcrumbCrumbMenu({
   activeChildPath,
   onNavigate,
 }: BreadcrumbCrumbMenuProps) {
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const { open, close, menuId, rootRef, triggerProps } = usePopupMenu();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<FolderChild[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bounds, setBounds] = useState<{ maxHeight: number; transform?: string }>();
-
-  const close = useCallback(() => setOpen(false), []);
-
-  useEscapeKey(close, open);
-
   // Folders change on disk, so every open refetches. The previous list stays on
   // screen while the request is in flight — reopening should not flash empty.
   useEffect(() => {
@@ -95,51 +86,24 @@ export function BreadcrumbCrumbMenu({
   // already capped against the window in CSS (a JS cap would lose to the panel's
   // own min-width anyway); what JS adds is a height that stops at MENU_MAX_HEIGHT
   // or the bottom of the window — whichever comes first — and a nudge back inside
-  // when the anchor leaves the panel overhanging the right edge.
-  useLayoutEffect(() => {
-    if (!open) {
-      setBounds(undefined);
-      return;
-    }
+  // when the anchor leaves the panel overhanging an edge.
+  const bounds = useMenuViewportFit(menuRef, open, (node) => {
+    // Measure unshifted — reading back our own nudge would compound it.
+    const applied = node.style.transform;
+    node.style.transform = "none";
+    const { top, left, width } = node.getBoundingClientRect();
+    node.style.transform = applied;
 
-    const fitToViewport = () => {
-      const node = menuRef.current;
-      if (!node) return;
+    const shift = horizontalViewportShift({ left, width }, window.innerWidth, MENU_VIEWPORT_GUTTER);
 
-      // Measure unshifted — reading back our own nudge would compound it.
-      const applied = node.style.transform;
-      node.style.transform = "none";
-      const { top, left, width } = node.getBoundingClientRect();
-      node.style.transform = applied;
-
-      const overhang = left + width - (window.innerWidth - MENU_VIEWPORT_GUTTER);
-      const shift = overhang > 0 ? Math.min(overhang, Math.max(0, left - MENU_VIEWPORT_GUTTER)) : 0;
-
-      setBounds({
-        maxHeight: Math.min(
-          MENU_MAX_HEIGHT,
-          Math.max(0, window.innerHeight - top - MENU_VIEWPORT_GUTTER),
-        ),
-        transform: shift ? `translateX(${-shift}px)` : undefined,
-      });
+    return {
+      maxHeight: Math.min(
+        MENU_MAX_HEIGHT,
+        Math.max(0, window.innerHeight - top - MENU_VIEWPORT_GUTTER),
+      ),
+      transform: shift ? `translateX(${shift}px)` : undefined,
     };
-
-    fitToViewport();
-    window.addEventListener("resize", fitToViewport);
-    return () => window.removeEventListener("resize", fitToViewport);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      close();
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [close, open]);
+  });
 
   const handleSelect = (path: string) => {
     close();
@@ -154,11 +118,8 @@ export function BreadcrumbCrumbMenu({
       <button
         type="button"
         className="breadcrumbs__sep-btn"
-        onClick={() => setOpen((current) => !current)}
         aria-label={`Subfolders of ${label}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
+        {...triggerProps}
       >
         <Icon
           icon={iconChevronRight}

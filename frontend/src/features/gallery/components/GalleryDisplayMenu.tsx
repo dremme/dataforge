@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { DISPLAY_MODE_OPTIONS, displayModeOption } from "@/features/gallery/lib/displayMode";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { classNames } from "@/shared/lib/classNames";
 import type { GalleryDisplayMode } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
@@ -13,26 +12,7 @@ interface GalleryDisplayMenuProps {
 
 /** Picks the gallery layout. Sits in the media section header, beside the selection controls. */
 export function GalleryDisplayMenu({ value, onChange }: GalleryDisplayMenuProps) {
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-
-  const close = useCallback(() => setOpen(false), []);
-
-  useEscapeKey(close, open);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      close();
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [close, open]);
-
+  const { open, close, menuId, rootRef, triggerProps } = usePopupMenu();
   const active = displayModeOption(value);
 
   return (
@@ -44,11 +24,8 @@ export function GalleryDisplayMenu({ value, onChange }: GalleryDisplayMenuProps)
         <button
           type="button"
           className="gallery-display-menu__trigger"
-          onClick={() => setOpen((current) => !current)}
           aria-label="Display mode"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
+          {...triggerProps}
         >
           <Icon icon={active.icon} className="gallery-display-menu__trigger-icon" />
         </button>

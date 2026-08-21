@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { classNames } from "@/shared/lib/classNames";
+import { horizontalViewportShift } from "@/shared/lib/viewportShift";
 
 /** Gap kept between a shifted bubble and the window edge. */
 const VIEWPORT_PADDING = 8;
@@ -84,13 +85,8 @@ export function Tooltip({
 
     // Measure unshifted, so a re-show does not compound the previous correction.
     bubble.style.setProperty("--tooltip-shift", "0px");
-    const { left, right, width } = bubble.getBoundingClientRect();
-
-    const overflowRight = right - (window.innerWidth - VIEWPORT_PADDING);
-    const overflowLeft = VIEWPORT_PADDING - left;
-    let shift = 0;
-    if (overflowRight > 0) shift = -overflowRight;
-    else if (overflowLeft > 0) shift = overflowLeft;
+    const { left, width } = bubble.getBoundingClientRect();
+    const shift = horizontalViewportShift({ left, width }, window.innerWidth, VIEWPORT_PADDING);
 
     // The arrow travels back by the same amount, but never past the bubble's ends.
     const arrowLimit = Math.max(0, width / 2 - ARROW_EDGE_PADDING);

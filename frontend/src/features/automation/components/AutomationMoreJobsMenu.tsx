@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import {
   JOB_TYPE_META,
   SECONDARY_JOB_GROUPS,
@@ -8,13 +8,11 @@ import {
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import type { JobType } from "@/shared/types";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { MENU_VIEWPORT_GUTTER, useMenuViewportFit } from "@/shared/hooks/useMenuViewportFit";
+import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { iconChevronDown, iconLoader2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
-
-/** Breathing room between the open menu and the edges of the window. */
-const MENU_VIEWPORT_GUTTER = 16;
 
 interface AutomationMoreJobsMenuProps {
   disabled: boolean;
@@ -30,16 +28,11 @@ export function AutomationMoreJobsMenu({
   availability,
   onRequestStart,
 }: AutomationMoreJobsMenuProps) {
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const { open, close, menuId, rootRef, triggerProps } = usePopupMenu();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [bounds, setBounds] = useState<{ maxWidth: number; maxHeight: number }>();
 
   const secondaryStarting =
     startingJobType !== null && SECONDARY_JOB_TYPES.includes(startingJobType);
-
-  const close = useCallback(() => setOpen(false), []);
 
   const groups = useMemo(
     () =>
@@ -64,46 +57,19 @@ export function AutomationMoreJobsMenu({
     [availability, startingJobType],
   );
 
-  useEscapeKey(close, open);
-
   // The menu hangs off the trigger, so the room around it depends on where that
   // trigger happens to be — the specs strip alone shifts it ~80px down, and it
   // sits well left of the window edge. Viewport-relative CSS limits therefore
   // overshoot in both axes, clipping the list below or past the left edge.
-  useLayoutEffect(() => {
-    if (!open) {
-      setBounds(undefined);
-      return;
-    }
-
-    const fitToViewport = () => {
-      const node = menuRef.current;
-      if (!node) return;
-      // Both edges are pinned by the trigger, so neither moves with the menu's
-      // own size and this cannot feed back into itself.
-      const { top, right } = node.getBoundingClientRect();
-      setBounds({
-        maxWidth: Math.max(0, right - MENU_VIEWPORT_GUTTER),
-        maxHeight: Math.max(0, window.innerHeight - top - MENU_VIEWPORT_GUTTER),
-      });
+  const bounds = useMenuViewportFit(menuRef, open, (node) => {
+    // Both edges are pinned by the trigger, so neither moves with the menu's
+    // own size and this cannot feed back into itself.
+    const { top, right } = node.getBoundingClientRect();
+    return {
+      maxWidth: Math.max(0, right - MENU_VIEWPORT_GUTTER),
+      maxHeight: Math.max(0, window.innerHeight - top - MENU_VIEWPORT_GUTTER),
     };
-
-    fitToViewport();
-    window.addEventListener("resize", fitToViewport);
-    return () => window.removeEventListener("resize", fitToViewport);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      close();
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [close, open]);
+  });
 
   const handleSelect = (jobType: JobType, starting: boolean, unavailable: boolean) => {
     if (disabled || starting || unavailable) return;
@@ -113,14 +79,7 @@ export function AutomationMoreJobsMenu({
 
   return (
     <div ref={rootRef} className={classNames("automation__more", open && "automation__more--open")}>
-      <button
-        type="button"
-        className="automation__more-trigger"
-        onClick={() => setOpen((value) => !value)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-      >
+      <button type="button" className="automation__more-trigger" {...triggerProps}>
         {secondaryStarting ? (
           <Icon icon={iconLoader2} className="automation__btn-icon automation__btn-icon--spin" />
         ) : null}

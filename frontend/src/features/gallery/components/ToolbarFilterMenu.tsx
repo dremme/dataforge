@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useId } from "react";
 import {
   DUPLICATE_FILTER_OPTION,
   FILTER_OPTIONS,
   MEDIA_TYPE_FILTER_OPTIONS,
 } from "@/features/gallery/lib/filters";
 import type { ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
-import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { iconFilter, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
@@ -154,26 +154,7 @@ export function ToolbarFilterMenu({
   onMediaTypeFilterChange,
   onDuplicatesOnlyChange,
 }: ToolbarFilterMenuProps) {
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-
-  const close = useCallback(() => setOpen(false), []);
-
-  useEscapeKey(close, open);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      close();
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [close, open]);
-
+  const { open, menuId, rootRef, triggerProps } = usePopupMenu();
   const activeLabels: string[] = [];
   if (mediaTypeFilter !== "all") {
     activeLabels.push(optionLabelFor(MEDIA_TYPE_FILTER_OPTIONS, mediaTypeFilter));
@@ -203,11 +184,8 @@ export function ToolbarFilterMenu({
             "toolbar__filter-menu-trigger",
             filtering && "toolbar__filter-menu-trigger--filtering",
           )}
-          onClick={() => setOpen((value) => !value)}
           aria-label="Filter media"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
+          {...triggerProps}
         >
           <Icon icon={iconFilter} className="toolbar__filter-menu-trigger-icon" />
           {filtering && <span className="toolbar__filter-menu-trigger-dot" aria-hidden="true" />}
