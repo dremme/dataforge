@@ -223,6 +223,7 @@ def complete_caption(
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     timestamps: list[float] | None = None,
     audio_wav: bytes | None = None,
+    attempt: int = 1,
 ) -> str | None:
     """Ask the model to caption ``images``, which the caller has already loaded.
 
@@ -230,6 +231,10 @@ def complete_caption(
     such instead of being retried three times as a model failure. ``audio_wav`` and
     ``timestamps`` follow the same rule: resolved once by the caller, sent again on
     every retry.
+
+    ``attempt`` is passed straight through to the frame encoding, which is a workaround
+    rather than a feature - ``vision.retry_jpeg_quality`` explains why a retry must not
+    resend the bytes that just failed.
     """
     media_kind = media_kind_for(media_path)
     return request_vision_text(
@@ -251,6 +256,7 @@ def complete_caption(
         max_tokens=max_tokens,
         timestamps=timestamps,
         audio_wav=audio_wav,
+        attempt=attempt,
     )
 
 
@@ -299,7 +305,7 @@ def process_media(
     audio_wav = extract_audio_wav(media_path) if caption_audio and media_kind == "video" else None
     audio_missing = caption_audio and media_kind == "video" and audio_wav is None
 
-    def attempt() -> ModelOutcome[str]:
+    def attempt(number: int) -> ModelOutcome[str]:
         raw_caption = complete_caption(
             client,
             media_path,
@@ -313,6 +319,7 @@ def process_media(
             preserve_thinking=preserve_thinking,
             timestamps=frames.timestamps,
             audio_wav=audio_wav,
+            attempt=number,
         )
         if raw_caption is None:
             return ModelOutcome(status="api_error")

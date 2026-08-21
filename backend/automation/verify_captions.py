@@ -370,12 +370,17 @@ def verify_caption(
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     timestamps: list[float] | None = None,
+    attempt: int = 1,
 ) -> str | None:
     """Ask the model to fact-check ``ref_caption`` against already-loaded ``images``.
 
     Decoding stays with ``process_media`` so a file that never opened is reported as
     such instead of being retried three times as a model failure. ``timestamps``
     follows the same rule: resolved once by the caller, sent again on every retry.
+
+    ``attempt`` is passed straight through to the frame encoding, which is a workaround
+    rather than a feature - ``vision.retry_jpeg_quality`` explains why a retry must not
+    resend the bytes that just failed.
     """
     media_kind = media_kind_for(media_path)
     return request_vision_text(
@@ -395,6 +400,7 @@ def verify_caption(
         model=model,
         max_tokens=max_tokens,
         timestamps=timestamps,
+        attempt=attempt,
     )
 
 
@@ -421,7 +427,7 @@ def process_media(
 
     system_prompt = system_prompts[media_kind]
 
-    def attempt() -> ModelOutcome[VerificationResult]:
+    def attempt(number: int) -> ModelOutcome[VerificationResult]:
         raw_caption = verify_caption(
             client,
             media_path,
@@ -433,6 +439,7 @@ def process_media(
             effort=effort,
             preserve_thinking=preserve_thinking,
             timestamps=frames.timestamps,
+            attempt=number,
         )
         if raw_caption is None:
             return ModelOutcome(

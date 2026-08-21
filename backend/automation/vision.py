@@ -16,6 +16,7 @@ import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import partial
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
@@ -40,6 +41,10 @@ from openai_settings import (
 logger = logging.getLogger(__name__)
 
 MAX_MODEL_ATTEMPTS = 3
+
+# What a frame is encoded at on its way to the model. High enough that the compression
+# is not what the model is squinting at, low enough that a long clip stays sendable.
+JPEG_QUALITY = 85
 
 # Evenly spaced samples across a video, in two roles: the floor below which a short
 # clip is not sampled any thinner than it used to be, and the fallback for a
@@ -155,9 +160,29 @@ def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
     return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
-def image_to_base64(image: Image.Image) -> str:
+def retry_jpeg_quality(attempt: int) -> int:
+    """WORKAROUND: a quality that differs on every attempt, so no retry repeats itself.
+
+    llama.cpp behind Unsloth Studio fails a video request now and then with "failed to
+    process mtmd chunk", and then short-circuits any repeat of the same images: the
+    first failure spends ~5s doing real work, every byte-identical retry comes back in
+    ~1s having done none. Measured across seven such failures, an identical retry
+    recovered zero times - our three attempts were one attempt and two formalities -
+    while re-encoding the frames bought a real second attempt, which sometimes succeeded.
+    ``cache_prompt: false`` and perturbing the prompt change nothing, so it is keyed on
+    the image bytes rather than on the text.
+
+    One quality point per attempt is enough to make the payload a different one, and is
+    invisible in the frame. This is a workaround for a server-side bug, not a design:
+    when the server stops needing it, delete this and the ``attempt`` argument that
+    every layer above only carries to reach it, and encode at ``JPEG_QUALITY`` flat.
+    """
+    return max(JPEG_QUALITY - (attempt - 1), 1)
+
+
+def image_to_base64(image: Image.Image, *, quality: int = JPEG_QUALITY) -> str:
     buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=85)
+    image.save(buffered, format="JPEG", quality=quality)
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
@@ -165,12 +190,13 @@ def prepare_images_for_api(
     images: list[Image.Image],
     *,
     max_pixels: int,
+    quality: int = JPEG_QUALITY,
 ) -> list[str] | None:
     encoded: list[str] = []
     for image in images:
         try:
             resized = resize_for_qwen(image.convert("RGB"), max_pixels=max_pixels)
-            encoded.append(image_to_base64(resized))
+            encoded.append(image_to_base64(resized, quality=quality))
         except Exception as exc:
             logger.error("Image prepare error: %s", exc)
             return None
@@ -551,14 +577,21 @@ def request_vision_text(
     max_tokens: int | None = None,
     timestamps: list[float] | None = None,
     audio_wav: bytes | None = None,
+    attempt: int = 1,
 ) -> str | None:
     """Encode ``images`` and ask the model, returning the assistant text or ``None``.
 
     Both jobs assemble a request identically; only the pixel budget and the user text
     differ, so those arrive already resolved for the file's media kind. ``audio_wav``
     defaults to nothing sent, which is every request except an audio auto-caption.
+
+    ``attempt`` is the 1-based retry number, and only reaches the frame encoding - see
+    ``retry_jpeg_quality`` for the server bug it works around. A caller that leaves it
+    alone sends exactly what it sent before the workaround existed.
     """
-    images_b64 = prepare_images_for_api(images, max_pixels=max_pixels)
+    images_b64 = prepare_images_for_api(
+        images, max_pixels=max_pixels, quality=retry_jpeg_quality(attempt)
+    )
     if not images_b64:
         return None
 
@@ -807,7 +840,7 @@ def _await_attempt[T](
 
 
 def call_with_retries[T](
-    attempt: Callable[[], ModelOutcome[T]],
+    attempt: Callable[[int], ModelOutcome[T]],
     *,
     job_label: str,
     media_name: str,
@@ -819,6 +852,10 @@ def call_with_retries[T](
 
     The last failing outcome is returned once the attempts are exhausted. ``on_abandon``
     runs when cancellation drops a request that is still in flight.
+
+    ``attempt`` is handed its own 1-based number, which is how a retry can tell it is
+    one and send something other than the payload that just failed - see
+    ``retry_jpeg_quality``.
     """
     outcome: ModelOutcome[T] = ModelOutcome(status=API_ERROR)
 
@@ -826,10 +863,11 @@ def call_with_retries[T](
         if should_cancel and should_cancel():
             return ModelOutcome(status=CANCELLED)
 
+        this_attempt = partial(attempt, number)
         if should_cancel is None:
-            outcome = attempt()
+            outcome = this_attempt()
         else:
-            awaited = _await_attempt(attempt, should_cancel)
+            awaited = _await_attempt(this_attempt, should_cancel)
             if awaited is None:
                 logger.info(
                     "%s cancelled while waiting on the model for %s; dropping the request",

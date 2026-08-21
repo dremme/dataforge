@@ -97,6 +97,8 @@ def _make_fake_verify_client(
                     "extra_body": kwargs.get("extra_body"),
                 }
             )
+            # Every call, not just the last: a retrying test asserts what each carried.
+            captured.setdefault("requests", []).append(kwargs.get("messages"))
             choice = type("Choice", (), {"message": message})()
             return type("Response", (), {"choices": [choice]})()
 
@@ -362,6 +364,16 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         text = build_verification_user_text("Still.", media_kind="video", frame_count=1)
 
         self.assertIn("a single frame", text.lower())
+
+
+def _image_payloads(messages: list[dict]) -> list[str]:
+    """The base64 image URLs one request carried, in order."""
+    parts = messages[1]["content"]
+    return [
+        part["image_url"]["url"]
+        for part in parts
+        if isinstance(part, dict) and part.get("type") == "image_url"
+    ]
 
 
 def _sent_image_pixels(captured: dict) -> int:
@@ -755,6 +767,29 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertIsNone(message)
             self.assertIsNotNone(verification)
             self.assertEqual(mock_verify.call_count, 3)
+
+    def test_a_retry_re_encodes_the_frames_the_failed_attempt_sent(self) -> None:
+        # WORKAROUND coverage: the server short-circuits a byte-identical repeat of a
+        # multimodal request, so all three attempts have to carry distinct payloads or
+        # only the first one is a real attempt.
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Draft.")
+
+            # Unparseable every time, so the attempts run out and all three are visible.
+            fake_client, captured = _make_fake_verify_client(content="not json at all")
+            _path, _verification, status, _message = process_media(
+                fake_client,
+                media,
+                {"image": "system prompt", "video": "video system prompt"},
+            )
+
+            self.assertEqual(status, "parse_error")
+            self.assertEqual(len(captured["requests"]), MAX_MODEL_ATTEMPTS)
+            sent = [_image_payloads(request) for request in captured["requests"]]
+            self.assertEqual(len({tuple(images) for images in sent}), MAX_MODEL_ATTEMPTS)
+            # Same still throughout - it is the encoding that differs, not the media.
+            self.assertEqual({len(images) for images in sent}, {1})
 
     def test_processed_count_does_not_double_count_issues_found(self) -> None:
         with TempMediaFolder() as root:

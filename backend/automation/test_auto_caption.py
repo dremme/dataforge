@@ -121,6 +121,16 @@ def _make_fake_caption_client(
     return FakeClient(), captured
 
 
+def _image_payloads(messages: list[dict]) -> list[str]:
+    """The base64 image URLs one request carried, in order."""
+    parts = messages[1]["content"]
+    return [
+        part["image_url"]["url"]
+        for part in parts
+        if isinstance(part, dict) and part.get("type") == "image_url"
+    ]
+
+
 def _audio_payloads(request: list[dict]) -> list[bytes]:
     """The decoded audio of every ``input_audio`` part in one captured request."""
     content = request[1]["content"]
@@ -1182,6 +1192,26 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
             self.assertEqual(len(captured["requests"]), MAX_MODEL_ATTEMPTS)
             for request in captured["requests"]:
                 self.assertEqual(_audio_payloads(request), [FAKE_WAV])
+
+    def test_a_retry_re_encodes_the_frames_the_failed_attempt_sent(self) -> None:
+        # WORKAROUND coverage: the server short-circuits a byte-identical repeat of a
+        # multimodal request, so all three attempts have to carry distinct payloads or
+        # only the first one is a real attempt.
+        with TempMediaFolder() as root:
+            self._folder_with_clip(root)
+            client, captured = _make_fake_caption_client("too short")
+
+            with (
+                patch("automation.vision.create_openai_client", return_value=client),
+                self._patched_frames(),
+            ):
+                run_auto_caption_job(root)
+
+            self.assertEqual(len(captured["requests"]), MAX_MODEL_ATTEMPTS)
+            sent = [_image_payloads(request) for request in captured["requests"]]
+            self.assertEqual(len({tuple(images) for images in sent}), MAX_MODEL_ATTEMPTS)
+            # Same frames throughout - it is the encoding that differs, not the clip.
+            self.assertEqual({len(images) for images in sent}, {1})
 
     def test_a_silent_clip_is_still_captioned_and_counted(self) -> None:
         with TempMediaFolder() as root:

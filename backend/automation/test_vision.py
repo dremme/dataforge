@@ -24,8 +24,10 @@ from automation.vision import (
     FRAME_ERROR,
     IMAGE_MAX_PIXELS,
     IMAGE_MAX_PIXELS_VAR,
+    JPEG_QUALITY,
     KEYFRAMES_PER_SECOND,
     KEYFRAMES_PER_SECOND_VAR,
+    MAX_MODEL_ATTEMPTS,
     MAX_VIDEO_KEYFRAME_COUNT,
     MAX_VIDEO_KEYFRAMES_VAR,
     READ_ERROR,
@@ -48,6 +50,8 @@ from automation.vision import (
     load_media_images,
     media_kind_for,
     media_kind_max_pixels,
+    request_vision_text,
+    retry_jpeg_quality,
     run_vision_completion,
     vision_client,
     vision_messages,
@@ -206,7 +210,7 @@ class CancelWhileWaitingTests(unittest.TestCase):
 class CallWithRetriesTests(unittest.TestCase):
     def test_runs_inline_without_a_cancel_check(self) -> None:
         outcome = call_with_retries(
-            lambda: ModelOutcome(status=SUCCESS, value="caption"),
+            lambda _number: ModelOutcome(status=SUCCESS, value="caption"),
             job_label="Auto-caption",
             media_name="photo.png",
         )
@@ -217,7 +221,7 @@ class CallWithRetriesTests(unittest.TestCase):
     def test_retries_until_success_while_cancellable(self) -> None:
         statuses = [API_ERROR, API_ERROR, SUCCESS]
 
-        def attempt() -> ModelOutcome[str]:
+        def attempt(_number: int) -> ModelOutcome[str]:
             return ModelOutcome(status=statuses.pop(0), value="caption")
 
         outcome = call_with_retries(
@@ -234,7 +238,7 @@ class CallWithRetriesTests(unittest.TestCase):
         """Waiting in 100ms slices must not truncate a model that is simply thinking."""
         slow_call = CANCEL_POLL_SECONDS * 5
 
-        def attempt() -> ModelOutcome[str]:
+        def attempt(_number: int) -> ModelOutcome[str]:
             time.sleep(slow_call)
             return ModelOutcome(status=SUCCESS, value="a complete caption")
 
@@ -253,7 +257,7 @@ class CallWithRetriesTests(unittest.TestCase):
 
     def test_returns_the_last_failure_when_attempts_run_out(self) -> None:
         outcome = call_with_retries(
-            lambda: ModelOutcome(status=API_ERROR, message="server said no"),
+            lambda _number: ModelOutcome(status=API_ERROR, message="server said no"),
             job_label="Verify captions",
             media_name="photo.png",
             should_cancel=lambda: False,
@@ -265,7 +269,7 @@ class CallWithRetriesTests(unittest.TestCase):
     def test_does_not_start_an_attempt_when_already_cancelled(self) -> None:
         calls = []
 
-        def attempt() -> ModelOutcome[str]:
+        def attempt(_number: int) -> ModelOutcome[str]:
             calls.append(1)
             return ModelOutcome(status=SUCCESS, value="caption")
 
@@ -283,7 +287,7 @@ class CallWithRetriesTests(unittest.TestCase):
         release = threading.Event()
         abandoned = []
 
-        def attempt() -> ModelOutcome[str]:
+        def attempt(_number: int) -> ModelOutcome[str]:
             release.wait(timeout=WEDGED_SERVER_SECONDS)
             return ModelOutcome(status=SUCCESS, value="late caption")
 
@@ -308,7 +312,7 @@ class CallWithRetriesTests(unittest.TestCase):
         cancelled = threading.Event()
         abandoned = []
 
-        def attempt() -> ModelOutcome[str]:
+        def attempt(_number: int) -> ModelOutcome[str]:
             request_started.set()
             release.wait(timeout=WEDGED_SERVER_SECONDS)
             return ModelOutcome(status=SUCCESS, value="late caption")
@@ -338,7 +342,7 @@ class CallWithRetriesTests(unittest.TestCase):
         self.assertLess(waited, CANCEL_DEADLINE_SECONDS)
 
     def test_propagates_an_unexpected_error_from_the_attempt(self) -> None:
-        def attempt() -> ModelOutcome[str]:
+        def attempt(_number: int) -> ModelOutcome[str]:
             raise RuntimeError("unexpected parse failure")
 
         with self.assertRaises(RuntimeError):
@@ -348,6 +352,69 @@ class CallWithRetriesTests(unittest.TestCase):
                 media_name="photo.png",
                 should_cancel=lambda: False,
             )
+
+
+class RetryReencodeWorkaroundTests(unittest.TestCase):
+    """A retry must not resend the exact bytes that just failed - see ``retry_jpeg_quality``."""
+
+    def test_every_attempt_is_handed_its_own_number(self) -> None:
+        seen: list[int] = []
+
+        def attempt(number: int) -> ModelOutcome[str]:
+            seen.append(number)
+            return ModelOutcome(status=API_ERROR)
+
+        call_with_retries(attempt, job_label="Auto-caption", media_name="clip.mp4")
+
+        self.assertEqual(seen, list(range(1, MAX_MODEL_ATTEMPTS + 1)))
+
+    def test_each_attempt_gets_its_own_quality(self) -> None:
+        qualities = [retry_jpeg_quality(number) for number in range(1, MAX_MODEL_ATTEMPTS + 1)]
+
+        self.assertEqual(len(set(qualities)), len(qualities))
+        self.assertTrue(all(quality > 0 for quality in qualities))
+
+    def _sent_images(self, attempt: int) -> list[str]:
+        """The base64 payloads one attempt puts on the wire."""
+        captured: dict = {}
+
+        class FakeCompletions:
+            def create(self, **kwargs: object) -> object:
+                parts = kwargs["messages"][1]["content"]
+                captured["images"] = [
+                    part["image_url"]["url"] for part in parts if part["type"] == "image_url"
+                ]
+                message = type("Message", (), {"content": "text", "reasoning_content": None})()
+                choice = type("Choice", (), {"message": message})()
+                return type("Response", (), {"choices": [choice]})()
+
+        client = type(
+            "FakeClient", (), {"chat": type("Chat", (), {"completions": FakeCompletions()})()}
+        )()
+        request_vision_text(
+            client,
+            "System prompt",
+            [Image.new("RGB", (64, 64), color="blue")],
+            "Caption it.",
+            max_pixels=IMAGE_MAX_PIXELS,
+            mode="instruct",
+            attempt=attempt,
+        )
+        return captured["images"]
+
+    def test_a_retry_sends_different_bytes_than_the_attempt_that_failed(self) -> None:
+        # The whole point of the workaround: byte-identical repeats are short-circuited
+        # by the server, so a retry that resends them is not a second attempt at all.
+        first = self._sent_images(1)
+        second = self._sent_images(2)
+
+        self.assertEqual(len(first), len(second))
+        self.assertNotEqual(first, second)
+
+    def test_the_first_attempt_is_unchanged_by_the_workaround(self) -> None:
+        # Only the retries differ. A first attempt that started encoding at some other
+        # quality would make every request in every job a different one.
+        self.assertEqual(retry_jpeg_quality(1), JPEG_QUALITY)
 
 
 class LoadImageRgbTests(unittest.TestCase):
