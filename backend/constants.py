@@ -38,6 +38,14 @@ WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
 VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
 VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
 
+# Converting a GIF to MP4 lands every file on one rate rather than carrying the source's
+# own timing over. A GIF stores a delay per frame and is free to vary it frame by frame,
+# which is not a frame rate at all - so there is nothing faithful to preserve, and a
+# dataset whose clips each run at whatever their authoring tool happened to emit is worse
+# than one that is uniform. 24 is the rate the rest of the video tooling assumes.
+GIF_MP4_FRAME_RATE = 24.0
+GIF_MP4_EXTENSION = ".mp4"
+
 # In-place image editing is held to the stills Pillow can re-encode without losing what
 # makes them what they are. GIF is excluded on purpose: a Pillow round-trip flattens the
 # animation to one frame, and the GIF affordance in the gallery modal is frame *capture*,
@@ -150,5 +158,6 @@ SHARED_CONSTANTS: dict[str, object] = {
     "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
     "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
+    "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,
     "COMFY_WORKFLOW_EXTENSIONS": sorted(COMFY_WORKFLOW_EXTENSIONS),
 }

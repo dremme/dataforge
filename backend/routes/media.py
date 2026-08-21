@@ -14,6 +14,14 @@ from gif_frames import (
     extract_gif_frame,
     gif_frame_count,
 )
+from gif_to_mp4 import (
+    FFMPEG_MISSING_MESSAGE as GIF_TO_MP4_FFMPEG_MISSING_MESSAGE,
+)
+from gif_to_mp4 import (
+    convert_gif_to_mp4,
+    mp4_target_for,
+    read_gif_to_mp4_state,
+)
 from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
 from image_edit import is_identity_spec as is_identity_image_spec
 from image_io import ImageReadError
@@ -32,6 +40,8 @@ from routes._helpers import (
 )
 from schemas import (
     GifInfoResponse,
+    GifToMp4Response,
+    GifToMp4StateResponse,
     ImageEditResponse,
     ImageEditSpec,
     ImageEditStateResponse,
@@ -292,6 +302,50 @@ def serve_gif_frame(
         media_type="image/jpeg",
         headers={"Cache-Control": cache_control},
     )
+
+
+def _gif_to_mp4_failure(exc: Exception) -> HTTPException:
+    if isinstance(exc, EditBusyError):
+        return HTTPException(status_code=409, detail="This GIF is already being converted")
+    if isinstance(exc, FfmpegCancelled):
+        return HTTPException(status_code=409, detail="The conversion was cancelled")
+    if isinstance(exc, RuntimeError) and str(exc) == GIF_TO_MP4_FFMPEG_MISSING_MESSAGE:
+        return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/media/gif-to-mp4", response_model=GifToMp4StateResponse)
+def read_gif_to_mp4(
+    path: str = Query(..., description="Absolute path to a GIF file"),
+) -> GifToMp4StateResponse:
+    """What the convert button needs to know before it writes anything."""
+    return read_gif_to_mp4_state(resolve_gif_file(path))
+
+
+@router.post("/media/gif-to-mp4", response_model=GifToMp4Response)
+def convert_gif(
+    path: str = Query(..., description="Absolute path to a GIF file"),
+    overwrite: bool = Query(False, description="Replace an MP4 that already holds the name"),
+) -> GifToMp4Response:
+    """Write the GIF out as an MP4 beside it, at the fixed conversion frame rate.
+
+    A plain ``def`` on purpose: FastAPI runs it on the threadpool, so a long encode never
+    stalls the event loop.
+    """
+    media = resolve_gif_file(path)
+    target = mp4_target_for(media)
+
+    if not overwrite and target.exists():
+        raise HTTPException(status_code=409, detail=f"{target.name} already exists in this folder")
+
+    try:
+        # Held against the file being written rather than the one being read: two GIFs
+        # in one folder can never target the same name, and it is the write that must
+        # not be raced.
+        with render_slot(target) as should_cancel:
+            return convert_gif_to_mp4(media, should_cancel=should_cancel)
+    except (EditBusyError, FfmpegCancelled, RuntimeError, OSError) as exc:
+        raise _gif_to_mp4_failure(exc) from exc
 
 
 @router.get("/thumbnail")

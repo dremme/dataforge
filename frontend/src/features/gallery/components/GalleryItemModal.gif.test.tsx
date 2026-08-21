@@ -8,6 +8,7 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 import * as mediaApi from "@/features/gallery/api/media";
 import { importFiles } from "@/features/folder/api/files";
 import { encodeVideoFrame, seekVideoTo } from "@/features/gallery/lib/videoFrameEncode";
+import { convertGifToMp4, fetchGifToMp4State } from "@/features/gallery/api/gifToMp4";
 import { GalleryItemModal } from "./GalleryItemModal";
 
 vi.mock("@/shared/lib/defer", () => ({
@@ -39,9 +40,17 @@ vi.mock("@/features/folder/api/files", () => ({
   previewFileImport: vi.fn(),
 }));
 
+vi.mock("@/features/gallery/api/gifToMp4", () => ({
+  fetchGifToMp4State: vi.fn(),
+  convertGifToMp4: vi.fn(),
+}));
+
 const seekVideoToMock = vi.mocked(seekVideoTo);
 const encodeVideoFrameMock = vi.mocked(encodeVideoFrame);
 const importFilesMock = vi.mocked(importFiles);
+
+const fetchGifToMp4StateMock = vi.mocked(fetchGifToMp4State);
+const convertGifToMp4Mock = vi.mocked(convertGifToMp4);
 
 const deleteMediaMock = vi.mocked(mediaApi.deleteMedia);
 const previewMediaTransferMock = vi.mocked(mediaApi.previewMediaTransfer);
@@ -159,6 +168,88 @@ describe("GalleryItemModal", () => {
       expect(
         within(dialog).queryByRole("button", { name: /save a frame/i }),
       ).not.toBeInTheDocument();
+    });
+  });
+  describe("GIF to MP4 conversion", () => {
+    const GIF_PATH = `${HOME_PATH}\\loop.gif`;
+    const MP4_PATH = `${HOME_PATH}\\loop.mp4`;
+
+    beforeEach(() => {
+      fetchGifToMp4StateMock
+        .mockReset()
+        .mockResolvedValue({ path: GIF_PATH, target: MP4_PATH, target_exists: false });
+      convertGifToMp4Mock.mockReset().mockResolvedValue({
+        path: MP4_PATH,
+        size: 4096,
+        modified_at: "2026-03-15T15:00:00.000Z",
+        frame_rate: 24,
+      });
+    });
+
+    function renderModal(overrides: Partial<Parameters<typeof GalleryItemModal>[0]> = {}) {
+      const props = {
+        items: [makeItem("loop.gif", { media_type: "gif" as const })],
+        index: 0,
+        currentFolder: HOME_PATH,
+        onClose: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onCaptionSaved: vi.fn(),
+        onCopied: vi.fn(),
+        ...overrides,
+      };
+
+      renderWithProviders(<GalleryItemModal {...props} />);
+      return props;
+    }
+
+    it("writes the MP4 beside the GIF and reloads the folder", async () => {
+      const user = userEvent.setup();
+      const { onCopied } = renderModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      await user.click(within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }));
+
+      await waitFor(() => expect(convertGifToMp4Mock).toHaveBeenCalledWith(GIF_PATH, false));
+      expect(await screen.findByRole("status")).toHaveTextContent("Saved loop.mp4 at 24 fps.");
+      await waitFor(() => expect(onCopied).toHaveBeenCalledTimes(1));
+    });
+
+    it("prompts before replacing an MP4 already holding the name", async () => {
+      const user = userEvent.setup();
+      fetchGifToMp4StateMock.mockResolvedValue({
+        path: GIF_PATH,
+        target: MP4_PATH,
+        target_exists: true,
+      });
+      renderModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      await user.click(within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }));
+
+      const prompt = await screen.findByRole("alertdialog", { name: "Replace the existing MP4?" });
+      expect(within(prompt).getByText("loop.mp4")).toBeInTheDocument();
+      expect(convertGifToMp4Mock).not.toHaveBeenCalled();
+
+      await user.click(within(prompt).getByRole("button", { name: "Replace" }));
+
+      await waitFor(() => expect(convertGifToMp4Mock).toHaveBeenCalledWith(GIF_PATH, true));
+    });
+
+    it("offers nothing to convert on a still", async () => {
+      renderModal({ items: [makeItem("sunset.png")] });
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      expect(within(dialog).queryByRole("button", { name: /convert/i })).not.toBeInTheDocument();
+    });
+
+    it("stays available without a destination folder, since it writes in place", async () => {
+      renderModal({ currentFolder: undefined });
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
+      expect(
+        within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }),
+      ).toBeInTheDocument();
     });
   });
 });

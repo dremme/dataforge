@@ -626,6 +626,27 @@ class GifInfoResponse(BaseModel):
     frame_count: int
 
 
+class GifToMp4StateResponse(BaseModel):
+    """Where converting one GIF would write its MP4, and what is already there.
+
+    Read before the conversion is asked for, so a name that is already taken becomes a
+    prompt rather than a silent overwrite.
+    """
+
+    path: str
+    target: str
+    target_exists: bool
+
+
+class GifToMp4Response(BaseModel):
+    """The MP4 a conversion wrote beside its GIF."""
+
+    path: str
+    size: int
+    modified_at: str
+    frame_rate: float
+
+
 class FileImportPreviewRequest(BaseModel):
     filenames: list[str] = Field(default_factory=list)
 

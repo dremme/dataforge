@@ -15,6 +15,7 @@ import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture";
 import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
+import { useGifToMp4 } from "@/features/gallery/hooks/useGifToMp4";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { useMediaTransfer } from "@/features/gallery/hooks/useMediaTransfer";
 import { useImageEdit } from "@/features/gallery/hooks/useImageEdit";
@@ -35,6 +36,7 @@ import {
   iconMessageCheck,
   iconScissors,
   iconTrash2,
+  iconVideo,
   iconX,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
@@ -55,6 +57,7 @@ import {
   schedulePrefetchModalMedia,
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
+import { GIF_MP4_FRAME_RATE } from "@/shared/constants";
 import { classNames } from "@/shared/lib/classNames";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -224,14 +227,20 @@ export function GalleryItemModal({
     setEditMode,
   });
 
+  const gifToMp4 = useGifToMp4({ item, onConverted: onCopied });
+
   const { transferPicker, overwritePrompt, transferring } = transfer;
   /** Modal work other than a frame save — the capture bar locks itself on this. */
-  const otherWorkBusy = deleting || transferring !== null;
+  const otherWorkBusy = deleting || transferring !== null || gifToMp4.converting;
   const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
   // Frame mode stays out of this flag: it feeds `ModalShell`'s `suspended`, which
   // makes the panel inert, and the slider has to stay reachable.
   const childOverlayOpen =
-    deleteConfirmOpen || revertConfirmOpen || jsonEditorOpen || transfer.transferDialogOpen;
+    deleteConfirmOpen ||
+    revertConfirmOpen ||
+    jsonEditorOpen ||
+    transfer.transferDialogOpen ||
+    gifToMp4.conflict !== null;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
   const jsonEditorContent = useMemo(
@@ -506,6 +515,23 @@ export function GalleryItemModal({
                   }
                 >
                   <Icon icon={iconCrop} />
+                </button>
+              </Tooltip>
+            )}
+            {itemIsGif && (
+              <Tooltip content={`Convert to MP4 (${GIF_MP4_FRAME_RATE} fps)`}>
+                <button
+                  type="button"
+                  className="gallery-item-modal__convert"
+                  onClick={gifToMp4.convert}
+                  disabled={busy}
+                  aria-busy={gifToMp4.converting || undefined}
+                  aria-label={`Convert ${item.name} to MP4`}
+                >
+                  <Icon
+                    icon={gifToMp4.converting ? iconLoader2 : iconVideo}
+                    spin={gifToMp4.converting}
+                  />
                 </button>
               </Tooltip>
             )}
@@ -856,6 +882,22 @@ export function GalleryItemModal({
             else imageEdit.revert();
           }}
           onCancel={() => setRevertConfirmOpen(false)}
+        />
+      )}
+
+      {gifToMp4.conflict && (
+        <ConfirmDialog
+          title="Replace the existing MP4?"
+          description={
+            <span>
+              <strong>{gifToMp4.conflict}</strong> already sits beside this GIF. Converting replaces
+              it with a fresh encode of the animation.
+            </span>
+          }
+          confirmLabel="Replace"
+          confirmVariant="danger"
+          onConfirm={gifToMp4.confirmOverwrite}
+          onCancel={gifToMp4.cancelOverwrite}
         />
       )}
 
