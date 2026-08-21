@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { optionalMediaUrl } from "@/features/gallery/api/media";
 import { ZoomableImage } from "@/features/gallery/components/ZoomableImage";
+import { isVideoName } from "@/features/gallery/lib/itemKind";
 import {
   schedulePrefetchModalMedia,
   type ModalMediaPrefetchTarget,
@@ -59,7 +60,7 @@ export function TrainingSampleModal({
       targets.set(neighbour.path, {
         path: neighbour.path,
         url: optionalMediaUrl(neighbour.path, neighbour.name),
-        kind: "image",
+        kind: isVideoName(neighbour.name) ? "video" : "image",
       });
     }
 
@@ -108,13 +109,27 @@ export function TrainingSampleModal({
           </button>
         )}
 
-        <ZoomableImage
-          key={sample.path}
-          className="training-sample-modal__media-wrap"
-          imgClassName="training-sample-modal__img"
-          src={optionalMediaUrl(sample.path, sample.name)}
-          alt={sample.prompt}
-        />
+        {isVideoName(sample.name) ? (
+          <video
+            key={sample.path}
+            className="training-sample-modal__video"
+            src={optionalMediaUrl(sample.path, sample.name)}
+            aria-label={sample.prompt}
+            controls
+            autoPlay
+            loop
+            muted
+            playsInline
+          />
+        ) : (
+          <ZoomableImage
+            key={sample.path}
+            className="training-sample-modal__media-wrap"
+            imgClassName="training-sample-modal__img"
+            src={optionalMediaUrl(sample.path, sample.name)}
+            alt={sample.prompt}
+          />
+        )}
 
         {hasSiblings && (
           <button

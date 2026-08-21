@@ -2,7 +2,14 @@ import { useCallback, useState } from "react";
 import { openFolderInExplorer } from "@/features/folder/api/folders";
 import { formatApiError } from "@/shared/api/http";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
-import { iconArrowUpRight, iconCopy, iconFolderOpen, iconLoader2 } from "@/shared/icons";
+import {
+  iconArrowUpRight,
+  iconCheck,
+  iconCopy,
+  iconFolderOpen,
+  iconLoader2,
+  iconX,
+} from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { BreadcrumbCrumbMenu } from "./BreadcrumbCrumbMenu";
@@ -34,7 +41,7 @@ export function BreadcrumbBar({
 }: BreadcrumbBarProps) {
   const [openingInExplorer, setOpeningInExplorer] = useState(false);
   const [explorerError, setExplorerError] = useState<string | null>(null);
-  const { copyState, copyText } = useCopyFeedback();
+  const { copyState, copyLabel, copyText } = useCopyFeedback();
 
   const handleOpenInExplorer = useCallback(async () => {
     if (openingInExplorer) return;
@@ -56,8 +63,9 @@ export function BreadcrumbBar({
     void copyText(currentFolder);
   }, [copyText, currentFolder, folderNotFound]);
 
-  const copyPathLabel =
-    copyState === "copied" ? "Copied!" : copyState === "error" ? "Failed!" : "Copy path";
+  const copyPathLabel = copyState === "idle" ? "Copy path" : copyLabel;
+  const copyPathIcon =
+    copyState === "copied" ? iconCheck : copyState === "error" ? iconX : iconCopy;
 
   if (breadcrumbs.length === 0) return null;
 
@@ -117,15 +125,22 @@ export function BreadcrumbBar({
       </ol>
 
       <div className="breadcrumbs__actions">
-        <Tooltip content={folderNotFound ? "Folder not found" : copyPathLabel}>
+        <Tooltip
+          content={folderNotFound ? "Folder not found" : copyPathLabel}
+          open={copyState !== "idle"}
+        >
           <button
             type="button"
-            className="breadcrumbs__explorer"
+            className={classNames(
+              "breadcrumbs__explorer",
+              copyState === "copied" && "breadcrumbs__explorer--copied",
+              copyState === "error" && "breadcrumbs__explorer--error",
+            )}
             onClick={handleCopyPath}
             disabled={folderNotFound || !currentFolder}
             aria-label={copyPathLabel}
           >
-            <Icon icon={iconCopy} className="breadcrumbs__explorer-icon" />
+            <Icon icon={copyPathIcon} className="breadcrumbs__explorer-icon" />
           </button>
         </Tooltip>
 

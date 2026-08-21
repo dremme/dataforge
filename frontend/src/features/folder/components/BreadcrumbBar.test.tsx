@@ -42,7 +42,26 @@ describe("BreadcrumbBar", () => {
     await user.click(screen.getByRole("button", { name: "Copy path" }));
 
     expect(writeText).toHaveBeenCalledWith(homeFolder.path);
-    expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
+
+    const copied = screen.getByRole("button", { name: "Copied!" });
+    expect(copied).toHaveClass("breadcrumbs__explorer--copied");
+    expect(copied.querySelector(".lucide-check")).not.toBeNull();
+    expect(copied.parentElement).toHaveClass("tooltip--visible");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
+  });
+
+  it("says so when the path cannot be copied", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
+
+    renderBar();
+
+    await user.click(screen.getByRole("button", { name: "Copy path" }));
+
+    const failed = screen.getByRole("button", { name: "Failed!" });
+    expect(failed).toHaveClass("breadcrumbs__explorer--error");
+    expect(failed.parentElement).toHaveClass("tooltip--visible");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Failed!");
   });
 
   it("opens the current folder in the file explorer", async () => {

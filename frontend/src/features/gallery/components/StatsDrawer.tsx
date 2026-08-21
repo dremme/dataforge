@@ -187,10 +187,13 @@ function Overview({ stats }: { stats: DatasetStats }) {
   const percent = stats.total === 0 ? 0 : Math.round((captioned / stats.total) * 100);
   const clear = missingCaption === 0 && captionIssues === 0 && duplicates === 0;
 
+  const refCountUp = useRef<HTMLDivElement>(null);
+  const percentCountUp = useCountUp(percent, refCountUp);
+
   return (
     <Section title="Overview" lead>
-      <p className="stats-drawer__hero">
-        <span className="stats-drawer__hero-value">{percent}</span>
+      <p ref={refCountUp} className="stats-drawer__hero">
+        <span className="stats-drawer__hero-value">{percentCountUp}</span>
         <span className="stats-drawer__hero-unit">%</span>
       </p>
 
@@ -203,7 +206,7 @@ function Overview({ stats }: { stats: DatasetStats }) {
         aria-valuenow={captioned}
         aria-valuetext={`${captioned} of ${stats.total} files captioned`}
       >
-        <div className="stats-drawer__meter-fill" style={{ width: `${percent}%` }} />
+        <div className="stats-drawer__meter-fill" style={{ width: `${percentCountUp}%` }} />
       </div>
 
       <p className="stats-drawer__hero-caption">

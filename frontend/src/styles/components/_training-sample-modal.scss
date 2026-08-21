@@ -72,12 +72,17 @@
     max-height: $modal-media-max-height;
   }
 
-  &__img {
+  &__img,
+  &__video {
     display: block;
     width: 100%;
     max-height: $modal-media-max-height;
     border-radius: var(--radius-sm);
     object-fit: contain;
+  }
+
+  &__video {
+    background: $color-video-bg;
   }
 
   &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {

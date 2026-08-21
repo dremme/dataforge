@@ -13,13 +13,18 @@ const PROMPTS = [
   "a wooden bench in a park",
 ];
 
-function makeSamples(count: number): OstrisTrainingSample[] {
-  return Array.from({ length: count }, (_, index) => ({
-    path: `${SAMPLES_FOLDER}\\1__000000200_${index}.jpg`,
-    name: `1__000000200_${index}.jpg`,
+function makeSample(index: number, extension: "jpg" | "mp4" = "jpg"): OstrisTrainingSample {
+  const name = `1__000000200_${index}.${extension}`;
+  return {
+    path: `${SAMPLES_FOLDER}\\${name}`,
+    name,
     step: 200,
     prompt: PROMPTS[index % PROMPTS.length],
-  }));
+  };
+}
+
+function makeSamples(count: number): OstrisTrainingSample[] {
+  return Array.from({ length: count }, (_, index) => makeSample(index));
 }
 
 function renderModal(overrides: { index?: number; count?: number } = {}) {
@@ -58,6 +63,49 @@ describe("TrainingSampleModal", () => {
     const image = screen.getByAltText("a red hatchback on a wet street");
     expect(image).toHaveAttribute("src", expect.stringContaining("/api/media?"));
     expect(image.getAttribute("src")).not.toContain("/api/thumbnail");
+  });
+
+  it("plays a video sample instead of treating it as an image", () => {
+    const { unmount } = render(
+      <TrainingSampleModal
+        samples={[makeSample(1, "mp4")]}
+        index={0}
+        onIndexChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    const video = dialog.querySelector("video");
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("src", expect.stringContaining("/api/media?"));
+    expect(video?.getAttribute("src")).not.toContain("/api/thumbnail");
+    expect(video).toHaveAttribute("aria-label", "a red hatchback on a wet street");
+    expect(within(dialog).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Zoom in/ })).not.toBeInTheDocument();
+
+    unmount();
+  });
+
+  it("keeps stills as images when navigating onto a video neighbour", async () => {
+    const user = userEvent.setup();
+    const onIndexChange = vi.fn();
+    const { unmount } = render(
+      <TrainingSampleModal
+        samples={[makeSample(0, "jpg"), makeSample(1, "mp4")]}
+        index={0}
+        onIndexChange={onIndexChange}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByAltText("a mountain lake at sunrise")).toBeInTheDocument();
+    expect(screen.getByRole("dialog").querySelector("video")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Next sample" }));
+    expect(onIndexChange).toHaveBeenCalledWith(1);
+
+    unmount();
   });
 
   it("wraps forward past the last sample", async () => {

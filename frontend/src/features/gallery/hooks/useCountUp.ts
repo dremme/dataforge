@@ -16,7 +16,6 @@ export function useCountUp(value: number, ref: RefObject<HTMLElement | null>): n
   const [displayed, setDisplayed] = useState(0);
   const displayedRef = useRef(0);
   const visibleRef = useRef(false);
-  displayedRef.current = displayed;
 
   useEffect(() => {
     const element = ref.current;
@@ -34,12 +33,22 @@ export function useCountUp(value: number, ref: RefObject<HTMLElement | null>): n
         return;
       }
 
-      const started = performance.now();
+      // Clock from the first vsync, not from this call. Opening the drawer (or
+      // a slow commit) can delay that frame by tens of milliseconds; counting
+      // that delay as elapsed makes the first tick jump.
+      let started: number | undefined;
       const step = (now: number) => {
         if (cancelled) return;
+        if (started === undefined) {
+          started = now;
+          frame = requestAnimationFrame(step);
+          return;
+        }
         const next = easedCount(from, to, now - started);
-        displayedRef.current = next;
-        setDisplayed(next);
+        if (next !== displayedRef.current) {
+          displayedRef.current = next;
+          setDisplayed(next);
+        }
         if (next !== to) frame = requestAnimationFrame(step);
       };
       frame = requestAnimationFrame(step);

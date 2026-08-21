@@ -181,6 +181,58 @@ class ListTrainingSamplesTests(unittest.TestCase):
         self.assertEqual(samples, [])
         self.assertIsNone(step)
 
+    def test_prefers_the_video_when_a_still_preview_shares_the_stem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            samples_folder = Path(tmp) / "sample_train_v1" / "samples"
+            samples_folder.mkdir(parents=True)
+            for filename in (
+                "1780000600000__000000500_0.jpg",
+                "1780000600000__000000500_0.mp4",
+                "1780000600000__000000500_1.jpg",
+                "1780000600000__000000500_1.mp4",
+            ):
+                (samples_folder / filename).write_text("", encoding="utf-8")
+
+            samples, step = list_training_samples(
+                tmp,
+                "sample_train_v1",
+                ["a mountain lake at sunrise", "a red hatchback on a wet street"],
+            )
+
+        self.assertEqual(step, 500)
+        self.assertEqual(
+            [sample["name"] for sample in samples],
+            ["1780000600000__000000500_0.mp4", "1780000600000__000000500_1.mp4"],
+        )
+        self.assertEqual(samples[0]["prompt"], "a mountain lake at sunrise")
+        self.assertEqual(samples[1]["prompt"], "a red hatchback on a wet street")
+
+    def test_keeps_a_video_sample_when_there_is_no_still(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            samples_folder = Path(tmp) / "sample_train_v1" / "samples"
+            samples_folder.mkdir(parents=True)
+            (samples_folder / "1780000600000__000000500_0.mp4").write_text("", encoding="utf-8")
+
+            samples, step = list_training_samples(
+                tmp,
+                "sample_train_v1",
+                ["a mountain lake at sunrise"],
+            )
+
+        self.assertEqual(step, 500)
+        self.assertEqual(samples[0]["name"], "1780000600000__000000500_0.mp4")
+
+    def test_ignores_a_sidecar_that_shares_the_sample_stem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            samples_folder = Path(tmp) / "sample_train_v1" / "samples"
+            samples_folder.mkdir(parents=True)
+            (samples_folder / "1780000600000__000000500_0.jpg").write_text("", encoding="utf-8")
+            (samples_folder / "1780000600000__000000500_0.txt").write_text("", encoding="utf-8")
+
+            samples, _ = list_training_samples(tmp, "sample_train_v1", [])
+
+        self.assertEqual([sample["name"] for sample in samples], ["1780000600000__000000500_0.jpg"])
+
 
 class ValidateLoraNameTests(unittest.TestCase):
     def test_rejects_names_that_would_escape_the_training_folder(self) -> None:

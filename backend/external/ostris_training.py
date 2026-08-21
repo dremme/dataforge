@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 import yaml
 
+from constants import MEDIA_EXTENSIONS, VIDEO_EXTENSIONS
 from external.ostris_jobs import (
     OSTRIS_REQUEST_TIMEOUT_SECONDS,
     create_ostris_job,
@@ -37,6 +38,15 @@ INVALID_NAME_CHARACTERS = frozenset('<>:"/\\|?*')
 
 # Ostris writes samples as "<epoch millis>__<step zero-padded to 9>_<prompt index>.<ext>".
 _SAMPLE_FILENAME = re.compile(r"^\d+__(\d+)_(\d+)$")
+
+
+def _sample_preference(path: Path) -> tuple[int, int, str]:
+    suffix = path.suffix.lower()
+    if suffix == ".mp4":
+        return (0, 0, suffix)
+    if suffix in VIDEO_EXTENSIONS:
+        return (0, 1, suffix)
+    return (1, 0, suffix)
 
 
 class OstrisTrainingError(Exception):
@@ -156,18 +166,28 @@ def list_training_samples(
     except OSError:
         return [], None
 
-    found: list[tuple[int, int, Path]] = []
+    grouped: dict[tuple[int, int], list[Path]] = {}
     for entry in entries:
+        if entry.suffix.lower() not in MEDIA_EXTENSIONS:
+            continue
         match = _SAMPLE_FILENAME.match(entry.stem)
         if match is None:
             continue
-        found.append((int(match.group(1)), int(match.group(2)), entry))
+        key = (int(match.group(1)), int(match.group(2)))
+        grouped.setdefault(key, []).append(entry)
 
-    if not found:
+    if not grouped:
         return [], None
 
-    latest_step = max(step for step, _, _ in found)
-    latest = sorted((item for item in found if item[0] == latest_step), key=lambda item: item[1])
+    latest_step = max(step for step, _ in grouped)
+    latest = sorted(
+        (
+            (step, index, min(paths, key=_sample_preference))
+            for (step, index), paths in grouped.items()
+            if step == latest_step
+        ),
+        key=lambda item: item[1],
+    )
 
     prompt_list = prompts or []
     samples = [

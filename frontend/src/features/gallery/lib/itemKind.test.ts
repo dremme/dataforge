@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GalleryItem } from "@/shared/types";
-import { isEditableVideo, isGif, isMotion, isVideo, mediaLabelFor } from "./itemKind";
+import { isEditableVideo, isGif, isMotion, isVideo, isVideoName, mediaLabelFor } from "./itemKind";
 
 /**
  * `media_type` is required on the wire, so the extension fallback is only ever
@@ -24,6 +24,24 @@ function item(name: string, mediaType: GalleryItem["media_type"] | undefined): G
     media_type: mediaType,
   } as GalleryItem;
 }
+
+describe("isVideoName", () => {
+  it("recognises every supported video container", () => {
+    expect(
+      [".mp4", ".avi", ".mov", ".mkv", ".wmv", ".m4v", ".flv", ".MKV"].filter(
+        (extension) => !isVideoName(`clip${extension}`),
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not claim images or GIFs", () => {
+    expect(["photo.jpg", "photo.webp", "photo.bmp", "loop.gif"].filter(isVideoName)).toEqual([]);
+  });
+
+  it("does not claim a name with no extension", () => {
+    expect(isVideoName("clip")).toBe(false);
+  });
+});
 
 describe("isVideo", () => {
   it("trusts the server's media_type over the extension", () => {

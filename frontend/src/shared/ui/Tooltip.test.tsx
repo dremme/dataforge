@@ -64,6 +64,18 @@ describe("Tooltip", () => {
     expect(stat).not.toHaveAttribute("aria-describedby");
   });
 
+  it("can be forced open without waiting for hover", () => {
+    render(
+      <Tooltip content="Copied!" open>
+        <button type="button">Copy</button>
+      </Tooltip>,
+    );
+
+    const wrapper = screen.getByRole("button", { name: "Copy" }).parentElement;
+    expect(wrapper).toHaveClass("tooltip--visible");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
+  });
+
   it("shows tooltips for disabled controls via the wrapper", async () => {
     vi.useFakeTimers();
 

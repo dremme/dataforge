@@ -32,6 +32,8 @@ interface TooltipProps {
   children: ReactElement<TooltipChildProps>;
   delay?: number;
   disabled?: boolean;
+  /** Show the bubble immediately, e.g. after a click, without waiting for hover. */
+  open?: boolean;
   trigger?: "hover-focus";
   /** Extra classes on the hover wrapper, e.g. when it has to be a flex item. */
   className?: string;
@@ -43,6 +45,7 @@ export function Tooltip({
   children,
   delay = 400,
   disabled = false,
+  open = false,
   trigger = "hover-focus",
   className,
   style,
@@ -77,7 +80,7 @@ export function Tooltip({
   // at the trigger — the "shift" behaviour Popper/Floating UI provide.
   useLayoutEffect(() => {
     const bubble = bubbleRef.current;
-    if (!visible || !bubble) return;
+    if (!(open || visible) || !bubble) return;
 
     // Measure unshifted, so a re-show does not compound the previous correction.
     bubble.style.setProperty("--tooltip-shift", "0px");
@@ -95,7 +98,7 @@ export function Tooltip({
 
     bubble.style.setProperty("--tooltip-shift", `${shift}px`);
     bubble.style.setProperty("--tooltip-arrow-shift", `${arrowShift}px`);
-  }, [visible, content]);
+  }, [visible, open, content]);
 
   if (!isValidElement(children)) {
     return children;
@@ -106,7 +109,8 @@ export function Tooltip({
   const childAriaLabel = childProps["aria-label"];
   const tooltipDuplicatesLabel =
     typeof childAriaLabel === "string" && typeof content === "string" && childAriaLabel === content;
-  const describedBy = visible && !tooltipDuplicatesLabel ? id : undefined;
+  const shown = !disabled && (open || visible);
+  const describedBy = shown && !tooltipDuplicatesLabel ? id : undefined;
   const ariaDescribedBy =
     [childProps["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined;
 
@@ -135,7 +139,7 @@ export function Tooltip({
     <span
       className={classNames(
         "tooltip",
-        visible && "tooltip--visible",
+        shown && "tooltip--visible",
         childDisabled && "tooltip--disabled-wrap",
         className,
       )}
@@ -150,7 +154,7 @@ export function Tooltip({
           id={id}
           role="tooltip"
           className="tooltip__bubble"
-          aria-hidden={visible ? undefined : true}
+          aria-hidden={shown ? undefined : true}
         >
           {content}
           <span className="tooltip__arrow" aria-hidden="true" />

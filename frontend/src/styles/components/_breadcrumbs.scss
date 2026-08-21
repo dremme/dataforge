@@ -28,6 +28,18 @@
     justify-content: center;
     flex-shrink: 0;
     padding: 0.375rem;
+
+    &--copied,
+    &--copied:hover:not(:disabled) {
+      color: var(--success);
+      background: var(--success-soft);
+    }
+
+    &--error,
+    &--error:hover:not(:disabled) {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
   }
 
   &__explorer-icon {

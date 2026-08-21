@@ -1,5 +1,5 @@
 /** How long a tile takes to reach its figure. Short enough to feel like a tick, not a wait. */
-export const COUNT_UP_MS = 1000;
+export const COUNT_UP_MS = 2000;
 
 /**
  * Integer between ``from`` and ``to`` after ``elapsed`` ms of an ease-out cubic.

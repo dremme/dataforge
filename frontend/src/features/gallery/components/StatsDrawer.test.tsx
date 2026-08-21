@@ -43,8 +43,12 @@ function stubCountUpFrames() {
 
   return {
     playTo(elapsed: number) {
-      now = elapsed;
       act(() => {
+        if (now === 0) {
+          const priming = callbacks.splice(0, callbacks.length);
+          for (const callback of priming) callback(0);
+        }
+        now = elapsed;
         const pending = callbacks.splice(0, callbacks.length);
         for (const callback of pending) callback(elapsed);
       });
@@ -78,7 +82,9 @@ describe("StatsDrawer", () => {
   });
 
   it("leads with caption coverage as a meter", () => {
+    const frames = stubCountUpFrames();
     renderDrawer();
+    frames.playTo(COUNT_UP_MS);
 
     expect(screen.getByRole("dialog", { name: "Dataset statistics" })).toBeInTheDocument();
 

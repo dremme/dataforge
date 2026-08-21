@@ -14,10 +14,20 @@ export function isSysPrompt(item: GalleryItem): boolean {
   return item.media_type === "sysprompt";
 }
 
-function extensionOf(item: GalleryItem): string | null {
-  const dot = item.name.lastIndexOf(".");
+function extensionOfName(name: string): string | null {
+  const dot = name.lastIndexOf(".");
   if (dot === -1) return null;
-  return item.name.slice(dot).toLowerCase();
+  return name.slice(dot).toLowerCase();
+}
+
+function extensionOf(item: GalleryItem): string | null {
+  return extensionOfName(item.name);
+}
+
+/** Whether a filename needs a `<video>` element, from the suffix alone. */
+export function isVideoName(name: string): boolean {
+  const extension = extensionOfName(name);
+  return extension !== null && VIDEO_EXTENSION_SET.has(extension);
 }
 
 /**
@@ -32,8 +42,7 @@ export function isVideo(item: GalleryItem): boolean {
     return item.media_type === "video";
   }
 
-  const extension = extensionOf(item);
-  return extension !== null && VIDEO_EXTENSION_SET.has(extension);
+  return isVideoName(item.name);
 }
 
 /**
