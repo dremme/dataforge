@@ -32,3 +32,17 @@ button,
 input {
   font: inherit;
 }
+
+// Chrome and Safari draw the number spinners from the UA's light colour scheme —
+// this app never declares `color-scheme`, so they arrive as white arrows inside a
+// dark field, and in the 4.25rem W/H boxes they crowd the right-aligned digits.
+// Up/Down and the scroll wheel still step a focused field with them gone.
+input[type="number"] {
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
