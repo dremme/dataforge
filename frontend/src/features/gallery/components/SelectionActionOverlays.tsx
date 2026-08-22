@@ -5,6 +5,7 @@ import { FileImportOverwriteDialog } from "@/features/folder/components/FileImpo
 import { TransferMediaDialog } from "@/features/gallery/components/TransferMediaDialog";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export interface SelectionActionOverlaysProps {
   currentFolder: string | undefined;
@@ -47,18 +48,21 @@ export function SelectionActionOverlays({
   onConfirmDelete,
   onCancelDelete,
 }: SelectionActionOverlaysProps) {
+  const scope: DialogScopeInfo | undefined = currentFolder
+    ? { itemCount: selectedCount, folderLabel: pathBaseName(currentFolder), fromSelection: true }
+    : undefined;
+
   const deleteDescription =
     selectedCount === 1 ? (
       <span>
         This will delete <strong>{pathBaseName(Array.from(selectedPaths)[0])}</strong> and any
-        matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder. On Windows,
-        files are moved to the Recycle Bin.
+        matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}). On Windows, files are moved to
+        the Recycle Bin.
       </span>
     ) : (
       <span>
-        This will delete <strong>{selectedCount} selected files</strong> and any matching caption
-        sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) in this folder. On Windows, files are moved to
-        the Recycle Bin.
+        This also deletes any matching caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}). On
+        Windows, files are moved to the Recycle Bin.
       </span>
     );
 
@@ -68,6 +72,7 @@ export function SelectionActionOverlays({
         <TransferMediaDialog
           mode={transferPicker}
           currentFolder={currentFolder}
+          scope={scope}
           selectedCount={selectedCount}
           busy={transferring !== null}
           onClose={onCloseTransferPicker}
@@ -95,6 +100,7 @@ export function SelectionActionOverlays({
       {deleteConfirmOpen && (
         <ConfirmDialog
           title={selectedCount === 1 ? "Delete file?" : "Delete selected files?"}
+          scope={scope}
           description={deleteDescription}
           confirmLabel={deleting ? "Deleting..." : "Delete"}
           confirmVariant="danger"

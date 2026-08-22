@@ -22,21 +22,76 @@ vi.mock("@/features/automation/preferences/watermarkPreferences", () => ({
   })),
 }));
 
-function setupOverlays(startingJobType: JobType | null = null) {
+function setupOverlays(
+  startingJobType: JobType | null = null,
+  scope: { itemCount?: number; folderItemCount?: number; selectionActive?: boolean } = {},
+) {
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+  const { itemCount = 3, folderItemCount = 3, selectionActive = false } = scope;
 
   const { result } = renderHook(() =>
     useAutomationDialogOverlays({
       folderPath: "C:\\Photos",
       folderLabel: "Photos",
       startingJobType,
-      itemCount: 3,
+      itemCount,
+      folderItemCount,
+      selectionActive,
       startJob,
     }),
   );
 
   return { result, startJob };
 }
+
+describe("useAutomationDialogOverlays scope", () => {
+  it("reports the selection when one is narrowing the jobs", () => {
+    const { result } = setupOverlays(null, {
+      itemCount: 23,
+      folderItemCount: 2473,
+      selectionActive: true,
+    });
+
+    expect(result.current.dialogs.setCaptions.scope).toMatchObject({
+      itemCount: 23,
+      folderLabel: "Photos",
+      fromSelection: true,
+    });
+  });
+
+  it("reports the whole folder when nothing is selected", () => {
+    const { result } = setupOverlays(null, { itemCount: 2473, folderItemCount: 2473 });
+
+    expect(result.current.dialogs.setCaptions.scope).toMatchObject({
+      itemCount: 2473,
+      fromSelection: false,
+    });
+  });
+
+  /**
+   * The backend drops the paths for this one (`train_lora.py`), so reporting the
+   * selection here would promise a narrowing that never happens.
+   */
+  it("keeps LoRA training on the folder and says why while a selection is active", () => {
+    const { result } = setupOverlays(null, {
+      itemCount: 23,
+      folderItemCount: 2473,
+      selectionActive: true,
+    });
+
+    expect(result.current.dialogs.trainLora.scope).toMatchObject({
+      itemCount: 2473,
+      fromSelection: false,
+    });
+    expect(result.current.dialogs.trainLora.scope.note).toMatch(/whole folder/i);
+  });
+
+  it("leaves the LoRA note off when there is no selection to contradict", () => {
+    const { result } = setupOverlays(null, { itemCount: 2473, folderItemCount: 2473 });
+
+    expect(result.current.dialogs.trainLora.scope.note).toBeUndefined();
+  });
+});
 
 describe("useAutomationDialogOverlays", () => {
   it("opens dialogs and starts jobs after confirm", async () => {

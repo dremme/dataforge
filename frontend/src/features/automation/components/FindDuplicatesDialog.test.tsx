@@ -6,8 +6,7 @@ import { FindDuplicatesDialog } from "./FindDuplicatesDialog";
 function renderDialog(onConfirm = vi.fn()) {
   render(
     <FindDuplicatesDialog
-      folderLabel="Photos"
-      itemCount={12}
+      scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
     />,

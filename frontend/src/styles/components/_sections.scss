@@ -71,6 +71,16 @@
   opacity: 0.65;
 }
 
+// Says the pill is counting a selection rather than what the filters left —
+// the two readings are otherwise the same shape. Matches the checkmark the
+// cards themselves carry, and sits a step under the digits so it reads as a
+// label on the number, not as part of it.
+.section-header__count-icon {
+  @include icon-block;
+  @include icon-size(0.75rem);
+  opacity: var(--icon-muted-strong);
+}
+
 .section-title__icon {
   @include icon-block;
   @include icon-size(var(--icon-size-base));

@@ -9,7 +9,17 @@ interface SectionHeaderProps {
   icon: AppIcon;
   title: string;
   count: number;
-  /** Unfiltered size of the section; rendered next to `count` only while it differs. */
+  /**
+   * Marks what `count` is counting, for slots whose meaning changes with mode —
+   * the gallery's flips between "items the filters left" and "items selected".
+   * Decorative: the `aria-label` already spells the pair out.
+   */
+  countIcon?: AppIcon;
+  /**
+   * The set `count` is measured against; rendered next to it only while the two
+   * differ. Whose size that is belongs to the call site — the gallery hands over
+   * the folder normally and the filtered view while selecting.
+   */
   total?: number;
   /** Keeps the total visible even when it equals `count`, e.g. selection progress. */
   alwaysShowTotal?: boolean;
@@ -24,6 +34,7 @@ export function SectionHeader({
   icon,
   title,
   count,
+  countIcon,
   total,
   alwaysShowTotal = false,
   loading = false,
@@ -59,6 +70,7 @@ export function SectionHeader({
             // "3 / 12" reads as "three slash twelve" without this.
             aria-label={showTotal ? `${count} of ${total}` : undefined}
           >
+            {countIcon && <Icon icon={countIcon} className="section-header__count-icon" />}
             {count}
             {showTotal && (
               <>

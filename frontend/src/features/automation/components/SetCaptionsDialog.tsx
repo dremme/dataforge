@@ -1,15 +1,17 @@
 import { useCallback, useId, useRef, useState } from "react";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 interface SetCaptionsDialogProps {
-  folderLabel: string;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: (caption: string, overwrite: boolean) => void;
   onCancel: () => void;
 }
 
 export function SetCaptionsDialog({
-  folderLabel,
+  scope,
   busy = false,
   onConfirm,
   onCancel,
@@ -27,12 +29,12 @@ export function SetCaptionsDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Set captions?"
       description={
         <>
-          Write the provided caption text to images and videos in <strong>{folderLabel}</strong>.
-          New captions are written as .txt sidecars (existing .json sidecars are updated in place).
-          This action cannot be undone.
+          Writes the provided caption text to each image and video. New captions are written as .txt
+          sidecars (existing .json sidecars are updated in place). This action cannot be undone.
         </>
       }
       panelClassName="set-captions-dialog"

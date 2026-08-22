@@ -15,8 +15,15 @@ import type { GallerySelectionActions } from "@/features/gallery/hooks/useGaller
  */
 export interface GallerySelectionValue {
   selectionMode: boolean;
+  /**
+   * Raw membership, for the per-card `selected` boolean only — it can hold
+   * items the active filters hide. Anything that counts or acts wants
+   * `visibleSelectedPaths`, which is the same set minus what is off screen.
+   */
   selectedPaths: ReadonlySet<string>;
-  selectedCount: number;
+  /** The selection as the filters leave it: what every count and action uses. */
+  visibleSelectedPaths: ReadonlySet<string>;
+  visibleSelectedCount: number;
   enterSelectionMode: () => void;
   exitSelectionMode: () => void;
   /** Ctrl/Cmd+click, and a plain click in selection mode: enters the mode, then toggles. */
@@ -47,7 +54,8 @@ export function GallerySelectionProvider({
   const {
     selectionMode,
     selectedPaths,
-    selectedCount,
+    visibleSelectedPaths,
+    visibleSelectedCount,
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,
@@ -65,7 +73,8 @@ export function GallerySelectionProvider({
     () => ({
       selectionMode,
       selectedPaths,
-      selectedCount,
+      visibleSelectedPaths,
+      visibleSelectedCount,
       enterSelectionMode,
       exitSelectionMode,
       toggleSelectedPath,
@@ -81,7 +90,8 @@ export function GallerySelectionProvider({
     [
       selectionMode,
       selectedPaths,
-      selectedCount,
+      visibleSelectedPaths,
+      visibleSelectedCount,
       enterSelectionMode,
       exitSelectionMode,
       toggleSelectedPath,

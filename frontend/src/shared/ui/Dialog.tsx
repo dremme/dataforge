@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { iconLoader2, iconX } from "@/shared/icons";
+import { DialogScope, type DialogScopeInfo } from "./DialogScope";
 import { Icon } from "./Icon";
 import { ModalShell } from "./ModalShell";
 
@@ -20,6 +21,11 @@ function entersNewline(target: EventTarget | null): boolean {
 
 interface DialogProps {
   title: string;
+  /**
+   * What the dialog will act on, rendered above the description so every job
+   * and batch action states its scope in the same place and the same words.
+   */
+  scope?: DialogScopeInfo;
   description?: ReactNode;
   /** `alertdialog` interrupts the user; use `dialog` for pickers and folder trees. */
   role?: "alertdialog" | "dialog";
@@ -40,6 +46,7 @@ interface DialogProps {
 
 export function Dialog({
   title,
+  scope,
   description,
   role = "alertdialog",
   panelClassName,
@@ -109,6 +116,8 @@ export function Dialog({
           <Icon icon={iconX} />
         </button>
       </header>
+
+      {scope && <DialogScope {...scope} />}
 
       {description && (
         <p id={descriptionId} className="confirm-dialog__description">

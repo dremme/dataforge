@@ -116,11 +116,8 @@ export function useAppWorkspace() {
 
   const selectionActions = useGallerySelectionActions({
     currentFolder: folder?.path,
-    // The visible set, not the whole folder: a batch that clears everything on
-    // screen is what ends selection mode.
-    totalCount: gallery.query.filteredItems.length,
-    selectedPaths: selection.selectedPaths,
-    selectedCount: selection.selectedCount,
+    visibleSelectedPaths: gallery.visibleSelectedPaths,
+    visibleSelectedCount: gallery.visibleSelectedCount,
     exitSelectionMode: selection.exitSelectionMode,
     onDeleted: gallery.onGalleryItemsDeleted,
     onMoved: gallery.onGalleryItemsMoved,
@@ -179,7 +176,7 @@ export function useAppWorkspace() {
     onCreateFolder: createFolder.openDialog,
     panel: automation.panelProps,
     selection: selectionActions,
-    selectedCount: selection.selectedCount,
+    selectedCount: gallery.visibleSelectedCount,
     selectionMode: selection.selectionMode,
     visibleCount: gallery.query.filteredItems.length,
     onSelectAll: gallery.handleSelectAllPaths,

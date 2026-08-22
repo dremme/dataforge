@@ -4,6 +4,7 @@ import type { ReplaceCaptionsSettings } from "@/features/automation/components/R
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import type { VerifyCaptionsSettings } from "@/features/automation/preferences/verifyCaptionsPreferences";
 import type { WatermarkSettings } from "@/features/automation/preferences/watermarkPreferences";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type {
   DuplicateThreshold,
   ReasoningEffort,
@@ -14,7 +15,7 @@ import type {
 
 type FolderBusyDialogState<TConfirm> = {
   open: boolean;
-  folderLabel: string;
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: TConfirm;
   onCancel: () => void;
@@ -46,13 +47,9 @@ export type AutomationDialogsState = {
     folderPath: string;
     initialSettings: VerifyCaptionsSettings | null;
   };
-  findDuplicates: FolderBusyDialogState<(threshold: DuplicateThreshold) => void> & {
-    itemCount: number;
-  };
-  batchRename: FolderBusyDialogState<(stem: string, startNumber: number) => void> & {
-    itemCount: number;
-  };
-  trainLora: FolderBusyDialogState<(settings: TrainLoraSettings) => void> & { itemCount: number };
+  findDuplicates: FolderBusyDialogState<(threshold: DuplicateThreshold) => void>;
+  batchRename: FolderBusyDialogState<(stem: string, startNumber: number) => void>;
+  trainLora: FolderBusyDialogState<(settings: TrainLoraSettings) => void>;
   watermark: FolderBusyDialogState<
     (
       text: string,
@@ -61,7 +58,6 @@ export type AutomationDialogsState = {
       position: WatermarkPosition,
     ) => void
   > & {
-    itemCount: number;
     initialSettings: WatermarkSettings | null;
   };
 };

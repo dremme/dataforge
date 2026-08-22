@@ -9,11 +9,13 @@ import {
 } from "@/features/automation/components/ReasoningEffortSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export type AutoCaptionMode = AutomationMode;
 
 interface AutoCaptionDialogProps {
-  folderLabel: string;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: (
     mode: AutoCaptionMode,
@@ -25,7 +27,7 @@ interface AutoCaptionDialogProps {
 }
 
 export function AutoCaptionDialog({
-  folderLabel,
+  scope,
   busy = false,
   onConfirm,
   onCancel,
@@ -44,11 +46,11 @@ export function AutoCaptionDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Start auto-caption?"
       description={
         <>
-          Auto-complete captions for images and videos in <strong>{folderLabel}</strong> using{" "}
-          <VisionModelBadge />.
+          Auto-completes the captions using <VisionModelBadge />.
         </>
       }
       panelClassName="auto-caption-dialog"

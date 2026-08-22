@@ -5,7 +5,12 @@ import { AutoCaptionDialog } from "./AutoCaptionDialog";
 
 function renderDialog(busy = false, onConfirm = vi.fn()) {
   render(
-    <AutoCaptionDialog folderLabel="Photos" busy={busy} onConfirm={onConfirm} onCancel={vi.fn()} />,
+    <AutoCaptionDialog
+      scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+      busy={busy}
+      onConfirm={onConfirm}
+      onCancel={vi.fn()}
+    />,
   );
 
   return onConfirm;

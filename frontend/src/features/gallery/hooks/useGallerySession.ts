@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   type Dispatch,
   type RefObject,
@@ -48,9 +49,7 @@ export function useGallerySession({
     folderResetToken,
     selectionMode,
     selectedPaths,
-    selectedCount,
     selectedPathsList,
-    getJobPaths,
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,
@@ -78,6 +77,34 @@ export function useGallerySession({
   }, [items, removeSelectedPaths, selectedPathsList]);
 
   const query = useGalleryQuery(items);
+
+  /**
+   * The selection as the current filters leave it — what every count, every
+   * button state and every batch action operates on.
+   *
+   * Derived rather than pruned: `selectedPaths` keeps the entries the filters
+   * hide, so widening the filter restores them instead of a stray keystroke in
+   * the search box destroying the selection. While hidden they are inert, which
+   * is what stops a delete from reaching an item the user cannot see.
+   */
+  const visibleSelectedPaths = useMemo(() => {
+    const visible = new Set<string>();
+    for (const item of query.filteredItems) {
+      if (selectedPaths.has(item.path)) {
+        visible.add(item.path);
+      }
+    }
+    return visible;
+  }, [query.filteredItems, selectedPaths]);
+
+  const visibleSelectedCount = visibleSelectedPaths.size;
+
+  /** Paths for an automation run: what is selected *and* on screen, or the whole folder. */
+  const getJobPaths = useCallback((): string[] | undefined => {
+    if (!selectionMode || visibleSelectedCount === 0) return undefined;
+    return Array.from(visibleSelectedPaths);
+  }, [selectionMode, visibleSelectedCount, visibleSelectedPaths]);
+
   const { displayMode, setDisplayMode } = useGalleryDisplayMode(folderPath);
   const issueCount = countResolvableIssues(items);
   const handleCaptionSaved = useFolderCaptionPatch(setFolder);
@@ -225,7 +252,8 @@ export function useGallerySession({
   return {
     selectionMode,
     selectedPaths,
-    selectedCount,
+    visibleSelectedPaths,
+    visibleSelectedCount,
     getJobPaths,
     enterSelectionMode,
     exitSelectionMode,

@@ -5,7 +5,13 @@ import { SetCaptionsDialog } from "./SetCaptionsDialog";
 
 describe("SetCaptionsDialog", () => {
   it("focuses the caption field on open", () => {
-    render(<SetCaptionsDialog folderLabel="Photos" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <SetCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText("Caption text")).toHaveFocus();
   });
@@ -14,7 +20,13 @@ describe("SetCaptionsDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(<SetCaptionsDialog folderLabel="Photos" onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(
+      <SetCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.type(screen.getByLabelText("Caption text"), "a scenic mountain landscape");
     await user.click(screen.getByLabelText("Overwrite existing captions"));
@@ -27,7 +39,13 @@ describe("SetCaptionsDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(<SetCaptionsDialog folderLabel="Photos" onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(
+      <SetCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
 
     // The field is focused on open, so the first Enter must add a newline.
     await user.keyboard("first{Enter}second");

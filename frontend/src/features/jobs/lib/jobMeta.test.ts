@@ -55,7 +55,7 @@ describe("JOB_START_CONFIRM", () => {
       const copy = JOB_START_CONFIRM[type];
       expect(copy?.title).toBeTruthy();
       expect(copy?.confirmLabel).toBeTruthy();
-      expect(copy?.description("Photos")).toBeTruthy();
+      expect(copy?.description()).toBeTruthy();
     }
   });
 });

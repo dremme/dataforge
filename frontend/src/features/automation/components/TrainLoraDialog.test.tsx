@@ -7,8 +7,7 @@ import { TrainLoraDialog } from "./TrainLoraDialog";
 function renderDialog(onConfirm = vi.fn()) {
   render(
     <TrainLoraDialog
-      folderLabel="landscapes"
-      itemCount={24}
+      scope={{ itemCount: 24, folderLabel: "landscapes", fromSelection: false }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
     />,

@@ -34,18 +34,25 @@ const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.
  * Everything about the selection comes from context, batch actions included —
  * the harness mounts the real ones with their dialogs, the way the app does.
  * `totalCount` stays 2 so "all selected" matches BOTH_SELECTED.
+ *
+ * No filter is active in these cases, so everything selected is also on screen:
+ * the visible pair is derived from `selectedPaths` rather than restated, which
+ * keeps a case from claiming a count its own set contradicts. Pass
+ * `visibleSelectedPaths` explicitly to test the two coming apart.
  */
 function renderControls(selection: Partial<GallerySelectionValue> = {}, totalCount = 2) {
+  const merged = {
+    selectionMode: true,
+    selectedPaths: BOTH_SELECTED,
+    ...selection,
+  };
+  const visibleSelectedPaths = merged.visibleSelectedPaths ?? merged.selectedPaths;
+
   return renderWithProviders(
     withGallerySelectionActions(
       <GallerySelectionControls totalCount={totalCount} />,
-      {
-        selectionMode: true,
-        selectedCount: 2,
-        selectedPaths: BOTH_SELECTED,
-        ...selection,
-      },
-      { currentFolder: HOME_PATH, totalCount },
+      { ...merged, visibleSelectedPaths, visibleSelectedCount: visibleSelectedPaths.size },
+      { currentFolder: HOME_PATH },
     ),
   );
 }
@@ -69,7 +76,6 @@ describe("GallerySelectionControls", () => {
 
     renderControls({
       selectionMode: false,
-      selectedCount: 0,
       selectedPaths: new Set(),
       enterSelectionMode: onEnterSelectionMode,
     });
@@ -111,7 +117,6 @@ describe("GallerySelectionControls", () => {
 
     renderControls({
       invertSelectedPaths,
-      selectedCount: 1,
       selectedPaths: new Set([`${HOME_PATH}\\sunset.png`]),
     });
 
@@ -126,15 +131,38 @@ describe("GallerySelectionControls", () => {
     expect(screen.getByRole("button", { name: "Invert" })).toBeEnabled();
     unmount();
 
-    renderControls({ selectedCount: 0, selectedPaths: new Set() });
+    renderControls({ selectedPaths: new Set() });
     expect(screen.getByRole("button", { name: "None" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Invert" })).toBeEnabled();
   });
 
   it("disables Invert when there are no files to flip", () => {
-    renderControls({ selectedCount: 0, selectedPaths: new Set() }, 0);
+    renderControls({ selectedPaths: new Set() }, 0);
 
     expect(screen.getByRole("button", { name: "Invert" })).toBeDisabled();
+  });
+
+  it("deletes only the selected files the filters leave visible", async () => {
+    const user = userEvent.setup();
+    const onDeleted = vi.fn();
+    const visiblePath = `${HOME_PATH}\\sunset.png`;
+    const selectedPaths = new Set([visiblePath, `${HOME_PATH}\\beach.jpg`]);
+    const visibleSelectedPaths = new Set([visiblePath]);
+
+    deleteSelectedMediaMock.mockResolvedValue({ succeeded: [visiblePath], failed: [] });
+
+    renderControls({ selectedPaths, visibleSelectedPaths, onDeleted }, 1);
+
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
+
+    // The dialog promises exactly what the delete will reach, not the whole set.
+    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(deleteSelectedMediaMock).toHaveBeenCalledWith([visiblePath]);
+      expect(onDeleted).toHaveBeenCalledWith([visiblePath]);
+    });
   });
 
   it("deletes selected files after confirmation", async () => {
@@ -155,9 +183,12 @@ describe("GallerySelectionControls", () => {
     const confirmDialog = await screen.findByRole("alertdialog", {
       name: "Delete selected files?",
     });
-    expect(within(confirmDialog).getByText(/will delete/i)).toBeInTheDocument();
+    // The scope row says what and where; the description is left the caveats.
+    expect(confirmDialog.querySelector(".dialog-scope__line")).toHaveTextContent(
+      "2 selected files in Photos",
+    );
+    expect(within(confirmDialog).getByText(/matching caption sidecars/i)).toBeInTheDocument();
     expect(within(confirmDialog).getByText(/Recycle Bin/i)).toBeInTheDocument();
-    expect(within(confirmDialog).getByText("2 selected files")).toBeInTheDocument();
 
     await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
 
@@ -177,7 +208,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    renderControls({ selectedCount: 1, selectedPaths });
+    renderControls({ selectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
@@ -203,7 +234,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    renderControls({ selectedCount: 1, selectedPaths, onDeleted });
+    renderControls({ selectedPaths, onDeleted });
 
     await user.click(screen.getByRole("button", { name: "Delete selected files" }));
 
@@ -244,7 +275,6 @@ describe("GallerySelectionControls", () => {
     const clearSelectedPaths = vi.fn();
 
     renderControls({
-      selectedCount: 0,
       selectedPaths: new Set(),
       exitSelectionMode,
       clearSelectedPaths,
@@ -341,7 +371,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    renderControls({ selectedCount: 1, selectedPaths });
+    renderControls({ selectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Move selected files" }));
 
@@ -459,7 +489,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    renderControls({ selectedCount: 1, selectedPaths });
+    renderControls({ selectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Copy selected files" }));
 
@@ -499,7 +529,7 @@ describe("GallerySelectionControls", () => {
       failed: [{ path: `${HOME_PATH}\\sunset.png`, error: "destination is read-only" }],
     });
 
-    renderControls({ selectedCount: 1, selectedPaths });
+    renderControls({ selectedPaths });
 
     await user.click(screen.getByRole("button", { name: "Copy selected files" }));
 

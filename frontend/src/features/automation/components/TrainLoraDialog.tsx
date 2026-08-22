@@ -8,6 +8,7 @@ import {
 import { iconPlus, iconTrash2 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 interface PromptRow {
   id: number;
@@ -15,16 +16,15 @@ interface PromptRow {
 }
 
 interface TrainLoraDialogProps {
-  folderLabel: string;
-  itemCount: number;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: (settings: TrainLoraSettings) => void;
   onCancel: () => void;
 }
 
 export function TrainLoraDialog({
-  folderLabel,
-  itemCount,
+  scope,
   busy = false,
   onConfirm,
   onCancel,
@@ -85,12 +85,12 @@ export function TrainLoraDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Start LoRA training?"
       description={
         <>
-          Train a Krea 2 Turbo LoRA on the <strong>{itemCount}</strong>{" "}
-          {itemCount === 1 ? "file" : "files"} in <strong>{folderLabel}</strong>. AI-Toolkit runs
-          the training and saves it in its own training folder.
+          Trains a Krea 2 Turbo LoRA on them. AI-Toolkit runs the training and saves it in its own
+          training folder.
         </>
       }
       panelClassName="train-lora-dialog"

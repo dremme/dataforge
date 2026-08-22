@@ -10,7 +10,13 @@ describe("BackupCaptionsDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(<BackupCaptionsDialog folderLabel="Photos" onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(
+      <BackupCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText(OVERWRITE_LABEL)).not.toBeChecked();
 
@@ -23,7 +29,13 @@ describe("BackupCaptionsDialog", () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
 
-    render(<BackupCaptionsDialog folderLabel="Photos" onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(
+      <BackupCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.click(screen.getByLabelText(OVERWRITE_LABEL));
     await user.click(screen.getByRole("button", { name: "Back up captions" }));
@@ -36,7 +48,12 @@ describe("BackupCaptionsDialog", () => {
     const onConfirm = vi.fn();
 
     render(
-      <BackupCaptionsDialog folderLabel="Photos" busy onConfirm={onConfirm} onCancel={vi.fn()} />,
+      <BackupCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        busy
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
     );
 
     await user.click(screen.getByRole("button", { name: "Starting..." }));

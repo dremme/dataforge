@@ -10,7 +10,7 @@ import { GallerySelectionControls } from "@/features/gallery/components/GalleryS
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { FolderError } from "@/shared/api/http";
-import { iconFolderOpen, iconImages } from "@/shared/icons";
+import { iconCheck, iconFolderOpen, iconImages } from "@/shared/icons";
 import type { FolderResponse, GalleryDisplayMode, GalleryItem, Subfolder } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
@@ -64,7 +64,7 @@ export function AppFolderContent({
   onDisplayModeChange,
   fileDrop,
 }: AppFolderContentProps) {
-  const { selectionMode, selectedCount } = useGallerySelectionContext();
+  const { selectionMode, visibleSelectedCount } = useGallerySelectionContext();
   const folderNotFound = error?.kind === "folder-not-found";
   const globalError = error && !folderNotFound ? error : null;
   const showEmptyFolder = !error && items.length === 0;
@@ -113,12 +113,17 @@ export function AppFolderContent({
                     section="gallery"
                     icon={iconImages}
                     title="Media"
-                    count={selectionMode ? selectedCount : filteredItems.length}
-                    // Both modes count against the whole folder. The selection
-                    // survives the filters, so counting it against the visible
-                    // media would read "2 of 1" as soon as a search hides one.
-                    total={items.length}
+                    count={selectionMode ? visibleSelectedCount : filteredItems.length}
+                    // Each numerator is measured against the set it belongs to:
+                    // the filters against the folder, the selection against what
+                    // the filters left. A search that narrows 2473 to 12 turns
+                    // "12 / 2473" into "1 / 12" on entering selection mode, so
+                    // the denominator moving is half of what tells the two
+                    // readings apart — the check icon is the other half, for the
+                    // unfiltered case where both denominators agree.
+                    total={selectionMode ? filteredItems.length : items.length}
                     alwaysShowTotal={selectionMode}
+                    countIcon={selectionMode ? iconCheck : undefined}
                     sticky
                     actions={
                       // The layout picker stays put while the filters empty the

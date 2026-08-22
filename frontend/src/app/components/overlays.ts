@@ -9,6 +9,7 @@ import type {
   GalleryItem,
   SysPromptSaveResponse,
 } from "@/shared/types";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 type CaptionSavedHandler = (
   path: string,
@@ -65,7 +66,7 @@ type StatsOverlayState = {
 
 type JobStartConfirmState = {
   pending: ConfirmableJobType | null;
-  folderLabel: string;
+  scope: DialogScopeInfo;
   onConfirm: () => void;
   onCancel: () => void;
 };

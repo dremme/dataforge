@@ -206,7 +206,7 @@ describe("App: search and filters", () => {
     });
   });
 
-  it("keeps the selection when the search narrows the gallery", async () => {
+  it("scopes the selection count to what the search leaves visible", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -216,17 +216,27 @@ describe("App: search and filters", () => {
     await user.click(screen.getByRole("button", { name: "Select waves.mp4" }));
     expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
 
-    await user.type(
-      screen.getByRole("searchbox", { name: "Search files and folders by name or caption" }),
-      "sunset",
-    );
+    const searchbox = screen.getByRole("searchbox", {
+      name: "Search files and folders by name or caption",
+    });
+    await user.type(searchbox, "sunset");
 
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: /waves\.mp4/ })).not.toBeInTheDocument();
     });
 
-    // Still in selection mode, and waves.mp4 stays selected while filtered out.
+    // Still in selection mode, and the visible half of the selection is untouched.
     expect(screen.getByRole("button", { name: "Deselect sunset.png" })).toBeInTheDocument();
+    // waves.mp4 stops counting: the pill reads selected-and-visible over visible.
+    expect(screen.getByLabelText("1 of 1")).toHaveClass("gallery-section__count");
+
+    // Hidden, not dropped — widening the search brings it back. This is what
+    // makes the scoping a lens over the selection rather than an edit to it.
+    await user.clear(searchbox);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Deselect waves.mp4" })).toBeInTheDocument();
+    });
     expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
   });
 

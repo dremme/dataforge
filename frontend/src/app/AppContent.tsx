@@ -32,7 +32,8 @@ export function AppContent() {
     query,
     selectionMode,
     selectedPaths,
-    selectedCount,
+    visibleSelectedPaths,
+    visibleSelectedCount,
     enterSelectionMode,
     exitSelectionMode,
     handleToggleSelectPath,
@@ -50,7 +51,8 @@ export function AppContent() {
     <GallerySelectionProvider
       selectionMode={selectionMode}
       selectedPaths={selectedPaths}
-      selectedCount={selectedCount}
+      visibleSelectedPaths={visibleSelectedPaths}
+      visibleSelectedCount={visibleSelectedCount}
       enterSelectionMode={enterSelectionMode}
       exitSelectionMode={exitSelectionMode}
       toggleSelectedPath={handleToggleSelectPath}

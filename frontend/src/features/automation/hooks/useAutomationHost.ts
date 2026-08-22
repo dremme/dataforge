@@ -9,6 +9,7 @@ import {
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import type { Breadcrumb, GalleryItem, JobType } from "@/shared/types";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 type FolderAutomation = ReturnType<typeof useFolderAutomation>;
 
@@ -54,11 +55,19 @@ export function useAutomationHost({
   const { startJob } = automation;
   const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
 
+  // One read, so the count a dialog shows and the paths its job starts with can
+  // never disagree. `undefined` means nothing is selected: the job takes the folder.
+  const jobPaths = getJobPaths();
+  const selectionActive = jobPaths !== undefined;
+  const jobItemCount = jobPaths?.length ?? items.length;
+
   const dialogs = useAutomationDialogOverlays({
     folderPath: folder,
     folderLabel: jobStart.folderLabel,
     startingJobType: automation.startingJobType,
-    itemCount: getJobPaths()?.length ?? items.length,
+    itemCount: jobItemCount,
+    folderItemCount: items.length,
+    selectionActive,
     startJob,
     getJobPaths,
   });
@@ -126,12 +135,17 @@ export function useAutomationHost({
     ],
   );
 
+  const confirmScope = useMemo<DialogScopeInfo>(
+    () => ({ itemCount: jobItemCount, folderLabel, fromSelection: selectionActive }),
+    [folderLabel, jobItemCount, selectionActive],
+  );
+
   return {
     panelProps,
     dialogs: automationDialogs,
     jobStartConfirm: {
       pending: pendingJobStart,
-      folderLabel,
+      scope: confirmScope,
       onConfirm: confirmPendingJobStart,
       onCancel: cancelPendingJobStart,
     },

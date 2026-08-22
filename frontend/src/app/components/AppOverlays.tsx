@@ -118,7 +118,8 @@ export function AppOverlays({
       {jobStart.pending && (
         <ConfirmDialog
           title={JOB_START_CONFIRM[jobStart.pending].title}
-          description={JOB_START_CONFIRM[jobStart.pending].description(jobStart.folderLabel)}
+          scope={jobStart.scope}
+          description={JOB_START_CONFIRM[jobStart.pending].description()}
           confirmLabel={JOB_START_CONFIRM[jobStart.pending].confirmLabel}
           onConfirm={jobStart.onConfirm}
           onCancel={jobStart.onCancel}

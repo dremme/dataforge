@@ -13,6 +13,7 @@ import {
 } from "@/features/automation/preferences/watermarkPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type {
   DuplicateThreshold,
   JobType,
@@ -26,7 +27,12 @@ type UseAutomationDialogOverlaysOptions = {
   folderPath: string | undefined;
   folderLabel: string;
   startingJobType: JobType | null;
+  /** Files a job will actually touch: the selection, or the whole folder. */
   itemCount: number;
+  /** Every file in the folder, for jobs the selection cannot narrow. */
+  folderItemCount: number;
+  /** True while a selection is scoping jobs to part of the folder. */
+  selectionActive: boolean;
   startJob: (
     jobType: JobType,
     folder: string,
@@ -41,6 +47,8 @@ export function useAutomationDialogOverlays({
   folderLabel,
   startingJobType,
   itemCount,
+  folderItemCount,
+  selectionActive,
   startJob,
   getJobPaths,
 }: UseAutomationDialogOverlaysOptions) {
@@ -78,10 +86,33 @@ export function useAutomationDialogOverlays({
     setOpenJobType("watermark");
   }, []);
 
+  const scope = useMemo<DialogScopeInfo>(
+    () => ({ itemCount, folderLabel, fromSelection: selectionActive }),
+    [folderLabel, itemCount, selectionActive],
+  );
+
+  /**
+   * LoRA training is folder-wide however much is selected — AI-Toolkit trains on
+   * its own dataset folder and the backend drops the paths (`train_lora.py`). So
+   * this one reports the folder, and says why whenever a selection is active and
+   * the user would otherwise expect it to have narrowed things.
+   */
+  const trainLoraScope = useMemo<DialogScopeInfo>(
+    () => ({
+      itemCount: folderItemCount,
+      folderLabel,
+      fromSelection: false,
+      note: selectionActive
+        ? "AI-Toolkit trains on the whole folder, so the current selection does not narrow it."
+        : undefined,
+    }),
+    [folderItemCount, folderLabel, selectionActive],
+  );
+
   const dialogs = useMemo<AutomationDialogsState>(() => {
     const shared = (jobType: JobType) => ({
       open: openJobType === jobType,
-      folderLabel,
+      scope,
       busy: startingJobType === jobType,
       onCancel: closeDialog,
     });
@@ -144,25 +175,22 @@ export function useAutomationDialogOverlays({
       },
       findDuplicates: {
         ...shared("find_duplicates"),
-        itemCount,
         onConfirm: (threshold: DuplicateThreshold) =>
           startJobFromDialog("find_duplicates", { threshold }),
       },
       batchRename: {
         ...shared("batch_rename"),
-        itemCount,
         onConfirm: (stem: string, startNumber: number) =>
           startJobFromDialog("batch_rename", { stem, start_number: startNumber }),
       },
       trainLora: {
         ...shared("train_lora"),
-        itemCount,
+        scope: trainLoraScope,
         onConfirm: (settings: TrainLoraSettings) =>
           startJobFromDialog("train_lora", trainLoraBody(settings)),
       },
       watermark: {
         ...shared("watermark"),
-        itemCount,
         initialSettings: watermarkSettings,
         onConfirm: (
           text: string,
@@ -174,13 +202,13 @@ export function useAutomationDialogOverlays({
     };
   }, [
     closeDialog,
-    folderLabel,
     folderPath,
     getJobPaths,
-    itemCount,
     openJobType,
+    scope,
     startJobFromDialog,
     startingJobType,
+    trainLoraScope,
     verifyCaptionsSettings,
     watermarkSettings,
   ]);

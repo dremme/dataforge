@@ -1,15 +1,17 @@
 import { useCallback, useId, useState } from "react";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 interface BackupCaptionsDialogProps {
-  folderLabel: string;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: (overwrite: boolean) => void;
   onCancel: () => void;
 }
 
 export function BackupCaptionsDialog({
-  folderLabel,
+  scope,
   busy = false,
   onConfirm,
   onCancel,
@@ -24,11 +26,12 @@ export function BackupCaptionsDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Back up captions?"
       description={
         <>
-          This copies captions in <strong>{folderLabel}</strong> into <strong>.backup</strong>.
-          Copies already in the backup are kept, and other files there are left untouched.
+          Copies each caption into <strong>.backup</strong>. Copies already in the backup are kept,
+          and other files there are left untouched.
         </>
       }
       panelClassName="backup-captions-dialog"

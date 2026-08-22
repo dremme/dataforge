@@ -13,7 +13,7 @@ const preview = vi.mocked(previewCaptionReplacements);
 function renderDialog(onConfirm = vi.fn()) {
   render(
     <ReplaceCaptionsDialog
-      folderLabel="Photos"
+      scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
       folderPath="C:/datasets/photos"
       onConfirm={onConfirm}
       onCancel={vi.fn()}

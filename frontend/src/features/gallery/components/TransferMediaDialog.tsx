@@ -18,11 +18,18 @@ import type { MediaTransferMode } from "@/features/gallery/api/media";
 import type { FolderChild } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
 
 interface TransferMediaDialogProps {
   mode: MediaTransferMode;
   currentFolder: string;
+  /**
+   * What the transfer will move or copy. Optional: the single-item modal reuses
+   * this dialog for one named file, where the description says which one and a
+   * "selected files" row would only muddy it.
+   */
+  scope?: DialogScopeInfo;
   selectedCount: number;
   /** Replaces the default "N selected files" phrasing — the item modal names the file. */
   description?: ReactNode;
@@ -132,6 +139,7 @@ function ancestorPathsToExpand(folder: string, roots: RootNode[]): string[] {
 export function TransferMediaDialog({
   mode,
   currentFolder,
+  scope,
   selectedCount,
   description,
   busy = false,
@@ -350,6 +358,7 @@ export function TransferMediaDialog({
   return (
     <Dialog
       title={modeCopy.title}
+      scope={scope}
       description={
         description ?? (
           <>
@@ -387,7 +396,7 @@ export function TransferMediaDialog({
         </div>
       </div>
 
-      <div className="dialog__field">
+      <div className="dialog__field transfer-media-dialog__tree-field">
         <div className="dialog__label">Folders</div>
         <div
           ref={treeRef}

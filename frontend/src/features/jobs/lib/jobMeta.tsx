@@ -50,7 +50,7 @@ interface JobTypeMeta {
   /** Confirm-dialog copy when startUi is "confirm". */
   confirm?: {
     title: string;
-    description: (folderLabel: string) => ReactNode;
+    description: () => ReactNode;
     confirmLabel: string;
   };
   /** Whether this job can run in the current folder. Omit for jobs that always can. */
@@ -120,11 +120,7 @@ export const JOB_TYPE_META = {
     menuDescription: "Remove embedded metadata from media files.",
     confirm: {
       title: "Start strip metadata?",
-      description: (folderLabel: string) => (
-        <>
-          Remove embedded metadata from PNGs and MP4s in <strong>{folderLabel}</strong>.
-        </>
-      ),
+      description: () => <>Removes embedded metadata from every PNG and MP4 in scope.</>,
       confirmLabel: "Start strip metadata",
     },
   },
@@ -153,10 +149,10 @@ export const JOB_TYPE_META = {
     menuDescription: "Bring captions back from the .backup folder.",
     confirm: {
       title: "Restore captions from backup?",
-      description: (folderLabel: string) => (
+      description: () => (
         <>
-          This overwrites current captions in <strong>{folderLabel}</strong> with the copies in{" "}
-          <strong>.backup</strong>. Files that are not in the backup are left untouched.
+          Overwrites their current captions with the copies in <strong>.backup</strong>. Files that
+          are not in the backup are left untouched.
         </>
       ),
       confirmLabel: "Restore captions",

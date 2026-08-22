@@ -1,13 +1,14 @@
 import { useCallback, useId, useState } from "react";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 const INVALID_STEM_PATTERN = /[<>:"/\\|?*]/;
 const START_NUMBER_PATTERN = /^\d+$/;
 
 interface BatchRenameDialogProps {
-  folderLabel: string;
-  itemCount: number;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: (stem: string, startNumber: number) => void;
   onCancel: () => void;
@@ -23,8 +24,7 @@ function sequenceName(stem: string, index: number, padding: number): string {
 }
 
 export function BatchRenameDialog({
-  folderLabel,
-  itemCount,
+  scope,
   busy = false,
   onConfirm,
   onCancel,
@@ -41,6 +41,7 @@ export function BatchRenameDialog({
   const previewStart = START_NUMBER_PATTERN.test(startNumber.trim())
     ? Number(startNumber.trim())
     : 1;
+  const { itemCount } = scope;
   const previewPadding = sequencePadding(itemCount, previewStart);
   const previewFirst = sequenceName(previewStem, previewStart, previewPadding);
   const previewLast = sequenceName(previewStem, previewStart + itemCount - 1, previewPadding);
@@ -70,12 +71,12 @@ export function BatchRenameDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Rename files?"
       description={
         <>
-          Rename <strong>{itemCount}</strong> supported media {itemCount === 1 ? "file" : "files"}{" "}
-          in <strong>{folderLabel}</strong>. Caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST})
-          move with each file. This action cannot be undone.
+          Renames them in sequence. Caption sidecars ({CAPTION_SIDECAR_EXTENSION_LIST}) move with
+          each file. This action cannot be undone.
         </>
       }
       panelClassName="batch-rename-dialog"

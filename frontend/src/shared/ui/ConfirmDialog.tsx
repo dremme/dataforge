@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import { Dialog, DialogActions } from "./Dialog";
+import type { DialogScopeInfo } from "./DialogScope";
 
 interface ConfirmDialogProps {
   title: string;
+  /** What the confirmed action will run on; see `Dialog`. */
+  scope?: DialogScopeInfo;
   description: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
@@ -14,6 +17,7 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({
   title,
+  scope,
   description,
   confirmLabel,
   cancelLabel,
@@ -25,6 +29,7 @@ export function ConfirmDialog({
   return (
     <Dialog
       title={title}
+      scope={scope}
       description={description}
       busy={busy}
       onConfirm={onConfirm}

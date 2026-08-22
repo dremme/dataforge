@@ -2,6 +2,7 @@ import { useCallback, useId, useState } from "react";
 import type { WatermarkSettings } from "@/features/automation/preferences/watermarkPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { WatermarkOpacity, WatermarkPosition, WatermarkSizeName } from "@/shared/types";
 
 /**
@@ -30,8 +31,8 @@ const POSITIONS: ReadonlyArray<RadioTileOption<WatermarkPosition>> = [
 ];
 
 interface WatermarkDialogProps {
-  folderLabel: string;
-  itemCount: number;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   initialSettings: WatermarkSettings;
   busy?: boolean;
   onConfirm: (
@@ -44,8 +45,7 @@ interface WatermarkDialogProps {
 }
 
 export function WatermarkDialog({
-  folderLabel,
-  itemCount,
+  scope,
   initialSettings,
   busy = false,
   onConfirm,
@@ -79,13 +79,12 @@ export function WatermarkDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Add watermark?"
       description={
         <>
-          Write your text onto <strong>{itemCount}</strong> supported media{" "}
-          {itemCount === 1 ? "file" : "files"} in <strong>{folderLabel}</strong>. The originals stay
-          untouched: the marked copies are saved to the <strong>watermarked</strong> subfolder,
-          without their caption sidecars.
+          Originals stay untouched — marked copies go to the <strong>watermarked</strong>
+          subfolder, without caption sidecars.
         </>
       }
       panelClassName="watermark-dialog"

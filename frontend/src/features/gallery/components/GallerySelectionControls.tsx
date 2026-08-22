@@ -56,7 +56,7 @@ interface GallerySelectionControlsProps {
 export function GallerySelectionControls({ totalCount }: GallerySelectionControlsProps) {
   const {
     selectionMode,
-    selectedCount,
+    visibleSelectedCount,
     enterSelectionMode,
     exitSelectionMode,
     selectAllPaths,
@@ -86,7 +86,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
       }
 
       event.preventDefault();
-      if (selectedCount > 0) {
+      if (visibleSelectedCount > 0) {
         clearSelectedPaths();
         return;
       }
@@ -95,7 +95,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [clearSelectedPaths, exitSelectionMode, selectedCount, selectionMode]);
+  }, [clearSelectedPaths, exitSelectionMode, visibleSelectedCount, selectionMode]);
 
   if (!selectionMode) {
     return (
@@ -122,7 +122,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         type="button"
         className="gallery-controls__btn"
         onClick={selectAllPaths}
-        disabled={busy || selectedCount === totalCount}
+        disabled={busy || visibleSelectedCount === totalCount}
       >
         All
       </button>
@@ -138,7 +138,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         type="button"
         className="gallery-controls__btn"
         onClick={clearSelectedPaths}
-        disabled={busy || selectedCount === 0}
+        disabled={busy || visibleSelectedCount === 0}
       >
         None
       </button>
@@ -147,7 +147,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         icon={iconCopy}
         label="Copy selected files"
         transferring={transferring}
-        disabled={selectedCount === 0 || busy}
+        disabled={visibleSelectedCount === 0 || busy}
         onClick={() => startTransfer("copy")}
       />
       <TransferButton
@@ -155,7 +155,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         icon={iconFolderInput}
         label="Move selected files"
         transferring={transferring}
-        disabled={selectedCount === 0 || busy}
+        disabled={visibleSelectedCount === 0 || busy}
         onClick={() => startTransfer("move")}
       />
       <Tooltip content="Delete selected files">
@@ -163,7 +163,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
           type="button"
           className="gallery-controls__btn gallery-controls__btn--icon gallery-controls__btn--danger"
           onClick={openDeleteConfirm}
-          disabled={selectedCount === 0 || busy}
+          disabled={visibleSelectedCount === 0 || busy}
           aria-busy={deleting || undefined}
           aria-label="Delete selected files"
         >

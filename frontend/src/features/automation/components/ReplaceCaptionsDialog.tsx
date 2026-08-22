@@ -5,6 +5,7 @@ import { isAbortError } from "@/shared/api/http";
 import { classNames } from "@/shared/lib/classNames";
 import type { CaptionReplaceMode, CaptionReplacePreviewSample } from "@/shared/types";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
 
 const MODE_OPTIONS: ReadonlyArray<RadioTileOption<CaptionReplaceMode>> = [
@@ -24,7 +25,8 @@ export interface ReplaceCaptionsSettings {
 }
 
 interface ReplaceCaptionsDialogProps {
-  folderLabel: string;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   folderPath: string;
   /** Paths the job will be limited to, or undefined for the whole folder. */
   selectedPaths?: string[];
@@ -41,7 +43,7 @@ interface PreviewState {
 }
 
 export function ReplaceCaptionsDialog({
-  folderLabel,
+  scope,
   folderPath,
   selectedPaths,
   busy = false,
@@ -150,12 +152,10 @@ export function ReplaceCaptionsDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Find and replace in captions?"
       description={
-        <>
-          Edit the captions of media in <strong>{folderLabel}</strong>. Files whose caption does not
-          match are left untouched.
-        </>
+        <>Edits the captions in place. Files whose caption does not match are left untouched.</>
       }
       panelClassName="replace-captions-dialog"
       busy={busy}

@@ -38,7 +38,8 @@ function baseValue(overrides: Partial<GallerySelectionValue>): GallerySelectionV
   return {
     selectionMode: false,
     selectedPaths: new Set(),
-    selectedCount: 0,
+    visibleSelectedPaths: new Set(),
+    visibleSelectedCount: 0,
     enterSelectionMode: noop,
     exitSelectionMode: noop,
     toggleSelectedPath: noop,
@@ -69,14 +70,10 @@ export function withGallerySelection(
 export function withGallerySelectionActions(
   children: ReactNode,
   overrides: Partial<GallerySelectionValue> = {},
-  { currentFolder, totalCount }: { currentFolder: string; totalCount: number },
+  { currentFolder }: { currentFolder: string },
 ): ReactElement {
   return (
-    <GallerySelectionHarness
-      value={baseValue(overrides)}
-      currentFolder={currentFolder}
-      totalCount={totalCount}
-    >
+    <GallerySelectionHarness value={baseValue(overrides)} currentFolder={currentFolder}>
       {children}
     </GallerySelectionHarness>
   );

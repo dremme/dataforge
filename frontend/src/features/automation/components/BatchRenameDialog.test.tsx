@@ -6,8 +6,7 @@ import { BatchRenameDialog } from "./BatchRenameDialog";
 function renderDialog(onConfirm = vi.fn(), itemCount = 12) {
   render(
     <BatchRenameDialog
-      folderLabel="Photos"
-      itemCount={itemCount}
+      scope={{ itemCount, folderLabel: "Photos", fromSelection: false }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
     />,

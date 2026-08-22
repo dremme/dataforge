@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import type { DuplicateThreshold } from "@/shared/types";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
 
 const THRESHOLD_OPTIONS: ReadonlyArray<RadioTileOption<DuplicateThreshold>> = [
@@ -10,16 +11,15 @@ const THRESHOLD_OPTIONS: ReadonlyArray<RadioTileOption<DuplicateThreshold>> = [
 ];
 
 interface FindDuplicatesDialogProps {
-  folderLabel: string;
-  itemCount: number;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   busy?: boolean;
   onConfirm: (threshold: DuplicateThreshold) => void;
   onCancel: () => void;
 }
 
 export function FindDuplicatesDialog({
-  folderLabel,
-  itemCount,
+  scope,
   busy = false,
   onConfirm,
   onCancel,
@@ -33,13 +33,10 @@ export function FindDuplicatesDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Find duplicates?"
       description={
-        <>
-          Compare <strong>{itemCount}</strong> {itemCount === 1 ? "file" : "files"} in{" "}
-          <strong>{folderLabel}</strong> and group the matches. Duplicates will be marked in the
-          gallery.
-        </>
+        <>Compares them and groups the matches. Duplicates will be marked in the gallery.</>
       }
       panelClassName="find-duplicates-dialog"
       busy={busy}

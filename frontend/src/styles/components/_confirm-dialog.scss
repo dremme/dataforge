@@ -5,6 +5,57 @@
 // .confirm-dialog
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// .dialog-scope — what a job or batch action is about to run on
+// ---------------------------------------------------------------------------
+
+// Deliberately not prose: it is the one line a user should be able to find
+// without reading, so it gets a surface of its own rather than a sentence in
+// the paragraph below. Accent-tinted while a selection narrows the job, plain
+// while it covers the folder, matching the gallery's own count pill.
+.dialog-scope {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+
+  &__line {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    // Label sizing, not prose sizing: it costs every dialog its height, and the
+    // tallest ones have none to spare.
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--text-muted);
+
+    strong {
+      font-weight: var(--font-semibold);
+      color: var(--text);
+    }
+  }
+
+  &__icon {
+    @include icon-block;
+    @include icon-size(0.8125rem);
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+
+  &__folder {
+    word-break: break-word;
+  }
+
+  // Reads as a caveat on the line above, not as a second fact.
+  &__note {
+    margin: 0.3125rem 0 0;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-snug);
+    color: var(--text-subtle);
+  }
+}
+
 .confirm-dialog {
   @include modal-shell($z-index-confirm);
 
@@ -52,11 +103,17 @@
     color: var(--text-muted);
   }
 
+  // The scope row sits between the two, so it carries the gap to the description
+  // that the header would otherwise provide.
+  .dialog-scope {
+    margin-bottom: 0.625rem;
+  }
+
   &__actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.625rem;
-    margin-top: 1.5rem;
+    margin-top: 1.125rem;
     margin-left: calc(-1 * var(--panel-padding));
     margin-right: calc(-1 * var(--panel-padding));
     padding-top: var(--panel-padding);
@@ -265,11 +322,18 @@
 .create-folder-dialog,
 .set-captions-dialog,
 .find-duplicates-dialog,
-.verify-captions-dialog,
-.auto-caption-dialog,
 .train-lora-dialog,
 .watermark-dialog {
   width: min(32rem, 100%);
+}
+
+// The two vision dialogs share the reasoning-effort selector, whose three tiles
+// carry a sentence each. 38rem is the width at which those sentences wrap to
+// three lines instead of four — 14px per tile, and the difference between
+// "verify captions" fitting a 720px-tall window and scrolling.
+.verify-captions-dialog,
+.auto-caption-dialog {
+  width: min(38rem, 100%);
 }
 
 .batch-rename-dialog {
@@ -564,12 +628,21 @@
     }
   }
 
+  &__tree-field {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    // Only this pair carries `min-height: 0`; every other field keeps its
+    // content height, which is what stops the form collapsing instead.
+    min-height: 0;
+  }
+
   &__tree {
     @include app-scrollbar;
     display: flex;
     flex: 1;
     flex-direction: column;
-    min-height: 12rem;
+    min-height: 8rem;
     max-height: 24rem;
     margin-top: 0.75rem;
     overflow-y: auto;

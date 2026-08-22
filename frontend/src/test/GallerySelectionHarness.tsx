@@ -9,7 +9,6 @@ import { useGallerySelectionActions } from "@/features/gallery/hooks/useGalleryS
 interface GallerySelectionHarnessProps {
   value: GallerySelectionValue;
   currentFolder: string;
-  totalCount: number;
   children: ReactNode;
 }
 
@@ -21,14 +20,12 @@ interface GallerySelectionHarnessProps {
 export function GallerySelectionHarness({
   value,
   currentFolder,
-  totalCount,
   children,
 }: GallerySelectionHarnessProps) {
   const actions = useGallerySelectionActions({
     currentFolder,
-    totalCount,
-    selectedPaths: value.selectedPaths,
-    selectedCount: value.selectedCount,
+    visibleSelectedPaths: value.visibleSelectedPaths,
+    visibleSelectedCount: value.visibleSelectedCount,
     exitSelectionMode: value.exitSelectionMode,
     onDeleted: value.onDeleted,
     onMoved: value.onMoved,

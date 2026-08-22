@@ -7,10 +7,12 @@ import { useNotify } from "@/shared/notifications/notifications";
 interface UseGallerySelectionActionsOptions {
   /** Folder the selected media lives in — the transfer dialog's origin. */
   currentFolder: string | undefined;
-  /** Items visible under the active filters; clearing all of them leaves selection mode. */
-  totalCount: number;
-  selectedPaths: ReadonlySet<string>;
-  selectedCount: number;
+  /**
+   * The selection scoped to the filtered view. Batch actions deliberately reach
+   * no further: what the user can see selected is what gets moved or deleted.
+   */
+  visibleSelectedPaths: ReadonlySet<string>;
+  visibleSelectedCount: number;
   exitSelectionMode: () => void;
   onDeleted: (paths: string[]) => void | Promise<void>;
   onMoved: (paths: string[]) => void | Promise<void>;
@@ -27,9 +29,8 @@ interface UseGallerySelectionActionsOptions {
  */
 export function useGallerySelectionActions({
   currentFolder,
-  totalCount,
-  selectedPaths,
-  selectedCount,
+  visibleSelectedPaths,
+  visibleSelectedCount,
   exitSelectionMode,
   onDeleted,
   onMoved,
@@ -39,15 +40,18 @@ export function useGallerySelectionActions({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const transferPaths = useMemo(() => Array.from(selectedPaths), [selectedPaths]);
+  const transferPaths = useMemo(() => Array.from(visibleSelectedPaths), [visibleSelectedPaths]);
 
+  // Everything the move targeted is gone, so the mode has nothing left to hold.
+  // Measured against what was actually acted on rather than against the visible
+  // item count, which used to describe a different set entirely.
   const onMoveSettled = useCallback(
     (succeeded: string[]) => {
-      if (succeeded.length === totalCount) {
+      if (succeeded.length === transferPaths.length) {
         exitSelectionMode();
       }
     },
-    [exitSelectionMode, totalCount],
+    [exitSelectionMode, transferPaths.length],
   );
 
   const transfer = useMediaTransfer({
@@ -61,9 +65,9 @@ export function useGallerySelectionActions({
   const busy = deleting || transferring !== null;
 
   const openDeleteConfirm = useCallback(() => {
-    if (busy || selectedCount === 0) return;
+    if (busy || visibleSelectedCount === 0) return;
     setDeleteConfirmOpen(true);
-  }, [busy, selectedCount]);
+  }, [busy, visibleSelectedCount]);
 
   const cancelDeleteConfirm = useCallback(() => {
     if (deleting) return;
@@ -71,7 +75,7 @@ export function useGallerySelectionActions({
   }, [deleting]);
 
   const confirmDelete = useCallback(async () => {
-    const paths = Array.from(selectedPaths);
+    const paths = Array.from(visibleSelectedPaths);
     if (paths.length === 0 || deleting) return;
 
     setDeleting(true);
@@ -90,16 +94,16 @@ export function useGallerySelectionActions({
         notify({ variant: "danger", message: failureMessage("delete", failed) });
       }
 
-      if (succeeded.length === totalCount) {
+      if (succeeded.length === paths.length) {
         exitSelectionMode();
       }
     } finally {
       setDeleting(false);
     }
-  }, [totalCount, deleting, notify, onDeleted, exitSelectionMode, selectedPaths]);
+  }, [deleting, notify, onDeleted, exitSelectionMode, visibleSelectedPaths]);
 
   /** Whether a batch action can start right now. */
-  const canAct = selectedCount > 0 && !busy;
+  const canAct = visibleSelectedCount > 0 && !busy;
 
   const startTransfer = useCallback(
     (mode: MediaTransferMode) => {
@@ -118,8 +122,9 @@ export function useGallerySelectionActions({
       startTransfer,
       overlay: {
         currentFolder,
-        selectedPaths,
-        selectedCount,
+        // The dialogs name and count exactly what the action will touch.
+        selectedPaths: visibleSelectedPaths,
+        selectedCount: visibleSelectedCount,
         transferPicker,
         overwritePrompt,
         transferring,
@@ -143,8 +148,6 @@ export function useGallerySelectionActions({
       deleting,
       openDeleteConfirm,
       overwritePrompt,
-      selectedCount,
-      selectedPaths,
       startTransfer,
       transfer.closeOverwritePrompt,
       transfer.closeTransferPicker,
@@ -152,6 +155,8 @@ export function useGallerySelectionActions({
       transfer.selectDestination,
       transferPicker,
       transferring,
+      visibleSelectedCount,
+      visibleSelectedPaths,
     ],
   );
 }

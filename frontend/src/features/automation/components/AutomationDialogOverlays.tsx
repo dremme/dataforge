@@ -30,7 +30,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     <>
       {setCaptions.open && (
         <SetCaptionsDialog
-          folderLabel={setCaptions.folderLabel}
+          scope={setCaptions.scope}
           busy={setCaptions.busy}
           onConfirm={setCaptions.onConfirm}
           onCancel={setCaptions.onCancel}
@@ -39,7 +39,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {replaceCaptions.open && replaceCaptions.folderPath && (
         <ReplaceCaptionsDialog
-          folderLabel={replaceCaptions.folderLabel}
+          scope={replaceCaptions.scope}
           folderPath={replaceCaptions.folderPath}
           selectedPaths={replaceCaptions.selectedPaths}
           busy={replaceCaptions.busy}
@@ -50,7 +50,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {backupCaptions.open && (
         <BackupCaptionsDialog
-          folderLabel={backupCaptions.folderLabel}
+          scope={backupCaptions.scope}
           busy={backupCaptions.busy}
           onConfirm={backupCaptions.onConfirm}
           onCancel={backupCaptions.onCancel}
@@ -59,7 +59,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {autoCaption.open && (
         <AutoCaptionDialog
-          folderLabel={autoCaption.folderLabel}
+          scope={autoCaption.scope}
           busy={autoCaption.busy}
           onConfirm={autoCaption.onConfirm}
           onCancel={autoCaption.onCancel}
@@ -69,7 +69,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
       {verifyCaptions.open && verifyCaptions.folderPath && verifyCaptions.initialSettings && (
         <VerifyCaptionsDialog
           folderPath={verifyCaptions.folderPath}
-          folderLabel={verifyCaptions.folderLabel}
+          scope={verifyCaptions.scope}
           initialSettings={verifyCaptions.initialSettings}
           busy={verifyCaptions.busy}
           onConfirm={verifyCaptions.onConfirm}
@@ -79,8 +79,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {findDuplicates.open && (
         <FindDuplicatesDialog
-          folderLabel={findDuplicates.folderLabel}
-          itemCount={findDuplicates.itemCount}
+          scope={findDuplicates.scope}
           busy={findDuplicates.busy}
           onConfirm={findDuplicates.onConfirm}
           onCancel={findDuplicates.onCancel}
@@ -89,8 +88,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {batchRename.open && (
         <BatchRenameDialog
-          folderLabel={batchRename.folderLabel}
-          itemCount={batchRename.itemCount}
+          scope={batchRename.scope}
           busy={batchRename.busy}
           onConfirm={batchRename.onConfirm}
           onCancel={batchRename.onCancel}
@@ -99,8 +97,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {trainLora.open && (
         <TrainLoraDialog
-          folderLabel={trainLora.folderLabel}
-          itemCount={trainLora.itemCount}
+          scope={trainLora.scope}
           busy={trainLora.busy}
           onConfirm={trainLora.onConfirm}
           onCancel={trainLora.onCancel}
@@ -109,8 +106,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
 
       {watermark.open && watermark.initialSettings && (
         <WatermarkDialog
-          folderLabel={watermark.folderLabel}
-          itemCount={watermark.itemCount}
+          scope={watermark.scope}
           initialSettings={watermark.initialSettings}
           busy={watermark.busy}
           onConfirm={watermark.onConfirm}

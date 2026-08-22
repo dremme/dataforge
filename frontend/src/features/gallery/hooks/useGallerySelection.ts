@@ -25,8 +25,10 @@ export function useGallerySelection() {
    * token — any overlay still showing one of its items.
    *
    * Only folder navigation calls this. Narrowing the view (search, sort, filters)
-   * deliberately does not: a path stays selected while it is filtered out, so
-   * refining a search does not silently shrink what the next action will touch.
+   * deliberately does not: hidden paths stay in the set so that widening the
+   * filter restores them. They are inert while hidden — every count, button
+   * state and batch action reads `visibleSelectedPaths` in `useGallerySession`,
+   * which intersects this set with what the filters are actually showing.
    */
   const clearSelection = useCallback(() => {
     setFolderResetToken((token) => token + 1);
@@ -78,14 +80,25 @@ export function useGallerySelection() {
     });
   }, []);
 
+  /**
+   * Union, not replace: "select everything visible" must not discard what an
+   * earlier, wider filter left selected out of view. Mirrors
+   * `invertSelectedPaths`, which has always been additive.
+   */
   const selectAllPaths = useCallback((paths: string[]) => {
-    setSelectedPaths(new Set(paths));
+    setSelectedPaths((current) => {
+      const next = new Set(current);
+      for (const path of paths) {
+        next.add(path);
+      }
+      return next;
+    });
   }, []);
 
   /**
    * Flip membership of the given paths, leaving anything outside that set as it
-   * is — a path that is selected but filtered out of the current view stays
-   * selected, the same way narrowing a search does not shrink the selection.
+   * is — a path the filters hide keeps its state rather than being dropped, so
+   * widening the filter restores exactly what was there before.
    */
   const invertSelectedPaths = useCallback((paths: string[]) => {
     setSelectedPaths((current) => {
@@ -108,25 +121,19 @@ export function useGallerySelection() {
     });
   }, []);
 
-  const selectedCount = selectedPaths.size;
-  const hasSelection = selectedCount > 0;
-
+  /**
+   * Every path in the set, hidden ones included — the stale-path sweep in
+   * `useGallerySession` prunes renamed files and needs the raw list to do it.
+   * Anything user-facing counts `visibleSelectedPaths` instead.
+   */
   const selectedPathsList = useMemo(() => Array.from(selectedPaths), [selectedPaths]);
-
-  const getJobPaths = useCallback((): string[] | undefined => {
-    if (!selectionMode || !hasSelection) return undefined;
-    return selectedPathsList;
-  }, [hasSelection, selectedPathsList, selectionMode]);
 
   return {
     folderResetToken,
     clearSelection,
     selectionMode,
     selectedPaths,
-    selectedCount,
-    hasSelection,
     selectedPathsList,
-    getJobPaths,
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectedPath,

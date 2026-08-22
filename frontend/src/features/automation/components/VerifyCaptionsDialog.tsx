@@ -14,12 +14,14 @@ import {
   type VerifyCaptionsSettings,
 } from "@/features/automation/preferences/verifyCaptionsPreferences";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
 export type { VerifyCaptionsMode };
 
 interface VerifyCaptionsDialogProps {
   folderPath: string;
-  folderLabel: string;
+  /** Files this run will touch and the folder they are in; rendered above the copy. */
+  scope: DialogScopeInfo;
   initialSettings: VerifyCaptionsSettings;
   busy?: boolean;
   onConfirm: (
@@ -33,7 +35,7 @@ interface VerifyCaptionsDialogProps {
 
 export function VerifyCaptionsDialog({
   folderPath,
-  folderLabel,
+  scope,
   initialSettings,
   busy = false,
   onConfirm,
@@ -80,11 +82,12 @@ export function VerifyCaptionsDialog({
 
   return (
     <Dialog
+      scope={scope}
       title="Start verify captions?"
       description={
         <>
-          Verify captions for images and videos in <strong>{folderLabel}</strong> using{" "}
-          <VisionModelBadge />. Media with caption issues will be marked with an exclamation mark.
+          Verifies the captions using <VisionModelBadge />. Media with caption issues will be marked
+          with an exclamation mark.
         </>
       }
       panelClassName="verify-captions-dialog"
@@ -145,7 +148,7 @@ export function VerifyCaptionsDialog({
           value={context}
           onChange={(event) => setContext(event.target.value)}
           placeholder="Optional notes about the dataset, e.g. typical poses or recurring subjects"
-          rows={3}
+          rows={2}
           disabled={pending}
           data-scroll-lock-allow
         />
