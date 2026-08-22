@@ -127,23 +127,30 @@ ever runs into the same VRAM wall.
 ## Video keyframe sampling
 
 A video is sent as still keyframes, sampled twice a second plus both endpoints, each labelled with its
-timestamp. Values that are not positive whole numbers are ignored.
+timestamp. Short clips keep at least eight frames. Values that are not positive whole numbers are ignored.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `VIDEO_KEYFRAMES_PER_SECOND` | `2` | How densely a clip is sampled |
-| `VIDEO_MAX_KEYFRAMES` | `64` | Ceiling on frames per clip, whatever its length |
-| `VIDEO_FRAME_MAX_PIXELS` | `500000` | Per-frame pixel budget |
+| `VIDEO_MAX_KEYFRAMES` | `42` | Ceiling on frames per clip. Binds from 20 seconds (`2 × 20 + 2`) |
+| `VIDEO_FRAME_MAX_PIXELS` | `500000` | Per-frame pixel budget through 7 seconds |
+| `VIDEO_FRAME_MIN_PIXELS` | `262144` | Per-frame pixel budget from 20 seconds on, and the per-side resize floor |
 
-**The cap is why brief actions go missing.** It binds from 31 seconds on, so a two-minute clip samples
-near 0.5 fps and a one-second action is likelier to fall between frames than land on one. Raising
-`VIDEO_MAX_KEYFRAMES` is the fix, at roughly 640 vision tokens per frame — 128 frames is about 82k
-tokens before the prompt.
+**Count.** The cap is why brief actions go missing on long clips. At the default it binds from 20
+seconds, so a two-minute clip still sends 42 frames (~0.35 fps) and a one-second action is likelier
+to fall between frames than land on one. Raising `VIDEO_MAX_KEYFRAMES` is the fix, at roughly 640
+vision tokens per frame — 84 frames is about 54k tokens before the prompt.
 
-**Lowering `VIDEO_FRAME_MAX_PIXELS` does not buy those frames.** Neither side is scaled below 512px,
-and the floor applies per side, so a 1920×1080 frame goes 928×512 at `500000`, 640×512 at `250000`
-(squashed to 1.25 from 1.78), and 512×512 at `125000`. Raise this knob for detail, not for headroom —
-the one reason to lower it is the failure below.
+**Size.** Per-frame pixels stay at `VIDEO_FRAME_MAX_PIXELS` through 7 seconds, then lerp down to
+`VIDEO_FRAME_MIN_PIXELS` at 20 seconds and stay there. That is what keeps a long clip inside context
+and VRAM without thinning the short clips. Raise `VIDEO_FRAME_MAX_PIXELS` for detail on short clips;
+lower `VIDEO_FRAME_MIN_PIXELS` to shrink long-clip frames further.
+
+**The min also sets the per-side resize floor.** The default `262144` is 512×512, Qwen's 32-pixel
+patch grid. Neither side is scaled below that floor unless you lower `VIDEO_FRAME_MIN_PIXELS`. With
+the default, a 1920×1080 frame goes 928×512 at `500000`, 640×512 at `250000` (squashed to 1.25 from
+1.78), and 512×512 at `125000`. Lowering `VIDEO_FRAME_MAX_PIXELS` alone does not buy more frames, and
+below the min it changes shape instead of shrinking.
 
 ### Videos that come back with an empty caption
 
@@ -159,7 +166,9 @@ reports on a run that succeeds.
 **Fixes** — free VRAM, or ask for less of it:
 
 - A smaller quantization, or a shorter context
-- Send less per request: `VIDEO_FRAME_MAX_PIXELS=262144`
+- Send less per request: lower `VIDEO_FRAME_MAX_PIXELS` (short clips) and/or `VIDEO_FRAME_MIN_PIXELS`
+  (long clips). `VIDEO_FRAME_MAX_PIXELS=262144` with the default min is the previous advice, and
+  still the first thing to try.
 
 ## Draft caption length
 

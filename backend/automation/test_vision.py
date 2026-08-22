@@ -30,10 +30,14 @@ from automation.vision import (
     MAX_MODEL_ATTEMPTS,
     MAX_VIDEO_KEYFRAME_COUNT,
     MAX_VIDEO_KEYFRAMES_VAR,
+    MIN_HONORED_MAX_PIXELS,
     READ_ERROR,
     SUCCESS,
     VIDEO_FRAME_MAX_PIXELS,
     VIDEO_FRAME_MAX_PIXELS_VAR,
+    VIDEO_FRAME_MIN_PIXELS_VAR,
+    VIDEO_FRAME_SCALE_END_SECONDS,
+    VIDEO_FRAME_SCALE_START_SECONDS,
     VIDEO_KEYFRAME_COUNT,
     ModelOutcome,
     call_with_retries,
@@ -43,7 +47,9 @@ from automation.vision import (
     get_image_max_pixels,
     get_keyframes_per_second,
     get_max_video_keyframes,
+    get_qwen_min_side_px,
     get_video_frame_max_pixels,
+    get_video_frame_min_pixels,
     keyframe_count_for_seconds,
     keyframe_sentence,
     load_image_rgb,
@@ -51,8 +57,10 @@ from automation.vision import (
     media_kind_for,
     media_kind_max_pixels,
     request_vision_text,
+    resize_for_qwen,
     retry_jpeg_quality,
     run_vision_completion,
+    video_frame_max_pixels_for_seconds,
     vision_client,
     vision_messages,
 )
@@ -513,14 +521,17 @@ class KeyframeCountTests(unittest.TestCase):
     def test_a_short_clip_keeps_the_fixed_count(self) -> None:
         # The formula alone would hand a 1s clip four frames, which is fewer than it
         # gets today. Below the floor nothing about a short clip changes.
-        for seconds in (0.5, 1, 3, 5.0):
+        for seconds in (0.5, 1, 3):
             self.assertEqual(keyframe_count_for_seconds(seconds), VIDEO_KEYFRAME_COUNT)
 
+        self.assertEqual(keyframe_count_for_seconds(5.0), 12)
         self.assertEqual(keyframe_count_for_seconds(6.0), 14)
 
     def test_a_long_clip_stops_at_the_cap(self) -> None:
         # Every frame is inlined in one request, so an uncapped count would build a
-        # payload no model accepts - and retry it.
+        # payload no model accepts - and retry it. Twenty seconds is the last length
+        # that still grows: 2 * 20 + 2 is the cap.
+        self.assertEqual(keyframe_count_for_seconds(20), MAX_VIDEO_KEYFRAME_COUNT)
         self.assertEqual(keyframe_count_for_seconds(31), MAX_VIDEO_KEYFRAME_COUNT)
         for seconds in (32, 60, 300):
             self.assertEqual(keyframe_count_for_seconds(seconds), MAX_VIDEO_KEYFRAME_COUNT)
@@ -534,10 +545,12 @@ class FrameBudgetEnvTests(unittest.TestCase):
     """The sampling schedule is configurable, and every knob is read per call."""
 
     def test_the_defaults_are_what_the_pinned_counts_already_assert(self) -> None:
-        # The rest of the suite hard-codes 14/22/42 and the 64-frame cap.
+        # The rest of the suite hard-codes 14/22/42; 42 is also the default cap.
         self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
         self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
         self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
+        self.assertEqual(get_video_frame_min_pixels(), MIN_HONORED_MAX_PIXELS)
+        self.assertEqual(get_qwen_min_side_px(), 512)
         self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
     def test_a_higher_rate_samples_a_clip_more_densely(self) -> None:
@@ -545,7 +558,7 @@ class FrameBudgetEnvTests(unittest.TestCase):
             self.assertEqual(keyframe_count_for_seconds(6), 26)
             self.assertEqual(keyframe_count_for_seconds(10), 42)
 
-    def test_a_raised_cap_lets_a_long_clip_past_sixty_four(self) -> None:
+    def test_a_raised_cap_lets_a_long_clip_past_the_default(self) -> None:
         with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "128"}):
             self.assertEqual(keyframe_count_for_seconds(60), 122)
             self.assertEqual(keyframe_count_for_seconds(300), 128)
@@ -568,6 +581,8 @@ class FrameBudgetEnvTests(unittest.TestCase):
                 self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
             with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: raw}):
                 self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
+            with patch.dict(os.environ, {VIDEO_FRAME_MIN_PIXELS_VAR: raw}):
+                self.assertEqual(get_video_frame_min_pixels(), MIN_HONORED_MAX_PIXELS)
             with patch.dict(os.environ, {IMAGE_MAX_PIXELS_VAR: raw}):
                 self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
@@ -586,6 +601,75 @@ class FrameBudgetEnvTests(unittest.TestCase):
         # knobs; setting the video one must not drag the still one down with it.
         with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "262144"}):
             self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
+
+
+class VideoFramePixelScaleTests(unittest.TestCase):
+    """Per-frame size shrinks between 7s and 20s so a long clip still fits one request."""
+
+    def test_a_short_clip_keeps_the_full_budget(self) -> None:
+        for seconds in (None, 0.5, 7.0, VIDEO_FRAME_SCALE_START_SECONDS):
+            self.assertEqual(video_frame_max_pixels_for_seconds(seconds), VIDEO_FRAME_MAX_PIXELS)
+            self.assertEqual(
+                media_kind_max_pixels("video", seconds=seconds), VIDEO_FRAME_MAX_PIXELS
+            )
+
+    def test_a_twenty_second_clip_is_at_the_resize_floor(self) -> None:
+        for seconds in (20.0, VIDEO_FRAME_SCALE_END_SECONDS, 21, 60, 300):
+            self.assertEqual(video_frame_max_pixels_for_seconds(seconds), MIN_HONORED_MAX_PIXELS)
+
+    def test_the_shrink_is_gradual_between_the_ends(self) -> None:
+        ten = video_frame_max_pixels_for_seconds(10)
+        self.assertEqual(ten, 445_110)
+        self.assertGreater(ten, MIN_HONORED_MAX_PIXELS)
+        self.assertLess(ten, VIDEO_FRAME_MAX_PIXELS)
+        midpoint = video_frame_max_pixels_for_seconds(13.5)
+        self.assertLess(midpoint, ten)
+        self.assertGreater(midpoint, MIN_HONORED_MAX_PIXELS)
+        self.assertGreater(ten, video_frame_max_pixels_for_seconds(15))
+
+    def test_an_unusable_duration_keeps_the_full_budget(self) -> None:
+        for seconds in (0, -5, float("nan"), float("inf")):
+            self.assertEqual(video_frame_max_pixels_for_seconds(seconds), VIDEO_FRAME_MAX_PIXELS)
+
+    def test_a_configured_budget_is_what_a_short_clip_starts_from(self) -> None:
+        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "400000"}):
+            self.assertEqual(video_frame_max_pixels_for_seconds(7), 400_000)
+            self.assertEqual(video_frame_max_pixels_for_seconds(20), MIN_HONORED_MAX_PIXELS)
+            self.assertEqual(media_kind_max_pixels("video", seconds=10), 368_187)
+
+    def test_a_budget_already_at_the_floor_does_not_grow_for_a_long_clip(self) -> None:
+        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "125000"}):
+            self.assertEqual(video_frame_max_pixels_for_seconds(7), 125_000)
+            self.assertEqual(video_frame_max_pixels_for_seconds(20), 125_000)
+
+    def test_stills_ignore_the_clip_span(self) -> None:
+        self.assertEqual(media_kind_max_pixels("image", seconds=60), IMAGE_MAX_PIXELS)
+
+    def test_a_configured_min_is_what_a_long_clip_lands_on(self) -> None:
+        with patch.dict(os.environ, {VIDEO_FRAME_MIN_PIXELS_VAR: "300000"}):
+            self.assertEqual(get_video_frame_min_pixels(), 300_000)
+            self.assertEqual(video_frame_max_pixels_for_seconds(7), VIDEO_FRAME_MAX_PIXELS)
+            self.assertEqual(video_frame_max_pixels_for_seconds(20), 300_000)
+            self.assertEqual(media_kind_max_pixels("video", seconds=10), 453_846)
+
+    def test_a_configured_min_and_max_lerp_together(self) -> None:
+        with patch.dict(
+            os.environ,
+            {VIDEO_FRAME_MAX_PIXELS_VAR: "400000", VIDEO_FRAME_MIN_PIXELS_VAR: "300000"},
+        ):
+            self.assertEqual(video_frame_max_pixels_for_seconds(7), 400_000)
+            self.assertEqual(video_frame_max_pixels_for_seconds(20), 300_000)
+            self.assertEqual(video_frame_max_pixels_for_seconds(10), 376_923)
+
+    def test_a_lowered_min_lets_the_resize_go_below_five_hundred_twelve(self) -> None:
+        with patch.dict(os.environ, {VIDEO_FRAME_MIN_PIXELS_VAR: "65536"}):
+            self.assertEqual(get_qwen_min_side_px(), 256)
+            self.assertEqual(video_frame_max_pixels_for_seconds(20), 65_536)
+            resized = resize_for_qwen(
+                Image.new("RGB", (1200, 1200), color="blue"),
+                max_pixels=video_frame_max_pixels_for_seconds(20),
+            )
+            self.assertEqual(resized.size, (256, 256))
 
 
 class KeyframeSentenceTests(unittest.TestCase):

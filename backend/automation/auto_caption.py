@@ -248,7 +248,9 @@ def complete_caption(
             has_audio=audio_wav is not None,
             seconds=timestamps[-1] if timestamps else None,
         ),
-        max_pixels=media_kind_max_pixels(media_kind),
+        max_pixels=media_kind_max_pixels(
+            media_kind, seconds=timestamps[-1] if timestamps else None
+        ),
         mode=mode,
         effort=effort,
         preserve_thinking=preserve_thinking,

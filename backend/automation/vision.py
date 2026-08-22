@@ -49,14 +49,16 @@ JPEG_QUALITY = 85
 # Evenly spaced samples across a video, in two roles: the floor below which a short
 # clip is not sampled any thinner than it used to be, and the fallback for a
 # container that will not say how fast it runs. Short clips yield fewer than this.
-VIDEO_KEYFRAME_COUNT = 12
+VIDEO_KEYFRAME_COUNT = 8
 # A video is sampled by its length instead, twice a second plus both endpoints, since
-# a dozen frames across a long clip describes motion the model never saw.
+# eight frames across a long clip describes motion the model never saw.
 KEYFRAMES_PER_SECOND = 2
 # Where that stops. Every frame is inlined in one request at roughly 640 vision
 # tokens, so an uncapped count would build a payload no model accepts - and
-# ``call_with_retries`` would upload it three times before saying so.
-MAX_VIDEO_KEYFRAME_COUNT = 64
+# ``call_with_retries`` would upload it three times before saying so. Twenty seconds
+# is the last length that still grows: 2 * 20 + 2 is this cap, and is as long a
+# clip as current vision models will take in one request.
+MAX_VIDEO_KEYFRAME_COUNT = 42
 # Above this a reported frame rate is metadata corruption rather than a fast camera:
 # the usual culprit is a container reporting its MPEG timescale of 90000. Real
 # high-speed footage tops out well below it.
@@ -72,19 +74,25 @@ QWEN_MIN_SIDE_PX = 512
 MIN_HONORED_MAX_PIXELS = QWEN_MIN_SIDE_PX * QWEN_MIN_SIDE_PX
 
 # Multi-frame payloads stay smaller than stills so the request remains tractable. Near
-# the bottom of the useful range: frames cannot be bought by shrinking them.
+# the bottom of the useful range: frames cannot be bought by shrinking them below
+# ``MIN_HONORED_MAX_PIXELS`` without turning a 16:9 frame square.
 VIDEO_FRAME_MAX_PIXELS = 500_000
+# Per-frame pixels stay at ``VIDEO_FRAME_MAX_PIXELS`` through this length, then lerp
+# down to the 512px-side floor by ``VIDEO_FRAME_SCALE_END_SECONDS``.
+VIDEO_FRAME_SCALE_START_SECONDS = 7.0
+VIDEO_FRAME_SCALE_END_SECONDS = 20.0
 # A still is the only image in its request, so it can afford detail a keyframe sent
 # sixty at a time cannot - and fact-checking one often turns on a small part of the
 # frame. Both caption jobs share this budget.
 IMAGE_MAX_PIXELS = 1_500_000
 
 # The four values above are defaults. The cap is what makes a brief action vanish from a
-# long clip - 64 frames over two minutes is 0.5 fps - so each is env-configurable to make
+# long clip - 42 frames over two minutes is 0.35 fps - so each is env-configurable to make
 # that measurable. Read per call, not at import.
 KEYFRAMES_PER_SECOND_VAR = "VIDEO_KEYFRAMES_PER_SECOND"
 MAX_VIDEO_KEYFRAMES_VAR = "VIDEO_MAX_KEYFRAMES"
 VIDEO_FRAME_MAX_PIXELS_VAR = "VIDEO_FRAME_MAX_PIXELS"
+VIDEO_FRAME_MIN_PIXELS_VAR = "VIDEO_FRAME_MIN_PIXELS"
 IMAGE_MAX_PIXELS_VAR = "IMAGE_MAX_PIXELS"
 
 
@@ -100,6 +108,21 @@ def get_video_frame_max_pixels() -> int:
     return positive_env_int(VIDEO_FRAME_MAX_PIXELS_VAR, VIDEO_FRAME_MAX_PIXELS)
 
 
+def get_video_frame_min_pixels() -> int:
+    return positive_env_int(VIDEO_FRAME_MIN_PIXELS_VAR, MIN_HONORED_MAX_PIXELS)
+
+
+def get_qwen_min_side_px() -> int:
+    """Per-side floor matching the configured pixel floor, on Qwen's 32-pixel grid.
+
+    Never raised above ``QWEN_MIN_SIDE_PX``: a min-pixel setting above 262144 is a
+    lerp target, not a demand that every frame be that large. Lowering the min is
+    what lets a long clip actually shrink.
+    """
+    aligned = max(32, (math.isqrt(get_video_frame_min_pixels()) // 32) * 32)
+    return min(QWEN_MIN_SIDE_PX, aligned)
+
+
 def get_image_max_pixels() -> int:
     return positive_env_int(IMAGE_MAX_PIXELS_VAR, IMAGE_MAX_PIXELS)
 
@@ -107,13 +130,33 @@ def get_image_max_pixels() -> int:
 MediaKind = Literal["image", "video"]
 
 
-def media_kind_max_pixels(media_kind: MediaKind) -> int:
-    """Per-frame pixel budget. Stills get the larger one; keyframes are sent dozens at a time.
+def video_frame_max_pixels_for_seconds(seconds: float | None) -> int:
+    """Per-frame pixel budget for a clip of this length.
+
+    Short clips keep the configured keyframe size. From 7s the budget lerps down to
+    the 512px-side floor at 20s, and stays there, so a long clip still fits one
+    request. An unusable duration is treated as short.
+    """
+    configured = get_video_frame_max_pixels()
+    floor = min(configured, get_video_frame_min_pixels())
+    if seconds is None or not math.isfinite(seconds) or seconds <= VIDEO_FRAME_SCALE_START_SECONDS:
+        return configured
+    if seconds >= VIDEO_FRAME_SCALE_END_SECONDS:
+        return floor
+    span = VIDEO_FRAME_SCALE_END_SECONDS - VIDEO_FRAME_SCALE_START_SECONDS
+    t = (seconds - VIDEO_FRAME_SCALE_START_SECONDS) / span
+    return round(configured + (floor - configured) * t)
+
+
+def media_kind_max_pixels(media_kind: MediaKind, *, seconds: float | None = None) -> int:
+    """Per-frame pixel budget. Stills get the larger one; keyframes shrink as the clip grows.
 
     A function rather than the dict this was: a module-level dict resolves both
     configurable budgets once at import, so a set value never reaches a frame.
     """
-    return get_image_max_pixels() if media_kind == "image" else get_video_frame_max_pixels()
+    if media_kind == "image":
+        return get_image_max_pixels()
+    return video_frame_max_pixels_for_seconds(seconds)
 
 
 # How often a waiting job re-checks for cancellation while the model request is in flight.
@@ -146,8 +189,9 @@ _STRIPPED_PREFIXES = (
 def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
     """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid.
 
-    The floor applies to each side on its own, so below ``MIN_HONORED_MAX_PIXELS`` a
-    frame stops shrinking and changes shape: a 16:9 frame is 640x512 at a 250k budget.
+    The floor applies to each side on its own, so below the configured min-pixel
+    budget a frame stops shrinking and changes shape: a 16:9 frame is 640x512 at
+    a 250k budget with the default 512px floor.
     """
     width, height = image.size
     current_pixels = width * height
@@ -155,8 +199,9 @@ def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
         return image
 
     scale = (max_pixels / current_pixels) ** 0.5
-    new_width = max((int(width * scale) // 32) * 32, QWEN_MIN_SIDE_PX)
-    new_height = max((int(height * scale) // 32) * 32, QWEN_MIN_SIDE_PX)
+    min_side = get_qwen_min_side_px()
+    new_width = max((int(width * scale) // 32) * 32, min_side)
+    new_height = max((int(height * scale) // 32) * 32, min_side)
     return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
@@ -289,25 +334,26 @@ def _video_seconds(fps: float | None, total_frames: int) -> float | None:
     return None if fps is None else total_frames / fps
 
 
-def _capped(image: Image.Image) -> Image.Image:
+def _capped(image: Image.Image, seconds: float | None = None) -> Image.Image:
     """A keyframe at the multi-frame budget, applied as it is read.
 
     A long clip's frames are held for the whole model call, retries included, so
-    shrinking them only at request time would keep sixty-four full-resolution frames
+    shrinking them only at request time would keep dozens of full-resolution frames
     resident - gigabytes for 4K footage. Nothing is lost: this is the same budget
     ``prepare_images_for_api`` would apply before the frames left the process, and
-    ``resize_for_qwen`` returns an already-small frame untouched. Both ends read the
-    getter, or a configured budget would be applied here and again at a different size.
+    ``resize_for_qwen`` returns an already-small frame untouched. Both ends read
+    ``video_frame_max_pixels_for_seconds``, or a long clip would be applied here at
+    500k and again smaller on the way out.
     """
-    return resize_for_qwen(image, max_pixels=get_video_frame_max_pixels())
+    return resize_for_qwen(image, max_pixels=video_frame_max_pixels_for_seconds(seconds))
 
 
-def _read_frame_at(cap, cv2, frame_index: int) -> Image.Image | None:
+def _read_frame_at(cap, cv2, frame_index: int, seconds: float | None = None) -> Image.Image | None:
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
     ok, frame = cap.read()
     if not ok:
         return None
-    return _capped(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+    return _capped(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), seconds)
 
 
 def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) -> MediaFrames:
@@ -317,8 +363,11 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) 
     the tail walk below can land on an index other than the one asked for, and a
     label derived from position in the list would then be wrong by that much.
     """
+    seconds = _video_seconds(fps, total_frames)
     wanted = keyframe_indices(total_frames, count)
-    captured = {index: image for index in wanted if (image := _read_frame_at(cap, cv2, index))}
+    captured = {
+        index: image for index in wanted if (image := _read_frame_at(cap, cv2, index, seconds))
+    }
 
     last_wanted = wanted[-1] if wanted else 0
     if wanted and last_wanted not in captured:
@@ -328,7 +377,7 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) 
         floor = max(captured, default=-1)
         limit = max(floor, last_wanted - TAIL_SEEK_LIMIT)
         for index in range(last_wanted - 1, limit, -1):
-            image = _read_frame_at(cap, cv2, index)
+            image = _read_frame_at(cap, cv2, index, seconds)
             if image is not None:
                 captured[index] = image
                 break
@@ -396,8 +445,8 @@ def extract_video_keyframes(
     """Evenly spaced frames spanning the whole clip, first and last included.
 
     ``count`` of ``None`` derives one from the clip's length; an explicit count is
-    taken as given. Frames come back capped at ``VIDEO_FRAME_MAX_PIXELS``, carrying
-    their timestamps whenever the container reported a usable frame rate.
+    taken as given. Frames come back capped at the duration-aware pixel budget,
+    carrying their timestamps whenever the container reported a usable frame rate.
     """
     import cv2
 

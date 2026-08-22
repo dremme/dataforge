@@ -544,7 +544,7 @@ class VideoKeyframeSpanTests(unittest.TestCase):
 class AdaptiveKeyframeCountTests(unittest.TestCase):
     """How many frames a clip yields when nobody names a count.
 
-    Twelve frames across a long clip is one sample every few seconds, so the model is
+    Eight frames across a long clip is one sample every few seconds, so the model is
     asked to describe motion it never saw. The count follows the clip's length instead.
     """
 
@@ -562,10 +562,10 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
         self.assertEqual(shades[-1], 239)
         self.assertEqual(shades, sorted(shades))
 
-    def test_a_short_clip_is_not_sampled_more_thinly_than_before(self) -> None:
-        # Three and a bit seconds works out at ten frames, which is fewer than this
-        # clip gets today. The floor is what keeps the change from taking any away.
-        frames = self._extract(FakeCapture(decodable=200, fps=60))
+    def test_a_short_clip_is_not_sampled_more_thinly_than_the_floor(self) -> None:
+        # Two seconds works out at six frames, which is fewer than the floor. The
+        # floor is what keeps a brief clip from being sampled more thinly than eight.
+        frames = self._extract(FakeCapture(decodable=120, fps=60))
 
         assert frames is not None
         self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
@@ -665,7 +665,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
             self.assertIn("8.0 seconds", captured["user_text"] or "")
 
     def test_frames_come_back_within_the_multi_frame_pixel_budget(self) -> None:
-        # Sixty-four full-resolution frames sit in memory for the whole model call,
+        # Dozens of full-resolution frames sit in memory for the whole model call,
         # retries included, so they are capped as they are read rather than later.
         frames = self._extract(FakeCapture(decodable=3, width=1200, height=1200))
 
@@ -706,6 +706,25 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
         with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: str(budget)}):
             self.assertEqual(media_kind_max_pixels("video"), budget)
             self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
+
+    def test_a_seven_second_clip_keeps_the_full_frame_budget(self) -> None:
+        frames = self._extract(FakeCapture(decodable=210, fps=30, width=1200, height=1200))
+
+        assert frames is not None
+        self.assertEqual(len(frames.images), 16)
+        for frame in frames.images:
+            pixels = frame.width * frame.height
+            self.assertLessEqual(pixels, VIDEO_FRAME_MAX_PIXELS)
+            self.assertGreater(pixels, MIN_HONORED_MAX_PIXELS)
+
+    def test_a_twenty_second_clip_shrinks_frames_to_the_resize_floor(self) -> None:
+        frames = self._extract(FakeCapture(decodable=100, fps=5, width=1200, height=1200))
+
+        assert frames is not None
+        self.assertEqual(len(frames.images), MAX_VIDEO_KEYFRAME_COUNT)
+        for frame in frames.images:
+            self.assertLessEqual(frame.width * frame.height, MIN_HONORED_MAX_PIXELS)
+            self.assertGreaterEqual(min(frame.size), QWEN_MIN_SIDE_PX)
 
 
 class AutoCaptionGifTests(unittest.TestCase):
