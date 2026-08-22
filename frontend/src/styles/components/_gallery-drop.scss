@@ -17,14 +17,23 @@
   position: absolute;
   inset: 0;
   z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
   background: rgba(15, 17, 21, 0.82);
   border: 2px dashed var(--accent);
   border-radius: var(--radius);
   pointer-events: none;
+
+  // The overlay still covers the whole drop zone (a tall gallery included).
+  // This box is only as tall as the visible scroller and sticks with it, so
+  // the prompt stays on screen instead of sitting at the gallery's midpoint.
+  &__viewport {
+    position: sticky;
+    top: 0;
+    box-sizing: border-box;
+    @include flex-center;
+    padding: 1.5rem;
+    height: min(100%, 100dvh);
+    max-height: 100%;
+  }
 
   &__panel {
     max-width: 28rem;
