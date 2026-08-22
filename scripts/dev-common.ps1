@@ -117,9 +117,20 @@ function Get-NpmCommand {
     <#
     .SYNOPSIS
       The portable npm from setup.bat when present, otherwise whatever is on PATH.
+
+    .DESCRIPTION
+      Also puts .node on PATH so npm lifecycle scripts that spawn `node` by name
+      find the portable copy. A fresh clone has no global Node.
     #>
-    $local = Join-Path (Get-DevPaths).Root '.node\npm.cmd'
-    if (Test-Path $local) { return $local }
+    $nodeDir = Join-Path (Get-DevPaths).Root '.node'
+    $local = Join-Path $nodeDir 'npm.cmd'
+    if (Test-Path $local) {
+        $currentPath = [string]$env:PATH
+        if (-not $currentPath.StartsWith("$nodeDir;", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $env:PATH = "$nodeDir;$currentPath"
+        }
+        return $local
+    }
     return 'npm.cmd'
 }
 
@@ -343,6 +354,13 @@ function Invoke-FrontendBuild {
     Write-Host ''
     try {
         Set-Location -LiteralPath $paths.Frontend
+        # npm.cmd finds node.exe next to itself, but lifecycle scripts spawn `node`
+        # from PATH. A machine with only the portable copy from setup.bat needs
+        # .node at the front or the build dies looking for a global install.
+        $nodeDir = Join-Path $paths.Root '.node'
+        if (Test-Path -LiteralPath (Join-Path $nodeDir 'node.exe') -PathType Leaf) {
+            $env:PATH = "$nodeDir;$env:PATH"
+        }
         # Out-Host, not a bare call: anything npm writes to stdout would otherwise
         # join this function's return value and make even a failed build truthy.
         & (Get-NpmCommand) run build | Out-Host

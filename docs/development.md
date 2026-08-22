@@ -58,7 +58,7 @@ DataForge/
 ├── sample-images/     # Tiny example dataset
 ├── .env.example       # Sample env vars: ports, AI config (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
-├── setup.bat          # Windows self-contained install
+├── setup.bat / .ps1   # Windows self-contained install (no global Python/Node)
 ├── start.bat / .ps1   # Production launcher - builds the UI, serves both halves
 ├── dev.bat / .ps1     # Dev launcher - two servers with hot reload
 ├── stop.bat / .ps1    # Frees the ports
