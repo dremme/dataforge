@@ -14,6 +14,7 @@ from constants import (
     IMAGE_EXTENSIONS,
     IMPORT_EXTENSIONS,
     ISOBMFF_EXTENSIONS,
+    MATROSKA_EXTENSIONS,
     MEDIA_EXTENSIONS,
     MEDIA_MIME_TYPES,
     MOTION_EXTENSIONS,
@@ -36,6 +37,12 @@ class MediaExtensionInvariantTests(unittest.TestCase):
 
     def test_isobmff_is_a_subset_of_video(self) -> None:
         self.assertLessEqual(ISOBMFF_EXTENSIONS, VIDEO_EXTENSIONS)
+
+    def test_matroska_is_video_the_mp4_reader_cannot_touch(self) -> None:
+        # The two header readers in `media_dimensions` split the video extensions
+        # between them; an extension in both would pick whichever branch runs first.
+        self.assertLessEqual(MATROSKA_EXTENSIONS, VIDEO_EXTENSIONS)
+        self.assertEqual(MATROSKA_EXTENSIONS & ISOBMFF_EXTENSIONS, set())
 
     def test_watermark_covers_images_and_only_the_mp4_family(self) -> None:
         # `-movflags` and `-c:a copy` are MP4-family shaped, and GIF's palette

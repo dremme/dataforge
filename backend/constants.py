@@ -17,6 +17,12 @@ MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 # atom directly - rather than handing the file to ffmpeg - only understands these.
 ISOBMFF_EXTENSIONS = {".mp4", ".mov", ".m4v"}
 
+# Matroska: an EBML container, whose header is walked directly the same way the MP4
+# family's is. Its own set rather than a widened ISOBMFF one - the two share no
+# structure, and every other reader that walks a header by hand (ComfyUI workflows,
+# metadata stripping, in-place editing) speaks boxes and boxes only.
+MATROSKA_EXTENSIONS = {".mkv"}
+
 # Where ComfyUI writes its workflow: a PNG text chunk or an ISOBMFF metadata atom.
 COMFY_WORKFLOW_EXTENSIONS = {".png"} | ISOBMFF_EXTENSIONS
 

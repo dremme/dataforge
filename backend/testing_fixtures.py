@@ -364,6 +364,111 @@ def write_mp4_video(
     return media
 
 
+def _ebml_id(element_id: int) -> bytes:
+    """An element ID is emitted exactly as written: its marker bit is part of it."""
+    return element_id.to_bytes((element_id.bit_length() + 7) // 8, "big")
+
+
+def _ebml_size(value: int) -> bytes:
+    """The shortest size vint that holds ``value`` without reading as "unknown"."""
+    for length in range(1, 9):
+        capacity = (1 << (7 * length)) - 1
+        if value < capacity:
+            return (value | (1 << (7 * length))).to_bytes(length, "big")
+    raise ValueError(f"EBML size out of range: {value}")
+
+
+def _ebml_element(element_id: int, payload: bytes) -> bytes:
+    return _ebml_id(element_id) + _ebml_size(len(payload)) + payload
+
+
+def _ebml_uint_element(element_id: int, value: int) -> bytes:
+    width = max(1, (value.bit_length() + 7) // 8)
+    return _ebml_element(element_id, value.to_bytes(width, "big"))
+
+
+def _matroska_track(
+    *,
+    track_type: int,
+    size: tuple[int, int] | None = None,
+    display_size: tuple[int, int] | None = None,
+    display_unit: int | None = None,
+) -> bytes:
+    entry = _ebml_uint_element(0x83, track_type)
+    if size is None:
+        return _ebml_element(0xAE, entry)
+
+    video = _ebml_uint_element(0xB0, size[0]) + _ebml_uint_element(0xBA, size[1])
+    if display_size is not None:
+        video += _ebml_uint_element(0x54B0, display_size[0])
+        video += _ebml_uint_element(0x54BA, display_size[1])
+    if display_unit is not None:
+        video += _ebml_uint_element(0x54B2, display_unit)
+
+    return _ebml_element(0xAE, entry + _ebml_element(0xE0, video))
+
+
+def make_minimal_matroska_bytes(
+    *,
+    width: int = 640,
+    height: int = 480,
+    duration_seconds: float | None = 12.5,
+    timecode_scale: int = 1_000_000,
+    duration_width: int = 8,
+    display_size: tuple[int, int] | None = None,
+    display_unit: int | None = None,
+    audio_track: bool = True,
+    second_video: tuple[int, int] | None = None,
+    cluster_before_tracks: bool = False,
+    unknown_segment_size: bool = False,
+) -> bytes:
+    """A header-only matroska file: one segment, no frames worth decoding.
+
+    ``cluster_before_tracks`` puts sample data between the two elements the probe
+    wants, so a reader that cannot seek over a cluster never reaches ``Tracks``.
+    """
+    info_children = _ebml_uint_element(0x2AD7B1, timecode_scale)
+    if duration_seconds is not None:
+        ticks = duration_seconds * 1_000_000_000 / timecode_scale
+        info_children += _ebml_element(
+            0x4489,
+            struct.pack(">d" if duration_width == 8 else ">f", ticks),
+        )
+    info = _ebml_element(0x1549A966, info_children)
+
+    entries = b""
+    if audio_track:
+        entries += _matroska_track(track_type=2)
+    entries += _matroska_track(
+        track_type=1,
+        size=(width, height),
+        display_size=display_size,
+        display_unit=display_unit,
+    )
+    if second_video is not None:
+        entries += _matroska_track(track_type=1, size=second_video)
+    tracks = _ebml_element(0x1654AE6B, entries)
+
+    cluster = _ebml_element(0x1F43B675, b"\x00" * 2048)
+    body = info + (cluster + tracks if cluster_before_tracks else tracks + cluster)
+
+    header = _ebml_element(0x1A45DFA3, _ebml_element(0x4282, b"matroska"))
+    if unknown_segment_size:
+        # What a muxer writes when it does not know the length up front.
+        return header + _ebml_id(0x18538067) + b"\xff" + body
+    return header + _ebml_element(0x18538067, body)
+
+
+def write_matroska_video(
+    root: Path,
+    name: str = "clip.mkv",
+    **kwargs: object,
+) -> Path:
+    media = root / name
+    media.write_bytes(make_minimal_matroska_bytes(**kwargs))  # type: ignore[arg-type]
+    return media
+
+
 def write_txt_caption(media: Path, text: str) -> Path:
     caption = media.with_suffix(".txt")
     caption.write_text(text, encoding="utf-8")

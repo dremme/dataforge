@@ -15,6 +15,7 @@ from testing_fixtures import (
     write_gif,
     write_image,
     write_jpeg,
+    write_matroska_video,
     write_media,
     write_mp4_video,
     write_sysprompt,
@@ -106,10 +107,10 @@ class VideoDimensionTests(unittest.TestCase):
             self.assertEqual(_dimensions(mov, "video"), (1440, 1080))
             self.assertEqual(_dimensions(m4v, "video"), (640, 480))
 
-    def test_returns_none_for_a_container_that_is_not_isobmff(self) -> None:
-        """A matroska or avi file has no box structure to walk, so it is not opened."""
+    def test_returns_none_for_a_container_with_no_reader(self) -> None:
+        """An avi, wmv, or flv file is neither boxes nor EBML, so it is not opened."""
         with TempMediaFolder() as root:
-            for name in ("clip.mkv", "clip.avi", "clip.wmv", "clip.flv"):
+            for name in ("clip.avi", "clip.wmv", "clip.flv"):
                 with self.subTest(name=name):
                     # MP4 bytes under a non-MP4 name: only the suffix should decide,
                     # so a parseable payload must still come back empty.
@@ -147,13 +148,110 @@ class VideoDurationTests(unittest.TestCase):
 
             self.assertIsNone(_info(photo, "image").duration)
 
-    def test_leaves_duration_empty_outside_the_mp4_family(self) -> None:
+    def test_leaves_duration_empty_for_a_container_with_no_reader(self) -> None:
         with TempMediaFolder() as root:
             disguised = write_mp4_video(
-                root, "clip.mkv", sample_count=54, timescale=10, sample_delta=1
+                root, "clip.avi", sample_count=54, timescale=10, sample_delta=1
             )
 
             self.assertIsNone(_info(disguised, "video").duration)
+
+
+class MatroskaDimensionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_caption_cache_for_tests()
+
+    def test_reads_the_track_entry(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=1920, height=1080)
+
+            self.assertEqual(_dimensions(video, "video"), (1920, 1080))
+
+    def test_seeks_over_a_cluster_sitting_before_the_tracks(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=1280, height=720, cluster_before_tracks=True)
+
+            self.assertEqual(_dimensions(video, "video"), (1280, 720))
+
+    def test_reads_a_segment_whose_length_is_unknown(self) -> None:
+        """What a muxer writes when it streams the file out rather than sizing it."""
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=720, height=1280, unknown_segment_size=True)
+
+            self.assertEqual(_dimensions(video, "video"), (720, 1280))
+
+    def test_skips_the_tracks_that_carry_no_picture(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=800, height=600, audio_track=True)
+
+            self.assertEqual(_dimensions(video, "video"), (800, 600))
+
+    def test_reports_the_largest_picture_track(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=320, height=240, second_video=(1920, 800))
+
+            self.assertEqual(_dimensions(video, "video"), (1920, 800))
+
+    def test_prefers_the_display_size_over_the_coded_one(self) -> None:
+        """Anamorphic video: the MP4 path reports `tkhd`, so this reports its twin."""
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=720, height=480, display_size=(853, 480))
+
+            self.assertEqual(_dimensions(video, "video"), (853, 480))
+
+    def test_ignores_a_display_size_that_is_not_in_pixels(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(
+                root, width=720, height=480, display_size=(16, 9), display_unit=3
+            )
+
+            self.assertEqual(_dimensions(video, "video"), (720, 480))
+
+    def test_returns_none_for_bytes_that_are_not_matroska(self) -> None:
+        with TempMediaFolder() as root:
+            # MP4 bytes under a matroska name: the suffix picks the reader, and the
+            # reader must still refuse a file whose first element is not an EBML header.
+            disguised = write_mp4_video(root, "clip.mkv", width=1920, height=1080)
+
+            self.assertIsNone(_dimensions(disguised, "video"))
+
+    def test_returns_none_for_a_truncated_file(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root)
+            video.write_bytes(video.read_bytes()[:9])
+
+            self.assertIsNone(_dimensions(video, "video"))
+
+
+class MatroskaDurationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_caption_cache_for_tests()
+
+    def test_reads_seconds_from_the_segment_info(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, duration_seconds=5.4)
+
+            self.assertAlmostEqual(_info(video, "video").duration, 5.4)
+
+    def test_scales_the_duration_by_the_timecode_scale(self) -> None:
+        """`Duration` counts `TimecodeScale` nanoseconds, not seconds and not ticks."""
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, duration_seconds=90.0, timecode_scale=100_000)
+
+            self.assertAlmostEqual(_info(video, "video").duration, 90.0)
+
+    def test_reads_a_32_bit_duration(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, duration_seconds=8.0, duration_width=4)
+
+            self.assertAlmostEqual(_info(video, "video").duration, 8.0)
+
+    def test_leaves_duration_empty_when_the_segment_omits_it(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_matroska_video(root, width=640, height=360, duration_seconds=None)
+
+            self.assertEqual(_dimensions(video, "video"), (640, 360))
+            self.assertIsNone(_info(video, "video").duration)
 
 
 class DimensionCacheTests(unittest.TestCase):
