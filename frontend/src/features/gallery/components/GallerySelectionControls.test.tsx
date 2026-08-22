@@ -84,7 +84,7 @@ describe("GallerySelectionControls", () => {
     expect(onEnterSelectionMode).toHaveBeenCalledTimes(1);
   });
 
-  it("carries the transfer and delete actions as labelled icons", () => {
+  it("carries the transfer and delete actions as labelled icons", async () => {
     renderControls();
 
     for (const name of ["Copy selected files", "Move selected files", "Delete selected files"]) {
@@ -92,7 +92,11 @@ describe("GallerySelectionControls", () => {
       // Icon-only: the accessible name is the label, not rendered text.
       expect(button).toHaveTextContent("");
       expect(button).toHaveAttribute("aria-label", name);
-      expect(screen.getByText(name)).toHaveRole("tooltip");
+
+      // The bubble only exists while hovered, so the label has to be provoked.
+      fireEvent.mouseEnter(button.parentElement!);
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
+      fireEvent.mouseLeave(button.parentElement!);
     }
 
     // The selection verbs keep their text, so the row still reads as a toolbar.

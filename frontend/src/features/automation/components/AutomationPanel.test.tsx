@@ -200,6 +200,48 @@ describe("AutomationPanel", () => {
     expect(onRequestStart).toHaveBeenCalledWith("restore_captions");
   });
 
+  // This menu opens from the right edge of its trigger, unlike the breadcrumb
+  // one; nothing but placement distinguishes the two call sites.
+  it("drops the more-jobs menu from the right edge of its trigger", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const box = this.classList.contains("automation__more-menu")
+        ? { top: 0, left: 0, width: 300, height: 200 }
+        : { top: 100, left: 600, width: 80, height: 32 };
+      return {
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
+        filteredItems={[galleryItem]}
+        onRequestStart={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    const panel = screen.getByRole("menu", { name: "More jobs" });
+    expect(panel.parentElement).toBe(document.body);
+    // Right edges aligned: 600 + 80 - 300.
+    expect(panel.style.left).toBe("380px");
+    expect(panel.style.top).toBe("138px");
+  });
+
   it("groups the more-jobs menu into labelled sections", async () => {
     mockShowSpecs = false;
     const user = userEvent.setup();

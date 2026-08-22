@@ -8,6 +8,7 @@ import type { ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
 import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { iconFilter, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
@@ -154,7 +155,7 @@ export function ToolbarFilterMenu({
   onMediaTypeFilterChange,
   onDuplicatesOnlyChange,
 }: ToolbarFilterMenuProps) {
-  const { open, menuId, rootRef, triggerProps } = usePopupMenu();
+  const { open, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
   const activeLabels: string[] = [];
   if (mediaTypeFilter !== "all") {
     activeLabels.push(optionLabelFor(MEDIA_TYPE_FILTER_OPTIONS, mediaTypeFilter));
@@ -192,34 +193,40 @@ export function ToolbarFilterMenu({
         </button>
       </Tooltip>
 
-      {open && (
-        <div id={menuId} className="toolbar__filter-menu-panel" role="menu" aria-label="Filters">
-          <FilterMenuGroup
-            label="Media type"
-            options={MEDIA_TYPE_FILTER_OPTIONS}
-            counts={mediaTypeFilterCounts}
-            value={mediaTypeFilter}
-            searchQuery={searchQuery}
-            onChange={onMediaTypeFilterChange}
-          />
-          <FilterMenuGroup
-            label="Caption status"
-            options={FILTER_OPTIONS}
-            counts={filterCounts}
-            value={filter}
-            searchQuery={searchQuery}
-            onChange={onFilterChange}
-          />
-          <FilterMenuToggle
-            label="Files"
-            option={DUPLICATE_FILTER_OPTION}
-            count={duplicateCount}
-            active={duplicatesOnly}
-            searchQuery={searchQuery}
-            onChange={onDuplicatesOnlyChange}
-          />
-        </div>
-      )}
+      <AnchoredLayer
+        anchorRef={rootRef}
+        floatingRef={panelRef}
+        open={open}
+        id={menuId}
+        className="toolbar__filter-menu-panel"
+        role="menu"
+        label="Filters"
+      >
+        <FilterMenuGroup
+          label="Media type"
+          options={MEDIA_TYPE_FILTER_OPTIONS}
+          counts={mediaTypeFilterCounts}
+          value={mediaTypeFilter}
+          searchQuery={searchQuery}
+          onChange={onMediaTypeFilterChange}
+        />
+        <FilterMenuGroup
+          label="Caption status"
+          options={FILTER_OPTIONS}
+          counts={filterCounts}
+          value={filter}
+          searchQuery={searchQuery}
+          onChange={onFilterChange}
+        />
+        <FilterMenuToggle
+          label="Files"
+          option={DUPLICATE_FILTER_OPTION}
+          count={duplicateCount}
+          active={duplicatesOnly}
+          searchQuery={searchQuery}
+          onChange={onDuplicatesOnlyChange}
+        />
+      </AnchoredLayer>
     </div>
   );
 }

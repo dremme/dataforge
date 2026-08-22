@@ -17,16 +17,14 @@ describe("Tooltip", () => {
     );
 
     const button = screen.getByRole("button", { name: "Filter" });
-    const wrapper = button.parentElement;
-    expect(wrapper).not.toHaveClass("tooltip--visible");
+    expect(screen.queryByRole("tooltip")).toBeNull();
 
-    fireEvent.mouseEnter(wrapper!);
+    fireEvent.mouseEnter(button.parentElement!);
 
     await act(async () => {
       vi.advanceTimersByTime(400);
     });
 
-    expect(wrapper).toHaveClass("tooltip--visible");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Missing caption");
   });
 
@@ -43,6 +41,20 @@ describe("Tooltip", () => {
     );
   });
 
+  it("renders the bubble outside the trigger, so no ancestor can clip it", () => {
+    render(
+      <Tooltip content="Copied!" open>
+        <button type="button">Copy</button>
+      </Tooltip>,
+    );
+
+    const wrapper = screen.getByRole("button", { name: "Copy" }).parentElement!;
+    const bubble = screen.getByRole("tooltip");
+
+    expect(wrapper.contains(bubble)).toBe(false);
+    expect(bubble.parentElement).toBe(document.body);
+  });
+
   it("does not duplicate aria-describedby when tooltip content matches aria-label", async () => {
     vi.useFakeTimers();
 
@@ -53,9 +65,8 @@ describe("Tooltip", () => {
     );
 
     const stat = screen.getByLabelText("5 folders");
-    const wrapper = stat.parentElement;
 
-    fireEvent.mouseEnter(wrapper!);
+    fireEvent.mouseEnter(stat.parentElement!);
 
     await act(async () => {
       vi.advanceTimersByTime(400);
@@ -71,8 +82,6 @@ describe("Tooltip", () => {
       </Tooltip>,
     );
 
-    const wrapper = screen.getByRole("button", { name: "Copy" }).parentElement;
-    expect(wrapper).toHaveClass("tooltip--visible");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
   });
 
@@ -86,18 +95,16 @@ describe("Tooltip", () => {
     );
 
     const button = screen.getByRole("button", { name: "Display mode" });
-    const wrapper = button.parentElement!;
-    fireEvent.mouseEnter(wrapper);
+    fireEvent.mouseEnter(button.parentElement!);
 
     await act(async () => {
       vi.advanceTimersByTime(400);
     });
 
-    expect(wrapper).toHaveClass("tooltip--visible");
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
 
     fireEvent.click(button);
 
-    expect(wrapper).not.toHaveClass("tooltip--visible");
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
@@ -111,15 +118,13 @@ describe("Tooltip", () => {
     );
 
     const button = screen.getByRole("button", { name: "Filter media" });
-    const wrapper = button.parentElement!;
-    fireEvent.mouseEnter(wrapper);
+    fireEvent.mouseEnter(button.parentElement!);
     fireEvent.click(button);
 
     await act(async () => {
       vi.advanceTimersByTime(400);
     });
 
-    expect(wrapper).not.toHaveClass("tooltip--visible");
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
@@ -130,10 +135,8 @@ describe("Tooltip", () => {
       </Tooltip>,
     );
 
-    const button = screen.getByRole("button", { name: "Copy" });
-    fireEvent.click(button);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
 
-    expect(button.parentElement).toHaveClass("tooltip--visible");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
   });
 
@@ -155,7 +158,7 @@ describe("Tooltip", () => {
       vi.advanceTimersByTime(400);
     });
 
-    expect(wrapper).toHaveClass("tooltip--visible");
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
 
     rerender(
       <Tooltip content="Automation jobs">
@@ -165,7 +168,7 @@ describe("Tooltip", () => {
       </Tooltip>,
     );
 
-    expect(wrapper).not.toHaveClass("tooltip--visible");
+    expect(screen.queryByRole("tooltip")).toBeNull();
 
     rerender(
       <Tooltip content="Automation jobs">
@@ -175,7 +178,7 @@ describe("Tooltip", () => {
       </Tooltip>,
     );
 
-    expect(wrapper).not.toHaveClass("tooltip--visible");
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("shows tooltips for disabled controls via the wrapper", async () => {
@@ -198,21 +201,45 @@ describe("Tooltip", () => {
       vi.advanceTimersByTime(400);
     });
 
-    expect(wrapper).toHaveClass("tooltip--visible");
     expect(screen.getByRole("tooltip")).toHaveTextContent("No backup available");
   });
 });
 
-describe("Tooltip edge shifting", () => {
+describe("Tooltip placement", () => {
   afterEach(() => {
     vi.useRealTimers();
-    vi.restoreAllMocks();
   });
 
-  /** jsdom reports zero-size rects, so the bubble's geometry is supplied here. */
-  function showTooltipWithBubbleAt(left: number, width: number) {
+  function fakeRect(partial: Partial<DOMRect>): DOMRect {
+    const { top = 0, left = 0, width = 0, height = 0 } = partial;
+    return {
+      top,
+      left,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+
+  /**
+   * jsdom performs no layout, so the trigger's position and the bubble's size
+   * are supplied here — the only two measurements a placement depends on.
+   */
+  function showTooltip(anchor: Partial<DOMRect>, bubble: Partial<DOMRect>) {
     vi.useFakeTimers();
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.classList.contains("tooltip__bubble")) return fakeRect(bubble);
+      if (this.classList.contains("tooltip")) return fakeRect(anchor);
+      return fakeRect({});
+    });
 
     render(
       <Tooltip content="Filter by media type and caption status">
@@ -220,63 +247,52 @@ describe("Tooltip edge shifting", () => {
       </Tooltip>,
     );
 
-    const wrapper = screen.getByRole("button", { name: "Filter" }).parentElement!;
-    const bubble = wrapper.querySelector(".tooltip__bubble") as HTMLElement;
-
-    bubble.getBoundingClientRect = () =>
-      ({
-        left,
-        right: left + width,
-        width,
-        top: 0,
-        bottom: 0,
-        height: 0,
-        x: left,
-        y: 0,
-      }) as DOMRect;
-
-    fireEvent.mouseEnter(wrapper);
-    return { wrapper, bubble };
-  }
-
-  async function advancePastDelay() {
-    await act(async () => {
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Filter" }).parentElement!);
+    act(() => {
       vi.advanceTimersByTime(400);
     });
+
+    return screen.getByRole("tooltip");
   }
 
-  it("leaves a bubble that already fits where it is", async () => {
-    const { bubble } = showTooltipWithBubbleAt(400, 200);
-    await advancePastDelay();
+  const TRIGGER = { top: 300, width: 100, height: 20 };
+  const BUBBLE = { width: 200, height: 40 };
 
-    expect(bubble.style.getPropertyValue("--tooltip-shift")).toBe("0px");
-    expect(bubble.style.getPropertyValue("--tooltip-arrow-shift")).toBe("0px");
+  it("centres the bubble under a trigger with room on both sides", () => {
+    const bubble = showTooltip({ ...TRIGGER, left: 450 }, BUBBLE);
+
+    expect(bubble.style.left).toBe("400px");
+    expect(bubble.style.top).toBe("328px");
+    expect(bubble.style.getPropertyValue("--anchored-shift")).toBe("0px");
+    expect(bubble.dataset.side).toBe("bottom");
   });
 
-  it("slides a bubble back in from the right edge and moves the arrow the other way", async () => {
-    // Right edge at 1050 overruns the 1000px window, leaving 8px of padding to recover.
-    const { bubble } = showTooltipWithBubbleAt(850, 200);
-    await advancePastDelay();
+  it("slides a bubble back in from the right edge", () => {
+    // Centred it would run 850 to 1050, overrunning the 992px limit by 58.
+    const bubble = showTooltip({ ...TRIGGER, left: 900 }, BUBBLE);
 
-    expect(bubble.style.getPropertyValue("--tooltip-shift")).toBe("-58px");
-    expect(bubble.style.getPropertyValue("--tooltip-arrow-shift")).toBe("58px");
+    expect(bubble.style.left).toBe("792px");
+    expect(bubble.style.getPropertyValue("--anchored-shift")).toBe("-58px");
   });
 
-  it("slides a bubble back in from the left edge", async () => {
-    const { bubble } = showTooltipWithBubbleAt(-30, 200);
-    await advancePastDelay();
+  it("slides a bubble back in from the left edge", () => {
+    const bubble = showTooltip({ ...TRIGGER, left: 20 }, BUBBLE);
 
-    expect(bubble.style.getPropertyValue("--tooltip-shift")).toBe("38px");
-    expect(bubble.style.getPropertyValue("--tooltip-arrow-shift")).toBe("-38px");
+    expect(bubble.style.left).toBe("8px");
+    expect(bubble.style.getPropertyValue("--anchored-shift")).toBe("38px");
   });
 
-  it("keeps the arrow inside the bubble when the shift exceeds its half width", async () => {
-    // A 60px bubble can only carry its arrow 18px from centre (30 - 12 padding),
-    // even though the bubble itself has to travel much further to fit.
-    const { bubble } = showTooltipWithBubbleAt(1200, 60);
-    await advancePastDelay();
+  it("publishes the full shift even where the arrow cannot follow it that far", () => {
+    // The CSS clamps the arrow to the bubble's own ends; the shift stays honest.
+    const bubble = showTooltip({ ...TRIGGER, left: 1180 }, { width: 60, height: 40 });
 
-    expect(bubble.style.getPropertyValue("--tooltip-shift")).toBe("-268px");
-    expect(bubble.style.getPropertyValue("--tooltip-arrow-shift")).toBe("18px");
+    expect(bubble.style.getPropertyValue("--anchored-shift")).toBe("-268px");
+  });
+
+  it("flips above a trigger with no room beneath it", () => {
+    const bubble = showTooltip({ ...TRIGGER, top: 780, left: 450 }, BUBBLE);
+
+    expect(bubble.dataset.side).toBe("top");
+    expect(bubble.style.top).toBe("732px");
   });
 });

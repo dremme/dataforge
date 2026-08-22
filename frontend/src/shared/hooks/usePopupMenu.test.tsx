@@ -1,24 +1,30 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { usePopupMenu } from "./usePopupMenu";
 
 function MenuFixture() {
-  const { open, close, menuId, rootRef, triggerProps } = usePopupMenu();
+  const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
 
   return (
     <div>
-      <div ref={rootRef}>
+      <div ref={rootRef} data-testid="root">
         <button type="button" aria-label="Open menu" {...triggerProps}>
           Trigger
         </button>
-        {open && (
-          <div id={menuId} role="menu" aria-label="Options">
-            <button type="button" role="menuitem" onClick={close}>
-              Pick
-            </button>
-          </div>
-        )}
       </div>
+      <AnchoredLayer
+        anchorRef={rootRef}
+        floatingRef={panelRef}
+        open={open}
+        id={menuId}
+        role="menu"
+        label="Options"
+      >
+        <button type="button" role="menuitem" onClick={close}>
+          Pick
+        </button>
+      </AnchoredLayer>
       <button type="button">Elsewhere</button>
     </div>
   );
@@ -70,9 +76,15 @@ describe("usePopupMenu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("stays open on a press inside the panel", () => {
+  // The panel is portalled, so it is outside the root the dismissal watches.
+  // Miss this and every menu still opens, but no item can ever be chosen: the
+  // press dismisses the menu before the release reaches the item.
+  it("stays open on a press inside the portalled panel", () => {
     render(<MenuFixture />);
     fireEvent.click(trigger());
+
+    const menu = screen.getByRole("menu");
+    expect(screen.getByTestId("root").contains(menu)).toBe(false);
 
     fireEvent.mouseDown(screen.getByRole("menuitem", { name: "Pick" }));
 
@@ -86,5 +98,29 @@ describe("usePopupMenu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Pick" }));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  // Tab order follows the DOM, and a portalled panel is no longer next to its
+  // trigger in it. Without the handoff a keyboard user tabs straight past the
+  // open menu to whatever follows the trigger.
+  it("moves focus into the panel and hands it back on close", () => {
+    render(<MenuFixture />);
+
+    fireEvent.click(trigger());
+    expect(screen.getByRole("menu")).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(trigger()).toHaveFocus();
+  });
+
+  it("leaves focus alone when the user has already moved it elsewhere", () => {
+    render(<MenuFixture />);
+    fireEvent.click(trigger());
+
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+    fireEvent.mouseDown(elsewhere);
+
+    expect(elsewhere).toHaveFocus();
   });
 });

@@ -90,12 +90,16 @@ $icon-size-xl: 2.25rem; // 36px — one and a half
 // but above the gallery cards, whose own z-indexes go up to 2.
 $z-index-sticky-section-header: 14;
 $z-index-sticky-panel: 15;
-$z-index-tooltip: 50;
 $z-index-drawer: 1050;
 $z-index-modal: 1000;
 // The sample lightbox opens from inside the jobs drawer, so it has to clear it.
 $z-index-lightbox: 1075;
 $z-index-confirm: 1100;
+// Anchored surfaces (tooltips, popup menus) portal to the body, so they no
+// longer inherit the stacking context of whatever they hang off. This has to
+// clear every overlay one can open over — modal, drawer, lightbox, confirm —
+// while staying under the notifications, which outrank everything.
+$z-index-anchored: 1150;
 $z-index-notification: 1200;
 
 // Motion

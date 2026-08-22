@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -13,12 +12,12 @@ import {
   type ReactNode,
 } from "react";
 import { classNames } from "@/shared/lib/classNames";
-import { horizontalViewportShift } from "@/shared/lib/viewportShift";
+import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 
-/** Gap kept between a shifted bubble and the window edge. */
-const VIEWPORT_PADDING = 8;
-/** Keeps the arrow off the bubble's rounded corners when the bubble is shifted. */
-const ARROW_EDGE_PADDING = 12;
+/** Gap kept between a bubble and the window edge. Tighter than a menu's, by design. */
+const VIEWPORT_GUTTER = 8;
+/** Matches the bubble's fade in `_tooltip.scss`; it stays mounted until that ends. */
+const FADE_MS = 150;
 
 interface TooltipChildProps {
   disabled?: boolean;
@@ -54,7 +53,7 @@ export function Tooltip({
 }: TooltipProps) {
   const id = useId();
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const wrapperRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
   const childExpanded = isValidElement(children) && children.props["aria-expanded"] === true;
 
@@ -82,26 +81,6 @@ export function Tooltip({
     if (childExpanded) hide();
   }, [childExpanded, hide]);
 
-  // A bubble centred on a trigger near the window edge would hang off it, so it
-  // slides back into view and the arrow slides the opposite way to keep pointing
-  // at the trigger — the "shift" behaviour Popper/Floating UI provide.
-  useLayoutEffect(() => {
-    const bubble = bubbleRef.current;
-    if (!(open || visible) || !bubble) return;
-
-    // Measure unshifted, so a re-show does not compound the previous correction.
-    bubble.style.setProperty("--tooltip-shift", "0px");
-    const { left, width } = bubble.getBoundingClientRect();
-    const shift = horizontalViewportShift({ left, width }, window.innerWidth, VIEWPORT_PADDING);
-
-    // The arrow travels back by the same amount, but never past the bubble's ends.
-    const arrowLimit = Math.max(0, width / 2 - ARROW_EDGE_PADDING);
-    const arrowShift = Math.min(arrowLimit, Math.max(-arrowLimit, -shift));
-
-    bubble.style.setProperty("--tooltip-shift", `${shift}px`);
-    bubble.style.setProperty("--tooltip-arrow-shift", `${arrowShift}px`);
-  }, [visible, open, content]);
-
   if (!isValidElement(children)) {
     return children;
   }
@@ -114,7 +93,8 @@ export function Tooltip({
   // Hover must not cover the menu or drawer this trigger just opened. Forced
   // `open` (copy confirmation) still wins, because that bubble *is* the click
   // feedback.
-  const shown = !disabled && (open || (visible && !childExpanded));
+  const shown =
+    !disabled && content != null && content !== "" && (open || (visible && !childExpanded));
   const describedBy = shown && !tooltipDuplicatesLabel ? id : undefined;
   const ariaDescribedBy =
     [childProps["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined;
@@ -138,16 +118,10 @@ export function Tooltip({
     ...focusHandlers,
   });
 
-  const showBubble = !disabled && content != null && content !== "";
-
   return (
     <span
-      className={classNames(
-        "tooltip",
-        shown && "tooltip--visible",
-        childDisabled && "tooltip--disabled-wrap",
-        className,
-      )}
+      ref={wrapperRef}
+      className={classNames("tooltip", childDisabled && "tooltip--disabled-wrap", className)}
       style={style}
       onMouseEnter={show}
       onMouseLeave={hide}
@@ -155,18 +129,20 @@ export function Tooltip({
       onClick={hide}
     >
       {triggerElement}
-      {showBubble && (
-        <span
-          ref={bubbleRef}
-          id={id}
-          role="tooltip"
-          className="tooltip__bubble"
-          aria-hidden={shown ? undefined : true}
-        >
-          {content}
-          <span className="tooltip__arrow" aria-hidden="true" />
-        </span>
-      )}
+      <AnchoredLayer
+        anchorRef={wrapperRef}
+        open={shown}
+        placement="bottom-center"
+        offset={8}
+        gutter={VIEWPORT_GUTTER}
+        exitDuration={FADE_MS}
+        className="tooltip__bubble"
+        id={id}
+        role="tooltip"
+      >
+        {content}
+        <span className="tooltip__arrow" aria-hidden="true" />
+      </AnchoredLayer>
     </span>
   );
 }

@@ -301,8 +301,7 @@
       display: flex;
       align-items: stretch;
 
-      &:hover,
-      &.tooltip--visible {
+      &:hover {
         z-index: 1;
       }
 

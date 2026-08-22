@@ -282,7 +282,7 @@ $toolbar-search-width-max: 22rem;
     }
 
     &-panel {
-      @include dropdown-menu-panel;
+      @include dropdown-menu-surface;
     }
 
     &-group {

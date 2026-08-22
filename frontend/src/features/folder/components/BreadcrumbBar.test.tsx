@@ -46,7 +46,6 @@ describe("BreadcrumbBar", () => {
     const copied = screen.getByRole("button", { name: "Copied!" });
     expect(copied).toHaveClass("breadcrumbs__explorer--copied");
     expect(copied.querySelector(".lucide-check")).not.toBeNull();
-    expect(copied.parentElement).toHaveClass("tooltip--visible");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Copied!");
   });
 
@@ -60,7 +59,6 @@ describe("BreadcrumbBar", () => {
 
     const failed = screen.getByRole("button", { name: "Failed!" });
     expect(failed).toHaveClass("breadcrumbs__explorer--error");
-    expect(failed.parentElement).toHaveClass("tooltip--visible");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Failed!");
   });
 
@@ -93,6 +91,39 @@ describe("BreadcrumbBar", () => {
 
     expect(onNavigate).toHaveBeenCalledWith(vacationFolder.path);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  // The crumb menu is the one that opens from the left edge of its trigger; a
+  // silently wrong placement would only show as a panel drifting off the crumb.
+  it("drops the subfolder menu from the left edge of its chevron", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const box = this.classList.contains("breadcrumbs__menu-panel")
+        ? { top: 0, left: 0, width: 200, height: 100 }
+        : { top: 50, left: 300, width: 20, height: 20 };
+      return {
+        ...box,
+        right: box.left + box.width,
+        bottom: box.top + box.height,
+        x: box.left,
+        y: box.top,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+
+    renderBar();
+
+    await user.click(screen.getByRole("button", { name: "Subfolders of Photos" }));
+
+    const panel = await screen.findByRole("menu");
+    expect(panel.parentElement).toBe(document.body);
+    expect(panel.style.left).toBe("300px");
+    expect(panel.style.top).toBe("76px");
   });
 
   it("marks the subfolder the path is currently inside", async () => {

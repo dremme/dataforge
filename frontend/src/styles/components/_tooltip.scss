@@ -1,7 +1,4 @@
-@use "../abstracts/variables" as *;
-
 .tooltip {
-  position: relative;
   display: inline-flex;
   align-items: center;
   max-width: 100%;
@@ -11,21 +8,9 @@
     cursor: not-allowed;
   }
 
+  // Portalled to the body by `AnchoredLayer`, so this is styled on its own and
+  // not as a descendant of the wrapper above.
   &__bubble {
-    // Set by the component when the bubble would hang off the window edge:
-    // the bubble slides by --tooltip-shift, the arrow back by --tooltip-arrow-shift.
-    --tooltip-shift: 0px;
-    --tooltip-arrow-shift: 0px;
-
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    left: 50%;
-    // Deliberately a margin rather than part of `transform`: that is transitioned,
-    // so folding the correction into it would animate the bubble sideways into
-    // place, and the next measurement would then read a still-moving position and
-    // under-correct until the bubble drifted back off screen.
-    margin-left: var(--tooltip-shift);
-    z-index: $z-index-tooltip;
     width: max-content;
     max-width: 14rem;
     padding: 0.375rem 0.625rem;
@@ -40,19 +25,29 @@
     text-align: center;
     white-space: normal;
     pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateX(-50%) translateY(-0.25rem);
-    transition:
-      opacity 0.15s ease,
-      transform 0.15s ease,
-      visibility 0.15s ease;
+    // An animation rather than a transition: the bubble mounts on show, and a
+    // transition has no earlier value to run from on the frame it appears.
+    // No fill mode on the way in, deliberately: the bubble's resting state is
+    // visible, so a tab that never runs the animation still shows the tooltip
+    // rather than holding it at the transparent first keyframe forever.
+    animation: tooltip-in 0.15s ease;
+
+    &[data-side="top"] {
+      animation-name: tooltip-in-from-below;
+    }
+
+    &[data-state="closed"] {
+      animation-name: tooltip-out;
+      animation-fill-mode: forwards;
+    }
   }
 
   &__arrow {
     position: absolute;
     top: -0.3125rem;
-    left: calc(50% + var(--tooltip-arrow-shift));
+    // Travels back by however far the bubble was nudged off centre, stopping
+    // short of the rounded corners at either end.
+    left: clamp(0.75rem, calc(50% - var(--anchored-shift, 0px)), calc(100% - 0.75rem));
     width: 0.5rem;
     height: 0.5rem;
     background: var(--bg-card);
@@ -61,9 +56,44 @@
     transform: translateX(-50%) rotate(45deg);
   }
 
-  &--visible &__bubble {
+  // A bubble that flipped above its trigger points down instead.
+  &__bubble[data-side="top"] &__arrow {
+    top: auto;
+    bottom: -0.3125rem;
+    transform: translateX(-50%) rotate(225deg);
+  }
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+
+  to {
     opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes tooltip-in-from-below {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tooltip-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
   }
 }
