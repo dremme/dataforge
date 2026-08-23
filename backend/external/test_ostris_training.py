@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
 from external.ostris_training import (
+    MAX_TEMPLATE_TEXT_LENGTH,
     OstrisTrainingError,
     build_training_config,
     create_and_start_training,
     list_training_samples,
     load_training_template,
+    parse_training_template,
+    read_training_template_text,
     validate_lora_name,
 )
 
@@ -46,9 +50,97 @@ class LoadTrainingTemplateTests(unittest.TestCase):
         self.assertEqual(process["train"]["steps"], 1000)
         self.assertEqual(process["sample"]["sample_every"], 200)
 
+    def test_loads_the_shipped_h3_fl2va_template(self) -> None:
+        template = load_training_template("h3_fl2va")
+
+        process = template["config"]["process"][0]
+        self.assertEqual(process["model"]["name_or_path"], "Comfy-Org/MiniMax-H3")
+        # ``minimax_h3`` is the fl2va-capable class; ``minimax_h3_ref2va`` is a different model.
+        self.assertEqual(process["model"]["arch"], "minimax_h3")
+        # AI-Toolkit keeps the AdaLN projections out of the trained network for this arch.
+        self.assertEqual(process["network"]["network_kwargs"]["ignore_if_contains"], ["adaln_proj"])
+
+    def test_h3_frame_counts_are_aligned_to_the_vae(self) -> None:
+        """MiniMax-H3 snaps frame counts down to 17n+5, so unaligned values waste decode."""
+        process = load_training_template("h3_fl2va")["config"]["process"][0]
+
+        for frames in (process["datasets"][0]["num_frames"], process["sample"]["num_frames"]):
+            self.assertEqual(frames % 17, 5, f"{frames} is not of the form 17n+5")
+
     def test_rejects_an_unknown_model(self) -> None:
         with self.assertRaises(OstrisTrainingError):
             load_training_template("no_such_model")
+
+
+class ParseTrainingTemplateTests(unittest.TestCase):
+    """The editor shows these messages verbatim, so they name the missing piece."""
+
+    VALID = textwrap.dedent("""
+        config:
+          process:
+            - datasets:
+                - {}
+              sample: {}
+    """)
+
+    def test_accepts_a_minimal_well_formed_template(self) -> None:
+        parsed = parse_training_template(self.VALID)
+
+        self.assertEqual(parsed["config"]["process"][0]["sample"], {})
+
+    def test_rejects_broken_yaml(self) -> None:
+        with self.assertRaises(OstrisTrainingError) as caught:
+            parse_training_template("a: [1, 2")
+
+        self.assertIn("not valid YAML", str(caught.exception))
+
+    def test_rejects_yaml_that_is_not_a_mapping(self) -> None:
+        with self.assertRaises(OstrisTrainingError):
+            parse_training_template("- one\n- two\n")
+
+    def test_rejects_a_template_with_no_process(self) -> None:
+        with self.assertRaises(OstrisTrainingError) as caught:
+            parse_training_template("config: {}\n")
+
+        self.assertIn("process", str(caught.exception))
+
+    def test_rejects_a_template_with_no_datasets(self) -> None:
+        with self.assertRaises(OstrisTrainingError) as caught:
+            parse_training_template("config:\n  process:\n    - sample: {}\n")
+
+        self.assertIn("dataset", str(caught.exception))
+
+    def test_rejects_a_template_with_no_sample_block(self) -> None:
+        with self.assertRaises(OstrisTrainingError) as caught:
+            parse_training_template("config:\n  process:\n    - datasets:\n        - {}\n")
+
+        self.assertIn("sample", str(caught.exception))
+
+    def test_rejects_something_far_too_large_to_be_a_template(self) -> None:
+        with self.assertRaises(OstrisTrainingError) as caught:
+            parse_training_template("#" * (MAX_TEMPLATE_TEXT_LENGTH + 1))
+
+        self.assertIn("larger than", str(caught.exception))
+
+    def test_the_source_name_reaches_the_message(self) -> None:
+        with self.assertRaises(OstrisTrainingError) as caught:
+            parse_training_template("config: {}", source="edited training template")
+
+        self.assertIn("edited training template", str(caught.exception))
+
+
+class ReadTrainingTemplateTextTests(unittest.TestCase):
+    def test_returns_the_file_verbatim_so_comments_survive(self) -> None:
+        raw = read_training_template_text("h3_fl2va")
+
+        # Parsing and re-dumping would lose these, and the editor shows this text.
+        self.assertIn("---", raw)
+        self.assertIn('arch: "minimax_h3"', raw)
+        self.assertEqual(parse_training_template(raw)["config"]["process"][0]["device"], "cuda")
+
+    def test_rejects_an_unknown_model(self) -> None:
+        with self.assertRaises(OstrisTrainingError):
+            read_training_template_text("no_such_model")
 
 
 class BuildTrainingConfigTests(unittest.TestCase):

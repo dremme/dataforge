@@ -166,7 +166,7 @@ export const JOB_TYPE_META = {
     icon: iconBrain,
     startUi: "dialog" as const,
     menuLabel: "Quick LoRA training",
-    menuDescription: "Train a Krea 2 Turbo LoRA on this folder with AI-Toolkit.",
+    menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
     isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
   },
 } satisfies Record<JobType, JobTypeMeta>;

@@ -169,7 +169,7 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 | **Find & replace** | Bulk caption edits — replace matching text (literal or regex), or prepend and append a trigger word — with a live count and before/after samples that highlight the changed span before anything is written |
 | **Verify captions** | Checks captions against the media — videos via keyframes, GIFs as stills — and writes `.issue.json` per file when something is wrong, leaving the rest of the folder's findings alone |
 | **Find duplicates** | Perceptually hashes the folder and groups the matches at an **exact**, **near**, or **loose** threshold, writing each member a `.duplicate.json`; the duplicates filter and the duplicate resolver then work through the groups |
-| **Quick LoRA training** | Start a Krea 2 Turbo LoRA run on the current folder in AI-Toolkit |
+| **Quick LoRA training** | Start a LoRA run on the current folder in AI-Toolkit, on Krea 2 Turbo (images) or MiniMax H3 (video) |
 | **Rename** | Numbered rename of media plus related sidecars |
 | **Watermark** | Burn text onto JPG, PNG, WebP, BMP, MP4, MOV, and M4V copies in a `watermarked` subfolder (size, opacity, position) |
 | **Strip metadata** | Remove embedded data from PNGs and MP4s |
@@ -178,7 +178,7 @@ event stream the gallery uses, so the drawer and automation panel follow a runni
 
 External **Ostris / AI-Toolkit** training jobs also appear in the jobs drawer once [configured](docs/configuration.md#paths-integrations-and-logging).
 
-Quick LoRA training needs AI-Toolkit running on `http://127.0.0.1:8675`; the menu entry stays disabled otherwise.
+Quick LoRA training needs AI-Toolkit running on `http://127.0.0.1:8675`; the menu entry stays disabled otherwise. The dialog's **Edit template** button opens that model's YAML from `ostris-templates/` so a single run can change steps, learning rate or resolution; the edit applies to that run only and the file on disk is never written.
 AI-Toolkit owns the run and its training folder, while DataForge tracks it like any other job — progress and sample
 images in the automation panel, and an external card in the jobs drawer.
 

@@ -25,12 +25,18 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "ostris-templates"
 
 DEFAULT_TRAINING_MODEL = "krea2_turbo"
 
-# One template per supported model. Adding a model is a new YAML plus a line here.
+# One template per supported model. Adding a model is a new YAML plus a line here,
+# kept in step with ``TrainingModel`` in ``schemas.py`` - ``test_schemas.py`` guards the pair.
 TRAINING_TEMPLATES: dict[str, str] = {
     "krea2_turbo": "krea2-turbo.yml",
+    "h3_fl2va": "h3-fl2va.yml",
 }
 
 SAMPLES_DIR_NAME = "samples"
+
+# A per-job template override arrives as text in the start request. The shipped templates
+# are ~2 KB, so this only rules out something that was never a template.
+MAX_TEMPLATE_TEXT_LENGTH = 256 * 1024
 
 MAX_LORA_NAME_LENGTH = 80
 # The name becomes a folder under the AI-Toolkit training folder.
@@ -63,11 +69,58 @@ def validate_lora_name(name: str) -> None:
         raise ValueError('The LoRA name cannot contain < > : " / \\ | ? *')
 
 
-def _process_config(config: dict[str, Any]) -> dict[str, Any]:
+def _process_config(config: dict[str, Any], source: str = "training template") -> dict[str, Any]:
     process = config.get("config", {}).get("process") if isinstance(config, dict) else None
     if not isinstance(process, list) or not process or not isinstance(process[0], dict):
-        raise OstrisTrainingError("The training template has no process configuration.")
+        raise OstrisTrainingError(f"The {source} has no process configuration.")
     return process[0]
+
+
+def read_training_template_text(model: str = DEFAULT_TRAINING_MODEL) -> str:
+    """The template exactly as it sits on disk, placeholders and comments intact.
+
+    This is what the editor shows, so it must stay the raw text: parsing and re-dumping
+    would drop every comment explaining what the settings mean.
+    """
+    filename = TRAINING_TEMPLATES.get(model)
+    if filename is None:
+        raise OstrisTrainingError(f'Unknown training model "{model}".')
+
+    try:
+        return (TEMPLATES_DIR / filename).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise OstrisTrainingError(f"Could not read the training template {filename}.") from exc
+
+
+def parse_training_template(raw: str, *, source: str = "training template") -> dict[str, Any]:
+    """Parse template YAML and check it has the shape ``build_training_config`` fills.
+
+    Every failure here is something the user can see and fix in the editor, so the
+    messages name the missing piece rather than the exception.
+    """
+    if len(raw) > MAX_TEMPLATE_TEXT_LENGTH:
+        raise OstrisTrainingError(
+            f"The {source} is larger than {MAX_TEMPLATE_TEXT_LENGTH // 1024} KB."
+        )
+
+    try:
+        template = yaml.safe_load(raw)
+    except yaml.YAMLError as exc:
+        raise OstrisTrainingError(f"The {source} is not valid YAML: {exc}") from exc
+
+    if not isinstance(template, dict):
+        raise OstrisTrainingError(f"The {source} is not a mapping.")
+
+    process = _process_config(template, source)
+
+    datasets = process.get("datasets")
+    if not isinstance(datasets, list) or not datasets or not isinstance(datasets[0], dict):
+        raise OstrisTrainingError(f"The {source} has no dataset configuration.")
+
+    if not isinstance(process.get("sample"), dict):
+        raise OstrisTrainingError(f"The {source} has no sample configuration.")
+
+    return template
 
 
 def load_training_template(model: str = DEFAULT_TRAINING_MODEL) -> dict[str, Any]:
@@ -75,22 +128,7 @@ def load_training_template(model: str = DEFAULT_TRAINING_MODEL) -> dict[str, Any
     if filename is None:
         raise OstrisTrainingError(f'Unknown training model "{model}".')
 
-    template_path = TEMPLATES_DIR / filename
-    try:
-        raw = template_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise OstrisTrainingError(f"Could not read the training template {filename}.") from exc
-
-    try:
-        template = yaml.safe_load(raw)
-    except yaml.YAMLError as exc:
-        raise OstrisTrainingError(f"The training template {filename} is not valid YAML.") from exc
-
-    if not isinstance(template, dict):
-        raise OstrisTrainingError(f"The training template {filename} is not a mapping.")
-
-    _process_config(template)
-    return template
+    return parse_training_template(read_training_template_text(model), source=filename)
 
 
 def build_training_config(

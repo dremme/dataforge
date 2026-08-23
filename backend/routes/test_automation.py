@@ -536,6 +536,67 @@ class TrainLoraAutomationEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 400)
 
+    def test_rejects_a_model_with_no_template(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, model="no_such_model")
+
+            # The wire union rejects it before the job is ever queued.
+            self.assertEqual(response.status_code, 422)
+
+    def test_forwards_the_chosen_model_to_the_runner(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            seen: list[object] = []
+
+            def capture(folder: Path, **params: object) -> dict[str, object]:
+                seen.append(params.get("model"))
+                return {
+                    "folder": str(folder),
+                    "total": 0,
+                    "processed": 0,
+                    "stats": {},
+                    "results": [],
+                }
+
+            with _patched_job_runner("train_lora", capture):
+                response = self._start(root, model="h3_fl2va")
+                wait_for_job(response.json()["id"])
+
+            self.assertEqual(seen, ["h3_fl2va"])
+
+    def test_forwards_an_edited_template_to_the_runner(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            seen: list[object] = []
+
+            def capture(folder: Path, **params: object) -> dict[str, object]:
+                seen.append(params.get("template"))
+                return {
+                    "folder": str(folder),
+                    "total": 0,
+                    "processed": 0,
+                    "stats": {},
+                    "results": [],
+                }
+
+            edited = "config:\n  process:\n    - datasets:\n        - {}\n      sample: {}\n"
+            with _patched_job_runner("train_lora", capture):
+                response = self._start(root, template=edited)
+                wait_for_job(response.json()["id"])
+
+            self.assertEqual(seen, [edited])
+
+    def test_rejects_a_broken_edited_template_before_queueing(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, template="a: [1, 2")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("not valid YAML", response.json()["detail"])
+
     def test_starts_job_and_co_tracks_the_external_run(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
@@ -581,6 +642,60 @@ class TrainLoraAutomationEndpointTests(unittest.TestCase):
             assert job is not None
             self.assertEqual(job.status, "failed")
             self.assertIn("already exists", job.error or "")
+
+
+class TrainingTemplateEndpointTests(unittest.TestCase):
+    """The editor reads a template here and checks its edit before the job is started."""
+
+    def test_returns_the_template_as_written(self) -> None:
+        response = client.get("/api/automation/train-lora/template?model=h3_fl2va")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["model"], "h3_fl2va")
+        # Raw text, not a re-dump: the comments are half of what makes it editable.
+        self.assertIn('arch: "minimax_h3"', payload["yaml"])
+
+    def test_defaults_to_the_krea2_turbo_template(self) -> None:
+        response = client.get("/api/automation/train-lora/template")
+
+        self.assertEqual(response.json()["model"], "krea2_turbo")
+        self.assertIn("krea/Krea-2-Turbo", response.json()["yaml"])
+
+    def test_rejects_a_model_with_no_template(self) -> None:
+        response = client.get("/api/automation/train-lora/template?model=no_such_model")
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_a_usable_edit_checks_out(self) -> None:
+        template = client.get("/api/automation/train-lora/template").json()["yaml"]
+
+        response = client.post(
+            "/api/automation/train-lora/template/check", json={"template": template}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True, "error": None})
+
+    def test_a_broken_edit_answers_200_with_the_reason(self) -> None:
+        """Not an HTTP error: an unparseable draft is the expected answer here."""
+        response = client.post(
+            "/api/automation/train-lora/template/check", json={"template": "a: [1, 2"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("edited training template", payload["error"])
+
+    def test_a_template_missing_a_block_names_the_block(self) -> None:
+        response = client.post(
+            "/api/automation/train-lora/template/check",
+            json={"template": "config:\n  process:\n    - datasets:\n        - {}\n"},
+        )
+
+        self.assertFalse(response.json()["ok"])
+        self.assertIn("sample", response.json()["error"])
 
 
 if __name__ == "__main__":

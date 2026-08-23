@@ -240,6 +240,8 @@ describe("useAutomationDialogOverlays", () => {
         loraName: "sample_train_v1",
         triggerWord: "",
         prompts: ["a mountain lake at sunrise"],
+        model: "h3_fl2va",
+        template: null,
       });
     });
 
@@ -251,6 +253,8 @@ describe("useAutomationDialogOverlays", () => {
         lora_name: "sample_train_v1",
         trigger_word: "",
         prompts: ["a mountain lake at sunrise"],
+        model: "h3_fl2va",
+        template: null,
       },
       undefined,
     );

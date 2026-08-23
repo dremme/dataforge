@@ -2,7 +2,7 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { tags } from "@lezer/highlight";
 
-export type CodeEditorLanguage = "markdown" | "json" | "plaintext";
+export type CodeEditorLanguage = "markdown" | "json" | "yaml" | "plaintext";
 
 const mkpBright = "#fcfcfa";
 const mkpYellow = "#ffd866";
@@ -47,9 +47,27 @@ const jsonHighlightStyle = HighlightStyle.define([
   { tag: tags.invalid, color: mkpPink },
 ]);
 
+// YAML is read far more than it is written here - a training template is mostly keys
+// and numbers - so keys stay cool and values warm, and comments recede.
+const yamlHighlightStyle = HighlightStyle.define([
+  { tag: tags.propertyName, color: mkpCyan },
+  { tag: tags.string, color: mkpGreen },
+  { tag: tags.number, color: mkpOrange },
+  { tag: tags.bool, color: mkpPurple },
+  { tag: tags.null, color: mkpPink },
+  { tag: tags.keyword, color: mkpPurple },
+  { tag: tags.atom, color: mkpPurple },
+  { tag: tags.meta, color: mkpMuted },
+  { tag: tags.separator, color: mkpMuted },
+  { tag: tags.punctuation, color: mkpMuted },
+  { tag: tags.comment, color: mkpMuted, fontStyle: "italic" },
+  { tag: tags.invalid, color: mkpPink },
+]);
+
 const highlightByLanguage: Partial<Record<CodeEditorLanguage, Extension>> = {
   markdown: syntaxHighlighting(markdownHighlightStyle),
   json: syntaxHighlighting(jsonHighlightStyle),
+  yaml: syntaxHighlighting(yamlHighlightStyle),
 };
 
 /** Stable syntax-highlight extension for the given language (chrome is SCSS). */

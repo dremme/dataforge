@@ -33,6 +33,11 @@ interface DialogProps {
   panelClassName?: string;
   /** Disables every dismiss affordance and the Enter shortcut. */
   busy?: boolean;
+  /**
+   * A child overlay is on top: suspends the focus trap, Escape and the backdrop, and
+   * releases Enter so the overlay above owns the keyboard. See `ModalShell.suspended`.
+   */
+  suspended?: boolean;
   /** When set, Enter confirms (outside multiline fields, after a short grace period). */
   onConfirm?: () => void;
   onClose: () => void;
@@ -51,6 +56,7 @@ export function Dialog({
   role = "alertdialog",
   panelClassName,
   busy = false,
+  suspended = false,
   onConfirm,
   onClose,
   initialFocusRef,
@@ -72,7 +78,9 @@ export function Dialog({
   confirmRef.current = onConfirm;
 
   useEffect(() => {
-    if (busy || !onConfirm) return;
+    // While a child overlay is up, Enter belongs to it - confirming underneath would
+    // start the job with whatever the user was still editing above.
+    if (busy || suspended || !onConfirm) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter" || event.shiftKey) return;
@@ -85,7 +93,7 @@ export function Dialog({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [busy, onConfirm]);
+  }, [busy, onConfirm, suspended]);
 
   return (
     <ModalShell
@@ -96,6 +104,7 @@ export function Dialog({
       describedById={describedById ?? (description ? descriptionId : undefined)}
       onClose={onClose}
       busy={busy}
+      suspended={suspended}
       scrollLock="confirm-dialog-open"
       // Long-standing label; several tests reach for the backdrop by this name.
       backdropLabel="Close dialog"

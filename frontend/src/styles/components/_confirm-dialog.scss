@@ -322,7 +322,6 @@
 .create-folder-dialog,
 .set-captions-dialog,
 .find-duplicates-dialog,
-.train-lora-dialog,
 .watermark-dialog {
   width: min(32rem, 100%);
 }
@@ -552,14 +551,20 @@
   overflow: hidden;
 }
 
-// LoRA training: an editable list of sample prompts, each with a remove button.
-// The prompt list makes this the tallest form dialog, so the fields scroll inside
-// a bounded panel and the title and actions stay put.
+// LoRA training: a model choice, two text fields and an editable list of sample
+// prompts. The prompt list is unbounded, so it is the one region allowed to scroll -
+// the model tiles and the name and trigger fields stay on screen at every height.
 .confirm-dialog__panel.train-lora-dialog {
   display: flex;
   flex-direction: column;
-  max-height: min(85vh, 50rem);
-  // The `__body` below is the scroller; without this the panel's own default
+  // Wider than the other form dialogs so the name and the trigger word fit side by
+  // side without either input dropping below a readable width.
+  width: min(36rem, 100%);
+  // Taller than the other form dialogs: at 88vh a 720px-high window left the prompt
+  // list six pixels short of its three default rows, so the default view opened with
+  // a scrollbar already showing.
+  max-height: min(90vh, 50rem);
+  // The prompt list below is the scroller; without this the panel's own default
   // overflow would add a second, redundant scrollbar around it.
   overflow: hidden;
 }
@@ -567,46 +572,200 @@
 .train-lora-dialog {
   &__body {
     @include app-scrollbar;
-    flex: 1;
+    display: flex;
+    flex-direction: column;
+    // This is a scroll container, so it clips its children's outlines - and the model
+    // tiles run edge to edge, which cut their focus ring in half. The padding gives
+    // every child room for a 2px ring at a 2px offset; the negative margin takes it
+    // back out of the panel's own padding so nothing shifts. Safe here where it was
+    // not on the prompt list: the panel above is `overflow: hidden`, so widening this
+    // cannot produce a scrollbar.
+    margin: 0 (-$focus-ring-space);
+    padding: 0 $focus-ring-space;
+    // Only this chain gets `min-height: 0`. Column flex items otherwise refuse to
+    // shrink below their content, and that is what keeps the fields above visible.
     min-height: 0;
+    // Only reachable on a viewport too short for the form itself, once the prompt
+    // list has already shrunk to its floor - below roughly 660px of window height.
+    // Above that the list absorbs the overflow on its own and this never engages.
     overflow-y: auto;
   }
 
+  // The template control belongs to the model above it, so it sits tight under the
+  // tiles rather than reading as a field of its own.
+  &__template {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin-top: 0.625rem;
+  }
+
+  &__template-button {
+    @include pill-btn-ghost(0.4rem);
+    // flex: none;
+  }
+
+  &__template-icon {
+    @include icon-size(var(--icon-size-sm));
+  }
+
+  &__template-note {
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+  }
+
+  // The name and the trigger word are one thought, and side by side they cost one
+  // field of height instead of two - which is what buys the prompt list its room.
+  &__names {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  // Inputs carry an intrinsic minimum width; without this they widen their grid
+  // column instead of shrinking, and the row spills past the panel.
+  &__name {
+    min-width: 0;
+  }
+
+  // Holds the prompt list, and gives back whatever height the fixed fields do not use.
+  &__prompts-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  // Label, running count and the add action on one line. Putting the button here
+  // rather than under the list buys the list a row of height back, and keeps the
+  // action next to the thing it adds to.
+  &__prompts-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+
+    .dialog__label {
+      flex: none;
+      margin: 0;
+    }
+  }
+
+  &__add-prompt {
+    @include pill-btn-compact(default);
+    // Pinned to the right of the header, away from the label it belongs to.
+    margin-left: auto;
+    flex: none;
+
+    &-icon {
+      @include icon-size(var(--icon-size-sm));
+    }
+  }
+
+  // Stands in for the list at zero prompts, where an empty scroller was just a
+  // blank box. Same flex behaviour as the list so nothing jumps as it appears.
+  &__prompts-empty {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    margin: 0.4375rem 0 0;
+    min-height: 4.5rem;
+    max-height: 18rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+  }
+
   &__prompts {
+    @include app-scrollbar;
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
+    // The remove button sits flush right, and `overflow` clips an outline rather than
+    // scrolling to it, so the padding gives its focus ring room. It must NOT be pulled
+    // back with a negative margin: this scroller sits inside `__body`, which is itself
+    // `overflow: auto`, and the few pixels of bleed became a horizontal scrollbar there.
     margin: 0.4375rem 0 0;
-    padding: 0;
+    padding: 0 $focus-ring-space;
     list-style: none;
+    // `flex: 1` is inert while the panel is under its max-height, so a short list
+    // does not stretch into a tall blank box and needs no empty-state modifier.
+    flex: 1;
+    min-height: 4.5rem;
+    max-height: 18rem;
+    overflow-y: auto;
   }
 
+  // One prompt reads as a single object - number, text and remove together - rather
+  // than a bare input with a button parked beside it. The row owns the surface, so
+  // the input inside it is chromeless.
   &__prompt {
     display: flex;
+    flex: none;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.5rem;
+    padding: 0 0.375rem 0 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    transition:
+      border-color var(--transition),
+      background var(--transition);
+
+    &:focus-within {
+      border-color: var(--accent);
+    }
+  }
+
+  &__prompt-index {
+    flex: none;
+    width: 1rem;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    text-align: right;
+    @include tabular-nums;
   }
 
   &__prompt-input {
     flex: 1;
     min-width: 0;
+    // The row draws the box; this only carries the text.
+    padding: 0.5rem 0;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--text-subtle);
+    }
+
+    &:disabled {
+      color: var(--text-muted);
+    }
   }
 
+  // Quiet until wanted: no surface of its own, and only the hover states say delete.
   &__prompt-remove {
     @include icon-btn-sm;
+    flex: none;
+    border-color: transparent;
+    background: none;
+    color: var(--text-muted);
 
     &:hover:not(:disabled) {
       color: var(--danger);
       border-color: var(--danger-border);
-    }
-  }
-
-  &__add-prompt {
-    @include pill-btn-ghost;
-    margin-top: 0.5rem;
-
-    &-icon {
-      @include icon-size(var(--icon-size-sm));
+      background: var(--danger-soft);
     }
   }
 }

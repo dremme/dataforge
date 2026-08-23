@@ -19,6 +19,10 @@ vi.mock("@codemirror/lang-json", () => ({
   json: () => [],
 }));
 
+vi.mock("@codemirror/lang-yaml", () => ({
+  yaml: () => [],
+}));
+
 vi.mock("@codemirror/view", () => ({
   EditorView: {
     lineWrapping: {},

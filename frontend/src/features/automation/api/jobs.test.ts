@@ -99,11 +99,15 @@ describe("automation API", () => {
         loraName: "sample_train_v1",
         triggerWord: "sampletoken",
         prompts: ["a mountain lake at sunrise"],
+        model: "h3_fl2va",
+        template: null,
       }),
     ).toEqual({
       lora_name: "sample_train_v1",
       trigger_word: "sampletoken",
       prompts: ["a mountain lake at sunrise"],
+      model: "h3_fl2va",
+      template: null,
     });
   });
 });

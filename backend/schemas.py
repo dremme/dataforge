@@ -31,6 +31,11 @@ type WatermarkPosition = Annotated[
 #: How the vision model is prompted: ``thinking`` lets it reason first.
 type AutomationMode = Literal["thinking", "instruct"]
 
+#: Which AI-Toolkit template a LoRA run trains from. Mirrors the keys of
+#: ``TRAINING_TEMPLATES`` in ``external/ostris_training.py``, which holds the YAML each
+#: one maps to. ``h3_fl2va`` is a video model, ``krea2_turbo`` an image model.
+type TrainingModel = Literal["krea2_turbo", "h3_fl2va"]
+
 #: How hard the model reasons before answering, in thinking mode. The set is fixed by the
 #: chat template, which raises on anything else - see ``llm-templates/qwen38_template.jinja``.
 #: There is no ``high``; the template's own default is ``xhigh``, DataForge's is ``medium``.
@@ -465,6 +470,30 @@ class TrainLoraStartRequest(JobSelectionRequest):
     lora_name: str = ""
     trigger_word: str = ""
     prompts: list[str] = Field(default_factory=list)
+    model: TrainingModel = "krea2_turbo"
+    template: str | None = Field(
+        default=None,
+        description=(
+            "Edited template YAML to use for this run only. Omit to use the shipped "
+            "template for the chosen model."
+        ),
+    )
+
+
+class TrainingTemplateResponse(BaseModel):
+    model: TrainingModel
+    yaml: str = Field(
+        description="The template exactly as shipped, comments and placeholders intact."
+    )
+
+
+class TrainingTemplateCheckRequest(BaseModel):
+    template: str
+
+
+class TrainingTemplateCheckResponse(BaseModel):
+    ok: bool
+    error: str | None = None
 
 
 class JobFileResult(BaseModel):

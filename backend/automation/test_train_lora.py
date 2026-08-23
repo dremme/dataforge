@@ -6,7 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from automation.train_lora import run_train_lora_job, validate_train_lora_folder
-from external.ostris_training import OstrisTrainingError
+from external.ostris_training import (
+    TRAINING_TEMPLATES,
+    OstrisTrainingError,
+    read_training_template_text,
+)
 from testing_fixtures import TempMediaFolder, isolate_test_database, write_media
 
 isolate_test_database()
@@ -127,6 +131,108 @@ class ValidateTrainLoraFolderTests(unittest.TestCase):
                 validate_train_lora_folder(root, lora_name="sample_train_v1", prompts=["   "])
 
         self.assertIn("prompt", str(caught.exception))
+
+    def test_rejects_a_model_with_no_template(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with self.assertRaises(ValueError) as caught:
+                validate_train_lora_folder(
+                    root, lora_name="sample_train_v1", prompts=PROMPTS, model="no_such_model"
+                )
+
+        self.assertIn("no_such_model", str(caught.exception))
+
+    def test_accepts_every_registered_model(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            for model in TRAINING_TEMPLATES:
+                validate_train_lora_folder(
+                    root, lora_name="sample_train_v1", prompts=PROMPTS, model=model
+                )
+
+    def test_rejects_a_broken_edited_template(self) -> None:
+        """Caught at queue time, so the user sees it on the dialog they are looking at."""
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with self.assertRaises(ValueError) as caught:
+                validate_train_lora_folder(
+                    root, lora_name="sample_train_v1", prompts=PROMPTS, template="a: [1, 2"
+                )
+
+        self.assertIn("not valid YAML", str(caught.exception))
+
+    def test_accepts_a_valid_edited_template(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            validate_train_lora_folder(
+                root,
+                lora_name="sample_train_v1",
+                prompts=PROMPTS,
+                template=read_training_template_text("krea2_turbo"),
+            )
+
+
+class TrainingConfigTests(unittest.TestCase):
+    """The config handed to AI-Toolkit is built for real here - only the request is faked."""
+
+    def _created_config(self, **kwargs: object) -> dict:
+        with TrainLoraPatches(poll_jobs=[_job("completed", step=100)]) as patches:
+            run_train_lora_job(
+                Path("C:\\datasets\\landscapes"),
+                lora_name="sample_train_v1",
+                trigger_word="mtnstyle",
+                prompts=PROMPTS,
+                poll_interval_seconds=0,
+                **kwargs,
+            )
+
+        self.assertEqual(len(patches.created), 1)
+        return patches.created[0]["config"]["config"]["process"][0]
+
+    def test_defaults_to_the_krea2_turbo_template(self) -> None:
+        self.assertEqual(self._created_config()["model"]["arch"], "krea2:turbo")
+
+    def test_the_chosen_model_picks_its_template(self) -> None:
+        process = self._created_config(model="h3_fl2va")
+
+        self.assertEqual(process["model"]["arch"], "minimax_h3")
+        self.assertEqual(process["model"]["name_or_path"], "Comfy-Org/MiniMax-H3")
+        # The video settings ride along from the YAML; nothing in the runner sets them.
+        # Exact frame counts are the template's to tune - `test_ostris_training.py` pins
+        # the rule they have to obey - so only assert that they arrived at all.
+        self.assertTrue(process["datasets"][0]["do_i2v"])
+        self.assertGreater(process["sample"]["num_frames"], 1)
+
+    def test_an_edited_template_replaces_the_shipped_one(self) -> None:
+        edited = read_training_template_text("krea2_turbo").replace("steps: 1000", "steps: 250")
+
+        process = self._created_config(template=edited)
+
+        self.assertEqual(process["train"]["steps"], 250)
+        # Still the model it was edited from, and the placeholders still get filled.
+        self.assertEqual(process["model"]["arch"], "krea2:turbo")
+        self.assertEqual(process["datasets"][0]["folder_path"], "C:\\datasets\\landscapes")
+
+    def test_an_edited_template_wins_over_the_model_slug(self) -> None:
+        """The edit is the whole config; the slug only picks what to start from."""
+        edited = read_training_template_text("h3_fl2va")
+
+        process = self._created_config(model="krea2_turbo", template=edited)
+
+        self.assertEqual(process["model"]["arch"], "minimax_h3")
+
+    def test_placeholders_are_filled_whichever_model_is_chosen(self) -> None:
+        for model in TRAINING_TEMPLATES:
+            process = self._created_config(model=model)
+
+            self.assertEqual(process["training_folder"], TRAINING_FOLDER)
+            self.assertEqual(process["datasets"][0]["folder_path"], "C:\\datasets\\landscapes")
+            self.assertEqual(process["trigger_word"], "mtnstyle")
+            self.assertEqual([entry["prompt"] for entry in process["sample"]["samples"]], PROMPTS)
 
 
 class RunTrainLoraJobTests(unittest.TestCase):

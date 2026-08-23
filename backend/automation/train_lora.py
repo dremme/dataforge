@@ -31,11 +31,14 @@ from external.ostris_jobs import (
     stop_ostris_job_with_checkpoint,
 )
 from external.ostris_training import (
+    DEFAULT_TRAINING_MODEL,
+    TRAINING_TEMPLATES,
     OstrisTrainingError,
     build_training_config,
     create_and_start_training,
     list_training_samples,
     load_training_template,
+    parse_training_template,
     training_samples_folder,
     validate_lora_name,
 )
@@ -57,6 +60,8 @@ def validate_train_lora_folder(
     *,
     lora_name: str = "",
     prompts: list[str] | None = None,
+    model: str = DEFAULT_TRAINING_MODEL,
+    template: str | None = None,
     **_params: object,
 ) -> None:
     if not folder.is_dir():
@@ -69,6 +74,19 @@ def validate_train_lora_folder(
 
     if not _clean_prompts(prompts):
         raise ValueError("Add at least one example prompt")
+
+    # Caught here so an unknown model is rejected at queue time, rather than starting a
+    # job that only fails once the worker thread reaches for the template.
+    if model not in TRAINING_TEMPLATES:
+        raise ValueError(f'Unknown training model "{model}"')
+
+    # Same reason: a broken override should fail the request the user is looking at,
+    # not a job that starts and dies in a worker thread minutes later.
+    if template is not None:
+        try:
+            parse_training_template(template, source="edited training template")
+        except OstrisTrainingError as exc:
+            raise ValueError(str(exc)) from exc
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -106,6 +124,13 @@ def _job_id(job: dict[str, Any] | None) -> str | None:
     return job_id if isinstance(job_id, str) and job_id else None
 
 
+def _training_template(model: str, template: str | None) -> dict[str, Any]:
+    """The edited YAML when this run carries one, otherwise the shipped template."""
+    if template is None:
+        return load_training_template(model)
+    return parse_training_template(template, source="edited training template")
+
+
 def _resolve_training_job(
     client: httpx.Client,
     *,
@@ -114,6 +139,8 @@ def _resolve_training_job(
     training_folder: str,
     trigger_word: str,
     prompts: list[str],
+    model: str,
+    template: str | None,
     attach_only: bool,
 ) -> tuple[str, dict[str, Any]]:
     """The AI-Toolkit job to track, creating it unless we are re-attaching to a live one."""
@@ -129,7 +156,7 @@ def _resolve_training_job(
 
     gpu_ids = fetch_ostris_gpu_ids(client)
     config = build_training_config(
-        load_training_template(),
+        _training_template(model, template),
         name=name,
         training_folder=training_folder,
         dataset_folder=str(folder),
@@ -204,6 +231,8 @@ def run_train_lora_job(
     lora_name: str = "",
     trigger_word: str = "",
     prompts: list[str] | None = None,
+    model: str = DEFAULT_TRAINING_MODEL,
+    template: str | None = None,
     attach_only: bool = False,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
@@ -227,6 +256,8 @@ def run_train_lora_job(
             training_folder=training_folder,
             trigger_word=trigger_word,
             prompts=sample_prompts,
+            model=model,
+            template=template,
             attach_only=attach_only,
         )
 

@@ -12,10 +12,19 @@ one would break a working feature rather than fix a bug.
 from __future__ import annotations
 
 import unittest
+from typing import get_args
 
 from pydantic import ValidationError
 
-from schemas import AutoCaptionStartRequest, GalleryItem, JobResponse, UiSettingsUpdate
+from external.ostris_training import TRAINING_TEMPLATES
+from schemas import (
+    AutoCaptionStartRequest,
+    GalleryItem,
+    JobResponse,
+    TrainingModel,
+    TrainLoraStartRequest,
+    UiSettingsUpdate,
+)
 
 
 def _gallery_item(**overrides: object) -> GalleryItem:
@@ -133,6 +142,20 @@ class ReasoningEffortSchemaTests(unittest.TestCase):
     def test_rejects_high_which_the_template_has_no_branch_for(self) -> None:
         with self.assertRaises(ValidationError):
             AutoCaptionStartRequest(reasoning_effort="high")
+
+
+class TrainingModelSchemaTests(unittest.TestCase):
+    """The wire union and the template registry are two halves of one list."""
+
+    def test_every_wire_value_has_a_template(self) -> None:
+        self.assertEqual(set(get_args(TrainingModel.__value__)), set(TRAINING_TEMPLATES))
+
+    def test_defaults_to_krea2_turbo(self) -> None:
+        self.assertEqual(TrainLoraStartRequest().model, "krea2_turbo")
+
+    def test_rejects_a_model_with_no_template(self) -> None:
+        with self.assertRaises(ValidationError):
+            TrainLoraStartRequest(model="no_such_model")
 
 
 class UiSettingsUpdateSchemaTests(unittest.TestCase):

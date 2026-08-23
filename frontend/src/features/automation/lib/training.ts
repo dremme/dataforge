@@ -1,3 +1,30 @@
+import type { TrainingModel } from "@/shared/types";
+import type { RadioTileOption } from "@/shared/ui/RadioTileGroup";
+
+/**
+ * The models quick training can run, in dialog order. Each maps to one YAML in
+ * `ostris-templates/`; the backend picks the template from the slug.
+ */
+export const TRAINING_MODEL_OPTIONS: ReadonlyArray<RadioTileOption<TrainingModel>> = [
+  {
+    value: "krea2_turbo",
+    title: "Krea 2 Turbo",
+    description: "Image model. 1024px samples.",
+  },
+  {
+    value: "h3_fl2va",
+    title: "MiniMax H3",
+    description: "Video model. 1.6s sample clips.",
+  },
+];
+
+export const DEFAULT_TRAINING_MODEL: TrainingModel = "krea2_turbo";
+
+/** The name to call a model in prose, e.g. "Trains a MiniMax H3 LoRA on them." */
+export function trainingModelLabel(model: TrainingModel): string {
+  return TRAINING_MODEL_OPTIONS.find((option) => option.value === model)?.title ?? model;
+}
+
 /** Sample prompts a new training job starts with; every one is editable. */
 export const DEFAULT_TRAINING_PROMPTS = [
   "a mountain lake at sunrise, mist over the water",

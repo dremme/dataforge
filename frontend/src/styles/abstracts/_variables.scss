@@ -57,6 +57,10 @@ $control-height: 2.25rem;
 $control-height-sm: 2rem;
 $control-height-xs: 1.5rem;
 $panel-padding: 1.125rem;
+// Room a focus ring needs outside an element: a 2px outline at a 2px offset, plus a
+// pixel of slack because fractional panel widths leave the exact 4px a hair short.
+// Scroll containers clip outlines, so anything flush against one needs this padding.
+$focus-ring-space: 0.3125rem;
 // A sticky section header floats as its own bar below the panel it docks under:
 // the gap is the space left open between the two, the padding is the bar's own
 // inset around the header content.

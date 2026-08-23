@@ -5,6 +5,11 @@ from fastapi import APIRouter, HTTPException, Query
 from automation.jobs import JobType, job_manager
 from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
+from external.ostris_training import (
+    OstrisTrainingError,
+    parse_training_template,
+    read_training_template_text,
+)
 from routes._helpers import job_response, resolve_folder
 from schemas import (
     AutoCaptionStartRequest,
@@ -18,6 +23,10 @@ from schemas import (
     RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
     StripMetadataStartRequest,
+    TrainingModel,
+    TrainingTemplateCheckRequest,
+    TrainingTemplateCheckResponse,
+    TrainingTemplateResponse,
     TrainLoraStartRequest,
     VerifyCaptionsStartRequest,
     WatermarkStartRequest,
@@ -239,4 +248,34 @@ def start_train_lora_job(
         lora_name=body.lora_name,
         trigger_word=body.trigger_word,
         prompts=body.prompts,
+        model=body.model,
+        template=body.template,
     )
+
+
+@router.get("/automation/train-lora/template", response_model=TrainingTemplateResponse)
+def get_train_lora_template(
+    model: TrainingModel = Query("krea2_turbo", description="Which model's template to read"),
+) -> TrainingTemplateResponse:
+    """The stock template for a model, for the editor to open."""
+    try:
+        return TrainingTemplateResponse(model=model, yaml=read_training_template_text(model))
+    except OstrisTrainingError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/automation/train-lora/template/check", response_model=TrainingTemplateCheckResponse)
+def check_train_lora_template(
+    body: TrainingTemplateCheckRequest,
+) -> TrainingTemplateCheckResponse:
+    """Whether an edited template would start.
+
+    A 200 either way: an unparseable draft is the expected answer to this question, not a
+    failed request. The start path runs the very same parse, so the two cannot disagree.
+    """
+    try:
+        parse_training_template(body.template, source="edited training template")
+    except OstrisTrainingError as exc:
+        return TrainingTemplateCheckResponse(ok=False, error=str(exc))
+
+    return TrainingTemplateCheckResponse(ok=True)

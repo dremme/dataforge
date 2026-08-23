@@ -10,8 +10,11 @@ config:
       performance_log_every: 10
       network:
         type: "lora"
-        linear: 32
-        linear_alpha: 32
+        linear: 16
+        linear_alpha: 16
+        network_kwargs:
+          ignore_if_contains:
+            - "adaln_proj"
       save:
         dtype: "bf16"
         save_every: 500
@@ -21,10 +24,13 @@ config:
         - folder_path: ""
           default_caption: ""
           caption_ext: "txt"
-          caption_dropout_rate: 0.1
+          caption_dropout_rate: 0.05
           cache_latents_to_disk: true
+          shrink_video_to_frames: true
+          num_frames: 39
+          do_i2v: true
           resolution:
-            - 512
+            - 224
       train:
         batch_size: 1
         steps: 1000
@@ -39,36 +45,41 @@ config:
         optimizer_params:
           weight_decay: 0.0001
         lr: 0.0001
+        cache_text_embeddings: true
         skip_first_sample: false
         dtype: "bf16"
         loss_type: "mse"
         do_differential_guidance: true
         differential_guidance_scale: 3
+        do_guidance_loss: true
+        guidance_loss_target: 3.5
       logging:
         log_every: 1
         use_ui_logger: true
       model:
-        name_or_path: "krea/Krea-2-Turbo"
+        name_or_path: "Comfy-Org/MiniMax-H3"
         quantize: true
         qtype: "convrot8"
         quantize_te: true
-        qtype_te: "convrot8"
-        arch: "krea2:turbo"
+        qtype_te: "nvfp4"
+        arch: "minimax_h3"
         low_vram: true
-        assistant_lora_path: "ostris/krea2_turbo_training_adapter/krea2_turbo_training_adapter_v1.safetensors"
+        assistant_lora_path: "ostris/minimax_h3_training_adapter/minimax_h3_training_adapter_v1.safetensors"
       sample:
         sampler: "flowmatch"
         sample_every: 200
         sample_start_step: 0
-        width: 1024
-        height: 1024
+        width: 768
+        height: 768
         samples:
           - prompt: "example prompt"
         neg: ""
         seed: 42
         walk_seed: true
         guidance_scale: 1
-        sample_steps: 9
+        sample_steps: 20
+        num_frames: 39
+        fps: 24
 meta:
   name: "[name]"
   version: "1.0"
