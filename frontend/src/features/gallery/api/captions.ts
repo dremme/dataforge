@@ -30,15 +30,6 @@ export async function saveCaption(
   return putJson<CaptionSaveResponse>(`/api/caption?${params}`, body);
 }
 
-export async function saveCaptionJson(
-  mediaPath: string,
-  jsonContent: string,
-): Promise<CaptionSaveResponse> {
-  const params = new URLSearchParams({ path: mediaPath });
-  const body: CaptionUpdate = { json_content: jsonContent };
-  return putJson<CaptionSaveResponse>(`/api/caption?${params}`, body);
-}
-
 export async function saveSysPrompt(
   syspromptPath: string,
   text: string,

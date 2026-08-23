@@ -17,7 +17,6 @@ export function buildSyspromptItem(folder: string, existing?: GalleryItem | null
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "none",
-    caption_file_type: null,
     media_type: "sysprompt",
   };
 }

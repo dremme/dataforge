@@ -23,7 +23,6 @@ function makeItem(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "none",
-    caption_file_type: null,
     media_type: "image",
     width: 1600,
     height: 1200,

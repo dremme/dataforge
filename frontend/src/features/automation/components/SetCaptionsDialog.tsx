@@ -33,8 +33,8 @@ export function SetCaptionsDialog({
       title="Set captions?"
       description={
         <>
-          Writes the provided caption text to each image and video. New captions are written as .txt
-          sidecars (existing .json sidecars are updated in place). This action cannot be undone.
+          Writes the provided caption text to each image and video as .txt sidecars. This action
+          cannot be undone.
         </>
       }
       panelClassName="set-captions-dialog"

@@ -32,7 +32,6 @@ function item(overrides: Partial<GalleryItem>): GalleryItem {
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "text",
-    caption_file_type: "txt",
     media_type: "image",
     width: 1920,
     height: 1080,
@@ -89,9 +88,8 @@ describe("useGalleryListColumns", () => {
       item({
         media_type: "video",
         has_issue_file: true,
-        has_duplicate_file: false,
+        has_duplicate_file: true,
         has_backup: false,
-        caption_file_type: "json",
       }),
     ]);
 

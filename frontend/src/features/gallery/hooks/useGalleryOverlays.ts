@@ -58,20 +58,8 @@ export function useGalleryOverlays({
 
   const closeSysPrompt = useCallback(() => setSyspromptOpen(false), []);
 
-  const [jsonEditorOpen, setJsonEditorOpen] = useState(false);
-
-  useEffect(() => {
-    if (!selectedPath) {
-      setJsonEditorOpen(false);
-    }
-  }, [selectedPath]);
-
   const modalOpen = selectedPath !== null || syspromptOpen;
-  const modalLockClass = jsonEditorOpen
-    ? "gallery-item-json-editor-open"
-    : selectedPath !== null
-      ? "gallery-item-modal-open"
-      : "sysprompt-modal-open";
+  const modalLockClass = selectedPath !== null ? "gallery-item-modal-open" : "sysprompt-modal-open";
   useScrollLock(modalOpen, modalLockClass, mainRef);
 
   const syspromptModalItem = useMemo(
@@ -92,6 +80,5 @@ export function useGalleryOverlays({
     closeSysPrompt,
     syspromptOpen,
     syspromptModalItem,
-    onJsonEditorOpenChange: setJsonEditorOpen,
   };
 }

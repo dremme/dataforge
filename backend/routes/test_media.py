@@ -128,11 +128,11 @@ class MediaEndpointTests(unittest.TestCase):
             self.assertEqual(payload["path"], str(media))
             self.assertEqual(
                 set(payload["deleted"]),
-                {"sunset.png", "sunset.txt", "sunset.json"},
+                {"sunset.png", "sunset.txt"},
             )
             self.assertFalse(media.exists())
             self.assertFalse(media.with_suffix(".txt").exists())
-            self.assertFalse(media.with_suffix(".json").exists())
+            self.assertTrue(media.with_suffix(".json").is_file())
 
     def test_delete_returns_404_for_missing_media(self) -> None:
         with TempMediaFolder() as root:

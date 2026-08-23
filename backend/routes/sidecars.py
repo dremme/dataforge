@@ -24,10 +24,6 @@ def delete_sidecars(request: SidecarDeleteRequest) -> SidecarDeleteResponse:
         raise HTTPException(status_code=404, detail="Folder not found")
 
     suffix = _SUFFIX_BY_KIND[request.kind]
-    # A JSON caption for media named ``sunset.issue.png`` is byte-identical to the
-    # issue sidecar of ``sunset.png``. A written caption is unrecoverable work; a
-    # finding is one job re-run, so the caption wins.
-    claimed_captions = {media.path.with_suffix(".json").name for media in scan.media}
 
     deleted: list[str] = []
     failed: list[str] = []
@@ -39,8 +35,6 @@ def delete_sidecars(request: SidecarDeleteRequest) -> SidecarDeleteResponse:
         # confirmation showed - and deleting more than was advertised is the worse
         # failure.
         if not name.endswith(suffix):
-            continue
-        if name in claimed_captions:
             continue
         try:
             delete_path(scan.files[name].path)

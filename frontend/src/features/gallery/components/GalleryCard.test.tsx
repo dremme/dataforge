@@ -15,7 +15,6 @@ const captionedItem: GalleryItem = {
   has_duplicate_file: false,
   has_backup: false,
   caption_status: "text",
-  caption_file_type: "txt",
   media_type: "image",
   width: 1920,
   height: 1080,
@@ -31,7 +30,6 @@ const uncaptionedItem: GalleryItem = {
   has_description: false,
   has_caption_file: false,
   caption_status: "none",
-  caption_file_type: null,
   media_type: "video",
 };
 

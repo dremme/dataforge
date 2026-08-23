@@ -400,8 +400,6 @@ def _caption_outcome(
             return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
         try:
-            # Writes back into the winning sidecar, so a .json caption is
-            # updated in place instead of being shadowed by a new .txt.
             save_caption(media_path, clean_text)
         except (OSError, ValueError) as exc:
             return FileOutcome(

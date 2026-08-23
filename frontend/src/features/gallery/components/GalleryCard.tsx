@@ -1,7 +1,6 @@
 import { memo, type MouseEvent } from "react";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
-  iconBraces,
   iconCheck,
   iconExpand,
   iconFileImage,
@@ -15,7 +14,6 @@ import {
 import { isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
-import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { classNames } from "@/shared/lib/classNames";
 import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
@@ -109,13 +107,6 @@ export const GalleryCard = memo(function GalleryCard({
         )}
         {item.has_duplicate_file && (
           <CardBadge icon={iconFiles} label="Duplicate" variant="duplicate" />
-        )}
-        {item.caption_file_type === "json" && (
-          <CardBadge
-            icon={iconBraces}
-            label={captionFileTypeLabel(item.caption_file_type)}
-            variant="json"
-          />
         )}
       </div>
       <div className="card__body">

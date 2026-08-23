@@ -25,22 +25,24 @@ from constants import CAPTION_BACKUP_DIR_NAME
 from testing_fixtures import (
     TempMediaFolder,
     write_issue_sidecar,
-    write_json_caption,
     write_media,
     write_txt_caption,
 )
 
 
 class CaptionSidecarTests(unittest.TestCase):
-    def test_collects_both_suffixes_with_json_first(self) -> None:
+    def test_collects_txt_and_ignores_leftover_json(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "A plain caption.")
-            write_json_caption(media, {"description": "A structured caption."})
+            media.with_suffix(".json").write_text(
+                '{"description": "A structured caption."}\n',
+                encoding="utf-8",
+            )
 
             self.assertEqual(
                 [path.name for path in caption_sidecars(media)],
-                ["sunset.json", "sunset.txt"],
+                ["sunset.txt"],
             )
 
     def test_leaves_findings_out(self) -> None:
@@ -71,7 +73,10 @@ class BackupCaptionsJobTests(unittest.TestCase):
         with TempMediaFolder() as root:
             first = write_media(root, "sunset.png")
             write_txt_caption(first, "A plain caption.")
-            write_json_caption(first, {"description": "A structured caption."})
+            first.with_suffix(".json").write_text(
+                '{"description": "A structured caption."}\n',
+                encoding="utf-8",
+            )
             second = write_media(root, "harbor.png")
             write_txt_caption(second, "Boats at rest.")
             write_media(root, "no_caption.png")
@@ -81,7 +86,7 @@ class BackupCaptionsJobTests(unittest.TestCase):
             backup_dir = caption_backup_dir(root)
             self.assertEqual(
                 {path.name for path in backup_dir.iterdir()},
-                {"sunset.json", "sunset.txt", "harbor.txt"},
+                {"sunset.txt", "harbor.txt"},
             )
             self.assertEqual(
                 backup_dir.joinpath("harbor.txt").read_text(encoding="utf-8"),
@@ -90,7 +95,7 @@ class BackupCaptionsJobTests(unittest.TestCase):
 
             stats = result["stats"]
             self.assertEqual(stats["success"], 2)
-            self.assertEqual(stats["sidecars"], 3)
+            self.assertEqual(stats["sidecars"], 2)
             self.assertEqual(stats["skipped"], 1)
             self.assertEqual(stats["write_error"], 0)
 
@@ -162,7 +167,10 @@ class BackupCaptionsJobTests(unittest.TestCase):
             run_backup_captions_job(root)
 
             write_txt_caption(media, "Second caption.")
-            write_json_caption(media, {"description": "A structured caption."})
+            media.with_suffix(".json").write_text(
+                '{"description": "A structured caption."}\n',
+                encoding="utf-8",
+            )
             result = run_backup_captions_job(root)
 
             backup_dir = caption_backup_dir(root)
@@ -170,9 +178,9 @@ class BackupCaptionsJobTests(unittest.TestCase):
                 backup_dir.joinpath("sunset.txt").read_text(encoding="utf-8"),
                 "First caption.",
             )
-            self.assertTrue(backup_dir.joinpath("sunset.json").is_file())
-            self.assertEqual(result["stats"]["success"], 1)
-            self.assertEqual(result["stats"]["sidecars"], 1)
+            self.assertFalse(backup_dir.joinpath("sunset.json").exists())
+            self.assertEqual(result["stats"]["already_backed_up"], 1)
+            self.assertEqual(result["stats"]["success"], 0)
 
     def test_reports_an_already_backed_up_file_separately_from_an_uncaptioned_one(self) -> None:
         with TempMediaFolder() as root:
@@ -284,14 +292,14 @@ class RestoreCaptionsJobTests(unittest.TestCase):
     def test_restores_a_caption_that_was_deleted(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
-            write_json_caption(media, {"description": "A structured caption."})
+            write_txt_caption(media, "A structured caption.")
             run_backup_captions_job(root)
 
-            media.with_suffix(".json").unlink()
+            media.with_suffix(".txt").unlink()
 
             run_restore_captions_job(root)
 
-            self.assertTrue(media.with_suffix(".json").is_file())
+            self.assertTrue(media.with_suffix(".txt").is_file())
 
     def test_a_restore_brings_back_no_findings(self) -> None:
         """Restoring a caption must not resurrect the verdict written against it."""

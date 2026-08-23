@@ -10,7 +10,7 @@ from captions import issue_file_path
 from duplicates import DuplicateFinding, duplicate_file_path, save_duplicate_finding
 from media_delete import delete_path
 from routes._test_client import client
-from testing_fixtures import TempMediaFolder, write_issue_sidecar, write_json_caption, write_media
+from testing_fixtures import TempMediaFolder, write_issue_sidecar, write_media
 
 FINDING = DuplicateFinding(group="abc123", max_distance=0, threshold="exact")
 
@@ -83,17 +83,6 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             self.assertEqual(payload["deleted"], ["gone.png.issue.json"])
             self.assertFalse((root / "gone.png.issue.json").exists())
-
-    def test_keeps_a_caption_that_only_looks_like_a_sidecar(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.issue.png")
-            caption = write_json_caption(media, {"description": "A sunset over the lake."})
-
-            payload = delete_sidecars(root, "issue")
-
-            self.assertEqual(payload["deleted"], [])
-            self.assertTrue(caption.is_file())
-            self.assertTrue(media.is_file())
 
     def test_does_not_reach_into_subfolders(self) -> None:
         with TempMediaFolder() as root:

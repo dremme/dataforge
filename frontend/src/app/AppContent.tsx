@@ -160,7 +160,6 @@ export function AppContent() {
             onMoved: onGalleryItemsMoved,
             onCopied: onGalleryItemsCopied,
             onResolveIssue: gallery.onResolveGalleryItemIssue,
-            onJsonEditorOpenChange: gallery.onJsonEditorOpenChange,
           }}
           issueResolver={gallery.issueResolver.overlay}
           sysprompt={{

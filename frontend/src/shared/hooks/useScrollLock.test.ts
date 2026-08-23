@@ -49,7 +49,7 @@ describe("useScrollLock", () => {
     scroller.appendChild(document.createElement("p"));
     scrollHost.appendChild(scroller);
 
-    renderHook(() => useScrollLock(true, "gallery-item-json-editor-open", { current: scrollHost }));
+    renderHook(() => useScrollLock(true, "gallery-item-modal-open", { current: scrollHost }));
 
     const wheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
     const preventDefault = vi.spyOn(wheel, "preventDefault");
@@ -97,15 +97,15 @@ describe("useScrollLock", () => {
 
   it("updates the lock class without releasing the handle", () => {
     const { rerender } = renderHook(
-      ({ lockClass }: { lockClass: "gallery-item-modal-open" | "gallery-item-json-editor-open" }) =>
+      ({ lockClass }: { lockClass: "gallery-item-modal-open" | "issue-resolver-modal-open" }) =>
         useScrollLock(true, lockClass),
       { initialProps: { lockClass: "gallery-item-modal-open" } },
     );
 
     expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(true);
 
-    rerender({ lockClass: "gallery-item-json-editor-open" });
+    rerender({ lockClass: "issue-resolver-modal-open" });
     expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(false);
-    expect(document.documentElement.classList.contains("gallery-item-json-editor-open")).toBe(true);
+    expect(document.documentElement.classList.contains("issue-resolver-modal-open")).toBe(true);
   });
 });

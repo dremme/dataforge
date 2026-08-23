@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, model_validator
 #: Caption resolution states from ``captions.py``. ``no_caption`` is a job stat key,
 #: not one of these, so do not fold it in.
 type CaptionStatus = Literal["none", "empty", "text"]
-type CaptionFileType = Literal["json", "txt"]
 
 #: How an item is rendered. A GIF is its own type here because it needs an ``<img>``
 #: and animates, where ``MediaKind`` folds it in with images and captions its opening
@@ -117,7 +116,6 @@ class GalleryItem(BaseModel):
     duplicate_group: str | None = None
     has_duplicate_file: bool = False
     caption_status: CaptionStatus
-    caption_file_type: CaptionFileType | None
     media_type: MediaType
     width: int | None = None
     height: int | None = None
@@ -294,7 +292,6 @@ class GalleryDisplaySettingsUpdate(BaseModel):
 
 class CaptionUpdate(BaseModel):
     text: str = ""
-    json_content: str | None = None
     resolve_issue: bool = False
 
 
@@ -304,8 +301,6 @@ class CaptionSaveResponse(BaseModel):
     has_caption_file: bool
     caption_status: CaptionStatus
     caption_file: str = ""
-    caption_file_type: CaptionFileType | None = None
-    caption_content: str | None = None
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchCaption, saveCaption, saveCaptionJson } from "@/features/gallery/api/captions";
+import { fetchCaption, saveCaption } from "@/features/gallery/api/captions";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { deferNonCriticalWork } from "@/shared/lib/defer";
 import { useDebouncedSave } from "@/shared/hooks/useDebouncedSave";
@@ -9,13 +9,11 @@ function itemCaptionRevision(item: {
   description: string | null;
   caption_status: GalleryItem["caption_status"];
   has_description: boolean;
-  caption_file_type: GalleryItem["caption_file_type"];
 }): string {
   return JSON.stringify({
     description: item.description,
     caption_status: item.caption_status,
     has_description: item.has_description,
-    caption_file_type: item.caption_file_type,
   });
 }
 
@@ -24,7 +22,6 @@ function revisionFromSaveResult(result: CaptionSaveResponse): string {
     description: result.description,
     caption_status: result.caption_status,
     has_description: result.has_description,
-    caption_file_type: result.caption_file_type ?? null,
   });
 }
 
@@ -46,9 +43,6 @@ export function useGalleryItemCaption({
   autoSave = true,
 }: UseGalleryItemCaptionOptions) {
   const [caption, setCaption] = useState("");
-  const [captionContent, setCaptionContent] = useState<string | null>(null);
-  const [jsonSaveState, setJsonSaveState] = useState<"idle" | "saving" | "error">("idle");
-  const [jsonSaveError, setJsonSaveError] = useState<string | null>(null);
   const { next, isCurrent } = useStaleRequest();
   const captionRef = useRef(caption);
   const captionRevisionRef = useRef<string | null>(null);
@@ -66,7 +60,6 @@ export function useGalleryItemCaption({
 
   const itemPath = item?.path;
   const itemRevision = item ? itemCaptionRevision(item) : null;
-  const hasJsonCaption = item?.caption_file_type === "json";
 
   const persistCaption = useCallback(
     async (payload: CaptionSavePayload) => {
@@ -81,11 +74,8 @@ export function useGalleryItemCaption({
         }
         return result.description ?? "";
       });
-      if (result.caption_content != null) {
-        setCaptionContent(result.caption_content);
-      }
       // Match the folder revision produced by onCaptionSaved so background sync
-      // does not wipe caption_content after a save.
+      // does not wipe a save.
       markRevision(revisionFromSaveResult(result));
       onCaptionSaved(payload.path, result);
     },
@@ -107,14 +97,10 @@ export function useGalleryItemCaption({
   });
 
   const applyCaptionFromItem = useCallback(
-    (source: GalleryItem, options: { resetCaptionContent?: boolean } = {}) => {
+    (source: GalleryItem) => {
       const cachedCaption = source.description ?? "";
 
       setCaption(cachedCaption);
-      // Folder items do not carry caption_content; only clear it on full item reload.
-      if (options.resetCaptionContent) {
-        setCaptionContent(null);
-      }
       setBaseline({ path: source.path, text: cachedCaption });
       markRevision(itemCaptionRevision(source));
     },
@@ -129,7 +115,7 @@ export function useGalleryItemCaption({
     }
     invalidateInFlight();
     seenRevisionsRef.current.clear();
-    applyCaptionFromItem(item, { resetCaptionContent: true });
+    applyCaptionFromItem(item);
 
     const requestId = next();
 
@@ -141,15 +127,12 @@ export function useGalleryItemCaption({
           // Typing can start before this lands; the editor buffer wins over the
           // file on disk, and the pending save carries it to the server.
           if (hasUnsavedChanges({ path: itemPath, text: captionRef.current })) {
-            // Independent of the text buffer, and the .json editor needs it.
-            setCaptionContent(fresh.caption_content ?? null);
             return;
           }
 
           const caption = fresh.description ?? "";
           setCaption(caption);
           setBaseline({ path: itemPath, text: caption });
-          setCaptionContent(fresh.caption_content ?? null);
           markRevision(revisionFromSaveResult(fresh));
           onCaptionSaved(itemPath, fresh);
         })
@@ -202,8 +185,7 @@ export function useGalleryItemCaption({
       return;
     }
 
-    // Keep caption_content from the last fetch/save — folder items never include it.
-    applyCaptionFromItem(item, { resetCaptionContent: false });
+    applyCaptionFromItem(item);
   }, [applyCaptionFromItem, hasUnsavedChanges, item, itemPath, itemRevision, markRevision]);
 
   const handleCaptionChange = useCallback(
@@ -220,52 +202,11 @@ export function useGalleryItemCaption({
     [autoSave, item, scheduleSave],
   );
 
-  const handleJsonContentSave = useCallback(
-    async (jsonContent: string) => {
-      if (!item) return false;
-
-      flushPendingSave();
-      invalidateInFlight();
-      setJsonSaveState("saving");
-      setJsonSaveError(null);
-
-      try {
-        const result = await saveCaptionJson(item.path, jsonContent);
-        const nextCaption = result.description ?? "";
-
-        setCaption(nextCaption);
-        setCaptionContent(result.caption_content ?? null);
-        setBaseline({ path: item.path, text: nextCaption });
-        markRevision(revisionFromSaveResult(result));
-        onCaptionSaved(item.path, result);
-        setJsonSaveState("idle");
-        return true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to save JSON caption";
-        setJsonSaveState("error");
-        setJsonSaveError(message);
-        return false;
-      }
-    },
-    [flushPendingSave, invalidateInFlight, item, markRevision, onCaptionSaved, setBaseline],
-  );
-
-  const resetJsonSaveState = useCallback(() => {
-    setJsonSaveState("idle");
-    setJsonSaveError(null);
-  }, []);
-
   return {
     caption,
-    captionContent,
-    hasJsonCaption,
     saveState,
     saveError,
     handleCaptionChange,
-    handleJsonContentSave,
-    jsonSaveState,
-    jsonSaveError,
-    resetJsonSaveState,
     flushPendingSave,
   };
 }

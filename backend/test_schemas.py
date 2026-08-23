@@ -35,7 +35,6 @@ def _gallery_item(**overrides: object) -> GalleryItem:
         "has_description": True,
         "has_caption_file": True,
         "caption_status": "text",
-        "caption_file_type": "json",
         "media_type": "image",
     }
     fields.update(overrides)
@@ -64,12 +63,6 @@ class GalleryItemSchemaTests(unittest.TestCase):
         for media_type in ("image", "video", "sysprompt"):
             self.assertEqual(_gallery_item(media_type=media_type).media_type, media_type)
 
-    def test_accepts_both_caption_file_types_and_none(self) -> None:
-        for file_type in ("json", "txt", None):
-            self.assertEqual(
-                _gallery_item(caption_file_type=file_type).caption_file_type, file_type
-            )
-
     def test_rejects_unknown_caption_status(self) -> None:
         with self.assertRaises(ValidationError):
             _gallery_item(caption_status="bogus")
@@ -86,10 +79,6 @@ class GalleryItemSchemaTests(unittest.TestCase):
     def test_accepts_every_media_type_the_scanner_can_emit(self) -> None:
         for media_type in ("image", "video", "gif", "sysprompt"):
             self.assertEqual(_gallery_item(media_type=media_type).media_type, media_type)
-
-    def test_rejects_unknown_caption_file_type(self) -> None:
-        with self.assertRaises(ValidationError):
-            _gallery_item(caption_file_type="yaml")
 
 
 class JobResponseSchemaTests(unittest.TestCase):

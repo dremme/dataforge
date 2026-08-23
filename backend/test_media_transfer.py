@@ -14,7 +14,6 @@ from captions import issue_file_path
 from media_transfer import preview_media_transfer, transfer_media_with_sidecars
 from testing_fixtures import (
     TempMediaFolder,
-    write_json_caption,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -63,7 +62,8 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
 
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
-            write_json_caption(media, {"description": "Golden hour."})
+            leftover = media.with_suffix(".json")
+            leftover.write_text('{"description": "Golden hour."}\n', encoding="utf-8")
             issue_file_path(media).write_text('{"fixes":["old"]}', encoding="utf-8")
 
             result = transfer_media_with_sidecars(media, destination_dir, mode="move")
@@ -72,16 +72,16 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
             self.assertTrue(destination_media.is_file())
             self.assertFalse(media.exists())
             self.assertTrue((destination_dir / "sunset.txt").is_file())
-            self.assertTrue((destination_dir / "sunset.json").is_file())
+            self.assertFalse((destination_dir / "sunset.json").exists())
+            self.assertTrue(leftover.is_file())
             self.assertTrue((destination_dir / "sunset.png.issue.json").is_file())
             self.assertFalse(media.with_suffix(".txt").exists())
-            self.assertFalse(media.with_suffix(".json").exists())
             self.assertFalse(issue_file_path(media).exists())
             self.assertEqual(result["source"], str(media))
             self.assertEqual(result["destination"], str(destination_media))
             self.assertEqual(
                 set(result["files"]),
-                {"sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.png.issue.json"},
             )
 
     def test_rejects_move_without_overwrite_when_destination_exists(self) -> None:
@@ -214,15 +214,18 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
 
             media = write_media(source_dir, "sunset.png")
             write_txt_caption(media, "Golden hour.")
-            write_json_caption(media, {"description": "Golden hour."})
+            leftover = media.with_suffix(".json")
+            leftover.write_text('{"description": "Golden hour."}\n', encoding="utf-8")
             issue_file_path(media).write_text('{"fixes":["old"]}', encoding="utf-8")
 
             result = transfer_media_with_sidecars(media, destination_dir, mode="copy")
 
-            for name in ("sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"):
+            for name in ("sunset.png", "sunset.txt", "sunset.png.issue.json"):
                 self.assertTrue((destination_dir / name).is_file(), name)
                 self.assertTrue((source_dir / name).is_file(), f"original {name} was removed")
 
+            self.assertTrue(leftover.is_file())
+            self.assertFalse((destination_dir / "sunset.json").exists())
             self.assertEqual(
                 (destination_dir / "sunset.txt").read_text(encoding="utf-8"),
                 "Golden hour.",
@@ -230,7 +233,7 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(result["destination"], str(destination_dir / "sunset.png"))
             self.assertEqual(
                 set(result["files"]),
-                {"sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.png.issue.json"},
             )
 
     def test_rejects_copy_without_overwrite_when_destination_exists(self) -> None:

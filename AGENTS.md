@@ -38,8 +38,8 @@ These are more project specific engineering rules.
     Change a request or response shape in `schemas.py` and re-run `scripts/run_checks.py --fix` to regenerate.
 - Never use barrel files (`index.ts`), import directly instead.
 - Use `@/shared/lib/classNames` for toggling HTML classes, when it makes sense.
-- Spell file formats by register. Wire values and type unions are bare lowercase (`"json"`, `"txt"`),
-    filesystem constants are dotted lowercase (`".json"`, `".txt"`), user-facing text naming the
-    format is uppercase (`Edit JSON`, `Invalid JSON`), and user-facing text naming a literal filename
-    suffix stays dotted lowercase (`written as .txt sidecars`).
-    List caption sidecars in precedence order via `CAPTION_SIDECAR_EXTENSION_LIST`, never as a literal.
+- Spell file formats by register. Wire values and type unions are bare lowercase (`"yaml"`,
+    `"markdown"`), filesystem constants are dotted lowercase (`".issue.json"`, `".txt"`),
+    user-facing text naming the format is uppercase (`not valid YAML`), and user-facing text
+    naming a literal filename suffix stays dotted lowercase (`written as .txt sidecars`).
+    List caption sidecars via `CAPTION_SIDECAR_EXTENSION_LIST`, never as a literal.

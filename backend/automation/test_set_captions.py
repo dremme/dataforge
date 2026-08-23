@@ -16,7 +16,6 @@ from automation.set_captions import (
 )
 from testing_fixtures import (
     TempMediaFolder,
-    write_json_caption,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -83,15 +82,23 @@ class SetCaptionsJobTests(unittest.TestCase):
                 "New caption.",
             )
 
-    def test_treats_existing_json_as_caption_without_overwrite(self) -> None:
+    def test_leftover_json_is_not_an_existing_caption(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
-            write_json_caption(media, {"high_level_description": "Existing JSON."})
+            leftover = media.with_suffix(".json")
+            leftover.write_text(
+                '{"high_level_description": "Existing JSON."}\n',
+                encoding="utf-8",
+            )
 
-            result = run_set_captions_job(root, caption="Ignored.", overwrite=False)
+            result = run_set_captions_job(root, caption="Shared caption.", overwrite=False)
 
-            self.assertEqual(result["stats"]["skipped"], 1)
-            self.assertFalse(media.with_suffix(".txt").exists())
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").strip(),
+                "Shared caption.",
+            )
+            self.assertIn("Existing JSON.", leftover.read_text(encoding="utf-8"))
 
     def test_reports_write_errors(self) -> None:
         with TempMediaFolder() as root:

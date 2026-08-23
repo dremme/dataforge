@@ -10,13 +10,7 @@ vi.mock("@/shared/api/http", () => ({
   putJson: putJsonMock,
 }));
 
-import {
-  fetchCaption,
-  fetchComfyWorkflow,
-  saveCaption,
-  saveCaptionJson,
-  saveSysPrompt,
-} from "./captions";
+import { fetchCaption, fetchComfyWorkflow, saveCaption, saveSysPrompt } from "./captions";
 
 describe("captions API", () => {
   afterEach(() => {
@@ -49,16 +43,6 @@ describe("captions API", () => {
 
     expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
       text: "Updated.",
-    });
-  });
-
-  it("saves raw JSON caption content", async () => {
-    putJsonMock.mockResolvedValue({ description: "Updated." });
-
-    await saveCaptionJson("C:\\Photos\\sunset.png", '{"description":"Updated."}');
-
-    expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
-      json_content: '{"description":"Updated."}',
     });
   });
 

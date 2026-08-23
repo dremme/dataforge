@@ -18,7 +18,6 @@ from automation.replace_captions import (
 )
 from testing_fixtures import (
     TempMediaFolder,
-    write_json_caption,
     write_media,
     write_txt_caption,
 )
@@ -109,16 +108,22 @@ class ReplaceCaptionsJobTests(unittest.TestCase):
                 "a brown cat in a field",
             )
 
-    def test_json_captions_keep_their_original_key(self) -> None:
+    def test_leftover_json_is_not_replaced(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
-            write_json_caption(media, {"caption": "a brown dog", "tags": ["animal"]})
+            leftover = media.with_suffix(".json")
+            leftover.write_text(
+                json.dumps({"caption": "a brown dog", "tags": ["animal"]}),
+                encoding="utf-8",
+            )
 
-            run_replace_captions_job(root, search="dog", replacement="cat")
+            result = run_replace_captions_job(root, search="dog", replacement="cat")
 
-            payload = json.loads(media.with_suffix(".json").read_text(encoding="utf-8"))
-            self.assertEqual(payload["caption"], "a brown cat")
+            self.assertEqual(result["stats"]["no_caption"], 1)
+            payload = json.loads(leftover.read_text(encoding="utf-8"))
+            self.assertEqual(payload["caption"], "a brown dog")
             self.assertEqual(payload["tags"], ["animal"])
+            self.assertFalse(media.with_suffix(".txt").exists())
 
     def test_non_matching_captions_are_skipped_without_rewriting(self) -> None:
         with TempMediaFolder() as root:

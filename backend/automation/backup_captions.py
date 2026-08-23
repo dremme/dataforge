@@ -44,10 +44,10 @@ def list_backup_captions_media(folder: Path) -> list[Path]:
 
 
 def caption_sidecars(media_path: Path) -> list[Path]:
-    """Every caption sidecar of ``media_path``, JSON first.
+    """Caption sidecars of ``media_path``.
 
-    Both suffixes are collected rather than just the winning one, so restoring
-    reproduces the same precedence that was in effect at backup time.
+    Walks :data:`CAPTION_SIDECAR_EXTENSIONS` so backup and restore stay on the same
+    files the rest of the app treats as captions.
     """
     candidates = [
         media_path.parent / f"{media_path.stem}{suffix}" for suffix in CAPTION_SIDECAR_EXTENSIONS
@@ -139,8 +139,8 @@ def run_backup_captions_job(
                 fields={"message": "No sidecar to back up"},
             )
 
-        # Filtered per sidecar, not per media file: the JSON caption can already be
-        # stored while the .txt written next to it later is not.
+        # Filtered per sidecar, not per media file, so a later caption is not
+        # treated as already backed up because an older one is.
         pending = (
             sidecars
             if overwrite

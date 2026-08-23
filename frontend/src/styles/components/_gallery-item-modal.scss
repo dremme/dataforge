@@ -1,7 +1,7 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-$json-color: #fcd34d;
+$meta-badge-color: #fcd34d;
 
 // ---------------------------------------------------------------------------
 // .gallery-item-modal
@@ -191,10 +191,10 @@ $json-color: #fcd34d;
       display: inline-flex;
       align-items: center;
       padding: 0.1875rem 0.5rem;
-      border: 1px solid rgba($json-color, 0.2);
+      border: 1px solid rgba($meta-badge-color, 0.2);
       border-radius: var(--radius-pill);
-      background: rgba($json-color, 0.12);
-      color: $json-color;
+      background: rgba($meta-badge-color, 0.12);
+      color: $meta-badge-color;
       font-size: var(--text-2xs);
       font-weight: var(--font-semibold);
       line-height: 1;

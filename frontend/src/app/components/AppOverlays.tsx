@@ -101,7 +101,6 @@ export function AppOverlays({
           onMoved={gallery.onMoved}
           onCopied={gallery.onCopied}
           onResolveIssue={gallery.onResolveIssue}
-          onJsonEditorOpenChange={gallery.onJsonEditorOpenChange}
         />
       )}
 

@@ -12,7 +12,6 @@ from testing_fixtures import (
     make_png_ztxt_bytes,
     write_gif,
     write_issue_sidecar,
-    write_json_caption,
     write_media,
     write_mp4_video,
     write_sysprompt,
@@ -178,31 +177,6 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(second.status_code, 200)
             self.assertEqual(second.json()["description"], "Updated outside the app.")
 
-    def test_returns_raw_json_content(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            caption = write_json_caption(media, {"description": "JSON body."})
-
-            response = client.get(f"/api/caption?path={quote(str(media))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(
-                response.json()["caption_content"], caption.read_text(encoding="utf-8-sig")
-            )
-            self.assertEqual(
-                json.loads(response.json()["caption_content"])["description"], "JSON body."
-            )
-
-    def test_txt_caption_content_matches_sidecar(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            write_txt_caption(media, "Plain text.")
-
-            response = client.get(f"/api/caption?path={quote(str(media))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["caption_content"], "Plain text.")
-
     def test_update_txt_caption(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
@@ -216,7 +190,6 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             payload = response.json()
             self.assertEqual(payload["description"], "Updated via API.")
-            self.assertEqual(payload["caption_file_type"], "txt")
             self.assertEqual(caption.read_text(encoding="utf-8"), "Updated via API.\n")
 
     def test_resolve_issue_deletes_issue_sidecar(self) -> None:
@@ -236,133 +209,6 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertFalse(payload["has_issue_file"])
             self.assertEqual(payload["issue_fixes"], [])
             self.assertFalse(issue_path.is_file())
-
-    def test_update_json_caption_preserves_elements(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "scene.png")
-            caption = write_json_caption(
-                media,
-                {
-                    "description": "Before.",
-                    "elements": [{"desc": "Lamp"}],
-                },
-            )
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "After."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            self.assertEqual(data["description"], "After.")
-            self.assertEqual(data["elements"][0]["desc"], "Lamp")
-
-    def test_update_json_caption_key(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            caption = write_json_caption(media, {"caption": "Old caption."})
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "New caption."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            self.assertEqual(data["caption"], "New caption.")
-
-    def test_update_nested_json_description(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            caption = write_json_caption(
-                media,
-                {
-                    "compositional_deconstruction": {
-                        "high_level_description": "Old text.",
-                        "elements": [{"desc": "Chair"}],
-                    }
-                },
-            )
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "Updated nested text."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            decon = data["compositional_deconstruction"]
-            self.assertEqual(decon["high_level_description"], "Updated nested text.")
-            self.assertEqual(decon["elements"][0]["desc"], "Chair")
-
-    def test_adds_description_to_json_without_description(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            caption = write_json_caption(
-                media,
-                {"elements": [{"desc": "Tree"}]},
-            )
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"text": "Added description."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            self.assertEqual(data["description"], "Added description.")
-            self.assertEqual(response.json()["caption_status"], "text")
-
-    def test_update_json_caption_full_content(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            caption = write_json_caption(
-                media,
-                {
-                    "description": "Before.",
-                    "elements": [{"desc": "Lamp"}],
-                },
-            )
-
-            updated_json = json.dumps(
-                {
-                    "description": "After full edit.",
-                    "elements": [
-                        {"desc": "Chair"},
-                        {"desc": "Table"},
-                    ],
-                    "custom_field": "preserved",
-                },
-                indent=2,
-            )
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"json_content": updated_json},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            data = json.loads(caption.read_text(encoding="utf-8"))
-            self.assertEqual(data["description"], "After full edit.")
-            self.assertEqual(data["custom_field"], "preserved")
-            self.assertEqual(len(data["elements"]), 2)
-            self.assertEqual(data["elements"][0]["desc"], "Chair")
-            payload = response.json()
-            self.assertEqual(payload["description"], "After full edit.")
-
-    def test_update_json_caption_rejects_invalid_json(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root)
-            write_json_caption(media, {"description": "Valid."})
-
-            response = client.put(
-                f"/api/caption?path={quote(str(media))}",
-                json={"json_content": "{not valid json"},
-            )
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("Invalid JSON", response.json()["detail"])
 
     def test_create_caption_for_uncaptioned_media(self) -> None:
         with TempMediaFolder() as root:
@@ -415,18 +261,22 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertEqual(response.json()["detail"], "Not a supported media file")
 
-    def test_returns_400_for_invalid_json(self) -> None:
+    def test_leftover_json_does_not_block_writing_txt(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root)
-            media.with_suffix(".json").write_text("{bad", encoding="utf-8")
+            leftover = media.with_suffix(".json")
+            leftover.write_text("{bad", encoding="utf-8")
 
             response = client.put(
                 f"/api/caption?path={quote(str(media))}",
-                json={"text": "Nope."},
+                json={"text": "First caption."},
             )
 
-            self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.json()["detail"], "Caption JSON file is unreadable")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8"), "First caption.\n"
+            )
+            self.assertEqual(leftover.read_text(encoding="utf-8"), "{bad")
 
 
 class SysPromptEndpointTests(unittest.TestCase):

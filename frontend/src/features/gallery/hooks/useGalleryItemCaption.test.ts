@@ -26,7 +26,6 @@ function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryIt
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "text",
-    caption_file_type: "txt",
     media_type: "image",
     ...overrides,
   };
@@ -42,8 +41,6 @@ function captionResponse(
     has_caption_file: true,
     caption_status: "text",
     caption_file: `${HOME_PATH}\\file.txt`,
-    caption_file_type: "txt",
-    caption_content: `${description}\n`,
     issue_fixes: [],
     has_issue_file: false,
     ...overrides,
@@ -408,66 +405,5 @@ describe("useGalleryItemCaption", () => {
     await waitFor(() => {
       expect(saveCaption).toHaveBeenCalledWith(`${HOME_PATH}\\sunset.png`, "Edited caption");
     });
-  });
-
-  it("keeps caption content after saving a .json caption", async () => {
-    const jsonContent = '{\n  "description": "Scene"\n}\n';
-
-    vi.spyOn(api, "fetchCaption").mockResolvedValue(
-      captionResponse("Scene", {
-        caption_file_type: "json",
-        caption_file: `${HOME_PATH}\\scene.json`,
-        caption_content: jsonContent,
-      }),
-    );
-    vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text) =>
-      captionResponse(text, {
-        caption_file_type: "json",
-        caption_file: `${HOME_PATH}\\scene.json`,
-        caption_content: jsonContent,
-      }),
-    );
-    const onCaptionSaved = vi.fn();
-
-    const { result, rerender } = renderHook(
-      ({ item }: { item: GalleryItem }) =>
-        useGalleryItemCaption({
-          item,
-          onCaptionSaved,
-        }),
-      {
-        initialProps: {
-          item: makeItem("scene.png", {
-            description: "Scene",
-            caption_file_type: "json",
-          }),
-        },
-      },
-    );
-
-    await waitFor(() => {
-      expect(result.current.captionContent).toBe(jsonContent);
-    });
-
-    await advanceFakeClock(DEFAULT_DEBOUNCE_MS, () => {
-      result.current.handleCaptionChange("Scene, edited");
-    });
-    expect(result.current.saveState).toBe("saved");
-
-    rerender({
-      item: makeItem("scene.png", {
-        description: "Scene, edited",
-        caption_file_type: "json",
-      }),
-    });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    // Folder items never carry caption_content, so the .json editor depends on it
-    // surviving the folder-driven reconciliation that follows a save.
-    expect(result.current.captionContent).toBe(jsonContent);
-    expect(result.current.hasJsonCaption).toBe(true);
   });
 });

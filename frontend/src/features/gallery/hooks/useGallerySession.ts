@@ -122,7 +122,6 @@ export function useGallerySession({
     closeSysPrompt,
     syspromptOpen,
     syspromptModalItem,
-    onJsonEditorOpenChange,
   } = useGalleryOverlays({
     images: items,
     filteredItems: query.filteredItems,
@@ -277,7 +276,6 @@ export function useGallerySession({
     closeGalleryItem,
     goToPrevious,
     goToNext,
-    onJsonEditorOpenChange,
     issueResolver,
     onResolveGalleryItemIssue,
     onCaptionSaved,

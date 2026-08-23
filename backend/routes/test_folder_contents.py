@@ -20,7 +20,6 @@ from testing_fixtures import (
     TempMediaFolder,
     write_gif,
     write_issue_sidecar,
-    write_json_caption,
     write_media,
     write_mp4_video,
     write_sysprompt,
@@ -95,22 +94,20 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertIn("size", item)
             self.assertIn("modified_at", item)
 
-    def test_includes_the_json_caption_description(self) -> None:
+    def test_includes_the_txt_caption_description(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root)
-            write_json_caption(
-                media,
-                {
-                    "description": "A labeled scene.",
-                    "elements": [{"desc": "Sign"}],
-                },
+            write_txt_caption(media, "A labeled scene.")
+            media.with_suffix(".json").write_text(
+                '{"description": "Ignored leftover."}\n',
+                encoding="utf-8",
             )
 
             items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
             item = next(image for image in items if image["media_type"] == "image")
 
             self.assertEqual(item["description"], "A labeled scene.")
-            self.assertEqual(item["caption_file_type"], "json")
+            self.assertNotIn("caption_file_type", item)
 
     def test_lists_video_without_reading_its_header(self) -> None:
         # The listing reports what the directory scan already knows. Nothing shown

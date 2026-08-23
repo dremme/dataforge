@@ -86,9 +86,9 @@ MEDIA_MIME_TYPES = {
     ".flv": "video/x-flv",
 }
 
-# Caption sidecar suffixes in precedence order: a .json caption always wins over
-# a .txt one, so anything resolving a media file's caption must walk this in order.
-CAPTION_SIDECAR_EXTENSIONS = (".json", ".txt")
+# Caption sidecar suffixes. Walked in order wherever a media file's caption is resolved.
+# Only .txt is a caption; leftover Ideogram .json next to media is not.
+CAPTION_SIDECAR_EXTENSIONS = (".txt",)
 SIDECAR_EXTENSIONS = set(CAPTION_SIDECAR_EXTENSIONS)
 IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
 
@@ -134,22 +134,11 @@ LAST_FOLDER_KEY = "last_folder"
 
 SYSPROMPT_FILENAME = ".sysprompt"
 
-CAPTION_JSON_KEYS = (
-    "high_level_description",
-    "description",
-    "caption",
-    "caption_short",
-    "text",
-    "title",
-    "summary",
-    "prompt",
-)
-
 #: What ``scripts/generate_types.py`` emits into ``frontend/src/shared/constants.ts``.
 #: Keys are the TypeScript names. Only what the UI actually needs belongs here: the
 #: server re-validates every drop, so this drives affordances, never enforcement.
 #: Sets are sorted for a stable diff; sequences keep their order because
-#: ``CAPTION_SIDECAR_EXTENSIONS`` is a precedence list, not a bag.
+#: ``CAPTION_SIDECAR_EXTENSIONS`` is walked in order, not as a bag.
 SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
     "CAPTION_SIDECAR_EXTENSIONS": list(CAPTION_SIDECAR_EXTENSIONS),

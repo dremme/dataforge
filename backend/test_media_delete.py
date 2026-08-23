@@ -49,7 +49,8 @@ class DeleteMediaWithSidecarsTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             write_txt_caption(media, "Golden hour.")
-            media.with_suffix(".json").write_text('{"description":"JSON"}', encoding="utf-8")
+            leftover = media.with_suffix(".json")
+            leftover.write_text('{"description":"JSON"}', encoding="utf-8")
             issue = issue_file_path(media)
             issue.write_text('{"issues":[]}', encoding="utf-8")
 
@@ -61,7 +62,6 @@ class DeleteMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(
                 set(deleted_paths[1:]),
                 {
-                    media.with_suffix(".json"),
                     media.with_suffix(".txt"),
                     issue,
                 },
@@ -69,8 +69,9 @@ class DeleteMediaWithSidecarsTests(unittest.TestCase):
             self.assertEqual(result["path"], str(media))
             self.assertEqual(
                 set(result["deleted"]),
-                {"sunset.png", "sunset.txt", "sunset.json", "sunset.png.issue.json"},
+                {"sunset.png", "sunset.txt", "sunset.png.issue.json"},
             )
+            self.assertTrue(leftover.is_file())
 
     def test_main_file_failure_propagates(self) -> None:
         with TempMediaFolder() as root:

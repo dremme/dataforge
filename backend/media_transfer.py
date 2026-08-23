@@ -54,7 +54,7 @@ def sidecar_suffix(media_path: Path, related: Path) -> str:
     """The part of ``related``'s name after the media stem, e.g. ``.issue.json``.
 
     ``Path.suffix`` only reports the last extension, so it would collapse
-    ``photo.issue.json`` onto ``.json`` and collide with the caption sidecar.
+    ``photo.issue.json`` onto ``.json``.
     """
     return related.name[len(media_path.stem) :]
 

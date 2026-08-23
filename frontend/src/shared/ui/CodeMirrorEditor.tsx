@@ -1,4 +1,3 @@
-import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { search } from "@codemirror/search";
@@ -35,7 +34,6 @@ const CODE_MIRROR_BASIC_SETUP = {
 
 function languageExtension(language: CodeEditorLanguage): Extension {
   if (language === "markdown") return markdown();
-  if (language === "json") return json();
   if (language === "yaml") return yaml();
   return [];
 }

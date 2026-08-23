@@ -22,7 +22,6 @@ function item(
     has_duplicate_file: hasDuplicate,
     has_backup: false,
     caption_status: hasDescription ? "text" : "none",
-    caption_file_type: hasDescription ? "txt" : null,
     media_type: mediaType,
   };
 }

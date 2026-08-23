@@ -13,7 +13,6 @@ export {
   Ban as iconBan,
   Bold as iconBold,
   BookOpen as iconBookOpen,
-  Braces as iconBraces,
   Brain as iconBrain,
   Camera as iconCamera,
   ChartColumn as iconChartBar,

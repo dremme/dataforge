@@ -7,13 +7,13 @@ describe("isImportableFileName", () => {
     expect(isImportableFileName("photo.png")).toBe(true);
     expect(isImportableFileName("clip.mp4")).toBe(true);
     expect(isImportableFileName("caption.txt")).toBe(true);
-    expect(isImportableFileName("scene.json")).toBe(true);
     expect(isImportableFileName(SYSPROMPT_FILENAME)).toBe(true);
   });
 
   it("rejects unsupported files", () => {
     expect(isImportableFileName("notes.md")).toBe(false);
     expect(isImportableFileName("archive.zip")).toBe(false);
+    expect(isImportableFileName("scene.json")).toBe(false);
   });
 });
 

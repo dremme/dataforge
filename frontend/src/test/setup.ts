@@ -15,10 +15,6 @@ vi.mock("@codemirror/lang-markdown", () => ({
   markdown: () => [],
 }));
 
-vi.mock("@codemirror/lang-json", () => ({
-  json: () => [],
-}));
-
 vi.mock("@codemirror/lang-yaml", () => ({
   yaml: () => [],
 }));

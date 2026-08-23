@@ -11,25 +11,19 @@ from pathlib import Path
 from unittest.mock import patch
 
 from captions import build_caption_response, load_caption_summary
-from testing_fixtures import TempMediaFolder, write_json_caption, write_media
+from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
 
 
 class CaptionLoaderTests(unittest.TestCase):
-    def test_summary_and_response_share_one_json_read(self) -> None:
+    def test_summary_and_response_share_one_txt_read(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root)
-            write_json_caption(
-                media,
-                {
-                    "description": "Shared caption.",
-                    "elements": [{"desc": "Sign"}],
-                },
-            )
+            write_txt_caption(media, "Shared caption.")
             read_calls = {"count": 0}
             original = Path.read_text
 
             def counting_read_text(self, *args, **kwargs):
-                if self.suffix == ".json":
+                if self.suffix == ".txt":
                     read_calls["count"] += 1
                 return original(self, *args, **kwargs)
 

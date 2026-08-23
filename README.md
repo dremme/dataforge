@@ -21,7 +21,7 @@ Most dataset tools either push you into a cloud UI or leave you juggling scripts
 DataForge is a **desktop web app** you run locally — no cloud account, no upload step, nothing leaves your machine.
 
 - Your media and sidecars stay in **your** folder structure
-- Captions save as standard `.json` / `.txt` files next to each image or video
+- Captions save as standard `.txt` files next to each image or video
 - Optional vision LLMs talk to a **local** OpenAI-compatible server
 - Jobs run in the background with progress, cancel, and history
 
@@ -91,7 +91,7 @@ Then open **http://localhost:8081**. Re-run `npm run build` after changing front
 
 ### Try the sample dataset
 
-Point the app at [`sample-images/`](sample-images/) in this repo — a tiny folder with mixed caption states (`.json`, `.txt`, and uncaptioned).
+Point the app at [`sample-images/`](sample-images/) in this repo — a tiny folder with mixed caption states (`.txt`, uncaptioned, and one `.issue.json` where the caption calls autumn snow).
 
 ## Features
 
@@ -132,8 +132,7 @@ Three things are narrower than the list, because the formats themselves are:
 
 ### Captions and metadata
 
-- In-place caption editing for `.json` and `.txt` sidecars
-- JSON caption editor — view and edit when present
+- In-place caption editing for `.txt` sidecars
 - Issue resolver — step through flagged files to edit, resolve, or skip
 - Duplicate resolver — walk each duplicate group side by side, with a suggested keeper, and delete the rest
   (on Windows they go to the Recycle Bin; elsewhere the deletion is confirmed by name first)

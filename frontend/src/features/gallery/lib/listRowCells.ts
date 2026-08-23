@@ -4,7 +4,6 @@ import {
 } from "@/features/gallery/lib/captionStatus";
 import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import {
-  iconBraces,
   iconFileImage,
   iconFiles,
   iconMessageCheck,
@@ -63,9 +62,6 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
       label: "Duplicate",
       variant: "duplicate",
     });
-  }
-  if (item.caption_file_type === "json") {
-    markers.push({ key: "json", icon: iconBraces, label: "JSON caption", variant: "json" });
   }
 
   return markers;

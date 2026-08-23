@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import json
 import unittest
 from urllib.parse import quote
 
@@ -83,7 +82,7 @@ class FileImportEndpointTests(unittest.TestCase):
                 ("files", ("existing.png", io.BytesIO(b"replaced"), "image/png")),
                 (
                     "files",
-                    ("caption.json", io.BytesIO(b'{"description":"New"}'), "application/json"),
+                    ("caption.txt", io.BytesIO(b"New caption.\n"), "text/plain"),
                 ),
             ]
 
@@ -94,13 +93,10 @@ class FileImportEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             payload = response.json()
-            self.assertEqual(payload["copied"], ["existing.png", "caption.json"])
+            self.assertEqual(payload["copied"], ["existing.png", "caption.txt"])
             self.assertEqual(payload["skipped"], [])
             self.assertEqual((root / "existing.png").read_bytes(), b"replaced")
-            self.assertEqual(
-                json.loads((root / "caption.json").read_text(encoding="utf-8"))["description"],
-                "New",
-            )
+            self.assertEqual((root / "caption.txt").read_text(encoding="utf-8"), "New caption.\n")
 
     def test_imports_sysprompt_file(self) -> None:
         with TempMediaFolder() as root:

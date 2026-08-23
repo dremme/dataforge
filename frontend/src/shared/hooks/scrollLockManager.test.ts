@@ -52,10 +52,10 @@ describe("scrollLockManager", () => {
 
   it("updates the lock class for an existing handle", () => {
     const handle = acquireScrollLock("gallery-item-modal-open");
-    updateScrollLockClass(handle, "gallery-item-json-editor-open");
+    updateScrollLockClass(handle, "issue-resolver-modal-open");
 
     expect(document.documentElement.classList.contains("gallery-item-modal-open")).toBe(false);
-    expect(document.documentElement.classList.contains("gallery-item-json-editor-open")).toBe(true);
+    expect(document.documentElement.classList.contains("issue-resolver-modal-open")).toBe(true);
   });
 
   it("attaches a single wheel listener for nested locks", () => {

@@ -370,12 +370,6 @@ def write_txt_caption(media: Path, text: str) -> Path:
     return caption
 
 
-def write_json_caption(media: Path, data: object) -> Path:
-    caption = media.with_suffix(".json")
-    caption.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return caption
-
-
 def write_issue_sidecar(media: Path, *fixes: str) -> Path:
     from captions import issue_file_path
 

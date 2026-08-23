@@ -166,32 +166,14 @@ describe("GalleryItemModal", () => {
     });
   });
 
-  it("opens the editor for .json captions", async () => {
-    const user = userEvent.setup();
-    const jsonItem = makeItem("scene.png", {
-      description: "JSON scene caption",
-      caption_file_type: "json",
-    });
-    const jsonContent = JSON.stringify(
-      {
-        description: "JSON scene caption",
-      },
-      null,
-      2,
-    );
-
-    installMockBackend({
-      folderByPath: {
-        [HOME_PATH]: {
-          ...homeFolder,
-          items: [...homeFolder.items, jsonItem],
-        },
-      },
+  it("does not offer a JSON caption editor", async () => {
+    const item = makeItem("scene.png", {
+      description: "Scene caption",
     });
 
     renderWithProviders(
       <GalleryItemModal
-        items={[jsonItem]}
+        items={[item]}
         index={0}
         onClose={vi.fn()}
         onPrevious={vi.fn()}
@@ -201,21 +183,7 @@ describe("GalleryItemModal", () => {
     );
 
     const dialog = await screen.findByRole("dialog", { name: "Viewing scene.png" });
-
-    await waitFor(() => {
-      expect(within(dialog).getByRole("button", { name: "Edit JSON caption" })).not.toBeDisabled();
-    });
-
-    await user.click(within(dialog).getByRole("button", { name: "Edit JSON caption" }));
-
-    const jsonEditor = await screen.findByRole("dialog", {
-      name: "Edit JSON caption for scene.png",
-    });
-    const jsonInput = within(jsonEditor).getByRole("textbox", {
-      name: "JSON caption for scene.png",
-    });
-
-    expect(jsonInput).toHaveValue(jsonContent);
+    expect(within(dialog).queryByRole("button", { name: /json caption/i })).not.toBeInTheDocument();
   });
 
   it("deletes the file after confirmation", async () => {
@@ -309,7 +277,6 @@ describe("GalleryItemModal", () => {
         items={[
           makeItem("clip.mp4", {
             media_type: "video",
-            caption_file_type: null,
           }),
         ]}
         index={0}
@@ -336,7 +303,6 @@ describe("GalleryItemModal", () => {
         has_description: false,
         has_caption_file: false,
         caption_status: "none",
-        caption_file_type: null,
       }),
     ];
 
@@ -405,7 +371,6 @@ describe("GalleryItemModal", () => {
                   has_description: true,
                   has_caption_file: true,
                   caption_status: "text",
-                  caption_file_type: "txt",
                 }
               : entry,
           ),

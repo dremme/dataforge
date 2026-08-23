@@ -20,7 +20,6 @@ export function makeItem(name: string, overrides: Partial<GalleryItem> = {}): Ga
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "text",
-    caption_file_type: "txt",
     media_type: "image",
     modified_at: "2026-03-15T14:30:00.000Z",
     width: 1920,

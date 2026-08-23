@@ -144,7 +144,6 @@ class ScanBackedListingTests(unittest.TestCase):
             self.assertEqual(sorted(by_name), ["captioned.png", "plain.png"])
             self.assertEqual(by_name["captioned.png"]["description"], "Has text.")
             self.assertEqual(by_name["captioned.png"]["caption_status"], "text")
-            self.assertEqual(by_name["captioned.png"]["caption_file_type"], "txt")
             self.assertTrue(by_name["captioned.png"]["has_issue_file"])
             self.assertEqual(
                 by_name["captioned.png"]["issue_fixes"],
@@ -208,12 +207,12 @@ class CaptionCacheTests(unittest.TestCase):
             caption = write_txt_caption(media, "First caption.")
             stat = caption.stat()
 
-            first = caption_summary_from_sidecar(caption, "txt", stat.st_mtime_ns, stat.st_size)
+            first = caption_summary_from_sidecar(caption, stat.st_mtime_ns, stat.st_size)
             # Rewriting the file without touching the cache key must not be seen:
             # the cache is only allowed to be stale when the stat signature matches.
             caption.write_text("Second caption.", encoding="utf-8")
             os.utime(caption, ns=(stat.st_mtime_ns, stat.st_mtime_ns))
-            second = caption_summary_from_sidecar(caption, "txt", stat.st_mtime_ns, stat.st_size)
+            second = caption_summary_from_sidecar(caption, stat.st_mtime_ns, stat.st_size)
 
             self.assertEqual(first[0], "First caption.")
             self.assertEqual(second, first)
@@ -223,12 +222,12 @@ class CaptionCacheTests(unittest.TestCase):
             media = write_media(root, "alpha.png")
             caption = write_txt_caption(media, "First caption.")
             first_stat = caption.stat()
-            caption_summary_from_sidecar(caption, "txt", first_stat.st_mtime_ns, first_stat.st_size)
+            caption_summary_from_sidecar(caption, first_stat.st_mtime_ns, first_stat.st_size)
 
             write_txt_caption(media, "A rather different caption.")
             second_stat = caption.stat()
             second = caption_summary_from_sidecar(
-                caption, "txt", second_stat.st_mtime_ns, second_stat.st_size
+                caption, second_stat.st_mtime_ns, second_stat.st_size
             )
 
             self.assertEqual(second[0], "A rather different caption.")

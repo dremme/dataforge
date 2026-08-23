@@ -30,7 +30,6 @@ function makeIssueItem(name: string, overrides: Partial<GalleryItem> = {}): Gall
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "text",
-    caption_file_type: "txt",
     media_type: "image",
     ...overrides,
   };
@@ -188,7 +187,6 @@ describe("IssueResolverModal", () => {
         items={[
           makeIssueItem("clip.mp4", {
             media_type: "video",
-            caption_file_type: null,
           }),
         ]}
         index={0}
@@ -212,7 +210,6 @@ describe("IssueResolverModal", () => {
         items={[
           makeIssueItem("clip.mp4", {
             media_type: "video",
-            caption_file_type: null,
           }),
         ]}
         index={0}

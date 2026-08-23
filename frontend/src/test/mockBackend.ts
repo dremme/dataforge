@@ -383,23 +383,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         ];
       const item = folderData?.items.find((entry) => entry.path === path);
 
-      const captionText = item?.description ?? "";
-      const captionFileType = item?.caption_file_type ?? null;
-      const captionContent =
-        captionFileType === "json" && captionText.length > 0
-          ? `${JSON.stringify({ description: captionText }, null, 2)}\n`
-          : captionText.length > 0
-            ? `${captionText}\n`
-            : null;
-
       const caption: CaptionSaveResponse = {
         description: item?.description ?? null,
         has_description: item?.has_description ?? false,
         has_caption_file: item?.has_caption_file ?? false,
         caption_status: item?.caption_status ?? "none",
-        caption_file: path.replace(/\.[^.]+$/, captionFileType === "json" ? ".json" : ".txt"),
-        caption_file_type: captionFileType,
-        caption_content: captionContent,
+        caption_file: path.replace(/\.[^.]+$/, ".txt"),
         issue_fixes: item?.issue_fixes ?? [],
         has_issue_file: item?.has_issue_file ?? false,
       };
@@ -409,7 +398,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/caption" && method === "PUT") {
       const path = url.searchParams.get("path") ?? "";
       const body = init?.body ? JSON.parse(init.body as string) : { text: "" };
-      const jsonContent = typeof body.json_content === "string" ? body.json_content : null;
       const text = typeof body.text === "string" ? body.text : "";
       const hasDescription = text.length > 0;
       const resolveIssue = body.resolve_issue === true;
@@ -421,30 +409,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         if (!item) continue;
         savedItem = item;
 
-        if (jsonContent) {
-          try {
-            const parsed = JSON.parse(jsonContent) as { description?: string };
-            const description = typeof parsed.description === "string" ? parsed.description : null;
-            item.description = description;
-            item.has_description = Boolean(description);
-            item.has_caption_file = true;
-            item.caption_status = description ? "text" : "empty";
-            item.caption_file_type = "json";
-            if (resolveIssue) {
-              item.issue_fixes = [];
-              item.has_issue_file = false;
-            }
-          } catch {
-            return jsonResponse({ detail: "Invalid JSON" }, 400);
-          }
-          continue;
-        }
-
         item.description = hasDescription ? text : null;
         item.has_description = hasDescription;
         item.has_caption_file = true;
         item.caption_status = hasDescription ? "text" : "empty";
-        item.caption_file_type = item.caption_file_type === "json" ? "json" : "txt";
 
         if (resolveIssue) {
           item.issue_fixes = [];
@@ -457,52 +425,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         has_issue_file: savedItem?.has_issue_file ?? false,
       };
 
-      if (jsonContent) {
-        let parsed: { description?: string };
-        try {
-          parsed = JSON.parse(jsonContent);
-        } catch {
-          return jsonResponse({ detail: "Invalid JSON" }, 400);
-        }
-
-        const description = typeof parsed.description === "string" ? parsed.description : null;
-
-        return jsonResponse({
-          description,
-          has_description: Boolean(description),
-          has_caption_file: true,
-          caption_status: description ? "text" : "empty",
-          caption_file: path.replace(/\.[^.]+$/, ".json"),
-          caption_file_type: "json",
-          caption_content: `${jsonContent.trim()}\n`,
-          ...issueFields,
-        });
-      }
-
-      if (savedItem?.caption_file_type === "json") {
-        const jsonCaptionContent =
-          JSON.stringify({ description: text || savedItem.description }, null, 2) + "\n";
-
-        return jsonResponse({
-          description: text || null,
-          has_description: hasDescription,
-          has_caption_file: true,
-          caption_status: hasDescription ? "text" : "empty",
-          caption_file: path.replace(/\.[^.]+$/, ".json"),
-          caption_file_type: "json",
-          caption_content: jsonCaptionContent,
-          ...issueFields,
-        });
-      }
-
       return jsonResponse({
         description: text || null,
         has_description: hasDescription,
         has_caption_file: true,
         caption_status: hasDescription ? "text" : "empty",
         caption_file: path.replace(/\.[^.]+$/, ".txt"),
-        caption_file_type: "txt",
-        caption_content: text.length > 0 ? `${text}\n` : "",
         ...issueFields,
       });
     }
@@ -624,9 +552,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
             const files = [item.name];
             if (item.has_caption_file) {
-              files.push(
-                item.name.replace(/\.[^.]+$/, item.caption_file_type === "json" ? ".json" : ".txt"),
-              );
+              files.push(item.name.replace(/\.[^.]+$/, ".txt"));
             }
 
             transferred.push({
@@ -658,9 +584,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           const item = folderData.items[index];
           folderData.items.splice(index, 1);
           folderData.item_count = folderData.items.length;
-          if (item.caption_file_type === "json") {
-            deleted.push(item.name.replace(/\.[^.]+$/, ".json"));
-          } else if (item.has_caption_file) {
+          if (item.has_caption_file) {
             deleted.push(item.name.replace(/\.[^.]+$/, ".txt"));
           }
           break;

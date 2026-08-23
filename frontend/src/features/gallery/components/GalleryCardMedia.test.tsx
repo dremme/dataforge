@@ -21,7 +21,6 @@ const imageItem: GalleryItem = {
   has_duplicate_file: false,
   has_backup: false,
   caption_status: "none",
-  caption_file_type: null,
   media_type: "image",
 };
 

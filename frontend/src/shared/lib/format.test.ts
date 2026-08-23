@@ -5,7 +5,6 @@ import {
   formatBytesValue,
   formatDurationSeconds,
   formatModifiedAt,
-  parseJsonContent,
 } from "./format";
 
 describe("formatModifiedAt", () => {
@@ -57,35 +56,5 @@ describe("formatBytesValue", () => {
   it("rounds to whole gigabytes without the unit", () => {
     expect(formatBytesValue(32 * 1024 ** 3)).toBe("32");
     expect(formatBytesValue(8.5 * 1024 ** 3)).toBe("9");
-  });
-});
-
-describe("parseJsonContent", () => {
-  it("accepts JSON objects", () => {
-    expect(parseJsonContent('{"description":"Scene"}')).toEqual({
-      ok: true,
-      value: { description: "Scene" },
-    });
-  });
-
-  it("accepts JSON arrays", () => {
-    expect(parseJsonContent('[{"desc":"Tree"}]')).toEqual({
-      ok: true,
-      value: [{ desc: "Tree" }],
-    });
-  });
-
-  it("rejects invalid JSON", () => {
-    expect(parseJsonContent("{bad json")).toEqual({
-      ok: false,
-      error: expect.any(String) as string,
-    });
-  });
-
-  it("rejects primitives", () => {
-    expect(parseJsonContent('"caption only"')).toEqual({
-      ok: false,
-      error: "Caption JSON must be an object or array.",
-    });
   });
 });

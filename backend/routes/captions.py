@@ -43,7 +43,6 @@ def update_caption(
         result = save_caption(
             file_path,
             body.text,
-            json_content=body.json_content,
             resolve_issue=body.resolve_issue,
         )
     except ValueError as exc:

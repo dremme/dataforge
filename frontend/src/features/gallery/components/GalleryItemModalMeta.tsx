@@ -1,6 +1,5 @@
 import type { GalleryItem } from "@/shared/types";
 import type { MediaResolution } from "@/features/gallery/hooks/useMediaResolution";
-import { captionFileTypeLabel } from "@/shared/lib/captionSidecar";
 import { formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
 
 interface GalleryItemModalMetaProps {
@@ -22,9 +21,7 @@ export function GalleryItemModalMeta({
   captionCharacterCount,
 }: GalleryItemModalMetaProps) {
   const modifiedLabel = item.modified_at ? formatModifiedAt(item.modified_at) : null;
-  const jsonCaptionLabel =
-    item.caption_file_type === "json" ? captionFileTypeLabel(item.caption_file_type) : null;
-  const hasFollowingMeta = Boolean(resolution) || jsonCaptionLabel != null || hasComfyWorkflow;
+  const hasFollowingMeta = Boolean(resolution) || hasComfyWorkflow;
   const hasMediaMeta = Boolean(modifiedLabel) || hasFollowingMeta;
 
   return (
@@ -60,23 +57,12 @@ export function GalleryItemModalMeta({
       )}
       {hasComfyWorkflow && (
         <>
-          <MetaDivider show={Boolean(resolution) || jsonCaptionLabel != null} />
+          <MetaDivider show={Boolean(resolution)} />
           <div className="gallery-item-modal__meta-item">
             <span className="gallery-item-modal__meta-badge" title="Embedded ComfyUI workflow">
               ComfyUI
             </span>
             <span className="gallery-item-modal__meta-label">Workflow</span>
-          </div>
-        </>
-      )}
-      {jsonCaptionLabel && (
-        <>
-          <MetaDivider show={Boolean(resolution)} />
-          <div className="gallery-item-modal__meta-item">
-            <span className="gallery-item-modal__meta-badge" title={`${jsonCaptionLabel} caption`}>
-              {jsonCaptionLabel}
-            </span>
-            <span className="gallery-item-modal__meta-label">Caption</span>
           </div>
         </>
       )}

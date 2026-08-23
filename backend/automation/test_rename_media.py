@@ -23,7 +23,6 @@ from captions import issue_file_path
 from testing_fixtures import (
     TempMediaFolder,
     write_issue_sidecar,
-    write_json_caption,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -145,11 +144,12 @@ class RenameMediaJobTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "already exists"):
                 validate_rename_media_folder(root, stem="portugal", start_number=5)
 
-    def test_renames_txt_json_and_issue_sidecars_together(self) -> None:
+    def test_renames_txt_and_issue_sidecars_and_leaves_leftover_json(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "alpha.png")
             write_txt_caption(media, "Caption one.")
-            write_json_caption(media, {"description": "Json caption."})
+            leftover = media.with_suffix(".json")
+            leftover.write_text('{"description": "Json caption."}\n', encoding="utf-8")
             write_issue_sidecar(media, 'Change "standing" to "kneeling".')
 
             result = run_rename_media_job(root, stem="portugal")
@@ -160,10 +160,8 @@ class RenameMediaJobTests(unittest.TestCase):
                 (root / "portugal_001.txt").read_text(encoding="utf-8").strip(),
                 "Caption one.",
             )
-            self.assertIn(
-                "Json caption.",
-                (root / "portugal_001.json").read_text(encoding="utf-8"),
-            )
+            self.assertTrue(leftover.is_file())
+            self.assertFalse((root / "portugal_001.json").exists())
             self.assertIn(
                 'Change \\"standing\\" to \\"kneeling\\".',
                 (root / "portugal_001.png.issue.json").read_text(encoding="utf-8"),

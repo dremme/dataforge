@@ -51,7 +51,6 @@ from automation.vision import (
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
-    write_json_caption,
     write_media,
     write_mp4_video,
     write_sysprompt,
@@ -965,12 +964,16 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 media.with_suffix(".txt").read_text(encoding="utf-8").strip(), polished
             )
 
-    def test_run_job_updates_the_json_sidecar_instead_of_writing_txt(self) -> None:
-        """A new .txt would be shadowed by the .json caption, so the .json is updated."""
+    def test_run_job_writes_txt_and_leaves_leftover_json_alone(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")
             media = write_media(root, "photo.png")
-            write_json_caption(media, {"description": "Draft.", "mood": "calm"})
+            write_txt_caption(media, "Draft.")
+            leftover = media.with_suffix(".json")
+            leftover.write_text(
+                json.dumps({"description": "Leftover JSON.", "mood": "calm"}),
+                encoding="utf-8",
+            )
 
             polished = (
                 "A detailed portrait with warm sunlight falling across the subject's face "
@@ -983,18 +986,22 @@ class AutoCaptionJobRunTests(unittest.TestCase):
                 result = run_auto_caption_job(root)
 
             self.assertEqual(result["stats"]["success"], 1)
-            self.assertFalse(media.with_suffix(".txt").exists())
-
-            data = json.loads(media.with_suffix(".json").read_text(encoding="utf-8"))
-            self.assertEqual(data["description"], polished)
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8").strip(), polished
+            )
+            data = json.loads(leftover.read_text(encoding="utf-8"))
+            self.assertEqual(data["description"], "Leftover JSON.")
             self.assertEqual(data["mood"], "calm")
 
-    def test_run_job_reads_the_draft_from_the_json_sidecar(self) -> None:
+    def test_run_job_reads_the_draft_from_the_txt_sidecar(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")
             media = write_media(root, "photo.png")
-            write_txt_caption(media, "Ignored text draft.")
-            write_json_caption(media, {"description": "JSON draft."})
+            write_txt_caption(media, "Text draft.")
+            media.with_suffix(".json").write_text(
+                json.dumps({"description": "JSON draft."}),
+                encoding="utf-8",
+            )
 
             polished = "x" * 300
 
@@ -1004,7 +1011,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             ) as mock_complete:
                 run_auto_caption_job(root)
 
-            self.assertEqual(mock_complete.call_args.args[3], "JSON draft.")
+            self.assertEqual(mock_complete.call_args.args[3], "Text draft.")
 
 
 POLISHED_CAPTION = (

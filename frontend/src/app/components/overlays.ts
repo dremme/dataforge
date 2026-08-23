@@ -29,7 +29,6 @@ type GalleryOverlayState = {
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
-  onJsonEditorOpenChange?: (open: boolean) => void;
 };
 
 type IssueResolverOverlayState = {

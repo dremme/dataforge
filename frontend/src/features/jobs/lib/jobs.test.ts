@@ -348,9 +348,7 @@ describe("missing caption warnings", () => {
     expect(jobShowsWarningState(job)).toBe(true);
     expect(statusLabel(job)).toBe("Warnings");
     expect(jobStatusTone(job)).toBe("warning");
-    expect(jobWarningMessage(job)).toBe(
-      "1 file had no caption sidecar (.json/.txt) and was skipped.",
-    );
+    expect(jobWarningMessage(job)).toBe("1 file had no caption sidecar (.txt) and was skipped.");
   });
 
   it("pluralizes the missing-caption warning", () => {
@@ -361,9 +359,7 @@ describe("missing caption warnings", () => {
       stats: { success: 2, no_caption: 3 },
     });
 
-    expect(jobWarningMessage(job)).toBe(
-      "3 files had no caption sidecar (.json/.txt) and were skipped.",
-    );
+    expect(jobWarningMessage(job)).toBe("3 files had no caption sidecar (.txt) and were skipped.");
   });
 });
 
@@ -529,9 +525,7 @@ describe("verify captions jobs", () => {
     });
 
     expect(jobShowsWarningState(job)).toBe(true);
-    expect(jobWarningMessage(job)).toBe(
-      "1 file had no caption sidecar (.json/.txt) and was skipped.",
-    );
+    expect(jobWarningMessage(job)).toBe("1 file had no caption sidecar (.txt) and was skipped.");
   });
 
   it("warns when clips carried no audio but were captioned anyway", () => {
@@ -572,7 +566,7 @@ describe("verify captions jobs", () => {
     });
 
     expect(jobWarningMessage(job)).toBe(
-      "1 file had no caption sidecar (.json/.txt) and was skipped. " +
+      "1 file had no caption sidecar (.txt) and was skipped. " +
         "1 video had no audio track and was captioned without it.",
     );
   });
@@ -632,7 +626,7 @@ describe("jobCompletionNotification", () => {
     ).toEqual({
       variant: "warning",
       message:
-        'Verify captions finished with warnings in "Photos": 1 file had no caption sidecar (.json/.txt) and was skipped.',
+        'Verify captions finished with warnings in "Photos": 1 file had no caption sidecar (.txt) and was skipped.',
     });
   });
 

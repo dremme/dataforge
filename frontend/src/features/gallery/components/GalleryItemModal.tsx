@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
@@ -25,7 +25,6 @@ import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
   iconArrowUpRight,
-  iconBraces,
   iconCamera,
   iconChevronLeft,
   iconChevronRight,
@@ -79,12 +78,6 @@ import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 /** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
 const noop = () => {};
 
-const GalleryItemJsonEditorDialog = lazy(() =>
-  import("./GalleryItemJsonEditorDialog").then((module) => ({
-    default: module.GalleryItemJsonEditorDialog,
-  })),
-);
-
 interface GalleryItemModalProps {
   items: GalleryItem[];
   index: number;
@@ -105,7 +98,6 @@ interface GalleryItemModalProps {
   onCopied?: () => void | Promise<void>;
   /** Hands the item off to the issue resolver; this modal closes in the same commit. */
   onResolveIssue?: (item: GalleryItem) => void;
-  onJsonEditorOpenChange?: (open: boolean) => void;
 }
 
 export function GalleryItemModal({
@@ -122,29 +114,15 @@ export function GalleryItemModal({
   onMoved,
   onCopied,
   onResolveIssue,
-  onJsonEditorOpenChange,
 }: GalleryItemModalProps) {
   const item = items[index];
   const { recordResolution, getResolution } = useMediaResolution();
   const hasComfyWorkflow = useComfyWorkflowFlag(item?.path);
   const notify = useNotify();
 
-  const {
-    caption,
-    captionContent,
-    hasJsonCaption,
-    saveState,
-    saveError,
-    handleCaptionChange,
-    handleJsonContentSave,
-    jsonSaveState,
-    jsonSaveError,
-    resetJsonSaveState,
-    flushPendingSave,
-  } = useGalleryItemCaption({ item, onCaptionSaved });
+  const { caption, saveState, saveError, handleCaptionChange, flushPendingSave } =
+    useGalleryItemCaption({ item, onCaptionSaved });
 
-  const [jsonEditorOpen, setJsonEditorOpen] = useState(false);
-  const [jsonEditorSession, setJsonEditorSession] = useState(0);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [openingInViewer, setOpeningInViewer] = useState(false);
@@ -238,28 +216,19 @@ export function GalleryItemModal({
   const childOverlayOpen =
     deleteConfirmOpen ||
     revertConfirmOpen ||
-    jsonEditorOpen ||
     transfer.transferDialogOpen ||
     gifToMp4.conflict !== null;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
-
-  const jsonEditorContent = useMemo(
-    () => (captionContent ? captionContent.trimEnd() : null),
-    [captionContent],
-  );
 
   // Transfer state is deliberately absent here. A successful move advances this
   // modal to the next item while the flow's own `finally` is still pending, so
   // clearing it on the swap would race the hook and re-enable the buttons early.
   useEffect(() => {
-    setJsonEditorOpen(false);
-    setJsonEditorSession(0);
     setDeleteConfirmOpen(false);
     setDeleting(false);
     setOpeningInViewer(false);
     setViewerError(null);
-    resetJsonSaveState();
-  }, [item?.path, resetJsonSaveState]);
+  }, [item?.path]);
 
   // Sticky capture only applies to items that can actually capture. Landing on a
   // still (or losing the destination folder) drops the mode so the bar does not
@@ -283,39 +252,6 @@ export function GalleryItemModal({
   useEffect(() => {
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(items, index));
   }, [index, items]);
-
-  useEffect(() => {
-    onJsonEditorOpenChange?.(jsonEditorOpen);
-  }, [jsonEditorOpen, onJsonEditorOpenChange]);
-
-  useEffect(() => {
-    return () => {
-      onJsonEditorOpenChange?.(false);
-    };
-  }, [onJsonEditorOpenChange]);
-
-  const openJsonEditor = useCallback(() => {
-    resetJsonSaveState();
-    setJsonEditorSession((session) => session + 1);
-    setJsonEditorOpen(true);
-  }, [resetJsonSaveState]);
-
-  const closeJsonEditor = useCallback(() => {
-    if (jsonSaveState === "saving") return;
-    resetJsonSaveState();
-    setJsonEditorOpen(false);
-  }, [jsonSaveState, resetJsonSaveState]);
-
-  const saveJsonEditor = useCallback(
-    (jsonContent: string) => {
-      void handleJsonContentSave(jsonContent).then((saved) => {
-        if (saved) {
-          setJsonEditorOpen(false);
-        }
-      });
-    },
-    [handleJsonContentSave],
-  );
 
   const toggleFrameMode = useCallback(() => {
     setEditMode(false);
@@ -429,9 +365,8 @@ export function GalleryItemModal({
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
   const captionCharacterCount = caption.length;
-  const copyContent = hasJsonCaption ? (captionContent ?? "") : caption;
+  const copyContent = caption;
   const canCopyCaption = copyContent.length > 0;
-  const canEditJson = hasJsonCaption && (jsonEditorContent?.length ?? 0) > 0;
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
   // Only the destination folder is required; a missing `onCopied` costs the refresh,
   // not the save, so it must not gate the toggle the way `canTransfer` does.
@@ -791,18 +726,6 @@ export function GalleryItemModal({
                       Resolve issue
                     </button>
                   )}
-                  {hasJsonCaption && (
-                    <button
-                      type="button"
-                      className="gallery-item-modal__caption-action"
-                      onClick={openJsonEditor}
-                      disabled={!canEditJson}
-                      aria-label="Edit JSON caption"
-                    >
-                      <Icon icon={iconBraces} className="gallery-item-modal__caption-action-icon" />
-                      Edit JSON
-                    </button>
-                  )}
                   <button
                     type="button"
                     className={classNames(
@@ -932,20 +855,6 @@ export function GalleryItemModal({
           onCopyNewOnly={() => transfer.confirmOverwrite(false)}
           onCancel={transfer.closeOverwritePrompt}
         />
-      )}
-
-      {jsonEditorOpen && jsonEditorContent && (
-        <Suspense fallback={null}>
-          <GalleryItemJsonEditorDialog
-            itemName={item.name}
-            initialContent={jsonEditorContent}
-            sessionKey={jsonEditorSession}
-            saving={jsonSaveState === "saving"}
-            saveError={jsonSaveError}
-            onClose={closeJsonEditor}
-            onSave={saveJsonEditor}
-          />
-        </Suspense>
       )}
     </>
   );

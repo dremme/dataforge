@@ -15,7 +15,6 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "none",
-    caption_file_type: null,
     media_type: "video",
     width: 1920,
     height: 1080,

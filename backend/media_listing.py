@@ -56,17 +56,16 @@ def clear_folder_summary_cache_for_tests() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> tuple[ScannedEntry, str] | None:
-    """Winning caption sidecar for ``media``, resolved from the scan (no syscalls)."""
-    name, caption_file_type = resolve_caption_file_name(
+def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
+    """Caption sidecar for ``media``, resolved from the scan (no syscalls)."""
+    name = resolve_caption_file_name(
         media.path.stem,
         lambda candidate: candidate in scan.files,
     )
-    if name is None or caption_file_type is None:
+    if name is None:
         return None
 
-    sidecar = scan.files.get(name)
-    return None if sidecar is None else (sidecar, caption_file_type)
+    return scan.files.get(name)
 
 
 # Findings hang off the whole filename, captions off the stem - see `FolderScan.sidecar`.
@@ -121,12 +120,10 @@ def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
     duplicate_count = 0
 
     for media in scan.media:
-        caption = _caption_sidecar(scan, media)
-        if caption is not None:
-            sidecar, caption_file_type = caption
-            description, caption_status, _ = caption_summary_from_sidecar(
+        sidecar = _caption_sidecar(scan, media)
+        if sidecar is not None:
+            description, caption_status = caption_summary_from_sidecar(
                 sidecar.path,
-                caption_file_type,
                 sidecar.mtime_ns,
                 sidecar.size,
             )
@@ -184,14 +181,11 @@ def summarize_folder_contents(folder: Path) -> dict[str, int]:
 def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) -> dict:
     description: str | None = None
     caption_status = "none"
-    caption_file_type: str | None = None
 
-    caption = _caption_sidecar(scan, media)
-    if caption is not None:
-        sidecar, caption_file_type = caption
-        description, caption_status, caption_file_type = caption_summary_from_sidecar(
+    sidecar = _caption_sidecar(scan, media)
+    if sidecar is not None:
+        description, caption_status = caption_summary_from_sidecar(
             sidecar.path,
-            caption_file_type,
             sidecar.mtime_ns,
             sidecar.size,
         )
@@ -231,7 +225,6 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "duplicate_group": None if duplicate_finding is None else duplicate_finding.group,
         "has_duplicate_file": duplicate_finding is not None,
         "caption_status": caption_status,
-        "caption_file_type": caption_file_type,
         "media_type": media_type,
         "width": info.width,
         "height": info.height,

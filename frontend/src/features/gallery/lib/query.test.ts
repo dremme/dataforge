@@ -41,7 +41,6 @@ function item(
     has_duplicate_file: false,
     has_backup: false,
     caption_status: "none",
-    caption_file_type: null,
     media_type: mediaType,
     ...overrides,
   };

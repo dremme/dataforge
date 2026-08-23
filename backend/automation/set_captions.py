@@ -1,4 +1,4 @@
-"""Utility job to set a fixed caption text on images and videos (creates .txt sidecars or updates existing .json captions)."""
+"""Utility job to set a fixed caption text on images and videos (creates or updates .txt sidecars)."""
 
 from __future__ import annotations
 
