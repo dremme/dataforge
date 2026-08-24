@@ -238,7 +238,12 @@
   &__caption-editor {
     display: flex;
     flex-direction: column;
+    flex: 1;
     gap: 0.4375rem;
+
+    .code-editor--caption {
+      flex: 1;
+    }
   }
 
   &__caption-label {
