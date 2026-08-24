@@ -57,6 +57,12 @@ describe("loadAutomationSettings", () => {
         preserve_thinking: false,
         context: "Studio shots.",
       },
+      edit_captions: {
+        mode: "thinking",
+        reasoning_effort: "xhigh",
+        preserve_thinking: false,
+        instruction: "Rewrite in present tense.",
+      },
       batch_rename: { stem: "shot", start_number: 7 },
       find_duplicates: { threshold: "loose" },
       train_lora: { trigger_word: "mtnstyle", prompts: ["a lake"], model: "h3_fl2va" },
@@ -74,6 +80,12 @@ describe("loadAutomationSettings", () => {
     expect(settings.set_captions).toEqual({ caption: "A mountain lake." });
     expect(settings.replace_captions.mode).toBe("append");
     expect(settings.verify_captions.context).toBe("Studio shots.");
+    expect(settings.edit_captions).toEqual({
+      mode: "thinking",
+      reasoning_effort: "xhigh",
+      preserve_thinking: false,
+      instruction: "Rewrite in present tense.",
+    });
     expect(settings.batch_rename).toEqual({ stem: "shot", start_number: 7 });
     expect(settings.find_duplicates).toEqual({ threshold: "loose" });
     expect(settings.train_lora).toEqual({
@@ -94,6 +106,7 @@ describe("loadAutomationSettings", () => {
     respondWith({
       auto_caption: { mode: "psychic", reasoning_effort: "colossal" },
       replace_captions: { mode: "obliterate" },
+      edit_captions: { mode: "psychic", reasoning_effort: "colossal" },
       find_duplicates: { threshold: "vague" },
       train_lora: { model: "no_such_model" },
       watermark: { size: "huge", opacity: 33, position: "side" },
@@ -104,6 +117,8 @@ describe("loadAutomationSettings", () => {
     expect(settings.auto_caption.mode).toBe("thinking");
     expect(settings.auto_caption.reasoning_effort).toBe("medium");
     expect(settings.replace_captions.mode).toBe("replace");
+    expect(settings.edit_captions.mode).toBe("instruct");
+    expect(settings.edit_captions.reasoning_effort).toBe("medium");
     expect(settings.find_duplicates.threshold).toBe("near");
     expect(settings.train_lora.model).toBe("krea2_turbo");
     expect(settings.watermark).toEqual({

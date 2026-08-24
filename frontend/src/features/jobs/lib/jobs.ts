@@ -137,6 +137,14 @@ function jobNoCaptionCount(job: Job): number {
 }
 
 /**
+ * Captions the model came back with in a form the job would not write. A warning,
+ * never an error: the caption on disk is untouched, which is the safe path working.
+ */
+function jobRejectedCount(job: Job): number {
+  return job.stats?.rejected ?? 0;
+}
+
+/**
  * Clips that carried no audio while audio captioning was on. A warning, never an
  * error: they were captioned anyway, from their keyframes alone.
  */
@@ -200,6 +208,10 @@ export function jobShowsWarningState(job: Job): boolean {
     return jobNoCaptionCount(job) + jobNoAudioCount(job) > 0;
   }
 
+  if (type === "edit_captions") {
+    return jobNoCaptionCount(job) + jobRejectedCount(job) > 0;
+  }
+
   return jobNoCaptionCount(job) > 0;
 }
 
@@ -209,6 +221,14 @@ function noCaptionWarning(count: number): string | null {
     return `1 file had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and was skipped.`;
   }
   return `${count} files had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and were skipped.`;
+}
+
+function rejectedWarning(count: number): string | null {
+  if (count === 0) return null;
+  if (count === 1) {
+    return "1 caption came back in a form the job would not write, and was left unchanged.";
+  }
+  return `${count} captions came back in a form the job would not write, and were left unchanged.`;
 }
 
 function noAudioWarning(count: number): string | null {
@@ -240,6 +260,9 @@ export function jobWarningMessage(job: Job): string | null {
   const parts = [noCaptionWarning(jobNoCaptionCount(job))];
   if (jobTypeOf(job) === "auto_caption") {
     parts.push(noAudioWarning(jobNoAudioCount(job)));
+  }
+  if (jobTypeOf(job) === "edit_captions") {
+    parts.push(rejectedWarning(jobRejectedCount(job)));
   }
 
   return parts.filter((part): part is string => part !== null).join(" ") || null;
@@ -427,6 +450,8 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
     (stats.api_error ?? 0) +
     (stats.frame_error ?? 0) +
     (stats.too_short ?? 0) +
+    (stats.rejected ?? 0) +
+    (stats.unchanged ?? 0) +
     (stats.read_error ?? 0) +
     (stats.write_error ?? 0);
 

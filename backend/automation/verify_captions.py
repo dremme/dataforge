@@ -13,19 +13,22 @@ from pathlib import Path
 from PIL import Image
 
 from automation.job_runner import FileOutcome, run_media_job
-from automation.selection import filter_media_list, list_folder_media
-from automation.vision import (
-    MediaKind,
+from automation.llm import (
     ModelOutcome,
     call_with_retries,
     clean_model_text,
-    close_vision_client,
+    close_model_client,
+    model_client,
+    strip_code_fences,
+)
+from automation.selection import filter_media_list, list_folder_media
+from automation.vision import (
+    MediaKind,
     keyframe_sentence,
     load_media_images,
     media_kind_for,
     media_kind_max_pixels,
     request_vision_text,
-    vision_client,
 )
 from captions import (
     NO_CAPTION_STATUS,
@@ -56,19 +59,6 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 @dataclass(frozen=True)
 class VerificationResult:
     fixes: tuple[str, ...]
-
-
-def _strip_json_fences(text: str) -> str:
-    stripped = text.strip()
-    if not stripped.startswith("```"):
-        return stripped
-
-    lines = stripped.splitlines()
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
 
 
 def _extract_json_object(text: str) -> dict | None:
@@ -190,7 +180,7 @@ def _parse_verification_payload(data: dict) -> VerificationResult | None:
 
 
 def parse_verification_response(raw_text: str) -> VerificationResult | None:
-    text = _strip_json_fences(clean_model_text(raw_text))
+    text = strip_code_fences(clean_model_text(raw_text))
     data: dict | None = None
     try:
         parsed = json.loads(text)
@@ -463,7 +453,7 @@ def process_media(
         job_label="Verify captions",
         media_name=media_path.name,
         should_cancel=should_cancel,
-        on_abandon=lambda: close_vision_client(client),
+        on_abandon=lambda: close_model_client(client),
     )
     return media_path, outcome.value, outcome.status, outcome.message
 
@@ -528,7 +518,7 @@ def run_verify_captions_job(
     media_files = filter_media_list(list_verify_captions_media(folder), selected_paths)
     resolved_model = model if model is not None else get_openai_model()
 
-    with vision_client() as client:
+    with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
             _path, verification, status, message = process_media(

@@ -417,6 +417,52 @@ class CaptionBackupEndpointTests(unittest.TestCase):
             self.assertEqual(response.json()["job_type"], "restore_captions")
 
 
+class EditCaptionsAutomationEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def tearDown(self) -> None:
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM preferences WHERE key LIKE ?",
+                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
+            )
+            conn.commit()
+
+    def _start(self, folder: Path, **body: object) -> object:
+        payload = {"instruction": "Rewrite in present tense.", **body}
+        return client.post(f"/api/automation/edit-captions?path={quote(str(folder))}", json=payload)
+
+    def test_requires_supported_media(self) -> None:
+        with TempMediaFolder() as root:
+            response = self._start(root)
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("No supported images or videos", response.json()["detail"])
+
+    def test_requires_an_instruction(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = self._start(root, instruction="   ")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("instruction", response.json()["detail"])
+
+    def test_starts_the_job(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A woman walked along the street.")
+
+            with _patched_job_runner("edit_captions", _noop_runner):
+                response = self._start(root)
+
+                self.assertEqual(response.status_code, 200, response.text)
+                payload = response.json()
+                self.assertEqual(payload["job_type"], "edit_captions")
+                wait_for_job(payload["id"])
+
+
 class WatermarkAutomationEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_job_manager()
@@ -752,6 +798,16 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
             "preserve_thinking": False,
         },
     ),
+    "edit_captions": (
+        "edit-captions",
+        {
+            "mode": "thinking",
+            "reasoning_effort": "low",
+            "preserve_thinking": False,
+            "instruction": "Rewrite in present tense.",
+            "backup": False,
+        },
+    ),
     "batch_rename": ("batch-rename", {"stem": "shot", "start_number": 7}),
     "find_duplicates": ("find-duplicates", {"threshold": "loose"}),
     "train_lora": (
@@ -839,7 +895,7 @@ class JobSettingsPersistenceTests(unittest.TestCase):
     def test_the_destructive_fields_are_never_remembered(self) -> None:
         # Each of these must be re-chosen every run: two overwrite toggles, the LoRA
         # name (the job's resume key) and a per-run template override.
-        never_stored = {"overwrite", "lora_name", "template", "paths"}
+        never_stored = {"overwrite", "backup", "lora_name", "template", "paths"}
         stored_fields = {
             name for model in JOB_SETTINGS_MODELS.values() for name in model.model_fields
         }

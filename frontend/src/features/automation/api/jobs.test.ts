@@ -24,6 +24,7 @@ describe("automation API", () => {
       ["strip_metadata", "strip-metadata"],
       ["set_captions", "set-captions"],
       ["verify_captions", "verify-captions"],
+      ["edit_captions", "edit-captions"],
       ["batch_rename", "batch-rename"],
       ["backup_captions", "backup-captions"],
       ["restore_captions", "restore-captions"],

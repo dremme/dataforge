@@ -354,6 +354,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           preserve_thinking: true,
           context: "",
         },
+        edit_captions: {
+          mode: "instruct",
+          reasoning_effort: "medium",
+          preserve_thinking: true,
+          instruction: "",
+        },
         batch_rename: { stem: "", start_number: 1 },
         find_duplicates: { threshold: "near" },
         train_lora: { trigger_word: "", prompts: [], model: "krea2_turbo" },
@@ -649,6 +655,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/verify-captions" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "verify_captions"));
+    }
+
+    if (url.pathname === "/api/automation/edit-captions" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
+      return jsonResponse(createMockJob(folderPath, "edit_captions"));
     }
 
     if (url.pathname === "/api/automation/watermark" && method === "POST") {

@@ -156,6 +156,23 @@ export function useAutomationDialogOverlays({
             preserve_thinking: preserveThinking,
           }),
       },
+      editCaptions: {
+        ...shared("edit_captions"),
+        onConfirm: (
+          mode: VerifyCaptionsMode,
+          instruction: string,
+          reasoningEffort: ReasoningEffort,
+          preserveThinking: boolean,
+          backup: boolean,
+        ) =>
+          startJobFromDialog("edit_captions", {
+            mode,
+            instruction,
+            reasoning_effort: reasoningEffort,
+            preserve_thinking: preserveThinking,
+            backup,
+          }),
+      },
       findDuplicates: {
         ...shared("find_duplicates"),
         onConfirm: (threshold: DuplicateThreshold) =>

@@ -204,6 +204,50 @@ def verify_captions_failure_message(stats: dict[str, int]) -> str | None:
     )
 
 
+def edit_captions_failure_message(stats: dict[str, int]) -> str | None:
+    """Errors only.
+
+    ``rejected`` is deliberately absent: the model returned something unusable, the job
+    declined to write it, and the caption is intact — that is the safe outcome working,
+    not a failure. It surfaces as a warning instead. ``no_caption`` is a warning too.
+    """
+    api_errors = int(stats.get("api_error") or 0)
+    read_errors = int(stats.get("read_error") or 0)
+    write_errors = int(stats.get("write_error") or 0)
+    if api_errors + read_errors + write_errors == 0:
+        return None
+
+    parts: list[str] = []
+    if api_errors:
+        if api_errors == 1:
+            parts.append("1 caption failed its model request or returned no content")
+        else:
+            parts.append(
+                f"{api_errors} captions failed their model requests or returned no content"
+            )
+    if read_errors:
+        if read_errors == 1:
+            parts.append("1 caption could not be read")
+        else:
+            parts.append(f"{read_errors} captions could not be read")
+    if write_errors:
+        if write_errors == 1:
+            parts.append("1 caption could not be backed up or written")
+        else:
+            parts.append(f"{write_errors} captions could not be backed up or written")
+
+    summary = "; ".join(parts) + "."
+    if api_errors and not read_errors and not write_errors:
+        from openai_settings import get_openai_model
+
+        model_id = get_openai_model()
+        return (
+            f"{summary} Check that the local model server is running and the model "
+            f'(id "{model_id}") is loaded.'
+        )
+    return summary
+
+
 def resolve_job_error(
     *,
     job_type: str,
@@ -220,6 +264,8 @@ def resolve_job_error(
 
     if job_type == "verify_captions":
         return verify_captions_failure_message(stats)
+    if job_type == "edit_captions":
+        return edit_captions_failure_message(stats)
     if job_type == "auto_caption":
         return auto_caption_failure_message(stats)
     if job_type == "strip_metadata":

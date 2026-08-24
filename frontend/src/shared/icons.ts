@@ -102,5 +102,6 @@ export {
   Video as iconVideo,
   Volume2 as iconVolume2,
   VolumeX as iconVolumeX,
+  WandSparkles as iconWandSparkles,
   X as iconX,
 } from "lucide-react";

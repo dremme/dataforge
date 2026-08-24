@@ -181,12 +181,14 @@ leaves it alone and counts it `skipped_long`. A caption the model returns **at o
 an answer, so it is retried and, if it stays short, counted `too_short`. Raise it to demand more
 detail; lower it to accept shorter captions and to stop re-visiting drafts you consider done.
 
-Verify-captions ignores it — it checks captions rather than writing them.
+Verify-captions ignores it — it checks captions rather than writing them. Edit-captions ignores it
+too, though it does write them: an instruction like "shorten to one sentence" is meant to land under
+this threshold, so gating on it would reject the edit for working.
 
 ## Reasoning effort
 
 Not an environment setting: **Reasoning effort** and **Preserve thinking** are picked per job, in the
-auto-caption and verify-captions dialogs.
+auto-caption, verify-captions and edit-captions dialogs.
 
 The three levels are fixed by the chat template, which **raises** on anything else, so `high` is not a value:
 

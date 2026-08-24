@@ -9,6 +9,7 @@ import {
   iconFiles,
   iconMessagePlus,
   iconMessageWarning,
+  iconWandSparkles,
   iconPencilSparkles,
   iconReplace,
   iconShredder,
@@ -86,6 +87,14 @@ export const JOB_TYPE_META = {
     icon: iconMessageWarning,
     startUi: "dialog" as const,
     menuDescription: "Verifies captions by comparing them with their media file.",
+  },
+  edit_captions: {
+    type: "edit_captions" as const,
+    group: "datasets" as const,
+    label: "Edit captions",
+    icon: iconWandSparkles,
+    startUi: "dialog" as const,
+    menuDescription: "Rewrite existing captions with the local model, from your instruction.",
   },
   replace_captions: {
     type: "replace_captions" as const,

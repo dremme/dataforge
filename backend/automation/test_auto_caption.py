@@ -29,10 +29,12 @@ from automation.auto_caption import (
     validate_auto_caption_folder,
 )
 from automation.job_messages import auto_caption_failure_message
-from automation.vision import (
-    IMAGE_MAX_PIXELS,
+from automation.llm import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
+)
+from automation.vision import (
+    IMAGE_MAX_PIXELS,
     MAX_VIDEO_KEYFRAME_COUNT,
     MIN_HONORED_MAX_PIXELS,
     QWEN_MIN_SIDE_PX,
@@ -1203,7 +1205,7 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
             client, captured = _make_fake_caption_client("too short")
 
             with (
-                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.llm.create_openai_client", return_value=client),
                 self._patched_frames(),
                 patch(
                     "automation.auto_caption.extract_audio_wav", return_value=FAKE_WAV
@@ -1228,7 +1230,7 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
             client, captured = _make_fake_caption_client("too short")
 
             with (
-                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.llm.create_openai_client", return_value=client),
                 self._patched_frames(),
             ):
                 run_auto_caption_job(root)
@@ -1294,7 +1296,7 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
             client, captured = _make_fake_caption_client(POLISHED_CAPTION)
 
             with (
-                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.llm.create_openai_client", return_value=client),
                 self._patched_frames(),
                 patch("automation.auto_caption.extract_audio_wav") as extract,
             ):
@@ -1312,7 +1314,7 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
             client, captured = _make_fake_caption_client(POLISHED_CAPTION)
 
             with (
-                patch("automation.vision.create_openai_client", return_value=client),
+                patch("automation.llm.create_openai_client", return_value=client),
                 self._patched_frames(),
                 patch("automation.auto_caption.extract_audio_wav", return_value=FAKE_WAV),
             ):

@@ -12,19 +12,21 @@ from PIL import Image
 
 from automation.audio import AUDIO_MAX_SECONDS, extract_audio_wav
 from automation.job_runner import FileOutcome, run_media_job
-from automation.selection import filter_media_list, list_folder_media
-from automation.vision import (
-    MediaKind,
+from automation.llm import (
     ModelOutcome,
     call_with_retries,
     clean_model_text,
-    close_vision_client,
+    close_model_client,
+    model_client,
+)
+from automation.selection import filter_media_list, list_folder_media
+from automation.vision import (
+    MediaKind,
     keyframe_sentence,
     load_media_images,
     media_kind_for,
     media_kind_max_pixels,
     request_vision_text,
-    vision_client,
 )
 from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
 from constants import IMAGE_EXTENSIONS, MOTION_EXTENSIONS, SYSPROMPT_FILENAME
@@ -336,7 +338,7 @@ def process_media(
         job_label="Auto-caption",
         media_name=media_path.name,
         should_cancel=should_cancel,
-        on_abandon=lambda: close_vision_client(client),
+        on_abandon=lambda: close_model_client(client),
     )
     return media_path, outcome.value, outcome.status, outcome.message, audio_missing
 
@@ -435,7 +437,7 @@ def run_auto_caption_job(
     media_files = filter_media_list(list_auto_caption_media(folder), selected_paths)
     resolved_model = model if model is not None else get_openai_model()
 
-    with vision_client() as client:
+    with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
             _path, clean_text, status, message, audio_missing = process_media(

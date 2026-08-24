@@ -48,6 +48,7 @@ type JobType = Literal[
     "replace_captions",
     "find_duplicates",
     "verify_captions",
+    "edit_captions",
     "batch_rename",
     "backup_captions",
     "restore_captions",
@@ -467,6 +468,27 @@ class VerifyCaptionsStartRequest(JobSelectionRequest, VerifyCaptionsJobSettings)
     pass
 
 
+class EditCaptionsJobSettings(BaseModel):
+    mode: AutomationMode = "instruct"
+    reasoning_effort: ReasoningEffort = "medium"
+    preserve_thinking: bool = Field(
+        default=True,
+        description="Keep earlier assistant reasoning in the rendered prompt.",
+    )
+    #: Unconstrained so an empty instruction comes back as the job's own 400 message
+    #: rather than a pydantic validation blob.
+    instruction: str = ""
+
+
+class EditCaptionsStartRequest(JobSelectionRequest, EditCaptionsJobSettings):
+    # Never remembered: this is the safety net, and the dangerous state is the unticked
+    # one. Persisting it would make "no backup" sticky and invisible.
+    backup: bool = Field(
+        default=True,
+        description="Copy each caption into .backup before overwriting it.",
+    )
+
+
 class TrainLoraJobSettings(BaseModel):
     trigger_word: str = ""
     prompts: list[str] = Field(default_factory=list)
@@ -501,6 +523,7 @@ class AutomationSettingsResponse(BaseModel):
     replace_captions: ReplaceCaptionsJobSettings = Field(default_factory=ReplaceCaptionsJobSettings)
     backup_captions: BackupCaptionsJobSettings = Field(default_factory=BackupCaptionsJobSettings)
     verify_captions: VerifyCaptionsJobSettings = Field(default_factory=VerifyCaptionsJobSettings)
+    edit_captions: EditCaptionsJobSettings = Field(default_factory=EditCaptionsJobSettings)
     batch_rename: BatchRenameJobSettings = Field(default_factory=BatchRenameJobSettings)
     find_duplicates: FindDuplicatesJobSettings = Field(default_factory=FindDuplicatesJobSettings)
     train_lora: TrainLoraJobSettings = Field(default_factory=TrainLoraJobSettings)

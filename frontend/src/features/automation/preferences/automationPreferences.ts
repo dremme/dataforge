@@ -28,6 +28,7 @@ export type JobSettingsByType = {
   replace_captions: AutomationSettings["replace_captions"];
   backup_captions: AutomationSettings["backup_captions"];
   verify_captions: AutomationSettings["verify_captions"];
+  edit_captions: AutomationSettings["edit_captions"];
   batch_rename: AutomationSettings["batch_rename"];
   find_duplicates: AutomationSettings["find_duplicates"];
   train_lora: AutomationSettings["train_lora"];
@@ -101,6 +102,12 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
       preserve_thinking: DEFAULT_PRESERVE_THINKING,
       context: "",
     },
+    edit_captions: {
+      mode: "instruct",
+      reasoning_effort: DEFAULT_REASONING_EFFORT,
+      preserve_thinking: DEFAULT_PRESERVE_THINKING,
+      instruction: "",
+    },
     batch_rename: { stem: "", start_number: 1 },
     find_duplicates: { threshold: "near" },
     train_lora: { trigger_word: "", prompts: [], model: DEFAULT_TRAINING_MODEL },
@@ -120,6 +127,7 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
   const setCaptions = block(data, "set_captions");
   const replaceCaptions = block(data, "replace_captions");
   const verifyCaptions = block(data, "verify_captions");
+  const editCaptions = block(data, "edit_captions");
   const batchRename = block(data, "batch_rename");
   const findDuplicates = block(data, "find_duplicates");
   const trainLora = block(data, "train_lora");
@@ -158,6 +166,16 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
       ),
       preserve_thinking: flag(verifyCaptions.preserve_thinking, DEFAULT_PRESERVE_THINKING),
       context: text(verifyCaptions.context),
+    },
+    edit_captions: {
+      mode: oneOf(AUTOMATION_MODES, editCaptions.mode, defaults.edit_captions.mode),
+      reasoning_effort: oneOf(
+        REASONING_EFFORTS,
+        editCaptions.reasoning_effort,
+        DEFAULT_REASONING_EFFORT,
+      ),
+      preserve_thinking: flag(editCaptions.preserve_thinking, DEFAULT_PRESERVE_THINKING),
+      instruction: text(editCaptions.instruction),
     },
     batch_rename: {
       stem: text(batchRename.stem),

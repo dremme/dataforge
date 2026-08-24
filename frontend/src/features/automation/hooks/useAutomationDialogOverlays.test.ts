@@ -277,6 +277,7 @@ describe("useAutomationDialogOverlays saved settings", () => {
     ["backupCaptions", "backup_captions"],
     ["autoCaption", "auto_caption"],
     ["verifyCaptions", "verify_captions"],
+    ["editCaptions", "edit_captions"],
     ["findDuplicates", "find_duplicates"],
     ["batchRename", "batch_rename"],
     ["trainLora", "train_lora"],
@@ -332,5 +333,40 @@ describe("useAutomationDialogOverlays saved settings", () => {
     });
 
     expect(result.current.dialogs.findDuplicates.initialSettings).toEqual({ threshold: "near" });
+  });
+});
+
+describe("useAutomationDialogOverlays edit captions", () => {
+  it("sends the instruction, the model controls and the backup choice", async () => {
+    const { result, startJob } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("edit_captions");
+    });
+    expect(result.current.dialogs.editCaptions.open).toBe(true);
+
+    await act(async () => {
+      result.current.dialogs.editCaptions.onConfirm(
+        "thinking",
+        "Rewrite in present tense.",
+        "low",
+        false,
+        false,
+      );
+    });
+
+    expect(result.current.dialogs.editCaptions.open).toBe(false);
+    expect(startJob).toHaveBeenCalledWith(
+      "edit_captions",
+      "C:\\Photos",
+      {
+        mode: "thinking",
+        instruction: "Rewrite in present tense.",
+        reasoning_effort: "low",
+        preserve_thinking: false,
+        backup: false,
+      },
+      undefined,
+    );
   });
 });

@@ -7,6 +7,7 @@ import unittest
 from automation.job_messages import (
     auto_caption_error_message,
     auto_caption_failure_message,
+    edit_captions_failure_message,
     resolve_job_error,
     verify_captions_failure_message,
     watermark_error_message,
@@ -140,6 +141,51 @@ class JobMessagesTests(unittest.TestCase):
         self.assertIsNotNone(payload["error"])
         assert payload["error"] is not None
         self.assertIn("not valid JSON", str(payload["error"]))
+
+
+class EditCaptionsFailureMessageTests(unittest.TestCase):
+    def test_a_clean_run_has_no_message(self) -> None:
+        self.assertIsNone(edit_captions_failure_message({"success": 12, "unchanged": 3}))
+
+    def test_a_rejected_caption_is_not_an_error(self) -> None:
+        # The caption is intact and the job declined to write junk: that is the safe
+        # path working, so it must surface as a warning rather than a failed job.
+        self.assertIsNone(edit_captions_failure_message({"success": 8, "rejected": 4}))
+
+    def test_a_captionless_file_is_not_an_error(self) -> None:
+        self.assertIsNone(edit_captions_failure_message({"success": 8, "no_caption": 2}))
+
+    def test_api_errors_point_at_the_model_server(self) -> None:
+        message = edit_captions_failure_message({"api_error": 3})
+
+        self.assertIsNotNone(message)
+        assert message is not None
+        self.assertIn("3 captions failed their model requests", message)
+        self.assertIn("local model server", message)
+
+    def test_a_single_api_error_reads_as_one(self) -> None:
+        message = edit_captions_failure_message({"api_error": 1})
+
+        self.assertIsNotNone(message)
+        assert message is not None
+        self.assertIn("1 caption failed its model request", message)
+
+    def test_write_errors_are_reported_without_the_server_pointer(self) -> None:
+        message = edit_captions_failure_message({"write_error": 2})
+
+        self.assertIsNotNone(message)
+        assert message is not None
+        self.assertIn("2 captions could not be backed up or written", message)
+        self.assertNotIn("local model server", message)
+
+    def test_mixed_errors_are_all_named(self) -> None:
+        message = edit_captions_failure_message({"api_error": 1, "read_error": 1, "write_error": 1})
+
+        self.assertIsNotNone(message)
+        assert message is not None
+        self.assertIn("model request", message)
+        self.assertIn("could not be read", message)
+        self.assertIn("could not be backed up or written", message)
 
 
 if __name__ == "__main__":

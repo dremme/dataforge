@@ -5,6 +5,7 @@ import type { VerifyCaptionsMode } from "@/features/automation/components/Verify
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type {
+  AutomationMode,
   DuplicateThreshold,
   ReasoningEffort,
   WatermarkOpacity,
@@ -58,6 +59,16 @@ export type AutomationDialogsState = {
       preserveThinking: boolean,
     ) => void,
     JobSettingsByType["verify_captions"]
+  >;
+  editCaptions: FolderBusyDialogState<
+    (
+      mode: AutomationMode,
+      instruction: string,
+      reasoningEffort: ReasoningEffort,
+      preserveThinking: boolean,
+      backup: boolean,
+    ) => void,
+    JobSettingsByType["edit_captions"]
   >;
   findDuplicates: FolderBusyDialogState<
     (threshold: DuplicateThreshold) => void,

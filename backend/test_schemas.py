@@ -90,6 +90,7 @@ class JobResponseSchemaTests(unittest.TestCase):
             "replace_captions",
             "find_duplicates",
             "verify_captions",
+            "edit_captions",
             "batch_rename",
             "backup_captions",
             "restore_captions",

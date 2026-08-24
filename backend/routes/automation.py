@@ -16,6 +16,7 @@ from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
     JobResponse,
     JobSelectionRequest,
@@ -211,6 +212,23 @@ def start_verify_captions_job(
         reasoning_effort=body.reasoning_effort,
         preserve_thinking=body.preserve_thinking,
         context=body.context,
+    )
+
+
+@router.post("/automation/edit-captions", response_model=JobResponse)
+def start_edit_captions_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: EditCaptionsStartRequest = EditCaptionsStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "edit_captions",
+        resolve_folder(path),
+        body,
+        instruction=body.instruction,
+        backup=body.backup,
+        mode=body.mode,
+        reasoning_effort=body.reasoning_effort,
+        preserve_thinking=body.preserve_thinking,
     )
 
 

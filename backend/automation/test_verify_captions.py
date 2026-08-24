@@ -15,6 +15,10 @@ isolate_test_database()
 
 from PIL import Image
 
+from automation.llm import (
+    INSTRUCT_THINK_PREFILL,
+    MAX_MODEL_ATTEMPTS,
+)
 from automation.verify_captions import (
     VerificationResult,
     build_verification_system_prompt,
@@ -32,8 +36,6 @@ from automation.vision import (
     FRAME_ERROR,
     IMAGE_MAX_PIXELS,
     IMAGE_MAX_PIXELS_VAR,
-    INSTRUCT_THINK_PREFILL,
-    MAX_MODEL_ATTEMPTS,
     VIDEO_KEYFRAME_COUNT,
     MediaFrames,
     MediaLoadError,

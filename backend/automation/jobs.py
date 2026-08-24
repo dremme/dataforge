@@ -20,6 +20,7 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
+from automation.edit_captions import run_edit_captions_job, validate_edit_captions_folder
 from automation.find_duplicates import (
     DEFAULT_THRESHOLD as DEFAULT_DUPLICATE_THRESHOLD,
 )
@@ -30,6 +31,7 @@ from automation.find_duplicates import (
 from automation.job_messages import (
     auto_caption_failure_message,
     backup_captions_error_message,
+    edit_captions_failure_message,
     find_duplicates_error_message,
     rename_media_error_message,
     replace_captions_error_message,
@@ -263,6 +265,14 @@ def _auto_caption_mode(params: dict[str, object]) -> str | None:
     return str(params.get("mode", "thinking"))
 
 
+def _edit_captions_mode(params: dict[str, object]) -> str | None:
+    return str(params.get("mode", "instruct"))
+
+
+def _validate_edit_captions(folder: Path, **params: object) -> None:
+    validate_edit_captions_folder(folder, instruction=str(params.get("instruction", "")))
+
+
 def _validate_auto_caption(folder: Path, **params: object) -> None:
     validate_auto_caption_folder(folder, caption_audio=bool(params.get("caption_audio", False)))
 
@@ -346,6 +356,13 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_verify_captions_job,
         resolve_status=_resolve_verify_captions_status,
         validate=_folder_only(validate_verify_captions_folder),
+    ),
+    "edit_captions": JobSpec(
+        thread_prefix="edit-captions",
+        run=run_edit_captions_job,
+        resolve_status=_resolve_stats_errors(edit_captions_failure_message),
+        validate=_validate_edit_captions,
+        caption_mode=_edit_captions_mode,
     ),
     "watermark": JobSpec(
         thread_prefix="watermark",

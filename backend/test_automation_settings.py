@@ -21,6 +21,7 @@ from schemas import (
     AutomationSettingsResponse,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
     ReplaceCaptionsStartRequest,
     SetCaptionsStartRequest,
@@ -36,6 +37,7 @@ START_REQUESTS = {
     "replace_captions": ReplaceCaptionsStartRequest,
     "backup_captions": BackupCaptionsStartRequest,
     "verify_captions": VerifyCaptionsStartRequest,
+    "edit_captions": EditCaptionsStartRequest,
     "batch_rename": BatchRenameStartRequest,
     "find_duplicates": FindDuplicatesStartRequest,
     "train_lora": TrainLoraStartRequest,
@@ -75,7 +77,7 @@ class RegistryShapeTests(unittest.TestCase):
     def test_the_destructive_fields_are_never_part_of_any_settings_model(self) -> None:
         stored = {name for model in JOB_SETTINGS_MODELS.values() for name in model.model_fields}
 
-        self.assertEqual(stored & {"overwrite", "lora_name", "template", "paths"}, set())
+        self.assertEqual(stored & {"overwrite", "backup", "lora_name", "template", "paths"}, set())
 
     def test_backup_captions_registers_with_nothing_to_remember(self) -> None:
         # It is registered purely so every job travels the same path.

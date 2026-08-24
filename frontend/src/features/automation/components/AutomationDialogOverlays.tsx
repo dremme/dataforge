@@ -2,6 +2,7 @@ import { AutoCaptionDialog } from "./AutoCaptionDialog";
 import { BackupCaptionsDialog } from "./BackupCaptionsDialog";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
 import { ReplaceCaptionsDialog } from "./ReplaceCaptionsDialog";
+import { EditCaptionsDialog } from "./EditCaptionsDialog";
 import { FindDuplicatesDialog } from "./FindDuplicatesDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
@@ -20,6 +21,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     backupCaptions,
     autoCaption,
     verifyCaptions,
+    editCaptions,
     findDuplicates,
     batchRename,
     trainLora,
@@ -77,6 +79,16 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={verifyCaptions.busy}
           onConfirm={verifyCaptions.onConfirm}
           onCancel={verifyCaptions.onCancel}
+        />
+      )}
+
+      {editCaptions.open && editCaptions.initialSettings && (
+        <EditCaptionsDialog
+          scope={editCaptions.scope}
+          initialSettings={editCaptions.initialSettings}
+          busy={editCaptions.busy}
+          onConfirm={editCaptions.onConfirm}
+          onCancel={editCaptions.onCancel}
         />
       )}
 

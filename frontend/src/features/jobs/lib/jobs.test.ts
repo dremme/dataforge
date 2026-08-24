@@ -363,6 +363,58 @@ describe("missing caption warnings", () => {
   });
 });
 
+describe("edit captions jobs", () => {
+  function editJob(stats: Record<string, number>) {
+    return makeJob({
+      job_type: "edit_captions",
+      status: "completed",
+      processed: 10,
+      total: 10,
+      stats,
+    });
+  }
+
+  it("warns rather than fails when captions came back unusable", () => {
+    // The captions on disk are untouched, so this is the safe path working.
+    const job = editJob({ success: 8, rejected: 2 });
+
+    expect(statusLabel(job)).toBe("Warnings");
+    expect(jobShowsWarningState(job)).toBe(true);
+    expect(jobStatusTone(job)).toBe("warning");
+    expect(jobWarningMessage(job)).toBe(
+      "2 captions came back in a form the job would not write, and were left unchanged.",
+    );
+  });
+
+  it("reads a single rejection as one", () => {
+    expect(jobWarningMessage(editJob({ success: 9, rejected: 1 }))).toBe(
+      "1 caption came back in a form the job would not write, and was left unchanged.",
+    );
+  });
+
+  it("reports a missing caption and an unusable one side by side", () => {
+    const message = jobWarningMessage(editJob({ success: 7, rejected: 2, no_caption: 1 }));
+
+    expect(message).toContain("no caption sidecar");
+    expect(message).toContain("would not write");
+  });
+
+  it("stays quiet when every caption was edited or left alone", () => {
+    const job = editJob({ success: 7, unchanged: 3 });
+
+    expect(jobShowsWarningState(job)).toBe(false);
+    expect(jobWarningMessage(job)).toBeNull();
+  });
+
+  it("still fails on a model request error", () => {
+    // Only the model being unreachable is a failure; a rejected caption is not.
+    const job = editJob({ success: 9, api_error: 1 });
+
+    expect(statusLabel(job)).toBe("Failed");
+    expect(jobStatusTone(job)).toBe("danger");
+  });
+});
+
 describe("caption backup and restore jobs", () => {
   it("does not warn about media that had no caption to back up", () => {
     const job = makeJob({
