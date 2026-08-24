@@ -78,7 +78,7 @@ config:
         walk_seed: false
         guidance_scale: 1
         sample_steps: 20
-        num_frames: 54
+        num_frames: 56
         fps: 24
 meta:
   name: "[name]"

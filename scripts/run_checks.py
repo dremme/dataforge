@@ -16,6 +16,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+# This one only spawns subprocesses, but they run the same interpreter and the
+# tests import the backend - which uses PEP 695 syntax older versions cannot
+# parse. Failing here names the cause instead of a SyntaxError from pytest.
+from py_version import require_python
+
+require_python()
+
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"

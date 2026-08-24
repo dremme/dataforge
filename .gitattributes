@@ -1,0 +1,10 @@
+# Shell scripts must keep LF endings whatever a contributor's core.autocrlf is set
+# to. A CRLF shebang is not a portability nuisance on Unix - it is fatal: the kernel
+# reads the interpreter as "/usr/bin/env bash\r" and the script dies with a bare
+# "bad interpreter" naming a binary that visibly exists.
+#
+# The .ps1/.bat side is deliberately left alone: those files are LF in the tree today
+# and PowerShell reads them fine, so pinning them to CRLF would rewrite every one of
+# them for no gain.
+*.sh text eol=lf
+.githooks/* text eol=lf

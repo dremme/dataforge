@@ -71,6 +71,7 @@ function usePanelFocus(
   useEffect(() => {
     if (!open) return;
 
+    const root = rootRef.current;
     panelRef.current?.focus();
 
     return () => {
@@ -78,7 +79,7 @@ function usePanelFocus(
       // the body when the focused element goes with it. Anything else means the
       // user has since chosen where focus should be, and it is not ours to take.
       if (document.activeElement !== document.body) return;
-      rootRef.current?.querySelector<HTMLElement>('[aria-haspopup="menu"]')?.focus();
+      root?.querySelector<HTMLElement>('[aria-haspopup="menu"]')?.focus();
     };
   }, [open, panelRef, rootRef]);
 }

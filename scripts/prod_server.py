@@ -21,6 +21,12 @@ from typing import Any
 
 import uvicorn
 
+# Ahead of every backend import below: the backend uses PEP 695 syntax that older
+# interpreters cannot parse, so an unguarded run dies with a bare SyntaxError.
+from py_version import require_python
+
+require_python()
+
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
 DIST_INDEX = ROOT / "frontend" / "dist" / "index.html"

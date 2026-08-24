@@ -215,7 +215,6 @@ no prior reasoning to keep — it matters only once a flow sends the model its o
 
 | Variable | Purpose |
 | --- | --- |
-| `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` | Auth for gated SAM weights |
 | `OSTRIS_TOOLKIT_ROOT` | Path to an AI-Toolkit install, so external train jobs can be listed |
 | `DATAFORGE_DB_PATH` | Override the SQLite path (default is under `backend/data/`) |
 | `DATAFORGE_THUMBNAIL_CACHE` | Override the thumbnail cache directory |

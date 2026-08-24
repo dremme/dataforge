@@ -29,7 +29,8 @@ These are common instructions for agents across all scenarios.
 These are more project specific engineering rules.
 
 - Always format your code according to the linting rules.
-- Verify your work with `backend/.venv/Scripts/python scripts/run_checks.py --fix`, run from the project root.
+- Verify your work with `scripts/run_checks.py --fix`, run from the project root using the venv Python -
+  `backend/.venv/Scripts/python` on Windows, `backend/.venv/bin/python` on Linux and macOS.
     This covers lint, formatting, typechecking, and tests for both halves of the stack, and is what CI and the pre-commit hook run.
     Narrow it with `--lint-only` to skip tests, or `--scope backend` / `--scope frontend` when you touched only one side.
     Per-tool commands such as `npm test` or `ruff check` cover half the project at best, so never finish on those alone.

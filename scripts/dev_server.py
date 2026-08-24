@@ -23,6 +23,12 @@ from typing import Any
 
 import uvicorn
 
+# Ahead of every backend import below: the backend uses PEP 695 syntax that older
+# interpreters cannot parse, so an unguarded run dies with a bare SyntaxError.
+from py_version import require_python
+
+require_python()
+
 BACKEND = Path(__file__).resolve().parent.parent / "backend"
 
 DEFAULT_HOST = "127.0.0.1"

@@ -5,6 +5,12 @@
 #
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less scripts as
 # ANSI, so non-ASCII characters would be mangled.
+#
+# The Unix twin is scripts/dev-common.sh. Port defaults, .env precedence, the
+# build- and dependency-stamp filenames, and the rule that only leftover
+# python/node processes are ever killed are deliberately identical there.
+# Change one and change the other. Process supervision is the one part that is
+# meant to differ - see the note above Register-DevExitGuard.
 
 function Get-DevEnvMap {
     <#

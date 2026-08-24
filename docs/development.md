@@ -4,24 +4,33 @@ Working on DataForge itself. For running the app, see the [README](../README.md#
 
 ## Running with hot reload
 
-`dev.bat` (or `.\dev.ps1`) is the development launcher. It opens **two** consoles — the API with the uvicorn
-reloader on **http://localhost:8080** and the Vite dev server on **http://localhost:8081**, with Vite proxying
-`/api` to the API — waits until both are serving, then opens the browser and supervises them. Separate windows
-keep uvicorn's reload output from stepping on Vite's. It regenerates the API types first; see
-[Generated frontend code](#generated-frontend-code).
+`dev.bat` (or `.\dev.ps1`) on Windows, `./dev.sh` on Linux and macOS. Either one starts the API with the
+uvicorn reloader on **http://localhost:8080** and the Vite dev server on **http://localhost:8081**, with Vite
+proxying `/api` to the API, waits until both are serving, then opens the browser and supervises them. It
+regenerates the API types first; see [Generated frontend code](#generated-frontend-code).
 
-| Flag | Effect |
-| --- | --- |
-| `-BackendOnly` / `-FrontendOnly` | Start just one server |
-| `-NoBrowser` | Do not open the browser |
-| `-NoReload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
-| `-Detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` |
+| Windows | Unix | Effect |
+| --- | --- | --- |
+| `-BackendOnly` / `-FrontendOnly` | `--backend-only` / `--frontend-only` | Start just one server |
+| `-NoBrowser` | `--no-browser` | Do not open the browser |
+| `-NoReload` | `--no-reload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
+| `-Detach` | `--detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` / `./stop.sh` |
+
+The two differ in how they keep the logs apart, because the platforms make different things easy. Windows
+opens **two consoles**, so uvicorn's reload output never steps on Vite's, and needs a Win32 console-control
+handler (`Register-DevExitGuard`) to keep a closed launcher from orphaning them. Unix runs both as background
+children in their own process groups and tags their output `[api]` and `[ui]` in the one terminal, where a
+single shell trap covers Ctrl+C, `kill`, and a closed terminal alike.
 
 `start-backend.ps1` and `start-frontend.ps1` run a single dev server in the current terminal and prefer
-`.python` / `.node` when present. All of them share `scripts/dev-common.ps1` with `dev.ps1`, `start.ps1`, and
-`stop.ps1`, so type regeneration, port cleanup, and the dependency-drift warning behave identically everywhere.
+`.python` / `.node` when present; on Unix, `./dev.sh --backend-only` and `--frontend-only` cover the same
+ground. Each platform's launchers share one helper — `scripts/dev-common.ps1` and `scripts/dev-common.sh` —
+so type regeneration, port cleanup, and the dependency-drift warning behave identically everywhere. The two
+helpers are deliberate mirrors of each other: port defaults, `.env` precedence, the build- and dependency-stamp
+filenames, and the rule that only leftover `python`/`node` processes are ever killed all match. Change one and
+change the other.
 
-On Linux or macOS, run the two halves yourself from the project root:
+Without the launchers, run the two halves yourself from the project root:
 
 ```bash
 # Terminal 1 — API
@@ -31,13 +40,29 @@ backend/.venv/bin/python scripts/dev_server.py
 cd frontend && npm run dev
 ```
 
-`stop.bat` frees both ports and covers either launcher. You should rarely need it: closing a launcher window
-stops the servers it started. It is for `-Detach`, for a server console closed by hand, and for the Linux/macOS
-shape above where nothing is supervising.
+`stop.bat` / `./stop.sh` frees both ports and covers either launcher. You should rarely need it: stopping a
+launcher stops the servers it started. It is for `-Detach` / `--detach`, for a server console closed by hand,
+and for the manual shape above where nothing is supervising.
+
+### Checking the Unix launchers after a change
+
+They cannot be exercised on Windows — `bash -n` catches syntax errors from anywhere, but nothing past that.
+On a real Unix host, from a clean clone:
+
+- `./setup.sh` → `./start.sh` → the app answers on http://localhost:8081 → Ctrl+C leaves both ports free
+  (`./stop.sh` confirms).
+- `./dev.sh` → both servers come up, HMR works, Ctrl+C reaps the **uvicorn reload child**. This is the case
+  most likely to leave an orphan, so check the port is actually free afterwards.
+- `./start.sh` immediately after `./dev.sh` — the leftover Vite listener on the UI port must be cleared, not
+  fatal.
+- `./start.sh` twice — the second run should print "Frontend build is up to date" and skip the build. Then
+  `touch frontend/src/main.tsx` and confirm the next run rebuilds.
+- `nc -l 8081`, then `./start.sh` — `clear_port` must name the process and refuse, rather than killing
+  something that is not ours.
 
 ## Tech stack
 
-- **Backend** — Python 3.11+, FastAPI, SQLite, Pillow, with an optional OpenAI client and Ultralytics
+- **Backend** — Python 3.12+, FastAPI, SQLite, Pillow, with an optional OpenAI client
 - **Frontend** — React 19, TypeScript, Vite, SCSS
 - **Local AI** — any OpenAI-compatible vision endpoint
 
@@ -46,7 +71,7 @@ shape above where nothing is supervising.
 ```text
 DataForge/
 ├── backend/           # FastAPI, jobs, captions, media I/O, automation
-│   ├── automation/    # Job runners + YOLO/SAM weights (downloaded locally)
+│   ├── automation/    # Job runners
 │   ├── data/          # Local SQLite + thumbnails (gitignored)
 │   └── routes/        # HTTP API
 ├── frontend/          # React + TypeScript + Vite UI
@@ -58,10 +83,10 @@ DataForge/
 ├── sample-images/     # Tiny example dataset
 ├── .env.example       # Sample env vars: ports, AI config (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
-├── setup.bat / .ps1   # Windows self-contained install (no global Python/Node)
-├── start.bat / .ps1   # Production launcher - builds the UI, serves both halves
-├── dev.bat / .ps1     # Dev launcher - two servers with hot reload
-├── stop.bat / .ps1    # Frees the ports
+├── setup.bat/.ps1/.sh # One-time install: venv, dependencies, generated types
+├── start.bat/.ps1/.sh # Production launcher - builds the UI, serves both halves
+├── dev.bat/.ps1/.sh   # Dev launcher - two servers with hot reload
+├── stop.bat/.ps1/.sh  # Frees the ports
 ├── SECURITY.md
 └── LICENSE            # Apache-2.0
 ```
@@ -80,14 +105,14 @@ DataForge/
 All three are **gitignored**, so a fresh clone does not have them, and two of them carry real values rather
 than types alone — the frontend will not build or start until they exist.
 
-They are generated by `setup.bat`, by `scripts/run_checks.py` before anything compiles, and by both launchers
-(`dev.ps1` and `start.ps1`) on every run. The launchers do it because gitignored files are exactly the ones
-git leaves alone when you switch branches — they keep the other branch's shape, with a perfectly ordinary
+They are generated by the setup scripts, by `scripts/run_checks.py` before anything compiles, and by every
+launcher on every run. The launchers do it because gitignored files are exactly the ones git leaves alone
+when you switch branches — they keep the other branch's shape, with a perfectly ordinary
 mtime, and an existence check cannot tell that from a fresh one. Regenerating only rewrites a file whose
-content actually changed, so an unchanged shape still leaves `start.ps1`'s build-freshness check alone.
+content actually changed, so an unchanged shape still leaves the launchers' build-freshness check alone.
 
-Generate them by hand after a fresh clone on Linux or macOS, and after editing `schemas.py` or `constants.py`
-during a running dev session — nothing regenerates until the next launch or the next `run_checks.py`.
+Generate them by hand after editing `schemas.py` or `constants.py` during a running dev session — nothing
+regenerates until the next launch or the next `run_checks.py`.
 
 **Never edit these files.** They carry a `Do not edit` header and the next generator run overwrites them;
 frontend-only shapes belong in the module that uses them.

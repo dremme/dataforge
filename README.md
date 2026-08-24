@@ -7,8 +7,8 @@ Built for people who curate training data for generative models — LoRAs, fine-
 
 [![Checks](https://github.com/dremme/dataforge/actions/workflows/checks.yml/badge.svg)](https://github.com/dremme/dataforge/actions/workflows/checks.yml)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Node](https://img.shields.io/badge/node-20%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#system-requirements)
 
 [Quick start](#quick-start) · [Features](#features) · [Requirements](#system-requirements) · [Configuration](docs/configuration.md) · [Development](docs/development.md) · [Security](SECURITY.md) · [License](#license)
@@ -68,15 +68,52 @@ All three stop the server cleanly. `stop.bat` is the fallback for the cases with
 
 Working on DataForge itself? Use `dev.bat` instead — see [Running with hot reload](docs/development.md#running-with-hot-reload).
 
-### Linux, macOS, or a global Python/Node
+### Linux and macOS
 
-Requires Python **3.11+** and Node **20+** with npm. From the **project root**:
+Requires Python **3.12+** and Node **20.19+** with npm — both are hard floors rather than preferences, and
+`./setup.sh` checks them before it does anything. From the **project root**:
+
+**1. Setup (once)** — `./setup.sh`. It verifies the interpreters, creates `backend/.venv`, installs the backend
+and frontend dependencies, and generates the frontend's view of the backend API — see
+[Generated frontend code](docs/development.md#generated-frontend-code).
 
 ```bash
-# One-time setup
-python -m venv backend/.venv
+./setup.sh
+```
+
+**2. Run** — `./start.sh`. The launcher does the same work as the Windows one: regenerates the API types, builds
+the frontend when a source changed since the last build, frees the app port if a previous run left a server
+behind, waits until `/api/health` answers, then opens **http://localhost:8081** and supervises the server.
+Press any key, or **Ctrl+C**, to stop it.
+
+```bash
+./start.sh
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--rebuild` | Build the frontend even when it looks up to date |
+| `--no-build` | Never build; serve whatever is already in `frontend/dist` |
+| `--no-browser` | Do not open the browser |
+| `--detach` | Exit once the server is ready instead of supervising; stop it later with `./stop.sh` |
+
+**3. Optional AI config** — copy `.env.example` to `.env` in the project root and set the `OPENAI_*` variables.
+The backend loads `.env` automatically on startup. See [Configuration](docs/configuration.md).
+
+**4. Daily use** — only `./start.sh` is needed from then on. Re-run `./setup.sh` to refresh dependencies.
+
+Working on DataForge itself? Use `./dev.sh` instead — see
+[Running with hot reload](docs/development.md#running-with-hot-reload).
+
+<details>
+<summary>Without the scripts</summary>
+
+The launchers are convenience only. The same thing by hand, from the project root:
+
+```bash
+python3.12 -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
-cd frontend && npm install && cd ..
+cd frontend && npm ci && cd ..
 
 # Required before the frontend will build — see docs/development.md
 backend/.venv/bin/python scripts/generate_types.py
@@ -88,6 +125,8 @@ backend/.venv/bin/python scripts/prod_server.py
 
 Then open **http://localhost:8081**. Re-run `npm run build` after changing frontend sources —
 `prod_server.py` serves whatever is in `frontend/dist`.
+
+</details>
 
 ### Try the sample dataset
 
