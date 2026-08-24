@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import type { DuplicateThreshold } from "@/shared/types";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
 
 const THRESHOLD_OPTIONS: ReadonlyArray<RadioTileOption<DuplicateThreshold>> = [
@@ -13,6 +14,8 @@ const THRESHOLD_OPTIONS: ReadonlyArray<RadioTileOption<DuplicateThreshold>> = [
 interface FindDuplicatesDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["find_duplicates"];
   busy?: boolean;
   onConfirm: (threshold: DuplicateThreshold) => void;
   onCancel: () => void;
@@ -20,11 +23,12 @@ interface FindDuplicatesDialogProps {
 
 export function FindDuplicatesDialog({
   scope,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: FindDuplicatesDialogProps) {
-  const [threshold, setThreshold] = useState<DuplicateThreshold>("near");
+  const [threshold, setThreshold] = useState<DuplicateThreshold>(initialSettings.threshold);
 
   const handleConfirm = useCallback(() => {
     if (busy) return;

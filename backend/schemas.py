@@ -322,7 +322,13 @@ class JobSelectionRequest(BaseModel):
     )
 
 
-class AutoCaptionStartRequest(JobSelectionRequest):
+# Every ``*JobSettings`` model below is the slice of a job start that
+# ``automation_settings.py`` remembers per folder. Each start request inherits its
+# settings model so the two cannot drift apart, and any field a start declares for
+# itself is one we deliberately never store.
+
+
+class AutoCaptionJobSettings(BaseModel):
     mode: AutomationMode = "thinking"
     reasoning_effort: ReasoningEffort = "medium"
     preserve_thinking: bool = Field(
@@ -335,13 +341,21 @@ class AutoCaptionStartRequest(JobSelectionRequest):
     )
 
 
-class SetCaptionsStartRequest(JobSelectionRequest):
+class AutoCaptionStartRequest(JobSelectionRequest, AutoCaptionJobSettings):
+    pass
+
+
+class SetCaptionsJobSettings(BaseModel):
     caption: str = ""
+
+
+class SetCaptionsStartRequest(JobSelectionRequest, SetCaptionsJobSettings):
+    # Never remembered: overwriting existing captions must be re-chosen every run.
     overwrite: bool = False
 
 
-class CaptionReplaceRequest(BaseModel):
-    """The edit itself, shared by the job start and its preview.
+class ReplaceCaptionsJobSettings(BaseModel):
+    """The edit itself, shared by the job start, its preview, and what we remember.
 
     ``search`` and the flags are deliberately unconstrained so a refusal (an empty
     term, a regex that does not compile) comes back as the job's own 400 message
@@ -355,11 +369,11 @@ class CaptionReplaceRequest(BaseModel):
     case_sensitive: bool = False
 
 
-class ReplaceCaptionsStartRequest(JobSelectionRequest, CaptionReplaceRequest):
+class ReplaceCaptionsStartRequest(JobSelectionRequest, ReplaceCaptionsJobSettings):
     pass
 
 
-class ReplaceCaptionsPreviewRequest(JobSelectionRequest, CaptionReplaceRequest):
+class ReplaceCaptionsPreviewRequest(JobSelectionRequest, ReplaceCaptionsJobSettings):
     pass
 
 
@@ -383,22 +397,39 @@ class ReplaceCaptionsPreviewResponse(BaseModel):
     error: str | None = None
 
 
-class FindDuplicatesStartRequest(JobSelectionRequest):
+class FindDuplicatesJobSettings(BaseModel):
     threshold: DuplicateThreshold = "near"
+
+
+class FindDuplicatesStartRequest(JobSelectionRequest, FindDuplicatesJobSettings):
+    pass
 
 
 class StripMetadataStartRequest(JobSelectionRequest):
     pass
 
 
-class BatchRenameStartRequest(JobSelectionRequest):
+class BatchRenameJobSettings(BaseModel):
     stem: str = ""
     # Unconstrained like ``stem``: an out-of-range number comes back as the job's own
     # 400 message rather than a pydantic validation blob.
     start_number: int = 1
 
 
-class BackupCaptionsStartRequest(JobSelectionRequest):
+class BatchRenameStartRequest(JobSelectionRequest, BatchRenameJobSettings):
+    pass
+
+
+class BackupCaptionsJobSettings(BaseModel):
+    """No remembered fields: ``overwrite`` is destructive and always re-chosen.
+
+    Registered anyway so every job with a dialog travels the same path, leaving no
+    special case in the registry, the response, or the frontend.
+    """
+
+
+class BackupCaptionsStartRequest(JobSelectionRequest, BackupCaptionsJobSettings):
+    # Never remembered: replacing existing backups must be re-chosen every run.
     overwrite: bool = Field(
         default=False,
         description="Replace sidecars already in the backup folder instead of keeping them.",
@@ -409,7 +440,7 @@ class RestoreCaptionsStartRequest(JobSelectionRequest):
     pass
 
 
-class WatermarkStartRequest(JobSelectionRequest):
+class WatermarkJobSettings(BaseModel):
     # ``text`` is deliberately unconstrained so its refusal comes back as the job's own
     # 400 message rather than a pydantic validation blob.
     text: str = ""
@@ -418,40 +449,11 @@ class WatermarkStartRequest(JobSelectionRequest):
     position: WatermarkPosition = "bottom"
 
 
-class WatermarkSettingsResponse(BaseModel):
-    text: str = ""
-    size: WatermarkSizeName = "medium"
-    opacity: WatermarkOpacity = 50
-    position: WatermarkPosition = "bottom"
+class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):
+    pass
 
 
-class WatermarkSettingsUpdate(BaseModel):
-    text: str | None = None
-    size: WatermarkSizeName | None = None
-    opacity: WatermarkOpacity | None = None
-    position: WatermarkPosition | None = None
-
-
-class VerifyCaptionsSettingsResponse(BaseModel):
-    mode: AutomationMode = "instruct"
-    reasoning_effort: ReasoningEffort = "medium"
-    preserve_thinking: bool = Field(
-        default=True,
-        description="Keep earlier assistant reasoning in the rendered prompt.",
-    )
-    context: str = ""
-    folder_path: str
-
-
-class VerifyCaptionsSettingsUpdate(BaseModel):
-    mode: AutomationMode | None = None
-    reasoning_effort: ReasoningEffort | None = None
-    preserve_thinking: bool | None = None
-    context: str | None = None
-    folder_path: str
-
-
-class VerifyCaptionsStartRequest(JobSelectionRequest):
+class VerifyCaptionsJobSettings(BaseModel):
     mode: AutomationMode = "instruct"
     reasoning_effort: ReasoningEffort = "medium"
     preserve_thinking: bool = Field(
@@ -461,11 +463,22 @@ class VerifyCaptionsStartRequest(JobSelectionRequest):
     context: str = ""
 
 
-class TrainLoraStartRequest(JobSelectionRequest):
-    lora_name: str = ""
+class VerifyCaptionsStartRequest(JobSelectionRequest, VerifyCaptionsJobSettings):
+    pass
+
+
+class TrainLoraJobSettings(BaseModel):
     trigger_word: str = ""
     prompts: list[str] = Field(default_factory=list)
     model: TrainingModel = "krea2_turbo"
+
+
+class TrainLoraStartRequest(JobSelectionRequest, TrainLoraJobSettings):
+    # Never remembered: the name is the job's ``external_ref`` and its resume key, so
+    # prefilling it would let a confirm-without-editing attach to an earlier run.
+    lora_name: str = ""
+    # Never remembered either: an edited template is a per-run override that
+    # ``useTrainingTemplateDraft.ts`` deliberately keeps in memory only.
     template: str | None = Field(
         default=None,
         description=(
@@ -473,6 +486,25 @@ class TrainLoraStartRequest(JobSelectionRequest):
             "template for the chosen model."
         ),
     )
+
+
+class AutomationSettingsResponse(BaseModel):
+    """Every job's remembered settings for one folder.
+
+    Each field is named after its job type: ``automation_settings.py`` builds this by
+    splatting its store registry, and a test pins the two to each other.
+    """
+
+    folder_path: str
+    auto_caption: AutoCaptionJobSettings = Field(default_factory=AutoCaptionJobSettings)
+    set_captions: SetCaptionsJobSettings = Field(default_factory=SetCaptionsJobSettings)
+    replace_captions: ReplaceCaptionsJobSettings = Field(default_factory=ReplaceCaptionsJobSettings)
+    backup_captions: BackupCaptionsJobSettings = Field(default_factory=BackupCaptionsJobSettings)
+    verify_captions: VerifyCaptionsJobSettings = Field(default_factory=VerifyCaptionsJobSettings)
+    batch_rename: BatchRenameJobSettings = Field(default_factory=BatchRenameJobSettings)
+    find_duplicates: FindDuplicatesJobSettings = Field(default_factory=FindDuplicatesJobSettings)
+    train_lora: TrainLoraJobSettings = Field(default_factory=TrainLoraJobSettings)
+    watermark: WatermarkJobSettings = Field(default_factory=WatermarkJobSettings)
 
 
 class TrainingTemplateResponse(BaseModel):

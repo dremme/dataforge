@@ -4,13 +4,9 @@ import type { AutoCaptionMode } from "@/features/automation/components/AutoCapti
 import type { ReplaceCaptionsSettings } from "@/features/automation/components/ReplaceCaptionsDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import {
-  loadVerifyCaptionsSettings,
-  type VerifyCaptionsSettings,
-} from "@/features/automation/preferences/verifyCaptionsPreferences";
-import {
-  loadWatermarkSettings,
-  type WatermarkSettings,
-} from "@/features/automation/preferences/watermarkPreferences";
+  loadAutomationSettings,
+  type AutomationSettings,
+} from "@/features/automation/preferences/automationPreferences";
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
@@ -54,14 +50,12 @@ export function useAutomationDialogOverlays({
 }: UseAutomationDialogOverlaysOptions) {
   // At most one dialog is ever open, so one job type beats a boolean per dialog.
   const [openJobType, setOpenJobType] = useState<JobType | null>(null);
-  const [verifyCaptionsSettings, setVerifyCaptionsSettings] =
-    useState<VerifyCaptionsSettings | null>(null);
-  const [watermarkSettings, setWatermarkSettings] = useState<WatermarkSettings | null>(null);
+  // This folder's saved settings, loaded before any dialog opens.
+  const [settings, setSettings] = useState<AutomationSettings | null>(null);
 
   const closeDialog = useCallback(() => {
     setOpenJobType(null);
-    setVerifyCaptionsSettings(null);
-    setWatermarkSettings(null);
+    setSettings(null);
   }, []);
 
   /** Closes the dialog, then starts its job; a rejection is already reported by the context. */
@@ -73,18 +67,6 @@ export function useAutomationDialogOverlays({
     },
     [closeDialog, folderPath, getJobPaths, startJob],
   );
-
-  const openVerifyCaptionsDialog = useCallback(async () => {
-    if (!folderPath) return;
-    const settings = await loadVerifyCaptionsSettings(folderPath);
-    setVerifyCaptionsSettings(settings);
-    setOpenJobType("verify_captions");
-  }, [folderPath]);
-
-  const openWatermarkDialog = useCallback(async () => {
-    setWatermarkSettings(await loadWatermarkSettings());
-    setOpenJobType("watermark");
-  }, []);
 
   const scope = useMemo<DialogScopeInfo>(
     () => ({ itemCount, folderLabel, fromSelection: selectionActive }),
@@ -110,9 +92,12 @@ export function useAutomationDialogOverlays({
   );
 
   const dialogs = useMemo<AutomationDialogsState>(() => {
-    const shared = (jobType: JobType) => ({
+    const shared = <K extends keyof AutomationSettings & JobType>(jobType: K) => ({
       open: openJobType === jobType,
       scope,
+      // Every dialog starts from what its last run used, so there is no job type
+      // here that reads its settings differently from the rest.
+      initialSettings: settings?.[jobType] ?? null,
       busy: startingJobType === jobType,
       onCancel: closeDialog,
     });
@@ -128,13 +113,13 @@ export function useAutomationDialogOverlays({
         folderPath: folderPath ?? "",
         // The same selection the job will run on, so the preview counts what it edits.
         selectedPaths: getJobPaths?.(),
-        onConfirm: (settings: ReplaceCaptionsSettings) =>
+        onConfirm: (edit: ReplaceCaptionsSettings) =>
           startJobFromDialog("replace_captions", {
-            mode: settings.mode,
-            search: settings.search,
-            replacement: settings.replacement,
-            use_regex: settings.useRegex,
-            case_sensitive: settings.caseSensitive,
+            mode: edit.mode,
+            search: edit.search,
+            replacement: edit.replacement,
+            use_regex: edit.useRegex,
+            case_sensitive: edit.caseSensitive,
           }),
       },
       backupCaptions: {
@@ -158,8 +143,6 @@ export function useAutomationDialogOverlays({
       },
       verifyCaptions: {
         ...shared("verify_captions"),
-        folderPath: folderPath ?? "",
-        initialSettings: verifyCaptionsSettings,
         onConfirm: (
           mode: VerifyCaptionsMode,
           context: string,
@@ -186,12 +169,11 @@ export function useAutomationDialogOverlays({
       trainLora: {
         ...shared("train_lora"),
         scope: trainLoraScope,
-        onConfirm: (settings: TrainLoraSettings) =>
-          startJobFromDialog("train_lora", trainLoraBody(settings)),
+        onConfirm: (draft: TrainLoraSettings) =>
+          startJobFromDialog("train_lora", trainLoraBody(draft)),
       },
       watermark: {
         ...shared("watermark"),
-        initialSettings: watermarkSettings,
         onConfirm: (
           text: string,
           size: WatermarkSizeName,
@@ -206,21 +188,22 @@ export function useAutomationDialogOverlays({
     getJobPaths,
     openJobType,
     scope,
+    settings,
     startJobFromDialog,
     startingJobType,
     trainLoraScope,
-    verifyCaptionsSettings,
-    watermarkSettings,
   ]);
 
-  /** Shows a job type's dialog, loading its saved settings first when it has any. */
+  /** Shows a job type's dialog, loading this folder's saved settings first. */
   const openDialogForJobType = useCallback(
     (jobType: JobType) => {
-      if (jobType === "verify_captions") void openVerifyCaptionsDialog();
-      else if (jobType === "watermark") void openWatermarkDialog();
-      else setOpenJobType(jobType);
+      if (!folderPath) return;
+      void (async () => {
+        setSettings(await loadAutomationSettings(folderPath));
+        setOpenJobType(jobType);
+      })();
     },
-    [openVerifyCaptionsDialog, openWatermarkDialog],
+    [folderPath],
   );
 
   return { dialogs, openDialogForJobType };

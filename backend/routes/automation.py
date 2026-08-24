@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from automation.jobs import JobType, job_manager
 from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
+from automation_settings import remember_job_settings
 from external.ostris_training import (
     OstrisTrainingError,
     parse_training_template,
@@ -17,6 +18,7 @@ from schemas import (
     BatchRenameStartRequest,
     FindDuplicatesStartRequest,
     JobResponse,
+    JobSelectionRequest,
     ReplaceCaptionsPreviewRequest,
     ReplaceCaptionsPreviewResponse,
     ReplaceCaptionsStartRequest,
@@ -31,8 +33,6 @@ from schemas import (
     VerifyCaptionsStartRequest,
     WatermarkStartRequest,
 )
-from verify_captions_settings import update_verify_captions_settings
-from watermark_settings import update_watermark_settings
 
 router = APIRouter()
 
@@ -40,12 +40,17 @@ router = APIRouter()
 def _start_job(
     job_type: JobType,
     folder: Path,
-    paths: list[str] | None,
+    body: JobSelectionRequest,
     **params: object,
 ) -> JobResponse:
-    """Resolve the selection and queue ``job_type``, mapping refusals onto 400s."""
+    """Resolve the selection, queue ``job_type``, and remember what it ran with.
+
+    Persisting here rather than in each route is what keeps every job consistent: a
+    job type earns per-folder settings by appearing in ``JOB_SETTINGS_MODELS``, not
+    by its own route remembering to save.
+    """
     try:
-        selected_paths = resolve_selected_media(folder, paths)
+        selected_paths = resolve_selected_media(folder, body.paths)
         job = job_manager.queue_job(
             job_type,
             folder,
@@ -55,6 +60,9 @@ def _start_job(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # Only a job that actually queued is worth remembering: the refusals here are
+    # things like empty watermark text and a regex that does not compile.
+    remember_job_settings(job_type, body, folder_path=str(folder))
     return job_response(job)
 
 
@@ -66,7 +74,7 @@ def start_auto_caption(
     return _start_job(
         "auto_caption",
         resolve_folder(path),
-        body.paths,
+        body,
         mode=body.mode,
         reasoning_effort=body.reasoning_effort,
         preserve_thinking=body.preserve_thinking,
@@ -82,7 +90,7 @@ def start_set_captions_job(
     return _start_job(
         "set_captions",
         resolve_folder(path),
-        body.paths,
+        body,
         caption=body.caption,
         overwrite=body.overwrite,
     )
@@ -96,7 +104,7 @@ def start_replace_captions_job(
     return _start_job(
         "replace_captions",
         resolve_folder(path),
-        body.paths,
+        body,
         mode=body.mode,
         search=body.search,
         replacement=body.replacement,
@@ -142,7 +150,7 @@ def start_find_duplicates_job(
     return _start_job(
         "find_duplicates",
         resolve_folder(path),
-        body.paths,
+        body,
         threshold=body.threshold,
     )
 
@@ -152,7 +160,7 @@ def start_strip_metadata_job(
     path: str = Query(..., description="Absolute path to folder with images and videos"),
     body: StripMetadataStartRequest = StripMetadataStartRequest(),
 ) -> JobResponse:
-    return _start_job("strip_metadata", resolve_folder(path), body.paths)
+    return _start_job("strip_metadata", resolve_folder(path), body)
 
 
 @router.post("/automation/batch-rename", response_model=JobResponse)
@@ -163,7 +171,7 @@ def start_batch_rename_job(
     return _start_job(
         "batch_rename",
         resolve_folder(path),
-        body.paths,
+        body,
         stem=body.stem,
         start_number=body.start_number,
     )
@@ -177,7 +185,7 @@ def start_backup_captions_job(
     return _start_job(
         "backup_captions",
         resolve_folder(path),
-        body.paths,
+        body,
         overwrite=body.overwrite,
     )
 
@@ -187,7 +195,7 @@ def start_restore_captions_job(
     path: str = Query(..., description="Absolute path to folder with images and videos"),
     body: RestoreCaptionsStartRequest = RestoreCaptionsStartRequest(),
 ) -> JobResponse:
-    return _start_job("restore_captions", resolve_folder(path), body.paths)
+    return _start_job("restore_captions", resolve_folder(path), body)
 
 
 @router.post("/automation/verify-captions", response_model=JobResponse)
@@ -195,20 +203,10 @@ def start_verify_captions_job(
     path: str = Query(..., description="Absolute path to folder with images"),
     body: VerifyCaptionsStartRequest = VerifyCaptionsStartRequest(),
 ) -> JobResponse:
-    folder = resolve_folder(path)
-
-    update_verify_captions_settings(
-        mode=body.mode,
-        reasoning_effort=body.reasoning_effort,
-        preserve_thinking=body.preserve_thinking,
-        context=body.context,
-        folder_path=str(folder),
-    )
-
     return _start_job(
         "verify_captions",
-        folder,
-        body.paths,
+        resolve_folder(path),
+        body,
         mode=body.mode,
         reasoning_effort=body.reasoning_effort,
         preserve_thinking=body.preserve_thinking,
@@ -221,14 +219,10 @@ def start_watermark_job(
     path: str = Query(..., description="Absolute path to folder with images and videos"),
     body: WatermarkStartRequest = WatermarkStartRequest(),
 ) -> JobResponse:
-    update_watermark_settings(
-        text=body.text, size=body.size, opacity=body.opacity, position=body.position
-    )
-
     return _start_job(
         "watermark",
         resolve_folder(path),
-        body.paths,
+        body,
         text=body.text,
         size=body.size,
         opacity=body.opacity,
@@ -244,7 +238,7 @@ def start_train_lora_job(
     return _start_job(
         "train_lora",
         resolve_folder(path),
-        body.paths,
+        body,
         lora_name=body.lora_name,
         trigger_word=body.trigger_word,
         prompts=body.prompts,

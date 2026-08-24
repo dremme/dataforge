@@ -3,13 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { GalleryItem } from "@/shared/types";
 import { useAutomationHost } from "./useAutomationHost";
 
-vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
-  loadVerifyCaptionsSettings: vi.fn(async (folderPath: string) => ({
-    mode: "instruct" as const,
-    context: "",
-    folderPath,
-  })),
-}));
+import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
+
+vi.mock("@/features/automation/preferences/automationPreferences", async (importOriginal) => {
+  const actual = await importOriginal<typeof AutomationPreferences>();
+  return {
+    ...actual,
+    loadAutomationSettings: vi.fn(async (folderPath: string) =>
+      actual.emptyAutomationSettings(folderPath),
+    ),
+  };
+});
 
 function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: boolean } = {}) {
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
@@ -50,7 +54,7 @@ describe("useAutomationHost", () => {
   it("opens the dialog before backing up captions", async () => {
     const { result, startJob } = setupHost();
 
-    act(() => {
+    await act(async () => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 
@@ -115,10 +119,10 @@ describe("useAutomationHost", () => {
     expect(startJob).not.toHaveBeenCalled();
   });
 
-  it("still allows a backup when the folder has no backup yet", () => {
+  it("still allows a backup when the folder has no backup yet", async () => {
     const { result } = setupHost({ hasCaptionBackup: false });
 
-    act(() => {
+    await act(async () => {
       result.current.panelProps.onRequestStart("backup_captions");
     });
 

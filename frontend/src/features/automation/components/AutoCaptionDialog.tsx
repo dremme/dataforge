@@ -10,12 +10,15 @@ import {
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
 export type AutoCaptionMode = AutomationMode;
 
 interface AutoCaptionDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["auto_caption"];
   busy?: boolean;
   onConfirm: (
     mode: AutoCaptionMode,
@@ -28,14 +31,17 @@ interface AutoCaptionDialogProps {
 
 export function AutoCaptionDialog({
   scope,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: AutoCaptionDialogProps) {
-  const [mode, setMode] = useState<AutoCaptionMode>("thinking");
-  const [captionAudio, setCaptionAudio] = useState(false);
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
-  const [preserveThinking, setPreserveThinking] = useState(true);
+  const [mode, setMode] = useState<AutoCaptionMode>(initialSettings.mode);
+  const [captionAudio, setCaptionAudio] = useState(initialSettings.caption_audio);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(
+    initialSettings.reasoning_effort,
+  );
+  const [preserveThinking, setPreserveThinking] = useState(initialSettings.preserve_thinking);
   const captionAudioId = useId();
   const preserveThinkingId = useId();
 

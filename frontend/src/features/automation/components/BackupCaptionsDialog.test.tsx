@@ -13,6 +13,7 @@ describe("BackupCaptionsDialog", () => {
     render(
       <BackupCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={{}}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
@@ -32,6 +33,7 @@ describe("BackupCaptionsDialog", () => {
     render(
       <BackupCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={{}}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
@@ -50,6 +52,7 @@ describe("BackupCaptionsDialog", () => {
     render(
       <BackupCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={{}}
         busy
         onConfirm={onConfirm}
         onCancel={vi.fn()}

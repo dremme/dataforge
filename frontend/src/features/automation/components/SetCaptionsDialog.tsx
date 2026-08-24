@@ -1,10 +1,13 @@
 import { useCallback, useId, useRef, useState } from "react";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
 interface SetCaptionsDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["set_captions"];
   busy?: boolean;
   onConfirm: (caption: string, overwrite: boolean) => void;
   onCancel: () => void;
@@ -12,11 +15,14 @@ interface SetCaptionsDialogProps {
 
 export function SetCaptionsDialog({
   scope,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: SetCaptionsDialogProps) {
-  const [caption, setCaption] = useState("");
+  const [caption, setCaption] = useState(initialSettings.caption);
+  // Never restored: overwriting existing captions is destructive, so it is re-chosen
+  // every run however the last one was started.
   const [overwrite, setOverwrite] = useState(false);
   const captionId = useId();
   const overwriteId = useId();

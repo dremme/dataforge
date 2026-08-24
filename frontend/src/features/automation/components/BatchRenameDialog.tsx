@@ -2,6 +2,7 @@ import { useCallback, useId, useState } from "react";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
 const INVALID_STEM_PATTERN = /[<>:"/\\|?*]/;
 const START_NUMBER_PATTERN = /^\d+$/;
@@ -9,6 +10,8 @@ const START_NUMBER_PATTERN = /^\d+$/;
 interface BatchRenameDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["batch_rename"];
   busy?: boolean;
   onConfirm: (stem: string, startNumber: number) => void;
   onCancel: () => void;
@@ -25,13 +28,14 @@ function sequenceName(stem: string, index: number, padding: number): string {
 
 export function BatchRenameDialog({
   scope,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: BatchRenameDialogProps) {
-  const [stem, setStem] = useState("");
+  const [stem, setStem] = useState(initialSettings.stem);
   // Held as text so the field can be emptied mid-edit instead of snapping back to 0.
-  const [startNumber, setStartNumber] = useState("1");
+  const [startNumber, setStartNumber] = useState(String(initialSettings.start_number));
   const [error, setError] = useState<string | null>(null);
   const stemId = useId();
   const startNumberId = useId();

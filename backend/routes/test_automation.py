@@ -12,6 +12,7 @@ from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
 from automation.jobs import JOB_SPECS, Job, job_manager
+from automation_settings import AUTOMATION_SETTINGS_KEY_PREFIX, JOB_SETTINGS_MODELS
 from db import get_connection
 from external.ostris_training import OstrisTrainingError
 from routes._test_client import client
@@ -23,7 +24,6 @@ from testing_fixtures import (
     write_sysprompt,
     write_txt_caption,
 )
-from watermark_settings import WATERMARK_SETTINGS_KEY
 
 
 @contextmanager
@@ -32,6 +32,13 @@ def _patched_job_runner(job_type: str, run: Callable[..., object]) -> Iterator[N
     patched = replace(JOB_SPECS[job_type], run=run)  # type: ignore[index]
     with patch.dict(JOB_SPECS, {job_type: patched}):
         yield
+
+
+def _stored_settings(folder: Path) -> dict:
+    """Every job's remembered settings for ``folder``, as the dialogs would read them."""
+    response = client.get(f"/api/preferences/automation?path={quote(str(folder))}")
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 class AutoCaptionAutomationEndpointTests(unittest.TestCase):
@@ -304,13 +311,10 @@ class VerifyCaptionsAutomationEndpointTest(unittest.TestCase):
         reset_job_manager()
 
     def tearDown(self) -> None:
-        from db import get_connection
-        from verify_captions_settings import VERIFY_CAPTIONS_SETTINGS_KEY
-
         with get_connection() as conn:
             conn.execute(
-                "DELETE FROM preferences WHERE key = ?",
-                (VERIFY_CAPTIONS_SETTINGS_KEY,),
+                "DELETE FROM preferences WHERE key LIKE ?",
+                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
             )
             conn.commit()
 
@@ -419,7 +423,10 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         with get_connection() as conn:
-            conn.execute("DELETE FROM preferences WHERE key = ?", (WATERMARK_SETTINGS_KEY,))
+            conn.execute(
+                "DELETE FROM preferences WHERE key LIKE ?",
+                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
+            )
             conn.commit()
 
     def _start(self, folder: Path, **body: object) -> object:
@@ -480,7 +487,7 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
             self._start(root, size="large", opacity=25, position="center")
 
             self.assertEqual(
-                client.get("/api/preferences/watermark").json(),
+                _stored_settings(root)["watermark"],
                 {
                     "text": "Sample Studio",
                     "size": "large",
@@ -488,6 +495,16 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
                     "position": "center",
                 },
             )
+
+    def test_a_refused_start_does_not_store_the_settings(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            refused = self._start(root, text="   ", size="large")
+
+            self.assertEqual(refused.status_code, 400)
+            # Storing before queueing would have kept the size of a run that never happened.
+            self.assertEqual(_stored_settings(root)["watermark"]["size"], "medium")
 
 
 class TrainLoraAutomationEndpointTests(unittest.TestCase):
@@ -700,3 +717,138 @@ class TrainingTemplateEndpointTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+#: One non-default start body per job type, with the endpoint that accepts it. Keyed by
+#: job type so ``JobSettingsPersistenceTests`` can assert it covers the whole registry.
+_NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
+    "auto_caption": (
+        "auto-caption",
+        {
+            "mode": "instruct",
+            "reasoning_effort": "low",
+            "preserve_thinking": False,
+            "caption_audio": True,
+        },
+    ),
+    "set_captions": ("set-captions", {"caption": "A mountain lake.", "overwrite": True}),
+    "replace_captions": (
+        "replace-captions",
+        {
+            "mode": "append",
+            "search": "lake",
+            "replacement": "river",
+            "use_regex": True,
+            "case_sensitive": True,
+        },
+    ),
+    "backup_captions": ("backup-captions", {"overwrite": True}),
+    "verify_captions": (
+        "verify-captions",
+        {
+            "mode": "thinking",
+            "context": "Studio product shots.",
+            "reasoning_effort": "low",
+            "preserve_thinking": False,
+        },
+    ),
+    "batch_rename": ("batch-rename", {"stem": "shot", "start_number": 7}),
+    "find_duplicates": ("find-duplicates", {"threshold": "loose"}),
+    "train_lora": (
+        "train-lora",
+        {
+            "lora_name": "sample_train_v1",
+            "trigger_word": "mtnstyle",
+            "prompts": ["a mountain lake at sunrise"],
+            "model": "h3_fl2va",
+        },
+    ),
+    "watermark": (
+        "watermark",
+        {"text": "Sample Studio", "size": "large", "opacity": 75, "position": "top"},
+    ),
+}
+
+
+def _noop_runner(folder: Path, **params: object) -> dict[str, object]:
+    return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+
+class JobSettingsPersistenceTests(unittest.TestCase):
+    """Every job with a dialog remembers what it ran with, for this folder and the next.
+
+    Table-driven on purpose: a new job type that registers settings but never stores
+    them fails here, which is the guarantee the per-folder settings rest on.
+    """
+
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def tearDown(self) -> None:
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM preferences WHERE key LIKE ?",
+                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
+            )
+            conn.commit()
+
+    def test_the_table_covers_every_job_that_registers_settings(self) -> None:
+        self.assertEqual(set(_NON_DEFAULT_STARTS), set(JOB_SETTINGS_MODELS))
+
+    def _run(self, job_type: str, folder: Path) -> dict:
+        endpoint, body = _NON_DEFAULT_STARTS[job_type]
+        write_sysprompt(folder, "Describe the scene.")
+        media = write_media(folder, "photo.png")
+        write_txt_caption(media, "A lake.")
+
+        with _patched_job_runner(job_type, _noop_runner):
+            response = client.post(
+                f"/api/automation/{endpoint}?path={quote(str(folder))}", json=body
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            wait_for_job(response.json()["id"])
+
+        return body
+
+    def test_every_job_remembers_its_settings_for_the_folder_it_ran_in(self) -> None:
+        for job_type, model in JOB_SETTINGS_MODELS.items():
+            with self.subTest(job_type=job_type), TempMediaFolder() as root:
+                body = self._run(job_type, root)
+
+                stored = _stored_settings(root)[job_type]
+                remembered = {
+                    name: value for name, value in body.items() if name in model.model_fields
+                }
+                self.assertEqual(stored, remembered)
+                # Anything left out of the settings model is a field we never store.
+                self.assertEqual(set(stored), set(model.model_fields))
+
+    def test_a_folder_with_no_run_of_its_own_starts_from_the_last_one(self) -> None:
+        for job_type, model in JOB_SETTINGS_MODELS.items():
+            with self.subTest(job_type=job_type):
+                with TempMediaFolder() as used:
+                    body = self._run(job_type, used)
+                with TempMediaFolder() as fresh:
+                    stored = _stored_settings(fresh)[job_type]
+
+                self.assertEqual(
+                    stored,
+                    {name: value for name, value in body.items() if name in model.model_fields},
+                )
+
+    def test_the_destructive_fields_are_never_remembered(self) -> None:
+        # Each of these must be re-chosen every run: two overwrite toggles, the LoRA
+        # name (the job's resume key) and a per-run template override.
+        never_stored = {"overwrite", "lora_name", "template", "paths"}
+        stored_fields = {
+            name for model in JOB_SETTINGS_MODELS.values() for name in model.model_fields
+        }
+
+        self.assertEqual(stored_fields & never_stored, set())
+
+    def test_a_run_that_set_overwrite_still_reads_back_without_it(self) -> None:
+        for job_type in ("set_captions", "backup_captions"):
+            with self.subTest(job_type=job_type), TempMediaFolder() as root:
+                self._run(job_type, root)
+
+                self.assertNotIn("overwrite", _stored_settings(root)[job_type])

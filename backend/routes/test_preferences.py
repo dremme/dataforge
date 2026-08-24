@@ -6,12 +6,11 @@ import json
 import unittest
 from urllib.parse import quote
 
+from automation_settings import AUTOMATION_SETTINGS_KEY_PREFIX, JOB_SETTINGS_MODELS
 from db import get_connection
 from gallery_display_settings import GALLERY_DISPLAY_SETTINGS_KEY
 from routes._test_client import client
 from ui_settings import UI_SETTINGS_KEY
-from verify_captions_settings import VERIFY_CAPTIONS_SETTINGS_KEY
-from watermark_settings import WATERMARK_SETTINGS_KEY
 
 
 class UiPreferencesEndpointTests(unittest.TestCase):
@@ -65,128 +64,6 @@ class UiPreferencesEndpointTests(unittest.TestCase):
 
         read_back = client.get("/api/preferences/ui")
         self.assertTrue(read_back.json()["show_automation_specs"])
-
-
-class VerifyCaptionsPreferencesEndpointTests(unittest.TestCase):
-    def tearDown(self) -> None:
-        with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM preferences WHERE key = ?",
-                (VERIFY_CAPTIONS_SETTINGS_KEY,),
-            )
-            conn.commit()
-
-    def test_read_default_settings(self) -> None:
-        with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM preferences WHERE key = ?",
-                (VERIFY_CAPTIONS_SETTINGS_KEY,),
-            )
-            conn.commit()
-
-        folder = r"C:\Photos"
-        response = client.get(f"/api/preferences/verify-captions?path={quote(folder)}")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["mode"], "instruct")
-        self.assertEqual(response.json()["reasoning_effort"], "medium")
-        self.assertIs(response.json()["preserve_thinking"], True)
-        self.assertEqual(response.json()["context"], "")
-        self.assertTrue(response.json()["folder_path"])
-
-    def test_path_is_required_on_read(self) -> None:
-        response = client.get("/api/preferences/verify-captions")
-        self.assertEqual(response.status_code, 422)
-
-    def test_folder_path_is_required_on_write(self) -> None:
-        response = client.put(
-            "/api/preferences/verify-captions",
-            json={"mode": "thinking", "context": "Notes."},
-        )
-        self.assertEqual(response.status_code, 422)
-
-    def test_context_is_stored_per_folder(self) -> None:
-        folder_a = r"C:\Photos\A"
-        folder_b = r"C:\Photos\B"
-
-        response_a = client.put(
-            "/api/preferences/verify-captions",
-            json={
-                "mode": "thinking",
-                "context": "Outdoor portraits.",
-                "folder_path": folder_a,
-            },
-        )
-        self.assertEqual(response_a.status_code, 200)
-        self.assertEqual(response_a.json()["mode"], "thinking")
-        self.assertEqual(response_a.json()["context"], "Outdoor portraits.")
-
-        response_b = client.put(
-            "/api/preferences/verify-captions",
-            json={
-                "mode": "thinking",
-                "context": "Studio product shots.",
-                "folder_path": folder_b,
-            },
-        )
-        self.assertEqual(response_b.status_code, 200)
-        self.assertEqual(response_b.json()["context"], "Studio product shots.")
-
-        read_a = client.get(f"/api/preferences/verify-captions?path={quote(folder_a)}")
-        self.assertEqual(read_a.status_code, 200)
-        self.assertEqual(read_a.json()["mode"], "thinking")
-        self.assertEqual(read_a.json()["context"], "Outdoor portraits.")
-
-        read_b = client.get(f"/api/preferences/verify-captions?path={quote(folder_b)}")
-        self.assertEqual(read_b.json()["context"], "Studio product shots.")
-
-        folder_c = r"C:\Photos\C"
-        read_c = client.get(f"/api/preferences/verify-captions?path={quote(folder_c)}")
-        self.assertEqual(read_c.json()["mode"], "thinking")
-        self.assertEqual(read_c.json()["context"], "")
-
-    def test_empty_context_clears_folder_entry(self) -> None:
-        folder = r"C:\Photos\A"
-        client.put(
-            "/api/preferences/verify-captions",
-            json={"context": "Notes.", "folder_path": folder},
-        )
-        client.put(
-            "/api/preferences/verify-captions",
-            json={"context": "  ", "folder_path": folder},
-        )
-
-        read_back = client.get(f"/api/preferences/verify-captions?path={quote(folder)}")
-        self.assertEqual(read_back.json()["context"], "")
-
-    def test_reasoning_knobs_are_stored_globally(self) -> None:
-        folder_a = r"C:\Photos\A"
-        folder_b = r"C:\Photos\B"
-
-        written = client.put(
-            "/api/preferences/verify-captions",
-            json={
-                "reasoning_effort": "xhigh",
-                "preserve_thinking": False,
-                "folder_path": folder_a,
-            },
-        )
-        self.assertEqual(written.status_code, 200)
-        self.assertEqual(written.json()["reasoning_effort"], "xhigh")
-        self.assertIs(written.json()["preserve_thinking"], False)
-
-        # Global, not folder-keyed: another folder reads back the same choice.
-        read_b = client.get(f"/api/preferences/verify-captions?path={quote(folder_b)}")
-        self.assertEqual(read_b.json()["reasoning_effort"], "xhigh")
-        self.assertIs(read_b.json()["preserve_thinking"], False)
-
-    def test_rejects_an_unknown_reasoning_effort(self) -> None:
-        """``high`` is the plausible wrong value: the template raises on it."""
-        response = client.put(
-            "/api/preferences/verify-captions",
-            json={"reasoning_effort": "high", "folder_path": r"C:\Photos\A"},
-        )
-        self.assertEqual(response.status_code, 422)
 
 
 class GalleryDisplayPreferencesEndpointTests(unittest.TestCase):
@@ -282,46 +159,45 @@ class GalleryDisplayPreferencesEndpointTests(unittest.TestCase):
         self.assertEqual(stored["mode_by_folder"], {})
 
 
-class WatermarkPreferencesEndpointTests(unittest.TestCase):
+class AutomationPreferencesEndpointTests(unittest.TestCase):
     def tearDown(self) -> None:
         with get_connection() as conn:
-            conn.execute("DELETE FROM preferences WHERE key = ?", (WATERMARK_SETTINGS_KEY,))
+            conn.execute(
+                "DELETE FROM preferences WHERE key LIKE ?",
+                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
+            )
             conn.commit()
 
-    def test_read_default_settings(self) -> None:
-        response = client.get("/api/preferences/watermark")
+    def test_path_is_required_on_read(self) -> None:
+        self.assertEqual(client.get("/api/preferences/automation").status_code, 422)
+
+    def test_read_returns_a_block_for_every_job_with_a_dialog(self) -> None:
+        response = client.get(f"/api/preferences/automation?path={quote(r'C:\Photos')}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {"text": "", "size": "medium", "opacity": 50, "position": "bottom"},
-        )
+        body = response.json()
+        self.assertEqual(set(body) - {"folder_path"}, set(JOB_SETTINGS_MODELS))
+        self.assertTrue(body["folder_path"])
 
-    def test_settings_survive_a_read_back(self) -> None:
-        response = client.put(
-            "/api/preferences/watermark",
-            json={
-                "text": "Sample Studio",
-                "size": "large",
-                "opacity": 75,
-                "position": "top",
-            },
-        )
+    def test_read_returns_the_documented_defaults(self) -> None:
+        body = client.get(f"/api/preferences/automation?path={quote(r'C:\Photos')}").json()
 
-        self.assertEqual(response.status_code, 200)
-        read_back = client.get("/api/preferences/watermark")
+        self.assertEqual(body["auto_caption"]["mode"], "thinking")
+        self.assertEqual(body["verify_captions"]["mode"], "instruct")
+        self.assertEqual(body["find_duplicates"]["threshold"], "near")
         self.assertEqual(
-            read_back.json(),
+            body["watermark"],
             {
-                "text": "Sample Studio",
-                "size": "large",
-                "opacity": 75,
-                "position": "top",
+                "text": "",
+                "size": "medium",
+                "opacity": 50,
+                "position": "bottom",
             },
         )
 
-    def test_rejects_an_unknown_size_opacity_or_position(self) -> None:
-        for body in ({"size": "huge"}, {"opacity": 33}, {"position": "side"}):
-            with self.subTest(body=body):
-                response = client.put("/api/preferences/watermark", json=body)
-                self.assertEqual(response.status_code, 422)
+    def test_there_is_no_write_endpoint(self) -> None:
+        # Settings are stored by the job-start routes, so a client cannot set them
+        # without running the job it is describing.
+        response = client.put("/api/preferences/automation", json={})
+
+        self.assertEqual(response.status_code, 405)

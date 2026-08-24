@@ -328,34 +328,37 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ sort: "name-asc" });
     }
 
-    if (url.pathname === "/api/preferences/verify-captions") {
-      if (method === "PUT") {
-        const body = init?.body ? JSON.parse(init.body as string) : {};
-        const mode = body.mode === "thinking" || body.mode === "instruct" ? body.mode : "instruct";
-        return jsonResponse({
-          mode,
-          reasoning_effort: body.reasoning_effort ?? "medium",
-          preserve_thinking: body.preserve_thinking ?? true,
-          context: typeof body.context === "string" ? body.context : "",
-        });
-      }
-
+    if (url.pathname === "/api/preferences/automation") {
+      // One response for every job dialog. Anything unmatched 404s below, and the
+      // loader retries before falling back, so a missing case costs real test time.
       return jsonResponse({
-        mode: "instruct",
-        reasoning_effort: "medium",
-        preserve_thinking: true,
-        context: "",
+        folder_path: url.searchParams.get("path") ?? "",
+        auto_caption: {
+          mode: "thinking",
+          reasoning_effort: "medium",
+          preserve_thinking: true,
+          caption_audio: false,
+        },
+        set_captions: { caption: "" },
+        replace_captions: {
+          mode: "replace",
+          search: "",
+          replacement: "",
+          use_regex: false,
+          case_sensitive: false,
+        },
+        backup_captions: {},
+        verify_captions: {
+          mode: "instruct",
+          reasoning_effort: "medium",
+          preserve_thinking: true,
+          context: "",
+        },
+        batch_rename: { stem: "", start_number: 1 },
+        find_duplicates: { threshold: "near" },
+        train_lora: { trigger_word: "", prompts: [], model: "krea2_turbo" },
+        watermark: { text: "", size: "medium", opacity: 50, position: "bottom" },
       });
-    }
-
-    if (url.pathname === "/api/preferences/watermark") {
-      const stored = { text: "", size: "medium", opacity: 50, position: "bottom" };
-      if (method === "PUT") {
-        const body = init?.body ? JSON.parse(init.body as string) : {};
-        return jsonResponse({ ...stored, ...body });
-      }
-
-      return jsonResponse(stored);
     }
 
     if (url.pathname === "/api/sysprompt" && method === "PUT") {

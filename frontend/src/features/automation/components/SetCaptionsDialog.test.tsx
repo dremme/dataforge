@@ -2,12 +2,20 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
+import {
+  emptyAutomationSettings,
+  type JobSettingsByType,
+} from "@/features/automation/preferences/automationPreferences";
+
+const DEFAULTS: JobSettingsByType["set_captions"] =
+  emptyAutomationSettings("C:/datasets/photos").set_captions;
 
 describe("SetCaptionsDialog", () => {
   it("focuses the caption field on open", () => {
     render(
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={DEFAULTS}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -23,6 +31,7 @@ describe("SetCaptionsDialog", () => {
     render(
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={DEFAULTS}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
@@ -42,6 +51,7 @@ describe("SetCaptionsDialog", () => {
     render(
       <SetCaptionsDialog
         scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={DEFAULTS}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
       />,
@@ -52,5 +62,30 @@ describe("SetCaptionsDialog", () => {
 
     expect(screen.getByLabelText("Caption text")).toHaveValue("first\nsecond");
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("SetCaptionsDialog saved settings", () => {
+  function renderWith(caption: string) {
+    render(
+      <SetCaptionsDialog
+        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        initialSettings={{ caption }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+  }
+
+  it("starts from the caption the last run used", () => {
+    renderWith("A mountain lake.");
+
+    expect(screen.getByLabelText("Caption text")).toHaveValue("A mountain lake.");
+  });
+
+  it("leaves overwrite off however the last run was started", () => {
+    renderWith("A mountain lake.");
+
+    expect(screen.getByLabelText("Overwrite existing captions")).not.toBeChecked();
   });
 });

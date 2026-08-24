@@ -6,6 +6,7 @@ import { classNames } from "@/shared/lib/classNames";
 import type { CaptionReplaceMode, CaptionReplacePreviewSample } from "@/shared/types";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
 
 const MODE_OPTIONS: ReadonlyArray<RadioTileOption<CaptionReplaceMode>> = [
@@ -27,6 +28,8 @@ export interface ReplaceCaptionsSettings {
 interface ReplaceCaptionsDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["replace_captions"];
   folderPath: string;
   /** Paths the job will be limited to, or undefined for the whole folder. */
   selectedPaths?: string[];
@@ -44,17 +47,18 @@ interface PreviewState {
 
 export function ReplaceCaptionsDialog({
   scope,
+  initialSettings,
   folderPath,
   selectedPaths,
   busy = false,
   onConfirm,
   onCancel,
 }: ReplaceCaptionsDialogProps) {
-  const [mode, setMode] = useState<CaptionReplaceMode>("replace");
-  const [search, setSearch] = useState("");
-  const [replacement, setReplacement] = useState("");
-  const [useRegex, setUseRegex] = useState(false);
-  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [mode, setMode] = useState<CaptionReplaceMode>(initialSettings.mode);
+  const [search, setSearch] = useState(initialSettings.search);
+  const [replacement, setReplacement] = useState(initialSettings.replacement);
+  const [useRegex, setUseRegex] = useState(initialSettings.use_regex);
+  const [caseSensitive, setCaseSensitive] = useState(initialSettings.case_sensitive);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   // The previous answer stays on screen while a new one is in flight, dimmed, so

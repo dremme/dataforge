@@ -1,22 +1,18 @@
 from fastapi import APIRouter, Query
 
+from automation_settings import get_automation_settings
 from gallery_display_settings import (
     get_gallery_display_settings,
     update_gallery_display_settings,
 )
 from schemas import (
+    AutomationSettingsResponse,
     GalleryDisplaySettingsResponse,
     GalleryDisplaySettingsUpdate,
     UiSettingsResponse,
     UiSettingsUpdate,
-    VerifyCaptionsSettingsResponse,
-    VerifyCaptionsSettingsUpdate,
-    WatermarkSettingsResponse,
-    WatermarkSettingsUpdate,
 )
 from ui_settings import get_ui_settings, update_ui_settings
-from verify_captions_settings import get_verify_captions_settings, update_verify_captions_settings
-from watermark_settings import get_watermark_settings, update_watermark_settings
 
 router = APIRouter()
 
@@ -48,33 +44,9 @@ def write_gallery_display_settings(
     return update_gallery_display_settings(mode=body.mode, folder_path=body.folder_path)
 
 
-@router.get("/preferences/verify-captions", response_model=VerifyCaptionsSettingsResponse)
-def read_verify_captions_settings(
-    path: str = Query(..., description="Folder path; context is returned for this folder"),
-) -> VerifyCaptionsSettingsResponse:
-    return get_verify_captions_settings(folder_path=path)
-
-
-@router.put("/preferences/verify-captions", response_model=VerifyCaptionsSettingsResponse)
-def write_verify_captions_settings(
-    body: VerifyCaptionsSettingsUpdate,
-) -> VerifyCaptionsSettingsResponse:
-    return update_verify_captions_settings(
-        mode=body.mode,
-        reasoning_effort=body.reasoning_effort,
-        preserve_thinking=body.preserve_thinking,
-        context=body.context,
-        folder_path=body.folder_path,
-    )
-
-
-@router.get("/preferences/watermark", response_model=WatermarkSettingsResponse)
-def read_watermark_settings() -> WatermarkSettingsResponse:
-    return get_watermark_settings()
-
-
-@router.put("/preferences/watermark", response_model=WatermarkSettingsResponse)
-def write_watermark_settings(body: WatermarkSettingsUpdate) -> WatermarkSettingsResponse:
-    return update_watermark_settings(
-        text=body.text, size=body.size, opacity=body.opacity, position=body.position
-    )
+@router.get("/preferences/automation", response_model=AutomationSettingsResponse)
+def read_automation_settings(
+    path: str = Query(..., description="Folder path; each job's settings are returned for it"),
+) -> AutomationSettingsResponse:
+    """Read-only on purpose: settings are stored by the job-start routes themselves."""
+    return get_automation_settings(folder_path=path)

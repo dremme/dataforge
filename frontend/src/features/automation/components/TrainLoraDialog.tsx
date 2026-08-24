@@ -1,7 +1,6 @@
 import { useCallback, useId, useRef, useState } from "react";
 import type { TrainLoraSettings } from "@/features/automation/api/jobs";
 import {
-  DEFAULT_TRAINING_MODEL,
   DEFAULT_TRAINING_PROMPTS,
   TRAINING_MODEL_OPTIONS,
   cleanTrainingPrompts,
@@ -14,6 +13,7 @@ import { iconFilePen, iconPlus, iconTrash2 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup } from "@/shared/ui/RadioTileGroup";
 import { TrainingTemplateEditorDialog } from "./TrainingTemplateEditorDialog";
 
@@ -25,6 +25,8 @@ interface PromptRow {
 interface TrainLoraDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["train_lora"];
   busy?: boolean;
   onConfirm: (settings: TrainLoraSettings) => void;
   onCancel: () => void;
@@ -32,21 +34,26 @@ interface TrainLoraDialogProps {
 
 export function TrainLoraDialog({
   scope,
+  initialSettings,
   busy = false,
   onConfirm,
   onCancel,
 }: TrainLoraDialogProps) {
-  const [model, setModel] = useState<TrainingModel>(DEFAULT_TRAINING_MODEL);
+  const [model, setModel] = useState<TrainingModel>(initialSettings.model);
+  // Never restored: the name is the run's identity on disk and its resume key, so
+  // confirming without editing it must never attach to an earlier training run.
   const [loraName, setLoraName] = useState("");
-  const [triggerWord, setTriggerWord] = useState("");
+  const [triggerWord, setTriggerWord] = useState(initialSettings.trigger_word);
   const [prompts, setPrompts] = useState<PromptRow[]>(() =>
-    DEFAULT_TRAINING_PROMPTS.map((text, index) => ({ id: index, text })),
+    (initialSettings.prompts.length ? initialSettings.prompts : DEFAULT_TRAINING_PROMPTS).map(
+      (text, index) => ({ id: index, text }),
+    ),
   );
   const [error, setError] = useState<string | null>(null);
   const templateDraft = useTrainingTemplateDraft(model);
 
   // Rows keep their identity across edits so removing one cannot move focus.
-  const nextPromptId = useRef(DEFAULT_TRAINING_PROMPTS.length);
+  const nextPromptId = useRef(initialSettings.prompts.length || DEFAULT_TRAINING_PROMPTS.length);
   const nameRef = useRef<HTMLInputElement>(null);
   const nameId = useId();
   const modelGroupId = useId();

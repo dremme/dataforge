@@ -2,11 +2,23 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AutoCaptionDialog } from "./AutoCaptionDialog";
+import {
+  emptyAutomationSettings,
+  type JobSettingsByType,
+} from "@/features/automation/preferences/automationPreferences";
 
-function renderDialog(busy = false, onConfirm = vi.fn()) {
+const DEFAULTS: JobSettingsByType["auto_caption"] =
+  emptyAutomationSettings("C:/datasets/photos").auto_caption;
+
+function renderDialog(
+  busy = false,
+  onConfirm = vi.fn(),
+  overrides: Partial<JobSettingsByType["auto_caption"]> = {},
+) {
   render(
     <AutoCaptionDialog
       scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+      initialSettings={{ ...DEFAULTS, ...overrides }}
       busy={busy}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
@@ -102,5 +114,18 @@ describe("AutoCaptionDialog", () => {
     expect(audioCheckbox()).toBeDisabled();
     expect(screen.getByRole("radio", { name: /Reasoning/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Starting..." })).toBeDisabled();
+  });
+});
+
+describe("AutoCaptionDialog saved settings", () => {
+  it("starts from the settings the last run used", () => {
+    renderDialog(false, vi.fn(), {
+      mode: "instruct",
+      caption_audio: true,
+      preserve_thinking: false,
+    });
+
+    expect(audioCheckbox()).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Instruct/ })).toBeChecked();
   });
 });

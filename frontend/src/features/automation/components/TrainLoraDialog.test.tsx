@@ -3,6 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TRAINING_PROMPTS } from "@/features/automation/lib/training";
 import { TrainLoraDialog } from "./TrainLoraDialog";
+import {
+  emptyAutomationSettings,
+  type JobSettingsByType,
+} from "@/features/automation/preferences/automationPreferences";
+
+const DEFAULTS: JobSettingsByType["train_lora"] =
+  emptyAutomationSettings("C:/datasets/photos").train_lora;
 
 const fetchTrainingTemplate = vi.fn();
 const checkTrainingTemplate = vi.fn();
@@ -15,10 +22,14 @@ vi.mock("@/features/automation/api/jobs", () => ({
 const KREA_TEMPLATE = "model:\n  arch: krea2:turbo\n";
 const H3_TEMPLATE = "model:\n  arch: minimax_h3\n";
 
-function renderDialog(onConfirm = vi.fn()) {
+function renderDialog(
+  onConfirm = vi.fn(),
+  overrides: Partial<JobSettingsByType["train_lora"]> = {},
+) {
   render(
     <TrainLoraDialog
       scope={{ itemCount: 24, folderLabel: "landscapes", fromSelection: false }}
+      initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
     />,

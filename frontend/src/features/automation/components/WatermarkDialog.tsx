@@ -1,5 +1,5 @@
 import { useCallback, useId, useState } from "react";
-import type { WatermarkSettings } from "@/features/automation/preferences/watermarkPreferences";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { RadioTileGroup, type RadioTileOption } from "@/shared/ui/RadioTileGroup";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
@@ -33,7 +33,8 @@ const POSITIONS: ReadonlyArray<RadioTileOption<WatermarkPosition>> = [
 interface WatermarkDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  initialSettings: WatermarkSettings;
+  /** What the last run of this job used; every dialog starts from it. */
+  initialSettings: JobSettingsByType["watermark"];
   busy?: boolean;
   onConfirm: (
     text: string,

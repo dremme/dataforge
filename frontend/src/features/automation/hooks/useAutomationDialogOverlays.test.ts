@@ -1,26 +1,36 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { JobType } from "@/shared/types";
+import {
+  emptyAutomationSettings,
+  loadAutomationSettings,
+} from "@/features/automation/preferences/automationPreferences";
 import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
-vi.mock("@/features/automation/preferences/verifyCaptionsPreferences", () => ({
-  loadVerifyCaptionsSettings: vi.fn(async (folderPath: string) => ({
-    mode: "instruct" as const,
-    reasoningEffort: "medium" as const,
-    preserveThinking: true,
-    context: "Outdoor portraits.",
-    folderPath,
-  })),
-}));
+import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
 
-vi.mock("@/features/automation/preferences/watermarkPreferences", () => ({
-  loadWatermarkSettings: vi.fn(async () => ({
-    text: "Sample Studio",
-    size: "large" as const,
-    opacity: 75 as const,
-    position: "top" as const,
-  })),
-}));
+vi.mock("@/features/automation/preferences/automationPreferences", async (importOriginal) => {
+  const actual = await importOriginal<typeof AutomationPreferences>();
+  return {
+    ...actual,
+    loadAutomationSettings: vi.fn(async (folderPath: string) => ({
+      ...actual.emptyAutomationSettings(folderPath),
+      verify_captions: {
+        mode: "instruct" as const,
+        reasoning_effort: "medium" as const,
+        preserve_thinking: true,
+        context: "Outdoor portraits.",
+      },
+      watermark: {
+        text: "Sample Studio",
+        size: "large" as const,
+        opacity: 75 as const,
+        position: "top" as const,
+      },
+      find_duplicates: { threshold: "loose" as const },
+    })),
+  };
+});
 
 function setupOverlays(
   startingJobType: JobType | null = null,
@@ -97,7 +107,7 @@ describe("useAutomationDialogOverlays", () => {
   it("opens dialogs and starts jobs after confirm", async () => {
     const { result, startJob } = setupOverlays();
 
-    act(() => {
+    await act(async () => {
       result.current.openDialogForJobType("set_captions");
     });
     expect(result.current.dialogs.setCaptions.open).toBe(true);
@@ -118,7 +128,7 @@ describe("useAutomationDialogOverlays", () => {
   it("sends the auto-caption mode and audio choice", async () => {
     const { result, startJob } = setupOverlays();
 
-    act(() => {
+    await act(async () => {
       result.current.openDialogForJobType("auto_caption");
     });
 
@@ -149,10 +159,9 @@ describe("useAutomationDialogOverlays", () => {
     expect(result.current.dialogs.verifyCaptions.open).toBe(true);
     expect(result.current.dialogs.verifyCaptions.initialSettings).toEqual({
       mode: "instruct",
-      reasoningEffort: "medium",
-      preserveThinking: true,
+      reasoning_effort: "medium",
+      preserve_thinking: true,
       context: "Outdoor portraits.",
-      folderPath: "C:\\Photos",
     });
 
     await act(async () => {
@@ -205,15 +214,15 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
-  it("keeps at most one dialog open", () => {
+  it("keeps at most one dialog open", async () => {
     const { result } = setupOverlays();
 
-    act(() => {
+    await act(async () => {
       result.current.openDialogForJobType("batch_rename");
     });
     expect(result.current.dialogs.batchRename.open).toBe(true);
 
-    act(() => {
+    await act(async () => {
       result.current.openDialogForJobType("auto_caption");
     });
     expect(result.current.dialogs.autoCaption.open).toBe(true);
@@ -230,7 +239,7 @@ describe("useAutomationDialogOverlays", () => {
   it("opens the LoRA training dialog and starts the job after confirm", async () => {
     const { result, startJob } = setupOverlays();
 
-    act(() => {
+    await act(async () => {
       result.current.openDialogForJobType("train_lora");
     });
     expect(result.current.dialogs.trainLora.open).toBe(true);
@@ -258,5 +267,70 @@ describe("useAutomationDialogOverlays", () => {
       },
       undefined,
     );
+  });
+});
+
+describe("useAutomationDialogOverlays saved settings", () => {
+  const DIALOG_JOB_TYPES = [
+    ["setCaptions", "set_captions"],
+    ["replaceCaptions", "replace_captions"],
+    ["backupCaptions", "backup_captions"],
+    ["autoCaption", "auto_caption"],
+    ["verifyCaptions", "verify_captions"],
+    ["findDuplicates", "find_duplicates"],
+    ["batchRename", "batch_rename"],
+    ["trainLora", "train_lora"],
+    ["watermark", "watermark"],
+  ] as const;
+
+  it("hands every dialog its own block of this folder's settings", async () => {
+    const { result } = setupOverlays();
+    const expected = await loadAutomationSettings("C:\\Photos");
+
+    for (const [dialog, jobType] of DIALOG_JOB_TYPES) {
+      await act(async () => {
+        result.current.openDialogForJobType(jobType);
+      });
+
+      expect(result.current.dialogs[dialog].initialSettings).toEqual(expected[jobType]);
+    }
+  });
+
+  it("loads the settings once per open", async () => {
+    const { result } = setupOverlays();
+    vi.mocked(loadAutomationSettings).mockClear();
+
+    await act(async () => {
+      result.current.openDialogForJobType("watermark");
+    });
+
+    expect(loadAutomationSettings).toHaveBeenCalledTimes(1);
+    expect(loadAutomationSettings).toHaveBeenCalledWith("C:\\Photos");
+  });
+
+  it("drops the settings again when a dialog is cancelled", async () => {
+    const { result } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("find_duplicates");
+    });
+    expect(result.current.dialogs.findDuplicates.initialSettings).not.toBeNull();
+
+    act(() => {
+      result.current.dialogs.findDuplicates.onCancel();
+    });
+
+    expect(result.current.dialogs.findDuplicates.initialSettings).toBeNull();
+  });
+
+  it("falls back to the defaults when preferences cannot be read", async () => {
+    vi.mocked(loadAutomationSettings).mockResolvedValueOnce(emptyAutomationSettings("C:\\Photos"));
+    const { result } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("find_duplicates");
+    });
+
+    expect(result.current.dialogs.findDuplicates.initialSettings).toEqual({ threshold: "near" });
   });
 });

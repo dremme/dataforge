@@ -1,17 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { WatermarkSettings } from "@/features/automation/preferences/watermarkPreferences";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { MAX_WATERMARK_TEXT_LENGTH, WatermarkDialog } from "./WatermarkDialog";
 
-const DEFAULTS: WatermarkSettings = {
+const DEFAULTS: JobSettingsByType["watermark"] = {
   text: "",
   size: "medium",
   opacity: 50,
   position: "bottom",
 };
 
-function renderDialog(overrides: Partial<WatermarkSettings> = {}, onConfirm = vi.fn()) {
+function renderDialog(
+  overrides: Partial<JobSettingsByType["watermark"]> = {},
+  onConfirm = vi.fn(),
+) {
   render(
     <WatermarkDialog
       scope={{ itemCount: 3, folderLabel: "Photos", fromSelection: false }}

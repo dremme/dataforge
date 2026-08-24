@@ -242,9 +242,17 @@ def _is_optional(prop: str, definition: dict[str, Any], required: set[str], is_r
 def _render_interface(name: str, schema: dict[str, Any], *, is_response: bool) -> str:
     required = set(schema.get("required", ()))
     lines = _doc_comment(schema.get("description"))
+
+    properties = schema.get("properties", {})
+    if not properties:
+        # An empty `interface {}` accepts any non-nullish value and ESLint rejects it.
+        # `Record<string, never>` says what a fieldless model actually means.
+        lines.append(f"export type {_ts_name(name)} = Record<string, never>;")
+        return "\n".join(lines)
+
     lines.append(f"export interface {_ts_name(name)} {{")
 
-    for prop, definition in schema.get("properties", {}).items():
+    for prop, definition in properties.items():
         optional = _is_optional(prop, definition, required, is_response)
         override = FIELD_TYPES.get((name, prop))
         rendered = override if override is not None else _ts_type(definition)

@@ -1,10 +1,13 @@
 import { useCallback, useId, useState } from "react";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
 interface BackupCaptionsDialogProps {
   /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
+  /** No field survives the destructive-field rule; taken so every dialog is alike. */
+  initialSettings: JobSettingsByType["backup_captions"];
   busy?: boolean;
   onConfirm: (overwrite: boolean) => void;
   onCancel: () => void;
@@ -16,6 +19,8 @@ export function BackupCaptionsDialog({
   onConfirm,
   onCancel,
 }: BackupCaptionsDialogProps) {
+  // Never restored: replacing existing backups is destructive, so it is re-chosen
+  // every run however the last one was started.
   const [overwrite, setOverwrite] = useState(false);
   const overwriteId = useId();
 
