@@ -24,8 +24,6 @@ export interface UseMediaTransferOptions {
   onMoved: (succeeded: string[]) => void | Promise<void>;
   /** A copy only changes folder stats, so it gets no paths. */
   onCopied: () => void | Promise<void>;
-  /** Runs after a move's refresh resolves — the batch toolbar leaves selection mode here. */
-  onMoveSettled?: (succeeded: string[]) => void;
   /**
    * Defaults phrase the batch case; per-item callers name the file instead.
    * Both receive the flow's own paths, so a message built after the viewed item
@@ -98,7 +96,7 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
       overwrite: boolean,
       paths: string[],
     ) => {
-      const { onMoved, onCopied, onMoveSettled, copySuccessMessage } = optionsRef.current;
+      const { onMoved, onCopied, copySuccessMessage } = optionsRef.current;
 
       const { succeeded, failed } = await transferSelectedMedia(
         mode,
@@ -120,17 +118,12 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
         notify({ variant: "danger", message: failureMessage(mode, failed) });
       }
 
-      if (mode === "copy") {
+      if (mode === "copy" && succeeded.length > 0) {
         // Nothing changes in this folder, so say so rather than leaving it silent.
-        if (succeeded.length > 0) {
-          const target = folderLeafName(destinationFolder) || destinationFolder;
-          const message = (copySuccessMessage ?? defaultCopySuccessMessage)(succeeded, target);
-          notify({ variant: "success", message });
-        }
-        return;
+        const target = folderLeafName(destinationFolder) || destinationFolder;
+        const message = (copySuccessMessage ?? defaultCopySuccessMessage)(succeeded, target);
+        notify({ variant: "success", message });
       }
-
-      onMoveSettled?.(succeeded);
     },
     [notify],
   );

@@ -118,7 +118,6 @@ export function useAppWorkspace() {
     currentFolder: folder?.path,
     visibleSelectedPaths: gallery.visibleSelectedPaths,
     visibleSelectedCount: gallery.visibleSelectedCount,
-    exitSelectionMode: selection.exitSelectionMode,
     onDeleted: gallery.onGalleryItemsDeleted,
     onMoved: gallery.onGalleryItemsMoved,
     onCopied: gallery.onGalleryItemsCopied,

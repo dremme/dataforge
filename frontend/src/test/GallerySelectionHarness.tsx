@@ -26,7 +26,6 @@ export function GallerySelectionHarness({
     currentFolder,
     visibleSelectedPaths: value.visibleSelectedPaths,
     visibleSelectedCount: value.visibleSelectedCount,
-    exitSelectionMode: value.exitSelectionMode,
     onDeleted: value.onDeleted,
     onMoved: value.onMoved,
     onCopied: value.onCopied,

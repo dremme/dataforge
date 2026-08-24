@@ -13,7 +13,6 @@ interface UseGallerySelectionActionsOptions {
    */
   visibleSelectedPaths: ReadonlySet<string>;
   visibleSelectedCount: number;
-  exitSelectionMode: () => void;
   onDeleted: (paths: string[]) => void | Promise<void>;
   onMoved: (paths: string[]) => void | Promise<void>;
   onCopied: () => void | Promise<void>;
@@ -31,7 +30,6 @@ export function useGallerySelectionActions({
   currentFolder,
   visibleSelectedPaths,
   visibleSelectedCount,
-  exitSelectionMode,
   onDeleted,
   onMoved,
   onCopied,
@@ -42,23 +40,10 @@ export function useGallerySelectionActions({
 
   const transferPaths = useMemo(() => Array.from(visibleSelectedPaths), [visibleSelectedPaths]);
 
-  // Everything the move targeted is gone, so the mode has nothing left to hold.
-  // Measured against what was actually acted on rather than against the visible
-  // item count, which used to describe a different set entirely.
-  const onMoveSettled = useCallback(
-    (succeeded: string[]) => {
-      if (succeeded.length === transferPaths.length) {
-        exitSelectionMode();
-      }
-    },
-    [exitSelectionMode, transferPaths.length],
-  );
-
   const transfer = useMediaTransfer({
     paths: transferPaths,
     onMoved,
     onCopied,
-    onMoveSettled,
   });
 
   const { transferPicker, overwritePrompt, transferring, openTransferPicker } = transfer;
@@ -93,14 +78,10 @@ export function useGallerySelectionActions({
       if (failed.length > 0) {
         notify({ variant: "danger", message: failureMessage("delete", failed) });
       }
-
-      if (succeeded.length === paths.length) {
-        exitSelectionMode();
-      }
     } finally {
       setDeleting(false);
     }
-  }, [deleting, notify, onDeleted, exitSelectionMode, visibleSelectedPaths]);
+  }, [deleting, notify, onDeleted, visibleSelectedPaths]);
 
   /** Whether a batch action can start right now. */
   const canAct = visibleSelectedCount > 0 && !busy;

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { installMockBackend } from "@/test/mockBackend";
@@ -168,5 +168,104 @@ describe("App: modifier-click selection", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Exit selection mode" })).not.toBeInTheDocument();
+  });
+});
+
+describe("App: select-all shortcut", () => {
+  it("enters selection mode and selects every visible file on Ctrl+A", async () => {
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
+    });
+    expect(selectedNames()).toEqual(ORDER);
+    expect(screen.getByLabelText("3 of 3")).toHaveClass("gallery-section__count");
+  });
+
+  it("treats Cmd+A the same, for macOS", async () => {
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    fireEvent.keyDown(window, { key: "a", metaKey: true });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
+    });
+    expect(selectedNames()).toEqual(ORDER);
+  });
+
+  it("fills in the rest of the view when some items are already selected", async () => {
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    fireEvent.click(card("sunset.png"), { ctrlKey: true });
+    await waitFor(() => {
+      expect(selectedNames()).toEqual(["sunset.png"]);
+    });
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+
+    await waitFor(() => {
+      expect(selectedNames()).toEqual(ORDER);
+    });
+  });
+
+  it("leaves Ctrl+A to the search box instead of selecting the gallery", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    const search = screen.getByRole("searchbox", {
+      name: "Search files and folders by name or caption",
+    });
+    await user.click(search);
+    await user.keyboard("{Control>}a{/Control}");
+
+    expect(screen.queryByRole("button", { name: "Exit selection mode" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
+  });
+
+  it("does not select gallery items while an item modal is open", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await user.click(card("sunset.png"));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+
+    expect(screen.queryByRole("button", { name: "Exit selection mode" })).not.toBeInTheDocument();
+  });
+});
+
+describe("App: selection actions keep the mode", () => {
+  it("stays in selection mode after deleting selected files", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    fireEvent.click(card("sunset.png"), { ctrlKey: true });
+    await waitFor(() => {
+      expect(selectedNames()).toEqual(["sunset.png"]);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Delete selected files" }));
+    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
   });
 });

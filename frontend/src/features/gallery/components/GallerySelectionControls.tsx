@@ -3,6 +3,7 @@ import type { MediaTransferMode } from "@/features/gallery/api/media";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import { iconCopy, iconFolderInput, iconLoader2, iconTrash2, type AppIcon } from "@/shared/icons";
+import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
@@ -97,10 +98,34 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clearSelectedPaths, exitSelectionMode, visibleSelectedCount, selectionMode]);
 
+  // Ctrl/Cmd+A is the keyboard path into the All button: it enters selection
+  // mode if needed, then unions every visible file. Attached even while idle,
+  // because that is the gesture that discovers the mode.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== "a") return;
+      if (getScrollLockDepth() > 0) return;
+      if (isEditableTarget(event.target)) return;
+
+      event.preventDefault();
+      if (busy) return;
+      selectAllPaths();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [busy, selectAllPaths]);
+
   if (!selectionMode) {
     return (
       <div className="gallery-controls">
-        <button type="button" className="gallery-controls__btn" onClick={enterSelectionMode}>
+        <button
+          type="button"
+          className="gallery-controls__btn"
+          onClick={enterSelectionMode}
+          aria-keyshortcuts="Control+A Meta+A"
+        >
           Select
         </button>
       </div>
@@ -123,6 +148,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         className="gallery-controls__btn"
         onClick={selectAllPaths}
         disabled={busy || visibleSelectedCount === totalCount}
+        aria-keyshortcuts="Control+A Meta+A"
       >
         All
       </button>

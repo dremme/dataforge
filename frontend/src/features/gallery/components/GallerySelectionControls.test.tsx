@@ -10,8 +10,9 @@ import {
 } from "@/shared/hooks/scrollLockManager";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
-import { withGallerySelectionActions } from "@/test/gallerySelection";
+import { withGallerySelection, withGallerySelectionActions } from "@/test/gallerySelection";
 import type { GallerySelectionValue } from "@/features/gallery/context/GallerySelectionContext";
+import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import { GallerySelectionControls } from "./GallerySelectionControls";
 
 vi.mock("@/features/gallery/api/media", async (importOriginal) => {
@@ -55,6 +56,18 @@ function renderControls(selection: Partial<GallerySelectionValue> = {}, totalCou
       { currentFolder: HOME_PATH },
     ),
   );
+}
+
+function pressSelectAll(init: Partial<KeyboardEventInit> = {}): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", {
+    key: "a",
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  });
+  window.dispatchEvent(event);
+  return event;
 }
 
 describe("GallerySelectionControls", () => {
@@ -199,8 +212,8 @@ describe("GallerySelectionControls", () => {
     await waitFor(() => {
       expect(deleteSelectedMediaMock).toHaveBeenCalledWith(Array.from(selectedPaths));
       expect(onDeleted).toHaveBeenCalledWith(Array.from(selectedPaths));
-      expect(exitSelectionMode).toHaveBeenCalledTimes(1);
     });
+    expect(exitSelectionMode).not.toHaveBeenCalled();
   });
 
   it("uses singular copy when one file is selected", async () => {
@@ -260,6 +273,121 @@ describe("GallerySelectionControls", () => {
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     });
+  });
+
+  it("selects every visible file on Ctrl+A from the idle state", () => {
+    const selectAllPaths = vi.fn();
+
+    renderControls({
+      selectionMode: false,
+      selectedPaths: new Set(),
+      selectAllPaths,
+    });
+
+    const event = pressSelectAll();
+
+    expect(selectAllPaths).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+A Meta+A",
+    );
+  });
+
+  it("selects every visible file on Ctrl+A while already in selection mode", () => {
+    const selectAllPaths = vi.fn();
+
+    renderControls({
+      selectedPaths: new Set([`${HOME_PATH}\\sunset.png`]),
+      selectAllPaths,
+    });
+
+    const event = pressSelectAll();
+
+    expect(selectAllPaths).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+A Meta+A",
+    );
+  });
+
+  it("treats Cmd+A the same as Ctrl+A", () => {
+    const selectAllPaths = vi.fn();
+
+    renderControls({
+      selectionMode: false,
+      selectedPaths: new Set(),
+      selectAllPaths,
+    });
+
+    pressSelectAll({ ctrlKey: false, metaKey: true });
+
+    expect(selectAllPaths).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores Ctrl+A entirely while scroll lock is active", () => {
+    const selectAllPaths = vi.fn();
+    const handle = acquireScrollLock("confirm-dialog-open");
+
+    renderControls({
+      selectionMode: false,
+      selectedPaths: new Set(),
+      selectAllPaths,
+    });
+
+    try {
+      const event = pressSelectAll();
+
+      expect(selectAllPaths).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      releaseScrollLock(handle);
+    }
+  });
+
+  it("leaves Ctrl+A to an editable field", () => {
+    const selectAllPaths = vi.fn();
+
+    renderControls({
+      selectionMode: false,
+      selectedPaths: new Set(),
+      selectAllPaths,
+    });
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    const event = new KeyboardEvent("keydown", {
+      key: "a",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    try {
+      input.dispatchEvent(event);
+
+      expect(selectAllPaths).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      input.remove();
+    }
+  });
+
+  it("swallows Ctrl+A while a batch action is busy, without changing the selection", () => {
+    const selectAllPaths = vi.fn();
+
+    renderWithProviders(
+      withGallerySelection(<GallerySelectionControls totalCount={2} />, {
+        selectAllPaths,
+        actions: { busy: true } as GallerySelectionActions,
+      }),
+    );
+
+    const event = pressSelectAll();
+
+    expect(selectAllPaths).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it("clears the selection on Escape rather than leaving selection mode", () => {
@@ -323,6 +451,7 @@ describe("GallerySelectionControls", () => {
   it("moves selected files after choosing a destination folder", async () => {
     const user = userEvent.setup();
     const onMoved = vi.fn();
+    const exitSelectionMode = vi.fn();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
     previewMediaTransferMock.mockResolvedValue({
@@ -336,7 +465,7 @@ describe("GallerySelectionControls", () => {
       failed: [],
     });
 
-    renderControls({ selectedPaths, onMoved });
+    renderControls({ selectedPaths, onMoved, exitSelectionMode });
 
     await user.click(screen.getByRole("button", { name: "Move selected files" }));
 
@@ -358,6 +487,7 @@ describe("GallerySelectionControls", () => {
       );
       expect(onMoved).toHaveBeenCalledWith(Array.from(selectedPaths));
     });
+    expect(exitSelectionMode).not.toHaveBeenCalled();
   });
 
   it("asks whether to replace files when the destination already has conflicts", async () => {
