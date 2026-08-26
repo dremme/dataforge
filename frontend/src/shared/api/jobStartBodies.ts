@@ -2,6 +2,7 @@ import type {
   AutoCaptionStartRequest,
   BackupCaptionsStartRequest,
   BatchRenameStartRequest,
+  ComfyProcessStartRequest,
   FindDuplicatesStartRequest,
   JobType,
   ReplaceCaptionsStartRequest,
@@ -30,6 +31,7 @@ export interface JobStartBodies {
   batch_rename: BatchRenameStartRequest;
   train_lora: TrainLoraStartRequest;
   watermark: WatermarkStartRequest;
+  comfy_process: ComfyProcessStartRequest;
   strip_metadata: StripMetadataStartRequest;
   backup_captions: BackupCaptionsStartRequest;
   restore_captions: RestoreCaptionsStartRequest;

@@ -9,6 +9,7 @@ import { IssueResolverModal } from "@/features/gallery/components/IssueResolverM
 import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
 import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateResolverModal";
+import { CandidateReviewModal } from "@/features/gallery/components/CandidateReviewModal";
 import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
 import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepOverlay";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
@@ -34,6 +35,7 @@ export function AppOverlays({
   sysprompt,
   stats,
   duplicateResolver,
+  candidateReview,
   jobStart,
   automation,
   fileImport,
@@ -83,6 +85,16 @@ export function AppOverlays({
           onIndexChange={duplicateResolver.onIndexChange}
           deletesToTrash={duplicateResolver.deletesToTrash}
           onResolved={duplicateResolver.onResolved}
+        />
+      )}
+
+      {candidateReview.open && candidateReview.entries.length > 0 && (
+        <CandidateReviewModal
+          entries={candidateReview.entries}
+          index={candidateReview.index}
+          onClose={candidateReview.onClose}
+          onIndexChange={candidateReview.onIndexChange}
+          onResolved={candidateReview.onResolved}
         />
       )}
 

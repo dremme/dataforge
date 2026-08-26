@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { countDuplicates } from "@/features/gallery/lib/duplicates";
 import { getFilterEmptyState } from "@/features/gallery/lib/filters";
+import { countCandidates } from "@/features/gallery/lib/candidateReview";
 import {
   cacheGallerySessionQuery,
   readGallerySessionQuery,
 } from "@/features/gallery/lib/sessionPreferences";
 import {
   DEFAULT_SORT,
-  applyDuplicateFilter,
+  applyFileFilter,
   applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
@@ -16,6 +17,7 @@ import {
   filterBySearch,
   parseSortOption,
   processGalleryItems,
+  type FileFilter,
   type ItemFilter,
   type MediaTypeFilter,
   type SortOption,
@@ -32,8 +34,8 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const [mediaTypeFilter, setMediaTypeFilterState] = useState<MediaTypeFilter>(
     () => readGallerySessionQuery().mediaTypeFilter,
   );
-  const [duplicatesOnly, setDuplicatesOnlyState] = useState(
-    () => readGallerySessionQuery().duplicatesOnly,
+  const [fileFilter, setFileFilterState] = useState<FileFilter>(
+    () => readGallerySessionQuery().fileFilter,
   );
   const [searchQuery, setSearchQueryState] = useState(() => readGallerySessionQuery().searchQuery);
   const [searchRegex, setSearchRegexState] = useState(() => readGallerySessionQuery().searchRegex);
@@ -66,9 +68,9 @@ export function useGalleryQuery(items: GalleryItem[]) {
     cacheGallerySessionQuery({ mediaTypeFilter: value });
   }, []);
 
-  const setDuplicatesOnly = useCallback((value: boolean) => {
-    setDuplicatesOnlyState(value);
-    cacheGallerySessionQuery({ duplicatesOnly: value });
+  const setFileFilter = useCallback((value: FileFilter) => {
+    setFileFilterState(value);
+    cacheGallerySessionQuery({ fileFilter: value });
   }, []);
 
   const setSearchQuery = useCallback((value: string) => {
@@ -107,8 +109,8 @@ export function useGalleryQuery(items: GalleryItem[]) {
 
   /** Everything the filters keep, before the search narrows it further. */
   const filterMatchedItems = useMemo(
-    () => applyDuplicateFilter(captionFilteredItems, duplicatesOnly),
-    [captionFilteredItems, duplicatesOnly],
+    () => applyFileFilter(captionFilteredItems, fileFilter),
+    [captionFilteredItems, fileFilter],
   );
 
   const filteredItems = useMemo(
@@ -116,17 +118,17 @@ export function useGalleryQuery(items: GalleryItem[]) {
       processGalleryItems(items, {
         filter,
         mediaTypeFilter,
-        duplicatesOnly,
+        fileFilter,
         searchQuery,
         searchRegex,
         searchNames,
         sort,
       }),
-    [items, filter, mediaTypeFilter, duplicatesOnly, searchQuery, searchRegex, searchNames, sort],
+    [items, filter, mediaTypeFilter, fileFilter, searchQuery, searchRegex, searchNames, sort],
   );
 
   const hasActiveSearch = searchQuery.trim().length > 0;
-  const hasActiveFilters = filter !== "all" || mediaTypeFilter !== "all" || duplicatesOnly;
+  const hasActiveFilters = filter !== "all" || mediaTypeFilter !== "all" || fileFilter !== "all";
   const captionedCount = useMemo(() => countCaptioned(items), [items]);
 
   // Each axis is counted with every *other* axis applied, so a count in the menu always
@@ -134,28 +136,29 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const captionFilterCountItems = useMemo(
     () =>
       filterBySearch(
-        applyDuplicateFilter(mediaTypeFilteredItems, duplicatesOnly),
+        applyFileFilter(mediaTypeFilteredItems, fileFilter),
         searchQuery,
         searchRegex,
         searchNames,
       ),
-    [mediaTypeFilteredItems, duplicatesOnly, searchQuery, searchRegex, searchNames],
+    [mediaTypeFilteredItems, fileFilter, searchQuery, searchRegex, searchNames],
   );
 
   const mediaTypeFilterCountItems = useMemo(
     () =>
       filterBySearch(
-        applyDuplicateFilter(captionScopedItems, duplicatesOnly),
+        applyFileFilter(captionScopedItems, fileFilter),
         searchQuery,
         searchRegex,
         searchNames,
       ),
-    [captionScopedItems, duplicatesOnly, searchQuery, searchRegex, searchNames],
+    [captionScopedItems, fileFilter, searchQuery, searchRegex, searchNames],
   );
 
-  // Deliberately not duplicate-scoped: this is the count on the toggle itself, so it has to
-  // say what turning it on would find, which means measuring with it off.
-  const duplicateFilterCountItems = useMemo(
+  // Deliberately not file-scoped: these are the counts on the Files options themselves,
+  // so each has to say what picking it would leave on screen, which means measuring with
+  // this axis off and every other one on.
+  const fileFilterCountItems = useMemo(
     () => filterBySearch(captionFilteredItems, searchQuery, searchRegex, searchNames),
     [captionFilteredItems, searchQuery, searchRegex, searchNames],
   );
@@ -171,11 +174,16 @@ export function useGalleryQuery(items: GalleryItem[]) {
     } as const;
   }, [captionFilterCountItems]);
 
-  // Files, not groups: this count sits beside the others in the filter menu and says how
-  // many items the filter would leave on screen.
-  const duplicateCount = useMemo(
-    () => countDuplicates(duplicateFilterCountItems),
-    [duplicateFilterCountItems],
+  // Files, not duplicate groups: these counts sit beside the others in the filter menu
+  // and say how many items each option would leave on screen.
+  const fileFilterCounts = useMemo(
+    () =>
+      ({
+        all: fileFilterCountItems.length,
+        duplicates: countDuplicates(fileFilterCountItems),
+        candidates: countCandidates(fileFilterCountItems),
+      }) as const,
+    [fileFilterCountItems],
   );
 
   const mediaTypeFilterCounts = useMemo(() => {
@@ -193,13 +201,13 @@ export function useGalleryQuery(items: GalleryItem[]) {
       getFilterEmptyState({
         filter,
         mediaTypeFilter,
-        duplicatesOnly,
+        fileFilter,
         searchQuery,
         hasFilterMatches: filterMatchedItems.length > 0,
         imageCount: countMediaType(items, "image"),
         videoCount: countMediaType(items, "video"),
       }),
-    [filterMatchedItems.length, filter, items, mediaTypeFilter, duplicatesOnly, searchQuery],
+    [filterMatchedItems.length, filter, items, mediaTypeFilter, fileFilter, searchQuery],
   );
 
   return {
@@ -207,8 +215,8 @@ export function useGalleryQuery(items: GalleryItem[]) {
     setFilter,
     mediaTypeFilter,
     setMediaTypeFilter,
-    duplicatesOnly,
-    setDuplicatesOnly,
+    fileFilter,
+    setFileFilter,
     searchQuery,
     searchRegex,
     searchNames,
@@ -223,7 +231,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     captionedCount,
     filterCounts,
     mediaTypeFilterCounts,
-    duplicateCount,
+    fileFilterCounts,
     filterEmptyState,
   };
 }

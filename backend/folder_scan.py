@@ -20,6 +20,7 @@ from constants import (
     GIF_EXTENSION,
     IMAGE_EXTENSIONS,
     SKIP_DIR_NAMES,
+    STAGING_DIR_NAME,
     SYSPROMPT_FILENAME,
     VIDEO_EXTENSIONS,
 )
@@ -52,6 +53,10 @@ class FolderScan:
     dirs: list[ScannedEntry]
     #: Media files, sorted by lowercased name. Excludes the sysprompt.
     media: list[ScannedEntry]
+    #: Files in ``staging/``, keyed by exact name, so listing can answer
+    #: ``has_candidate`` without a syscall per item. Empty when there is no staging
+    #: directory.
+    candidates: dict[str, ScannedEntry]
     sysprompt: ScannedEntry | None
 
     def sidecar(self, prefix: str, extension: str) -> ScannedEntry | None:
@@ -101,12 +106,33 @@ def _entry_from_dir_entry(entry: os.DirEntry, folder: Path) -> ScannedEntry | No
     )
 
 
+def _scan_staging_files(folder: Path) -> dict[str, ScannedEntry]:
+    """One extra ``scandir`` of ``staging/``. Empty when the directory is missing."""
+    candidates: dict[str, ScannedEntry] = {}
+    staging = folder / STAGING_DIR_NAME
+    try:
+        with os.scandir(staging) as entries:
+            for entry in entries:
+                try:
+                    if not entry.is_file():
+                        continue
+                except OSError:
+                    continue
+                scanned = _entry_from_dir_entry(entry, staging)
+                if scanned is not None:
+                    candidates[scanned.name] = scanned
+    except OSError:
+        return {}
+    return candidates
+
+
 def scan_folder(folder: Path) -> FolderScan | None:
     """Enumerate ``folder`` once. ``None`` when the directory cannot be read."""
     files: dict[str, ScannedEntry] = {}
     dirs: list[ScannedEntry] = []
     media: list[ScannedEntry] = []
     sysprompt: ScannedEntry | None = None
+    saw_staging = False
 
     try:
         with os.scandir(folder) as entries:
@@ -119,6 +145,8 @@ def scan_folder(folder: Path) -> FolderScan | None:
                 if is_dir:
                     if not is_listable_dir_name(entry.name):
                         continue
+                    if entry.name == STAGING_DIR_NAME:
+                        saw_staging = True
                     scanned = _entry_from_dir_entry(entry, folder)
                     if scanned is not None:
                         dirs.append(scanned)
@@ -151,6 +179,7 @@ def scan_folder(folder: Path) -> FolderScan | None:
         files=files,
         dirs=dirs,
         media=media,
+        candidates=_scan_staging_files(folder) if saw_staging else {},
         sysprompt=sysprompt,
     )
 

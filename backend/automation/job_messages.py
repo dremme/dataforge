@@ -87,6 +87,42 @@ def watermark_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to watermark {error_count} files. The originals were not changed."
 
 
+def comfy_process_error_message(stats: dict[str, int]) -> str | None:
+    """Blame ComfyUI only for what it did.
+
+    A file that never decoded never reached ComfyUI, and a candidate that could not be
+    written is a disk problem — pointing at the graph in either case would send the user
+    to debug a workflow that is working fine.
+    """
+    comfy_errors = int(stats.get("comfy_error") or 0)
+    read_errors = int(stats.get("read_error") or 0)
+    write_errors = int(stats.get("write_error") or 0)
+    error_count = comfy_errors + read_errors + write_errors
+
+    if error_count == 0:
+        return None
+
+    if comfy_errors == error_count:
+        if comfy_errors == 1:
+            return (
+                "ComfyUI could not process 1 image. Check that it is running and that the "
+                "preset's nodes are installed."
+            )
+        return (
+            f"ComfyUI could not process {comfy_errors} images. Check that it is running and "
+            "that the preset's nodes are installed."
+        )
+
+    if read_errors == error_count:
+        if read_errors == 1:
+            return "1 image could not be read, so it was never sent to ComfyUI."
+        return f"{read_errors} images could not be read, so they were never sent to ComfyUI."
+
+    if error_count == 1:
+        return "Failed to stage 1 image. The original was not changed."
+    return f"Failed to stage {error_count} images. The originals were not changed."
+
+
 def set_captions_error_message(stats: dict[str, int]) -> str | None:
     write_errors = int(stats.get("write_error") or 0)
     if write_errors == 0:
@@ -284,4 +320,6 @@ def resolve_job_error(
         return restore_captions_error_message(stats)
     if job_type == "watermark":
         return watermark_error_message(stats)
+    if job_type == "comfy_process":
+        return comfy_process_error_message(stats)
     return None

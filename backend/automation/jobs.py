@@ -20,6 +20,7 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
+from automation.comfy_process import run_comfy_process_job, validate_comfy_process_folder
 from automation.edit_captions import run_edit_captions_job, validate_edit_captions_folder
 from automation.find_duplicates import (
     DEFAULT_THRESHOLD as DEFAULT_DUPLICATE_THRESHOLD,
@@ -31,6 +32,7 @@ from automation.find_duplicates import (
 from automation.job_messages import (
     auto_caption_failure_message,
     backup_captions_error_message,
+    comfy_process_error_message,
     edit_captions_failure_message,
     find_duplicates_error_message,
     rename_media_error_message,
@@ -251,6 +253,15 @@ def _validate_watermark(folder: Path, **params: object) -> None:
     )
 
 
+def _validate_comfy_process(folder: Path, **params: object) -> None:
+    validate_comfy_process_folder(
+        folder,
+        preset=str(params.get("preset", "")),
+        prompt_text=str(params.get("prompt_text", "")),
+        selected_paths=_selected_paths(params),
+    )
+
+
 def _train_lora_external_ref(params: dict[str, object]) -> str | None:
     return str(params.get("lora_name", "")).strip() or None
 
@@ -369,6 +380,16 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_watermark_job,
         resolve_status=_resolve_stats_errors(watermark_error_message),
         validate=_validate_watermark,
+    ),
+    "comfy_process": JobSpec(
+        thread_prefix="comfy-process",
+        run=run_comfy_process_job,
+        resolve_status=_resolve_stats_errors(comfy_process_error_message),
+        validate=_validate_comfy_process,
+        # No resume: prompt ids are never persisted and ComfyUI's history is bounded, so
+        # a restarted server cannot re-attach. A half-filled staging folder costs nothing
+        # - re-running simply stages the rest - which makes `interrupted` the honest
+        # outcome rather than a loss worth recovering from.
     ),
     "train_lora": JobSpec(
         thread_prefix="train-lora",

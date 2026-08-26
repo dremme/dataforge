@@ -172,6 +172,12 @@
     --bg-elevated: #{$color-bg-soft};
   }
 
+  // Same as duplicates: reviewing staged results is work to do, not a defect.
+  &__review-candidates {
+    @include pill-btn-ghost(0.4rem);
+    --bg-elevated: #{$color-bg-soft};
+  }
+
   &__cancel {
     @include pill-btn-ghost(0.4rem);
     --bg-elevated: #{$color-bg-soft};

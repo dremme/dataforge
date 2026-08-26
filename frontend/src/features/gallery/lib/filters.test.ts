@@ -11,7 +11,7 @@ import { getFilterEmptyState } from "./filters";
 const baseOptions = {
   filter: "all" as const,
   mediaTypeFilter: "all" as const,
-  duplicatesOnly: false,
+  fileFilter: "all" as const,
   searchQuery: "",
   hasFilterMatches: false,
   imageCount: 3,
@@ -81,7 +81,7 @@ describe("getFilterEmptyState", () => {
   it("celebrates a folder with no duplicates", () => {
     const state = getFilterEmptyState({
       ...baseOptions,
-      duplicatesOnly: true,
+      fileFilter: "duplicates",
     });
 
     expect(state.icon).toBe(iconCircleCheck);
@@ -94,7 +94,7 @@ describe("getFilterEmptyState", () => {
   it("blames the combination when duplicates and a caption filter are both active", () => {
     const state = getFilterEmptyState({
       ...baseOptions,
-      duplicatesOnly: true,
+      fileFilter: "duplicates",
       filter: "uncaptioned",
     });
 
@@ -103,10 +103,33 @@ describe("getFilterEmptyState", () => {
     expect(state.variant).toBe("muted");
   });
 
-  it("reports a missing media type ahead of duplicates", () => {
+  it("celebrates a folder with no candidates", () => {
     const state = getFilterEmptyState({
       ...baseOptions,
-      duplicatesOnly: true,
+      fileFilter: "candidates",
+    });
+
+    expect(state.icon).toBe(iconCircleCheck);
+    expect(state.title).toBe("No candidates");
+    expect(state.variant).toBe("success");
+  });
+
+  it("blames the combination when candidates and a caption filter are both active", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      fileFilter: "candidates",
+      filter: "uncaptioned",
+    });
+
+    expect(state.title).toBe("No matching candidates");
+    expect(state.description).toContain("caption filter");
+    expect(state.variant).toBe("muted");
+  });
+
+  it("reports a missing media type ahead of the file filter", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      fileFilter: "duplicates",
       mediaTypeFilter: "video",
       videoCount: 0,
     });

@@ -11,6 +11,7 @@ import {
   iconHammer,
   iconInfo,
   iconLoader2,
+  iconScanSquare,
   iconTriangleAlert,
   iconMessageCheck,
 } from "@/shared/icons";
@@ -82,6 +83,10 @@ export interface AutomationPanelProps {
   /** Groups, not files: the resolver steps through one group at a time. */
   duplicateGroupCount?: number;
   onResolveDuplicates?: () => void;
+  /** Files with a ComfyUI candidate waiting. The review queue walks one pair at a time. */
+  candidateCount?: number;
+  /** Opens the before/after queue for this folder's ComfyUI candidates. */
+  onReviewCandidates?: () => void;
 }
 
 export function AutomationPanel({
@@ -100,6 +105,8 @@ export function AutomationPanel({
   onResolveIssues,
   duplicateGroupCount = 0,
   onResolveDuplicates,
+  candidateCount = 0,
+  onReviewCandidates,
 }: AutomationPanelProps) {
   const stickySentinelRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -111,6 +118,7 @@ export function AutomationPanel({
   const primaryMeta = JOB_TYPE_META[PRIMARY_JOB_TYPE];
   const showResolveIssues = issueCount > 0 && Boolean(onResolveIssues);
   const showResolveDuplicates = duplicateGroupCount > 0 && Boolean(onResolveDuplicates);
+  const showReviewCandidates = candidateCount > 0 && Boolean(onReviewCandidates);
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
   const specsPanelId = useId();
 
@@ -126,6 +134,7 @@ export function AutomationPanel({
   const duplicateLabel = `${duplicateGroupCount} duplicate ${
     duplicateGroupCount === 1 ? "group" : "groups"
   }`;
+  const candidateLabel = `${candidateCount} ${candidateCount === 1 ? "candidate" : "candidates"}`;
   const jobLabel = job ? jobTypeLabel(job).toLowerCase() : "";
 
   const startTooltip = startingPrimary
@@ -250,6 +259,23 @@ export function AutomationPanel({
                     >
                       <Icon icon={iconFileCheck} className="automation__btn-icon" />
                       Resolve duplicates
+                    </button>
+                  </Tooltip>
+                )}
+
+                {showReviewCandidates && (
+                  <Tooltip
+                    content={`Compare ${candidateLabel} against the original${candidateCount === 1 ? "" : "s"}`}
+                  >
+                    <button
+                      type="button"
+                      className="automation__review-candidates"
+                      onClick={onReviewCandidates}
+                      disabled={starting}
+                      aria-label={`Review ${candidateLabel}`}
+                    >
+                      <Icon icon={iconScanSquare} className="automation__btn-icon" />
+                      Review candidates
                     </button>
                   </Tooltip>
                 )}

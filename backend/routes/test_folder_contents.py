@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
 from captions import issue_file_path
-from constants import LAST_FOLDER_KEY
+from constants import LAST_FOLDER_KEY, STAGING_DIR_NAME
 from db import get_preference, set_preference
 from folder_fingerprint import compute_folder_fingerprint
 from media_listing import (
@@ -133,6 +133,20 @@ class FolderContentsEndpointTests(unittest.TestCase):
 
             self.assertTrue(by_name["edited.mp4"]["has_backup"])
             self.assertFalse(by_name["plain.mp4"]["has_backup"])
+
+    def test_reports_whether_a_file_has_a_candidate(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "upscaled.png")
+            write_media(root, "plain.png")
+            staging = root / STAGING_DIR_NAME
+            staging.mkdir()
+            write_media(staging, "upscaled.png")
+
+            items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
+            by_name = {item["name"]: item for item in items}
+
+            self.assertTrue(by_name["upscaled.png"]["has_candidate"])
+            self.assertFalse(by_name["plain.png"]["has_candidate"])
 
     def test_a_stored_original_is_not_listed_as_media_of_its_own(self) -> None:
         with TempMediaFolder() as root:

@@ -29,7 +29,7 @@ import {
 } from "./jobs";
 import type { ExternalOstrisJob } from "@/shared/types";
 import { job } from "@/test/fixtures";
-import { iconCircleQuestionMark, iconPencilSparkles } from "@/shared/icons";
+import { iconCircleQuestionMark, iconSparkles } from "@/shared/icons";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return job({
@@ -77,7 +77,7 @@ describe("job type display", () => {
     const job = makeJob({ job_type: "auto_caption" });
     expect(jobTypeOf(job)).toBe("auto_caption");
     expect(jobTypeLabel(job)).toBe("Auto-caption");
-    expect(jobIcon(job)).toBe(iconPencilSparkles);
+    expect(jobIcon(job)).toBe(iconSparkles);
   });
 
   it("tolerates a job type retired since the row was written", () => {

@@ -11,6 +11,7 @@ import unittest
 
 from caption_cache import clear_caption_cache_for_tests
 from captions import caption_summary_from_sidecar, issue_file_path, issue_summary_from_sidecar
+from constants import STAGING_DIR_NAME
 from folder_scan import get_media_type, scan_folder
 from media_listing import list_media_in_folder
 from testing_fixtures import (
@@ -115,6 +116,30 @@ class FolderScanTests(unittest.TestCase):
                 ["apple.png", "Mango.png", "Zebra.png"],
             )
 
+    def test_staging_files_are_candidates_not_parent_media(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            staging = root / STAGING_DIR_NAME
+            staging.mkdir()
+            write_media(staging, "photo.png")
+            write_media(staging, "orphan.png")
+
+            scan = scan_folder(root)
+
+            assert scan is not None
+            self.assertEqual([entry.name for entry in scan.media], ["photo.png"])
+            self.assertEqual(sorted(scan.candidates), ["orphan.png", "photo.png"])
+            self.assertEqual(scan.candidates["photo.png"].path, staging / "photo.png")
+
+    def test_candidates_are_empty_without_a_staging_folder(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            scan = scan_folder(root)
+
+            assert scan is not None
+            self.assertEqual(scan.candidates, {})
+
     def test_sidecar_lookup_matches_stat_on_disk(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "alpha.png")
@@ -152,6 +177,20 @@ class ScanBackedListingTests(unittest.TestCase):
             self.assertFalse(by_name["plain.png"]["has_description"])
             self.assertEqual(by_name["plain.png"]["caption_status"], "none")
             self.assertFalse(by_name["plain.png"]["has_issue_file"])
+
+    def test_listing_reports_whether_a_file_has_a_candidate(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "upscaled.png")
+            write_media(root, "plain.png")
+            staging = root / STAGING_DIR_NAME
+            staging.mkdir()
+            write_media(staging, "upscaled.png")
+
+            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+
+            self.assertTrue(by_name["upscaled.png"]["has_candidate"])
+            self.assertFalse(by_name["plain.png"]["has_candidate"])
+            self.assertEqual(sorted(by_name), ["plain.png", "upscaled.png"])
 
     def test_listing_always_carries_size_and_modified_at(self) -> None:
         with TempMediaFolder() as root:

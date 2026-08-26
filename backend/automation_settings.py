@@ -17,6 +17,7 @@ from schemas import (
     AutomationSettingsResponse,
     BackupCaptionsJobSettings,
     BatchRenameJobSettings,
+    ComfyProcessJobSettings,
     EditCaptionsJobSettings,
     FindDuplicatesJobSettings,
     ReplaceCaptionsJobSettings,
@@ -43,6 +44,7 @@ JOB_SETTINGS_MODELS: dict[str, type[BaseModel]] = {
     "find_duplicates": FindDuplicatesJobSettings,
     "train_lora": TrainLoraJobSettings,
     "watermark": WatermarkJobSettings,
+    "comfy_process": ComfyProcessJobSettings,
 }
 
 # Re-export so callers/tests keep a single import for folder-keyed preferences.

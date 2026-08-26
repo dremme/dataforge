@@ -14,6 +14,7 @@ const captionedItem: GalleryItem = {
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
+  has_candidate: false,
   caption_status: "text",
   media_type: "image",
   width: 1920,
@@ -58,5 +59,15 @@ describe("GalleryCard", () => {
     const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
 
     expect(container.querySelector(".card__media .card__badge")).toBeInTheDocument();
+  });
+
+  it("badges a file that has a candidate", () => {
+    const { container } = render(
+      <GalleryCard item={{ ...captionedItem, has_candidate: true }} onSelect={vi.fn()} />,
+    );
+
+    const badge = container.querySelector(".card__badge--candidate");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("Candidate");
   });
 });

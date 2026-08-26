@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost";
+import { useComfyPresetsAvailable } from "@/features/automation/hooks/useComfyPresets";
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useCreateFolderDialog } from "@/features/folder/hooks/useCreateFolderDialog";
 import { useFolderChangeDetection } from "@/features/folder/hooks/useFolderChangeDetection";
@@ -12,8 +13,10 @@ import { useGallerySelection } from "@/features/gallery/hooks/useGallerySelectio
 import { useGallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplicateResolverOverlay";
+import { useCandidateReviewOverlay } from "@/features/gallery/hooks/useCandidateReviewOverlay";
 import { useSidecarSweep } from "@/features/gallery/hooks/useSidecarSweep";
 import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
+import { countCandidates } from "@/features/gallery/lib/candidateReview";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
@@ -28,6 +31,7 @@ export function useAppWorkspace() {
   const mainRef = useRef<HTMLElement>(null);
   const selection = useGallerySelection();
   const { ostrisAvailable } = useJobs();
+  const comfyPresetsAvailable = useComfyPresetsAvailable();
 
   const { folder, loading, refreshing, error, navigateTo, setFolder, reloadFolder, scrollIntent } =
     useFolderNavigation(selection.clearSelection);
@@ -138,6 +142,11 @@ export function useAppWorkspace() {
   // watcher's own push would otherwise race the modal's frozen queue.
   const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
   const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
+  const candidateCount = useMemo(() => countCandidates(items), [items]);
+
+  // Same reason as the duplicate resolver: accepting rewrites files, and the watcher's
+  // push would race the modal's frozen queue if it landed mid-walk.
+  const candidateReview = useCandidateReviewOverlay(refreshFolder);
 
   // Owned here rather than inside `BreadcrumbBar` so the quick action bar can open
   // the same picker the breadcrumb button does.
@@ -153,6 +162,7 @@ export function useAppWorkspace() {
     sysprompt,
     hasCaptionBackup: folder?.has_caption_backup ?? false,
     ostrisAvailable,
+    comfyPresetsAvailable,
     getJobPaths: gallery.getJobPaths,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,
@@ -163,6 +173,11 @@ export function useAppWorkspace() {
     onResolveDuplicates:
       duplicateGroupCount > 0 && folder?.path
         ? () => void duplicateResolver.openDuplicateResolver(folder.path)
+        : undefined,
+    candidateCount,
+    onReviewCandidates:
+      candidateCount > 0 && folder?.path
+        ? () => void candidateReview.openCandidateReview(folder.path, items)
         : undefined,
   });
 
@@ -208,5 +223,6 @@ export function useAppWorkspace() {
     quickAction,
     statsDrawer,
     duplicateResolver,
+    candidateReview,
   };
 }

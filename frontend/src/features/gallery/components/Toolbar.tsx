@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   SORT_OPTIONS,
+  type FileFilter,
   type ItemFilter,
   type MediaTypeFilter,
   type SortOption,
@@ -42,8 +43,8 @@ interface ToolbarProps {
   filterCounts: Record<ItemFilter, number>;
   mediaTypeFilter: MediaTypeFilter;
   mediaTypeFilterCounts: Record<MediaTypeFilter, number>;
-  duplicatesOnly: boolean;
-  duplicateCount: number;
+  fileFilter: FileFilter;
+  fileFilterCounts: Record<FileFilter, number>;
   statsOpen: boolean;
   onToggleStats: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -52,7 +53,7 @@ interface ToolbarProps {
   onSortChange: (value: SortOption) => void;
   onFilterChange: (value: ItemFilter) => void;
   onMediaTypeFilterChange: (value: MediaTypeFilter) => void;
-  onDuplicatesOnlyChange: (value: boolean) => void;
+  onFileFilterChange: (value: FileFilter) => void;
 }
 
 interface ToolbarSearchProps {
@@ -197,8 +198,8 @@ export function Toolbar({
   filterCounts,
   mediaTypeFilter,
   mediaTypeFilterCounts,
-  duplicatesOnly,
-  duplicateCount,
+  fileFilter,
+  fileFilterCounts,
   statsOpen,
   onToggleStats,
   onSearchQueryChange,
@@ -207,7 +208,7 @@ export function Toolbar({
   onSortChange,
   onFilterChange,
   onMediaTypeFilterChange,
-  onDuplicatesOnlyChange,
+  onFileFilterChange,
 }: ToolbarProps) {
   const allCaptioned = captionedCount === fileCount;
   const captionPercent =
@@ -318,11 +319,11 @@ export function Toolbar({
           filterCounts={filterCounts}
           mediaTypeFilter={mediaTypeFilter}
           mediaTypeFilterCounts={mediaTypeFilterCounts}
-          duplicatesOnly={duplicatesOnly}
-          duplicateCount={duplicateCount}
+          fileFilter={fileFilter}
+          fileFilterCounts={fileFilterCounts}
           onFilterChange={onFilterChange}
           onMediaTypeFilterChange={onMediaTypeFilterChange}
-          onDuplicatesOnlyChange={onDuplicatesOnlyChange}
+          onFileFilterChange={onFileFilterChange}
         />
 
         <StatsButton open={statsOpen} onToggle={onToggleStats} />

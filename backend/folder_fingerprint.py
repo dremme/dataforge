@@ -19,7 +19,9 @@ from pathlib import Path
 from constants import (
     CAPTION_SIDECAR_EXTENSIONS,
     DUPLICATE_SIDECAR_SUFFIX,
+    EDIT_BACKUP_SUFFIX,
     ISSUE_SIDECAR_SUFFIX,
+    STAGING_DIR_NAME,
 )
 from folder_scan import FolderScan, folder_entries_in_order, scan_folder
 
@@ -29,8 +31,18 @@ ItemSignature = tuple[tuple[int, int], ...]
 #: Looked up against the media's stem, which is where captions live.
 _SIDECAR_EXTENSIONS = CAPTION_SIDECAR_EXTENSIONS
 
-#: Looked up against the media's whole filename, which is where findings live.
-_FINDING_SIDECAR_SUFFIXES = (ISSUE_SIDECAR_SUFFIX, DUPLICATE_SIDECAR_SUFFIX)
+#: Looked up against the media's whole filename: the findings, plus the editor backup
+#: whose presence the gallery item reports as ``has_backup``.
+#: Every suffix here has to appear in *both* the fingerprint and the item signature - a
+#: suffix in only the first makes the folder look changed while the delta reports every
+#: item unchanged, so the flag stays stale until something forces a full refetch.
+#: Candidates live in ``staging/`` rather than beside the media; they are appended
+#: from ``scan.candidates`` in both places for the same reason.
+_FINDING_SIDECAR_SUFFIXES = (
+    ISSUE_SIDECAR_SUFFIX,
+    DUPLICATE_SIDECAR_SUFFIX,
+    EDIT_BACKUP_SUFFIX,
+)
 
 #: Two generations for each of a handful of folders: enough to answer the next poll
 #: for the folder in view and the one just navigated away from, without holding an
@@ -57,6 +69,10 @@ def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
             finding = scan.files.get(f"{entry.name}{suffix}")
             if finding is not None:
                 signatures.append(("sidecar", finding.name, finding.mtime_ns, finding.size))
+
+        candidate = scan.candidates.get(entry.name)
+        if candidate is not None:
+            signatures.append(("candidate", candidate.name, candidate.mtime_ns, candidate.size))
 
     return tuple(signatures)
 
@@ -97,25 +113,45 @@ class FolderSignature:
 _ABSENT_SIDECAR = (-1, -1)
 
 
-def _item_signature(scan: FolderScan, stem: str, media_stat: tuple[int, int]) -> ItemSignature:
+def _item_signature(
+    scan: FolderScan,
+    name: str,
+    stem: str,
+    media_stat: tuple[int, int],
+) -> ItemSignature:
     parts: list[tuple[int, int]] = [media_stat]
 
     for extension in _SIDECAR_EXTENSIONS:
         sidecar = scan.files.get(f"{stem}{extension}")
         parts.append(_ABSENT_SIDECAR if sidecar is None else (sidecar.mtime_ns, sidecar.size))
 
+    # The whole-filename sidecars belong here too, not only in the fingerprint: gaining
+    # an issue, a duplicate finding or an archive changes what the card renders while
+    # leaving the media file untouched.
+    for suffix in _FINDING_SIDECAR_SUFFIXES:
+        finding = scan.files.get(f"{name}{suffix}")
+        parts.append(_ABSENT_SIDECAR if finding is None else (finding.mtime_ns, finding.size))
+
+    candidate = scan.candidates.get(name)
+    parts.append(_ABSENT_SIDECAR if candidate is None else (candidate.mtime_ns, candidate.size))
+
     return tuple(parts)
 
 
 def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
     items = {
-        entry.name: _item_signature(scan, entry.path.stem, (entry.mtime_ns, entry.size))
+        entry.name: _item_signature(scan, entry.name, entry.path.stem, (entry.mtime_ns, entry.size))
         for entry in scan.media
     }
 
-    shell: list[EntrySignature] = [
-        ("dir", entry.name, entry.mtime_ns, entry.size) for entry in scan.dirs
-    ]
+    shell: list[EntrySignature] = []
+    for entry in scan.dirs:
+        if entry.name == STAGING_DIR_NAME:
+            # Files inside staging are tracked per-item as candidates. Using this
+            # directory's mtime would full-reload the gallery on every write.
+            shell.append(("dir", entry.name, 0, 0))
+        else:
+            shell.append(("dir", entry.name, entry.mtime_ns, entry.size))
     if scan.sysprompt is not None:
         sysprompt = scan.sysprompt
         shell.append(("sysprompt", sysprompt.name, sysprompt.mtime_ns, sysprompt.size))

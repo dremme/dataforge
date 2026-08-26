@@ -10,6 +10,7 @@ function item(
   hasDescription: boolean,
   hasIssue: boolean,
   hasDuplicate = false,
+  hasCandidate = false,
 ): GalleryItem {
   return {
     name,
@@ -21,6 +22,7 @@ function item(
     has_issue_file: hasIssue,
     has_duplicate_file: hasDuplicate,
     has_backup: false,
+    has_candidate: hasCandidate,
     caption_status: hasDescription ? "text" : "none",
     media_type: mediaType,
   };
@@ -51,6 +53,19 @@ const crossItems = [
   item("dup-cap-shot.mp4", "video", true, false, true),
   item("plain-issue-shot.mp4", "video", true, true, false),
   item("other.png", "image", true, false, false),
+];
+
+/**
+ * Same idea as `crossItems`, for the candidates axis: captioned and uncaptioned files
+ * with a candidate, images and video, plus files without one in both caption states.
+ */
+const candidateItems = [
+  item("cand-uncap-shot.png", "image", false, false, false, true),
+  item("cand-cap-shot.png", "image", true, false, false, true),
+  item("plain-uncap-shot.png", "image", false, false, false, false),
+  item("cand-cap-shot.mp4", "video", true, false, false, true),
+  item("plain-issue-shot.mp4", "video", true, true, false, false),
+  item("other.png", "image", true, false, false, false),
 ];
 
 describe("useGalleryQuery", () => {
@@ -172,15 +187,15 @@ describe("useGalleryQuery", () => {
   it("counts duplicates as its own axis", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
-    expect(result.current.duplicateCount).toBe(3);
-    expect(result.current.duplicatesOnly).toBe(false);
+    expect(result.current.fileFilterCounts.duplicates).toBe(3);
+    expect(result.current.fileFilter).toBe("all");
   });
 
   it("narrows the gallery to duplicates and back", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
 
     expect(result.current.filteredItems.map((entry) => entry.name)).toEqual([
@@ -190,7 +205,7 @@ describe("useGalleryQuery", () => {
     ]);
 
     act(() => {
-      result.current.setDuplicatesOnly(false);
+      result.current.setFileFilter("all");
     });
 
     expect(result.current.filteredItems).toHaveLength(6);
@@ -201,14 +216,14 @@ describe("useGalleryQuery", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
     act(() => {
       result.current.setFilter("uncaptioned");
     });
 
     expect(result.current.filter).toBe("uncaptioned");
-    expect(result.current.duplicatesOnly).toBe(true);
+    expect(result.current.fileFilter).toBe("duplicates");
     expect(result.current.filteredItems.map((entry) => entry.name)).toEqual(["dup-uncap-shot.png"]);
   });
 
@@ -216,7 +231,7 @@ describe("useGalleryQuery", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
 
     expect(result.current.hasActiveFilters).toBe(true);
@@ -233,7 +248,7 @@ describe("useGalleryQuery", () => {
     });
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
 
     expect(result.current.filterCounts).toEqual({
@@ -248,7 +263,7 @@ describe("useGalleryQuery", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
 
     expect(result.current.mediaTypeFilterCounts).toEqual({ all: 3, image: 2, video: 1 });
@@ -261,14 +276,14 @@ describe("useGalleryQuery", () => {
       result.current.setFilter("uncaptioned");
     });
 
-    expect(result.current.duplicateCount).toBe(1);
+    expect(result.current.fileFilterCounts.duplicates).toBe(1);
 
     act(() => {
       result.current.setFilter("captioned");
       result.current.setMediaTypeFilter("video");
     });
 
-    expect(result.current.duplicateCount).toBe(1);
+    expect(result.current.fileFilterCounts.duplicates).toBe(1);
   });
 
   // Measured with the toggle off on purpose: the number beside it has to say what turning it
@@ -277,17 +292,17 @@ describe("useGalleryQuery", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
 
-    expect(result.current.duplicateCount).toBe(3);
+    expect(result.current.fileFilterCounts.duplicates).toBe(3);
   });
 
   it("blames the combination when duplicates and a caption filter agree on nothing", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
     act(() => {
       result.current.setFilter("issue");
@@ -305,7 +320,7 @@ describe("useGalleryQuery", () => {
     const { result } = renderHook(() => useGalleryQuery(noDuplicates));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
 
     expect(result.current.filteredItems).toHaveLength(0);
@@ -322,7 +337,7 @@ describe("useGalleryQuery", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
     });
     act(() => {
       result.current.setSearchQuery("shot");
@@ -352,10 +367,191 @@ describe("useGalleryQuery", () => {
       result.current.setSearchQuery("shot");
     });
 
-    const expected = result.current.duplicateCount;
+    const expected = result.current.fileFilterCounts.duplicates;
 
     act(() => {
-      result.current.setDuplicatesOnly(true);
+      result.current.setFileFilter("duplicates");
+    });
+
+    expect(result.current.filteredItems).toHaveLength(expected);
+  });
+
+  it("counts candidates as their own axis", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    expect(result.current.fileFilterCounts.candidates).toBe(3);
+    expect(result.current.fileFilter).toBe("all");
+  });
+
+  it("narrows the gallery to candidates and back", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+
+    expect(result.current.filteredItems.map((entry) => entry.name)).toEqual([
+      "cand-cap-shot.mp4",
+      "cand-cap-shot.png",
+      "cand-uncap-shot.png",
+    ]);
+
+    act(() => {
+      result.current.setFileFilter("all");
+    });
+
+    expect(result.current.filteredItems).toHaveLength(6);
+  });
+
+  it("combines candidates with the caption filter", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+    act(() => {
+      result.current.setFilter("uncaptioned");
+    });
+
+    expect(result.current.filter).toBe("uncaptioned");
+    expect(result.current.fileFilter).toBe("candidates");
+    expect(result.current.filteredItems.map((entry) => entry.name)).toEqual([
+      "cand-uncap-shot.png",
+    ]);
+  });
+
+  // One axis, one value: picking candidates replaces duplicates rather than intersecting
+  // with it, which is the whole point of the Files section being a radio group.
+  it("replaces duplicates when candidates is picked", () => {
+    const mixed = [
+      item("both.png", "image", true, false, true, true),
+      item("dup-only.png", "image", true, false, true, false),
+      item("cand-only.png", "image", true, false, false, true),
+    ];
+    const { result } = renderHook(() => useGalleryQuery(mixed));
+
+    act(() => {
+      result.current.setFileFilter("duplicates");
+    });
+
+    expect(result.current.filteredItems.map((entry) => entry.name)).toEqual([
+      "both.png",
+      "dup-only.png",
+    ]);
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+
+    expect(result.current.fileFilter).toBe("candidates");
+    expect(result.current.filteredItems.map((entry) => entry.name)).toEqual([
+      "both.png",
+      "cand-only.png",
+    ]);
+  });
+
+  it("treats candidates as an active filter on its own", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+
+    expect(result.current.hasActiveFilters).toBe(true);
+  });
+
+  it("scopes caption counts by the candidates filter", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    expect(result.current.filterCounts).toEqual({
+      all: 6,
+      captioned: 4,
+      issue: 1,
+      uncaptioned: 2,
+    });
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+
+    expect(result.current.filterCounts).toEqual({
+      all: 3,
+      captioned: 2,
+      issue: 0,
+      uncaptioned: 1,
+    });
+  });
+
+  it("scopes the candidate count by the caption filter and media type", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFilter("uncaptioned");
+    });
+
+    expect(result.current.fileFilterCounts.candidates).toBe(1);
+
+    act(() => {
+      result.current.setFilter("captioned");
+      result.current.setMediaTypeFilter("video");
+    });
+
+    expect(result.current.fileFilterCounts.candidates).toBe(1);
+  });
+
+  it("holds the candidate count steady while candidates is on", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+
+    expect(result.current.fileFilterCounts.candidates).toBe(3);
+  });
+
+  it("blames the combination when candidates and a caption filter agree on nothing", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+    act(() => {
+      result.current.setFilter("issue");
+    });
+
+    expect(result.current.filteredItems).toHaveLength(0);
+    expect(result.current.filterEmptyState.title).toBe("No matching candidates");
+  });
+
+  it("reports an absence of candidates when that is the only filter", () => {
+    const noCandidates = [
+      item("a.png", "image", true, false),
+      item("b.jpg", "image", false, false),
+    ];
+    const { result } = renderHook(() => useGalleryQuery(noCandidates));
+
+    act(() => {
+      result.current.setFileFilter("candidates");
+    });
+
+    expect(result.current.filteredItems).toHaveLength(0);
+    expect(result.current.filterEmptyState.title).toBe("No candidates");
+  });
+
+  it("keeps the candidate count equal to what turning it on yields", () => {
+    const { result } = renderHook(() => useGalleryQuery(candidateItems));
+
+    act(() => {
+      result.current.setFilter("captioned");
+    });
+    act(() => {
+      result.current.setSearchQuery("shot");
+    });
+
+    const expected = result.current.fileFilterCounts.candidates;
+
+    act(() => {
+      result.current.setFileFilter("candidates");
     });
 
     expect(result.current.filteredItems).toHaveLength(expected);

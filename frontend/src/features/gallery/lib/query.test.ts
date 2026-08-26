@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyDuplicateFilter,
+  applyFileFilter,
   applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
@@ -40,6 +40,7 @@ function item(
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    has_candidate: false,
     caption_status: "none",
     media_type: mediaType,
     ...overrides,
@@ -97,7 +98,7 @@ describe("processGalleryItems", () => {
     const result = processGalleryItems(items, {
       filter: "captioned",
       mediaTypeFilter: "video",
-      duplicatesOnly: false,
+      fileFilter: "all",
       searchQuery: "",
       searchRegex: false,
       searchNames: true,
@@ -119,7 +120,7 @@ describe("processGalleryItems", () => {
     const result = processGalleryItems(mixed, {
       filter: "captioned",
       mediaTypeFilter: "all",
-      duplicatesOnly: true,
+      fileFilter: "duplicates",
       searchQuery: "",
       searchRegex: false,
       searchNames: true,
@@ -130,22 +131,58 @@ describe("processGalleryItems", () => {
   });
 });
 
-describe("applyDuplicateFilter", () => {
+describe("applyFileFilter", () => {
   const items = [
     item("a.png", "image"),
     { ...item("b.png", "image"), has_duplicate_file: true },
     { ...item("c.png", "image"), has_duplicate_file: true },
+    { ...item("d.png", "image"), has_candidate: true },
   ];
 
-  it("passes everything through when off", () => {
-    expect(applyDuplicateFilter(items, false)).toBe(items);
+  it("passes everything through on all", () => {
+    expect(applyFileFilter(items, "all")).toBe(items);
   });
 
-  it("keeps only duplicates when on", () => {
-    expect(applyDuplicateFilter(items, true).map((entry) => entry.name)).toEqual([
+  it("keeps only duplicates", () => {
+    expect(applyFileFilter(items, "duplicates").map((entry) => entry.name)).toEqual([
       "b.png",
       "c.png",
     ]);
+  });
+
+  it("keeps only files with a candidate", () => {
+    expect(applyFileFilter(items, "candidates").map((entry) => entry.name)).toEqual(["d.png"]);
+  });
+
+  it("does not treat a sysprompt as a candidate", () => {
+    const mixed = [
+      { ...item("b.png", "image"), has_candidate: true },
+      { ...item(".sysprompt", "sysprompt"), has_candidate: true },
+    ];
+
+    expect(applyFileFilter(mixed, "candidates").map((entry) => entry.name)).toEqual(["b.png"]);
+  });
+});
+
+describe("processGalleryItems candidates", () => {
+  it("narrows the caption filter by candidates instead of replacing it", () => {
+    const mixed = [
+      { ...item("kept.png", "image"), has_description: true, has_candidate: true },
+      { ...item("captioned.png", "image"), has_description: true },
+      { ...item("pending.png", "image"), has_candidate: true },
+    ];
+
+    const result = processGalleryItems(mixed, {
+      filter: "captioned",
+      mediaTypeFilter: "all",
+      fileFilter: "candidates",
+      searchQuery: "",
+      searchRegex: false,
+      searchNames: true,
+      sort: "name-asc",
+    });
+
+    expect(result.map((entry) => entry.name)).toEqual(["kept.png"]);
   });
 });
 

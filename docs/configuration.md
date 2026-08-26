@@ -216,6 +216,9 @@ no prior reasoning to keep — it matters only once a flow sends the model its o
 | Variable | Purpose |
 | --- | --- |
 | `OSTRIS_TOOLKIT_ROOT` | Path to an AI-Toolkit install, so external train jobs can be listed |
+| `COMFY_BASE_URL` | The ComfyUI the *Process with ComfyUI* job drives (default `http://127.0.0.1:9000`). See [Process with ComfyUI](comfyui.md) |
+| `COMFY_WORKFLOWS_DIR` | Folder of API-format workflow presets (default `comfy-workflows/` in the repo) |
+| `COMFY_IMAGE_TIMEOUT` | Seconds to wait for one image before giving up on it (default `900`) |
 | `DATAFORGE_DB_PATH` | Override the SQLite path (default is under `backend/data/`) |
 | `DATAFORGE_THUMBNAIL_CACHE` | Override the thumbnail cache directory |
 | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | Thumbnail cache size ceiling (default `2048`). Least recently used entries are dropped past it; `0` never deletes |

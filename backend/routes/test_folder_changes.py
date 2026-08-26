@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from urllib.parse import quote
 
+from constants import STAGING_DIR_NAME
 from folder_fingerprint import clear_remembered_signatures_for_tests
 from routes._test_client import client
 from testing_fixtures import (
@@ -101,6 +102,23 @@ class FolderChangesTests(unittest.TestCase):
             changes = client.get(f"/api/folders/changes?path={quote(str(root))}").json()
 
             self.assertTrue(changes["full"])
+
+    def test_a_new_candidate_returns_only_that_item(self) -> None:
+        """Staging is a child directory, so writing inside it must not full-reload."""
+        with TempMediaFolder() as root:
+            write_media(root, "upscaled.png")
+            write_media(root, "untouched.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            listed = self._listing(root)
+
+            write_media(root / STAGING_DIR_NAME, "upscaled.png")
+
+            changes = self._changes(root, listed["fingerprint"])
+
+            self.assertFalse(changes["full"])
+            self.assertEqual([item["name"] for item in changes["changed"]], ["upscaled.png"])
+            self.assertTrue(changes["changed"][0]["has_candidate"])
+            self.assertEqual(changes["removed"], [])
 
     def test_a_new_subfolder_asks_for_a_full_reload(self) -> None:
         """Subfolders are not part of a delta, so the shell changing sends the client back."""

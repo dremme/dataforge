@@ -33,6 +33,7 @@ export type JobSettingsByType = {
   find_duplicates: AutomationSettings["find_duplicates"];
   train_lora: AutomationSettings["train_lora"];
   watermark: AutomationSettings["watermark"];
+  comfy_process: AutomationSettings["comfy_process"];
 };
 
 export type JobSettingsType = keyof JobSettingsByType;
@@ -117,6 +118,7 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
       opacity: DEFAULT_WATERMARK_OPACITY,
       position: DEFAULT_WATERMARK_POSITION,
     },
+    comfy_process: { preset: "", seed: null, prompt_text: "", overwrite_candidates: false },
   };
 }
 
@@ -132,6 +134,7 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
   const findDuplicates = block(data, "find_duplicates");
   const trainLora = block(data, "train_lora");
   const watermark = block(data, "watermark");
+  const comfyProcess = block(data, "comfy_process");
 
   return {
     folder_path:
@@ -203,6 +206,18 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
       size: oneOf(WATERMARK_SIZES, watermark.size, DEFAULT_WATERMARK_SIZE),
       opacity: oneOf(WATERMARK_OPACITIES, watermark.opacity, DEFAULT_WATERMARK_OPACITY),
       position: oneOf(WATERMARK_POSITIONS, watermark.position, DEFAULT_WATERMARK_POSITION),
+    },
+    comfy_process: {
+      // Not narrowed against the preset list: presets are files the user adds and
+      // removes, and the dialog fetches the current ones anyway. A stored name that no
+      // longer exists is dropped there, where the real list is known.
+      preset: text(comfyProcess.preset),
+      seed:
+        typeof comfyProcess.seed === "number" && Number.isFinite(comfyProcess.seed)
+          ? comfyProcess.seed
+          : null,
+      prompt_text: text(comfyProcess.prompt_text),
+      overwrite_candidates: flag(comfyProcess.overwrite_candidates, false),
     },
   };
 }

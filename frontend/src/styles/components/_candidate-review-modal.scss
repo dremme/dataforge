@@ -1,0 +1,239 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// ---------------------------------------------------------------------------
+// .candidate-review-modal
+//
+// Before and after, for deciding whether a ComfyUI pass kept the composition. Unlike
+// the duplicate resolver's card grid, the two versions are the *same* image, so they
+// are stages rather than cards: no chrome between them, equal size, and one zoom
+// driving both.
+// ---------------------------------------------------------------------------
+
+.candidate-review-modal {
+  @include modal-shell($z-index-modal);
+
+  &__backdrop {
+    @include modal-backdrop;
+  }
+
+  &__panel {
+    @include modal-panel-surface;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(1280px, 100%);
+    max-height: 94vh;
+    overflow: hidden;
+  }
+
+  &__header {
+    @include modal-chrome-header;
+  }
+
+  &__header-text {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+    // Takes the slack so the close button sits against the right edge.
+    flex: 1;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+    @include truncate;
+  }
+
+  &__counter {
+    @include count-pill-muted;
+    flex-shrink: 0;
+  }
+
+  &__close {
+    @include modal-close-btn;
+  }
+
+  &__body {
+    @include app-scrollbar;
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--panel-padding);
+  }
+
+  // Two equal columns, never auto-fit: a before/after that wraps to one column has
+  // stopped being a comparison.
+  //
+  // The whole pair is capped and centred as one block, rather than each image being
+  // centred in a half-width column. Two portrait frames centred separately end up
+  // pushed against the outer edges with the panel's whole width dead between them,
+  // which is the one place a comparison must not put empty space.
+  //
+  // The cap is what two stages of this shape come to at their tallest, so the columns
+  // shrink to the images and the gap between them stays the gap.
+  &__compare {
+    --stage-gap: 0.875rem;
+    --stage-max-h: min(58vh, 34rem);
+
+    display: grid;
+    gap: var(--stage-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: calc(var(--stage-max-h) * var(--stage-aspect, 1) * 2 + var(--stage-gap));
+    margin-inline: auto;
+  }
+
+  &__pane {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-width: 0;
+  }
+
+  &__pane-label {
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    color: var(--text-muted);
+  }
+
+  // Both panes are fixed to the same box so the shared zoom lands on the same region
+  // of each: the zoom's origin is a pointer position in percent, so two differently
+  // shaped boxes would put the same percentage over different parts of the two images.
+  // `--stage-aspect` is set once on `__compare` and inherited, so they cannot drift.
+  //
+  // The box takes the candidate's own aspect ratio rather than a fixed square. A square
+  // had to do *something* with the mismatch, and what it did was distort - the zoomed
+  // canvas is this box scaled up and the image is painted across it, so a 16:9 frame
+  // came out squeezed into a square, worst at full zoom where the comparison is made.
+  //
+  // The height cap lives on the grid's `max-width` rather than as a `max-height` here:
+  // a max-height would clamp the height while leaving the column's width alone, which
+  // is the same distortion by another route.
+  &__stage {
+    width: 100%;
+    aspect-ratio: var(--stage-aspect, 1);
+    border-radius: var(--radius-sm);
+    background: var(--bg-media);
+    overflow: hidden;
+  }
+
+  // `zoomable-image` is loaded after this file, so every rule below has to out-specify
+  // it rather than rely on order.
+  //
+  // Zoomed, the shared rules stretch the image across the canvas with `object-fit:
+  // fill`. That is exact for the after pane, whose box *is* its shape - but the before
+  // pane is only the same shape when the workflow kept the framing, and fill would
+  // stretch it whenever it did not. `contain` costs the after pane nothing and keeps
+  // the before pane honest.
+  &__stage.zoomable-image--zoomed .zoomable-image__img {
+    object-fit: contain;
+  }
+
+  // Unzoomed, the shared rules size the image from its own pixels against a box that no
+  // longer matches it, so a taller original overflows and is silently cropped by
+  // `overflow: hidden`. Fill the box and contain instead - the same letterboxing as the
+  // zoomed state, so zooming in does not reframe the picture.
+  &__stage:not(.zoomable-image--zoomed) .zoomable-image__canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  &__stage:not(.zoomable-image--zoomed) .zoomable-image__img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  &__missing {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+  }
+
+  // The same value-over-label bar the gallery item, sysprompt, issue resolver and
+  // training template editor modals wear, through the shared `modal-meta-*` mixins.
+  // Centred like the gallery item's, and wrapping rather than scrolling: five items and
+  // their dividers is more than a narrow panel fits on one line.
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+    margin: 1.125rem 0 0;
+  }
+
+  &__meta-item {
+    @include modal-meta-item;
+  }
+
+  &__meta-value {
+    @include modal-meta-value;
+  }
+
+  &__meta-label {
+    @include modal-meta-label;
+  }
+
+  &__meta-divider {
+    @include modal-meta-divider;
+  }
+
+  // Every value here is a change rather than a fact, so two glyphs carry the reading:
+  // `x` between the two halves of one measurement, and the arrow between before and
+  // after. Both are drawn back, so the numbers stay the thing the eye lands on.
+  &__meta-times {
+    margin: 0 0.125rem;
+    color: var(--text-subtle);
+  }
+
+  &__meta-arrow {
+    @include icon-size(var(--icon-size-sm));
+    display: inline-block;
+    margin: 0 0.375rem;
+    color: var(--text-subtle);
+  }
+
+  // Carries the unit on most items and the difference score's verdict on one. Both are
+  // the same kind of thing - a quiet gloss on the number, not a number itself - so the
+  // one style does for both.
+  &__meta-unit {
+    @include modal-meta-unit;
+  }
+
+  &__warning {
+    @include inline-alert(warning);
+    margin: 0.875rem 0 0;
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-base));
+    }
+  }
+
+  &__error {
+    @include inline-alert(danger);
+    margin: 0.875rem 0 0;
+
+    &-icon {
+      flex-shrink: 0;
+      @include icon-size(var(--icon-size-base));
+    }
+  }
+
+  &__footer {
+    @include modal-chrome-footer;
+    gap: 0.5625rem;
+    // Five actions, so a narrow panel wraps rather than pushing Back off the edge.
+    flex-wrap: wrap;
+  }
+}

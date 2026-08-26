@@ -7,6 +7,7 @@ const SCROLL_LOCK_CLASSES = [
   "gallery-item-modal-open",
   "issue-resolver-modal-open",
   "duplicate-resolver-modal-open",
+  "candidate-review-modal-open",
   "sysprompt-modal-open",
   "confirm-dialog-open",
   "open-folder-modal-open",

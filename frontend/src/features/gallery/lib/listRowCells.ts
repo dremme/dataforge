@@ -9,6 +9,7 @@ import {
   iconMessageCheck,
   iconMessageDashed,
   iconMessageWarning,
+  iconScanSquare,
   iconVideo,
   type AppIcon,
 } from "@/shared/icons";
@@ -61,6 +62,14 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
       icon: iconFiles,
       label: "Duplicate",
       variant: "duplicate",
+    });
+  }
+  if (item.has_candidate) {
+    markers.push({
+      key: "candidate",
+      icon: iconScanSquare,
+      label: "Candidate",
+      variant: "candidate",
     });
   }
 

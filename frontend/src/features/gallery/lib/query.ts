@@ -1,5 +1,6 @@
 import { isResolvableIssueItem } from "./issues";
 import { isDuplicateItem } from "./duplicates";
+import { isCandidateItem } from "./candidateReview";
 import { isMotion } from "@/features/gallery/lib/itemKind";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem, GallerySort, Subfolder } from "@/shared/types";
@@ -9,17 +10,29 @@ export type SortOption = GallerySort;
 /**
  * One caption state at a time. `duplicate` used to live in here, which is what the name
  * `ItemFilter` was chosen for - but a duplicate is a property of the file rather than of
- * its caption, so it now filters on its own axis (`applyDuplicateFilter`) and composes
- * with this one instead of displacing it.
+ * its caption, so it now filters on its own axis (`FileFilter`) and composes with this
+ * one instead of displacing it.
  */
 export type ItemFilter = "all" | "captioned" | "issue" | "uncaptioned";
 
 /** `video` means "has motion", so it covers GIFs as well as MP4s. */
 export type MediaTypeFilter = "all" | "image" | "video";
 
+/**
+ * A property of the file rather than of its caption, so it narrows whatever the caption
+ * and media-type axes already chose.
+ *
+ * One of many rather than two independent toggles, matching the other two axes. The pair
+ * could only ever intersect into an empty grid - a candidate is not also a duplicate - so
+ * the combination cost a menu section and answered nothing.
+ */
+export type FileFilter = "all" | "duplicates" | "candidates";
+
 const ITEM_FILTER_VALUES = new Set<ItemFilter>(["all", "captioned", "issue", "uncaptioned"]);
 
 const MEDIA_TYPE_FILTER_VALUES = new Set<MediaTypeFilter>(["all", "image", "video"]);
+
+const FILE_FILTER_VALUES = new Set<FileFilter>(["all", "duplicates", "candidates"]);
 
 export function isItemFilter(value: string | null): value is ItemFilter {
   return value !== null && ITEM_FILTER_VALUES.has(value as ItemFilter);
@@ -27,6 +40,10 @@ export function isItemFilter(value: string | null): value is ItemFilter {
 
 export function isMediaTypeFilter(value: string | null): value is MediaTypeFilter {
   return value !== null && MEDIA_TYPE_FILTER_VALUES.has(value as MediaTypeFilter);
+}
+
+export function isFileFilter(value: string | null): value is FileFilter {
+  return value !== null && FILE_FILTER_VALUES.has(value as FileFilter);
 }
 
 export const DEFAULT_SORT: SortOption = "name-asc";
@@ -185,11 +202,13 @@ export function applyItemFilter(items: GalleryItem[], filter: ItemFilter): Galle
 }
 
 /**
- * Its own axis rather than a value of `ItemFilter`, so "duplicates" narrows whatever the
- * caption filter already chose instead of replacing it.
+ * Its own axis rather than a value of `ItemFilter`, so a file property narrows whatever
+ * the caption filter already chose instead of replacing it.
  */
-export function applyDuplicateFilter(items: GalleryItem[], duplicatesOnly: boolean): GalleryItem[] {
-  return duplicatesOnly ? items.filter(isDuplicateItem) : items;
+export function applyFileFilter(items: GalleryItem[], fileFilter: FileFilter): GalleryItem[] {
+  if (fileFilter === "duplicates") return items.filter(isDuplicateItem);
+  if (fileFilter === "candidates") return items.filter(isCandidateItem);
+  return items;
 }
 
 /**
@@ -215,7 +234,7 @@ export function processGalleryItems(
   options: {
     filter: ItemFilter;
     mediaTypeFilter: MediaTypeFilter;
-    duplicatesOnly: boolean;
+    fileFilter: FileFilter;
     searchQuery: string;
     searchRegex: boolean;
     searchNames: boolean;
@@ -224,9 +243,9 @@ export function processGalleryItems(
 ): GalleryItem[] {
   return sortGalleryItems(
     filterBySearch(
-      applyDuplicateFilter(
+      applyFileFilter(
         applyItemFilter(applyMediaTypeFilter(items, options.mediaTypeFilter), options.filter),
-        options.duplicatesOnly,
+        options.fileFilter,
       ),
       options.searchQuery,
       options.searchRegex,

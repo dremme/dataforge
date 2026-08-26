@@ -1,0 +1,3 @@
+# Presets you drop here stay on this machine. Only the shipped example is tracked.
+*.json
+!example-lanczos-2x.json

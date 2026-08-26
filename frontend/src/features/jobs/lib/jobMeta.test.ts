@@ -10,8 +10,12 @@ import {
   isJobAvailable,
 } from "./jobMeta";
 
-const withBackup = { hasCaptionBackup: true, ostrisAvailable: true };
-const withoutBackup = { hasCaptionBackup: false, ostrisAvailable: true };
+const withBackup = { hasCaptionBackup: true, ostrisAvailable: true, comfyPresetsAvailable: true };
+const withoutBackup = {
+  hasCaptionBackup: false,
+  ostrisAvailable: true,
+  comfyPresetsAvailable: true,
+};
 
 describe("isJobAvailable", () => {
   it("blocks restore captions until a backup exists", () => {
@@ -24,10 +28,16 @@ describe("isJobAvailable", () => {
     expect(isJobAvailable("train_lora", withBackup)).toBe(true);
   });
 
-  it("leaves every other job available either way", () => {
-    const others = SECONDARY_JOB_TYPES.filter(
-      (type) => type !== "restore_captions" && type !== "train_lora",
+  it("blocks the ComfyUI job until a workflow preset exists", () => {
+    expect(isJobAvailable("comfy_process", { ...withBackup, comfyPresetsAvailable: false })).toBe(
+      false,
     );
+    expect(isJobAvailable("comfy_process", withBackup)).toBe(true);
+  });
+
+  it("leaves every other job available either way", () => {
+    const gated = new Set<JobType>(["restore_captions", "train_lora", "comfy_process"]);
+    const others = SECONDARY_JOB_TYPES.filter((type) => !gated.has(type));
     expect(others.length).toBeGreaterThan(0);
 
     for (const type of others) {

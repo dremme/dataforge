@@ -162,6 +162,38 @@ describe("App: search and filters", () => {
     });
   });
 
+  it("filters gallery items with the candidates option", async () => {
+    const user = userEvent.setup();
+    const pendingHome = {
+      ...homeFolder,
+      items: homeFolder.items.map((item) =>
+        item.name === "sunset.png" ? { ...item, has_candidate: true } : item,
+      ),
+    };
+    installMockBackend({
+      folderByPath: {
+        undefined: pendingHome,
+        [HOME_PATH]: pendingHome,
+      },
+    });
+    await renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View beach.jpg" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: /ComfyUI candidates \(\d+\)/ }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "View waves.mp4" })).not.toBeInTheDocument();
+    });
+  });
+
   it("shows caption filter empty state when subfolders are present", async () => {
     const user = userEvent.setup();
     installMockBackend();

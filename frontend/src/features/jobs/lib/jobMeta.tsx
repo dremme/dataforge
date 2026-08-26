@@ -5,14 +5,15 @@ import {
   iconArchiveRestore,
   iconBrain,
   iconCircleQuestionMark,
+  iconComfyUi,
   iconFilePen,
   iconFiles,
   iconMessagePlus,
   iconMessageWarning,
-  iconWandSparkles,
   iconPencilSparkles,
   iconReplace,
   iconShredder,
+  iconSparkles,
   iconStamp,
 } from "@/shared/icons";
 import type { JobType } from "@/shared/types";
@@ -24,6 +25,15 @@ type JobStartUi = "dialog" | "confirm";
 export interface JobAvailability {
   hasCaptionBackup: boolean;
   ostrisAvailable: boolean;
+  /**
+   * Whether any ComfyUI workflow preset exists.
+   *
+   * Gated on presets rather than on ComfyUI answering: a preset folder is something the
+   * user sets up once, while ComfyUI itself is started and stopped all day, and hiding
+   * the job because it happens to be closed right now would read as the feature being
+   * gone. The dialog says so instead.
+   */
+  comfyPresetsAvailable: boolean;
 }
 
 /** Sections of the secondary jobs menu, in display order. */
@@ -67,7 +77,7 @@ export const JOB_TYPE_META = {
     type: "auto_caption" as const,
     group: "datasets" as const,
     label: "Auto-caption",
-    icon: iconPencilSparkles,
+    icon: iconSparkles,
     startUi: "dialog" as const,
     primary: true as const,
     menuDescription: "Auto-complete captions with the local model.",
@@ -92,7 +102,7 @@ export const JOB_TYPE_META = {
     type: "edit_captions" as const,
     group: "datasets" as const,
     label: "Edit captions",
-    icon: iconWandSparkles,
+    icon: iconPencilSparkles,
     startUi: "dialog" as const,
     menuDescription: "Rewrite existing captions with the local model, from your instruction.",
   },
@@ -104,6 +114,16 @@ export const JOB_TYPE_META = {
     startUi: "dialog" as const,
     menuDescription: "Search and replace, prepend, or append text across captions.",
   },
+  train_lora: {
+    type: "train_lora" as const,
+    group: "datasets" as const,
+    label: "LoRA training",
+    icon: iconBrain,
+    startUi: "dialog" as const,
+    menuLabel: "Quick LoRA training",
+    menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
+    isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
+  },
   batch_rename: {
     type: "batch_rename" as const,
     group: "files" as const,
@@ -111,14 +131,6 @@ export const JOB_TYPE_META = {
     icon: iconFilePen,
     startUi: "dialog" as const,
     menuDescription: "Rename media files.",
-  },
-  watermark: {
-    type: "watermark" as const,
-    group: "files" as const,
-    label: "Watermark",
-    icon: iconStamp,
-    startUi: "dialog" as const,
-    menuDescription: "Adds a watermark to media files.",
   },
   strip_metadata: {
     type: "strip_metadata" as const,
@@ -168,15 +180,23 @@ export const JOB_TYPE_META = {
     },
     isAvailable: ({ hasCaptionBackup }: JobAvailability) => hasCaptionBackup,
   },
-  train_lora: {
-    type: "train_lora" as const,
-    group: "datasets" as const,
-    label: "LoRA training",
-    icon: iconBrain,
+  watermark: {
+    type: "watermark" as const,
+    group: "files" as const,
+    label: "Watermark",
+    icon: iconStamp,
     startUi: "dialog" as const,
-    menuLabel: "Quick LoRA training",
-    menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
-    isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
+    menuDescription: "Adds a watermark to media files.",
+  },
+  comfy_process: {
+    type: "comfy_process" as const,
+    group: "files" as const,
+    label: "Process with ComfyUI",
+    icon: iconComfyUi,
+    startUi: "dialog" as const,
+    menuLabel: "Process with ComfyUI",
+    menuDescription: "Upscale or repair images through a ComfyUI workflow, for review.",
+    isAvailable: ({ comfyPresetsAvailable }: JobAvailability) => comfyPresetsAvailable,
   },
 } satisfies Record<JobType, JobTypeMeta>;
 

@@ -9,6 +9,7 @@ isolate_test_database()
 import unittest
 
 from captions import save_issue_fixes
+from constants import STAGING_DIR_NAME
 from duplicates import DuplicateFinding, save_duplicate_finding
 from folder_fingerprint import compute_folder_fingerprint
 from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
@@ -66,6 +67,23 @@ class FolderFingerprintTests(unittest.TestCase):
 
             self.assertNotEqual(first, second)
             self.assertNotEqual(second, third)
+
+    def test_fingerprint_changes_when_a_candidate_is_written(self) -> None:
+        """Candidates live in a child directory the parent listing does not enumerate.
+
+        Missing them here would leave the candidates filter showing yesterday's count
+        until something else forced a full refetch.
+        """
+        with TempMediaFolder() as root:
+            write_media(root, "alpha.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            first = compute_folder_fingerprint(root)
+            write_media(root / STAGING_DIR_NAME, "alpha.png")
+            second = compute_folder_fingerprint(root)
+
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            self.assertNotEqual(first, second)
 
     def test_fingerprint_changes_when_subfolder_is_added(self) -> None:
         with TempMediaFolder() as root:

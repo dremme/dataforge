@@ -5,6 +5,7 @@ import { ReplaceCaptionsDialog } from "./ReplaceCaptionsDialog";
 import { EditCaptionsDialog } from "./EditCaptionsDialog";
 import { FindDuplicatesDialog } from "./FindDuplicatesDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
+import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
 import { WatermarkDialog } from "./WatermarkDialog";
@@ -26,6 +27,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     batchRename,
     trainLora,
     watermark,
+    comfyProcess,
   } = dialogs;
 
   return (
@@ -129,6 +131,16 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={watermark.busy}
           onConfirm={watermark.onConfirm}
           onCancel={watermark.onCancel}
+        />
+      )}
+
+      {comfyProcess.open && comfyProcess.initialSettings && (
+        <ComfyProcessDialog
+          scope={comfyProcess.scope}
+          initialSettings={comfyProcess.initialSettings}
+          busy={comfyProcess.busy}
+          onConfirm={comfyProcess.onConfirm}
+          onCancel={comfyProcess.onCancel}
         />
       )}
     </>

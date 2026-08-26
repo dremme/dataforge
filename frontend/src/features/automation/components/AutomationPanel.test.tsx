@@ -42,6 +42,7 @@ const galleryItem: GalleryItem = {
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
+  has_candidate: false,
   caption_status: "none",
   media_type: "image",
   width: 1920,
@@ -85,7 +86,11 @@ const baseProps = {
   canStart: false,
   hasSyspromptFile: false,
   hasSyspromptContent: false,
-  jobAvailability: { hasCaptionBackup: false, ostrisAvailable: false },
+  jobAvailability: {
+    hasCaptionBackup: false,
+    ostrisAvailable: false,
+    comfyPresetsAvailable: false,
+  },
   onEditSysprompt: vi.fn(),
   onRequestStart: vi.fn(),
   onCancelJob: vi.fn(),
@@ -119,6 +124,29 @@ describe("AutomationPanel", () => {
     render(<AutomationPanel {...baseProps} issueCount={0} onResolveIssues={vi.fn()} />);
 
     expect(screen.queryByRole("button", { name: /Resolve/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a review button when the folder has candidates", async () => {
+    mockShowSpecs = false;
+    const user = userEvent.setup();
+    const onReviewCandidates = vi.fn();
+
+    render(
+      <AutomationPanel {...baseProps} candidateCount={2} onReviewCandidates={onReviewCandidates} />,
+    );
+
+    const button = screen.getByRole("button", { name: "Review 2 candidates" });
+    expect(button).toHaveClass("automation__review-candidates");
+
+    await user.click(button);
+    expect(onReviewCandidates).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the review button when there are no candidates", () => {
+    mockShowSpecs = false;
+    render(<AutomationPanel {...baseProps} candidateCount={0} onReviewCandidates={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /candidate/i })).not.toBeInTheDocument();
   });
 
   it("shows how long a finished job took next to the counts", () => {
@@ -183,7 +211,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: true,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,
@@ -226,7 +258,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: true,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={vi.fn()}
       />,
@@ -249,7 +285,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: true,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={vi.fn()}
       />,
@@ -280,7 +320,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: true, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: true,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={vi.fn()}
       />,
@@ -308,7 +352,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: false, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: false,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,
@@ -332,7 +380,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: false, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: false,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,
@@ -353,7 +405,11 @@ describe("AutomationPanel", () => {
       <AutomationPanel
         {...baseProps}
         canStart
-        jobAvailability={{ hasCaptionBackup: false, ostrisAvailable: false }}
+        jobAvailability={{
+          hasCaptionBackup: false,
+          ostrisAvailable: false,
+          comfyPresetsAvailable: false,
+        }}
         filteredItems={[galleryItem]}
         onRequestStart={onRequestStart}
       />,

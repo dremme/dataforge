@@ -14,6 +14,7 @@ const captionedItem: GalleryItem = {
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
+  has_candidate: false,
   caption_status: "text",
   media_type: "image",
   width: 1920,
@@ -138,6 +139,16 @@ describe("GalleryListRow", () => {
       "Caption issue",
       "Duplicate",
     ]);
+  });
+
+  it("marks a candidate", () => {
+    const { container } = render(
+      <GalleryListRow item={{ ...captionedItem, has_candidate: true }} onSelect={vi.fn()} />,
+    );
+
+    const markers = [...container.querySelectorAll(".gallery-list-row__marker")];
+    expect(markers.map((marker) => marker.getAttribute("title"))).toEqual(["Candidate"]);
+    expect(markers[0]).toHaveClass("gallery-list-row__marker--candidate");
   });
 
   it("opens the item when not selecting", () => {

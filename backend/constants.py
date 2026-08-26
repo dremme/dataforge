@@ -114,6 +114,27 @@ CAPTION_BACKUP_DIR_NAME = ".backup"
 # SKIP_DIR_NAMES: the results are for the user to browse, unlike the caption backup.
 WATERMARK_DIR_NAME = "watermarked"
 
+# ComfyUI candidates land here, beside the untouched originals, under the source's own
+# filename - the review queue pairs the two by name. Absent from SKIP_DIR_NAMES for the
+# same reason WATERMARK_DIR_NAME is: these are results the user browses.
+STAGING_DIR_NAME = "staging"
+
+# What produced a candidate - source name, preset, prompt id, seed - written beside it
+# inside the staging folder. Two suffixes deep like the issue and duplicate findings.
+COMFY_CANDIDATE_SIDECAR_SUFFIX = ".comfy.json"
+
+
+# Own markers rather than the EDIT_ ones, for the same reason watermarking has its own:
+# image_edit sweeps every *.edit-tmp in the folder on its way in, which would delete an
+# in-flight accept's temp file. Neither ends in a media suffix, so folder_scan cannot
+# mistake one for a gallery item.
+COMFY_TEMP_SUFFIX = ".comfy-tmp"
+COMFY_STALE_SUFFIX = ".comfy-stale"
+
+# Stills only: a ComfyUI image graph has nothing to say about a video, and the history
+# reply's "gifs"/"videos" outputs are a separate contract from its "images".
+COMFY_PROCESS_EXTENSIONS = IMAGE_EXTENSIONS
+
 SKIP_DIR_NAMES = {
     CAPTION_BACKUP_DIR_NAME,
     ".git",
@@ -149,4 +170,5 @@ SHARED_CONSTANTS: dict[str, object] = {
     "GIF_EXTENSION": GIF_EXTENSION,
     "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,
     "COMFY_WORKFLOW_EXTENSIONS": sorted(COMFY_WORKFLOW_EXTENSIONS),
+    "STAGING_DIR_NAME": STAGING_DIR_NAME,
 }

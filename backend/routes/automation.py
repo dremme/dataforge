@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -6,6 +7,13 @@ from automation.jobs import JobType, job_manager
 from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
 from automation_settings import remember_job_settings
+from comfy_settings import get_comfy_base_url
+from external.comfy_client import probe_available
+from external.comfy_workflows import (
+    ComfyWorkflowError,
+    list_comfy_presets,
+    read_comfy_preset_text,
+)
 from external.ostris_training import (
     OstrisTrainingError,
     parse_training_template,
@@ -16,6 +24,10 @@ from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    ComfyPresetsResponse,
+    ComfyPresetSummary,
+    ComfyPresetTextResponse,
+    ComfyProcessStartRequest,
     EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
     JobResponse,
@@ -246,6 +258,52 @@ def start_watermark_job(
         opacity=body.opacity,
         position=body.position,
     )
+
+
+@router.post("/automation/comfy-process", response_model=JobResponse)
+def start_comfy_process_job(
+    path: str = Query(..., description="Absolute path to folder with images"),
+    body: ComfyProcessStartRequest = ComfyProcessStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "comfy_process",
+        resolve_folder(path),
+        body,
+        preset=body.preset,
+        seed=body.seed,
+        prompt_text=body.prompt_text,
+        overwrite_candidates=body.overwrite_candidates,
+    )
+
+
+@router.get("/automation/comfy-process/presets", response_model=ComfyPresetsResponse)
+def list_comfy_process_presets() -> ComfyPresetsResponse:
+    """Every workflow preset on disk, and whether ComfyUI is answering right now.
+
+    The presets are listed without being parsed: validating a handful of graphs nobody
+    picked would cost every dialog open, and a broken preset is reported by the 400 that
+    refuses to queue it.
+    """
+    return ComfyPresetsResponse(
+        presets=[
+            ComfyPresetSummary(
+                name=preset.name,
+                modified_at=datetime.fromtimestamp(preset.modified_at, tz=UTC).isoformat(),
+            )
+            for preset in list_comfy_presets()
+        ],
+        available=probe_available(),
+        base_url=get_comfy_base_url(),
+    )
+
+
+@router.get("/automation/comfy-process/presets/{name}", response_model=ComfyPresetTextResponse)
+def get_comfy_process_preset(name: str) -> ComfyPresetTextResponse:
+    """One preset's raw JSON, exactly as exported."""
+    try:
+        return ComfyPresetTextResponse(name=name, content=read_comfy_preset_text(name))
+    except ComfyWorkflowError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/automation/train-lora", response_model=JobResponse)

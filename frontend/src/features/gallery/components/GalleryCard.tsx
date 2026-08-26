@@ -8,6 +8,7 @@ import {
   iconMessageDashed,
   iconMessageWarning,
   iconPlay,
+  iconScanSquare,
   iconTriangleAlert,
   iconVideo,
 } from "@/shared/icons";
@@ -107,6 +108,9 @@ export const GalleryCard = memo(function GalleryCard({
         )}
         {item.has_duplicate_file && (
           <CardBadge icon={iconFiles} label="Duplicate" variant="duplicate" />
+        )}
+        {item.has_candidate && (
+          <CardBadge icon={iconScanSquare} label="Candidate" variant="candidate" />
         )}
       </div>
       <div className="card__body">

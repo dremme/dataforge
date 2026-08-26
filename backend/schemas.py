@@ -54,6 +54,7 @@ type JobType = Literal[
     "restore_captions",
     "train_lora",
     "watermark",
+    "comfy_process",
 ]
 
 #: How a bulk caption edit changes each caption. ``replace`` uses the search term;
@@ -116,6 +117,9 @@ class GalleryItem(BaseModel):
     #: membership comes from ``/api/duplicates``, never from the item.
     duplicate_group: str | None = None
     has_duplicate_file: bool = False
+    #: Whether ``staging/<name>`` exists for this file. The staging folder is a child
+    #: directory, so this is answered from a second scan rather than ``scan.files``.
+    has_candidate: bool = False
     caption_status: CaptionStatus
     media_type: MediaType
     width: int | None = None
@@ -454,6 +458,53 @@ class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):
     pass
 
 
+class ComfyProcessJobSettings(BaseModel):
+    #: A preset filename stem, not a Literal: presets are authored by the user and
+    #: discovered at runtime, so an unknown name comes back as the job's own 400 rather
+    #: than a pydantic validation blob.
+    preset: str = ""
+    #: Left empty to run the preset's own seeds. Restoration work is worth keeping
+    #: reproducible, so a seed baked into the graph is a choice, not an oversight.
+    seed: int | None = None
+    #: Text for the preset's "DataForge Prompt" node, empty to leave the graph's own.
+    #: Named ``prompt_text`` rather than ``prompt`` because a ComfyUI "prompt" is the
+    #: whole graph everywhere else in this codebase - ``build_comfy_prompt``,
+    #: ``submit_prompt``, ``prompt_id`` - and one word cannot mean both.
+    prompt_text: str = ""
+    #: Whether a file that already has a candidate is processed again. Off by
+    #: default so re-running over a folder picks up where the last run stopped.
+    overwrite_candidates: bool = False
+
+
+class ComfyProcessStartRequest(JobSelectionRequest, ComfyProcessJobSettings):
+    pass
+
+
+class ComfyPresetSummary(BaseModel):
+    name: str
+    modified_at: str | None = None
+
+
+class ComfyPresetTextResponse(BaseModel):
+    name: str
+    #: Not named ``json``: that shadows an attribute on pydantic's BaseModel.
+    content: str = Field(description="The preset exactly as exported from ComfyUI.")
+
+
+class ComfyPresetsResponse(BaseModel):
+    presets: list[ComfyPresetSummary] = Field(default_factory=list)
+    #: Whether ComfyUI answered just now. Carried here rather than on a capability
+    #: endpoint of its own because the dialog is the only reader and already fetches
+    #: this; a job is still allowed to queue while it is False, since starting ComfyUI
+    #: and opening the dialog race.
+    available: bool = False
+    #: The origin that was probed. Sent even when ``available`` is True so the dialog can
+    #: name it: "not answering" on its own cannot distinguish a stopped ComfyUI from one
+    #: running on a port ``COMFY_BASE_URL`` does not point at, which is the likelier
+    #: cause and the one the user can fix.
+    base_url: str = ""
+
+
 class VerifyCaptionsJobSettings(BaseModel):
     mode: AutomationMode = "instruct"
     reasoning_effort: ReasoningEffort = "medium"
@@ -528,6 +579,7 @@ class AutomationSettingsResponse(BaseModel):
     find_duplicates: FindDuplicatesJobSettings = Field(default_factory=FindDuplicatesJobSettings)
     train_lora: TrainLoraJobSettings = Field(default_factory=TrainLoraJobSettings)
     watermark: WatermarkJobSettings = Field(default_factory=WatermarkJobSettings)
+    comfy_process: ComfyProcessJobSettings = Field(default_factory=ComfyProcessJobSettings)
 
 
 class TrainingTemplateResponse(BaseModel):
@@ -918,6 +970,70 @@ class ImageEditResponse(BaseModel):
     width: int | None = None
     height: int | None = None
     has_backup: bool
+
+
+class ComfyCandidateSidecar(BaseModel):
+    """What produced one candidate, written beside it in the staging folder."""
+
+    source_name: str
+    preset: str
+    #: ComfyUI's queue id for the run, not the text below.
+    prompt_id: str | None = None
+    seed: int | None = None
+    #: What was written into the preset's "DataForge Prompt" node, when it has one.
+    prompt_text: str | None = None
+    #: How far the result moved from the source, 0-100. See ``comfy_candidates``: written
+    #: at job time because that is the one moment both images are already decoded.
+    difference_percent: float | None = None
+    created_at: str
+
+
+class ComfyCandidateStateResponse(BaseModel):
+    """Whether a dataset file has a candidate waiting, and what made it."""
+
+    path: str
+    candidate_path: str | None = None
+    has_candidate: bool = False
+    preset: str | None = None
+    prompt_id: str | None = None
+    seed: int | None = None
+    #: Percentage of perceptual-hash bits that differ from the source. Null when neither
+    #: the record nor a fresh read could produce one.
+    difference_percent: float | None = None
+    created_at: str | None = None
+
+
+class ComfyCandidateResponse(BaseModel):
+    path: str
+    #: Whether the candidate became this file, rather than being discarded.
+    accepted: bool
+    size: int
+    modified_at: str
+    width: int | None = None
+    height: int | None = None
+
+
+class ComfyCandidateBatchRequest(BaseModel):
+    paths: list[str] = Field(default_factory=list)
+
+
+class ComfyCandidateFailure(BaseModel):
+    path: str
+    detail: str
+
+
+class ComfyCandidateBatchResponse(BaseModel):
+    """Per-file outcomes, shaped like ``MediaTransferResponse``.
+
+    Never all-or-nothing: settling three hundred candidates must not fail wholesale
+    because one file is locked, and rolling back the ones already published would be
+    more dangerous than reporting a partial success the user can see.
+    """
+
+    settled: list[str] = Field(default_factory=list)
+    #: Files that had no candidate to settle, which is not an error worth stopping for.
+    skipped: list[str] = Field(default_factory=list)
+    failed: list[ComfyCandidateFailure] = Field(default_factory=list)
 
 
 class JobEvent(BaseModel):

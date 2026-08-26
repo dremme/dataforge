@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem } from "@/shared/types";
-import { rowMetaCells } from "./listRowCells";
+import { rowMarkers, rowMetaCells } from "./listRowCells";
 
 function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
   return {
@@ -14,6 +14,7 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    has_candidate: false,
     caption_status: "none",
     media_type: "video",
     width: 1920,
@@ -23,6 +24,15 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     ...overrides,
   };
 }
+
+describe("rowMarkers", () => {
+  it("includes a marker when a file has a candidate", () => {
+    const markers = rowMarkers(item({ media_type: "image", has_candidate: true }));
+
+    expect(markers.map((marker) => marker.key)).toEqual(["candidate"]);
+    expect(markers[0]?.label).toBe("Candidate");
+  });
+});
 
 describe("rowMetaCells", () => {
   it("formats a video duration in seconds", () => {

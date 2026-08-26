@@ -17,6 +17,7 @@ function makeSyspromptItem(description: string): GalleryItem {
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    has_candidate: false,
     caption_status: "text",
     media_type: "sysprompt",
   };

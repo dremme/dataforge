@@ -15,7 +15,13 @@ vi.mock("@/features/automation/preferences/automationPreferences", async (import
   };
 });
 
-function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: boolean } = {}) {
+function setupHost(
+  options: {
+    hasCaptionBackup?: boolean;
+    ostrisAvailable?: boolean;
+    comfyPresetsAvailable?: boolean;
+  } = {},
+) {
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
 
   const automation = {
@@ -38,12 +44,14 @@ function setupHost(options: { hasCaptionBackup?: boolean; ostrisAvailable?: bool
       sysprompt: null,
       hasCaptionBackup: options.hasCaptionBackup ?? true,
       ostrisAvailable: options.ostrisAvailable ?? false,
+      comfyPresetsAvailable: options.comfyPresetsAvailable ?? false,
       getJobPaths: () => undefined,
       // The hook only reads the fields asserted here.
       automation: automation as never,
       onEditSysprompt: vi.fn(),
       issueCount: 0,
       duplicateGroupCount: 0,
+      candidateCount: 0,
     }),
   );
 

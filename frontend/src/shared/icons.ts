@@ -2,17 +2,23 @@ import type { LucideIcon } from "lucide-react";
 
 export type AppIcon = LucideIcon;
 
+// Brand marks lucide does not carry, drawn on the same grid. Re-exported here so callers
+// have one import site for icons regardless of where a given one came from.
+export { iconComfyUi } from "./brandIcons";
+
 export {
   AlertTriangle as iconAlertTriangle,
   ArrowDownWideNarrow as iconArrowDownWideNarrow,
   ArrowLeftRight as iconArrowLeftRight,
   ArrowUp as iconArrowUp,
   ArrowUpRight as iconArrowUpRight,
+  ArrowRight as iconArrowRight,
   Archive as iconArchive,
   ArchiveRestore as iconArchiveRestore,
   Ban as iconBan,
   Bold as iconBold,
   BookOpen as iconBookOpen,
+  Bot as iconBot,
   Brain as iconBrain,
   Camera as iconCamera,
   ChartColumn as iconChartBar,
@@ -84,6 +90,7 @@ export {
   RotateCw as iconRotateCw,
   Rows3 as iconRows3,
   RulerDimensionLine as iconRulerDimensionLine,
+  ScanSquare as iconScanSquare,
   Scissors as iconScissors,
   Search as iconSearch,
   Shredder as iconShredder,
@@ -102,6 +109,5 @@ export {
   Video as iconVideo,
   Volume2 as iconVolume2,
   VolumeX as iconVolumeX,
-  WandSparkles as iconWandSparkles,
   X as iconX,
 } from "lucide-react";

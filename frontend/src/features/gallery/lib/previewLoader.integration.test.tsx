@@ -30,6 +30,7 @@ function makeItem(name: string): GalleryItem {
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
+    has_candidate: false,
     caption_status: "none",
     media_type: "image",
   };

@@ -13,6 +13,7 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_issue_file: true,
     has_duplicate_file: false,
     has_backup: false,
+    has_candidate: false,
     caption_status: "text",
     media_type: "image",
     ...overrides,
@@ -31,12 +32,14 @@ describe("listResolvableIssueItems", () => {
         has_issue_file: false,
         has_duplicate_file: false,
         has_backup: false,
+        has_candidate: false,
       }),
       item({
         name: "plain.png",
         has_issue_file: false,
         has_duplicate_file: false,
         has_backup: false,
+        has_candidate: false,
         issue_fixes: [],
       }),
     ];

@@ -6,7 +6,12 @@ import {
   releaseScrollLock,
   resetScrollLockManagerForTests,
 } from "@/shared/hooks/scrollLockManager";
-import type { ItemFilter, MediaTypeFilter, SortOption } from "@/features/gallery/lib/query";
+import type {
+  FileFilter,
+  ItemFilter,
+  MediaTypeFilter,
+  SortOption,
+} from "@/features/gallery/lib/query";
 import { Toolbar } from "./Toolbar";
 
 vi.mock("@/features/jobs/components/JobsButton", () => ({
@@ -36,8 +41,8 @@ const defaultProps = {
     image: 2,
     video: 1,
   },
-  duplicatesOnly: false,
-  duplicateCount: 2,
+  fileFilter: "all" as FileFilter,
+  fileFilterCounts: { all: 5, duplicates: 2, candidates: 1 },
   statsOpen: false,
   onToggleStats: vi.fn(),
   onSearchQueryChange: vi.fn(),
@@ -46,7 +51,7 @@ const defaultProps = {
   onSortChange: vi.fn(),
   onFilterChange: vi.fn(),
   onMediaTypeFilterChange: vi.fn(),
-  onDuplicatesOnlyChange: vi.fn(),
+  onFileFilterChange: vi.fn(),
 };
 
 function renderToolbar(props: Partial<typeof defaultProps> = {}) {
@@ -147,7 +152,7 @@ describe("Toolbar", () => {
     expect(screen.getByRole("menu", { name: "Filters" })).toBeInTheDocument();
   });
 
-  it("keeps the Duplicates toggle out of the caption status group", async () => {
+  it("keeps the file options out of the caption status group", async () => {
     const user = userEvent.setup();
     renderToolbar();
 
@@ -159,51 +164,77 @@ describe("Toolbar", () => {
 
     expect(within(captionGroup).queryByRole("menuitemradio", { name: /Duplicates/ })).toBeNull();
     expect(
-      within(filesGroup).getByRole("menuitemcheckbox", { name: "Duplicates (2)" }),
+      within(filesGroup).getByRole("menuitemradio", { name: "Duplicates (2)" }),
+    ).toBeInTheDocument();
+    expect(
+      within(filesGroup).getByRole("menuitemradio", { name: "ComfyUI candidates (1)" }),
     ).toBeInTheDocument();
   });
 
-  // A checkbox, not a radio: a one-option radio group would have no way to switch itself off.
-  it("toggles duplicates on and off", async () => {
+  // Same shape as the other two axes, so "All" is what switches the section back off.
+  it("offers All first in the Files group, checked by default", async () => {
     const user = userEvent.setup();
-    const { unmount } = renderToolbar();
+    renderToolbar();
 
     await user.click(screen.getByRole("button", { name: "Filter media" }));
 
-    const off = screen.getByRole("menuitemcheckbox", { name: "Duplicates (2)" });
-    expect(off).toHaveAttribute("aria-checked", "false");
+    const filesGroup = within(screen.getByRole("menu", { name: "Filters" })).getByRole("group", {
+      name: "Files",
+    });
+    const all = within(filesGroup).getByRole("menuitemradio", { name: "All files (5)" });
+    const duplicates = within(filesGroup).getByRole("menuitemradio", { name: "Duplicates (2)" });
+    const candidates = within(filesGroup).getByRole("menuitemradio", {
+      name: "ComfyUI candidates (1)",
+    });
 
-    await user.click(off);
-    expect(defaultProps.onDuplicatesOnlyChange).toHaveBeenCalledWith(true);
-    // Same as the other axes: selecting does not close the menu.
-    expect(screen.getByRole("menu", { name: "Filters" })).toBeInTheDocument();
-
-    unmount();
-    vi.clearAllMocks();
-    renderToolbar({ duplicatesOnly: true });
-
-    await user.click(screen.getByRole("button", { name: "Filter media" }));
-
-    const on = screen.getByRole("menuitemcheckbox", { name: "Duplicates (2)" });
-    expect(on).toHaveAttribute("aria-checked", "true");
-
-    await user.click(on);
-    expect(defaultProps.onDuplicatesOnlyChange).toHaveBeenCalledWith(false);
+    expect(all).toBeChecked();
+    expect(duplicates).not.toBeChecked();
+    expect(all.compareDocumentPosition(duplicates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      duplicates.compareDocumentPosition(candidates) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
-  it("counts the Duplicates toggle against the active search", async () => {
+  it("picks a file filter and reports the value", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Duplicates (2)" }));
+
+    expect(defaultProps.onFileFilterChange).toHaveBeenCalledWith("duplicates");
+    // Same as the other axes: selecting does not close the menu.
+    expect(screen.getByRole("menu", { name: "Filters" })).toBeInTheDocument();
+  });
+
+  // The reason the axis needed an All entry: two checkboxes could each switch themselves
+  // off, a lone radio could not.
+  it("clears the file filter through All", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ fileFilter: "duplicates" });
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+
+    expect(screen.getByRole("menuitemradio", { name: "Duplicates (2)" })).toBeChecked();
+
+    await user.click(screen.getByRole("menuitemradio", { name: "All files (5)" }));
+
+    expect(defaultProps.onFileFilterChange).toHaveBeenCalledWith("all");
+  });
+
+  it("counts the file options against the active search", async () => {
     const user = userEvent.setup();
     renderToolbar({ searchQuery: "sun" });
 
     await user.click(screen.getByRole("button", { name: "Filter media" }));
 
     expect(
-      screen.getByRole("menuitemcheckbox", { name: 'Duplicates (2 matching "sun")' }),
+      screen.getByRole("menuitemradio", { name: /Duplicates \(2 matching/ }),
     ).toBeInTheDocument();
   });
 
-  it("marks the trigger as filtering when duplicates is the only active axis", () => {
-    renderToolbar({ duplicatesOnly: true });
+  it("marks the trigger as filtering when a file filter is the only active axis", () => {
+    renderToolbar({ fileFilter: "candidates" });
 
     expect(screen.getByRole("button", { name: "Filter media" })).toHaveClass(
       "toolbar__filter-menu-trigger--filtering",

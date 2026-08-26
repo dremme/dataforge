@@ -2,6 +2,7 @@ import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
 import type { SidecarSweepOverlayProps } from "@/features/gallery/components/SidecarSweepOverlay";
+import type { CandidateReviewEntry } from "@/features/gallery/lib/candidateReview";
 import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
 import type {
   CaptionSaveResponse,
@@ -56,6 +57,15 @@ type DuplicateResolverOverlayState = {
   onResolved: () => void;
 };
 
+type CandidateReviewOverlayState = {
+  open: boolean;
+  entries: CandidateReviewEntry[];
+  index: number;
+  onClose: () => void;
+  onIndexChange: (index: number) => void;
+  onResolved: () => void;
+};
+
 type StatsOverlayState = {
   open: boolean;
   /** The whole folder: the dataset overview ignores the search and filters. */
@@ -105,6 +115,7 @@ export type AppOverlaysProps = {
   sysprompt: SysPromptOverlayState;
   stats: StatsOverlayState;
   duplicateResolver: DuplicateResolverOverlayState;
+  candidateReview: CandidateReviewOverlayState;
   jobStart: JobStartConfirmState;
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;

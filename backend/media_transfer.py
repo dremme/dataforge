@@ -38,6 +38,10 @@ def related_media_paths(media_path: Path) -> list[Path]:
     # Named explicitly for the same reason the issue and duplicate sidecars are: none of
     # these is one `with_suffix` away from the media name. The backup travels because a
     # file that arrives without it silently stops being revertible.
+    #
+    # A *candidate* deliberately does not travel. It lives in the staging folder under
+    # this same filename, so listing it here would have it written to the media's own
+    # destination and overwrite the file that just moved.
     for extra in (
         issue_file_path(media_path),
         duplicate_file_path(media_path),

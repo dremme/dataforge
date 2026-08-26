@@ -33,6 +33,7 @@ const imageItem: GalleryItem = {
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
+  has_candidate: false,
   caption_status: "text",
   media_type: "image",
   width: 1920,
@@ -49,6 +50,7 @@ const videoItem: GalleryItem = {
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
+  has_candidate: false,
   caption_status: "none",
   media_type: "video",
 };

@@ -2,6 +2,7 @@ import { postJson, requestJson } from "@/shared/api/http";
 import { withJobPaths } from "@/features/jobs/api/jobPaths";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type {
+  ComfyPresetsResponse,
   Job,
   JobType,
   ReplaceCaptionsPreviewRequest,
@@ -55,6 +56,16 @@ export async function previewCaptionReplacements(
     body,
     { signal },
   );
+}
+
+/**
+ * The ComfyUI presets on disk, and whether ComfyUI itself is answering.
+ *
+ * Fetched when the dialog opens rather than cached: a preset is a file the user drops in
+ * a folder, so the list changes without the app ever hearing about it.
+ */
+export async function fetchComfyPresets(signal?: AbortSignal): Promise<ComfyPresetsResponse> {
+  return requestJson<ComfyPresetsResponse>("/api/automation/comfy-process/presets", { signal });
 }
 
 /** The stock template for a model, as text, for the editor to open. */

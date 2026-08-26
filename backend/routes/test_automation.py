@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -761,6 +762,40 @@ class TrainingTemplateEndpointTests(unittest.TestCase):
         self.assertIn("sample", response.json()["error"])
 
 
+class ComfyPresetsEndpointTests(unittest.TestCase):
+    """What the dialog reads before it can offer a workflow."""
+
+    def test_lists_the_presets_on_disk(self) -> None:
+        with patch("routes.automation.probe_available", return_value=True):
+            response = client.get("/api/automation/comfy-process/presets")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("example-lanczos-2x", [preset["name"] for preset in payload["presets"]])
+        self.assertTrue(payload["available"])
+
+    def test_names_the_origin_it_probed(self) -> None:
+        """A bare "not answering" cannot tell a stopped ComfyUI from a wrong port."""
+        with (
+            patch("routes.automation.probe_available", return_value=False),
+            patch.dict(os.environ, {"COMFY_BASE_URL": "http://127.0.0.1:9123"}),
+        ):
+            response = client.get("/api/automation/comfy-process/presets")
+
+        payload = response.json()
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["base_url"], "http://127.0.0.1:9123")
+
+    def test_carries_the_origin_even_when_comfy_answers(self) -> None:
+        with (
+            patch("routes.automation.probe_available", return_value=True),
+            patch.dict(os.environ, {"COMFY_BASE_URL": "http://gpu-box:8188/"}),
+        ):
+            response = client.get("/api/automation/comfy-process/presets")
+
+        self.assertEqual(response.json()["base_url"], "http://gpu-box:8188")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -822,6 +857,20 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
     "watermark": (
         "watermark",
         {"text": "Sample Studio", "size": "large", "opacity": 75, "position": "top"},
+    ),
+    # The preset has to be a real file: queue-time validation parses it, and only the
+    # runner is patched out. The shipped example doubles as the fixture, so a broken
+    # example fails here rather than in the user's dialog.
+    "comfy_process": (
+        "comfy-process",
+        {
+            "preset": "example-lanczos-2x",
+            "seed": 1234,
+            # The example preset has no prompt node, and a non-empty prompt would be
+            # refused with a 400 rather than remembered.
+            "prompt_text": "",
+            "overwrite_candidates": True,
+        },
     ),
 }
 

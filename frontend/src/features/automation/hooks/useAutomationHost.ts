@@ -22,6 +22,7 @@ type UseAutomationHostOptions = {
   sysprompt: GalleryItem | null;
   hasCaptionBackup: boolean;
   ostrisAvailable: boolean;
+  comfyPresetsAvailable: boolean;
   getJobPaths: () => string[] | undefined;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
@@ -30,6 +31,8 @@ type UseAutomationHostOptions = {
   /** Groups, not files: the resolver walks one group per step. */
   duplicateGroupCount: number;
   onResolveDuplicates?: () => void;
+  candidateCount: number;
+  onReviewCandidates?: () => void;
 };
 
 /**
@@ -44,6 +47,7 @@ export function useAutomationHost({
   sysprompt,
   hasCaptionBackup,
   ostrisAvailable,
+  comfyPresetsAvailable,
   getJobPaths,
   automation,
   onEditSysprompt,
@@ -51,6 +55,8 @@ export function useAutomationHost({
   onResolveIssues,
   duplicateGroupCount,
   onResolveDuplicates,
+  candidateCount,
+  onReviewCandidates,
 }: UseAutomationHostOptions) {
   const { startJob } = automation;
   const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
@@ -82,8 +88,8 @@ export function useAutomationHost({
   const { openDialogForJobType, dialogs: automationDialogs } = dialogs;
 
   const jobAvailability = useMemo<JobAvailability>(
-    () => ({ hasCaptionBackup, ostrisAvailable }),
-    [hasCaptionBackup, ostrisAvailable],
+    () => ({ hasCaptionBackup, ostrisAvailable, comfyPresetsAvailable }),
+    [comfyPresetsAvailable, hasCaptionBackup, ostrisAvailable],
   );
 
   const requestStart = useCallback(
@@ -116,6 +122,8 @@ export function useAutomationHost({
       onResolveIssues,
       duplicateGroupCount,
       onResolveDuplicates,
+      candidateCount,
+      onReviewCandidates,
     }),
     [
       automation.cancelFolderJob,
@@ -127,9 +135,11 @@ export function useAutomationHost({
       jobAvailability,
       issueCount,
       duplicateGroupCount,
+      candidateCount,
       onEditSysprompt,
       onResolveIssues,
       onResolveDuplicates,
+      onReviewCandidates,
       requestStart,
       sysprompt,
     ],

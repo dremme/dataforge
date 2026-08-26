@@ -185,6 +185,55 @@
     }
   }
 
+  // Same shell as a text input, so a field is a field however it is filled in - but
+  // built like the toolbar's sort control, with the border on the wrapper and nothing
+  // on the select. A UA draws the dropdown arrow hard against the *select's* own edge,
+  // so a border directly on it leaves the arrow cramped against that border; giving
+  // the shell the padding instead is what puts air around the arrow.
+  &__select-wrap {
+    @include dialog-form-input(2.75rem);
+    display: flex;
+    align-items: center;
+    // Left matches `dialog__input` so the text lines up with the fields around it;
+    // right is wider because that is the gap the arrow sits in.
+    padding: 0 0.75rem 0 0.625rem;
+
+    // The mixin's own :focus/:disabled cannot fire on a wrapper.
+    &:focus-within {
+      border-color: var(--accent);
+    }
+
+    &:has(select:disabled) {
+      @include disabled-state;
+    }
+  }
+
+  &__select {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    outline: none;
+    // The open list is drawn by the OS from `color-scheme`, not from our variables -
+    // without this a dark app pops a white dropdown.
+    color-scheme: dark;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+
+    option {
+      background: var(--bg-card);
+      color: var(--text);
+    }
+  }
+
   &__hint {
     margin: 0.4375rem 0 0;
     font-size: var(--text-xs);
@@ -199,6 +248,11 @@
 
   &__error {
     @include alert-banner;
+    margin: 0.75rem 0 0;
+  }
+
+  &__warning {
+    @include inline-alert(warning);
     margin: 0.75rem 0 0;
   }
 
@@ -963,5 +1017,46 @@
     &-content {
       line-height: var(--leading-normal);
     }
+  }
+}
+
+.comfy-process-dialog {
+  // The row replaces the preset group while the fetch is in flight, so it holds roughly
+  // that height: without it the panel collapses and jumps once the presets arrive.
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4375rem;
+    min-height: 5rem;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  &__loading-icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-base));
+  }
+
+  // Prompt and seed share one row so the field costs the height of the taller of the
+  // two rather than both. The seed column is sized to the digits it holds, not to a
+  // share of the row, so the prompt keeps everything left over.
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr 6rem;
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  &__cell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  [type="number"] {
+    @include tabular-nums;
+    text-align: right;
   }
 }

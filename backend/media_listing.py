@@ -224,6 +224,7 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "has_issue_file": has_issue_file,
         "duplicate_group": None if duplicate_finding is None else duplicate_finding.group,
         "has_duplicate_file": duplicate_finding is not None,
+        "has_candidate": media.name in scan.candidates,
         "caption_status": caption_status,
         "media_type": media_type,
         "width": info.width,

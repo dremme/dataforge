@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { ModalShell } from "@/shared/ui/ModalShell";
-import { iconSparkles, iconTrash2, iconX } from "@/shared/icons";
+import { iconBot, iconTrash2, iconX } from "@/shared/icons";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -94,7 +94,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
       >
         <header className="jobs-drawer__header">
           <div className="jobs-drawer__title">
-            <Icon icon={iconSparkles} className="jobs-drawer__title-icon" />
+            <Icon icon={iconBot} className="jobs-drawer__title-icon" />
             <div>
               <h2 id="jobs-drawer-title">Automation jobs</h2>
             </div>

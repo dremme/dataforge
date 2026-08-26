@@ -1,9 +1,17 @@
+from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
 import events
+from comfy_candidates import (
+    CandidateBusyError,
+    NoCandidateError,
+    accept_candidate,
+    describe_candidate_state,
+    reject_candidate,
+)
 from constants import MEDIA_MIME_TYPES
 from edit_sidecars import EditBusyError, backup_path_for, cancel_render, render_slot
 from ffmpeg_run import FfmpegCancelled
@@ -39,6 +47,11 @@ from routes._helpers import (
     resolve_optional_media_file,
 )
 from schemas import (
+    ComfyCandidateBatchRequest,
+    ComfyCandidateBatchResponse,
+    ComfyCandidateFailure,
+    ComfyCandidateResponse,
+    ComfyCandidateStateResponse,
     GifInfoResponse,
     GifToMp4Response,
     GifToMp4StateResponse,
@@ -118,9 +131,9 @@ def serve_media(
     # a non-media suffix so nothing else in the app treats it as a file of its own.
     served_path = file_path
     if original:
-        backup = backup_path_for(file_path)
-        if backup.is_file():
-            served_path = backup
+        archive = backup_path_for(file_path)
+        if archive.is_file():
+            served_path = archive
 
     # A versioned URL names one revision of the file, so it can be cached hard.
     # Without one, the response must be revalidated: browsers otherwise apply
@@ -559,3 +572,86 @@ def revert_image(
             return revert_image_edit(media)
     except (EditBusyError, ValueError, OSError) as exc:
         raise _image_edit_failure(exc) from exc
+
+
+def _candidate_failure(exc: Exception) -> HTTPException:
+    if isinstance(exc, NoCandidateError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, CandidateBusyError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, ValueError):
+        # Includes the refusal to accept over an unreverted edit, which is a conflict
+        # with the file's own state rather than a malformed request.
+        return HTTPException(status_code=409, detail=str(exc))
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+#: Every candidate route is keyed by the *source* path, never the staging path. One
+#: identifier for the pair, and it keeps ``resolve_editable_image`` as the single gate.
+_CANDIDATE_PATH = Query(..., description="Absolute path to the dataset image, not its candidate")
+
+
+@router.get("/media/comfy-candidate", response_model=ComfyCandidateStateResponse)
+def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResponse:
+    """Whether a candidate is waiting for this image, and what produced it."""
+    return describe_candidate_state(resolve_editable_image(path))
+
+
+@router.post("/media/comfy-candidate/accept", response_model=ComfyCandidateResponse)
+def accept_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateResponse:
+    media = resolve_editable_image(path)
+
+    try:
+        return accept_candidate(media)
+    except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
+        raise _candidate_failure(exc) from exc
+
+
+@router.post("/media/comfy-candidate/reject", response_model=ComfyCandidateResponse)
+def reject_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateResponse:
+    media = resolve_editable_image(path)
+
+    try:
+        return reject_candidate(media)
+    except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
+        raise _candidate_failure(exc) from exc
+
+
+def _settle_candidates(
+    paths: list[str],
+    settle: Callable[[Path], ComfyCandidateResponse],
+) -> ComfyCandidateBatchResponse:
+    """Settle each path on its own, recording rather than raising what fails.
+
+    Deliberately not all-or-nothing: rejecting three hundred candidates must not fail
+    wholesale because one file is locked.
+
+    There is no batch *accept*. Accepting is irreversible per file, so settling a queue
+    of them on one click was removed as too dangerous - the review modal accepts one
+    image at a time, after the user has seen both.
+    """
+    settled: list[str] = []
+    skipped: list[str] = []
+    failed: list[ComfyCandidateFailure] = []
+
+    for raw in paths:
+        try:
+            media = resolve_editable_image(raw)
+        except HTTPException as exc:
+            failed.append(ComfyCandidateFailure(path=raw, detail=str(exc.detail)))
+            continue
+
+        try:
+            settle(media)
+            settled.append(str(media))
+        except NoCandidateError:
+            skipped.append(str(media))
+        except (CandidateBusyError, ValueError, OSError) as exc:
+            failed.append(ComfyCandidateFailure(path=str(media), detail=str(exc)))
+
+    return ComfyCandidateBatchResponse(settled=settled, skipped=skipped, failed=failed)
+
+
+@router.post("/media/comfy-candidates/reject", response_model=ComfyCandidateBatchResponse)
+def reject_comfy_candidates(body: ComfyCandidateBatchRequest) -> ComfyCandidateBatchResponse:
+    return _settle_candidates(body.paths, reject_candidate)

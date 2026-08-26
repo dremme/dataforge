@@ -22,6 +22,7 @@ import {
   iconHome,
   iconMessageWarning,
   iconRefresh,
+  iconScanSquare,
 } from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { FolderFavorite, FolderResponse } from "@/shared/types";
@@ -237,6 +238,19 @@ export function useQuickActionHost({
       });
     }
 
+    if (panel.onReviewCandidates) {
+      const candidates = panel.candidateCount ?? 0;
+      commands.push({
+        id: "cmd:review-candidates",
+        section: "commands",
+        label: "Review candidates",
+        detail: `${candidates} waiting`,
+        icon: iconScanSquare,
+        keywords: "comfyui upscale staging accept reject compare",
+        run: panel.onReviewCandidates,
+      });
+    }
+
     commands.push(
       ...buildSidecarSweepItems({
         hasFolder: !folderNotFound,
@@ -301,9 +315,11 @@ export function useQuickActionHost({
     onCreateFolder,
     onOpenFolderPicker,
     panel.duplicateGroupCount,
+    panel.candidateCount,
     panel.issueCount,
     panel.onEditSysprompt,
     panel.onResolveDuplicates,
+    panel.onReviewCandidates,
     panel.onResolveIssues,
     refreshFolder,
     revealInExplorer,

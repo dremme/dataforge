@@ -21,6 +21,7 @@ from schemas import (
     AutomationSettingsResponse,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    ComfyProcessStartRequest,
     EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
     ReplaceCaptionsStartRequest,
@@ -42,6 +43,7 @@ START_REQUESTS = {
     "find_duplicates": FindDuplicatesStartRequest,
     "train_lora": TrainLoraStartRequest,
     "watermark": WatermarkStartRequest,
+    "comfy_process": ComfyProcessStartRequest,
 }
 
 

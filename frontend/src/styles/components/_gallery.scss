@@ -413,9 +413,13 @@
       left: 0.625rem;
     }
 
-    &--issue {
+    &--issue,
+    &--candidate {
       top: 0.625rem;
       right: 0.625rem;
+    }
+
+    &--issue {
       color: $color-warning;
       background: rgba(color.adjust($color-warning, $lightness: -15%), 0.4);
       border-color: rgba($color-warning, 0.6);
@@ -426,7 +430,8 @@
       left: 0.625rem;
     }
 
-    .card__selection-indicator ~ &--issue {
+    .card__selection-indicator ~ &--issue,
+    .card__selection-indicator ~ &--candidate {
       right: 0.625rem + 1.5rem + 0.375rem;
     }
 
@@ -537,7 +542,8 @@
       left: 0.4375rem;
     }
 
-    &--issue {
+    &--issue,
+    &--candidate {
       top: 0.4375rem;
       right: 0.4375rem;
     }

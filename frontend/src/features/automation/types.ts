@@ -1,5 +1,6 @@
 import type { TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
+import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
 import type { ReplaceCaptionsSettings } from "@/features/automation/components/ReplaceCaptionsDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
@@ -90,5 +91,9 @@ export type AutomationDialogsState = {
       position: WatermarkPosition,
     ) => void,
     JobSettingsByType["watermark"]
+  >;
+  comfyProcess: FolderBusyDialogState<
+    (settings: ComfyProcessSettings) => void,
+    JobSettingsByType["comfy_process"]
   >;
 };

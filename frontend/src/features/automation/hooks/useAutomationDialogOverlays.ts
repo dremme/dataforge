@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { trainLoraBody, type TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
+import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
 import type { ReplaceCaptionsSettings } from "@/features/automation/components/ReplaceCaptionsDialog";
 import type { VerifyCaptionsMode } from "@/features/automation/components/VerifyCaptionsDialog";
 import {
@@ -197,6 +198,16 @@ export function useAutomationDialogOverlays({
           opacity: WatermarkOpacity,
           position: WatermarkPosition,
         ) => startJobFromDialog("watermark", { text, size, opacity, position }),
+      },
+      comfyProcess: {
+        ...shared("comfy_process"),
+        onConfirm: (draft: ComfyProcessSettings) =>
+          startJobFromDialog("comfy_process", {
+            preset: draft.preset,
+            seed: draft.seed,
+            prompt_text: draft.promptText,
+            overwrite_candidates: draft.overwriteCandidates,
+          }),
       },
     };
   }, [
