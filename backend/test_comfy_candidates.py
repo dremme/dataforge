@@ -25,7 +25,12 @@ from comfy_candidates import (
     sweep_comfy_temp_files,
     write_candidate_sidecar,
 )
-from constants import COMFY_STALE_SUFFIX, COMFY_TEMP_SUFFIX, STAGING_DIR_NAME
+from constants import (
+    COMFY_STALE_SUFFIX,
+    COMFY_TEMP_SUFFIX,
+    MEDIA_EXTENSIONS,
+    STAGING_DIR_NAME,
+)
 from edit_sidecars import backup_path_for
 from schemas import ComfyCandidateSidecar
 
@@ -84,16 +89,19 @@ class CandidateFolder:
 
 class CandidatePathTests(unittest.TestCase):
     def test_a_candidate_keeps_the_source_filename(self) -> None:
-        media = Path(r"C:\Photos\holiday.jpg")
-        self.assertEqual(candidate_path_for(media), Path(r"C:\Photos\staging\holiday.jpg"))
+        media = Path("photos") / "holiday.jpg"
+
+        self.assertEqual(
+            candidate_path_for(media),
+            Path("photos") / STAGING_DIR_NAME / "holiday.jpg",
+        )
 
     def test_none_of_the_markers_end_in_a_media_suffix(self) -> None:
         # A marker whose last suffix is a media one would surface as a phantom gallery
         # item, because folder_scan classifies on the last suffix alone.
-        media = Path(r"C:\Photos\photo.png")
         for marker in (COMFY_TEMP_SUFFIX, COMFY_STALE_SUFFIX):
             with self.subTest(marker=marker):
-                self.assertTrue(f"{media.name}{marker}".endswith(marker))
+                self.assertNotIn(Path(f"photo.png{marker}").suffix, MEDIA_EXTENSIONS)
 
 
 class AcceptCandidateTests(unittest.TestCase):
