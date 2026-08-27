@@ -598,7 +598,6 @@ export function GalleryItemModal({
           </button>
         </div>
 
-        {/* Outside the stage: that block centres content and hangs nav over it. */}
         {frameCapture.frameMode &&
           (itemIsGif ? (
             <FrameCaptureBar

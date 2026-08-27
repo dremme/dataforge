@@ -102,9 +102,6 @@ export function BreadcrumbBar({
                   {crumb.name}
                 </button>
               )}
-              {/* The chevron trails its own crumb, so it lists that crumb's children —
-                    and the last crumb gets one too, for drilling down, unless the
-                    folder is a leaf and the dropdown would open on nothing. */}
               {(!isLast || (hasSubfolders && !folderNotFound)) && (
                 <BreadcrumbCrumbMenu
                   folderPath={crumb.path}

@@ -122,8 +122,6 @@ export function VideoEditTimeline({
         <Icon icon={playing ? iconPause : iconPlay} />
       </button>
 
-      {/* Not tied to `locked`: hearing the clip is not an edit, so there is no reason to
-          take it away while a render is running or the source is still loading. */}
       <button
         type="button"
         className="video-edit-timeline__mute"
@@ -147,8 +145,6 @@ export function VideoEditTimeline({
         role="group"
         aria-label="Trim range"
       >
-        {/* Dimming what is dropped rather than tinting what is kept: the cut is the
-            thing being decided, and it reads at a glance without a legend. */}
         <div className="video-edit-timeline__dropped video-edit-timeline__dropped--head" />
         <div className="video-edit-timeline__dropped video-edit-timeline__dropped--tail" />
         <div className="video-edit-timeline__selection" />

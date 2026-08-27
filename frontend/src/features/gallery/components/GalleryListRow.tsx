@@ -69,8 +69,6 @@ export const GalleryListRow = memo(function GalleryListRow({
       <span className="gallery-list-row__name" title={item.name}>
         {item.name}
       </span>
-      {/* Rendered even when empty — the row's columns are placed in order, so a
-          cell that vanished would pull the ones after it out of the table. */}
       <span className="gallery-list-row__markers">
         {markers.map((marker) => (
           <span

@@ -97,8 +97,6 @@ export function BatchRenameDialog({
       }
     >
       <div className="dialog__field">
-        {/* Side by side: the stem and the number it counts from are one thought, and
-            the row costs one field of height instead of two. */}
         <div className="batch-rename-dialog__row">
           <div className="batch-rename-dialog__stem">
             <label htmlFor={stemId} className="dialog__label">

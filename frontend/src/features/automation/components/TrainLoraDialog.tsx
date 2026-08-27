@@ -219,7 +219,6 @@ export function TrainLoraDialog({
             >
               {prompts.map((row, index) => (
                 <li key={row.id} className="train-lora-dialog__prompt">
-                  {/* The input's own name already carries the number for assistive tech. */}
                   <span className="train-lora-dialog__prompt-index" aria-hidden="true">
                     {index + 1}
                   </span>

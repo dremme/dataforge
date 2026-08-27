@@ -184,7 +184,6 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
       >
         {groups.map((group) => (
           <div key={group.id} className="quick-action__group" role="group" aria-label={group.label}>
-            {/* The group role already carries the label, so this copy is decorative. */}
             <div className="quick-action__group-label" aria-hidden="true">
               {group.label}
             </div>

@@ -33,8 +33,6 @@ export function AppHeader({
         />
         <Toolbar {...toolbarProps} />
       </div>
-      {/* Background reloads used to be entirely invisible - content simply
-          changed under the user with no hint that anything had been fetched. */}
       {refreshing && (
         <div className="app-nav__refresh" role="status" aria-label="Refreshing folder" />
       )}

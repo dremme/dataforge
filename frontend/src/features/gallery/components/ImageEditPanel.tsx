@@ -60,9 +60,6 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
   return (
     <div className="image-edit-panel" role="group" aria-label="Image editing">
       <div className="image-edit-panel__bar">
-        {/* Toggle buttons rather than a tablist or a radio group: both of those promise
-            arrow-key navigation, and arrows already belong to the crop handles and to
-            gallery navigation in this modal. */}
         <div className="image-edit-panel__tools" role="group" aria-label="Editing tool">
           {TOOLS.map((tool) => (
             <button
@@ -130,8 +127,6 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
 
           {activeTool === "rotate" && (
             <>
-              {/* Quarter turns only: they compose, so 180 is two clicks of one of these
-                  and a button of its own would be a second way to say the same thing. */}
               <div className="image-edit-panel__presets" role="group" aria-label="Turn">
                 <IconAction
                   icon={iconRotateCcw}
@@ -146,7 +141,6 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   onClick={edit.rotateClockwise}
                 />
               </div>
-              {/* The mirrors are state, not steps, so they stay pressed. */}
               <div className="image-edit-panel__presets" role="group" aria-label="Mirror">
                 <IconAction
                   icon={iconFlipHorizontal}
@@ -183,8 +177,6 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   </PresetButton>
                 ))}
               </ToolPresets>
-              {/* Both write the one `scale` the spec carries, so setting either moves the
-                  other with it and the output never leaves the source's aspect. */}
               <div className="image-edit-panel__fields">
                 <label className="image-edit-panel__field">
                   <span>W</span>

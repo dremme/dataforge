@@ -173,8 +173,6 @@ export function ReplaceCaptionsDialog({
         />
       }
     >
-      {/* Header and actions stay put while the fields scroll, so a short viewport
-          never pushes the Replace button out of reach. */}
       <div className="replace-captions-dialog__body">
         <RadioTileGroup
           value={mode}
@@ -266,7 +264,6 @@ export function ReplaceCaptionsDialog({
           </label>
         </div>
 
-        {/* One hint slot, so toggling an option cannot stack two lines of advice. */}
         {hint && <p className="dialog__hint">{hint}</p>}
 
         <ReplacePreview preview={preview} pending={previewPending} />

@@ -91,7 +91,6 @@ export function AutomationMoreJobsMenu({
             role="group"
             aria-label={group.label}
           >
-            {/* The group role already carries the label, so this copy is decorative. */}
             <div className="automation__more-group-label" aria-hidden="true">
               {group.label}
             </div>

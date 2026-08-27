@@ -333,8 +333,6 @@ function MemberCard({
         {member.name}
       </span>
 
-      {/* The same brief meta row the issue resolver shows, which is what makes the two
-          copies comparable at a glance. */}
       <span className="duplicate-resolver-modal__meta">
         {member.width && member.height ? (
           <>

@@ -132,8 +132,6 @@ export function ComfyProcessDialog({
         />
       }
     >
-      {/* The probe behind this fetch dials ComfyUI, so the wait is as long as a dead host
-          takes to time out - long enough that a static line reads like a stuck dialog. */}
       {state.status === "loading" && (
         <p className="comfy-process-dialog__loading" role="status">
           <Icon icon={iconLoader2} spin className="comfy-process-dialog__loading-icon" />
@@ -155,9 +153,6 @@ export function ComfyProcessDialog({
         </p>
       )}
 
-      {/* A select rather than radio tiles: presets are files the user drops in a folder,
-          so the list has no ceiling, and a tile each would grow the panel without bound.
-          Ten of them cost the same height as one. */}
       {ready && state.presets.length > 0 && (
         <div className="dialog__field">
           <label htmlFor={presetId} className="dialog__label">
@@ -184,8 +179,6 @@ export function ComfyProcessDialog({
         </div>
       )}
 
-      {/* A warning, never a block: ComfyUI is started and stopped all day, and the job
-          queues fine as long as it is up by the time the first image is sent. */}
       {ready && !state.available && (
         <p className="dialog__warning" role="alert">
           ComfyUI is not answering at <strong>{state.baseUrl}</strong>. Start it before the job
@@ -194,8 +187,6 @@ export function ComfyProcessDialog({
         </p>
       )}
 
-      {/* Side by side rather than stacked: the panel must never scroll, and a prompt box
-          on a row of its own is the field that would push it over. */}
       <div className="dialog__field comfy-process-dialog__row">
         <div className="comfy-process-dialog__cell">
           <label htmlFor={promptId} className="dialog__label">

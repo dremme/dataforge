@@ -79,9 +79,6 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
       />
 
       <div className="video-edit-panel__bar">
-        {/* Toggle buttons rather than a tablist or a radio group: both of those promise
-            arrow-key navigation, and arrows already belong to the trim handles and to
-            gallery navigation in this modal. */}
         <div className="video-edit-panel__tools" role="group" aria-label="Editing tool">
           {TOOLS.map((tool) => (
             <button
@@ -200,8 +197,6 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                   </PresetButton>
                 ))}
               </ToolPresets>
-              {/* Both write the one `scale` the spec carries, so setting either moves the
-                  other with it and the output never leaves the source's aspect. */}
               <div className="video-edit-panel__fields">
                 <label className="video-edit-panel__field">
                   <span>W</span>
@@ -240,8 +235,6 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
 
         {edit.applying ? (
           <div className="video-edit-panel__actions">
-            {/* A bar sized to a whole row overstated a step that is usually seconds, so
-                this says the same thing in the space a button takes. */}
             <span
               className="video-edit-panel__rendering"
               role="progressbar"

@@ -125,8 +125,6 @@ export function EditCaptionsDialog({
         />
       </div>
 
-      {/* Two toggles side by side cost one field of height instead of two, which is
-          what keeps this dialog off its own scrollbar. */}
       <div className="dialog__field edit-captions-dialog__toggles">
         <div>
           <label className="dialog__checkbox" htmlFor={preserveThinkingId}>
