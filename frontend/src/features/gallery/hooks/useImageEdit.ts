@@ -28,19 +28,14 @@ import type { GalleryItem, ImageEditSpec } from "@/shared/types";
 
 export interface UseImageEditOptions {
   item: GalleryItem | undefined;
-  /** Runs once the new file is on disk, so the owner can reload the folder. */
   onEdited?: () => void | Promise<void>;
-  /**
-   * Owned by the modal so the mode sticks across next/prev, exactly as the video
-   * editor's does. This hook only drives enter/exit and reads the flag for its UI.
-   */
+  /** Owned by the modal so the mode sticks across next/prev. */
   editMode: boolean;
   setEditMode: (editMode: boolean) => void;
 }
 
 export interface ImageEdit {
   editMode: boolean;
-  /** The image has decoded, so the crop has a real frame and the readout real numbers. */
   ready: boolean;
   applying: boolean;
   draft: ImageEditDraft;
@@ -49,11 +44,8 @@ export interface ImageEdit {
   hasBackup: boolean;
   dirty: boolean;
   cropActive: boolean;
-  /** Which of `CROP_ASPECTS` the crop is locked to; "free" for none. */
   aspectId: string;
-  /** That lock's width over height, or null. The overlay's handles honour it. */
   aspectRatio: number | null;
-  /** How the preview is turned, for the stage's transform and the overlay's drags. */
   orientation: Orientation;
   outputWidth: number;
   outputHeight: number;
@@ -73,24 +65,11 @@ export interface ImageEdit {
   handleLoad: (image: HTMLImageElement) => void;
 }
 
-/**
- * Editing mode for the gallery's image viewer: describe the whole edit, then render it
- * from the untouched original in one pass.
- *
- * The draft is expressed against that original, never against the last render, which is
- * why the modal shows the original while this is on. Re-opening on an edited file seeds
- * the draft from the spec stored beside it, so changing one value keeps the rest.
- *
- * This is `useVideoEdit` with the time axis taken out. What is missing is missing for a
- * reason: a Pillow pass has no progress worth a bar and nothing worth cancelling, and a
- * still has no duration to wait for before the stored spec can be seeded.
- */
 export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const notify = useNotify();
   const { item, editMode, setEditMode } = options;
 
-  // Read through a ref so every returned callback is dependency-free, and so an apply
-  // that outlives an item swap still finishes against the values it started with.
+  // Ref so callbacks stay dependency-free; an apply outliving a swap keeps its starting values.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -100,9 +79,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const [sourceWidth, setSourceWidth] = useState(0);
   const [sourceHeight, setSourceHeight] = useState(0);
   const [draft, setDraft] = useState<ImageEditDraft>(emptyDraft);
-  // What is on disk, as a spec rather than a draft. Kept apart from the draft for the
-  // same reason the video editor does: `dirty` asks how they differ, and one of them has
-  // to survive a re-seed the other does not.
+  // On-disk spec, kept apart so dirty can compare and one can survive a re-seed alone.
   const [savedSpec, setSavedSpec] = useState<ImageEditSpec | null>(null);
   const [hasBackup, setHasBackup] = useState(false);
   const [aspectId, setAspectId] = useState("free");
@@ -126,15 +103,8 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     };
   }, []);
 
-  // Keyed on the path alone. `has_backup` must stay out of it: an apply flips that field
-  // when the folder reloads, and the `<img>` is not reloaded with it - it was already
-  // showing the original - so nothing would fire `load` a second time to put back the
-  // frame size this clears.
-  //
-  // `applying` is deliberately absent for a different reason: a render in flight against
-  // the previous item must run its own `finally`, and clearing the flag here would race
-  // it. `cropActive` is deliberately absent because it is the crop tool being selected,
-  // and the tool outlives the item exactly as the mode does.
+  // Keyed on path alone: has_backup would clear the frame size on apply (load never re-fires),
+  // and applying/cropActive must stay out or they race the previous item / drop handles on next/prev.
   useEffect(() => {
     setSourceWidth(0);
     setSourceHeight(0);
@@ -143,8 +113,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setAspectId("free");
   }, [path]);
 
-  // Seeded separately so a listing that learns about a backup can say so without
-  // resetting the editor around it.
+  // Separate so a listing that learns about a backup does not reset the editor.
   useEffect(() => {
     setHasBackup(item?.has_backup ?? false);
   }, [item?.path, item?.has_backup]);
@@ -154,20 +123,14 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setSourceHeight(image.naturalHeight);
   }, []);
 
-  // The draft and the shape the crop reads as describe one stored edit, so they are set
-  // together rather than left to find each other.
   const seedDraft = useCallback((spec: ImageEditSpec | null) => {
     const seeded = draftFromSpec(spec);
     setDraft(seeded);
     setAspectId(aspectIdForCrop(seeded.crop, sourceRef.current));
   }, []);
 
-  // One fetch per item, and not until the element has reported a size. Nothing in the
-  // spec is measured in the source's units, but the shape a stored crop is *read* as is:
-  // seeding against a frame of 0x0 makes `aspectIdForCrop` answer "free", and the chip
-  // then sits on Free over a rectangle that is locked to something. Keyed on the path
-  // rather than the item, so a folder refresh - which hands back a new object for the
-  // same file - cannot throw away a draft the user is in the middle of.
+  // Wait for a real size: seeding 0x0 makes aspectIdForCrop answer "free" over a locked rect.
+  // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
   useEffect(() => {
     if (!editMode || !path || !ready) return;
 
@@ -180,8 +143,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
         setSavedSpec(state.spec ?? null);
         seedDraft(state.spec ?? null);
       } catch {
-        // A missing spec is not worth a toast: the panel simply opens on an empty draft,
-        // which is what an unedited file gets anyway.
+        // Missing spec: open on an empty draft like an unedited file.
       }
     })();
 
@@ -194,20 +156,16 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setDraft((current) => ({ ...current, crop }));
   }, []);
 
-  // Owned here rather than by the modal so that it resets with the item and is restored
-  // with a stored spec, both of which are this hook's job.
+  // Owned here so it resets with the item and restores with a stored spec.
   const selectAspect = useCallback((nextAspectId: string) => {
     setAspectId(nextAspectId);
 
-    // Free only releases the lock: the rectangle the user has already shaped is theirs
-    // to keep, and reshaping it to nothing in particular would be a strange thing to do
-    // to it.
+    // Free only releases the lock; keep the rectangle the user already shaped.
     const ratio = CROP_ASPECTS.find((aspect) => aspect.id === nextAspectId)?.ratio ?? null;
     if (ratio === null) return;
 
-    // Picking a shape is asking to frame with it, so the handles come out with it.
     setCropActive(true);
-    // Expressed in frame fractions, so the source's own aspect divides out first.
+    // Frame fractions, so the source's own aspect divides out first.
     const frame = sourceRef.current.width / sourceRef.current.height;
     if (!Number.isFinite(frame) || frame <= 0) return;
     setDraft((current) => ({ ...current, crop: cropForAspect(ratio / frame) }));
@@ -256,8 +214,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       describe: (name: string) => string,
       settle: () => void,
     ) => {
-      // The guard reads a ref: a double click lands before `applying` has re-rendered
-      // the button into its disabled form.
+      // Ref guard: a double click lands before applying has re-rendered the button disabled.
       if (applyingRef.current) return;
 
       const { item: currentItem, onEdited } = optionsRef.current;
@@ -276,14 +233,10 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
           if (mountedRef.current) setHasBackup(result.has_backup);
           notify({ variant: "success", message: describe(name) });
           await onEdited?.();
-          // The mode stays on. Nothing about the surface needs to change: the editor was
-          // already showing the original and the spec is expressed against it, so the
-          // element is not even reloaded. `settle` records what is now on disk, which is
-          // what makes Apply go quiet until something is changed again.
+          // settle records what is now on disk so Apply stays quiet until the next change.
           if (mountedRef.current) settle();
         } catch (error) {
-          // Unguarded by `mountedRef`: the notification store outlives this modal, so a
-          // render that finishes after a close still reports.
+          // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
           notify({
             variant: "danger",
             message: `Could not edit ${name}: ${formatApiError(error)}`,
@@ -302,8 +255,6 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       revertImageEdit,
       (name) => `Restored the original ${name}.`,
       () => {
-        // The file is the original again, so the spec that described the edit is no
-        // longer true of anything.
         setSavedSpec(null);
         seedDraft(null);
       },
@@ -313,10 +264,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const apply = useCallback(() => {
     const currentDraft = draftRef.current;
 
-    // Dialling every value back to where it started asks for the file the backup already
-    // holds, so restoring it is the honest way to grant that: a copy rather than a
-    // re-encode, and the server refuses a spec that changes nothing in any case. Without
-    // this, an edited image could never be put back upright except by hunting for Revert.
+    // Identity draft restores the backup instead of re-encoding; else only Revert returns upright.
     if (isIdentityEdit(currentDraft)) {
       revert();
       return;
@@ -337,10 +285,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     );
   }, [revert, runEdit]);
 
-  // Apply asks whether this differs from what is on disk, not from an untouched source:
-  // the mode outlives an apply, so "already rendered exactly this" has to read as nothing
-  // to do. An identity draft counts as a difference whenever something was written before
-  // it - that is the request to have the original back, which `apply` routes to Revert.
+  // Dirty vs disk, not an untouched source: an identity draft after a write means Revert.
   const dirty =
     ready &&
     (savedSpec === null ? !isIdentityEdit(draft) : !specsEqual(toImageEditSpec(draft), savedSpec));

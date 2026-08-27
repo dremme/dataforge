@@ -4,14 +4,9 @@ import { DialogScope, type DialogScopeInfo } from "./DialogScope";
 import { Icon } from "./Icon";
 import { ModalShell } from "./ModalShell";
 
-/**
- * Enter must not confirm a dialog that only just opened: the keypress that
- * opened it can still be in flight, which would confirm before the user reads
- * anything.
- */
+/** Ignore Enter still in flight from the keypress that opened the dialog. */
 export const OPEN_GRACE_MS = 100;
 
-/** Enter inserts a newline in a multiline field instead of confirming. */
 function entersNewline(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLTextAreaElement ||
@@ -21,29 +16,15 @@ function entersNewline(target: EventTarget | null): boolean {
 
 interface DialogProps {
   title: string;
-  /**
-   * What the dialog will act on, rendered above the description so every job
-   * and batch action states its scope in the same place and the same words.
-   */
   scope?: DialogScopeInfo;
   description?: ReactNode;
-  /** `alertdialog` interrupts the user; use `dialog` for pickers and folder trees. */
   role?: "alertdialog" | "dialog";
-  /** Extra class on the panel, e.g. `batch-rename-dialog`. */
   panelClassName?: string;
-  /** Disables every dismiss affordance and the Enter shortcut. */
   busy?: boolean;
-  /**
-   * A child overlay is on top: suspends the focus trap, Escape and the backdrop, and
-   * releases Enter so the overlay above owns the keyboard. See `ModalShell.suspended`.
-   */
   suspended?: boolean;
-  /** When set, Enter confirms (outside multiline fields, after a short grace period). */
   onConfirm?: () => void;
   onClose: () => void;
-  /** Focused on open instead of the panel — use for a dialog's primary field. */
   initialFocusRef?: RefObject<HTMLElement | null>;
-  /** Overrides `aria-describedby`, e.g. to point at a validation error. */
   describedById?: string;
   footer: ReactNode;
   children?: ReactNode;
@@ -69,7 +50,6 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   const openedAtRef = useRef(0);
 
-  // Stamped once, on open: the Enter grace period below measures from here.
   useLayoutEffect(() => {
     openedAtRef.current = performance.now();
   }, []);
@@ -78,8 +58,6 @@ export function Dialog({
   confirmRef.current = onConfirm;
 
   useEffect(() => {
-    // While a child overlay is up, Enter belongs to it - confirming underneath would
-    // start the job with whatever the user was still editing above.
     if (busy || suspended || !onConfirm) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -106,7 +84,6 @@ export function Dialog({
       busy={busy}
       suspended={suspended}
       scrollLock="confirm-dialog-open"
-      // Long-standing label; several tests reach for the backdrop by this name.
       backdropLabel="Close dialog"
       initialFocusRef={initialFocusRef}
       panelRef={panelRef}
@@ -176,7 +153,6 @@ export function DialogButton({
 
 interface DialogActionsProps {
   confirmLabel: string;
-  /** Shown next to the spinner while busy. Defaults to `confirmLabel`. */
   busyLabel?: string;
   cancelLabel?: string;
   confirmVariant?: "primary" | "danger";
@@ -186,7 +162,6 @@ interface DialogActionsProps {
   onCancel: () => void;
 }
 
-/** The Cancel + confirm pair every form dialog ends with. */
 export function DialogActions({
   confirmLabel,
   busyLabel,

@@ -43,18 +43,12 @@ import type {
 } from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 
-/** Every job type, primary first — the palette lists them all, unlike the "More" menu. */
 export const ALL_JOB_TYPES: JobType[] = [PRIMARY_JOB_TYPE, ...SECONDARY_JOB_TYPES];
 
-/**
- * Casing is preserved so the id can be rendered back as a path when the folder is
- * no longer in any live list; `quickActionHistory` folds case when comparing.
- */
 export function quickActionFolderId(path: string): string {
   return `folder:${normalizeFolderPath(path)}`;
 }
 
-/** The path back out of a folder id, or null for any other kind of id. */
 export function folderPathFromQuickActionId(id: string): string | null {
   if (!id.startsWith("folder:")) return null;
 
@@ -89,10 +83,6 @@ export function buildSubfolderItems(
   );
 }
 
-/**
- * Recents minus the folder already open and minus anything already listed as a
- * favorite, so the same folder never appears in two sections.
- */
 export function buildRecentFolderItems(
   recentPaths: string[],
   currentFolder: string | undefined,
@@ -117,11 +107,6 @@ export function buildFavoriteItems(
   );
 }
 
-/**
- * Selecting a job goes to the folder it ran on — the same thing clicking its card
- * in the jobs drawer does. Local rows co-tracked by an Ostris card are dropped for
- * the same reason the drawer drops them: one run, one row.
- */
 export function buildJobItems(
   jobs: Job[],
   externalJobs: ExternalOstrisJob[],
@@ -158,17 +143,11 @@ export function buildJobItems(
 
 export interface RunJobOptions {
   availability: JobAvailability;
-  /** False while a job is already running in this folder. */
   canStart: boolean;
   hasFolder: boolean;
   onRequestStart: (jobType: JobType) => void;
 }
 
-/**
- * Routed through the automation host's `onRequestStart`, which is the same entry
- * point the automation panel's menu uses — so a job type with `startUi: "confirm"`
- * still gets its confirmation, and every other type still opens its dialog.
- */
 export function buildRunJobItems({
   availability,
   canStart,
@@ -188,7 +167,6 @@ export function buildRunJobItems({
       label: meta.menuLabel ?? meta.label,
       detail: meta.menuDescription,
       icon: jobTypeIconFor(type),
-      // The menu label can differ from the registry label, so keep both matchable.
       keywords: meta.label,
       disabled: !hasFolder || !canStart || !isJobAvailable(type, availability),
       run: () => onRequestStart(type),
@@ -197,20 +175,12 @@ export function buildRunJobItems({
 }
 
 export interface SidecarSweepOptions {
-  /** False when the folder is missing: there is nothing on disk to sweep. */
   hasFolder: boolean;
   counts: Record<SidecarKind, number>;
-  /** True while a sweep is already in flight — one confirmation at a time. */
   busy: boolean;
   onSweep: (kind: SidecarKind) => void;
 }
 
-/**
- * Listed whenever a folder is open, disabled when that kind has nothing to delete.
- *
- * A row that only exists once a job has flagged something is a row nobody discovers,
- * and the detail line already answers whether running it would do anything.
- */
 export function buildSidecarSweepItems({
   hasFolder,
   counts,
@@ -222,8 +192,6 @@ export function buildSidecarSweepItems({
   return SIDECAR_SWEEP_KINDS.map((kind) => ({
     id: `cmd:delete-${kind}-sidecars`,
     section: "commands",
-    // Named for the suffix, not the finding: "Delete all duplicates" would read as
-    // deleting the duplicate media, which is the one dangerous misreading here.
     label: SIDECAR_SWEEP_COPY[kind].label,
     detail: sidecarSweepDetail(kind, counts[kind]),
     icon: SIDECAR_SWEEP_COPY[kind].icon,
@@ -234,13 +202,10 @@ export function buildSidecarSweepItems({
 }
 
 export interface SelectionCommandOptions {
-  /** False when the folder is missing: there is no gallery to act on. */
   hasFolder: boolean;
   selectionMode: boolean;
   selectedCount: number;
-  /** Items visible under the active filters — select all and invert act on these. */
   visibleCount: number;
-  /** True while a delete or transfer is already in flight. */
   busy: boolean;
   onSelectAll: () => void;
   onInvertSelection: () => void;
@@ -254,13 +219,6 @@ function selectedCountDetail(count: number): string {
   return `${count} selected file${count === 1 ? "" : "s"}`;
 }
 
-/**
- * Select all, invert, and the batch actions that follow from a selection.
- *
- * Listed whenever a folder is open, the same way the sidecar sweeps are: hiding
- * a row until the user is already in selection mode is a row nobody discovers.
- * Disabled rows say why on the detail line.
- */
 export function buildSelectionCommandItems({
   hasFolder,
   selectionMode,

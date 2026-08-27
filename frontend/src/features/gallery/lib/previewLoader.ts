@@ -1,14 +1,3 @@
-/**
- * Gallery thumbnail loading pipeline.
- *
- * Two entry points feed this module:
- * 1. `visiblePrefetch` — row-level prefetch from the virtualizer (warms cache before cards mount).
- * 2. `useGalleryCardMedia` — per-card IntersectionObserver (controls <img> visibility and retries misses).
- *
- * Requests are deduplicated by path; visible priority preempts prefetch loads.
- * During fast scrolling only the current viewport is loaded; stale queued and in-flight
- * work is cancelled so hundreds of off-screen thumbnails are not requested.
- */
 import type { GalleryMediaZonePriority } from "./scrollRoot";
 
 const MAX_WARMED_PATHS = 500;
@@ -57,7 +46,6 @@ const inflightPaths = new Set<string>();
 const inflightLoads = new Map<string, InflightLoad>();
 const loadedUrls = new Map<string, string>();
 
-/** How a preview load ended. Subscribers must hear about all three. */
 export type PreviewOutcome = "loaded" | "failed" | "cancelled";
 
 const settledListeners = new Map<string, Set<(outcome: PreviewOutcome) => void>>();
@@ -138,8 +126,7 @@ function abortInflight(path: string): void {
   inflightLoads.delete(path);
   inflightPaths.delete(path);
   activeCount = Math.max(0, activeCount - 1);
-  // Cancelling silently would strand any card waiting on this path: it keeps its
-  // <img> without a src, so not even the element's own error fallback can run.
+  // Cancelling silently would strand the card with no src, so its own error fallback never runs.
   notifySettled(path, "cancelled");
 }
 

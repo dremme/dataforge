@@ -10,10 +10,7 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 interface TransferButtonProps {
   mode: MediaTransferMode;
   icon: AppIcon;
-  /** Names the action for the tooltip and, since the button is icon-only, for
-   *  its accessible name too. The spinner is what reports the busy state. */
   label: string;
-  /** Which transfer is running, so only that button shows its spinner. */
   transferring: MediaTransferMode | null;
   disabled: boolean;
   onClick: () => void;
@@ -50,7 +47,6 @@ function TransferButton({
 }
 
 interface GallerySelectionControlsProps {
-  /** Items currently visible under the active filters, for "select all". */
   totalCount: number;
 }
 
@@ -68,10 +64,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
 
   const { busy, deleting, transferring, openDeleteConfirm, startTransfer } = actions;
 
-  // Escape unwinds selection mode one step at a time: it empties a selection
-  // first, and only leaves the mode once there is nothing left to lose. A single
-  // press still exits when nothing is selected, so the extra press is only ever
-  // charged to the case where it protects work.
+  // Escape empties a selection first, and only leaves the mode once there is nothing left to lose.
   useEffect(() => {
     if (!selectionMode) {
       return;
@@ -98,9 +91,6 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clearSelectedPaths, exitSelectionMode, visibleSelectedCount, selectionMode]);
 
-  // Ctrl/Cmd+A is the keyboard path into the All button: it enters selection
-  // mode if needed, then unions every visible file. Attached even while idle,
-  // because that is the gesture that discovers the mode.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;

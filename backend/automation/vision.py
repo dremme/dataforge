@@ -1,13 +1,4 @@
-"""Sending media to the local model, for the auto-caption and verify-captions jobs.
-
-Covers everything a request with pictures in it needs: classifying image vs video
-media, extracting video keyframes, reading a GIF's opening frame, fitting frames to
-a pixel budget, and assembling the media parts of the request.
-
-Everything that is not about media - owning the client, issuing the completion,
-cleaning the reply, retrying - lives in ``llm.py``, which this builds on and which
-text-only jobs use directly.
-"""
+"""Sending media to the local model, for the auto-caption and verify-captions jobs."""
 
 from __future__ import annotations
 
@@ -33,53 +24,26 @@ from openai_settings import (
 
 logger = logging.getLogger(__name__)
 
-# What a frame is encoded at on its way to the model. High enough that the compression
-# is not what the model is squinting at, low enough that a long clip stays sendable.
 JPEG_QUALITY = 85
 
-# Evenly spaced samples across a video, in two roles: the floor below which a short
-# clip is not sampled any thinner than it used to be, and the fallback for a
-# container that will not say how fast it runs. Short clips yield fewer than this.
 VIDEO_KEYFRAME_COUNT = 8
-# A video is sampled by its length instead, twice a second plus both endpoints, since
-# eight frames across a long clip describes motion the model never saw.
 KEYFRAMES_PER_SECOND = 2
-# Where that stops. Every frame is inlined in one request at roughly 640 vision
-# tokens, so an uncapped count would build a payload no model accepts - and
-# ``call_with_retries`` would upload it three times before saying so. Twenty seconds
-# is the last length that still grows: 2 * 20 + 2 is this cap, and is as long a
-# clip as current vision models will take in one request.
+# Cap: every frame is inlined; 2 * 20s + 2 endpoints is as long as current vision models take.
 MAX_VIDEO_KEYFRAME_COUNT = 42
-# Above this a reported frame rate is metadata corruption rather than a fast camera:
-# the usual culprit is a container reporting its MPEG timescale of 90000. Real
-# high-speed footage tops out well below it.
+# Above this, fps is usually an MPEG timescale of 90000, not a fast camera.
 MAX_PLAUSIBLE_FPS = 1000.0
-# How far back to hunt for a closing frame when the reported frame count overshoots
-# the decodable tail. Metadata is wrong by a handful of frames, not by seconds, so a
-# longer walk means the file is broken rather than merely mis-measured.
+# Walk back this far when CAP_PROP_FRAME_COUNT overshoots the decodable tail.
 TAIL_SEEK_LIMIT = 32
-# Neither side is scaled below this, whatever the pixel budget says.
 QWEN_MIN_SIDE_PX = 512
-# Under this both sides floor and every frame comes out square; between here and roughly
-# 500k only one floors, so the frame is not smaller, it is the wrong shape.
+# Below this both sides floor and a 16:9 frame comes out square.
 MIN_HONORED_MAX_PIXELS = QWEN_MIN_SIDE_PX * QWEN_MIN_SIDE_PX
 
-# Multi-frame payloads stay smaller than stills so the request remains tractable. Near
-# the bottom of the useful range: frames cannot be bought by shrinking them below
-# ``MIN_HONORED_MAX_PIXELS`` without turning a 16:9 frame square.
 VIDEO_FRAME_MAX_PIXELS = 500_000
-# Per-frame pixels stay at ``VIDEO_FRAME_MAX_PIXELS`` through this length, then lerp
-# down to the 512px-side floor by ``VIDEO_FRAME_SCALE_END_SECONDS``.
 VIDEO_FRAME_SCALE_START_SECONDS = 7.0
 VIDEO_FRAME_SCALE_END_SECONDS = 20.0
-# A still is the only image in its request, so it can afford detail a keyframe sent
-# sixty at a time cannot - and fact-checking one often turns on a small part of the
-# frame. Both caption jobs share this budget.
 IMAGE_MAX_PIXELS = 1_500_000
 
-# The four values above are defaults. The cap is what makes a brief action vanish from a
-# long clip - 42 frames over two minutes is 0.35 fps - so each is env-configurable to make
-# that measurable. Read per call, not at import.
+# Defaults above; read per call, not at import, so env overrides reach the frames.
 KEYFRAMES_PER_SECOND_VAR = "VIDEO_KEYFRAMES_PER_SECOND"
 MAX_VIDEO_KEYFRAMES_VAR = "VIDEO_MAX_KEYFRAMES"
 VIDEO_FRAME_MAX_PIXELS_VAR = "VIDEO_FRAME_MAX_PIXELS"
@@ -104,12 +68,7 @@ def get_video_frame_min_pixels() -> int:
 
 
 def get_qwen_min_side_px() -> int:
-    """Per-side floor matching the configured pixel floor, on Qwen's 32-pixel grid.
-
-    Never raised above ``QWEN_MIN_SIDE_PX``: a min-pixel setting above 262144 is a
-    lerp target, not a demand that every frame be that large. Lowering the min is
-    what lets a long clip actually shrink.
-    """
+    """Per-side floor on Qwen's 32-pixel grid; never raised above ``QWEN_MIN_SIDE_PX``."""
     aligned = max(32, (math.isqrt(get_video_frame_min_pixels()) // 32) * 32)
     return min(QWEN_MIN_SIDE_PX, aligned)
 
@@ -118,9 +77,6 @@ def get_image_max_pixels() -> int:
     return positive_env_int(IMAGE_MAX_PIXELS_VAR, IMAGE_MAX_PIXELS)
 
 
-# A still that would not decode, and a motion file that yielded no keyframes. Both
-# caption jobs count these under the same names, which is also what the UI reads them
-# by. They stay here rather than in ``llm``: neither can happen without media.
 READ_ERROR = "read_error"
 FRAME_ERROR = "frame_error"
 
@@ -128,12 +84,7 @@ MediaKind = Literal["image", "video"]
 
 
 def video_frame_max_pixels_for_seconds(seconds: float | None) -> int:
-    """Per-frame pixel budget for a clip of this length.
-
-    Short clips keep the configured keyframe size. From 7s the budget lerps down to
-    the 512px-side floor at 20s, and stays there, so a long clip still fits one
-    request. An unusable duration is treated as short.
-    """
+    """Per-frame pixel budget; from 7s it lerps down to the 512px-side floor at 20s."""
     configured = get_video_frame_max_pixels()
     floor = min(configured, get_video_frame_min_pixels())
     if seconds is None or not math.isfinite(seconds) or seconds <= VIDEO_FRAME_SCALE_START_SECONDS:
@@ -146,23 +97,14 @@ def video_frame_max_pixels_for_seconds(seconds: float | None) -> int:
 
 
 def media_kind_max_pixels(media_kind: MediaKind, *, seconds: float | None = None) -> int:
-    """Per-frame pixel budget. Stills get the larger one; keyframes shrink as the clip grows.
-
-    A function rather than the dict this was: a module-level dict resolves both
-    configurable budgets once at import, so a set value never reaches a frame.
-    """
+    """Per-frame pixel budget, resolved per call so env overrides reach the frames."""
     if media_kind == "image":
         return get_image_max_pixels()
     return video_frame_max_pixels_for_seconds(seconds)
 
 
 def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
-    """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid.
-
-    The floor applies to each side on its own, so below the configured min-pixel
-    budget a frame stops shrinking and changes shape: a 16:9 frame is 640x512 at
-    a 250k budget with the default 512px floor.
-    """
+    """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid."""
     width, height = image.size
     current_pixels = width * height
     if current_pixels <= max_pixels:
@@ -176,22 +118,7 @@ def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
 
 
 def retry_jpeg_quality(attempt: int) -> int:
-    """WORKAROUND: a quality that differs on every attempt, so no retry repeats itself.
-
-    llama.cpp behind Unsloth Studio fails a video request now and then with "failed to
-    process mtmd chunk", and then short-circuits any repeat of the same images: the
-    first failure spends ~5s doing real work, every byte-identical retry comes back in
-    ~1s having done none. Measured across seven such failures, an identical retry
-    recovered zero times - our three attempts were one attempt and two formalities -
-    while re-encoding the frames bought a real second attempt, which sometimes succeeded.
-    ``cache_prompt: false`` and perturbing the prompt change nothing, so it is keyed on
-    the image bytes rather than on the text.
-
-    One quality point per attempt is enough to make the payload a different one, and is
-    invisible in the frame. This is a workaround for a server-side bug, not a design:
-    when the server stops needing it, delete this and the ``attempt`` argument that
-    every layer above only carries to reach it, and encode at ``JPEG_QUALITY`` flat.
-    """
+    """WORKAROUND: vary JPEG quality per attempt so llama.cpp cannot short-circuit identical retries."""
     return max(JPEG_QUALITY - (attempt - 1), 1)
 
 
@@ -219,17 +146,7 @@ def prepare_images_for_api(
 
 
 def load_image_rgb(media_path: Path) -> tuple[list[Image.Image] | None, str | None]:
-    """Open a single image as a one-frame list, or report why it could not be read.
-
-    Closing the source is deliberate rather than left to the garbage collector.
-    Pillow drops the file handle inside ``load()`` only for single-frame formats;
-    a multi-frame one holds it open for the lifetime of the image so later frames
-    stay seekable, and both variants reach us under the supported extensions (an
-    MPO ``.jpg``, an APNG ``.png``). On Windows that open handle locks the file,
-    which is what stops the media from being moved, deleted or edited while the
-    job is still running - or after it, whenever anything still references the
-    image. ``convert`` returns a fully loaded copy, so it outlives the handle.
-    """
+    """Open a still and close the handle; Pillow otherwise locks multi-frame files on Windows."""
     try:
         with Image.open(media_path) as image:
             return [image.convert("RGB")], None
@@ -239,39 +156,20 @@ def load_image_rgb(media_path: Path) -> tuple[list[Image.Image] | None, str | No
 
 
 def media_kind_for(path: Path) -> MediaKind:
-    """How a file is captioned or verified, which for a GIF is as an image.
-
-    A GIF carries a frame sequence, but the model is shown its opening frame and
-    told it is looking at a still: the animation is rarely what the caption is
-    about, and sampling it into keyframes spent a dozen images saying so. The
-    gallery is unaffected - it still animates the file and still scrubs its frames,
-    and ``schemas.MediaType`` still calls it a ``gif``.
-    """
+    """How a file is captioned or verified; a GIF is treated as an image."""
     return "video" if path.suffix.lower() in VIDEO_EXTENSIONS else "image"
 
 
 @dataclass(frozen=True)
 class MediaFrames:
-    """What one file contributes to a request: the frames, and when each was taken.
-
-    ``timestamps`` is ``None`` whenever the source will not say - a video whose
-    container reports no usable frame rate, one sampled by streaming because it
-    reports no frame count, a GIF carrying no delays, or a still, which has no
-    timeline at all. It is otherwise one entry per frame, in seconds from the start,
-    and exactly as long as ``images``: the request labels frames by pairing the two.
-    """
+    """Frames for one request; ``timestamps`` is None unless there is one entry per frame."""
 
     images: list[Image.Image]
     timestamps: list[float] | None = None
 
 
 def keyframe_count_for_seconds(seconds: float | None) -> int:
-    """How many frames a clip of this length is worth sampling.
-
-    Floored so a short clip is never sampled more thinly than it was before this
-    existed, and capped so a long one cannot build a request no model will take. An
-    unusable duration falls back to the fixed count.
-    """
+    """How many frames a clip of this length is worth sampling; short clips keep the floor."""
     if seconds is None or not math.isfinite(seconds) or seconds <= 0:
         return VIDEO_KEYFRAME_COUNT
 
@@ -280,12 +178,7 @@ def keyframe_count_for_seconds(seconds: float | None) -> int:
 
 
 def _video_fps(cap, cv2) -> float | None:
-    """How fast the clip runs, or ``None`` when the container will not say usefully.
-
-    The one measurement behind both the frame count and the frame timestamps, so a
-    clip that will not report a usable rate loses both together rather than being
-    sampled by a number the labels then contradict.
-    """
+    """How fast the clip runs, or ``None`` when the container will not say usefully."""
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
     if not math.isfinite(fps) or fps <= 0 or fps > MAX_PLAUSIBLE_FPS:
         return None
@@ -293,28 +186,12 @@ def _video_fps(cap, cv2) -> float | None:
 
 
 def _video_seconds(fps: float | None, total_frames: int) -> float | None:
-    """How long the clip runs, given a rate ``_video_fps`` already vetted.
-
-    Both ways of being wrong are safe: an overstated frame rate understates the
-    length and lands on the floor, an understated one overstates it and lands on the
-    cap. There is no lower bound beyond zero because a pathologically small rate is
-    already bounded by the cap, and by ``keyframe_indices`` never returning more
-    indices than the clip has frames.
-    """
+    """How long the clip runs, given a rate ``_video_fps`` already vetted."""
     return None if fps is None else total_frames / fps
 
 
 def _capped(image: Image.Image, seconds: float | None = None) -> Image.Image:
-    """A keyframe at the multi-frame budget, applied as it is read.
-
-    A long clip's frames are held for the whole model call, retries included, so
-    shrinking them only at request time would keep dozens of full-resolution frames
-    resident - gigabytes for 4K footage. Nothing is lost: this is the same budget
-    ``prepare_images_for_api`` would apply before the frames left the process, and
-    ``resize_for_qwen`` returns an already-small frame untouched. Both ends read
-    ``video_frame_max_pixels_for_seconds``, or a long clip would be applied here at
-    500k and again smaller on the way out.
-    """
+    """A keyframe at the multi-frame budget, applied as it is read so 4K frames are not held full-size."""
     return resize_for_qwen(image, max_pixels=video_frame_max_pixels_for_seconds(seconds))
 
 
@@ -327,12 +204,7 @@ def _read_frame_at(cap, cv2, frame_index: int, seconds: float | None = None) -> 
 
 
 def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) -> MediaFrames:
-    """Sample a video whose length is known, ending on its real last frame.
-
-    The frame indices are what make the timestamps exact rather than assumed even:
-    the tail walk below can land on an index other than the one asked for, and a
-    label derived from position in the list would then be wrong by that much.
-    """
+    """Sample a video whose length is known, ending on its real last frame."""
     seconds = _video_seconds(fps, total_frames)
     wanted = keyframe_indices(total_frames, count)
     captured = {
@@ -341,9 +213,7 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) 
 
     last_wanted = wanted[-1] if wanted else 0
     if wanted and last_wanted not in captured:
-        # CAP_PROP_FRAME_COUNT is duration x fps, which overshoots the real
-        # decodable tail often enough that the closing frame would otherwise be
-        # dropped in silence. Walk back to the last index that does read.
+        # CAP_PROP_FRAME_COUNT overshoots the decodable tail; walk back to a frame that reads.
         floor = max(captured, default=-1)
         limit = max(floor, last_wanted - TAIL_SEEK_LIMIT)
         for index in range(last_wanted - 1, limit, -1):
@@ -360,24 +230,7 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) 
 
 
 def _streamed_keyframes(cap, cv2, count: int) -> MediaFrames:
-    """Sample a video whose length is unknown, ending on its real last frame.
-
-    A container that reports no frame count cannot be seeked either, so the end is
-    only discoverable by decoding to it. Kept frames are halved whenever they
-    outgrow ``2 * count`` retained frames, which bounds what is held in memory while
-    preserving the opening frame and an even spread; the newest frame is tracked
-    separately so the closing one survives regardless of where the halving left the
-    stride.
-
-    Deliberately not sampled by duration like the seekable path: the length is only
-    known once the decode finishes, but the frames have to be retained *during* it,
-    so provisioning for the larger count would mean holding twice that many
-    full-resolution frames to serve the rarest branch here.
-
-    Timestamps are left out for the same reason the count is: the halving stride
-    means a survivor's position in the list no longer maps to a position in the
-    clip, so any label put on it would be a guess.
-    """
+    """Sample a video whose length is unknown; no timestamps because the halving stride breaks them."""
     kept: list[Image.Image] = []
     last: Image.Image | None = None
     stride = 1
@@ -392,8 +245,6 @@ def _streamed_keyframes(cap, cv2, count: int) -> MediaFrames:
         if position % stride == 0:
             kept.append(last)
             if len(kept) > 2 * count:
-                # Every second frame, so the survivors are still evenly spaced and
-                # still start at position 0.
                 kept = kept[::2]
                 stride *= 2
         position += 1
@@ -412,16 +263,10 @@ def extract_video_keyframes(
     video_path: Path,
     count: int | None = None,
 ) -> MediaFrames | None:
-    """Evenly spaced frames spanning the whole clip, first and last included.
-
-    ``count`` of ``None`` derives one from the clip's length; an explicit count is
-    taken as given. Frames come back capped at the duration-aware pixel budget,
-    carrying their timestamps whenever the container reported a usable frame rate.
-    """
+    """Evenly spaced frames spanning the whole clip, first and last included."""
     import cv2
 
-    # release() covers the failed-open branch too: a capture that never opened still
-    # holds the file on Windows, which locks the video against moves and deletes.
+    # release() also covers failed-open: an unopened capture still locks the file on Windows.
     cap = cv2.VideoCapture(str(video_path))
     try:
         if not cap.isOpened():
@@ -446,13 +291,7 @@ def extract_video_keyframes(
 
 
 def keyframe_sentence(frame_count: int, seconds: float | None = None) -> str:
-    """States the real frame count, which a short GIF shrinks and a long clip grows.
-
-    ``seconds`` is the clip's span, and its absence reproduces the sentence exactly
-    as it read before timestamps existed - which is what every unlabelled path
-    still gets. When present it also accounts for the ``<n.n seconds>`` markers
-    sitting between the frames, so they read as labels rather than stray tokens.
-    """
+    """States the real frame count; omit ``seconds`` to keep the unlabelled sentence."""
     if frame_count == 1:
         return "You are given a single frame. Analyze it while following the system instructions."
     if seconds is None:
@@ -469,14 +308,7 @@ def keyframe_sentence(frame_count: int, seconds: float | None = None) -> str:
 
 @dataclass(frozen=True)
 class MediaLoadError:
-    """Why a file never reached the model.
-
-    ``status`` is the job counter it lands in, and is deliberately the exact stat key
-    rather than something a caller has to translate: the same string travels through
-    the job stats and out to the UI. ``message`` is the reader's own explanation, which
-    only a still can supply - a failed keyframe extraction logs its reason and leaves
-    the user the count.
-    """
+    """Why a file never reached the model; ``status`` is the job counter key."""
 
     status: str
     message: str | None = None
@@ -485,15 +317,7 @@ class MediaLoadError:
 def load_media_images(
     media_path: Path,
 ) -> tuple[MediaFrames | None, MediaLoadError | None]:
-    """Load a video's keyframes or a single still for a vision request.
-
-    Returns ``(frames, None)`` on success, or ``(None, error)`` describing why not.
-    Only a video carries timestamps: one frame has no timeline to place it on.
-
-    A GIF takes the still path but not ``load_image_rgb``, which would hand Pillow's
-    uncomposited ``convert("RGB")`` to the model - see ``extract_gif_first_frame``.
-    It keeps Pillow either way: OpenCV reports a frame count of zero for many GIFs.
-    """
+    """Load a video's keyframes or a single still; GIFs skip ``load_image_rgb`` (uncomposited RGB)."""
     if media_kind_for(media_path) == "video":
         keyframes = extract_video_keyframes(media_path)
         if keyframes is None or not keyframes.images:
@@ -513,11 +337,7 @@ def load_media_images(
 
 
 def audio_part(audio_wav: bytes) -> dict:
-    """The OpenAI ``input_audio`` content part, which vLLM and llama-server both take.
-
-    A wrong key name here is invisible: the server drops the part and answers from the
-    frames alone, so the caption comes back describing a silent clip that was not.
-    """
+    """The OpenAI ``input_audio`` content part; a wrong key is dropped silently by the server."""
     return {
         "type": "input_audio",
         "input_audio": {
@@ -528,12 +348,7 @@ def audio_part(audio_wav: bytes) -> dict:
 
 
 def timestamp_part(seconds: float) -> dict:
-    """The ``<n.n seconds>`` marker Qwen3-VL's own video path emits before a frame.
-
-    Copied from ``transformers`` ``processing_qwen3_vl.py`` down to the one decimal
-    place and the spelling, because the point is to hand the model the exact string
-    it was trained on rather than a paraphrase it has to interpret.
-    """
+    """The ``<n.n seconds>`` marker Qwen3-VL was trained on; spelling and one decimal are the contract."""
     return {"type": "text", "text": f"<{seconds:.1f} seconds>"}
 
 
@@ -545,21 +360,7 @@ def vision_messages(
     timestamps: list[float] | None = None,
     audio_wav: bytes | None = None,
 ) -> list[dict]:
-    """The chat messages for one request: media parts first, the instruction last.
-
-    Each frame is preceded by its timestamp when one is known, which is what lets
-    the model tell a slow pan from a fast one - the frames alone say nothing about
-    how much time separates them. Timestamps are dropped wholesale unless there is
-    exactly one per frame, so a mismatch mislabels nothing.
-
-    Ordering is the contract here: llama-server rewrites each media part in place,
-    so array order is prompt order. This has *not* been verified for vLLM, where it
-    depends on the chat template - if it were to reorder, the markers degrade to
-    ordinary text near the frames rather than breaking the request.
-
-    Audio sits between the frames and the text so the whole clip - what is seen and
-    what is heard - is presented before it is asked about.
-    """
+    """Media parts first, instruction last; timestamps are dropped unless there is one per frame."""
     labelled = timestamps if timestamps and len(timestamps) == len(images_b64) else None
 
     content: list[dict] = []
@@ -598,16 +399,7 @@ def request_vision_text(
     audio_wav: bytes | None = None,
     attempt: int = 1,
 ) -> str | None:
-    """Encode ``images`` and ask the model, returning the assistant text or ``None``.
-
-    Both jobs assemble a request identically; only the pixel budget and the user text
-    differ, so those arrive already resolved for the file's media kind. ``audio_wav``
-    defaults to nothing sent, which is every request except an audio auto-caption.
-
-    ``attempt`` is the 1-based retry number, and only reaches the frame encoding - see
-    ``retry_jpeg_quality`` for the server bug it works around. A caller that leaves it
-    alone sends exactly what it sent before the workaround existed.
-    """
+    """Encode ``images`` and ask the model; ``attempt`` only reaches JPEG quality."""
     images_b64 = prepare_images_for_api(
         images, max_pixels=max_pixels, quality=retry_jpeg_quality(attempt)
     )

@@ -5,12 +5,7 @@ import { failureMessage } from "@/features/gallery/lib/mediaActionMessages";
 import { useNotify } from "@/shared/notifications/notifications";
 
 interface UseGallerySelectionActionsOptions {
-  /** Folder the selected media lives in — the transfer dialog's origin. */
   currentFolder: string | undefined;
-  /**
-   * The selection scoped to the filtered view. Batch actions deliberately reach
-   * no further: what the user can see selected is what gets moved or deleted.
-   */
   visibleSelectedPaths: ReadonlySet<string>;
   visibleSelectedCount: number;
   onDeleted: (paths: string[]) => void | Promise<void>;
@@ -18,14 +13,6 @@ interface UseGallerySelectionActionsOptions {
   onCopied: () => void | Promise<void>;
 }
 
-/**
- * Delete / move / copy for the gallery selection.
- *
- * Composed at the workspace level rather than inside `GallerySelectionControls`
- * so the quick action bar can start the same flows the toolbar buttons do, and
- * so the dialogs outlive the toolbar: the controls unmount as soon as a filter
- * empties the grid, which used to take a half-finished transfer with them.
- */
 export function useGallerySelectionActions({
   currentFolder,
   visibleSelectedPaths,
@@ -74,7 +61,6 @@ export function useGallerySelectionActions({
 
       setDeleteConfirmOpen(false);
 
-      // Per-file rejections come back in the result rather than as a thrown error.
       if (failed.length > 0) {
         notify({ variant: "danger", message: failureMessage("delete", failed) });
       }
@@ -83,7 +69,6 @@ export function useGallerySelectionActions({
     }
   }, [deleting, notify, onDeleted, visibleSelectedPaths]);
 
-  /** Whether a batch action can start right now. */
   const canAct = visibleSelectedCount > 0 && !busy;
 
   const startTransfer = useCallback(
@@ -103,7 +88,6 @@ export function useGallerySelectionActions({
       startTransfer,
       overlay: {
         currentFolder,
-        // The dialogs name and count exactly what the action will touch.
         selectedPaths: visibleSelectedPaths,
         selectedCount: visibleSelectedCount,
         transferPicker,

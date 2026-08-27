@@ -142,9 +142,7 @@ describe("JobsProvider", () => {
     source.onopen!();
     await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
 
-    // A frame the client does not know must not be read as an external-jobs one:
-    // that sets externalJobs to undefined and throws in the activeCount memo, which
-    // tears down the whole provider rather than degrading a badge.
+    // Unknown event types must not be read as external-jobs (that sets jobs to undefined).
     await act(async () => {
       source.onmessage!({ data: JSON.stringify({ type: "heartbeat" }) });
     });
@@ -180,9 +178,7 @@ describe("JobsProvider", () => {
 
     await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
 
-    // Hold every later poll open. This test is about what the push alone does; a
-    // safety poll answering from the static mock would be a legitimate 3, and
-    // whether one lands inside the assertion window is pure timing.
+    // Hang later polls so a safety fetch cannot supply the assertion from the static mock.
     listJobs.mockReturnValue(new Promise(() => {}));
     const callsBeforePush = listJobs.mock.calls.length;
 
@@ -193,21 +189,17 @@ describe("JobsProvider", () => {
       }),
     });
 
-    // Synchronous, before any timer can fire: the push is applied in place, not by
-    // going back to the server.
+    // Applied in place, before any timer can fire a refetch.
     expect(listJobs).toHaveBeenCalledTimes(callsBeforePush);
     await waitFor(() => expect(latest.current?.jobs[0].processed).toBe(9));
     expect(latest.current?.activeCount).toBe(0);
   });
 
   it("keeps a job pushed mid-request when the response predates the push", async () => {
-    // The request was answered from state older than the push, so applying its
-    // snapshot as-is would roll the job back to `running` until the next poll.
+    // Applying a stale in-flight snapshot as-is would roll the job back to running.
     vi.stubGlobal("EventSource", FakeEventSource);
 
-    // The first request is held open so the push provably lands while it is in
-    // flight. Every later request hangs: one that *starts* after the push would
-    // legitimately answer 3 from this static mock, which is not what is under test.
+    // Hold the first request so the push lands in flight; hang later ones so they cannot answer 3.
     let releaseJobs: (value: { jobs: (typeof runningJob)[]; active_count: number }) => void;
     listJobs.mockReturnValueOnce(
       new Promise((resolve) => {

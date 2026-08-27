@@ -5,10 +5,7 @@ import { EMPTY_PATH, HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
-/**
- * jsdom has no layout, so the app's scroll container never moves on its own.
- * A writable `scrollTop` makes what the app writes observable.
- */
+/** jsdom has no layout; a writable `scrollTop` makes what the app writes observable. */
 function stubMainScroll(scrollTop = 0): HTMLElement {
   const element = document.querySelector("main.main") as HTMLElement;
   Object.defineProperty(element, "scrollTop", {
@@ -30,9 +27,7 @@ describe("App: folder navigation", () => {
 
     removeFolder(HOME_PATH);
 
-    // The change detector re-checks the moment the tab becomes visible, which is
-    // the same code path as its 3s poll. Waiting out the real interval here would
-    // cost 3s; useFolderChangeDetection.test.ts owns the timer itself.
+    // Same path as the poll; waiting out the real interval would cost seconds.
     document.dispatchEvent(new Event("visibilitychange"));
 
     await waitFor(() => {
@@ -60,8 +55,6 @@ describe("App: folder navigation", () => {
       expect(screen.getByRole("button", { name: "Select sunrise.png" })).toBeInTheDocument();
     });
 
-    // Nothing on disk answers to the old name any more, so it cannot stay in the
-    // selection: a move or delete built from it would fail on a file the user can see.
     expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
     expect(screen.getByRole("button", { name: "Deselect beach.jpg" })).toBeInTheDocument();
   });
@@ -154,14 +147,11 @@ describe("App: folder navigation", () => {
 
     const listingsBeforeReturn = pathsListed().length;
 
-    // Exact name: the crumb's chevron is "Subfolders of Photos" and would match a regex.
     await user.click(screen.getByRole("button", { name: "Photos" }));
 
-    // The cached payload paints immediately - no skeleton in between.
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
     expect(document.querySelector(".folder-card--skeleton")).toBeNull();
 
-    // The fingerprint check confirms nothing moved, so no second full folder.
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([input]) => {
@@ -312,7 +302,6 @@ describe("App: folder navigation", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
-      // A cache keyed by folder path rather than by history entry gets this wrong.
       expect(main.scrollTop).toBe(300);
     });
   });
@@ -355,8 +344,6 @@ describe("App: folder navigation", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
     });
-    // The modal scroll lock restores the pre-open offset on close; the reset has
-    // to land after that, not before.
     expect(main.scrollTop).toBe(0);
   });
 });

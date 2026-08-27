@@ -9,15 +9,6 @@ function isDocked(sentinel: HTMLElement, element: HTMLElement): boolean {
   return elementTop - sentinelBottom > DOCKED_EPSILON_PX;
 }
 
-/**
- * Whether sticky positioning is currently holding `elementRef` away from the
- * sentinel marking its resting place.
- *
- * Measuring the two against each other rather than against the scroll root keeps
- * this correct for elements that dock at an offset instead of at the very top.
- * The sentinel is zero-height and sits immediately above an element with no top
- * margin, so the two edges coincide exactly while undocked.
- */
 export function useStickyFloating(
   sentinelRef: RefObject<HTMLElement | null>,
   elementRef: RefObject<HTMLElement | null>,

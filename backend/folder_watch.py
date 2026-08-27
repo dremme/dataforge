@@ -1,14 +1,3 @@
-"""Which folders are being looked at, and pushing them when they change on disk.
-
-Clients used to poll ``/api/folders/fingerprint`` every few seconds each. One task
-does that here instead and pushes the result, so the cost is one directory scan per
-watched folder rather than one per folder per tab.
-
-Interest is inferred rather than registered: the folder requests a client already makes
-say which folder it is on, so there is no separate registration to get out of order,
-to redo after a reconnect, or to race against a navigation.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -25,63 +14,33 @@ from schemas import FolderEvent
 
 logger = logging.getLogger(__name__)
 
-#: How long a folder stays watched after a tab last mentioned it. Must outlast the
-#: slowest client cadence, which is a hidden tab's safety poll, or a tab that goes quiet
-#: would stop being watched while still looking at the folder.
+#: Must outlast a hidden tab's safety poll, or a quiet tab would stop being watched.
 WATCH_TTL_SECONDS = 120.0
 
-#: Floor and ceiling for the interval between passes. The floor bounds how fast a
-#: change is noticed; the ceiling stops a folder that scans slowly from being scanned
-#: back-to-back forever.
+#: Floor bounds how fast a change is noticed; ceiling stops a slow scan from running back-to-back.
 MIN_INTERVAL_SECONDS = 1.0
 MAX_INTERVAL_SECONDS = 10.0
 
-#: What a pass costs relative to the scan it just did. Keeps a big folder from spending
-#: a meaningful share of a core on being watched.
+#: Pass cost relative to the scan it just did, so a big folder does not spend a core on watching.
 INTERVAL_SCAN_RATIO = 4.0
 
-#: How long to wait before looking again for a first watcher.
 IDLE_INTERVAL_SECONDS = 5.0
 
-#: Backoff for a folder whose scan failed or dragged. A disconnected network drive
-#: blocks for the SMB timeout, and retrying that every second helps nobody.
+#: A disconnected network drive blocks for the SMB timeout; retrying every second helps nobody.
 SLOW_SCAN_SECONDS = 1.0
 BACKOFF_SECONDS = 30.0
 
-#: What a folder that cannot be read reports. Matches the fingerprint
-#: ``build_folder_changes`` returns for the same case, so the client answers it with
-#: the reload it would have done anyway.
+#: Matches the fingerprint ``build_folder_changes`` returns for an unreadable folder.
 UNREADABLE_FINGERPRINT = ""
 
-#: ``tab id -> {folder -> last mentioned}``. Keyed by tab so an event can be addressed
-#: to the tab that is actually looking at that folder.
 _watches: dict[str, dict[str, float]] = {}
 
-#: The most recent folders one tab is credited with. A navigation leaves the previous
-#: folder behind for a moment, and holding a couple means a client is never missed
-#: because its registration arrived a beat late.
+#: A navigation leaves the previous folder behind for a moment; holding a couple avoids a miss.
 MAX_FOLDERS_PER_TAB = 3
 
 
 def watch_key(path: str) -> str:
-    """One folder, one key, however the client happened to spell it.
-
-    Windows paths are case-insensitive and accept either separator, so ``C:\\Photos``
-    and ``c:/photos`` are the same directory and must not be scanned - or published -
-    twice. ``preference_folder_key`` settles the separators and the drive letter, and
-    keeps a Windows-shaped string Windows-shaped on any host: CI is Linux while fixtures
-    and Windows clients still send drive-letter paths, and ``normalize_user_path`` on
-    POSIX would read ``\\`` as part of a relative name. Real POSIX paths stay
-    case-sensitive, where folding would merge two genuinely different folders.
-
-    ``lower`` and not ``casefold``: Windows compares with a simple upcase table, which is
-    also what ``os.path.normcase`` and the client's ``toLowerCase`` do. Full folding
-    makes ``Stra\u00dfe`` and ``Strasse`` one key, so one real folder would stop being
-    scanned and the other's published path would match no client.
-
-    Asked of the key rather than the argument, so the question is put to the string
-    actually being keyed and re-keying an already-keyed path is a no-op.
-    """
+    """Windows paths fold with ``lower``, not ``casefold``: ``Straße`` and ``Strasse`` are distinct folders."""
     key = preference_folder_key(path)
     if os.name == "nt" or looks_like_windows_path(key):
         return key.lower()
@@ -91,8 +50,7 @@ def watch_key(path: str) -> str:
 def touch(tab_id: str, path: str) -> None:
     """Record that ``tab_id`` is looking at ``path``."""
     key = watch_key(path)
-    # A blank path keys to nothing, and watching nothing means scanning whatever the
-    # process happens to be running in and publishing a path no client can match.
+    # A blank path would scan the process cwd and publish a path no client can match.
     if not tab_id or not key:
         return
 
@@ -105,11 +63,7 @@ def touch(tab_id: str, path: str) -> None:
 
 
 def watchers_by_folder() -> dict[str, set[str]]:
-    """Watched folders, each with the tabs to notify.
-
-    Only tabs holding a live stream count. A tab that has closed its stream - which is
-    what a backgrounded one does - must not keep the server scanning on its behalf.
-    """
+    """Watched folders, each with the tabs to notify. Only tabs holding a live stream count."""
     connected = events.connected_tab_ids()
     cutoff = time.monotonic() - WATCH_TTL_SECONDS
 
@@ -140,10 +94,7 @@ async def run_folder_watch_feed() -> None:
     seen: dict[str, str] = {}
     retry_after: dict[str, float] = {}
 
-    # Deliberately not the default executor: that one also serves folder listings,
-    # thumbnails and media, and ``os.scandir`` on a disconnected network drive blocks
-    # for the SMB timeout. A private worker bounds that to "folder push stops working"
-    # instead of "the API stops responding".
+    # Not the default executor: ``os.scandir`` on a disconnected drive would block the API.
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="folder-watch")
     loop = asyncio.get_running_loop()
 
@@ -151,8 +102,7 @@ async def run_folder_watch_feed() -> None:
         while True:
             watchers = watchers_by_folder()
             if not watchers:
-                # Forget what was last seen: the next watcher hydrates over REST and
-                # must not miss a change made while nobody was looking.
+                # Next watcher hydrates over REST and must not miss a change made while idle.
                 seen.clear()
                 retry_after.clear()
                 await asyncio.sleep(IDLE_INTERVAL_SECONDS)
@@ -161,8 +111,7 @@ async def run_folder_watch_feed() -> None:
             slowest = 0.0
             now = time.monotonic()
 
-            # Sequentially, never gathered: one folder that blocks must not take the
-            # private worker's whole queue with it.
+            # Sequentially: one blocking folder must not take the private worker's whole queue.
             for folder, tab_ids in watchers.items():
                 if retry_after.get(folder, 0.0) > now:
                     continue
@@ -189,9 +138,7 @@ async def run_folder_watch_feed() -> None:
                     FolderEvent(path=folder, fingerprint=fingerprint).model_dump(),
                 )
 
-            # Against the live set, not the one just iterated: a folder added mid-pass
-            # would otherwise lose the memo it never had a chance to use. Resolved once,
-            # or the comprehension would rebuild it for every remembered folder.
+            # Against the live set: a folder added mid-pass would otherwise lose its memo.
             still_watched = watchers_by_folder()
             for folder in [name for name in seen if name not in still_watched]:
                 del seen[folder]

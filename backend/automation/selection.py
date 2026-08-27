@@ -25,10 +25,7 @@ def list_folder_media(
     *,
     order: MediaOrder = "name",
 ) -> list[Path]:
-    """Files in ``folder`` with a matching suffix, in a stable processing order.
-
-    ``mtime`` preserves the order the files were captured in, ``name`` is alphabetical.
-    """
+    """Files in ``folder`` with a matching suffix, in a stable processing order."""
     try:
         entries = sorted(folder.iterdir(), key=_mtime_key if order == "mtime" else _name_key)
     except OSError:

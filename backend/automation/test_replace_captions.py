@@ -1,5 +1,3 @@
-"""Unit tests for automation.replace_captions."""
-
 from __future__ import annotations
 
 import json

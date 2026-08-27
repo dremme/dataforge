@@ -1,6 +1,3 @@
-// Design tokens — single source of truth for :root custom properties and SCSS helpers.
-
-// Color
 $color-bg: #0f1115;
 $color-bg-elevated: #171a21;
 $color-bg-card: #1c2029;
@@ -45,7 +42,6 @@ $color-caption-saved: #4ade80;
 $color-caption-error: #f87171;
 $color-video-bg: #000;
 
-// Layout
 $content-max: 1400px;
 $radius: 14px;
 $radius-sm: 8px;
@@ -57,60 +53,40 @@ $control-height: 2.25rem;
 $control-height-sm: 2rem;
 $control-height-xs: 1.5rem;
 $panel-padding: 1.125rem;
-// Room a focus ring needs outside an element: a 2px outline at a 2px offset, plus a
-// pixel of slack because fractional panel widths leave the exact 4px a hair short.
-// Scroll containers clip outlines, so anything flush against one needs this padding.
+// 2px outline at 2px offset plus a pixel of slack for fractional widths; scroll containers clip outlines.
 $focus-ring-space: 0.3125rem;
-// A sticky section header floats as its own bar below the panel it docks under:
-// the gap is the space left open between the two, the padding is the bar's own
-// inset around the header content.
+// Gap between a docked sticky header and the panel above it; padding is the bar's own inset.
 $sticky-dock-gap: 0.625rem;
 $sticky-dock-padding: 0.5rem;
 $modal-gutter: 1.5rem;
-// Shared by every modal stage so media reads at one size across the app.
 $modal-media-max-height: min(36vh, 500px);
 $progress-height: 0.375rem;
 
-// Opacity
 $disabled-opacity: 0.5;
 $icon-muted-opacity: 0.7;
 $icon-muted-strong-opacity: 0.8;
 
-// Icon sizes. Whole multiples of half Lucide's 24-unit grid land its geometry on
-// whole pixels and draw sharply; sizes off that grid cannot, at any stroke width.
-// Only `base` sits off it, and deliberately: 12px is measurably crisper but too
-// small to read as the app's default control icon.
+// Whole multiples of Lucide's 24-unit grid land on whole pixels. `base` is off-grid on purpose: 12px is sharper but too small as the default control icon.
 $icon-size-sm: 0.75rem; // 12px — half the grid
 $icon-size-base: 1rem; // 16px — off-grid, kept for legibility
 $icon-size-lg: 1.5rem; // 24px — the grid itself
 $icon-size-xl: 2.25rem; // 36px — one and a half
 
-// Stacking.
-// Not monotone with the visual hierarchy, deliberately: the drawer outranks the
-// base modals even though it can never appear over one. Its trigger sits in the
-// app header, which is already behind every 1000-level backdrop, so the pairing
-// is unreachable and the ordering only has to satisfy the stacks below.
-// A section header docks *under* the automation panel, so it stacks below it —
-// but above the gallery cards, whose own z-indexes go up to 2.
+// Not visual-order: the drawer outranks base modals because its header trigger sits behind every 1000-level backdrop. Sticky section headers dock under the automation panel but above gallery cards (z up to 2).
 $z-index-sticky-section-header: 14;
 $z-index-sticky-panel: 15;
 $z-index-drawer: 1050;
 $z-index-modal: 1000;
-// The sample lightbox opens from inside the jobs drawer, so it has to clear it.
+// Opens from inside the jobs drawer, so it has to clear it.
 $z-index-lightbox: 1075;
 $z-index-confirm: 1100;
-// Anchored surfaces (tooltips, popup menus) portal to the body, so they no
-// longer inherit the stacking context of whatever they hang off. This has to
-// clear every overlay one can open over — modal, drawer, lightbox, confirm —
-// while staying under the notifications, which outrank everything.
+// Portalled to the body; must clear every overlay except notifications.
 $z-index-anchored: 1150;
 $z-index-notification: 1200;
 
-// Motion
 $transition-fast: 0.15s ease;
 $transition-medium: 0.2s;
 
-// Typography
 $font-sans:
   "Inter",
   system-ui,
@@ -144,7 +120,5 @@ $tracking-tight: -0.025em;
 $tracking-normal: -0.011em;
 $tracking-caps: 0.06em;
 
-// Layout
-// Smallest window the desktop layout is designed for. Below this the app keeps
-// its layout and scrolls sideways rather than reflowing.
+// Below this the app keeps its layout and scrolls sideways rather than reflowing.
 $min-app-width: 1024px;

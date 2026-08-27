@@ -2,42 +2,28 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-# Every alias here is a PEP 695 ``type`` statement rather than a plain assignment,
-# which is what makes pydantic emit it as a named schema instead of inlining its
-# members at each use site. ``scripts/generate_types.py`` turns those named schemas
-# into the exported TypeScript unions the frontend imports.
+# PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
 
-#: Caption resolution states from ``captions.py``. ``no_caption`` is a job stat key,
-#: not one of these, so do not fold it in.
+#: ``no_caption`` is a job stat key, not one of these.
 type CaptionStatus = Literal["none", "empty", "text"]
 
-#: How an item is rendered. A GIF is its own type here because it needs an ``<img>``
-#: and animates, where ``MediaKind`` folds it in with images and captions its opening
-#: frame. Wider than ``MediaKind`` either way, since a sysprompt entry is listed as
-#: media too.
+#: GIF is its own type so it renders as ``<img>``; a sysprompt is listed as media too.
 type MediaType = Literal["image", "video", "gif", "sysprompt"]
 
-#: Watermark appearance, mirrored by the size table in ``automation/watermark.py``.
 type WatermarkSizeName = Literal["small", "medium", "large"]
 type WatermarkOpacity = Literal[25, 50, 75]
-# Annotated rather than a bare alias so the note reaches the generated TypeScript:
-# a ``#:`` comment is invisible to pydantic, a ``Field`` description is not.
+# Annotated so the note reaches generated TypeScript; a ``#:`` comment does not.
 type WatermarkPosition = Annotated[
     Literal["top", "center", "bottom"],
     Field(description="top = top-left, center = middle, bottom = bottom-right."),
 ]
 
-#: How the vision model is prompted: ``thinking`` lets it reason first.
 type AutomationMode = Literal["thinking", "instruct"]
 
-#: Which AI-Toolkit template a LoRA run trains from. Mirrors the keys of
-#: ``TRAINING_TEMPLATES`` in ``external/ostris_training.py``, which holds the YAML each
-#: one maps to. ``h3_fl2va`` is a video model, ``krea2_turbo`` an image model.
+#: Keys of ``TRAINING_TEMPLATES``; ``h3_fl2va`` is video, ``krea2_turbo`` is image.
 type TrainingModel = Literal["krea2_turbo", "h3_fl2va"]
 
-#: How hard the model reasons before answering, in thinking mode. The set is fixed by the
-#: chat template, which raises on anything else - see ``llm-templates/qwen38_template.jinja``.
-#: There is no ``high``; the template's own default is ``xhigh``, DataForge's is ``medium``.
+#: Chat template set; there is no ``high``. Template default ``xhigh``, ours ``medium``.
 type ReasoningEffort = Literal["low", "medium", "xhigh"]
 
 type JobStatus = Literal["queued", "running", "completed", "failed", "cancelled", "interrupted"]
@@ -57,16 +43,13 @@ type JobType = Literal[
     "comfy_process",
 ]
 
-#: How a bulk caption edit changes each caption. ``replace`` uses the search term;
-#: ``prepend`` and ``append`` ignore it and only add ``replacement``.
+#: ``prepend`` and ``append`` ignore the search term.
 type CaptionReplaceMode = Literal["replace", "prepend", "append"]
 
-#: How alike two files must be to count as duplicates. Named rather than a raw
-#: distance so the wire does not depend on the hash width.
+#: Named rather than a raw distance so the wire does not depend on hash width.
 type DuplicateThreshold = Literal["exact", "near", "loose"]
 
-#: Which finding sidecar a folder-scoped sweep removes. The suffix never crosses
-#: the wire: the frontend names a kind, the backend resolves the filename.
+#: The suffix never crosses the wire; the backend resolves the filename.
 type SidecarKind = Literal["issue", "duplicate"]
 
 
@@ -76,12 +59,7 @@ class Breadcrumb(BaseModel):
 
 
 class Subfolder(BaseModel):
-    """A child folder card.
-
-    The counts are ``None`` in a ``/api/folders/contents`` response: computing them
-    means reading every caption sidecar in every child, so they are served separately
-    by ``/api/folders/subfolder-stats`` and merged in once they arrive.
-    """
+    """Counts are ``None`` on ``/api/folders/contents``; they arrive from ``/api/folders/subfolder-stats``."""
 
     name: str
     path: str
@@ -112,38 +90,27 @@ class GalleryItem(BaseModel):
     has_caption_file: bool
     issue_fixes: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
-    #: The duplicate group this file belongs to, or None when it is not in one. Carried
-    #: on the item so a card can open the resolver at its own group; the group's
-    #: membership comes from ``/api/duplicates``, never from the item.
+    #: Group membership comes from ``/api/duplicates``, never from the item.
     duplicate_group: str | None = None
     has_duplicate_file: bool = False
-    #: Whether ``staging/<name>`` exists for this file. The staging folder is a child
-    #: directory, so this is answered from a second scan rather than ``scan.files``.
+    #: Staging is a child directory, so this is not answered from ``scan.files``.
     has_candidate: bool = False
     caption_status: CaptionStatus
     media_type: MediaType
     width: int | None = None
     height: int | None = None
-    #: Length in seconds for a video whose header we can read. Stills, GIFs, and
-    #: containers outside the MP4 family leave this empty, which the list view
-    #: already treats as a blank cell.
+    #: Empty for stills, GIFs, and non-MP4-family containers.
     duration: float | None = None
     size: int | None = None
     modified_at: str | None = None
-    #: Whether an untouched original sits beside this file, so an edit can still be
-    #: undone. Free to answer: the folder scan already holds every filename.
     has_backup: bool = False
 
 
 class DuplicateGroup(BaseModel):
-    """One set of files find-duplicates judged to be the same media.
-
-    ``members`` is resolved fresh from the folder on every request rather than stored,
-    so a group that lost a file to a delete or a move reports what is actually there.
-    """
+    """Members are resolved from the folder on every request, not stored."""
 
     group: str
-    #: The group's worst pairwise Hamming distance. 0 means identical after downscaling.
+    #: 0 means identical after downscaling.
     max_distance: int
     threshold: str
     members: list[GalleryItem]
@@ -152,21 +119,15 @@ class DuplicateGroup(BaseModel):
 class DuplicateGroupsResponse(BaseModel):
     folder: str
     groups: list[DuplicateGroup]
-    #: Files whose group has no other member left, so their sidecar says nothing. The
-    #: resolver clears these rather than presenting a group of one.
+    #: Sidecars whose group has no other member left.
     stale: list[str] = Field(default_factory=list)
-    #: Whether discarding a duplicate is recoverable. Rides on this response rather
-    #: than a capability endpoint of its own because the resolver is its only reader,
-    #: and it already fetches this. Required, so a new route cannot omit it and
-    #: silently drop the confirmation that guards an irreversible delete.
+    #: Required so a new route cannot omit the confirmation that guards an irreversible delete.
     deletes_to_trash: bool
 
 
 class DuplicateResolveRequest(BaseModel):
-    #: The file to keep. Its sidecar is cleared once the rest are gone.
     keep: str
-    #: The files to remove. Deleted through the same path as any other media delete,
-    #: which means the Recycle Bin on Windows.
+    #: Deleted through the same path as any other media delete.
     discard: list[str]
 
 
@@ -177,10 +138,7 @@ class DuplicateResolveResponse(BaseModel):
 
 
 class DuplicateDismissRequest(BaseModel):
-    """A group the user judged to be a false positive."""
-
-    #: Every member of the group. Their findings are cleared and no media is touched,
-    #: which is what separates this from a resolve with nothing to discard.
+    #: Findings are cleared and no media is touched.
     paths: list[str]
 
 
@@ -197,11 +155,10 @@ class SidecarDeleteRequest(BaseModel):
 class SidecarDeleteResponse(BaseModel):
     folder: str
     kind: SidecarKind
-    #: Names, not paths: every entry lived in ``folder``.
+    #: Names, not paths.
     deleted: list[str]
     #: A locked file lands here rather than aborting the sweep.
     failed: list[str]
-    #: Whether the sweep put files somewhere they can be recovered from.
     deletes_to_trash: bool
 
 
@@ -210,12 +167,7 @@ class FolderFingerprintResponse(BaseModel):
 
 
 class FolderChangesResponse(BaseModel):
-    """What changed in a folder since a given fingerprint.
-
-    ``changed`` covers both new and edited items: the client upserts by path, so
-    telling the two apart would only be work neither side needs. ``full`` means the
-    delta could not be computed and the client should refetch the whole folder.
-    """
+    """``full`` means refetch the whole folder; ``changed`` covers both new and edited items."""
 
     full: bool = False
     fingerprint: str
@@ -276,8 +228,7 @@ class UiSettingsResponse(BaseModel):
 
 
 class UiSettingsUpdate(BaseModel):
-    # Deliberately not ``GallerySort``: an unknown sort resets to the default
-    # instead of failing the request.
+    # Deliberately not ``GallerySort``: an unknown sort resets to the default instead of failing.
     sort: str | None = None
     show_automation_specs: bool | None = None
 
@@ -319,18 +270,13 @@ class SysPromptSaveResponse(BaseModel):
 
 
 class JobSelectionRequest(BaseModel):
-    """Base of every job start: omit ``paths`` to process the whole folder."""
-
     paths: list[str] | None = Field(
         default=None,
         description="Optional absolute media paths to limit the job to. Omit to process the full folder.",
     )
 
 
-# Every ``*JobSettings`` model below is the slice of a job start that
-# ``automation_settings.py`` remembers per folder. Each start request inherits its
-# settings model so the two cannot drift apart, and any field a start declares for
-# itself is one we deliberately never store.
+# Each start request inherits its settings model; extra start-only fields are never stored.
 
 
 class AutoCaptionJobSettings(BaseModel):
@@ -355,17 +301,12 @@ class SetCaptionsJobSettings(BaseModel):
 
 
 class SetCaptionsStartRequest(JobSelectionRequest, SetCaptionsJobSettings):
-    # Never remembered: overwriting existing captions must be re-chosen every run.
+    # Never remembered: overwriting must be re-chosen every run.
     overwrite: bool = False
 
 
 class ReplaceCaptionsJobSettings(BaseModel):
-    """The edit itself, shared by the job start, its preview, and what we remember.
-
-    ``search`` and the flags are deliberately unconstrained so a refusal (an empty
-    term, a regex that does not compile) comes back as the job's own 400 message
-    rather than a pydantic validation blob.
-    """
+    """``search`` and the flags are unconstrained so a refusal is the job's own 400, not a pydantic blob."""
 
     mode: CaptionReplaceMode = "replace"
     search: str = ""
@@ -389,11 +330,7 @@ class CaptionReplacePreviewSample(BaseModel):
 
 
 class ReplaceCaptionsPreviewResponse(BaseModel):
-    """What the edit would do, for the dialog to show before anything is written.
-
-    ``error`` carries an unusable edit (bad regex, empty term) instead of a 400, so
-    the dialog can show it inline while the user is still typing.
-    """
+    """``error`` is inline rather than a 400 so the dialog can show it while typing."""
 
     folder: str
     total: int = 0
@@ -416,8 +353,7 @@ class StripMetadataStartRequest(JobSelectionRequest):
 
 class BatchRenameJobSettings(BaseModel):
     stem: str = ""
-    # Unconstrained like ``stem``: an out-of-range number comes back as the job's own
-    # 400 message rather than a pydantic validation blob.
+    # Unconstrained so an out-of-range number is the job's own 400.
     start_number: int = 1
 
 
@@ -426,11 +362,7 @@ class BatchRenameStartRequest(JobSelectionRequest, BatchRenameJobSettings):
 
 
 class BackupCaptionsJobSettings(BaseModel):
-    """No remembered fields: ``overwrite`` is destructive and always re-chosen.
-
-    Registered anyway so every job with a dialog travels the same path, leaving no
-    special case in the registry, the response, or the frontend.
-    """
+    """``overwrite`` is never remembered; registered so every dialog job travels the same path."""
 
 
 class BackupCaptionsStartRequest(JobSelectionRequest, BackupCaptionsJobSettings):
@@ -446,8 +378,7 @@ class RestoreCaptionsStartRequest(JobSelectionRequest):
 
 
 class WatermarkJobSettings(BaseModel):
-    # ``text`` is deliberately unconstrained so its refusal comes back as the job's own
-    # 400 message rather than a pydantic validation blob.
+    # Unconstrained so refusal is the job's own 400.
     text: str = ""
     size: WatermarkSizeName = "medium"
     opacity: WatermarkOpacity = 50
@@ -459,20 +390,13 @@ class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):
 
 
 class ComfyProcessJobSettings(BaseModel):
-    #: A preset filename stem, not a Literal: presets are authored by the user and
-    #: discovered at runtime, so an unknown name comes back as the job's own 400 rather
-    #: than a pydantic validation blob.
+    #: A stem, not a Literal: unknown names are the job's own 400.
     preset: str = ""
-    #: Left empty to run the preset's own seeds. Restoration work is worth keeping
-    #: reproducible, so a seed baked into the graph is a choice, not an oversight.
+    #: Empty runs the preset's own seeds.
     seed: int | None = None
-    #: Text for the preset's "DataForge Prompt" node, empty to leave the graph's own.
-    #: Named ``prompt_text`` rather than ``prompt`` because a ComfyUI "prompt" is the
-    #: whole graph everywhere else in this codebase - ``build_comfy_prompt``,
-    #: ``submit_prompt``, ``prompt_id`` - and one word cannot mean both.
+    #: Named ``prompt_text`` because ``prompt`` is the whole graph elsewhere.
     prompt_text: str = ""
-    #: Whether a file that already has a candidate is processed again. Off by
-    #: default so re-running over a folder picks up where the last run stopped.
+    #: Off by default so a re-run picks up where the last stopped.
     overwrite_candidates: bool = False
 
 
@@ -487,21 +411,15 @@ class ComfyPresetSummary(BaseModel):
 
 class ComfyPresetTextResponse(BaseModel):
     name: str
-    #: Not named ``json``: that shadows an attribute on pydantic's BaseModel.
+    #: Not named ``json``: that shadows pydantic's BaseModel.
     content: str = Field(description="The preset exactly as exported from ComfyUI.")
 
 
 class ComfyPresetsResponse(BaseModel):
     presets: list[ComfyPresetSummary] = Field(default_factory=list)
-    #: Whether ComfyUI answered just now. Carried here rather than on a capability
-    #: endpoint of its own because the dialog is the only reader and already fetches
-    #: this; a job is still allowed to queue while it is False, since starting ComfyUI
-    #: and opening the dialog race.
+    #: A job may still queue while this is False.
     available: bool = False
-    #: The origin that was probed. Sent even when ``available`` is True so the dialog can
-    #: name it: "not answering" on its own cannot distinguish a stopped ComfyUI from one
-    #: running on a port ``COMFY_BASE_URL`` does not point at, which is the likelier
-    #: cause and the one the user can fix.
+    #: Sent even when available so the dialog can name the origin that was probed.
     base_url: str = ""
 
 
@@ -526,14 +444,12 @@ class EditCaptionsJobSettings(BaseModel):
         default=True,
         description="Keep earlier assistant reasoning in the rendered prompt.",
     )
-    #: Unconstrained so an empty instruction comes back as the job's own 400 message
-    #: rather than a pydantic validation blob.
+    #: Unconstrained so an empty instruction is the job's own 400.
     instruction: str = ""
 
 
 class EditCaptionsStartRequest(JobSelectionRequest, EditCaptionsJobSettings):
-    # Never remembered: this is the safety net, and the dangerous state is the unticked
-    # one. Persisting it would make "no backup" sticky and invisible.
+    # Never remembered: persisting it would make "no backup" sticky.
     backup: bool = Field(
         default=True,
         description="Copy each caption into .backup before overwriting it.",
@@ -547,11 +463,9 @@ class TrainLoraJobSettings(BaseModel):
 
 
 class TrainLoraStartRequest(JobSelectionRequest, TrainLoraJobSettings):
-    # Never remembered: the name is the job's ``external_ref`` and its resume key, so
-    # prefilling it would let a confirm-without-editing attach to an earlier run.
+    # Never remembered: it is the resume key.
     lora_name: str = ""
-    # Never remembered either: an edited template is a per-run override that
-    # ``useTrainingTemplateDraft.ts`` deliberately keeps in memory only.
+    # Never remembered: a per-run override kept in memory only.
     template: str | None = Field(
         default=None,
         description=(
@@ -562,11 +476,7 @@ class TrainLoraStartRequest(JobSelectionRequest, TrainLoraJobSettings):
 
 
 class AutomationSettingsResponse(BaseModel):
-    """Every job's remembered settings for one folder.
-
-    Each field is named after its job type: ``automation_settings.py`` builds this by
-    splatting its store registry, and a test pins the two to each other.
-    """
+    """Each field is named after its job type."""
 
     folder_path: str
     auto_caption: AutoCaptionJobSettings = Field(default_factory=AutoCaptionJobSettings)
@@ -611,10 +521,7 @@ class JobResponse(BaseModel):
     id: str
     folder: str
     folder_name: str = ""
-    # Deliberately not ``JobType``/``JobStatus``: job history is persisted
-    # (``automation/jobs_store.py``) and can hold values retired since the row was
-    # written, so narrowing here would fail the whole list on one legacy row. The
-    # frontend narrows instead and falls back via ``isKnownJobType``.
+    # Not ``JobType``/``JobStatus``: persisted rows can hold types this build no longer defines.
     job_type: str = "auto_caption"
     status: str
     total: int
@@ -634,13 +541,7 @@ class JobResponse(BaseModel):
 
 
 class JobResultsResponse(BaseModel):
-    """One job's per-file results, served separately from the job itself.
-
-    A job holds one result per processed file and an auto-caption result carries the
-    whole generated caption, so a finished run over a large folder is megabytes. The
-    job list is polled while work runs; these are fetched only when something
-    displays them.
-    """
+    """Served separately because a finished run over a large folder is megabytes."""
 
     job_id: str
     results: list[JobFileResult] = Field(default_factory=list)
@@ -707,8 +608,6 @@ class FolderRootsResponse(BaseModel):
 
 
 class FolderChild(BaseModel):
-    """Name + path only (no media/caption stats)."""
-
     name: str
     path: str
 
@@ -748,21 +647,13 @@ class PngWorkflowResponse(BaseModel):
 
 
 class GifInfoResponse(BaseModel):
-    """How many frames one GIF holds, counted on demand.
-
-    Kept off the listing because counting means walking the whole animation, and
-    only the open frame-capture bar needs it.
-    """
+    """Counted on demand; kept off the listing because counting walks the whole animation."""
 
     frame_count: int
 
 
 class GifToMp4StateResponse(BaseModel):
-    """Where converting one GIF would write its MP4, and what is already there.
-
-    Read before the conversion is asked for, so a name that is already taken becomes a
-    prompt rather than a silent overwrite.
-    """
+    """Read before conversion so a taken name becomes a prompt rather than a silent overwrite."""
 
     path: str
     target: str
@@ -770,8 +661,6 @@ class GifToMp4StateResponse(BaseModel):
 
 
 class GifToMp4Response(BaseModel):
-    """The MP4 a conversion wrote beside its GIF."""
-
     path: str
     size: int
     modified_at: str
@@ -800,15 +689,12 @@ class MediaDeleteResponse(BaseModel):
     deleted: list[str] = Field(default_factory=list)
 
 
-# Move and copy share these shapes: the request and the outcome are identical,
-# only the endpoint decides whether the source survives.
+# Move and copy share these shapes; only the endpoint decides whether the source survives.
 class MediaTransferPreviewRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)
 
 
 class MediaTransferPreviewResponse(BaseModel):
-    """Shared by move and copy: only the endpoint decides whether the source survives."""
-
     eligible: list[str] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)
@@ -835,26 +721,18 @@ class MediaTransferResponse(BaseModel):
     failed: list[MediaTransferFailure] = Field(default_factory=list)
 
 
-#: What one in-place edit may change. Speed is bounded by what a browser can preview
-#: through ``playbackRate``, so the panel never promises what it cannot show.
+#: Speed is bounded by what a browser can preview through ``playbackRate``.
 MIN_EDIT_SPEED = 0.25
 MAX_EDIT_SPEED = 4.0
 MIN_EDIT_SCALE = 0.05
 MIN_TRIM_SECONDS = 0.1
 
-#: Float noise from a normalized drag can push a full-width rect a hair past 1.0.
+#: Float noise from a normalized drag can push a full-width rect past 1.0.
 CROP_BOUNDS_EPSILON = 1e-6
 
 
 class EditCropRect(BaseModel):
-    """The region to keep, as fractions of the source frame.
-
-    Normalized rather than pixels so the ffmpeg filter can be written against ``iw``
-    and ``ih``: the server never has to learn the source's dimensions, which it has no
-    ffprobe to ask for, and the client never has to undo ``object-fit: contain`` to
-    produce them. The image editor keeps the same shape so one crop overlay, and one
-    set of crop arithmetic, serves both.
-    """
+    """Fractions of the source frame so ffmpeg can use ``iw``/``ih`` without ffprobe."""
 
     x: float = Field(0.0, ge=0.0, lt=1.0)
     y: float = Field(0.0, ge=0.0, lt=1.0)
@@ -863,12 +741,7 @@ class EditCropRect(BaseModel):
 
 
 def validated_crop(crop: EditCropRect | None) -> EditCropRect | None:
-    """Bounds-check one crop, and give "no crop" a single spelling.
-
-    A rectangle covering the whole frame is normalized to ``None`` here rather than at
-    each reader, so identity detection on either side of the wire cannot disagree with
-    the other about whether an edit changes anything.
-    """
+    """A full-frame rect is ``None`` so identity detection cannot disagree across the wire."""
     if crop is None:
         return None
 
@@ -884,19 +757,13 @@ def validated_crop(crop: EditCropRect | None) -> EditCropRect | None:
 
 
 class VideoEditSpec(BaseModel):
-    """One whole edit, always applied to the untouched original in a single pass.
-
-    Every field is optional and defaults to identity, so a spec describes the finished
-    result rather than a step: re-applying with one value changed keeps the rest.
-    """
+    """Always applied to the untouched original in a single pass; every field defaults to identity."""
 
     trim_start: float = Field(0.0, ge=0.0)
-    #: ``None`` runs to the end of the source, so the client never has to be right about
-    #: a duration the browser may still be reporting as ``Infinity``.
+    #: ``None`` runs to the end, so the client need not be right about a duration of ``Infinity``.
     trim_end: float | None = Field(None, gt=0.0)
     crop: EditCropRect | None = None
     speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
-    #: Output size as a fraction of the cropped frame.
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
 
     @model_validator(mode="after")
@@ -913,8 +780,6 @@ class VideoEditSpec(BaseModel):
 
 
 class VideoEditStateResponse(BaseModel):
-    """What the editor needs to re-open on a file it has already changed."""
-
     path: str
     has_backup: bool
     spec: VideoEditSpec | None
@@ -930,22 +795,14 @@ class VideoEditResponse(BaseModel):
 
 
 class ImageEditSpec(BaseModel):
-    """One whole edit, always applied to the untouched original in a single pass.
-
-    The order is fixed and shared with ``frontend/src/features/gallery/lib/imageEdit.ts``:
-    **crop, then mirror, then rotate, then scale**. Crop is therefore expressed against
-    the source frame the browser painted - orientation already applied - which is what
-    lets the crop overlay hand over the numbers it measured without undoing a rotation
-    first.
-    """
+    """Order is crop, then mirror, then rotate, then scale — shared with the frontend overlay."""
 
     crop: EditCropRect | None = None
     mirror_h: bool = False
     mirror_v: bool = False
     #: Clockwise degrees, applied after the mirrors.
     rotate: Literal[0, 90, 180, 270] = 0
-    #: Output size as a fraction of the cropped frame. Capped at 1: this downscales, and
-    #: resampling a still up invents detail the caption would then describe.
+    #: Capped at 1: upscaling invents detail a caption would then describe.
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
 
     @model_validator(mode="after")
@@ -956,8 +813,6 @@ class ImageEditSpec(BaseModel):
 
 
 class ImageEditStateResponse(BaseModel):
-    """What the editor needs to re-open on a file it has already changed."""
-
     path: str
     has_backup: bool
     spec: ImageEditSpec | None
@@ -973,39 +828,31 @@ class ImageEditResponse(BaseModel):
 
 
 class ComfyCandidateSidecar(BaseModel):
-    """What produced one candidate, written beside it in the staging folder."""
-
     source_name: str
     preset: str
-    #: ComfyUI's queue id for the run, not the text below.
+    #: ComfyUI's queue id, not the text below.
     prompt_id: str | None = None
     seed: int | None = None
-    #: What was written into the preset's "DataForge Prompt" node, when it has one.
     prompt_text: str | None = None
-    #: How far the result moved from the source, 0-100. See ``comfy_candidates``: written
-    #: at job time because that is the one moment both images are already decoded.
+    #: Written at job time, the one moment both images are already decoded.
     difference_percent: float | None = None
     created_at: str
 
 
 class ComfyCandidateStateResponse(BaseModel):
-    """Whether a dataset file has a candidate waiting, and what made it."""
-
     path: str
     candidate_path: str | None = None
     has_candidate: bool = False
     preset: str | None = None
     prompt_id: str | None = None
     seed: int | None = None
-    #: Percentage of perceptual-hash bits that differ from the source. Null when neither
-    #: the record nor a fresh read could produce one.
+    #: Null when neither the record nor a fresh read could produce one.
     difference_percent: float | None = None
     created_at: str | None = None
 
 
 class ComfyCandidateResponse(BaseModel):
     path: str
-    #: Whether the candidate became this file, rather than being discarded.
     accepted: bool
     size: int
     modified_at: str
@@ -1023,29 +870,20 @@ class ComfyCandidateFailure(BaseModel):
 
 
 class ComfyCandidateBatchResponse(BaseModel):
-    """Per-file outcomes, shaped like ``MediaTransferResponse``.
-
-    Never all-or-nothing: settling three hundred candidates must not fail wholesale
-    because one file is locked, and rolling back the ones already published would be
-    more dangerous than reporting a partial success the user can see.
-    """
+    """Never all-or-nothing: a locked file must not fail the rest of the batch."""
 
     settled: list[str] = Field(default_factory=list)
-    #: Files that had no candidate to settle, which is not an error worth stopping for.
+    #: No candidate is not an error.
     skipped: list[str] = Field(default_factory=list)
     failed: list[ComfyCandidateFailure] = Field(default_factory=list)
 
 
 class JobEvent(BaseModel):
-    """One job's whole current state, pushed whenever it changes."""
-
     type: Literal["job"] = "job"
     job: JobResponse
 
 
 class ExternalJobsEvent(BaseModel):
-    """The whole AI-Toolkit picture, pushed whenever the poll sees it change."""
-
     type: Literal["external_jobs"] = "external_jobs"
     jobs: list[ExternalOstrisJobResponse] = Field(default_factory=list)
     active_count: int = 0
@@ -1053,46 +891,28 @@ class ExternalJobsEvent(BaseModel):
 
 
 class HeartbeatEvent(BaseModel):
-    """Proof the stream is still alive, sent only when it has been idle.
-
-    A real event rather than an SSE comment because a comment does not reach
-    ``onmessage``, leaving a client unable to tell a working-but-quiet stream from one
-    that has silently stopped delivering.
-    """
+    """A real event rather than an SSE comment, so a quiet stream still reaches ``onmessage``."""
 
     type: Literal["heartbeat"] = "heartbeat"
 
 
 class FolderEvent(BaseModel):
-    """A watched folder's contents changed on disk.
-
-    Carries the new fingerprint rather than the change itself: each client diffs
-    against its own baseline, so only the client can ask for a delta that is correct
-    for it. ``fingerprint`` is empty when the folder became unreadable.
-    """
+    """Carries the new fingerprint, not the change; empty when the folder became unreadable."""
 
     type: Literal["folder"] = "folder"
     path: str
     fingerprint: str = ""
 
 
-#: Everything ``/api/events`` pushes.
-#:
-#: Every event carries a complete current snapshot of what it describes, never a delta,
-#: so a client that misses one loses nothing once the next arrives.
+#: Every event is a complete snapshot, never a delta.
 class VideoEditEvent(BaseModel):
-    """How far one in-place video render has got.
-
-    Addressed to the tab that asked for the edit rather than broadcast: no other tab is
-    waiting on it, and the render blocks that tab's request until it finishes.
-    """
+    """Addressed to the tab that asked, not broadcast."""
 
     type: Literal["video_edit"] = "video_edit"
     path: str
-    #: Position reached in the rendered output, in seconds.
+    #: Position in the rendered output, in seconds.
     seconds: float
-    #: Expected length of the output, or ``None`` when the source duration was unknown.
-    #: The client divides, so the fraction is computed where the bar is drawn.
+    #: ``None`` when the source duration was unknown.
     duration: float | None = None
 
 
@@ -1101,19 +921,8 @@ type ServerEvent = Annotated[
     Field(discriminator="type"),
 ]
 
-#: Wire types no route mentions, so ``app.openapi()`` cannot reach them on its own.
-#: ``scripts/generate_types.py`` merges these in by hand. ``JobType`` and ``JobStatus``
-#: are here because no model uses them: they are the narrowing the frontend applies
-#: over ``JobResponse``'s deliberately loose ``str`` fields.
+#: Types no route mentions, so generate_types.py merges them in by hand.
 EXTRA_WIRE_MODELS = (ServerEvent, JobType, JobStatus)
 
-#: Wire types the frontend checks at runtime, not just at compile time. A generated
-#: guard goes into ``frontend/src/shared/wireGuards.ts`` for each of these and for
-#: everything they reference.
-#:
-#: Only what arrives unvalidated belongs here. ``/api/events`` frames do: they are
-#: pushed rather than requested, and the client parses them straight off the wire.
-#: Ordinary responses do not: FastAPI has already validated them against
-#: ``response_model`` on the way out, and re-checking a folder listing item by item
-#: would put real work on the read path's hot loop for no new guarantee.
+#: Runtime-checked on the client. Only unvalidated arrivals belong here; event frames are pushed.
 GUARDED_WIRE_MODELS = (ServerEvent,)

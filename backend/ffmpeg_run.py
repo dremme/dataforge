@@ -1,13 +1,4 @@
-"""Running ffmpeg, for every module that shells out to it.
-
-Thumbnails aside, every ffmpeg call in this project is long enough that a cancelled
-job must not have to wait it out, and chatty enough that its pipes must be drained by
-someone. Both are handled here once rather than per caller.
-
-The runner polls rather than blocking on ``wait``: ``run_media_job`` only checks for
-cancellation between files, so a long encode would otherwise ignore the cancel
-entirely, and a single-file caller has no other place to notice one at all.
-"""
+"""Shared ffmpeg runner. Polls so a cancel is noticed during a long encode, and drains pipes so ffmpeg cannot block."""
 
 from __future__ import annotations
 
@@ -29,8 +20,7 @@ FFMPEG_TIMEOUT_SECONDS = 3600
 FFMPEG_TERMINATE_SECONDS = 2.0
 FFMPEG_READER_JOIN_SECONDS = 5.0
 
-#: `-progress` writes `key=value` lines. Both spellings carry microseconds - `out_time_ms`
-#: is a long-standing misnomer in ffmpeg itself, not a millisecond field.
+#: Both spellings carry microseconds; `out_time_ms` is a misnomer in ffmpeg, not milliseconds.
 _PROGRESS_TIME_KEYS = ("out_time_us", "out_time_ms")
 
 
@@ -47,11 +37,7 @@ def _terminate_ffmpeg(process: subprocess.Popen[bytes]) -> None:
 
 
 def parse_progress_seconds(line: str) -> float | None:
-    """The output position one ``-progress`` line reports, or None if it carries none.
-
-    ffmpeg emits `N/A` for the position until the first frame lands, so a value that
-    does not parse is a normal line rather than a fault.
-    """
+    """Output position in seconds, or None. ffmpeg emits `N/A` until the first frame; that is not a fault."""
     key, separator, value = line.strip().partition("=")
     if not separator or key not in _PROGRESS_TIME_KEYS:
         return None
@@ -78,12 +64,7 @@ def run_ffmpeg(
     on_progress: ProgressCallback | None = None,
     timeout: float = FFMPEG_TIMEOUT_SECONDS,
 ) -> None:
-    """Run ``command``, raising on a non-zero exit, a timeout, or a cancel.
-
-    ``on_progress`` requires the caller to have put ``-progress pipe:1`` in ``command``:
-    the flag belongs next to the rest of the argv the caller is already building, and
-    stdout is only opened as a pipe when someone is there to read it.
-    """
+    """Raises on a non-zero exit, a timeout, or a cancel. ``on_progress`` requires ``-progress pipe:1``."""
     try:
         process = subprocess.Popen(
             command,
@@ -99,8 +80,7 @@ def run_ffmpeg(
     stderr_output: list[bytes] = []
 
     with process:
-        # Drained on threads: while we poll, nothing else reads the pipes, and a chatty
-        # ffmpeg would block on a full buffer forever.
+        # Drained on threads: while we poll, a chatty ffmpeg would block on a full buffer.
         readers = [
             threading.Thread(
                 target=lambda: stderr_output.append(stderr_pipe.read() if stderr_pipe else b"")

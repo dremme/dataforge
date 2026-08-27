@@ -1,42 +1,16 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .image-edit-stage
-//
-// The picture while it is being edited, turned the way the draft says.
-//
-// The whole point of this file is that the picture's size never depends on the
-// picture. A rotated `<img>` still lays out upright - a transform does not move a
-// layout box - so an image left to its intrinsic size inflates the stage, and anything
-// measuring the stage to size the image back would then measure what the image just
-// did to it. That loop settles on a photo several thousand pixels wide.
-//
-// So the box is fixed here, in units nothing inside can reach:
-//
-//   * the height is `$modal-media-max-height`, the same viewport-derived cap the
-//     viewing path uses - a real height rather than a maximum, so the panel does not
-//     jump as the picture turns;
-//   * the width comes from the flex row, and `container-type: inline-size` republishes
-//     it as `100cqi`, which is the one number the turned rules need and the one number
-//     percentages cannot express (a percentage max-height resolves against height);
-//   * the canvas is taken out of flow, so its own box - which grows with every quarter
-//     turn - contributes nothing back.
-// ---------------------------------------------------------------------------
-
+// Stage size is fixed in CSS; an in-flow transformed <img> would size the stage from itself.
 .image-edit-stage {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
   height: $modal-media-max-height;
-  // Also contains the inline size, so the width below is answered by the flex row
-  // rather than by whatever is inside.
+  // Width comes from the flex row via 100cqi on the turned image.
   container-type: inline-size;
 
   &__canvas {
-    // Out of flow, so a quarter turn cannot make the stage taller. `translate` is a
-    // pure shift, so it centres the canvas without touching the linear part of the
-    // transform that `screenDeltaToSource` inverts to read a drag.
     position: absolute;
     left: 50%;
     top: 50%;
@@ -48,19 +22,14 @@
 
   &__img {
     display: block;
-    // Fits the stage upright: as wide as the row allows, as tall as the cap.
     max-width: 100%;
     max-height: $modal-media-max-height;
     border-radius: var(--radius-sm);
-    // The crop rectangle is the only thing here that answers a pointer.
     pointer-events: none;
     user-select: none;
   }
 
-  // On its side, the two constraints trade places: the layout width is what becomes the
-  // painted height, so it takes the cap, and the layout height becomes the painted
-  // width, so it takes the stage's own width. The turned footprint is then exactly the
-  // box an upright picture would have filled.
+  // On its side the constraints swap: layout width becomes painted height (the cap) and layout height becomes painted width (100cqi).
   &--turned &__img {
     max-width: $modal-media-max-height;
     max-height: 100cqi;

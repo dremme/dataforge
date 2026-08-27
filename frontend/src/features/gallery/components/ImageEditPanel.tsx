@@ -32,19 +32,10 @@ const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
 
 interface ImageEditPanelProps {
   edit: ImageEdit;
-  /** Modal work other than this render - the panel locks itself rather than racing it. */
   busy: boolean;
   onRevertRequested: () => void;
 }
 
-/**
- * The image editing surface: one tool at a time, and one readout that never moves.
- *
- * Laid out like `VideoEditPanel` on purpose, minus the timeline a still has no use for.
- * Each tool carries a dot when its value is no longer the default, so collapsing them
- * costs nothing you could otherwise see at a glance, and the output size stays put
- * because it is the answer to "what will I get".
- */
 export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanelProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("crop");
 
@@ -318,10 +309,7 @@ function PresetButton({
   );
 }
 
-/**
- * An icon-only control. `pressed` is left off for the quarter turns on purpose: they
- * compose rather than latch, so `aria-pressed` would claim a state they do not hold.
- */
+/** pressed is omitted for quarter turns: they compose rather than latch, so it would lie. */
 function IconAction({
   icon,
   label,

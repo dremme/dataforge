@@ -1,5 +1,3 @@
-"""Unit tests for reading and writing caption issue sidecars."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database
@@ -104,12 +102,7 @@ class SaveIssueFixesTests(unittest.TestCase):
 
 
 class SidecarNamingTests(unittest.TestCase):
-    """One sidecar per media file, not per stem.
-
-    A generated folder holds ``clip.mp4`` beside the ``clip.png`` that previews it. Under
-    a stem-named sidecar those two shared one file, and verify-captions clears the findings
-    of whatever reads clean - so the still cleared the video's.
-    """
+    """One sidecar per media file, not per stem, so ``clip.mp4`` and ``clip.png`` cannot share one."""
 
     def test_the_name_carries_the_media_extension(self) -> None:
         with TempMediaFolder() as root:

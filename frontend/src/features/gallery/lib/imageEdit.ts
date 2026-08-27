@@ -9,22 +9,9 @@ import {
 } from "./crop";
 import type { EditCropRect, ImageEditSpec } from "@/shared/types";
 
-/**
- * The image editing panel's arithmetic, kept pure so the panel itself only has to draw.
- *
- * The order is fixed and shared with `backend/image_edit.py`: **crop, then mirror, then
- * rotate, then scale**. Crop is measured against the source frame, which is what lets the
- * overlay hand over the rectangle it drew without undoing a rotation first; the rotation
- * then swaps the output's axes, and that swap is the only place it touches this file.
- *
- * Sizes are rounded rather than truncated to even numbers. Video truncates because
- * `yuv420p` cannot express an odd dimension; a still has no chroma plane to keep in step,
- * and Pillow is asked for exactly these numbers.
- */
-
+/** Order matches backend/image_edit.py: crop, mirror, rotate, scale. Sizes round. */
 export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
 
-/** Matches the lower bound `ImageEditSpec` enforces server-side. */
 export const MIN_SCALE = 0.05;
 
 const IDENTITY_EPSILON = 1e-9;
@@ -57,13 +44,11 @@ export function isIdentityEdit(draft: ImageEditDraft): boolean {
   );
 }
 
-/** Turn ``current`` by ``turns`` quarter-turns clockwise; negative turns anticlockwise. */
 export function rotateBy(current: RotationDegrees, turns: number): RotationDegrees {
   const index = (QUARTER_TURNS.indexOf(current) + turns) % QUARTER_TURNS.length;
   return QUARTER_TURNS[(index + QUARTER_TURNS.length) % QUARTER_TURNS.length];
 }
 
-/** Whether a rotation puts the frame on its side, so width and height trade places. */
 export function swapsAxes(rotate: RotationDegrees): boolean {
   return rotate === 90 || rotate === 270;
 }
@@ -79,12 +64,7 @@ export function croppedSize(source: Size, crop: CropRect): Size {
   };
 }
 
-/**
- * What the file will measure once the whole draft has been applied.
- *
- * Mirroring is absent on purpose: it moves pixels without moving the frame. The scale is
- * applied after the axis swap so the readout matches Pillow, which resizes last.
- */
+/** Mirror moves pixels, not the frame. Scale follows the axis swap so it matches Pillow. */
 export function outputDimensions(
   source: Size,
   crop: CropRect,
@@ -105,12 +85,7 @@ export function outputDimensions(
   };
 }
 
-/**
- * The scale fraction that lands the output on ``targetWidth`` as closely as it can.
- *
- * Measured against the rotated size, because that is what the W field is labelled with:
- * typing 800 into a sideways image means 800 across, not 800 down.
- */
+/** Scale that lands the output on targetWidth, against the rotated size: W is across. */
 export function scaleForTargetWidth(
   source: Size,
   crop: CropRect,
@@ -122,12 +97,6 @@ export function scaleForTargetWidth(
   return clamp(targetWidth / full.width, MIN_SCALE, 1);
 }
 
-/**
- * The same for a target height.
- *
- * Both axes resolve to the one `scale` the spec carries, which is what keeps the output
- * on the source's aspect: setting either dimension moves the other with it.
- */
 export function scaleForTargetHeight(
   source: Size,
   crop: CropRect,
@@ -180,13 +149,7 @@ function sameCrop(a: EditCropRect | null, b: EditCropRect | null): boolean {
   );
 }
 
-/**
- * Whether two specs would render the same file.
- *
- * Compared as specs rather than as drafts because `toImageEditSpec` has already
- * normalized the one way of saying "no change" - a crop that is the whole frame - so
- * this cannot report a difference the backend would not see.
- */
+/** Compared as specs, not drafts, because toImageEditSpec already normalizes a whole-frame crop. */
 export function specsEqual(a: ImageEditSpec, b: ImageEditSpec): boolean {
   return (
     sameCrop(a.crop ?? null, b.crop ?? null) &&

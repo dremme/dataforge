@@ -47,7 +47,6 @@ describe("App: captions", () => {
     const caption = within(dialog).getByRole("textbox", { name: "Caption for beach.jpg" });
     await user.type(caption, "Sandy shoreline at dusk.");
 
-    // The caption save is debounced by 500ms, so this waits out a real timer.
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/caption"),

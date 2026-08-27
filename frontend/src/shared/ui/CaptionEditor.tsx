@@ -19,10 +19,6 @@ export type CaptionEditorProps = Omit<
   searchRegex?: boolean;
 };
 
-/**
- * Plaintext CodeMirror field for gallery captions.
- * Chrome (colors, density, focus/saved/error) lives in `.code-editor--caption`.
- */
 export function CaptionEditor({
   className,
   variant,

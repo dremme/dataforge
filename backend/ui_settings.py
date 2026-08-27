@@ -1,5 +1,3 @@
-"""Gallery UI preferences."""
-
 from __future__ import annotations
 
 from typing import get_args
@@ -9,9 +7,7 @@ from schemas import GallerySort, UiSettingsResponse
 
 UI_SETTINGS_KEY = "ui_settings"
 DEFAULT_SORT: GallerySort = "name-asc"
-# ``GallerySort`` is a PEP 695 alias, so its members live behind ``__value__``:
-# ``get_args`` on the alias itself returns an empty tuple and would silently reject
-# every sort.
+# PEP 695 alias: ``get_args`` on the alias itself returns empty and would reject every sort.
 VALID_SORTS = frozenset(get_args(GallerySort.__value__))
 
 _settings: JsonPreference[UiSettingsResponse] = JsonPreference(UI_SETTINGS_KEY, UiSettingsResponse)

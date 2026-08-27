@@ -1,14 +1,4 @@
-"""Discover, validate and patch the ComfyUI workflow presets a prep job runs.
-
-A preset is one API-format graph exported from ComfyUI with *Save (API Format)*, saved
-into the workflows folder; its filename stem is the name the job is started with.
-
-Unlike ``ostris_training``'s static template table, presets are authored by the user and
-found at runtime, so the name is a plain string on the wire and every check happens when
-a job is queued rather than when a request is parsed. Patching follows the same rule as
-``build_training_config`` though: locate the node, assign the value, touch nothing else.
-No placeholder substitution - a graph is a data structure, not a template string.
-"""
+"""Discover, validate and patch the ComfyUI workflow presets a prep job runs."""
 
 from __future__ import annotations
 
@@ -22,22 +12,17 @@ from comfy_settings import get_comfy_workflows_dir
 
 WORKFLOW_EXTENSION = ".json"
 
-# API-format graphs run to tens of KB. This only rules out something that was never one.
 MAX_WORKFLOW_BYTES = 4 * 1024 * 1024
 
-# What a preset author titles a node to say which one it is. Titles win over class
-# sniffing, so a graph with three loaders is still unambiguous once one is marked.
 INPUT_NODE_TITLE = "DataForge Input"
 OUTPUT_NODE_TITLE = "DataForge Output"
 SEED_NODE_TITLE = "DataForge Seed"
 PROMPT_NODE_TITLE = "DataForge Prompt"
 
-# The fallback when nothing is titled: a graph with exactly one of these needs no marking.
 INPUT_CLASSES = frozenset({"LoadImage"})
 OUTPUT_CLASSES = frozenset({"SaveImage", "PreviewImage", "SaveImageWebsocket"})
 
-# PreviewImage has no filename_prefix; patching it is a no-op, which is fine because the
-# output ref is read back out of history rather than guessed from the prefix.
+# PreviewImage has no filename_prefix; the output ref is read back out of history.
 _NO_PREFIX_CLASSES = frozenset({"PreviewImage", "SaveImageWebsocket"})
 
 _SEED_INPUT_KEYS = ("seed", "noise_seed")
@@ -90,11 +75,7 @@ def _node_inputs(node: dict[str, Any]) -> dict[str, Any]:
 
 
 def _is_editor_format(payload: object) -> bool:
-    """The editor's own save format, which ComfyUI's API cannot run.
-
-    Same discrimination ``comfy_metadata`` makes when sniffing a PNG: an editor graph
-    carries top-level ``nodes``/``last_node_id``, an API graph is keyed by node id.
-    """
+    """The editor's own save format, which ComfyUI's API cannot run."""
     return isinstance(payload, dict) and ("nodes" in payload or "last_node_id" in payload)
 
 
@@ -191,9 +172,7 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
         )
 
     prompt_node = _optional_titled_node(payload, PROMPT_NODE_TITLE)
-    # A text input wired from another node is a list, not a string, and writing over it
-    # would be dropped without a word. Refuse here rather than let every image render
-    # with whatever the graph already said.
+    # A linked text input is a list; writing over it would be dropped without a word.
     if prompt_node is not None and not isinstance(
         _node_inputs(payload[prompt_node]).get("text"), str
     ):
@@ -220,11 +199,7 @@ def _preset_path(name: str) -> Path:
 
 
 def list_comfy_presets() -> list[ComfyPreset]:
-    """Every preset file, by name. Re-globbed per call; the folder holds a handful.
-
-    Deliberately does not parse them - a broken preset is reported when it is chosen,
-    not by making every dialog open pay to validate graphs nobody picked.
-    """
+    """Every preset file, by name. Listing does not parse them."""
     folder = get_comfy_workflows_dir()
     presets: list[ComfyPreset] = []
 
@@ -267,12 +242,7 @@ def build_comfy_prompt(
     seed: int | None = None,
     prompt_text: str | None = None,
 ) -> dict[str, Any]:
-    """A run-ready copy of the graph with this image's values filled in.
-
-    The preset's own seeds are left alone unless one is supplied: restoring and upscaling
-    is work you want reproducible, so a fixed seed in the graph is a choice to respect
-    rather than something to randomize on the author's behalf.
-    """
+    """A run-ready copy of the graph with this image's values filled in."""
     prompt = deepcopy(workflow.prompt)
 
     prompt[workflow.input_node]["inputs"]["image"] = image_ref

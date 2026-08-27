@@ -1,14 +1,3 @@
-"""Tests for the narrowed response schemas.
-
-The frontend mirrors these models by hand and narrows several fields to unions.
-These tests pin the backend to the same sets where the value is computed fresh per
-request, so a value the frontend cannot represent fails here instead of reaching the
-UI as an unhandled string.
-
-They also pin the two fields that stay deliberately loose, because narrowing either
-one would break a working feature rather than fix a bug.
-"""
-
 from __future__ import annotations
 
 import unittest
@@ -105,13 +94,7 @@ class JobResponseSchemaTests(unittest.TestCase):
             self.assertEqual(_job(status=status).status, status)
 
     def test_keeps_a_retired_job_type_from_persisted_history(self) -> None:
-        """Job rows outlive the job types that wrote them.
-
-        ``automation/jobs_store.py`` persists history, so a database in the wild holds
-        types this build no longer defines. Narrowing ``job_type`` to ``JobType`` would
-        fail the entire ``/api/jobs`` list on one such row; the frontend narrows and
-        falls back via ``isKnownJobType`` instead.
-        """
+        """Persisted job rows can hold types this build no longer defines."""
         self.assertEqual(_job(job_type="body_parts").job_type, "body_parts")
 
     def test_keeps_a_retired_job_status_from_persisted_history(self) -> None:
@@ -151,11 +134,7 @@ class TrainingModelSchemaTests(unittest.TestCase):
 
 class UiSettingsUpdateSchemaTests(unittest.TestCase):
     def test_unknown_sort_is_accepted_on_purpose(self) -> None:
-        """An unknown sort resets to the default instead of failing the request.
-
-        Deliberately looser than ``UiSettingsResponse.sort``; do not narrow it to
-        ``GallerySort`` without also handling the reset.
-        """
+        """An unknown sort resets to the default instead of failing the request."""
         self.assertEqual(UiSettingsUpdate(sort="bogus").sort, "bogus")
 
 

@@ -27,13 +27,9 @@ def delete_sidecars(request: SidecarDeleteRequest) -> SidecarDeleteResponse:
 
     deleted: list[str] = []
     failed: list[str] = []
-    # Lowercased, matching how `folder_scan` orders everything else, so two names
-    # differing only by case cannot swap places between runs.
+    # Lowercased, matching how `folder_scan` orders everything else.
     for name in sorted(scan.files, key=lambda name: (name.lower(), name)):
-        # Exact case, matching `FolderScan.sidecar`: an `A.Issue.JSON` is not read
-        # as a sidecar by the listing either, so it is not in the count the
-        # confirmation showed - and deleting more than was advertised is the worse
-        # failure.
+        # Exact case, matching `FolderScan.sidecar`; do not delete more than the confirmation showed.
         if not name.endswith(suffix):
             continue
         try:

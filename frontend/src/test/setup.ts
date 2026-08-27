@@ -118,17 +118,14 @@ Object.defineProperty(navigator, "clipboard", {
 Object.defineProperty(window, "scrollY", { value: 0, writable: true });
 window.scrollTo = vi.fn();
 
-// jsdom does not implement HTMLMediaElement.load and logs noisy "Not implemented" errors
-// when modal video prefetch runs during gallery tests.
+// jsdom logs "Not implemented" for HTMLMediaElement.load during video prefetch.
 Object.defineProperty(HTMLMediaElement.prototype, "load", {
   configurable: true,
   writable: true,
   value: function load(this: HTMLMediaElement) {},
 });
 
-// jsdom implements no EventSource, and `renderWithProviders` mounts the real
-// `ServerEventsProvider` so components can subscribe to push the way they do in the app.
-// A test that wants to deliver frames re-stubs this through `installFakeEventSource`.
+// jsdom has no EventSource; tests that deliver frames remock via installFakeEventSource.
 class InertEventSource {
   onopen: (() => void) | null = null;
   onerror: (() => void) | null = null;
@@ -140,14 +137,10 @@ class InertEventSource {
 Object.defineProperty(window, "EventSource", {
   value: InertEventSource,
   writable: true,
-  // `installFakeEventSource` stubs over this, which a non-configurable property refuses.
   configurable: true,
 });
 
-// jsdom performs no layout, so every element measures zero. The gallery's
-// default mode lays its columns out from the container's width and renders
-// nothing without one, so divs get a plausible width to measure. A test that
-// cares about a specific width re-stubs this on the same prototype.
+// jsdom has no layout; gallery masonry needs a measured width.
 Object.defineProperty(HTMLDivElement.prototype, "clientWidth", {
   configurable: true,
   get() {

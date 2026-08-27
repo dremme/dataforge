@@ -179,8 +179,7 @@ class FetchActiveOstrisJobsTests(unittest.TestCase):
         self.assertEqual(jobs[0]["id"], "active")
 
     def test_orders_jobs_by_the_ostris_queue_not_created_at(self) -> None:
-        # Ostris GET /api/jobs is newest-first. The queue itself runs the lowest
-        # queue_position next, and the running job is already at the head.
+        # Ostris GET /api/jobs is newest-first; the queue runs the lowest queue_position next.
         payload = {
             "jobs": [
                 {

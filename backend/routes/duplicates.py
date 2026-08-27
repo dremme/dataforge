@@ -28,16 +28,10 @@ router = APIRouter()
 def list_duplicates(
     folder: str = Query(..., description="Absolute path to the folder to report on"),
 ) -> DuplicateGroupsResponse:
-    """Every duplicate group in ``folder``, each member carrying its gallery metadata.
-
-    The metadata rides along because the resolver compares files on it - resolution,
-    size, caption, modified date - and asking for the folder listing separately would
-    make the resolver's first paint wait on a second request.
-    """
+    """Every duplicate group in ``folder``, each member carrying its gallery metadata."""
     folder_path = resolve_folder(folder)
 
-    # One scan feeds both the grouping and the member metadata, so the two cannot
-    # disagree about what is in the folder.
+    # One scan feeds both grouping and member metadata so they cannot disagree.
     scan = scan_folder(folder_path)
     if scan is None:
         raise HTTPException(status_code=404, detail="Folder not found")
@@ -59,8 +53,7 @@ def list_duplicates(
             )
         )
 
-    # Largest groups first: they are where deleting saves the most, and a pair is the
-    # quickest decision to leave for last.
+    # Largest groups first: they are where deleting saves the most.
     groups.sort(key=lambda group: (-len(group.members), group.members[0].name.lower()))
 
     return DuplicateGroupsResponse(
@@ -99,8 +92,7 @@ def resolve_duplicate_group(request: DuplicateResolveRequest) -> DuplicateResolv
             continue
         deleted.append(path.name)
 
-    # Only once the partners are actually gone. Clearing first and then failing a delete
-    # would leave two files behind with no finding to bring the user back to them.
+    # Clear only after partners are gone; otherwise two files remain with no finding.
     if not failed:
         try:
             delete_duplicate_file(keep_path)
@@ -112,17 +104,7 @@ def resolve_duplicate_group(request: DuplicateResolveRequest) -> DuplicateResolv
 
 @router.post("/duplicates/dismiss", response_model=DuplicateDismissResponse)
 def dismiss_duplicate_group(request: DuplicateDismissRequest) -> DuplicateDismissResponse:
-    """Clear a group's findings, leaving every file where it is.
-
-    The way out of a false positive: perceptual hashing groups two shots of the same
-    subject often enough that the resolver needs an answer other than picking a file to
-    delete. Only the ``.duplicate.json`` sidecars go, so the group stops being offered
-    without anything in the dataset changing.
-
-    The dismissal lives in the absence of those sidecars, not in a record of its own, so
-    a later find-duplicates run judges the folder fresh and may flag the pair again -
-    which is the honest outcome for a run the user asked for at a new threshold.
-    """
+    """Clear a group's findings, leaving every file where it is."""
     if len(request.paths) < 2:
         raise HTTPException(status_code=400, detail="A duplicate group needs at least two members")
 

@@ -1,15 +1,4 @@
-"""The staged results of a ComfyUI prep run, and the accept/reject that settles them.
-
-A prep job never touches the dataset. It writes each result into ``<folder>/staging/``
-under the source's own filename, beside a ``.comfy.json`` recording what produced it.
-Nothing in the folder changes until the review queue accepts one, so a cancelled run, a
-crashed run, or a preset that turned out to be wrong all cost nothing.
-
-Accepting publishes the candidate under the real name and keeps no copy of what it
-replaced: rejecting is the way back, and it comes before the accept. An accept is still
-*refused* while a ``.bak`` exists, because the image editor renders every crop from that
-file and would otherwise throw the accepted pass away - see :func:`accept_candidate`.
-"""
+"""Staged ComfyUI results, and the accept/reject that settles them. Accept is refused while a ``.bak`` exists."""
 
 from __future__ import annotations
 
@@ -47,15 +36,7 @@ EDITED_MESSAGE = (
 )
 
 
-#: Side length of the grid the difference score is hashed on, finer than the duplicate
-#: finder's 8. That grid answers "is this the same picture"; this one has to answer "did
-#: the picture move", so its cells have to be small enough for a shifted subject to land
-#: in a different one. 16 gives a 256-bit hash, still Pillow-only.
-#:
-#: It is not fine enough to see everything. On a 2048px image a cell is still ~128px, so
-#: a mangled hand or a botched eye barely moves the number. The score says whether the
-#: composition survived, which is what the review is for - it is not a defect detector,
-#: and the images are shown side by side because it cannot be one.
+#: Finer than the duplicate finder's 8 so a shifted subject lands in a different cell.
 CANDIDATE_HASH_SIZE = 16
 
 
@@ -77,11 +58,7 @@ def _settle_key(media: Path) -> str:
 
 @contextmanager
 def settle_slot(media: Path) -> Iterator[None]:
-    """Hold the one accept/reject slot for ``media``.
-
-    A batch "accept remaining" and a single accept can otherwise reach the same path at
-    once, and the loser would publish over the winner's result.
-    """
+    """One accept/reject slot; a batch and a single accept must not publish over each other."""
     key = _settle_key(media)
 
     with _settling_lock:
@@ -97,16 +74,7 @@ def settle_slot(media: Path) -> Iterator[None]:
 
 
 def difference_percent(before: Image.Image, after: Image.Image) -> float:
-    """How much of the two images' perceptual hash disagrees, as a percentage.
-
-    Deliberately blind to the thing a prep run is *for*: a hash bit compares a pixel with
-    its neighbour, so sharpening and added detail leave it where it was. What moves it is
-    content moving, vanishing, or being reframed - which is the failure the review queue
-    exists to catch.
-
-    Scale-free by construction, so an upscale's 4x the pixels does not register on its
-    own. Two unrelated images sit near 50%, that being where independent bits land.
-    """
+    """Perceptual-hash disagreement as a percentage. Blind to sharpening; two unrelated images sit near 50%."""
     bits = CANDIDATE_HASH_SIZE * CANDIDATE_HASH_SIZE
     distance = hamming_distance(
         difference_hash(before, CANDIDATE_HASH_SIZE),
@@ -116,20 +84,14 @@ def difference_percent(before: Image.Image, after: Image.Image) -> float:
 
 
 def candidate_difference(source: Path, candidate: Path) -> float | None:
-    """:func:`difference_percent` for two files, or None when either cannot be read.
-
-    Never raises. The score is a nicety on top of the state endpoint's real answer -
-    whether a candidate is waiting at all - and an unreadable file must not cost the
-    caller that.
-    """
+    """:func:`difference_percent` for two files, or None when either cannot be read. Never raises."""
     try:
         with Image.open(source) as before, Image.open(candidate) as after:
             before.load()
             after.load()
             return difference_percent(before, after)
     except (OSError, UnidentifiedImageError) as error:
-        # No traceback: a file that has moved or will not decode is an ordinary outcome
-        # here, not the corrupt-record surprise the sidecar reader logs a stack for.
+        # No traceback: a missing or undecodable file is ordinary here.
         logger.warning("Could not score %s against its candidate: %s", source.name, error)
         return None
 
@@ -139,17 +101,11 @@ def staging_dir(folder: Path) -> Path:
 
 
 def candidate_path_for(media: Path) -> Path:
-    """``<folder>/photo.png`` -> ``<folder>/staging/photo.png``.
-
-    Same filename, which is what pairs the two everywhere: the review queue, accept, and
-    every full-filename sidecar. A candidate saved under a different extension would
-    orphan the caption, issue, duplicate and archive sidecars at once.
-    """
+    """Same filename in ``staging/``; a different extension would orphan every sidecar."""
     return staging_dir(media.parent) / media.name
 
 
 def source_path_for(candidate: Path) -> Path:
-    """The dataset file a candidate belongs to."""
     return candidate.parent.parent / candidate.name
 
 
@@ -170,7 +126,6 @@ def has_candidate(media: Path) -> bool:
 
 
 def sweep_comfy_temp_files(folder: Path) -> None:
-    """Drop what a hard kill left behind; this is a folder the user browses."""
     with suppress(OSError):
         for suffix in (COMFY_TEMP_SUFFIX, COMFY_STALE_SUFFIX):
             for leftover in folder.glob(f"*{suffix}"):
@@ -184,7 +139,6 @@ def write_candidate_sidecar(candidate: Path, sidecar: ComfyCandidateSidecar) -> 
 
 
 def read_candidate_sidecar(candidate: Path) -> ComfyCandidateSidecar | None:
-    """What produced this candidate, or None when the record is missing or unreadable."""
     path = candidate_sidecar_path(candidate)
     try:
         raw = path.read_text(encoding="utf-8")
@@ -216,11 +170,7 @@ def describe_candidate_state(media: Path) -> ComfyCandidateStateResponse:
     present = candidate.is_file()
     sidecar = read_candidate_sidecar(candidate) if present else None
 
-    # The job scores the pair while both images are already decoded, so the sidecar
-    # normally has the answer. Falling back to scoring the two files here is what gives
-    # candidates staged before the score existed one anyway, without re-running a job
-    # that takes hours. Uncached on purpose: two decodes, once per image the reviewer
-    # actually opens, against the seconds they spend looking at it.
+    # Sidecar normally has the score; fallback is uncached so pre-score candidates still get one.
     difference = sidecar.difference_percent if sidecar else None
     if present and difference is None:
         difference = candidate_difference(media, candidate)
@@ -238,7 +188,6 @@ def describe_candidate_state(media: Path) -> ComfyCandidateStateResponse:
 
 
 def _discard_candidate(candidate: Path) -> None:
-    """Send a settled candidate and its record to the Recycle Bin."""
     for path in (candidate, candidate_sidecar_path(candidate)):
         if not path.is_file():
             continue
@@ -249,18 +198,7 @@ def _discard_candidate(candidate: Path) -> None:
 
 
 def accept_candidate(media: Path) -> ComfyCandidateResponse:
-    """Make the candidate the real file. The file it replaces is not kept.
-
-    Accepting is final: rejecting is what the review queue is for, and the candidate is
-    only settled once the user has seen both images side by side.
-
-    Refused when the image carries an editor backup. ``image_edit`` always renders from
-    ``photo.png.bak`` and ``photo.edit.json`` claims to describe the live file, so an
-    accepted candidate would leave the spec describing pixels that no longer exist and
-    the next crop would render the ComfyUI pass away without saying so. Deleting the
-    ``.bak`` instead would destroy a genuine original. Refusing is the only outcome that
-    loses nothing, and reverting the edit clears it in one click.
-    """
+    """Publish the candidate. Refused while a ``.bak`` exists: image_edit renders from that file."""
     candidate = candidate_path_for(media)
     if not candidate.is_file():
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
@@ -285,7 +223,6 @@ def accept_candidate(media: Path) -> ComfyCandidateResponse:
 
 
 def reject_candidate(media: Path) -> ComfyCandidateResponse:
-    """Discard the candidate. The dataset file is never opened."""
     candidate = candidate_path_for(media)
     if not candidate.is_file():
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)

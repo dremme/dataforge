@@ -93,7 +93,7 @@ def _response_preview(raw: str, *, limit: int = 160) -> str:
     compact = " ".join(raw.split())
     if len(compact) <= limit:
         return compact
-    return f"{compact[: limit - 3]}..."
+    return f"{compact[: limit - 1]}…"
 
 
 def _coerce_bool(value: object) -> bool | None:
@@ -120,13 +120,7 @@ _SENTENCE_TERMINATORS = frozenset(".!?")
 
 
 def _ends_sentence(text: str, index: int) -> bool:
-    """Whether the terminator at ``index`` closes a sentence rather than sitting inside one.
-
-    Qwen shortens sentences with an ellipsis mid-thought ("the arm is raised... not
-    lowered"), so the closing dot of a run of dots continues the sentence. Otherwise a
-    terminator ends one only at the end of the text or before whitespace, which also
-    keeps decimals like "5.5 inch" together.
-    """
+    """Whether the terminator at ``index`` closes a sentence; ellipses and decimals stay together."""
     if text[index] == "." and index > 0 and text[index - 1] == ".":
         return False
 
@@ -135,11 +129,7 @@ def _ends_sentence(text: str, index: int) -> bool:
 
 
 def split_fix_sentences(text: str) -> list[str]:
-    """Split prose into sentences, treating double-quoted spans as atomic.
-
-    The model quotes caption phrases verbatim, so a terminator inside quotes
-    (``Replace "a blue car." with ...``) must not split.
-    """
+    """Split prose into sentences, treating double-quoted spans as atomic."""
     sentences: list[str] = []
     start = 0
     in_quote = False
@@ -160,15 +150,7 @@ def split_fix_sentences(text: str) -> list[str]:
 
 
 def _parse_verification_payload(data: dict) -> VerificationResult | None:
-    """Let the verdict gate the issue prose.
-
-    Asking for the verdict first buys a cheap commitment token before any issue text is
-    generated; without it the model flags everything. The issues come back as prose rather
-    than an array because short units are cheap to enumerate: an array element, and equally
-    a terse "Replace X with Y.", invites another one. Pushing this field toward imperative
-    phrasing was measured at 2.3 findings per caption against 1.3 for descriptive prose,
-    so the wording here is deliberately declarative.
-    """
+    """Let the verdict gate the issue prose so the model does not flag everything."""
     correct = _coerce_bool(data.get("correct"))
     issues = data.get("issues")
     if correct is None or not isinstance(issues, str):
@@ -201,11 +183,7 @@ def should_write_issue_file(verification: VerificationResult) -> bool:
 
 @dataclass(frozen=True)
 class MediaKindWording:
-    """The per-kind words the rules and output format are written around.
-
-    ``framing`` opens the objective; the rest slot into sentences that are otherwise
-    identical for stills and motion, so the two prompts stay calibrated together.
-    """
+    """Per-kind words the rules and output format are written around."""
 
     framing: str
     subject: str
@@ -213,8 +191,7 @@ class MediaKindWording:
     contradict_ref: str
 
 
-# Kept out of ``framing`` because it applies to both kinds: the pose errors it targets
-# are the ones the model misses regardless of how many frames it is looking at.
+# Shared by both kinds: pose errors the model misses regardless of frame count.
 _POSITIONING_ATTENTION = textwrap.dedent(
     """
     Pay special attention to hand and leg positioning, as these are often incorrect
@@ -362,16 +339,7 @@ def verify_caption(
     timestamps: list[float] | None = None,
     attempt: int = 1,
 ) -> str | None:
-    """Ask the model to fact-check ``ref_caption`` against already-loaded ``images``.
-
-    Decoding stays with ``process_media`` so a file that never opened is reported as
-    such instead of being retried three times as a model failure. ``timestamps``
-    follows the same rule: resolved once by the caller, sent again on every retry.
-
-    ``attempt`` is passed straight through to the frame encoding, which is a workaround
-    rather than a feature - ``vision.retry_jpeg_quality`` explains why a retry must not
-    resend the bytes that just failed.
-    """
+    """Fact-check ``ref_caption`` against already-loaded ``images``; ``attempt`` is for JPEG retries."""
     media_kind = media_kind_for(media_path)
     return request_vision_text(
         client,
@@ -482,17 +450,11 @@ def _initial_job_stats(total: int) -> dict[str, int]:
 
 
 def _write_caption_fixes(media_path: Path, fixes: list[str]) -> None:
-    """Replace this file's findings, removing the sidecar when it verifies clean.
-
-    Per file rather than per folder: the old folder-wide clear at job start ran before
-    the selection was applied, so verifying a handful of files wiped the findings of
-    every other file in the folder.
-    """
+    """Replace this file's findings only; a folder-wide clear used to wipe unselected files."""
     save_issue_fixes(media_path, fixes)
 
 
 def _failure_outcome(status: str, message: str | None) -> FileOutcome:
-    """Map a non-success ``process_media`` status onto its counter and message."""
     return FileOutcome(
         status=status,
         stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
@@ -539,7 +501,6 @@ def run_verify_captions_job(
                 return _failure_outcome(status, message)
 
             if should_cancel and should_cancel():
-                # Do not write the sidecar when cancellation landed around this file.
                 return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
             try:
@@ -560,8 +521,7 @@ def run_verify_captions_job(
                 fields={"description": "; ".join(verification.fixes)},
             )
 
-        # ``processed`` counts each handled file once: issues_found is a sub-stat of
-        # successful verifications and must not inflate it.
+        # ``issues_found`` is a sub-stat of success and must not inflate ``processed``.
         return run_media_job(
             folder,
             media_files,

@@ -20,13 +20,6 @@ import { isAbortError, resolveFolderError, type FolderError } from "@/shared/api
 import { getAppScrollElement } from "@/shared/lib/appScroll";
 import type { FolderResponse } from "@/shared/types";
 
-/**
- * Whether a cached payload is still current, via the cheap fingerprint endpoint.
- *
- * Saves refetching a whole folder to discover nothing moved. Any doubt — a
- * missing fingerprint, a failed check — answers `false` so the caller does the
- * full load rather than trusting stale content.
- */
 async function isFolderUnchanged(cached: FolderResponse, signal: AbortSignal): Promise<boolean> {
   if (!cached.fingerprint) return false;
 
@@ -69,27 +62,16 @@ function createFailedFolderShell(
   };
 }
 
-/**
- * Where the scroll container should land once the destination folder paints.
- *
- * Minted only by `navigateTo` and the popstate listener, so the many other
- * `setFolder` callers — silent reloads, folder deltas, subfolder stats — leave
- * the scroll position alone by construction rather than by a guard. The `id`
- * makes each navigation distinguishable even when the path does not change.
- */
 export type FolderScrollIntent = {
   id: number;
   mode: "reset" | "restore";
-  /** Destination requested by the navigation; undefined means the default folder. */
   path: string | undefined;
-  /** Offset to apply for "restore"; always 0 for "reset". */
   target: number;
 };
 
 export type LoadFolderOptions = {
   preserveSelection?: boolean;
   updateRecent?: boolean;
-  /** Keep folder content visible and only show lightweight refresh affordances. */
   silent?: boolean;
 };
 
@@ -123,15 +105,10 @@ export function useFolderNavigation(onFolderChange?: () => void) {
       const generation = ++loadGenerationRef.current;
       setError(null);
 
-      // Drop the superseded request rather than parsing a payload we discard.
       inFlightRef.current?.abort();
       const controller = new AbortController();
       inFlightRef.current = controller;
 
-      // A folder we already hold can paint now and revalidate underneath, so
-      // only an uncached one is worth blanking the grid for. Silent reloads opt
-      // out: the caller already has content up and is asking for fresh data, so
-      // replaying a cached payload would only flash something staler.
       const cached = silent ? null : readCachedFolder(path);
       const showSkeleton = !silent && !cached;
 
@@ -181,9 +158,6 @@ export function useFolderNavigation(onFolderChange?: () => void) {
         setError(resolved);
         return null;
       } finally {
-        // Both flags, not just the one this call raised: a superseded load never
-        // reaches here, so whatever it left standing has no other owner. Clearing
-        // only our own branch strands the other flag on forever.
         if (generation === loadGenerationRef.current) {
           setLoading(false);
           setRefreshing(false);
@@ -197,8 +171,6 @@ export function useFolderNavigation(onFolderChange?: () => void) {
     async (path?: string, historyMode: HistoryMode = "push") => {
       if (historyMode === "push" && path && folder?.path === path) return;
 
-      // The DOM still holds the folder we are leaving, so its offset is only
-      // readable here, before any of the state below re-renders.
       if (historyMode === "push") {
         saveOutgoingScroll();
       }
@@ -210,8 +182,6 @@ export function useFolderNavigation(onFolderChange?: () => void) {
         );
         if (historyMode !== "none") {
           currentEntryKeyRef.current = syncFolderHistory(path, historyMode);
-          // A replace reuses the entry, so any offset stored under it belongs to
-          // a folder that entry no longer points at.
           if (historyMode === "replace") {
             forgetFolderScroll(currentEntryKeyRef.current);
           }

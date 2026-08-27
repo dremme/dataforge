@@ -1,14 +1,9 @@
 @use "../abstracts/mixins" as *;
 @use "../abstracts/variables" as *;
 
-// ---------------------------------------------------------------------------
-// .empty-state
-// ---------------------------------------------------------------------------
-
 .empty-state {
   padding: 3.5rem 2rem;
   text-align: center;
-  // background: var(--bg-elevated);
   background: rgba($color-bg, 0.3);
   border: 1px dashed var(--border);
   border-radius: var(--radius);

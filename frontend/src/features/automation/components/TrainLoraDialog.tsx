@@ -23,9 +23,7 @@ interface PromptRow {
 }
 
 interface TrainLoraDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["train_lora"];
   busy?: boolean;
   onConfirm: (settings: TrainLoraSettings) => void;

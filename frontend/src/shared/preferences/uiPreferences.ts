@@ -3,10 +3,6 @@ import { withRetry } from "@/shared/lib/retry";
 import { readStored, writeStored } from "@/shared/lib/storage";
 import type { UiSettingsResponse, UiSettingsUpdate } from "@/shared/types";
 
-/**
- * UI preferences shared across features via a single backend endpoint.
- * Domain-specific parsing (e.g. gallery sort options) happens at feature boundaries.
- */
 export interface UiSettings {
   sort: string;
   showAutomationSpecs: boolean;

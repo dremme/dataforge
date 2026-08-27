@@ -23,14 +23,11 @@ import {
 import type { QuickActionItem } from "../types";
 
 interface QuickActionBarProps {
-  /** Every searchable row, in section order. */
   items: QuickActionItem[];
-  /** Rows shown before anything is typed — already resolved and capped. */
   recentItems: QuickActionItem[];
   onClose: () => void;
 }
 
-/** Bolds the part of the label the query matched. */
 function HighlightedLabel({ text, query }: { text: string; query: string }) {
   const ranges = findSearchMatchRanges(text, query, false);
   if (ranges.length === 0) return <>{text}</>;
@@ -62,23 +59,15 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
   const groups = useMemo(() => {
     const trimmed = query.trim();
     const built = trimmed ? rankQuickActionItems(items, query) : recentActionsGroup(recentItems);
-    // Selection is resolved by id below, so uniqueness has to hold here even if a
-    // caller hands over a folder that is both a subfolder and a recent one.
     return withUniqueIds(built);
   }, [items, query, recentItems]);
 
   const rows = useMemo(() => flattenGroups(groups), [groups]);
   const selectable = useMemo(() => rows.filter((item) => !item.disabled), [rows]);
 
-  // The active row is tracked by id, not index, so a background jobs refresh
-  // cannot leave the highlight pointing at whatever row slid into its slot. Null
-  // means "the first selectable row", which also covers an id that stopped
-  // resolving.
+  // Track by id so a jobs refresh cannot leave the highlight on whichever row slid into its slot.
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Every keystroke re-aims at the top result. Derived during render — React's
-  // documented way to adjust state from changing input — so there is no extra
-  // commit and no frame where Enter would fire a row the new query outranked.
   const [lastQuery, setLastQuery] = useState(query);
   if (lastQuery !== query) {
     setLastQuery(query);
@@ -92,7 +81,6 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
   const activeDomId = activeRowIndex >= 0 ? `${listId}-option-${activeRowIndex}` : undefined;
 
   useEffect(() => {
-    // jsdom has no scrollIntoView; the optional call keeps tests off a shim.
     activeRowRef.current?.scrollIntoView?.({ block: "nearest" });
   }, [activeDomId]);
 
@@ -104,13 +92,7 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
     setActiveId(selectable[next].id);
   };
 
-  /**
-   * Hover only claims the highlight once the pointer has genuinely moved.
-   * Arrowing through the list scrolls it under a stationary cursor, and the
-   * browser replays a `mousemove` at the unchanged coordinates when the element
-   * beneath it changes — which would hand the selection straight back to
-   * whatever row slid under the mouse.
-   */
+  // Ignore mousemove with unchanged coordinates; arrowing scrolls the list under a stationary cursor.
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleRowPointerMove = (event: MouseEvent<HTMLDivElement>, item: QuickActionItem) => {
@@ -125,9 +107,6 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
     if (item.disabled) return;
 
     touchRecentAction(item.id);
-    // Close before running: several actions open an overlay of their own, and
-    // this palette holds a scroll lock until it unmounts. Closing first keeps the
-    // lock stack from briefly nesting, which is what decides backdrop blur.
     onClose();
     item.run();
   };
@@ -187,8 +166,6 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
           onKeyDown={handleKeyDown}
           placeholder="Search jobs, actions, and folders"
           aria-label="Search jobs, actions, and folders"
-          // Focus stays in the field while the highlight moves, so the active row
-          // is advertised with aria-activedescendant rather than DOM focus.
           role="combobox"
           aria-expanded
           aria-controls={listId}

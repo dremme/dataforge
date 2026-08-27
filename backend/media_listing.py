@@ -51,13 +51,7 @@ def clear_folder_summary_cache_for_tests() -> None:
         _summary_cache.clear()
 
 
-# ---------------------------------------------------------------------------
-# Sidecar lookup against an already-enumerated directory
-# ---------------------------------------------------------------------------
-
-
 def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
-    """Caption sidecar for ``media``, resolved from the scan (no syscalls)."""
     name = resolve_caption_file_name(
         media.path.stem,
         lambda candidate: candidate in scan.files,
@@ -68,7 +62,6 @@ def _caption_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | No
     return scan.files.get(name)
 
 
-# Findings hang off the whole filename, captions off the stem - see `FolderScan.sidecar`.
 def _issue_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | None:
     return scan.sidecar(media.name, ISSUE_SIDECAR_SUFFIX)
 
@@ -77,17 +70,8 @@ def _duplicate_sidecar(scan: FolderScan, media: ScannedEntry) -> ScannedEntry | 
     return scan.sidecar(media.name, DUPLICATE_SIDECAR_SUFFIX)
 
 
-# ---------------------------------------------------------------------------
-# Per-folder counts (the subfolder cards)
-# ---------------------------------------------------------------------------
-
-
 def _summary_signature(scan: FolderScan) -> tuple:
-    """Directory signature used to invalidate the summary cache.
-
-    Media files and their sidecars only - unlike the folder fingerprint, a child
-    directory appearing under this folder does not change its own counts.
-    """
+    """Media files and their sidecars only; a child directory does not change this folder's counts."""
     signatures: list[tuple[str, int, int]] = []
 
     for media in scan.media:
@@ -98,8 +82,7 @@ def _summary_signature(scan: FolderScan) -> tuple:
             if sidecar is not None:
                 signatures.append((sidecar.name, sidecar.mtime_ns, sidecar.size))
 
-        # A job that writes nothing but findings changes nothing else in the folder, so
-        # leaving these out would keep serving counts from before the run.
+        # A job that writes nothing but findings would otherwise keep serving stale counts.
         for suffix in (ISSUE_SIDECAR_SUFFIX, DUPLICATE_SIDECAR_SUFFIX):
             finding = scan.sidecar(media.name, suffix)
             if finding is not None:
@@ -109,7 +92,6 @@ def _summary_signature(scan: FolderScan) -> tuple:
 
 
 def folder_summary_fingerprint(folder: Path) -> tuple | None:
-    """Lightweight directory signature used to invalidate summary caches."""
     scan = scan_folder(folder)
     return None if scan is None else _summary_signature(scan)
 
@@ -164,18 +146,12 @@ def summarize_folder_contents(folder: Path) -> dict[str, int]:
         if cached is not None and cached.fingerprint == fingerprint:
             return dict(cached.result)
 
-    # Routed through the module-level name so tests can patch the uncached path.
     result = _summarize_folder_contents_uncached(folder)
 
     with _summary_cache_lock:
         _summary_cache[folder_key] = _SummaryCacheEntry(fingerprint, dict(result))
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# Media items (the gallery grid)
-# ---------------------------------------------------------------------------
 
 
 def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) -> dict:
@@ -253,11 +229,6 @@ def list_media_from_scan(scan: FolderScan) -> list[dict]:
 
 
 def media_items_named(scan: FolderScan, names: set[str]) -> list[dict]:
-    """Just the named media entries, resolved exactly as a full listing would.
-
-    Used by the folder delta so a changed item is built by the same code that built it
-    the first time, rather than by a second, drifting implementation.
-    """
     return [
         _build_media_item(scan, media, get_media_type(media.path) or "image")
         for media in scan.media

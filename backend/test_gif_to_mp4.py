@@ -1,10 +1,3 @@
-"""Unit tests for converting a GIF into the MP4 beside it.
-
-Nothing here invokes ffmpeg. What is asserted instead is the argv, literally, because a
-wrong flag is a silently wrong encode - and one flag in particular decides whether the
-result plays at the speed the GIF did. See ``gif_to_mp4`` for why the rate is a filter.
-"""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database

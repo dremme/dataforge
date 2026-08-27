@@ -12,11 +12,6 @@ interface GallerySelectionHarnessProps {
   children: ReactNode;
 }
 
-/**
- * The app's real selection wiring for tests: live batch actions, with their
- * dialogs mounted beside the subtree rather than inside it — which is where
- * `AppOverlays` puts them.
- */
 export function GallerySelectionHarness({
   value,
   currentFolder,

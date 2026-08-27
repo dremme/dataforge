@@ -8,11 +8,6 @@ import {
 
 export { getScrollLockDepth } from "./scrollLockManager";
 
-/**
- * Scroll lock is acquired/released in layout effects so a dialog that mounts
- * in the same commit as another unmounts can read the correct lock depth
- * for backdrop nesting (see `useOverlayBackdropClass`).
- */
 export function useScrollLock(
   active: boolean,
   lockClass: ScrollLockClass = "gallery-item-modal-open",

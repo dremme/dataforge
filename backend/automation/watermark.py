@@ -1,16 +1,4 @@
-"""Burn a text watermark into images and videos at a chosen corner or the center.
-
-Originals are never touched: every watermarked copy is written into a ``watermarked``
-subfolder of the source folder, under the source's own filename.
-
-The two rendering paths are kept in visual sync by one size table, whose scales are
-fractions of the media's height. That is what lets the ffmpeg path use the ``h`` filter
-variable and never probe a video's dimensions. Position is shared the same way: Pillow
-anchors and ffmpeg ``x``/``y`` expressions always resolve to the same corner or center.
-
-Palette PNGs come out truecolor: anti-aliased text cannot be expressed in the source's
-palette, so there is nothing to preserve.
-"""
+"""Burn a text watermark into images and videos; originals stay untouched."""
 
 from __future__ import annotations
 
@@ -40,18 +28,12 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 WatermarkSizeName = Literal["small", "medium", "large"]
 WatermarkOpacity = Literal[25, 50, 75]
-# top = top-left, center = middle, bottom = bottom-right.
 WatermarkPosition = Literal["top", "center", "bottom"]
 
 
 @dataclass(frozen=True)
 class WatermarkSize:
-    """How large the mark renders, as fractions of the media's height.
-
-    ``stroke_px`` is a plain pixel count because ffmpeg's ``borderw`` is the one
-    drawtext option that rejects frame variables: ``borderw=h*0.003`` fails to parse.
-    Only ``fontsize``, ``x`` and ``y`` get the expression evaluator.
-    """
+    """How large the mark renders; ``stroke_px`` is pixels because ffmpeg ``borderw`` rejects ``h``."""
 
     font_scale: float
     stroke_px: int
@@ -79,7 +61,6 @@ MAX_WATERMARK_TEXT_LENGTH = 120
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
 WATERMARK_TEMP_MARKER = ".watermark-tmp"
-# Destination displaced while open for streaming (see ``file_publish``).
 WATERMARK_STALE_MARKER = ".watermark-stale"
 
 FONT_CANDIDATES: tuple[str, ...] = (
@@ -100,14 +81,7 @@ FONT_MISSING_MESSAGE = (
 FFMPEG_MISSING_MESSAGE = "ffmpeg is required to add a watermark to videos"
 
 
-#: The job's own name for a cancel raised mid-encode, kept so the runner's generic
-#: exception still reads correctly at the call sites below.
 WatermarkCancelled = FfmpegCancelled
-
-
-#: Raised by ``image_io.load_image_for_edit`` when the source cannot be decoded, as
-#: opposed to written. Aliased for the same reason ``WatermarkCancelled`` is: the call
-#: sites below read as watermark failures, and this module owns that vocabulary.
 WatermarkReadError = ImageReadError
 
 
@@ -238,14 +212,12 @@ def _composite_watermark(
     text_alpha = round(255 * alpha)
     stroke_alpha = round(text_alpha * WATERMARK_STROKE_ALPHA_FACTOR)
 
-    # Drawing a translucent fill straight onto the base would paint opaque white on an
-    # RGB image and replace the alpha channel on an RGBA one; compositing blends.
+    # Direct fill paints opaque white on RGB and replaces alpha on RGBA; compositing blends.
     overlay = Image.new("RGBA", base.size, (255, 255, 255, 0))
     ImageDraw.Draw(overlay).text(
         xy,
         text,
         font=font,
-        # Anchors keep descenders/ascenders inside the margin, matching ffmpeg's x/y.
         anchor=anchor,
         fill=(255, 255, 255, text_alpha),
         stroke_width=size.stroke_px,
@@ -274,19 +246,12 @@ def watermark_image(
 
 
 def escape_drawtext_path(path: Path) -> str:
-    """Escape a filesystem path for a filtergraph option value.
-
-    Backslashes become forward slashes (ffmpeg accepts them on Windows) so that only the
-    drive letter's colon is left to escape.
-    """
+    """Escape a filesystem path for a filtergraph option value."""
     return str(path).replace("\\", "/").replace(":", "\\:")
 
 
 def escape_drawtext_text(text: str) -> str:
-    """Escape watermark text for a single-quoted ``drawtext`` value.
-
-    Backslashes go first, otherwise the escapes added below would be escaped again.
-    """
+    """Escape watermark text for a single-quoted ``drawtext`` value; backslashes first."""
     escaped = text.replace("\\", "\\\\")
     escaped = escaped.replace("'", "\\'")
     escaped = escaped.replace(":", "\\:")
@@ -294,7 +259,7 @@ def escape_drawtext_text(text: str) -> str:
 
 
 def _scaled_expression(minimum: int, scale: float) -> str:
-    """``h * scale``, floored at ``minimum``. The comma is escaped or it ends the filter."""
+    """``h * scale``, floored at ``minimum``. Escape the comma or it ends the filter."""
     return f"max({minimum}\\,h*{scale})"
 
 
@@ -350,8 +315,7 @@ def watermark_video(
         "-y",
         "-i",
         str(source),
-        # No -noautorotate: ffmpeg applies the display matrix ahead of the filter, which
-        # is the video counterpart to exif_transpose on the image path.
+        # No -noautorotate: ffmpeg applies the display matrix ahead of the filter.
         "-vf",
         build_drawtext_filter(
             text=text, font_path=font_path, size=size, alpha=alpha, position=position
@@ -374,12 +338,10 @@ def watermark_video(
 
 
 def _stale_path(final_path: Path) -> Path:
-    """Where a destination still open for streaming is parked while it is replaced."""
     return final_path.with_name(f"{final_path.stem}{WATERMARK_STALE_MARKER}{final_path.suffix}")
 
 
 def _sweep_temp_files(output_dir: Path) -> None:
-    """Drop temp files a hard kill left behind; the folder is one the user browses."""
     with suppress(OSError):
         for marker in (WATERMARK_TEMP_MARKER, WATERMARK_STALE_MARKER):
             for leftover in output_dir.glob(f"*{marker}.*"):
@@ -399,7 +361,6 @@ def _watermark_file(
     should_cancel: ShouldCancel | None,
 ) -> str:
     """Write one watermarked copy and return whether it was an ``image`` or a ``video``."""
-    # The real suffix is kept: ffmpeg picks its muxer from the extension.
     temp_path = output_dir / f"{media_path.stem}{WATERMARK_TEMP_MARKER}{media_path.suffix}"
 
     try:
@@ -431,7 +392,6 @@ def _watermark_file(
         final_path = output_dir / media_path.name
         publish_replacing(temp_path, final_path, _stale_path(final_path))
     finally:
-        # A no-op once the replace above succeeded.
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
 

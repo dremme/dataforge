@@ -93,8 +93,6 @@ export function AppContent() {
               fileFilterCounts: query.fileFilterCounts,
               statsOpen: statsDrawer.statsOpen,
               onToggleStats: statsDrawer.toggleStats,
-              // Narrowing the view is not a selection change: a path stays selected
-              // while it is filtered out, so the pick survives refining a search.
               onSearchQueryChange: query.setSearchQuery,
               onSearchRegexChange: query.setSearchRegex,
               onSearchNamesChange: query.setSearchNames,

@@ -24,9 +24,6 @@ import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 import type { FolderChangesResponse } from "@/shared/types";
 
-/**
- * Top-level composition: selection → folder → automation core → gallery → automation host.
- */
 export function useAppWorkspace() {
   const mainRef = useRef<HTMLElement>(null);
   const selection = useGallerySelection();
@@ -110,8 +107,7 @@ export function useAppWorkspace() {
 
   const { searchQuery, searchRegex, searchNames } = gallery.query;
 
-  // Names off means a caption-only search, which a folder can never satisfy — leave the
-  // subfolder list unfiltered rather than emptying it, so navigation stays intact.
+  // Caption-only search cannot match folders; leave the subfolder list unfiltered.
   const filteredSubfolders = useMemo(
     () =>
       searchNames ? filterSubfoldersBySearch(subfolders, searchQuery, searchRegex) : subfolders,
@@ -138,18 +134,13 @@ export function useAppWorkspace() {
 
   const statsDrawer = useStatsDrawer();
 
-  // Refreshing on close rather than per deletion: the resolver removes files, and the
-  // watcher's own push would otherwise race the modal's frozen queue.
+  // Refresh on close: per-deletion reloads race the watcher's push against the frozen queue.
   const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
   const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
   const candidateCount = useMemo(() => countCandidates(items), [items]);
 
-  // Same reason as the duplicate resolver: accepting rewrites files, and the watcher's
-  // push would race the modal's frozen queue if it landed mid-walk.
   const candidateReview = useCandidateReviewOverlay(refreshFolder);
 
-  // Owned here rather than inside `BreadcrumbBar` so the quick action bar can open
-  // the same picker the breadcrumb button does.
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const openFolderPicker = useCallback(() => setFolderPickerOpen(true), []);
   const closeFolderPicker = useCallback(() => setFolderPickerOpen(false), []);

@@ -56,12 +56,7 @@ def _start_job(
     body: JobSelectionRequest,
     **params: object,
 ) -> JobResponse:
-    """Resolve the selection, queue ``job_type``, and remember what it ran with.
-
-    Persisting here rather than in each route is what keeps every job consistent: a
-    job type earns per-folder settings by appearing in ``JOB_SETTINGS_MODELS``, not
-    by its own route remembering to save.
-    """
+    """Resolve the selection, queue ``job_type``, and remember what it ran with."""
     try:
         selected_paths = resolve_selected_media(folder, body.paths)
         job = job_manager.queue_job(
@@ -73,8 +68,7 @@ def _start_job(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Only a job that actually queued is worth remembering: the refusals here are
-    # things like empty watermark text and a regex that does not compile.
+    # Only a job that actually queued is worth remembering.
     remember_job_settings(job_type, body, folder_path=str(folder))
     return job_response(job)
 
@@ -131,9 +125,7 @@ def preview_replace_captions_job(
     path: str = Query(..., description="Absolute path to folder with images and videos"),
     body: ReplaceCaptionsPreviewRequest = ReplaceCaptionsPreviewRequest(),
 ) -> ReplaceCaptionsPreviewResponse:
-    """Count the captions the edit would change. POST despite being read-only:
-    a regular expression is awkward to encode in a query string and can be long.
-    """
+    """Count the captions the edit would change. POST despite being read-only: regex can be long."""
     folder = resolve_folder(path)
 
     try:
@@ -148,8 +140,7 @@ def preview_replace_captions_job(
             selected_paths=selected_paths,
         )
     except ValueError as exc:
-        # An unusable edit is the normal state while typing, so it is a body field
-        # rather than a 400 the dialog would have to special-case.
+        # An unusable edit is the normal state while typing, so it is a body field, not a 400.
         return ReplaceCaptionsPreviewResponse(folder=str(folder), error=str(exc))
 
     return ReplaceCaptionsPreviewResponse(**preview)
@@ -278,12 +269,7 @@ def start_comfy_process_job(
 
 @router.get("/automation/comfy-process/presets", response_model=ComfyPresetsResponse)
 def list_comfy_process_presets() -> ComfyPresetsResponse:
-    """Every workflow preset on disk, and whether ComfyUI is answering right now.
-
-    The presets are listed without being parsed: validating a handful of graphs nobody
-    picked would cost every dialog open, and a broken preset is reported by the 400 that
-    refuses to queue it.
-    """
+    """Every workflow preset on disk, and whether ComfyUI is answering right now."""
     return ComfyPresetsResponse(
         presets=[
             ComfyPresetSummary(
@@ -338,11 +324,7 @@ def get_train_lora_template(
 def check_train_lora_template(
     body: TrainingTemplateCheckRequest,
 ) -> TrainingTemplateCheckResponse:
-    """Whether an edited template would start.
-
-    A 200 either way: an unparseable draft is the expected answer to this question, not a
-    failed request. The start path runs the very same parse, so the two cannot disagree.
-    """
+    """Whether an edited template would start. A 200 either way; unparseable is the expected answer."""
     try:
         parse_training_template(body.template, source="edited training template")
     except OstrisTrainingError as exc:

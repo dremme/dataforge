@@ -61,8 +61,7 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
 export function installMockBackend(options: MockBackendOptions = {}) {
   let folderFavorites: string[] | null = null;
 
-  // The folder cache is a module singleton, so a payload left over from an
-  // earlier test would otherwise be served instead of hitting this mock.
+  // Module singletons; leftover payloads from an earlier test would skip this mock.
   clearFolderCache();
   clearFolderScrollMemory();
 
@@ -90,7 +89,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     })),
   });
 
-  /** Deltas the mock can describe, keyed by the baseline fingerprint they apply to. */
   const folderDeltas: Record<string, { since: string; report: FolderChangesResponse }[]> = {};
 
   const isDriveRoot = (path: string) => /^[A-Za-z]:\\$/i.test(path);
@@ -247,9 +245,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse({ detail: "Folder not found" }, 404);
       }
 
-      // Only changes this mock made itself are described item by item. Anything
-      // else falls back the way the real backend does for an unknown baseline:
-      // reload in full.
       const since = url.searchParams.get("since") ?? "";
       const delta = folderDeltas[pathKey]?.find((entry) => entry.since === since);
       if (delta) {
@@ -329,8 +324,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
 
     if (url.pathname === "/api/preferences/automation") {
-      // One response for every job dialog. Anything unmatched 404s below, and the
-      // loader retries before falling back, so a missing case costs real test time.
       return jsonResponse({
         folder_path: url.searchParams.get("path") ?? "",
         auto_caption: {
@@ -547,7 +540,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           const index = folderData.items.findIndex((entry) => entry.path === normalizedPath);
           if (index >= 0) {
             sourceFolder = folderData;
-            // A copy leaves the source listing alone; a move takes the item out.
             const item = isCopy ? folderData.items[index] : folderData.items.splice(index, 1)[0];
             folderData.item_count = folderData.items.length;
 
@@ -706,7 +698,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
 
     if (url.pathname.startsWith("/api/jobs/") && method === "DELETE") {
-      // single delete
       return jsonResponse({ deleted_count: 1 });
     }
 
@@ -720,13 +711,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     }
   };
 
-  /**
-   * Rename a media file behind the app's back, the way another window would.
-   *
-   * The new name gives the item a new path, so anything still holding the old one
-   * points at a file that no longer exists. The rename is also recorded as a delta,
-   * which is how the real backend reports it: the old path removed, the new one added.
-   */
   const renameItem = (folderPath: string, fromName: string, toName: string) => {
     const pathKey = normalizeFolderKey(folderPath);
     const data = pathKey ? folderResponses[pathKey] : undefined;

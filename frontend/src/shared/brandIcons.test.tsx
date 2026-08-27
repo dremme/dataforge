@@ -4,9 +4,7 @@ import { iconComfyUi } from "./brandIcons";
 import { Icon } from "@/shared/ui/Icon";
 
 describe("iconComfyUi", () => {
-  // The svg element carries lucide's `fill="none" stroke="currentColor"`. A filled brand
-  // mark has to reverse both on its own path; miss either and the glyph renders as a
-  // hollow outline that still passes every other check.
+  // Lucide sets fill="none"; miss reversing fill or stroke and the glyph is a hollow outline.
   it("draws a filled glyph rather than a stroked outline", () => {
     const { container } = render(<Icon icon={iconComfyUi} />);
 

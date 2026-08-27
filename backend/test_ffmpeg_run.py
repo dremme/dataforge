@@ -1,10 +1,3 @@
-"""Unit tests for the shared ffmpeg runner.
-
-Nothing here invokes ffmpeg: the runner only cares about a child process's exit code,
-its pipes and its lifetime, so a short Python script stands in for one and the suite
-stays runnable on a machine without ffmpeg installed.
-"""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database

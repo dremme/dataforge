@@ -35,17 +35,7 @@ const items = [
   item("d.mp4", "video", false, false),
 ];
 
-/**
- * Deliberately crosses all three axes — duplicates that are captioned and uncaptioned,
- * images and video, plus non-duplicates in both caption states. A fixture where the axes
- * lined up would pass even with the scoping wired wrongly.
- *
- * The `shot` token every name but the last shares is load-bearing: searching it keeps a mix
- * of duplicates *and* non-duplicates, so a count that forgot to apply the duplicates axis
- * comes out different. A term that happened to select exactly the duplicates would hide
- * precisely the bug these tests exist to catch. `other.png` is the one item the search
- * drops, so the search itself does work too.
- */
+/** Crosses all three axes; `shot` mixes duplicates and non-duplicates so a miss still fails. */
 const crossItems = [
   item("dup-uncap-shot.png", "image", false, false, true),
   item("dup-cap-shot.png", "image", true, false, true),
@@ -55,10 +45,6 @@ const crossItems = [
   item("other.png", "image", true, false, false),
 ];
 
-/**
- * Same idea as `crossItems`, for the candidates axis: captioned and uncaptioned files
- * with a candidate, images and video, plus files without one in both caption states.
- */
 const candidateItems = [
   item("cand-uncap-shot.png", "image", false, false, false, true),
   item("cand-cap-shot.png", "image", true, false, false, true),
@@ -211,7 +197,6 @@ describe("useGalleryQuery", () => {
     expect(result.current.filteredItems).toHaveLength(6);
   });
 
-  // The whole point of the split: the two filters compose instead of displacing each other.
   it("combines duplicates with the caption filter", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
@@ -286,8 +271,7 @@ describe("useGalleryQuery", () => {
     expect(result.current.fileFilterCounts.duplicates).toBe(1);
   });
 
-  // Measured with the toggle off on purpose: the number beside it has to say what turning it
-  // on would find, and stay put so the user can turn it back off.
+  // Measured with the toggle off: the number beside it is what turning it on would find.
   it("holds the duplicate count steady while duplicates is on", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
@@ -327,12 +311,6 @@ describe("useGalleryQuery", () => {
     expect(result.current.filterEmptyState.title).toBe("No duplicates");
   });
 
-  /**
-   * Every count in the filter menu promises "this many items if you pick me". With three
-   * composable axes that is the assertion most likely to rot, so it is checked directly:
-   * with duplicates on and a search running, each caption option's count must equal what
-   * selecting it actually leaves on screen.
-   */
   it("keeps every caption count equal to what selecting it yields", () => {
     const { result } = renderHook(() => useGalleryQuery(crossItems));
 
@@ -343,8 +321,6 @@ describe("useGalleryQuery", () => {
       result.current.setSearchQuery("shot");
     });
 
-    // Captured once: these counts are scoped by the *other* axes, so switching `filter`
-    // must not move them. Re-reading inside the loop would hide it if they did.
     const counts = result.current.filterCounts;
 
     for (const option of FILTER_OPTIONS) {
@@ -420,8 +396,6 @@ describe("useGalleryQuery", () => {
     ]);
   });
 
-  // One axis, one value: picking candidates replaces duplicates rather than intersecting
-  // with it, which is the whole point of the Files section being a radio group.
   it("replaces duplicates when candidates is picked", () => {
     const mixed = [
       item("both.png", "image", true, false, true, true),

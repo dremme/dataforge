@@ -5,11 +5,6 @@ import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { WatermarkOpacity, WatermarkPosition, WatermarkSizeName } from "@/shared/types";
 
-/**
- * Mirrors ``normalize_watermark_text`` in ``backend/automation/watermark.py``, minus its
- * control-character rule: a single-line input drops those on paste, so only the backend
- * can ever meet one.
- */
 export const MAX_WATERMARK_TEXT_LENGTH = 120;
 
 const SIZES: ReadonlyArray<RadioTileOption<WatermarkSizeName>> = [
@@ -31,9 +26,7 @@ const POSITIONS: ReadonlyArray<RadioTileOption<WatermarkPosition>> = [
 ];
 
 interface WatermarkDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["watermark"];
   busy?: boolean;
   onConfirm: (

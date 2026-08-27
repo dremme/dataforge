@@ -93,8 +93,7 @@ class ResolveRolesTests(unittest.TestCase):
             "3": node("PreviewImage", {"images": ["1", 0]}),
         }
 
-        # PreviewImage carries no filename_prefix, and does not need one: the output is
-        # read back out of history rather than guessed from the prefix.
+        # PreviewImage has no filename_prefix; the output is read back out of history.
         self.assertEqual(parse(payload).output_node, "3")
 
     def test_an_optional_seed_node_is_found_by_title(self) -> None:
@@ -115,8 +114,7 @@ class ResolveRolesTests(unittest.TestCase):
 
 class ParseFailureTests(unittest.TestCase):
     def test_the_editor_format_is_named_as_such(self) -> None:
-        # The mistake this catches is one click away in ComfyUI, so the message has to
-        # name the right menu item rather than say "invalid".
+        # The message has to name the right ComfyUI menu item rather than say "invalid".
         raw = json.dumps({"last_node_id": 9, "nodes": [], "links": []})
 
         with self.assertRaises(ComfyWorkflowError) as caught:
@@ -155,8 +153,7 @@ class ParseFailureTests(unittest.TestCase):
 
 class PromptNodeTests(unittest.TestCase):
     def test_a_prompt_node_whose_text_is_wired_in_is_refused(self) -> None:
-        # A linked input is ["node", slot], not a string. Writing over it would be
-        # dropped without a word, so every image would render the graph's own prompt.
+        # A linked input is ["node", slot]; writing over it would be dropped without a word.
         payload = graph(**{"7": node("CLIPTextEncode", {"text": ["9", 0]}, "DataForge Prompt")})
 
         with self.assertRaises(ComfyWorkflowError) as caught:
@@ -199,8 +196,7 @@ class BuildPromptTests(unittest.TestCase):
 
         build_comfy_prompt(workflow, image_ref="new.png", filename_prefix="out")
 
-        # The parsed workflow is reused for every image in a run, so a patch that leaked
-        # into it would have image two inherit image one's values.
+        # The parsed workflow is reused; a leaked patch would have image two inherit image one's values.
         self.assertEqual(workflow.prompt["1"]["inputs"]["image"], "example.png")
 
     def test_the_presets_own_seed_is_left_alone_by_default(self) -> None:
@@ -289,8 +285,7 @@ class PresetDiscoveryTests(unittest.TestCase):
         )
 
     def test_a_broken_preset_still_lists(self) -> None:
-        # Listing does not parse: a broken preset is reported by the 400 that refuses to
-        # queue it, not by making every dialog open pay to validate graphs nobody picked.
+        # Listing does not parse; a broken preset is refused at queue time.
         self.write("broken", "{not json")
 
         self.assertEqual([preset.name for preset in list_comfy_presets()], ["broken"])
@@ -321,8 +316,7 @@ class PresetDiscoveryTests(unittest.TestCase):
 
 class ShippedExampleTests(unittest.TestCase):
     def test_the_example_preset_parses(self) -> None:
-        # It is the fixture the automation route tests queue with, and the skeleton the
-        # docs tell people to copy, so a broken example fails here first.
+        # The shipped example is the fixture; a broken one fails here first.
         path = Path(__file__).resolve().parents[2] / "comfy-workflows" / "example-lanczos-2x.json"
         workflow = parse_comfy_workflow(path.read_text(encoding="utf-8"), source=path.stem)
 

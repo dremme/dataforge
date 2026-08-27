@@ -1,4 +1,4 @@
-"""Moving a finished temp file onto a name the gallery may still be streaming."""
+"""Move a finished temp file onto a name the gallery may still be streaming."""
 
 from __future__ import annotations
 
@@ -8,16 +8,7 @@ from pathlib import Path
 
 
 def publish_replacing(temp_path: Path, final_path: Path, stale_path: Path) -> None:
-    """Move ``temp_path`` onto ``final_path``, displacing an open destination if needed.
-
-    ``os.replace`` onto a path the gallery is still streaming fails on Windows with
-    WinError 5, even when the open handle shares delete (see ``media_file_response``).
-    Renaming that open destination out of the way first succeeds, so the new file can
-    take its name.
-
-    ``stale_path`` is supplied rather than derived so this carries no naming policy:
-    each caller keeps its own marker convention.
-    """
+    """``os.replace`` onto a streamed path fails on Windows (WinError 5); rename the destination out of the way first."""
     try:
         os.replace(temp_path, final_path)
         return

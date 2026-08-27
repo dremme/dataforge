@@ -1,10 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .training-samples
-// ---------------------------------------------------------------------------
-
 .training-samples {
   margin-top: 0.75rem;
 
@@ -28,7 +24,6 @@
     flex: 0 0 auto;
   }
 
-  // The frame clips the hover zoom, the way a gallery card's media does.
   &__button {
     @include control-interactive;
     display: block;
@@ -56,7 +51,7 @@
     object-fit: cover;
     -webkit-user-drag: none;
     user-select: none;
-    // Held back until it decodes so a file AI-Toolkit already pruned never flashes broken.
+    // Held back until it decodes so a pruned file never flashes broken.
     opacity: 0;
     transition:
       opacity 0.15s ease,
@@ -67,7 +62,6 @@
     }
   }
 
-  // Job cards sit in the narrow drawer, where full-size thumbnails crowd everything else out.
   &--compact {
     margin-top: 0.625rem;
 

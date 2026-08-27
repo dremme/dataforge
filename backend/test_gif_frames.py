@@ -1,5 +1,3 @@
-"""Unit tests for GIF probing and frame extraction."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database
@@ -48,8 +46,7 @@ class GifFrameCountTests(unittest.TestCase):
         with TempMediaFolder() as root:
             self.assertIsNone(gif_frame_count(write_mp4_video(root)))
             self.assertIsNone(gif_frame_count(root / "missing.gif"))
-            # Pillow reads a PNG happily, so this has to be rejected on format
-            # rather than on whether the decode succeeded.
+            # Pillow reads a PNG happily; reject on format, not on whether the decode succeeded.
             self.assertIsNone(gif_frame_count(write_media(root)))
 
     def test_recounts_after_the_file_changes(self) -> None:
@@ -84,8 +81,7 @@ class ExtractGifFrameTests(unittest.TestCase):
             self.assertTrue(extract_gif_frame(media, 11))
 
     def test_frames_differ_from_one_another(self) -> None:
-        # Guards the forward-only walk: a decoder that never advanced would hand
-        # back frame zero every time and nothing else here would notice.
+        # A decoder that never advanced would hand back frame zero every time.
         with TempMediaFolder() as root:
             media = write_gif(root, frames=12)
 
@@ -142,8 +138,7 @@ class GifFrameCacheTests(unittest.TestCase):
         clear_gif_caches_for_tests()
 
     def test_a_warmed_frame_matches_the_walked_one_byte_for_byte(self) -> None:
-        # The save re-reads the same URL the scrub painted, so the cached strip and
-        # the fallback walk must not disagree about a single byte.
+        # Cached strip and fallback walk must not disagree about a single byte.
         with TempMediaFolder() as root:
             media = write_gif(root, frames=16)
             walked = [_walk_to_frame(media, index) for index in (0, 7, 15)]
@@ -189,8 +184,7 @@ class GifFrameCacheTests(unittest.TestCase):
                 extract_gif_frame(media, 5)
 
     def test_a_gif_too_large_to_cache_falls_back_instead_of_re_decoding(self) -> None:
-        # Caching a strip that does not fit would rebuild it on every request,
-        # which is slower than the walk it replaced.
+        # Caching a strip that does not fit would rebuild it on every request.
         with TempMediaFolder() as root:
             media = write_gif(root, frames=12)
 
@@ -234,8 +228,7 @@ class ExtractGifFirstFrameTests(unittest.TestCase):
             self.assertEqual(frame.mode, "RGB")
 
     def test_returns_the_first_frame_not_a_later_one(self) -> None:
-        # The fixture's block moves left to right, so the opening frame is the only
-        # one with it flush against the left edge.
+        # The block moves left to right; only the opening frame has it flush against the left edge.
         with TempMediaFolder() as root:
             media = write_gif(root, frames=12)
 
@@ -253,11 +246,7 @@ class ExtractGifFirstFrameTests(unittest.TestCase):
             self.assertIsNone(extract_gif_first_frame(write_media(root)))
 
     def test_transparency_composites_over_black(self) -> None:
-        """A plain ``convert("RGB")`` would emit the transparent palette entry.
-
-        That colour is arbitrary per file, so the model would see a backdrop no one
-        chose - and a different one from the JPG the frame scrubber saves.
-        """
+        """A plain ``convert("RGB")`` would emit the transparent palette entry."""
         with TempMediaFolder() as root:
             media = root / "transparent.gif"
             frame = Image.new("P", (16, 16), 0)
@@ -294,8 +283,7 @@ class GifFileHandleTests(unittest.TestCase):
             self.assertFalse(media.exists())
 
     def test_a_gif_stays_deletable_while_a_background_warm_runs(self) -> None:
-        # The warm outlives the request that started it, so decoding straight from
-        # the path would leave a scrubbed GIF locked against delete on Windows.
+        # The warm outlives the request; decoding from the path would lock the GIF on Windows.
         with TempMediaFolder() as root:
             media = write_gif(root, frames=40)
 

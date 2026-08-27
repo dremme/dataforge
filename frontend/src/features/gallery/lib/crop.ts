@@ -1,16 +1,3 @@
-/**
- * The crop rectangle's geometry, shared by the video and image editors.
- *
- * Everything here works in fractions of the source frame, never pixels. That is what
- * lets `backend/video_edit.py` write `iw`/`ih` expressions without probing the source,
- * lets `backend/image_edit.py` round to whole pixels on its own terms, and lets one
- * overlay component sit on a `<video>` and an `<img>` alike.
- *
- * Rounding lives in the two feature libs rather than here: video truncates to even
- * numbers because `yuv420p` cannot express an odd dimension, and a still has no chroma
- * plane to keep in step.
- */
-
 /** Small enough to frame tightly, large enough that the rect stays grabbable. */
 export const MIN_CROP_FRACTION = 0.05;
 export const CROP_NUDGE_FRACTION = 0.01;
@@ -36,11 +23,9 @@ export interface Size {
 export interface CropAspect {
   id: string;
   label: string;
-  /** Width over height, or null for a rectangle the user shapes freely. */
   ratio: number | null;
 }
 
-/** How a crop may be shaped: freely, or locked to one of these, in orientation pairs. */
 export const CROP_ASPECTS: readonly CropAspect[] = [
   { id: "free", label: "Free", ratio: null },
   { id: "1:1", label: "1:1", ratio: 1 },
@@ -64,16 +49,9 @@ export function isCornerHandle(handle: CropHandle): boolean {
   return CORNER_HANDLES.has(handle);
 }
 
-/** A quarter-turn count, in clockwise degrees. */
 export type RotationDegrees = 0 | 90 | 180 | 270;
 
-/**
- * How the preview is turned relative to the frame the crop is measured in.
- *
- * Only the image editor ever sets this; a video preview is always upright. The overlay
- * reads it to interpret drags, since the rectangle rides inside the same transform the
- * picture does.
- */
+/** Preview turn relative to the crop frame. Only the image editor sets it; video is upright. */
 export interface Orientation {
   rotate: RotationDegrees;
   mirrorH: boolean;
@@ -110,13 +88,6 @@ export function moveCrop(rect: CropRect, dx: number, dy: number): CropRect {
   return clampCrop({ ...rect, x: rect.x + dx, y: rect.y + dy });
 }
 
-/**
- * Drag one handle by (dx, dy), keeping the opposite edge or corner pinned.
- *
- * Under an aspect lock the height follows the width, which is why edge handles are not
- * offered then: an edge drag has no second axis to derive the other dimension from
- * without guessing which way the rectangle should grow.
- */
 export function resizeCrop(
   rect: CropRect,
   handle: CropHandle,
@@ -147,8 +118,7 @@ export function resizeCrop(
     return clampCrop({ x, y, width, height });
   }
 
-  // Aspect is expressed in the frame's own pixels, and this rectangle is in fractions of
-  // it, so the caller passes a ratio already divided by the frame's aspect.
+  // Aspect is in source pixels; this rect is fractions, so divide by the frame aspect first.
   height = clamp(width / ratio, MIN_CROP_FRACTION, 1);
   width = clamp(height * ratio, MIN_CROP_FRACTION, 1);
 
@@ -162,14 +132,7 @@ export function resizeCrop(
   return clampCrop({ x, y, width, height });
 }
 
-/**
- * Which of `CROP_ASPECTS` a rectangle already has, or "free" when it has none of them.
- *
- * Seeding the panel from a stored spec has to restore the shape the crop was made with,
- * not just its numbers: the rect would otherwise come back locked to nothing while
- * sitting at a locked shape, and the first handle drag would quietly break the ratio.
- * The tolerance covers the pixel rounding the render applies to the fractions.
- */
+/** Restores the aspect lock from a stored spec so the first drag cannot break the ratio. */
 export function aspectIdForCrop(crop: CropRect, source: Size): string {
   const width = source.width * crop.width;
   const height = source.height * crop.height;
@@ -182,20 +145,13 @@ export function aspectIdForCrop(crop: CropRect, source: Size): string {
   return match?.id ?? "free";
 }
 
-/** A crop of ``ratio`` centred in the frame, as large as it will go. */
 export function cropForAspect(ratio: number): CropRect {
   const width = Math.min(1, ratio);
   const height = Math.min(1, 1 / ratio);
   return clampCrop({ x: (1 - width) / 2, y: (1 - height) / 2, width, height });
 }
 
-/**
- * The box the frame actually paints inside an `object-fit: contain` element.
- *
- * The crop overlay has to sit on the picture, not on the element: everything outside
- * this box is letterboxing, and a rect positioned against the element would be offset
- * by exactly the bars.
- */
+/** The box the frame paints inside an `object-fit: contain` element; outside it is letterboxing. */
 export function containedBox(
   boxWidth: number,
   boxHeight: number,
@@ -212,18 +168,7 @@ export function containedBox(
   return { left: (boxWidth - width) / 2, top: (boxHeight - height) / 2, width, height };
 }
 
-/**
- * A drag measured on screen, expressed in the source frame the crop lives in.
- *
- * The image preview carries `rotate(R) scaleX(mx) scaleY(my)` and the overlay rides
- * inside it, so the browser maps a source vector `v` onto the screen as `Rot(R)·Flip·v`.
- * This is the inverse, `Flip·Rot(-R)·s` - the flips are their own inverse, so only the
- * rotation changes direction. Screen y points down, which is why a clockwise quarter
- * turn reads as `(x, y) -> (-y, x)` rather than the other sign.
- *
- * Applied in pixels, before the delta is divided by the painted box: the box is the
- * untransformed layout box, so its width already corresponds to the source's width.
- */
+/** Inverse of the preview's rotate-then-flip; y points down, so it is `(x, y) -> (-y, x)`. */
 export function screenDeltaToSource(
   dx: number,
   dy: number,

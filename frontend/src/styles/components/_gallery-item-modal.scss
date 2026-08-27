@@ -3,10 +3,6 @@
 
 $meta-badge-color: #fcd34d;
 
-// ---------------------------------------------------------------------------
-// .gallery-item-modal
-// ---------------------------------------------------------------------------
-
 .gallery-item-modal {
   @include modal-shell($z-index-modal);
 
@@ -24,7 +20,6 @@ $meta-badge-color: #fcd34d;
     @include modal-panel-surface;
   }
 
-  // Header
   &__header {
     @include modal-chrome-header;
   }
@@ -90,7 +85,6 @@ $meta-badge-color: #fcd34d;
     @include modal-close-btn;
   }
 
-  // Stage & media
   &__stage {
     @include modal-stage(1.25rem 3.75rem);
     flex: 1;
@@ -137,7 +131,6 @@ $meta-badge-color: #fcd34d;
     background: $color-video-bg;
   }
 
-  // Footer
   &__footer {
     flex-shrink: 0;
     border-top: 1px solid var(--border);
@@ -203,7 +196,6 @@ $meta-badge-color: #fcd34d;
     }
   }
 
-  // Caption editor
   &__caption-editor {
     padding: 0.875rem 1.5rem 1.125rem;
   }
@@ -249,7 +241,6 @@ $meta-badge-color: #fcd34d;
       background: rgba($color-caption-error, 0.12);
     }
 
-    // Matches the automation panel's "Resolve issues" button surface.
     &--issue {
       @include btn-surface-warning;
     }

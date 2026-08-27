@@ -110,8 +110,7 @@ describe("ImageEditPanel", () => {
       ["Rotate", draftWith({ mirrorV: true })],
       ["Size", draftWith({ scale: 0.5 })],
     ])("says %s holds a value once it is off its default", (label, draft) => {
-      // Collapsed, the tool is the only thing that can say it carries a change - which is
-      // what makes hiding the controls safe.
+      // Collapsed, the tool is the only thing that can say it carries a change.
       renderPanel(makeEdit({ draft }));
 
       expect(tools().getByRole("button", { name: `${label}, changed` })).toBeInTheDocument();
@@ -235,8 +234,7 @@ describe("ImageEditPanel", () => {
     });
 
     it("measures a typed width against the turned frame", async () => {
-      // Sideways, 1080 is the whole width. Resolving 540 against the unrotated 1920 would
-      // shrink the picture to a little over half of what was asked for.
+      // Sideways, 1080 is the whole width; resolving 540 against unrotated 1920 would shrink it by half.
       const edit = makeEdit({ draft: draftWith({ rotate: 90 }) });
       renderPanel(edit);
       await openSize();
@@ -305,8 +303,6 @@ describe("ImageEditPanel", () => {
     });
 
     it("asks the modal to confirm a revert rather than doing it", async () => {
-      // Revert throws away every edit applied so far, so the confirm belongs to the owner
-      // that can put a dialog over the whole modal.
       const user = userEvent.setup();
       const edit = makeEdit({ hasBackup: true });
       const props = renderPanel(edit);
@@ -333,8 +329,7 @@ describe("ImageEditPanel", () => {
     });
 
     it("says it is saving instead of offering the actions, with nothing to cancel", () => {
-      // Unlike the video panel: a Pillow pass finishes inside the request, so there is no
-      // progress to report on the way and no encode to interrupt.
+      // Unlike the video panel, a Pillow pass finishes in the request: no progress or cancel.
       renderPanel(makeEdit({ applying: true, dirty: true, hasBackup: true }));
 
       expect(screen.getByRole("status")).toHaveTextContent("Saving");

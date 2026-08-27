@@ -13,10 +13,6 @@ const mkpCyan = "#78dce8";
 const mkpPurple = "#ab9df2";
 const mkpMuted = "#939293";
 
-/**
- * Editor chrome (background, gutters, selection, fonts) lives in `_code-editor.scss`.
- * Keep highlight extensions stable so react-codemirror does not reconfigure every render.
- */
 const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: mkpYellow, fontWeight: "bold" },
   { tag: tags.strong, color: mkpBright, fontWeight: "bold" },

@@ -1,9 +1,3 @@
-/**
- * Web Storage access that degrades to a no-op.
- * Private browsing, disabled storage, and quota errors must never break the UI,
- * so every read falls back to the caller's default and every write is best effort.
- */
-
 type StorageKind = "local" | "session";
 
 function storageFor(kind: StorageKind): Storage | null {
@@ -30,10 +24,6 @@ export function writeStored(key: string, value: string, kind: StorageKind = "loc
   }
 }
 
-/**
- * Read and parse a JSON value, returning `fallback` when the entry is missing,
- * unparseable, or rejected by `parse`.
- */
 export function readStoredJson<T>(
   key: string,
   parse: (value: unknown) => T | null,

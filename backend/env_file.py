@@ -1,5 +1,3 @@
-"""Load optional local .env files into process environment on startup."""
-
 from __future__ import annotations
 
 import logging
@@ -11,13 +9,13 @@ logger = logging.getLogger(__name__)
 _BACKEND_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _BACKEND_DIR.parent
 
-# Project root first, then backend/ — first existing file wins.
+# Project root first, then backend/; first existing file wins.
 _ENV_CANDIDATES = (
     _PROJECT_ROOT / ".env",
     _BACKEND_DIR / ".env",
 )
 
-# Set by the test runner so unit tests never pick up a developer machine .env.
+# Set by the test runner so tests never pick up a developer machine .env.
 _DISABLE_ENV_VAR = "DATAFORGE_DISABLE_DOTENV"
 
 _loaded_path: Path | None = None
@@ -29,11 +27,7 @@ def _dotenv_disabled() -> bool:
 
 
 def load_env_file(*, override: bool = False, force: bool = False) -> Path | None:
-    """Load the first found .env (root, then backend/). OS env wins unless override=True.
-
-    Skips when ``DATAFORGE_DISABLE_DOTENV`` is set, unless force=True (tests).
-    Returns the loaded path, or None if skipped / missing.
-    """
+    """OS env wins unless override=True. Skips when ``DATAFORGE_DISABLE_DOTENV`` is set, unless force=True."""
     global _loaded_path, _load_attempted
 
     if not force and _dotenv_disabled():

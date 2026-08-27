@@ -7,25 +7,11 @@ import type { GalleryItem, GallerySort, Subfolder } from "@/shared/types";
 
 export type SortOption = GallerySort;
 
-/**
- * One caption state at a time. `duplicate` used to live in here, which is what the name
- * `ItemFilter` was chosen for - but a duplicate is a property of the file rather than of
- * its caption, so it now filters on its own axis (`FileFilter`) and composes with this
- * one instead of displacing it.
- */
 export type ItemFilter = "all" | "captioned" | "issue" | "uncaptioned";
 
-/** `video` means "has motion", so it covers GIFs as well as MP4s. */
+/** video means has motion, so it covers GIFs as well as MP4s. */
 export type MediaTypeFilter = "all" | "image" | "video";
 
-/**
- * A property of the file rather than of its caption, so it narrows whatever the caption
- * and media-type axes already chose.
- *
- * One of many rather than two independent toggles, matching the other two axes. The pair
- * could only ever intersect into an empty grid - a candidate is not also a duplicate - so
- * the combination cost a menu section and answered nothing.
- */
 export type FileFilter = "all" | "duplicates" | "candidates";
 
 const ITEM_FILTER_VALUES = new Set<ItemFilter>(["all", "captioned", "issue", "uncaptioned"]);
@@ -129,9 +115,8 @@ export function sortGalleryItems(items: GalleryItem[], sort: SortOption): Galler
 
 function compileSearchRegex(pattern: string): RegExp | null {
   try {
-    // `s` so `.` spans newlines: without it an exclusion pattern like `^((?!x).)*$`
-    // rejects every multi-line caption. `m` is deliberately omitted — per-line
-    // anchors would let each line satisfy a negation on its own.
+    // s so `.` spans newlines; `^((?!x).)*$` would otherwise reject multi-line captions.
+    // m is omitted: per-line anchors let each line satisfy a negation on its own.
     return new RegExp(pattern, "is");
   } catch {
     return null;
@@ -158,11 +143,7 @@ function matchesSearchQuery(
   return false;
 }
 
-/**
- * `matchNames` off searches captions only. That is what makes an exclusion pattern
- * expressible: a name almost never contains the excluded word, so an OR over both
- * fields would keep every item.
- */
+/** matchNames off searches captions only: an OR over both fields would keep every item. */
 export function filterBySearch(
   items: GalleryItem[],
   query: string,
@@ -180,7 +161,6 @@ export function filterBySearch(
   );
 }
 
-/** Folders carry no caption text, so only the folder name can match the search. */
 export function filterSubfoldersBySearch(
   folders: Subfolder[],
   query: string,
@@ -201,23 +181,12 @@ export function applyItemFilter(items: GalleryItem[], filter: ItemFilter): Galle
   return items;
 }
 
-/**
- * Its own axis rather than a value of `ItemFilter`, so a file property narrows whatever
- * the caption filter already chose instead of replacing it.
- */
 export function applyFileFilter(items: GalleryItem[], fileFilter: FileFilter): GalleryItem[] {
   if (fileFilter === "duplicates") return items.filter(isDuplicateItem);
   if (fileFilter === "candidates") return items.filter(isCandidateItem);
   return items;
 }
 
-/**
- * The one place a media-type filter is decided.
- *
- * `video` covers GIFs too: they carry a frame sequence and group with video for
- * training. Filtering and counting share this so a count can never disagree with
- * the grid it labels.
- */
 export function matchesMediaTypeFilter(item: GalleryItem, filter: MediaTypeFilter): boolean {
   if (filter === "image") return item.media_type === "image";
   if (filter === "video") return isMotion(item);

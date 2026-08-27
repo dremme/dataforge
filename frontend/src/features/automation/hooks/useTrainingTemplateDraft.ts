@@ -3,13 +3,6 @@ import { fetchTrainingTemplate } from "@/features/automation/api/jobs";
 import { formatApiError, isAbortError } from "@/shared/api/http";
 import type { TrainingModel } from "@/shared/types";
 
-/**
- * Per-model template drafts for one open training dialog.
- *
- * Drafts are keyed by model so switching tiles never discards an edit: each model keeps
- * its own draft for as long as the dialog is open, and neither is written to disk. A
- * model with no entry runs its shipped template, which is what `null` means on the wire.
- */
 export function useTrainingTemplateDraft(model: TrainingModel) {
   const [stock, setStock] = useState<Partial<Record<TrainingModel, string>>>({});
   const [drafts, setDrafts] = useState<Partial<Record<TrainingModel, string>>>({});

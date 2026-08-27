@@ -34,21 +34,10 @@ const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
 
 interface VideoEditPanelProps {
   edit: VideoEdit;
-  /** Modal work other than this render - the panel locks itself rather than racing it. */
   busy: boolean;
   onRevertRequested: () => void;
 }
 
-/**
- * The editing surface: one always-present timeline, one tool at a time.
- *
- * Every control used to be on screen at once, which put roughly two dozen targets in a
- * strip and left the timeline - the only one that matters continuously - competing with
- * the rest for width. Tools are exclusive instead, and each one carries a dot when its
- * value is no longer the default, so collapsing them costs nothing you could previously
- * see at a glance. The output readout stays put for the same reason: it is the answer to
- * "what will I get", and it must not move when the tool does.
- */
 export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanelProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("trim");
 

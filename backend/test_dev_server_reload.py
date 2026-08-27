@@ -1,8 +1,4 @@
-"""Regression guards for scripts/dev_server.py reload settings.
-
-The UI holds an SSE connection open. Without a finite graceful-shutdown timeout,
-uvicorn reload waits forever for that stream and the API never comes back.
-"""
+"""Without a finite graceful-shutdown timeout, uvicorn reload waits forever for the SSE stream."""
 
 from __future__ import annotations
 

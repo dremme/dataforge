@@ -1,5 +1,3 @@
-"""Tests for /api/events and what the job manager pushes onto it."""
-
 from __future__ import annotations
 
 import asyncio
@@ -73,11 +71,7 @@ class JobEventTests(unittest.IsolatedAsyncioTestCase):
 
 
 class EventStreamTests(unittest.IsolatedAsyncioTestCase):
-    """Drives the response generator directly.
-
-    The stream never ends by design, so putting a test client in front of it only
-    produces a test that hangs waiting for a body that will not finish.
-    """
+    """Drives the response generator directly; a test client would hang on the infinite stream."""
 
     async def asyncSetUp(self) -> None:
         events.clear_subscribers_for_tests()
@@ -90,8 +84,7 @@ class EventStreamTests(unittest.IsolatedAsyncioTestCase):
         frames = response.body_iterator
         self.addCleanup(lambda: asyncio.ensure_future(frames.aclose()))
 
-        # The comment lands before any event, so a client knows the stream is live
-        # rather than merely accepted.
+        # The comment lands before any event, so a client knows the stream is live.
         self.assertEqual(await anext(frames), ": connected\n\n")
 
         events.publish({"type": "job", "job": {"id": "job-1"}})
@@ -107,8 +100,7 @@ class EventStreamTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(lambda: asyncio.ensure_future(frames.aclose()))
 
             self.assertEqual(await anext(frames), ": connected\n\n")
-            # A data frame, not a comment: a comment never reaches the client's
-            # ``onmessage``, so it cannot be used to tell a quiet stream from a dead one.
+            # A data frame, not a comment: comments never reach ``onmessage``.
             frame = await anext(frames)
             self.assertEqual(json.loads(frame.removeprefix("data: ")), {"type": "heartbeat"})
 
@@ -121,8 +113,7 @@ class EventStreamTests(unittest.IsolatedAsyncioTestCase):
         events.publish_to_tabs(["tab-b"], {"type": "folder", "path": "C:\\Other"})
         events.publish_to_tabs(["tab-a"], {"type": "folder", "path": "C:\\Photos"})
 
-        # The first frame to arrive is the one addressed here: the other tab's event was
-        # never queued, rather than queued and skipped.
+        # The first frame is the one addressed here; the other tab's event was never queued.
         frame = await anext(frames)
         self.assertEqual(
             json.loads(frame.removeprefix("data: ")),

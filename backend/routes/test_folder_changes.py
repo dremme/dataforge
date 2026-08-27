@@ -1,5 +1,3 @@
-"""Tests for /api/folders/changes — the delta that replaces refetching a whole folder."""
-
 from __future__ import annotations
 
 import unittest

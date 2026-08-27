@@ -105,8 +105,7 @@ describe("GalleryItemModal", () => {
     it.each([
       ["a GIF", makeItem("loop.gif", { media_type: "gif" })],
       ["a container it cannot mux", makeItem("clip.avi", { media_type: "video" })],
-      // ffmpeg would render an MKV happily; the browser cannot decode one, and the
-      // whole panel is driven off the `<video>` element.
+      // ffmpeg would render an MKV; the browser cannot decode one, and the panel is driven off <video>.
       ["a container the browser cannot decode", makeItem("clip.mkv", { media_type: "video" })],
     ])("does not offer the toggle for %s", async (_label, item) => {
       renderModal(item);
@@ -116,8 +115,7 @@ describe("GalleryItemModal", () => {
     });
 
     it("hands a still image to the image editor rather than this one", async () => {
-      // Both editors share one toggle label and one mode flag, so a still reaching the
-      // video panel would be a silent mix-up rather than a missing button.
+      // One toggle/mode flag: a still reaching the video panel would be a silent mix-up.
       const user = userEvent.setup();
       renderModal(makeItem("sunset.png"));
 
@@ -209,9 +207,7 @@ describe("GalleryItemModal", () => {
     });
 
     it("keeps the transport working after navigating with the mode sticky", async () => {
-      // The `<video>` is keyed on the item as well as the mode, so next/prev remounts it.
-      // A ref never re-runs an effect on its own, so listeners bound only to the mode were
-      // left on the discarded element: the play icon stopped answering and so did the loop.
+      // Video remounts on item and mode; listeners bound only to mode were left on a discarded element.
       const user = userEvent.setup();
       const items = [videoItem(), makeItem("second.mp4", { media_type: "video" })];
       const props = {
@@ -243,10 +239,7 @@ describe("GalleryItemModal", () => {
     });
 
     it("re-seeds from the item it navigated to, not the one it left", async () => {
-      // The spec is fetched in seconds and seeded against the duration the element
-      // reports, so the fetch has to wait for it. Firing on the item alone seeded a
-      // duration of NaN, which collapsed the timeline to 0:00-0:00 until a second,
-      // accidental fetch happened to correct it.
+      // Fetch must wait for duration: seeding against NaN collapsed the timeline to 0:00-0:00.
       const user = userEvent.setup();
       const items = [videoItem(), makeItem("second.mp4", { media_type: "video" })];
       const props = {
@@ -343,8 +336,7 @@ describe("GalleryItemModal", () => {
       rerender(<GalleryItemModal {...props} index={1} />);
       fireEvent.loadedMetadata(dialog.querySelector("video")!);
 
-      // The crop tool is still the selected one, so the shapes are still on screen -
-      // reading "1:1" over a frame that is no longer cropped at all was the bug.
+      // Crop tool still selected: reading "1:1" over an uncropped frame was the bug.
       await waitFor(() => {
         expect(within(dialog).getByRole("button", { name: "Free" })).toHaveAttribute(
           "aria-pressed",
@@ -355,9 +347,7 @@ describe("GalleryItemModal", () => {
     });
 
     it("puts the original back when every value is dialled to where it started", async () => {
-      // An edited clip has to be able to return to 1x. Comparing against an untouched
-      // source rather than against what is on disk left Apply permanently disabled for
-      // exactly that draft, with Revert the only way out.
+      // Identity vs on-disk spec: an untouched source left Apply disabled on a return to 1x.
       const user = userEvent.setup();
       fetchStateMock.mockResolvedValue({
         path: `${HOME_PATH}\\clip.mp4`,
@@ -488,9 +478,7 @@ describe("GalleryItemModal", () => {
     });
 
     it("survives the listing learning about the backup it just made", async () => {
-      // The apply flips `has_backup` when the folder reloads. The editor is not reloaded
-      // with it - it was already playing the original - so anything that reset on that
-      // field would clear the duration with nothing left to fire `loadedmetadata` again.
+      // Apply flips has_backup; resetting on it clears duration with nothing to fire loadedmetadata.
       const user = userEvent.setup();
       const item = videoItem();
       const props = {

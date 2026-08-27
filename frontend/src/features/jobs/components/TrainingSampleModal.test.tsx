@@ -189,9 +189,7 @@ describe("TrainingSampleModal", () => {
   it("keeps the backdrop outside the dialog", () => {
     renderModal();
 
-    // The backdrop is a sibling of the panel, not part of the dialog's content:
-    // announcing it as such would put a bare "Close sample viewer" button at the
-    // top of every screen-reader pass over the lightbox.
+    // Backdrop is a sibling of the panel; putting it in the dialog would lead every screen-reader pass.
     const dialog = screen.getByRole("dialog");
     expect(screen.getByRole("button", { name: "Close sample viewer" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Close sample viewer" })).toBeNull();

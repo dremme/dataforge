@@ -72,9 +72,7 @@ from schemas import JobEvent, JobResponse, JobStatus, JobType
 
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
-#: A per-file job saves a snapshot before and after every file, which for a fast job is
-#: far more than a UI can use. Mid-run frames are thinned to this cadence; a status
-#: change always goes out immediately, so nothing that matters is delayed.
+# Mid-run frames are thinned to this cadence; a status change always goes out immediately.
 JOB_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
@@ -100,7 +98,6 @@ def _resolve_verify_captions_status(job: Job, cancelled: bool) -> tuple[JobStatu
 
 
 def _resolve_train_lora_status(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
-    # A failed training run raises out of the runner, so it never reaches here.
     if cancelled or job.stats.get("stopped"):
         return "cancelled", None
     return "completed", None
@@ -135,7 +132,6 @@ class Job:
     finished_at: str | None = None
     job_type: JobType = "auto_caption"
     auto_caption_mode: str | None = None
-    # Names the external job this one co-tracks (the AI-Toolkit job name).
     external_ref: str | None = None
 
     @classmethod
@@ -162,13 +158,7 @@ class Job:
         )
 
     def to_summary_dict(self) -> dict[str, object]:
-        """Everything about the job except its per-file results.
-
-        This is the wire shape. ``results`` holds one entry per processed file and an
-        auto-caption entry carries the whole generated caption, so it would dominate
-        every response of a list that is polled while work runs; it is served on
-        demand by ``/api/jobs/{id}/results`` instead.
-        """
+        """Everything about the job except its per-file results."""
         return {
             "id": self.id,
             "folder": self.folder,
@@ -290,18 +280,7 @@ def _validate_auto_caption(folder: Path, **params: object) -> None:
 
 @dataclass(frozen=True)
 class JobSpec:
-    """Everything that differs between job types; JobManager handles the rest.
-
-    ``run`` is called as ``run(folder, on_progress=..., should_cancel=..., **params)``,
-    so a job's queue-time parameters must match its runner's keyword arguments.
-
-    ``resume`` returns the params to pick a job back up with after a restart, or None
-    when it cannot be resumed. Only jobs whose real work outlives this process (an
-    external service doing the work) define it; everything else stays interrupted.
-
-    ``external_ref`` and ``caption_mode`` derive their stored ``Job`` columns from the
-    queue-time params, so ``JobManager`` never has to know which type it is handling.
-    """
+    """Everything that differs between job types; ``resume`` is only for work that outlives this process."""
 
     thread_prefix: str
     run: Callable[..., dict[str, object]]
@@ -386,10 +365,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_comfy_process_job,
         resolve_status=_resolve_stats_errors(comfy_process_error_message),
         validate=_validate_comfy_process,
-        # No resume: prompt ids are never persisted and ComfyUI's history is bounded, so
-        # a restarted server cannot re-attach. A half-filled staging folder costs nothing
-        # - re-running simply stages the rest - which makes `interrupted` the honest
-        # outcome rather than a loss worth recovering from.
+        # No resume: prompt ids are never persisted and ComfyUI history is bounded.
     ),
     "train_lora": JobSpec(
         thread_prefix="train-lora",
@@ -408,11 +384,9 @@ class JobManager:
         self._lock = threading.Lock()
         self._cancel_flags: dict[str, threading.Event] = {}
         self._deleted_ids: set[str] = set()
-        #: job id -> (last publish time, status published) for event thinning.
         self._published: dict[str, tuple[float, str]] = {}
 
     def initialize(self) -> None:
-        # Collected before recovery, which is what marks the rows interrupted.
         resumable = self._resumable_jobs()
 
         jobs_store.recover_stale_jobs()
@@ -514,8 +488,6 @@ class JobManager:
             job = self._jobs.get(job_id)
             cancel_event = self._cancel_flags.get(job_id)
             if job is None:
-                # Only in-memory jobs have a worker to signal; a stored-only job
-                # is already finished, so report it back as-is.
                 return self._job_from_store(job_id)
 
             if cancel_event is None or job.status not in ACTIVE_STATUSES:
@@ -565,8 +537,7 @@ class JobManager:
             self._cancel_flags.clear()
             self._published.clear()
 
-            # Delete while holding the lock so a worker cannot pass the
-            # not-deleted check and re-insert a ``running`` row after we clear.
+            # Hold the lock so a worker cannot re-insert a ``running`` row after we clear.
             deleted_count = jobs_store.delete_all_jobs()
 
         return max(deleted_count, stored_count)
@@ -692,10 +663,8 @@ class JobManager:
                 job.finished_at = _utc_now()
             else:
                 job.status = "running"
-                # Kept when set, so a resumed job's elapsed time stays true.
                 job.started_at = job.started_at or _utc_now()
             snapshot = job.to_dict()
-            # Persist before releasing the lock so store never lags behind memory status.
             self._save_snapshot(job_id, snapshot)
 
         return not cancel_event.is_set()
@@ -791,23 +760,14 @@ class JobManager:
             self._save_snapshot(job.id, job.to_dict())
 
     def _save_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
-        """Write a snapshot and push it to connected clients. Caller must hold ``self._lock``.
-
-        Requires the job to still be in memory and not deleted so a worker
-        cannot re-insert a row after ``delete_job`` / ``delete_all_jobs``.
-        """
+        """Write a snapshot and push it. Caller must hold ``self._lock``."""
         if job_id in self._deleted_ids or job_id not in self._jobs:
             return
         jobs_store.save_job(snapshot)
         self._publish_snapshot(job_id, snapshot)
 
     def _publish_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
-        """Push a job snapshot to connected clients. Caller must hold ``self._lock``.
-
-        Every status change goes out; the progress frames between them are thinned to
-        ``JOB_EVENT_MIN_INTERVAL_SECONDS``. Dropping one costs nothing because each
-        frame carries the job's whole state, so the next one restores the truth.
-        """
+        """Push a job snapshot; status changes always go out, progress frames are thinned."""
         status = str(snapshot.get("status") or "")
         now = monotonic()
         published = self._published.get(job_id)

@@ -23,8 +23,7 @@ from typing import Any
 
 import uvicorn
 
-# Ahead of every backend import below: the backend uses PEP 695 syntax that older
-# interpreters cannot parse, so an unguarded run dies with a bare SyntaxError.
+# Before any backend import: older interpreters die on PEP 695 with a bare SyntaxError.
 from py_version import require_python
 
 require_python()
@@ -34,28 +33,20 @@ BACKEND = Path(__file__).resolve().parent.parent / "backend"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
 
-# Glob patterns passed to uvicorn's watchfiles filter (pathlib Path.match).
-# Only *.py files reach this filter, so non-Python assets need no entries.
+# Glob patterns for uvicorn's watchfiles filter (pathlib Path.match). Only *.py files reach it.
 RELOAD_EXCLUDES = [
     "test_*.py",
     "_test_*.py",
     "testing_fixtures.py",
-    # Directory excludes must be absolute: uvicorn's FileFilter compares them
-    # against the absolute paths watchfiles reports, so a relative "data" would
-    # silently never match. The watch root is always the cwd (backend/), which
-    # uvicorn appends regardless of reload_dirs -- excluding is the only lever.
+    # Excludes must be absolute: FileFilter compares them to the absolute paths watchfiles reports.
     str(BACKEND / ".venv"),
     str(BACKEND / "data"),
 ]
 
-# watchfiles already debounces ~1.6s; this widens the window uvicorn waits before
-# draining changes, so a formatter run or a multi-file save lands as one restart
-# instead of a string of them.
+# watchfiles debounces ~1.6s; this widens it so a multi-file save lands as one restart.
 RELOAD_DELAY = 1.0
 
-# Cap how long a reload (or Ctrl+C) waits for open HTTP connections. SSE and
-# media streams otherwise keep the worker alive forever and the reloader never
-# spawns the next process.
+# Cap how long a reload waits for open connections; SSE streams otherwise never close.
 GRACEFUL_SHUTDOWN_SECONDS = 2
 
 _FALSEY = {"0", "false", "no", "off", ""}
@@ -127,7 +118,7 @@ def build_uvicorn_kwargs(*, host: str, port: int, reload: bool) -> dict[str, Any
         "timeout_graceful_shutdown": GRACEFUL_SHUTDOWN_SECONDS,
     }
     if reload:
-        # uvicorn warns about these when reload is off, so only pass them when on.
+        # uvicorn warns about these when reload is off.
         kwargs["reload_excludes"] = list(RELOAD_EXCLUDES)
         kwargs["reload_delay"] = RELOAD_DELAY
     return kwargs
@@ -139,7 +130,6 @@ if __name__ == "__main__":
     from env_file import load_env_file
     from logging_config import configure_logging
 
-    # Parent process loads .env; reloader child also loads via main:app.
     load_env_file()
     configure_logging()
 

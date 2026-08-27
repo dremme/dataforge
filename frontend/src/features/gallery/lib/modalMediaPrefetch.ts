@@ -9,11 +9,9 @@ export type ModalMediaPrefetchTarget = {
 };
 
 export type CollectModalMediaTargetsOptions = {
-  /** Index offsets from the current item. Default: previous and next. */
   offsets?: readonly number[];
 };
 
-/** Neighbor media relative to the open modal index (skips system prompts). */
 export function collectAdjacentModalMediaTargets(
   items: readonly GalleryItem[],
   index: number,
@@ -43,7 +41,6 @@ function setLowFetchPriority(element: HTMLElement): void {
   }
 }
 
-/** Invoke media load when the environment supports it (jsdom does not). */
 function tryMediaLoad(element: HTMLMediaElement): void {
   try {
     element.load();
@@ -52,11 +49,6 @@ function tryMediaLoad(element: HTMLMediaElement): void {
   }
 }
 
-/**
- * Warm the browser cache for modal full-size media.
- * Loads use low priority where supported so the primary stage stays snappy.
- * Returns a cleanup that aborts dangling loads.
- */
 function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[]): () => void {
   const images: HTMLImageElement[] = [];
   const videos: HTMLVideoElement[] = [];
@@ -65,7 +57,6 @@ function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[]): () =>
     if (target.kind === "image") {
       const image = new Image();
       image.decoding = "async";
-      // Prefer letting the current visible media claim bandwidth first.
       setLowFetchPriority(image);
       image.src = target.url;
       images.push(image);
@@ -93,10 +84,6 @@ function prefetchModalMedia(targets: readonly ModalMediaPrefetchTarget[]): () =>
   };
 }
 
-/**
- * Start prefetch after the browser is idle (or a short timeout fallback) so it
- * does not compete with the primary media request. Non-blocking.
- */
 export function schedulePrefetchModalMedia(
   targets: readonly ModalMediaPrefetchTarget[],
   options?: { timeoutMs?: number },
@@ -120,7 +107,6 @@ export function schedulePrefetchModalMedia(
   if (typeof requestIdleCallback === "function") {
     idleHandle = requestIdleCallback(start, { timeout: timeoutMs });
   } else {
-    // Yield past the current frame so the primary <img>/<video> request starts first.
     timeoutHandle = setTimeout(start, 0);
   }
 

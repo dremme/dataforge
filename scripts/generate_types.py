@@ -1,24 +1,4 @@
-"""Generate the frontend's view of the backend contract.
-
-Run from the project root:
-  backend/.venv/Scripts/python scripts/generate_types.py
-
-``backend/schemas.py`` and ``backend/constants.py`` are the single source of truth, and
-this writes three files from them so nothing has to be mirrored by hand:
-
-* ``types.ts``      -- every wire shape, from the published OpenAPI schema
-* ``constants.ts``  -- ``constants.SHARED_CONSTANTS``
-* ``wireGuards.ts`` -- runtime guards for ``schemas.GUARDED_WIRE_MODELS``
-
-None of them are checked in; ``scripts/run_checks.py`` runs this first, before anything
-compiles, lints, or tests the frontend.
-
-Response types come out as a strict superset of the wire: a field the server always
-sends is required, unless it can be ``null``, in which case it is optional and nullable.
-Requiring the never-null defaults (``issue_fixes``, ``stats``) is what keeps ``?? []``
-noise out of the app; leaving the nullable ones optional is what lets a fixture omit
-``width`` without lying about what arrives.
-"""
+"""Generate frontend/src/shared/{types,constants,wireGuards}.ts from schemas.py and constants.py."""
 
 from __future__ import annotations
 
@@ -28,8 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Ahead of every backend import below: the backend uses PEP 695 syntax that older
-# interpreters cannot parse, so an unguarded run dies with a bare SyntaxError.
+# Before any backend import: older interpreters die on PEP 695 with a bare SyntaxError.
 from py_version import require_python
 
 require_python()
@@ -41,27 +20,21 @@ OUTPUT = SHARED / "types.ts"
 CONSTANTS_OUTPUT = SHARED / "constants.ts"
 GUARDS_OUTPUT = SHARED / "wireGuards.ts"
 
-#: FastAPI's own validation shapes, plus the multipart form bodies it names after the
-#: route. ``/api/files/import`` sends a ``FormData``, which needs no TypeScript type.
+#: FastAPI validation shapes and multipart bodies named after the route.
 SKIP_EXACT = frozenset({"HTTPValidationError", "ValidationError"})
 SKIP_PREFIX = "Body_"
 
-#: The frontend has always called these by shorter names, and they read better.
 RENAMES = {
     "JobResponse": "Job",
     "SystemSpecsResponse": "SystemSpecs",
     "ExternalOstrisJobResponse": "ExternalOstrisJob",
 }
 
-#: Deliberate divergences from the published schema. Everything here needs a reason:
-#: this table is the whole hand-maintained surface that survives codegen.
+#: Deliberate divergences from the published schema.
 FIELD_TYPES = {
-    # ``str`` on the backend because persisted job rows can hold types and statuses
-    # retired since they were written, and narrowing there would fail the whole list
-    # on one legacy row. The frontend narrows and falls back via ``isKnownJobType``.
+    # Backend keeps ``str``: narrowing would fail the whole list on one legacy row.
     ("JobResponse", "job_type"): "JobType",
     ("JobResponse", "status"): "JobStatus",
-    # Selections are frozen before they are sent.
     ("MediaTransferRequest", "paths"): "readonly string[]",
 }
 
@@ -251,8 +224,7 @@ def _render_interface(name: str, schema: dict[str, Any], *, is_response: bool) -
 
     properties = schema.get("properties", {})
     if not properties:
-        # An empty `interface {}` accepts any non-nullish value and ESLint rejects it.
-        # `Record<string, never>` says what a fieldless model actually means.
+        # ESLint rejects the empty `interface {}`; `Record<string, never>` means a fieldless model.
         lines.append(f"export type {_ts_name(name)} = Record<string, never>;")
         return "\n".join(lines)
 
@@ -333,11 +305,8 @@ def _render_guard(name: str, schema: dict[str, Any], components: dict[str, Any])
     lines.append("  if (!isRecord(value)) return false;")
 
     for prop, definition in schema.get("properties", {}).items():
-        # Guards check what the emitted type promises, so they use the same
-        # required/optional rule the interface was written with.
         optional = _is_optional(prop, definition, required, is_response=True)
-        # Always parenthesised: `!typeof x === "y"` binds the `!` to the typeof and
-        # compares `false` to a string, so an unwrapped check silently never rejects.
+        # Always parenthesised: `!typeof x === "y"` negates typeof first, so it never rejects.
         check = f"!({_check(definition, f'value.{prop}', components)})"
         guard = f"value.{prop} !== undefined && {check}" if optional else check
         lines.append(f"  if ({guard}) return false;")

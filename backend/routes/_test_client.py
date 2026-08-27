@@ -1,5 +1,3 @@
-"""Shared FastAPI test client for route endpoint tests."""
-
 from __future__ import annotations
 
 from fastapi.testclient import TestClient

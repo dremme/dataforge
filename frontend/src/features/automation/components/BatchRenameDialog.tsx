@@ -8,9 +8,7 @@ const INVALID_STEM_PATTERN = /[<>:"/\\|?*]/;
 const START_NUMBER_PATTERN = /^\d+$/;
 
 interface BatchRenameDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["batch_rename"];
   busy?: boolean;
   onConfirm: (stem: string, startNumber: number) => void;

@@ -20,14 +20,10 @@ MIN_THUMBNAIL_WIDTH = 64
 MAX_THUMBNAIL_WIDTH = 1200
 WEBP_QUALITY = 80
 
-#: A cache entry is keyed by the source's path, size, and mtime, so anything that
-#: rewrites media — ``rename_media``, ``strip_metadata``, or an edit outside the app —
-#: orphans every thumbnail it had. Nothing else ever deletes them, so the cache is
-#: trimmed back to this budget instead of growing for the life of the install.
+#: Rewrites orphan old entries; nothing else deletes them, so the cache is trimmed to this budget.
 DEFAULT_CACHE_BUDGET_MB = 2048
 
-#: Checked this often rather than on every write: a prune walks the whole cache tree,
-#: and a gallery scrolling through a new folder generates thumbnails in bursts.
+#: A prune walks the whole cache tree; a gallery scrolling a new folder generates in bursts.
 PRUNE_EVERY_N_THUMBNAILS = 200
 
 _lock_guard = threading.Lock()
@@ -38,11 +34,11 @@ _thumbnails_since_prune = 0
 
 
 class ThumbnailError(Exception):
-    """Base thumbnail generation error."""
+    pass
 
 
 class ThumbnailUnavailableError(ThumbnailError):
-    """Thumbnail cannot be produced for this media (for example, ffmpeg missing)."""
+    """Raised when a thumbnail cannot be produced (for example, ffmpeg missing)."""
 
 
 def get_thumbnail_cache_dir() -> Path:
@@ -53,7 +49,7 @@ def get_thumbnail_cache_dir() -> Path:
 
 
 def get_thumbnail_cache_budget_bytes() -> int:
-    """The cache's size ceiling. ``0`` or less turns pruning off."""
+    """``0`` or less turns pruning off."""
     raw = os.environ.get("DATAFORGE_THUMBNAIL_CACHE_MAX_MB", "").strip()
     if not raw:
         return DEFAULT_CACHE_BUDGET_MB * 1024 * 1024
@@ -175,7 +171,7 @@ def _video_thumbnail_commands(
         destination_arg,
     ]
 
-    # Match Explorer-style posters: first decoded frame, not a later seek point.
+    # First decoded frame, not a later seek point.
     return [
         ["-i", source_arg, *frame_args],
         ["-ss", "0", "-i", source_arg, *frame_args],
@@ -230,13 +226,7 @@ def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None
 
 
 def _cached_thumbnails() -> list[tuple[float, int, Path]]:
-    """Every cache entry as ``(last use, size, path)``, oldest use first.
-
-    Access time is what "least recently used" means here, but plenty of systems mount
-    with ``relatime`` or ``noatime``, where it barely moves. Modification time is the
-    honest fallback: for a file this cache only ever writes once, it is the time the
-    thumbnail was generated, so the worst case degrades to least-recently-generated.
-    """
+    """``(last use, size, path)``. Uses max(atime, mtime) because many mounts use ``noatime``."""
     entries: list[tuple[float, int, Path]] = []
 
     for path in get_thumbnail_cache_dir().rglob("*"):
@@ -253,11 +243,7 @@ def _cached_thumbnails() -> list[tuple[float, int, Path]]:
 
 
 def prune_thumbnail_cache(budget_bytes: int | None = None) -> int:
-    """Delete least-recently-used thumbnails until the cache fits its budget.
-
-    Returns the number of bytes reclaimed. Safe to call at any time: a thumbnail that
-    is deleted while still wanted is simply generated again.
-    """
+    """Returns bytes reclaimed."""
     budget = get_thumbnail_cache_budget_bytes() if budget_bytes is None else budget_bytes
     if budget <= 0:
         return 0
@@ -286,7 +272,6 @@ def prune_thumbnail_cache(budget_bytes: int | None = None) -> int:
 
 
 def _prune_thumbnail_cache_periodically() -> None:
-    """Prune every ``PRUNE_EVERY_N_THUMBNAILS`` generations, never on the hot path twice."""
     global _thumbnails_since_prune
 
     with _prune_guard:
@@ -329,8 +314,7 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
 
         try:
             if suffix in PILLOW_EXTENSIONS:
-                # A GIF lands here rather than in ffmpeg: Pillow opens it on frame
-                # zero, which is the poster frame a still thumbnail wants anyway.
+                # GIF via Pillow: frame zero is the poster a still thumbnail wants.
                 _render_image_thumbnail(source, temp_path, normalized_width)
             else:
                 _render_video_thumbnail(source, temp_path, normalized_width)

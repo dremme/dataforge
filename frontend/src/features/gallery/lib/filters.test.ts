@@ -89,8 +89,7 @@ describe("getFilterEmptyState", () => {
     expect(state.variant).toBe("success");
   });
 
-  // "No duplicates" would be a lie here: the folder may well have them, just none that the
-  // caption filter also keeps.
+  // "No duplicates" would lie: the folder may have them, just none the caption filter keeps.
   it("blames the combination when duplicates and a caption filter are both active", () => {
     const state = getFilterEmptyState({
       ...baseOptions,

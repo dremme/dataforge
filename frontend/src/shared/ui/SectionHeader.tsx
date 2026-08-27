@@ -9,22 +9,10 @@ interface SectionHeaderProps {
   icon: AppIcon;
   title: string;
   count: number;
-  /**
-   * Marks what `count` is counting, for slots whose meaning changes with mode —
-   * the gallery's flips between "items the filters left" and "items selected".
-   * Decorative: the `aria-label` already spells the pair out.
-   */
   countIcon?: AppIcon;
-  /**
-   * The set `count` is measured against; rendered next to it only while the two
-   * differ. Whose size that is belongs to the call site — the gallery hands over
-   * the folder normally and the filtered view while selecting.
-   */
   total?: number;
-  /** Keeps the total visible even when it equals `count`, e.g. selection progress. */
   alwaysShowTotal?: boolean;
   loading?: boolean;
-  /** Docks the header below the automation panel while its section scrolls past. */
   sticky?: boolean;
   actions?: ReactNode;
 }

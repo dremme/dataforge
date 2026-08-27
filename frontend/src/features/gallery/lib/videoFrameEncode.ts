@@ -1,25 +1,14 @@
 import { JPEG_QUALITY } from "@/features/gallery/lib/frameCapture";
 
-/** A seek that never reports back must fail loudly rather than hang the save button. */
 const SEEK_TIMEOUT_MS = 2500;
-
-/** How long to wait for the decoder to present the seeked frame before drawing anyway. */
 const PRESENT_TIMEOUT_MS = 150;
-
-/** Below this the element is already where we want it, so no seek is issued. */
 const SETTLED_EPSILON = 0.001;
 
 /**
- * Waits for the decoder to actually present the frame, resolving its true media time.
- *
- * `seeked` fires when the seek completes, not when the new frame reaches the
- * compositor, so drawing straight after it can capture the previous frame. The
- * timeout is not optional: `requestVideoFrameCallback` does not reliably fire on a
- * paused element in every engine, and without the race a save would hang silently.
+ * seeked fires before the compositor has the frame, and requestVideoFrameCallback is
+ * unreliable on a paused element, so the timeout is required or a save hangs.
  */
 function awaitPresentedFrame(video: HTMLVideoElement): Promise<number> {
-  // Declared in the DOM lib but not implemented everywhere (Safari, jsdom), so the
-  // support check has to happen at runtime rather than in the type.
   if (typeof video.requestVideoFrameCallback !== "function") {
     return Promise.resolve(video.currentTime);
   }
@@ -43,12 +32,6 @@ function awaitPresentedFrame(video: HTMLVideoElement): Promise<number> {
   });
 }
 
-/**
- * Seeks the element to `time` and resolves the media time actually presented.
- *
- * The slider writes `currentTime` on every input, so at save time the element is
- * usually already there — but a seek may still be in flight, which `seeking` catches.
- */
 export function seekVideoTo(video: HTMLVideoElement, time: number): Promise<number> {
   if (!video.seeking && Math.abs(video.currentTime - time) <= SETTLED_EPSILON) {
     return awaitPresentedFrame(video);
@@ -82,13 +65,6 @@ export function seekVideoTo(video: HTMLVideoElement, time: number): Promise<numb
   }).then(() => awaitPresentedFrame(video));
 }
 
-/**
- * Draws the element's current frame at its native resolution and encodes it as JPEG.
- *
- * The canvas is allocated per call rather than held in a ref: a 4K backing store is
- * tens of megabytes to retain for a button pressed occasionally, and the allocation
- * disappears next to the upload.
- */
 export function encodeVideoFrame(
   video: HTMLVideoElement,
   quality: number = JPEG_QUALITY,

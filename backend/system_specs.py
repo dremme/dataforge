@@ -1,5 +1,3 @@
-"""Host system specifications for the automation panel."""
-
 from __future__ import annotations
 
 import os
@@ -80,7 +78,7 @@ def _macos_memory_bytes() -> tuple[int, int]:
 
 
 def _memory_bytes() -> tuple[int, int]:
-    """``(total, available)`` — every platform API reports what is free, not what is used."""
+    """``(total, available)``. Platform APIs report free, not used."""
     if sys.platform == "win32":
         return _windows_memory_bytes()
     if sys.platform == "darwin":
@@ -135,7 +133,7 @@ def _mb_to_bytes(value: str) -> int:
 
 
 def _gpu_from_nvidia_smi() -> _GpuInfo | None:
-    """Whole-GPU stats (includes other processes such as a local LLM server)."""
+    """Includes VRAM used by other processes."""
     try:
         result = subprocess.run(
             [
@@ -154,7 +152,6 @@ def _gpu_from_nvidia_smi() -> _GpuInfo | None:
     if result.returncode != 0 or not result.stdout.strip():
         return None
 
-    # Use the first GPU line only (matches prior single-GPU behavior).
     line = result.stdout.strip().splitlines()[0]
     parts = [part.strip() for part in line.split(",")]
     if len(parts) < 3:
@@ -183,7 +180,7 @@ def _gpu_from_torch() -> _GpuInfo | None:
     try:
         free, total = torch.cuda.mem_get_info(0)
         total_bytes = int(total)
-        # torch reports what is free; the panel shows used.
+        # torch reports free; the panel shows used.
         used_bytes = total_bytes - int(free)
     except Exception:
         pass
@@ -196,7 +193,7 @@ def _gpu_from_torch() -> _GpuInfo | None:
 
 
 def _gpu_info() -> tuple[str | None, int | None, int | None, bool]:
-    # Prefer nvidia-smi so VRAM used by external processes (e.g. LM Studio) is included.
+    # Prefer nvidia-smi so VRAM used by external processes is included.
     for resolver in (_gpu_from_nvidia_smi, _gpu_from_torch):
         info = resolver()
         if info is not None:
@@ -211,7 +208,6 @@ def get_system_specs() -> SystemSpecs:
         cpu_name=_sanitize_cpu_name(_cpu_name()),
         cpu_cores=os.cpu_count() or 1,
         memory_total_bytes=total_bytes,
-        # Derived once here so RAM reads "used / total", the same way VRAM does.
         memory_used_bytes=total_bytes - available_bytes,
         gpu_name=gpu_name,
         gpu_memory_bytes=gpu_memory_bytes,

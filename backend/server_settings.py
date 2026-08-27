@@ -1,15 +1,4 @@
-"""Server port settings shared by the API, its CORS policy, and the bundled UI.
-
-Environment (all optional):
-
-- ``DATAFORGE_UI_PORT`` — port the Vite dev server binds; drives the CORS allowlist.
-  In production the single process binds this port instead, serving API and UI together.
-- ``DATAFORGE_SERVE_UI`` — serve ``frontend/dist`` at ``/``; set by ``scripts/prod_server.py``
-
-``DATAFORGE_API_PORT`` belongs to the development API only, and is read where it is
-used: ``scripts/dev_server.py``, ``frontend/vite.config.ts``, ``scripts/dev-common.ps1``.
-The port values all come from the project ``.env``, so they stay in step.
-"""
+"""Server port settings shared by the API, its CORS policy, and the bundled UI."""
 
 from __future__ import annotations
 
@@ -17,14 +6,13 @@ import os
 
 DEFAULT_UI_PORT = 8081
 
-# A browser treats the two spellings of loopback as distinct origins, so the UI
-# is only reachable when both are allowed.
+# A browser treats the two spellings of loopback as distinct origins.
 _LOOPBACK_HOSTS = ("localhost", "127.0.0.1")
 
 _MIN_PORT = 1
 _MAX_PORT = 65535
 
-# Same spellings scripts/dev_server.py treats as off, so one .env reads the same everywhere.
+# Same spellings scripts/dev_server.py treats as off.
 _FALSEY = {"0", "false", "no", "off", ""}
 
 
@@ -57,11 +45,9 @@ def get_ui_port() -> int:
 
 
 def get_cors_origins() -> tuple[str, ...]:
-    """Origins allowed to call the API: the dev UI on both loopback spellings."""
     port = get_ui_port()
     return tuple(f"http://{host}:{port}" for host in _LOOPBACK_HOSTS)
 
 
 def serve_ui_enabled() -> bool:
-    """Whether this process also serves the built frontend. Production only."""
     return _env_flag("DATAFORGE_SERVE_UI", False)

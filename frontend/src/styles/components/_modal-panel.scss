@@ -1,16 +1,5 @@
-// ---------------------------------------------------------------------------
-// .modal-panel
-//
-// Emitted by `ModalShell` on every overlay panel, alongside the panel's own BEM
-// class. Holds only what is true of all of them.
-// ---------------------------------------------------------------------------
-
 .modal-panel {
-  // The panel takes focus on open so keyboard and screen-reader users start
-  // inside the overlay, but it is a container rather than a control: it is
-  // `tabindex="-1"`, so it can never be tabbed to. Left alone it would draw the
-  // browser's default ring around the whole dialog. The controls inside keep
-  // their own focus rings.
+  // tabindex="-1" container, not a control: left alone it would draw the browser's default ring around the whole dialog.
   &:focus {
     outline: none;
   }
@@ -19,9 +8,7 @@
     animation: modal-panel-enter 0.16s ease-out;
   }
 
-  // Quicker than the entrance: the user has already asked for this to go away,
-  // and `both` holds the end frame so the panel cannot flash back before the
-  // owner unmounts it on `animationend`.
+  // `both` holds the end frame so the panel cannot flash back before unmount on `animationend`.
   &--exit {
     animation: modal-panel-exit 0.14s ease-in both;
   }

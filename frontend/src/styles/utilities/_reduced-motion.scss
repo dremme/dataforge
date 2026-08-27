@@ -1,22 +1,7 @@
-// ---------------------------------------------------------------------------
-// Reduced motion
-//
-// Loaded last on purpose. The animations it switches off are declared in the
-// component layer, and these selectors are no more specific than those, so only
-// source order lets them win. Moving this `@use` earlier silently disables it.
-//
-// Scoped to entrances and exits rather than a blanket `*` reset: that would
-// also set `animation-iteration-count: 1` on the infinite `spin` driving every
-// loading indicator in the app.
-// ---------------------------------------------------------------------------
+// Loaded last so these equal-specificity selectors beat the component layer. Not a blanket `*` reset: that would also stop the infinite `spin` on loading indicators.
 
 @media (prefers-reduced-motion: reduce) {
-  // Entrances: nothing waits on these, so they can be removed outright.
-  //
-  // The `:not()`s matter. An element carries its entrance class *and* its exit
-  // class while leaving, so a bare `animation: none` here would blank the
-  // animation-name the exit block below only sets a duration for — and the
-  // element would never animate, never fire `animationend`, and never leave.
+  // `:not()`s: an exiting element still carries its entrance class, so `animation: none` would wipe the exit name and never fire `animationend`.
   .modal-panel--enter,
   [class*="__backdrop"]:not(.modal-backdrop--exit),
   .jobs-drawer__panel:not(.modal-panel--exit),
@@ -25,14 +10,11 @@
     animation: none;
   }
 
-  // The meter fills on open; with motion reduced it simply arrives at its value.
   .stats-drawer__meter-fill {
     transition: none;
   }
 
-  // Exits must keep running: `animationend` is what unmounts the jobs drawer
-  // (ModalShell's `onExited`) and removes a toast (NotificationContainer).
-  // A 1ms duration still fires the event while removing the perceived motion.
+  // Exits keep a 1ms duration so `animationend` still unmounts the jobs drawer and toasts.
   .modal-panel--exit,
   .modal-backdrop--exit,
   .jobs-drawer__panel.modal-panel--exit,

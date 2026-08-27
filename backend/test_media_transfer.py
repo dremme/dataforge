@@ -1,5 +1,3 @@
-"""Tests for media move and copy helpers."""
-
 from __future__ import annotations
 
 import os

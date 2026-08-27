@@ -13,9 +13,7 @@ import { withGallerySelection } from "@/test/gallerySelection";
 import type { GalleryItem } from "@/shared/types";
 import { Gallery } from "./Gallery";
 
-// GalleryCard calls this once per render, so it doubles as a render counter.
-// Not `getCardCaptionDisplay`: the masonry reads that too, to pick each card's
-// body height, so it counts layout passes as well as renders.
+// Not getCardCaptionDisplay: masonry reads that too, so it would count layout passes.
 vi.mock("@/features/gallery/lib/captionStatus", async (importOriginal) => {
   const actual = await importOriginal<typeof captionStatus>();
   return { ...actual, getCardModifierClass: vi.fn(actual.getCardModifierClass) };
@@ -68,13 +66,7 @@ const LARGE_ITEMS: GalleryItem[] = [
   { ...imageItem, name: "delta.png", path: `${HOME_PATH}\\delta.png`, width: 1600, height: 900 },
 ];
 
-/**
- * Overrides the width `test/setup.ts` gives every div, on the same prototype so
- * it actually shadows it. Note `clientHeight` is still 0: masonry then falls
- * back to its overscan (3 x 320px) for the viewport and only renders cards
- * whose top is inside roughly 1920px, so a large-mode test with many items must
- * stub that too or it will quietly assert against a subset.
- */
+/** Shadows test/setup.ts clientWidth. clientHeight stays 0, so masonry overscan is ~1920px. */
 function stubClientWidth(width: number): void {
   Object.defineProperty(HTMLDivElement.prototype, "clientWidth", {
     configurable: true,
@@ -84,7 +76,6 @@ function stubClientWidth(width: number): void {
   });
 }
 
-/** Lets a test drive the resize that `useGalleryColumns` listens for. */
 function captureResizeObservers() {
   const callbacks: ResizeObserverCallback[] = [];
   const original = window.ResizeObserver;
@@ -110,11 +101,6 @@ function captureResizeObservers() {
   };
 }
 
-/**
- * Asserts the whole large-mode contract at one container width: round-robin
- * lanes, tight stacking down each lane, and — the invariant the layout rests on
- * — a packed box that is exactly the media and body the card is pinned to.
- */
 function expectMasonryGeometry(container: HTMLElement, items: GalleryItem[], width: number): void {
   const layout = galleryLayoutFor("large");
   const minColumnWidth = layout.minColumnWidth ?? 0;

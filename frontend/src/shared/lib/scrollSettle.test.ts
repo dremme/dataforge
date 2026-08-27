@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settleScrollPosition } from "./scrollSettle";
 
-/**
- * jsdom has no layout, so `scrollTop` writes are no-ops. Install a stub that
- * clamps writes to `maxScrollTop` — that is exactly the behaviour a real
- * container has while its virtualized rows are still estimates.
- */
+/** jsdom ignores scrollTop; clamp writes like a container whose row heights are still estimates. */
 function createScrollElement(maxScrollTop: number) {
   const element = document.createElement("main");
   let current = 0;

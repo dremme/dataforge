@@ -1,5 +1,3 @@
-"""Unit tests for strip-metadata file rewriting."""
-
 from __future__ import annotations
 
 import json
@@ -35,8 +33,7 @@ class StripMetadataFileTests(unittest.TestCase):
             write_mp4_video(root, "clip.mp4")
             (root / "notes.txt").write_text("ignore", encoding="utf-8")
             (root / "photo.jpg").write_bytes(b"not supported")
-            # Re-encoding an animated GIF through Pillow risks palette and timing
-            # loss, so it stays out until that is handled deliberately.
+            # Re-encoding an animated GIF through Pillow risks palette and timing loss.
             write_gif(root, "loop.gif")
 
             files = list_strip_metadata_files(root)

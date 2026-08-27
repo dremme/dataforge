@@ -49,7 +49,6 @@ def run_set_captions_job(
         try:
             has_existing = media_has_caption_text(media_path)
         except Exception:
-            # Treat read issues as no caption; the write attempt surfaces any real error.
             has_existing = False
 
         if has_existing and not overwrite:

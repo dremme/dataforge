@@ -19,10 +19,7 @@ function fakeRect(partial: Partial<DOMRect>): DOMRect {
   } as DOMRect;
 }
 
-/**
- * jsdom performs no layout, so the two measurements a placement rests on are
- * supplied by class: where the anchor sits, and how big the surface is.
- */
+/** jsdom has no layout; supply the anchor rect and surface size. */
 function stubLayout(anchor: Partial<DOMRect>, floating: Partial<DOMRect>) {
   vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
   vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);

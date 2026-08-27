@@ -1,5 +1,3 @@
-"""Unit tests for automation.jobs JobManager orchestration."""
-
 from __future__ import annotations
 
 import unittest

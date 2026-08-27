@@ -1,5 +1,3 @@
-"""Tests for openai_settings."""
-
 from __future__ import annotations
 
 import os
@@ -218,11 +216,7 @@ class OpenAISettingsTests(unittest.TestCase):
             self.assertEqual(openai_cls.call_args.kwargs["max_retries"], 0)
 
     def test_default_timeout_stays_generous_for_slow_local_models(self) -> None:
-        """Thinking mode on a slow local GPU runs for minutes with no bytes on the wire.
-
-        The response budget must never be tightened below what the SDK allowed before
-        it was set explicitly, or long generations start failing as api_error.
-        """
+        """Must stay at least the SDK default; tightening it fails long thinking-mode runs as api_error."""
         self.assertGreaterEqual(DEFAULT_TIMEOUT_SECONDS, 600.0)
 
     def test_openai_timeout_is_configurable(self) -> None:

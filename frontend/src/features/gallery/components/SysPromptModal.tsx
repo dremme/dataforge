@@ -90,9 +90,7 @@ export function SysPromptModal({ item, onClose, onSaved }: SysPromptModalProps) 
       label="Edit system prompt"
       onClose={close}
       escape="editor"
-      // Scroll lock and nesting are both owned by `useGalleryOverlays`, which
-      // holds one lock for the whole overlay session — measuring depth here
-      // would read this overlay as nested and drop its blur.
+      // useGalleryOverlays holds the session lock; measuring depth here would drop the blur.
       nested={false}
       panelRef={panelRef}
     >

@@ -1,5 +1,3 @@
-"""Tests for share-delete media opens and disconnect-aware serving."""
-
 from __future__ import annotations
 
 import inspect
@@ -127,14 +125,7 @@ class OpenSharedReadTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "FILE_SHARE_DELETE is a Windows concern")
     def test_replacing_an_open_destination_still_fails(self) -> None:
-        """The boundary of what FILE_SHARE_DELETE buys.
-
-        Windows lets an open file be unlinked or renamed once the handle shares
-        delete, but ``MoveFileEx`` still wants exclusive access to a file it is
-        replacing, so overwriting a destination mid-stream stays WinError 5.
-        Only reachable via move/copy with ``overwrite=True`` onto a file the
-        gallery happens to be streaming.
-        """
+        """``os.replace`` onto a streamed destination still fails with WinError 5."""
         with TempMediaFolder() as root:
             destination = write_media(root, "sunset.png")
             source = write_media(root, "other.png", width=32, height=32)
@@ -349,11 +340,7 @@ class RangeRequestTests(unittest.TestCase):
 
 
 class StarletteApiGuardTests(unittest.TestCase):
-    """MediaFileResponse overrides private FileResponse methods.
-
-    starlette is pinned in requirements.txt because of this. If a bump moves
-    these, fail here rather than 500ing on every media request in production.
-    """
+    """starlette is pinned because these private FileResponse methods are overridden."""
 
     def test_overridden_methods_keep_their_signatures(self) -> None:
         expected = {

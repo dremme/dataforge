@@ -3,7 +3,6 @@ import { iconPause, iconPlay, iconVolume2, iconVolumeX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
 
-/** One arrow press moves a frame; holding Shift moves a second. */
 const COARSE_STEP_SECONDS = 1;
 
 type Handle = "start" | "end";
@@ -24,15 +23,6 @@ interface VideoEditTimelineProps {
   onToggleMuted: () => void;
 }
 
-/**
- * The kept span over the source's full length, and the only control that is on screen
- * whichever tool is selected.
- *
- * A custom track rather than two overlaid range inputs: overlaid thumbs need
- * pointer-events gymnastics to decide which one a click belongs to, cannot paint a
- * filled band between themselves without a third element anyway, and cannot be styled
- * apart. The handles carry `role="slider"` so the keyboard path is the real one.
- */
 export function VideoEditTimeline({
   duration,
   trimStart,
@@ -67,10 +57,7 @@ export function VideoEditTimeline({
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
       if (locked) return;
-      // `preventDefault` stops the text selection a drag would otherwise start, and with
-      // it the click's own focus. Focus has to land on the handle for the arrow keys to
-      // reach it at all: `isEditableTarget` exempts a focused `role="slider"` from the
-      // modal's next/prev arrows, and without focus they navigate the gallery instead.
+      // preventDefault kills drag-selection and focus; the handle must take it or arrows navigate.
       event.preventDefault();
       event.currentTarget.focus();
       event.currentTarget.setPointerCapture(event.pointerId);

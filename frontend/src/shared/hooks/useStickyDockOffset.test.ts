@@ -3,9 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRef } from "react";
 import { STICKY_DOCK_OFFSET_PROPERTY, useStickyDockOffset } from "./useStickyDockOffset";
 
-// The ResizeObserver mock in src/test/setup.ts never invokes its callback, so
-// only the initial measurement is exercised here; republishing on resize is
-// covered by manual verification.
+// setup.ts ResizeObserver never fires; this only covers the initial measurement.
 function setup({ withScrollRoot = true } = {}) {
   const element = document.createElement("section");
   vi.spyOn(element, "getBoundingClientRect").mockReturnValue({

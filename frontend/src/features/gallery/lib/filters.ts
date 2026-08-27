@@ -120,14 +120,11 @@ export function getFilterEmptyState(options: {
     };
   }
 
-  // Ahead of the caption branches: the Files axis is the narrower, more surprising reason
-  // for an empty grid, and "All files captioned" would misdirect when the real cause is
-  // that nothing here is a duplicate or a candidate.
+  // Files axis first: "All files captioned" misdirects when nothing here is a duplicate.
   if (options.fileFilter !== "all") {
     const duplicates = options.fileFilter === "duplicates";
 
-    // Checked first, or this would claim "No duplicates" in a folder that has plenty -
-    // just none that the caption filter also keeps.
+    // Caption filter first, or this claims "No duplicates" when the caption filter hides them.
     if (options.filter !== "all") {
       return {
         icon: iconSearch,

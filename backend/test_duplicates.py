@@ -1,5 +1,3 @@
-"""Unit tests for the duplicate sidecar."""
-
 from __future__ import annotations
 
 import unittest
@@ -187,12 +185,7 @@ class GroupingTests(unittest.TestCase):
 
 
 class SidecarNamingTests(unittest.TestCase):
-    """One sidecar per media file, not per stem.
-
-    A folder of generated media holds ``clip.mp4`` beside the ``clip.png`` that previews
-    it. Under a stem-named sidecar those two shared one file, and whichever the job
-    reached last decided what it said.
-    """
+    """One sidecar per media file, not per stem, so ``clip.mp4`` and ``clip.png`` cannot share one."""
 
     def test_the_name_carries_the_media_extension(self) -> None:
         with TempMediaFolder() as root:

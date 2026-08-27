@@ -51,9 +51,7 @@ class SubmitPromptTests(unittest.TestCase):
         self.assertEqual(captured["body"]["prompt"], {"1": {}})
 
     def test_node_errors_on_a_200_are_still_a_rejection(self) -> None:
-        # Some builds report a rejected graph as a 200 carrying node_errors. Trusting the
-        # status code alone would have the job wait out its whole timeout on a prompt
-        # that was never queued.
+        # Some builds report a rejected graph as a 200 with node_errors; do not wait on that.
         def handler(_request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
@@ -140,8 +138,7 @@ class HistoryTests(unittest.TestCase):
         )
 
     def test_a_video_only_output_reports_nothing(self) -> None:
-        # "gifs"/"videos" are a separate contract; reporting no output is the honest
-        # answer for a still workflow rather than a partial guess.
+        # "gifs"/"videos" are a separate contract; a still workflow reports no output.
         entry = {"outputs": {"3": {"gifs": [{"filename": "out.mp4"}]}}}
 
         self.assertEqual(history_outputs(entry), [])

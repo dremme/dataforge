@@ -4,11 +4,6 @@ import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem } from "@/shared/types";
 import { useGalleryListColumns } from "./useGalleryListColumns";
 
-/**
- * jsdom lays nothing out, so every box is zero wide. One character is stood in
- * for one pixel, which is enough to assert what the hook is actually for: that a
- * column follows its widest value rather than a number chosen up front.
- */
 const CHARACTER_WIDTH = 1;
 
 let originalGetBoundingClientRect: () => DOMRect;

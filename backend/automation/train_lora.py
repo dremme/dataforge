@@ -1,9 +1,4 @@
-"""Quick LoRA training, run by the local Ostris AI-Toolkit and tracked here.
-
-DataForge creates the AI-Toolkit job from a YAML template, queues it, and then only
-polls: the run ends by itself at the template's step count. Cancelling asks
-AI-Toolkit for a checkpoint save first so no training progress is thrown away.
-"""
+"""Quick LoRA training, run by the local Ostris AI-Toolkit and tracked here."""
 
 from __future__ import annotations
 
@@ -75,13 +70,9 @@ def validate_train_lora_folder(
     if not _clean_prompts(prompts):
         raise ValueError("Add at least one example prompt")
 
-    # Caught here so an unknown model is rejected at queue time, rather than starting a
-    # job that only fails once the worker thread reaches for the template.
     if model not in TRAINING_TEMPLATES:
         raise ValueError(f'Unknown training model "{model}"')
 
-    # Same reason: a broken override should fail the request the user is looking at,
-    # not a job that starts and dies in a worker thread minutes later.
     if template is not None:
         try:
             parse_training_template(template, source="edited training template")
@@ -113,7 +104,7 @@ def _progress_stats(job: dict[str, Any], step: int, total_steps: int) -> dict[st
 def _request_stop(client: httpx.Client, job_id: str, status: str) -> None:
     """Stop the run the gentlest way its current state allows."""
     if status == "running":
-        # Opens its own client: saving a checkpoint takes far longer than our request timeout.
+        # Own client: saving a checkpoint takes far longer than our request timeout.
         stop_ostris_job_with_checkpoint(job_id)
         return
     mark_ostris_job_stopped(client, job_id)
@@ -201,7 +192,7 @@ def _poll_until_terminal(
 
         status = str(job.get("status") or "")
         step = max(step, _int_or_none(job.get("step")) or 0)
-        # Ostris often omits top-level total_steps; the config train.steps is authoritative.
+        # Ostris often omits top-level total_steps; config train.steps is authoritative.
         total_steps = ostris_job_total_steps(job) or total_steps
         label = _progress_label(job)
 

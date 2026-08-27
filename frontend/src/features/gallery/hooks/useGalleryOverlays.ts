@@ -13,11 +13,6 @@ type UseGalleryOverlaysArgs = {
   mainRef: RefObject<HTMLElement | null>;
 };
 
-/**
- * Coordinates the gallery's overlay surfaces: which one is open, keeping the
- * item modal and sysprompt mutually exclusive, and resolving the scroll-lock
- * class from their precedence.
- */
 export function useGalleryOverlays({
   images,
   filteredItems,

@@ -4,9 +4,7 @@
 $handle-size: 0.75rem;
 $scrim: rgb(0 0 0 / 0.55);
 
-// Positioned by the component against the box the video actually paints, not the
-// element: `object-fit: contain` letterboxes the frame, and a rect laid over the element
-// would sit off by exactly the bars.
+// Positioned against the painted video box, not the element: `object-fit: contain` letterboxes, and a rect over the element would sit off by the bars.
 .crop-overlay {
   position: absolute;
   z-index: 1;
@@ -17,8 +15,7 @@ $scrim: rgb(0 0 0 / 0.55);
     pointer-events: none;
   }
 
-  // Four plain rectangles rather than one clip-path cut-out: each is a box with two
-  // known edges, so there is no path arithmetic to get subtly wrong.
+  // Four rectangles rather than a clip-path: each is a box with two known edges.
   &__scrim--top {
     inset-inline: 0;
     top: 0;
@@ -79,14 +76,11 @@ $scrim: rgb(0 0 0 / 0.55);
     color: var(--text);
     font-size: var(--text-2xs);
     font-weight: var(--font-semibold);
-    // Stated rather than inherited: this badge sizes itself from its line box, and a
-    // host that collapses `line-height` - as a stage killing an inline image's descender
-    // gap would - leaves the background sitting behind nothing but the padding.
+    // Stated rather than inherited: a host that collapses line-height leaves the background behind nothing but padding.
     line-height: normal;
     white-space: nowrap;
     pointer-events: none;
-    // Undoes whatever the host has turned the preview by, so the pixel count stays
-    // readable while the rectangle it belongs to sits on its side.
+    // Undoes the host's preview rotation so the pixel count stays upright.
     transform: var(--crop-readout-transform, none);
     transform-origin: left bottom;
   }

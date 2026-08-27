@@ -1,5 +1,3 @@
-"""Tests for the SSE fan-out (:mod:`events`) and the AI-Toolkit feed."""
-
 from __future__ import annotations
 
 import asyncio

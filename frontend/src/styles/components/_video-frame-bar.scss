@@ -4,9 +4,7 @@
 $track-height: 4px;
 $thumb-size: 0.85rem;
 
-// The vendor pseudo-elements below cannot share a selector list: an engine that
-// does not recognise one of them discards the whole rule, and the slider silently
-// falls back to its native look. Hence two mixins and four separate blocks.
+// Vendor pseudo-elements cannot share a selector list: an engine that does not recognise one discards the whole rule. Hence two mixins and four separate blocks.
 @mixin frame-slider-track {
   height: $track-height;
   border-radius: var(--radius-pill);
@@ -115,7 +113,7 @@ $thumb-size: 0.85rem;
 .video-frame-bar__slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  // Webkit lays the thumb on the track's top edge; Firefox centres it for us.
+  // Webkit lays the thumb on the track's top edge; Firefox centres it.
   margin-top: calc((#{$track-height} - #{$thumb-size}) / 2);
   @include frame-slider-thumb;
 }

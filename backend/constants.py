@@ -2,74 +2,42 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 GIF_EXTENSION = ".gif"
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".wmv", ".m4v", ".flv"}
 
-# GIF straddles two axes, so neither set above is widened to hold it. It decodes
-# like a still, renders in an `<img>`, and is captioned as one, but it carries a
-# frame sequence the gallery scrubs and LoRA training groups with video. Reach for
-# the axis a call site actually means - `automation.vision.media_kind_for` asks the
-# narrower `VIDEO_EXTENSIONS`, precisely so a GIF lands on the still path.
+# GIF is still for decode/caption and motion for frames/LoRA; keep the two sets separate.
 PILLOW_EXTENSIONS = IMAGE_EXTENSIONS | {GIF_EXTENSION}
 MOTION_EXTENSIONS = VIDEO_EXTENSIONS | {GIF_EXTENSION}
 
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
-# The MP4 family: containers built out of ISO base media format boxes, which is a
-# narrower question than "is this a video". Anything reading a header or a metadata
-# atom directly - rather than handing the file to ffmpeg - only understands these.
+# Header/metadata readers only; ffmpeg accepts a wider set.
 ISOBMFF_EXTENSIONS = {".mp4", ".mov", ".m4v"}
 
-# Where ComfyUI writes its workflow: a PNG text chunk or an ISOBMFF metadata atom.
 COMFY_WORKFLOW_EXTENSIONS = {".png"} | ISOBMFF_EXTENSIONS
 
-# Watermarking burns text into pixels, which GIF's palette cannot express without
-# visible banding, so it stays on the axes that re-encode cleanly. Video is held to
-# the MP4 family for the same reason: the ffmpeg command carries `-movflags`, which
-# the matroska, avi, asf and flv muxers reject, and `-c:a copy`, which they cannot
-# always accept from an arbitrary source stream.
+# GIF palette cannot hold burned text; `-movflags`/`-c:a copy` only work on the MP4 family.
 WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
 
-# In-place video editing is held to what the *browser* can decode, which is a stricter
-# question than what ffmpeg can re-mux. The editor reads its duration and frame size off
-# the `<video>` element and previews the trim, speed and crop through it, so a container
-# that does not play there gives a toggle onto a panel that can never become usable -
-# matroska in particular renders fine through ffmpeg and not at all through Chromium.
-#
-# Widening this means revisiting `video_edit.build_video_edit_command`: every muxer here
-# accepts `-movflags`, which the matroska, asf and flv muxers do not.
+# Browser-decodable only: the editor reads size from `<video>`. Muxers here all accept `-movflags`.
 VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
 VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
 
-# Converting a GIF to MP4 lands every file on one rate rather than carrying the source's
-# own timing over. A GIF stores a delay per frame and is free to vary it frame by frame,
-# which is not a frame rate at all - so there is nothing faithful to preserve, and a
-# dataset whose clips each run at whatever their authoring tool happened to emit is worse
-# than one that is uniform. 24 is the rate the rest of the video tooling assumes.
+# GIF delays are per-frame, not a rate; 24 matches the rest of the video tooling.
 GIF_MP4_FRAME_RATE = 24.0
 GIF_MP4_EXTENSION = ".mp4"
 
-# In-place image editing is held to the stills Pillow can re-encode without losing what
-# makes them what they are. GIF is excluded on purpose: a Pillow round-trip flattens the
-# animation to one frame, and the GIF affordance in the gallery modal is frame *capture*,
-# which writes a new JPG and leaves the source alone.
+# GIF excluded: a Pillow round-trip flattens the animation.
 IMAGE_EDIT_EXTENSIONS = IMAGE_EXTENSIONS
 
-# The untouched original, kept beside the edited file. Appended to the whole filename
-# rather than replacing the suffix, so `clip.mp4` and `clip.mov` keep distinct backups.
+# Appended to the whole filename so `clip.mp4` and `clip.mov` keep distinct backups.
 EDIT_BACKUP_SUFFIX = ".bak"
 
-# The edit that produced the current file, so re-opening the editor shows what is
-# applied. Two suffixes deep like the issue and duplicate sidecars, and read through
-# `edit_sidecars.edit_spec_path` rather than `with_suffix` for the same reason.
+# Two suffixes deep; read through `edit_sidecars.edit_spec_path`, not `with_suffix`.
 EDIT_SIDECAR_SUFFIX = ".edit.json"
 
-# Both are appended to the full filename so the final suffix is not a media one: a temp
-# file named `clip.edit-tmp.mp4` would surface as a phantom gallery item for the length
-# of every render, because `folder_scan` classifies on the last suffix alone.
+# Must not end in a media suffix or `folder_scan` would list the temp as a gallery item.
 EDIT_TEMP_SUFFIX = ".edit-tmp"
 EDIT_STALE_SUFFIX = ".edit-stale"
 
-# Served with the file rather than guessed from it: `mimetypes.guess_type` reads the
-# registry on Windows, where a machine missing a `.webp` or `.mkv` entry would fall
-# through to `text/plain` and the browser would refuse to render the media at all.
+# Explicit types: Windows `mimetypes.guess_type` can fall through to `text/plain`.
 MEDIA_MIME_TYPES = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -86,53 +54,39 @@ MEDIA_MIME_TYPES = {
     ".flv": "video/x-flv",
 }
 
-# Caption sidecar suffixes. Walked in order wherever a media file's caption is resolved.
 # Only .txt is a caption; leftover Ideogram .json next to media is not.
 CAPTION_SIDECAR_EXTENSIONS = (".txt",)
 SIDECAR_EXTENSIONS = set(CAPTION_SIDECAR_EXTENSIONS)
 IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
 
-# Caption issues written by verify-captions. Two suffixes deep, so `Path.stem` and
-# `Path.suffix` both mis-read it; resolve names against this instead of guessing.
+# Two suffixes deep; `Path.stem`/`Path.suffix` both mis-read it.
 ISSUE_SIDECAR_SUFFIX = ".issue.json"
 
-# Duplicate groups written by find-duplicates. Its own file rather than a share of the
-# issue sidecar: a caption issue is fixed by editing text, a duplicate by deleting a file,
-# so they need different resolvers and must not be able to clear each other.
+# Own file so a caption-issue resolver cannot clear a duplicate finding, and vice versa.
 DUPLICATE_SIDECAR_SUFFIX = ".duplicate.json"
 
-# A caption is reviewed by hand, so the model is asked for the few changes that matter
-# most rather than an exhaustive list. The prompt states this cap and the parser enforces it.
+# Prompt states this cap; the parser enforces it.
 MAX_ISSUE_FIXES = 3
 
-# Models answer "None" instead of returning an empty list often enough to filter for it.
+# Models often answer "None" instead of an empty list.
 ISSUE_FIX_SENTINELS = frozenset({"none", "n/a", "no issues", "no changes"})
 
 CAPTION_BACKUP_DIR_NAME = ".backup"
 
-# Watermarked copies land here, beside the untouched originals. Deliberately absent from
-# SKIP_DIR_NAMES: the results are for the user to browse, unlike the caption backup.
+# Absent from SKIP_DIR_NAMES: the user browses these results.
 WATERMARK_DIR_NAME = "watermarked"
 
-# ComfyUI candidates land here, beside the untouched originals, under the source's own
-# filename - the review queue pairs the two by name. Absent from SKIP_DIR_NAMES for the
-# same reason WATERMARK_DIR_NAME is: these are results the user browses.
+# Same as WATERMARK_DIR_NAME: the review queue pairs candidates with sources by name.
 STAGING_DIR_NAME = "staging"
 
-# What produced a candidate - source name, preset, prompt id, seed - written beside it
-# inside the staging folder. Two suffixes deep like the issue and duplicate findings.
+# Two suffixes deep, like issue and duplicate findings.
 COMFY_CANDIDATE_SIDECAR_SUFFIX = ".comfy.json"
 
-
-# Own markers rather than the EDIT_ ones, for the same reason watermarking has its own:
-# image_edit sweeps every *.edit-tmp in the folder on its way in, which would delete an
-# in-flight accept's temp file. Neither ends in a media suffix, so folder_scan cannot
-# mistake one for a gallery item.
+# Not EDIT_ markers: image_edit sweeps every *.edit-tmp and would delete an in-flight accept.
 COMFY_TEMP_SUFFIX = ".comfy-tmp"
 COMFY_STALE_SUFFIX = ".comfy-stale"
 
-# Stills only: a ComfyUI image graph has nothing to say about a video, and the history
-# reply's "gifs"/"videos" outputs are a separate contract from its "images".
+# Image graphs only; history "gifs"/"videos" outputs are a separate contract.
 COMFY_PROCESS_EXTENSIONS = IMAGE_EXTENSIONS
 
 SKIP_DIR_NAMES = {
@@ -155,11 +109,7 @@ LAST_FOLDER_KEY = "last_folder"
 
 SYSPROMPT_FILENAME = ".sysprompt"
 
-#: What ``scripts/generate_types.py`` emits into ``frontend/src/shared/constants.ts``.
-#: Keys are the TypeScript names. Only what the UI actually needs belongs here: the
-#: server re-validates every drop, so this drives affordances, never enforcement.
-#: Sets are sorted for a stable diff; sequences keep their order because
-#: ``CAPTION_SIDECAR_EXTENSIONS`` is walked in order, not as a bag.
+#: Emitted into ``frontend/src/shared/constants.ts``. Sets are sorted; sequences keep walk order.
 SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
     "CAPTION_SIDECAR_EXTENSIONS": list(CAPTION_SIDECAR_EXTENSIONS),

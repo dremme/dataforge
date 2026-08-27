@@ -15,9 +15,7 @@ import type { JobSettingsByType } from "@/features/automation/preferences/automa
 export type AutoCaptionMode = AutomationMode;
 
 interface AutoCaptionDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["auto_caption"];
   busy?: boolean;
   onConfirm: (

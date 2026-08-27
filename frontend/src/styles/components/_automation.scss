@@ -1,10 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .automation
-// ---------------------------------------------------------------------------
-
 .automation {
   position: sticky;
   top: 0;
@@ -23,7 +19,6 @@
     @include floating-sticky-surface;
   }
 
-  // Block modifiers
   &--cancelled,
   &--warning {
     @include status-panel-warning;
@@ -33,7 +28,6 @@
     @include status-panel-danger;
   }
 
-  // Header
   &__header {
     display: flex;
     align-items: center;
@@ -119,9 +113,7 @@
     max-width: 100%;
     font-size: var(--text-xs);
     color: var(--text-muted);
-    // Not --leading-snug: 1.35 against 12px text is a 16.2px line box, and the
-    // fractional height puts this row's icons on a half pixel. The row is a single
-    // line beside an icon, so it takes the icon's height instead.
+    // Not --leading-snug: 1.35 against 12px is a 16.2px line box, which puts icons on a half pixel.
     line-height: 1;
 
     &-icon {
@@ -151,7 +143,6 @@
     height: 1rem;
   }
 
-  // Action buttons
   &__sysprompt {
     @include pill-btn-ghost(0.4rem);
     --bg-elevated: #{$color-bg-soft};
@@ -165,14 +156,11 @@
     @include pill-btn-warning(0.4rem);
   }
 
-  // Ghost rather than warning: a duplicate is a housekeeping decision, not a defect
-  // in the caption, so it should not compete with the issue button for alarm.
   &__resolve-duplicates {
     @include pill-btn-ghost(0.4rem);
     --bg-elevated: #{$color-bg-soft};
   }
 
-  // Same as duplicates: reviewing staged results is work to do, not a defect.
   &__review-candidates {
     @include pill-btn-ghost(0.4rem);
     --bg-elevated: #{$color-bg-soft};
@@ -191,7 +179,6 @@
     }
   }
 
-  // More menu
   &__more {
     position: relative;
     --bg-elevated: #{$color-bg-soft};
@@ -217,15 +204,11 @@
 
     &-menu {
       @include dropdown-menu-surface(null);
-      // Groups sit side by side: height is the scarce axis on a desktop window,
-      // width is not, and this keeps every description visible without scrolling.
       flex-direction: row;
       align-items: stretch;
-      // Only a safety net for windows too narrow for the columns.
       flex-wrap: wrap;
       gap: 0.375rem;
-      // A fixed panel shrinks to fit the room beside it, which would collapse
-      // the row into a stack; max-content keeps the columns as columns.
+      // A fixed panel shrinks to the room beside it and would stack the columns; max-content keeps them as columns.
       width: max-content;
       @include app-scrollbar;
     }
@@ -304,7 +287,6 @@
     }
   }
 
-  // Hints & messages
   &__hint {
     margin: 0.625rem 0 0;
     font-size: var(--text-sm);
@@ -339,7 +321,6 @@
     @include dismiss-btn;
   }
 
-  // Job status body
   &__body {
     margin-top: 0.875rem;
   }
@@ -360,8 +341,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    // Even, so centring the 16px status icon inside it stays on whole pixels: the
-    // label's own line box is 21px, and half of the leftover 5px is not a pixel.
+    // Even so centering the 16px icon stays on whole pixels (the label's line box is 21px).
     min-height: 1.375rem;
     margin-bottom: 0.5625rem;
     font-size: var(--text-sm);
@@ -378,9 +358,7 @@
     gap: 0.375rem;
     color: var(--text);
     font-weight: var(--font-medium);
-    // 14px text at the inherited 1.5 leading makes a 21px line box, and centring a
-    // 16px icon in an odd box lands it on a half pixel. One line beside an icon
-    // takes the icon's height instead.
+    // 14px at inherited 1.5 leading is a 21px line box; centering a 16px icon in an odd box lands on a half pixel.
     line-height: 1;
 
     &-icon {

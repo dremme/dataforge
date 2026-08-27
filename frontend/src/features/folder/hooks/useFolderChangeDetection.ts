@@ -5,25 +5,13 @@ import { isFolderNotFoundError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import type { FolderChangesResponse } from "@/shared/types";
 
-// The server watches the open folder and pushes its fingerprint, so these are a
-// backstop for the cases push cannot cover: a stream that is down, and a tab that has
-// deliberately given its stream up while hidden.
 export const VISIBLE_POLL_MS = 30000;
 export const HIDDEN_POLL_MS = 60000;
 export const RELOAD_DEBOUNCE_MS = 1500;
 
 export type UseFolderChangeDetectionOptions = {
-  /** Skip folder reloads while a job is mutating the current folder. */
   suspendReloads?: boolean;
-  /** Stop polling when the current folder is already known to be missing. */
   enabled?: boolean;
-  /**
-   * Patch the open folder from a delta.
-   *
-   * Given one, a change that the server can describe item by item never reaches
-   * `reloadFolder` — the common case of a caption being rewritten costs one item
-   * instead of the whole folder. Everything else still falls back to a full reload.
-   */
   applyDelta?: (delta: FolderChangesResponse) => void;
 };
 
@@ -114,11 +102,6 @@ export function useFolderChangeDetection(
     [runReload],
   );
 
-  /**
-   * The folder's current fingerprint, with a delta whenever one is both available
-   * and usable. Without a baseline to diff against, or without somewhere to apply a
-   * delta, asking for the cheaper fingerprint alone is the whole answer.
-   */
   const fetchChangeReport = useCallback(
     async (path: string, previous: string | null): Promise<FolderChangesResponse> => {
       if (previous && applyDelta) {
@@ -134,9 +117,7 @@ export function useFolderChangeDetection(
   const checkForChanges = useCallback(async () => {
     if (!folderPath || !enabled) return;
 
-    // `previous` is read here and never overwritten before the request goes out: it is
-    // the baseline the server diffs against, so adopting the newer fingerprint first
-    // would make every check answer `full` and turn each delta into a whole reload.
+    // `previous` is the server's diff baseline; adopting the new fingerprint first would force `full`.
     const previous = fingerprintRef.current;
 
     try {
@@ -161,8 +142,6 @@ export function useFolderChangeDetection(
         return;
       }
 
-      // A described change is applied straight away: patching costs nothing, so
-      // the debounce that protects a full reload would only add latency.
       if (!report.full && applyDelta) {
         fingerprintRef.current = report.fingerprint;
         applyDelta(report);
@@ -185,7 +164,6 @@ export function useFolderChangeDetection(
     suspendReloads,
   ]);
 
-  /** `checkForChanges`, serialised so overlapping pushes cannot pile up requests. */
   const runCheck = useCallback(async () => {
     checkInFlightRef.current = true;
     try {
@@ -200,25 +178,17 @@ export function useFolderChangeDetection(
 
   useServerEvent((event) => {
     if (event.type !== "folder" || !folderPath || !enabled) return;
-    // `foldersMatch` rather than `===`: the watcher keys folders in a folded form, and
-    // a tab that has just navigated can still be sent one event for its old folder.
+    // Watcher keys are folded; a just-navigated tab can still get an event for the old folder.
     if (!foldersMatch(event.path, folderPath)) return;
 
-    // The pushed fingerprint is only ever used to decide whether to ask, never as the
-    // baseline to ask with.
     if (event.fingerprint === fingerprintRef.current) return;
 
     if (suspendReloads) {
-      // A job rewriting this folder pushes about once a second. It would be answered
-      // with a request that is then thrown away, so take the fingerprint from the
-      // event and ask nothing at all.
       fingerprintRef.current = event.fingerprint;
       return;
     }
 
     if (checkInFlightRef.current) {
-      // The open request was answered before this change landed, so run once more
-      // rather than waiting on the backstop poll.
       checkAgainRef.current = true;
       return;
     }

@@ -1,5 +1,3 @@
-"""Tests for /api/caption, /api/comfy-workflow, and /api/sysprompt."""
-
 from __future__ import annotations
 
 import json
@@ -120,8 +118,7 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
                 self.assertTrue(response.json()["has_workflow"])
 
     def test_returns_400_for_a_container_without_isobmff_boxes(self) -> None:
-        # Matroska, avi, asf and flv carry their metadata somewhere the box walk
-        # cannot reach, so the probe is refused rather than always answering no.
+        # Matroska, avi, asf and flv carry metadata the box walk cannot reach.
         workflow = '{"nodes": [{"type": "KSampler"}]}'
         for name in ("comfy.mkv", "comfy.avi", "comfy.wmv", "comfy.flv"):
             with self.subTest(name=name), TempMediaFolder() as root:
@@ -132,8 +129,7 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 400)
 
     def test_returns_400_for_gif(self) -> None:
-        # A GIF carries neither PNG text chunks nor ISOBMFF boxes, so offering the
-        # workflow probe for one would only ever answer no.
+        # A GIF carries neither PNG text chunks nor ISOBMFF boxes.
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif")
 

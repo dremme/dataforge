@@ -19,12 +19,10 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
 
-#: Mirrors ``schemas.CaptionReplaceMode``.
 REPLACE_MODES = ("replace", "prepend", "append")
 
 DEFAULT_MODE = "replace"
 
-#: Applies one edit to one caption, or returns None when the caption is unchanged.
 CaptionReplacer = Callable[[str], str | None]
 
 
@@ -36,14 +34,7 @@ def build_caption_replacer(
     use_regex: bool = False,
     case_sensitive: bool = False,
 ) -> CaptionReplacer:
-    """Compile one reusable edit, so the pattern is parsed once per job, not once per file.
-
-    Both the job and its preview go through here; a second implementation would let the
-    preview promise an edit the job does not make.
-
-    Raises ``ValueError`` for an edit that cannot run at all - an unknown mode, a missing
-    search term, or a regex that does not compile.
-    """
+    """Compile one reusable edit shared by the job and its preview; raises ``ValueError`` if unusable."""
     if mode not in REPLACE_MODES:
         raise ValueError(f"Unknown replace mode: {mode}")
 
@@ -78,8 +69,7 @@ def _build_replacer(
         try:
             edited = pattern.sub(replacement, text)
         except re.error as exc:
-            # Group references are only resolved against a real match, so a bad
-            # template (``\9`` with one group) cannot be caught at compile time.
+            # Group refs like ``\9`` are only resolved against a real match, not at compile time.
             raise ValueError(f"Invalid replacement text: {exc}") from exc
         return _changed(text, edited)
 
@@ -87,7 +77,7 @@ def _build_replacer(
 
 
 def _build_affixer(*, mode: str, addition: str, case_sensitive: bool) -> CaptionReplacer:
-    # Compared stripped, because ``save_caption`` strips: adding only whitespace is a no-op.
+    # ``save_caption`` strips, so adding only whitespace is a no-op.
     trimmed = addition.strip()
     if not trimmed:
         raise ValueError("Enter the text to add")
@@ -95,8 +85,6 @@ def _build_affixer(*, mode: str, addition: str, case_sensitive: bool) -> Caption
     needle = trimmed if case_sensitive else trimmed.lower()
 
     def affix(text: str) -> str | None:
-        # Skip captions that already carry the addition, so re-running the job does
-        # not stack a second copy of the trigger word onto every caption.
         haystack = text if case_sensitive else text.lower()
         if mode == "prepend":
             if haystack.startswith(needle):
@@ -111,11 +99,7 @@ def _build_affixer(*, mode: str, addition: str, case_sensitive: bool) -> Caption
 
 
 def _changed(original: str, edited: str) -> str | None:
-    """The edited caption, or None when saving it would not change the sidecar.
-
-    ``save_caption`` strips before writing, so an edit that only adds outer
-    whitespace is not a change.
-    """
+    """The edited caption, or None when saving it would not change the sidecar."""
     return edited if edited.strip() != original.strip() else None
 
 
@@ -138,7 +122,6 @@ def validate_replace_captions_folder(
     if not list_replace_captions_media(folder):
         raise ValueError("No supported images or videos found in folder")
 
-    # Raises for an unusable edit, so a bad regex is a 400 instead of a failed job.
     build_caption_replacer(
         mode=mode,
         search=search,
@@ -159,10 +142,7 @@ def preview_caption_replacements(
     selected_paths: list[Path] | None = None,
     sample_limit: int = 3,
 ) -> dict[str, object]:
-    """Count the captions this edit would change, with a few before/after samples.
-
-    Read-only: the dialog calls this while the user types, so it never writes.
-    """
+    """Count the captions this edit would change, with a few before/after samples."""
     replacer = build_caption_replacer(
         mode=mode,
         search=search,

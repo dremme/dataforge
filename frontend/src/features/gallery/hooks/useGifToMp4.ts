@@ -7,32 +7,21 @@ import type { GalleryItem } from "@/shared/types";
 
 export interface UseGifToMp4Options {
   item: GalleryItem | undefined;
-  /** Runs once the MP4 is on disk, so the owner can reload the folder. */
   onConverted?: () => void | Promise<void>;
 }
 
 export interface GifToMp4Conversion {
   converting: boolean;
-  /** The MP4 name waiting on a replace decision, or null when nothing is in the way. */
   conflict: string | null;
   convert: () => void;
   confirmOverwrite: () => void;
   cancelOverwrite: () => void;
 }
 
-/**
- * Writing the viewed GIF out as an MP4 beside itself.
- *
- * Two requests rather than one: the name the MP4 would take is checked first, so a file
- * already holding it becomes a prompt instead of a silent overwrite. Only the answer to
- * that prompt sends `overwrite`, and the server re-checks either way - this decides what
- * the user is asked, never what the server allows.
- */
 export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
   const notify = useNotify();
 
-  // Read through a ref so the returned callbacks are dependency-free, and so a
-  // conversion that outlives an item swap still finishes against what it started with.
+  // Ref so callbacks stay dependency-free; a conversion outliving a swap keeps its values.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -40,10 +29,8 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
   const [converting, setConverting] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
 
-  // The re-entrancy guard reads a ref: a double click lands before `converting` state
-  // has re-rendered the button into its disabled form.
+  // Ref guard: a double click lands before converting has re-rendered the button disabled.
   const convertingRef = useRef(false);
-  /** The GIF the open prompt is about, so confirming cannot retarget after a swap. */
   const conflictSourceRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -53,9 +40,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
     };
   }, []);
 
-  // The prompt belongs to the item that raised it. `converting` is deliberately absent:
-  // a conversion in flight against the previous item runs its own `finally`, and
-  // clearing the flag here would race it.
+  // Prompt belongs to the item that raised it; a conversion in flight runs its own finally.
   useEffect(() => {
     conflictSourceRef.current = null;
     setConflict(null);
@@ -86,8 +71,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
           });
           await optionsRef.current.onConverted?.();
         } catch (error) {
-          // Unguarded by `mountedRef`: the notification store outlives this modal, so a
-          // conversion that finishes after a close still reports.
+          // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
           notify({
             variant: "danger",
             message: `Could not convert ${pathBaseName(sourcePath)}: ${formatApiError(error)}`,

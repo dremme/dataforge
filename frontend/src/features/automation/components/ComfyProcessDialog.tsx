@@ -18,9 +18,7 @@ export interface ComfyProcessSettings {
 }
 
 interface ComfyProcessDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["comfy_process"];
   busy?: boolean;
   onConfirm: (settings: ComfyProcessSettings) => void;
@@ -67,9 +65,7 @@ export function ComfyProcessDialog({
           available: response.available,
           baseUrl: response.base_url,
         });
-        // A remembered preset whose file is gone would leave the select showing a name
-        // it has no option for, so the stored name is only honoured once the real list
-        // is known.
+        // Honour a stored name only once the list is known, or the select shows a missing option.
         setPreset((current) =>
           response.presets.some((entry) => entry.name === current)
             ? current

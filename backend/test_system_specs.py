@@ -1,5 +1,3 @@
-"""Unit tests for system_specs memory and GPU parsing helpers."""
-
 from __future__ import annotations
 
 import unittest

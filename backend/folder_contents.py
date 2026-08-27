@@ -1,4 +1,4 @@
-"""Folder listing assembly — runs on a worker thread to avoid blocking the event loop."""
+"""Folder listing assembly; runs on a worker thread so it does not block the event loop."""
 
 import logging
 from pathlib import Path
@@ -22,11 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def _remember_last_folder(folder: Path) -> None:
-    """Persist the folder only when it actually changed.
-
-    Change detection re-lists the open folder every few seconds; without this
-    guard each one opened a fresh SQLite connection to rewrite the same value.
-    """
+    """Skip the write when the value is unchanged; change detection re-lists every few seconds."""
     value = str(folder)
     if get_preference(LAST_FOLDER_KEY) == value:
         return
@@ -40,8 +36,6 @@ def build_folder_response(folder: Path) -> FolderResponse:
     parent = folder.parent
     parent_path = None if parent == folder else str(parent.resolve())
 
-    # One scan feeds both the item list and the fingerprint; they used to walk
-    # the directory independently and stat every file twice.
     scan = scan_folder(folder)
     scanned = perf_counter()
 
@@ -53,8 +47,6 @@ def build_folder_response(folder: Path) -> FolderResponse:
         # Names only: the counts come from /api/folders/subfolder-stats.
         subfolders = [{"name": entry.name, "path": str(entry.path)} for entry in scan.dirs]
         items = list_media_from_scan(scan)
-        # Remembered so the next change-detection poll can answer with a delta
-        # against this exact response rather than sending the client back for all of it.
         signature = folder_signature_from_scan(scan)
         remember_folder_signature(folder, signature)
         fingerprint = signature.fingerprint
@@ -87,13 +79,7 @@ def build_folder_response(folder: Path) -> FolderResponse:
 
 
 def build_folder_changes(folder: Path, since: str) -> FolderChangesResponse:
-    """What changed in ``folder`` since the listing that produced ``since``.
-
-    Answers ``full`` when there is nothing to diff against — an unknown baseline, an
-    unreadable folder, or a change to the folder's shell (its child directories or
-    sysprompt), which brings in data a delta does not carry. The client then reloads
-    exactly as it did before this endpoint existed.
-    """
+    """Answers ``full`` when there is nothing to diff against (unknown baseline, unreadable folder, or a shell change)."""
     scan = scan_folder(folder)
     if scan is None:
         return FolderChangesResponse(full=True, fingerprint="")
@@ -117,11 +103,6 @@ def build_folder_changes(folder: Path, since: str) -> FolderChangesResponse:
 
 
 def build_subfolder_stats_response(folder: Path) -> SubfolderStatsResponse:
-    """Per-child media/caption counts, served separately from the folder payload.
-
-    Counting means reading every caption sidecar in every child folder, so this
-    is kept off the critical path that renders the grid.
-    """
     started = perf_counter()
     subfolders = list_subfolders(folder)
 

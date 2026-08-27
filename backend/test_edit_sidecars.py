@@ -1,10 +1,3 @@
-"""Unit tests for the files an in-place edit keeps beside the file it rewrites.
-
-These used to live in ``test_video_edit.py``, back when the video editor was the only
-thing that stored a backup. They moved out with the code: the image editor depends on
-exactly the same guarantees, and a regression here breaks both editors' undo.
-"""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database

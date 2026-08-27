@@ -76,9 +76,7 @@ describe("usePopupMenu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  // The panel is portalled, so it is outside the root the dismissal watches.
-  // Miss this and every menu still opens, but no item can ever be chosen: the
-  // press dismisses the menu before the release reaches the item.
+  // Portalled panel is outside the dismissal root; mousedown there must not close before click.
   it("stays open on a press inside the portalled panel", () => {
     render(<MenuFixture />);
     fireEvent.click(trigger());
@@ -100,9 +98,7 @@ describe("usePopupMenu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  // Tab order follows the DOM, and a portalled panel is no longer next to its
-  // trigger in it. Without the handoff a keyboard user tabs straight past the
-  // open menu to whatever follows the trigger.
+  // Portalled panel is not next to its trigger in tab order; focus must hand off.
   it("moves focus into the panel and hands it back on close", () => {
     render(<MenuFixture />);
 

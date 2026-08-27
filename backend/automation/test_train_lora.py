@@ -201,9 +201,7 @@ class TrainingConfigTests(unittest.TestCase):
 
         self.assertEqual(process["model"]["arch"], "minimax_h3")
         self.assertEqual(process["model"]["name_or_path"], "Comfy-Org/MiniMax-H3")
-        # The video settings ride along from the YAML; nothing in the runner sets them.
-        # Exact frame counts are the template's to tune - `test_ostris_training.py` pins
-        # the rule they have to obey - so only assert that they arrived at all.
+        # Video settings ride along from the YAML; exact frame counts are pinned in test_ostris_training.
         self.assertTrue(process["datasets"][0]["do_i2v"])
         self.assertGreater(process["sample"]["num_frames"], 1)
 

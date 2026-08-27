@@ -1,23 +1,4 @@
-"""Read GIF frames and timing with Pillow.
-
-The single owner of every ``Image.open`` against a GIF, so the gallery's frame
-endpoint and the captioning jobs' opening frame decode the same way. Three Pillow
-behaviours shape this module:
-
-A GIF frame is a delta against the frames before it, so there is no such thing as
-decoding frame N on its own - Pillow always replays from frame 0. Reading frames
-one request at a time therefore costs O(N) each and O(N^2) across a scrub, which
-is why :func:`extract_gif_frame` decodes the whole animation once and serves every
-later request from that strip.
-
-Seeking backwards restarts the decode as well, so each pass walks forward only.
-
-Pillow also keeps the file handle open for the lifetime of a multi-frame image so
-later frames stay seekable, which on Windows locks the GIF against being moved,
-renamed or deleted - see ``automation.vision.load_image_rgb``. Every frame that
-leaves this module is therefore a fully materialised ``convert("RGB")`` copy taken
-inside a ``with`` block, never a lazily-referencing frame object.
-"""
+"""GIF frames are deltas, so decoding frame N is O(N) and a scrub is O(N^2); Pillow also holds the file open, which locks it on Windows."""
 
 from __future__ import annotations
 
@@ -31,29 +12,22 @@ from PIL import Image, ImageSequence, UnidentifiedImageError
 
 logger = logging.getLogger(__name__)
 
-#: Matches the frontend's canvas ``JPEG_QUALITY`` of 0.95 for the video path, so a
-#: frame saved from a GIF and one saved from an MP4 land at the same fidelity.
+#: Matches the frontend canvas JPEG quality of 0.95 so GIF and MP4 frame saves match.
 GIF_FRAME_JPEG_QUALITY = 95
 
-#: How much decoded JPEG the frame cache may hold across every GIF. Sized to keep
-#: a few ordinary animations resident at once; the strip for one 300-frame
-#: 960x720 GIF is roughly 30 MB.
+#: Cap across every GIF; one 300-frame 960x720 strip is roughly 30 MB.
 GIF_FRAME_CACHE_BUDGET_BYTES = 128 * 1024 * 1024
 
 _MAX_FRAME_COUNT_CACHE = 512
 _frame_count_cache: dict[str, tuple[tuple[int, int], int | None]] = {}
 _frame_count_cache_lock = threading.Lock()
 
-#: Decoded frames per GIF, keyed by resolved path, in least-recently-used order.
 _frame_strips: OrderedDict[str, tuple[tuple[int, int], list[bytes]]] = OrderedDict()
 _frame_strips_bytes = 0
-#: GIFs whose full strip does not fit the budget. Kept so a file that is too big
-#: is not re-decoded in full on every request, which would be slower than the
-#: targeted walk it falls back to.
+#: GIFs whose strip does not fit the budget, so they are not re-decoded in full every request.
 _uncacheable_strips: set[tuple[str, tuple[int, int]]] = set()
 _frame_strips_lock = threading.Lock()
-#: One decode at a time per GIF, so a burst of scrub requests for the same file
-#: does not each start their own full decode.
+#: One decode at a time per GIF so a scrub burst does not start N full decodes.
 _decode_locks: dict[str, threading.Lock] = {}
 _decode_locks_lock = threading.Lock()
 
@@ -69,9 +43,7 @@ class GifFrameUnavailableError(GifFrameError):
 def _count_frames(path: Path) -> int | None:
     try:
         with Image.open(path) as image:
-            # Pillow opens a PNG or a JPEG just as happily, and every caller here
-            # would then treat it as a one-frame animation. Checked on the decoded
-            # format rather than the suffix so a mislabelled file is caught too.
+            # Pillow opens PNG/JPEG too; reject on decoded format so a mislabelled file is caught.
             if image.format != "GIF":
                 return None
 
@@ -92,11 +64,7 @@ def _cache_token(path: Path) -> tuple[int, int] | None:
 
 
 def gif_frame_count(path: Path) -> int | None:
-    """How many frames the GIF holds, or ``None`` if it cannot be read.
-
-    Cached on ``(path, mtime_ns, size)`` because scrubbing asks for the same
-    count on every frame request.
-    """
+    """How many frames the GIF holds, or ``None`` if it cannot be read."""
     resolved = str(path.resolve())
     token = _cache_token(path)
     if token is not None:
@@ -135,11 +103,7 @@ def clear_gif_caches_for_tests() -> None:
 
 
 def _flatten(frame: Image.Image) -> Image.Image:
-    """A GIF frame as opaque RGB, compositing transparency over black.
-
-    JPEG has no alpha, so a transparent frame would otherwise encode its
-    undefined backing pixels.
-    """
+    """Opaque RGB, compositing transparency over black; JPEG has no alpha."""
     converted = frame.convert("RGBA")
     background = Image.new("RGB", converted.size, (0, 0, 0))
     background.paste(converted, mask=converted.split()[-1])
@@ -153,13 +117,7 @@ def _encode_jpeg(frame: Image.Image) -> bytes:
 
 
 def _read_gif_bytes(path: Path) -> bytes:
-    """The file slurped in one go, so no decode ever holds the handle.
-
-    Decoding straight from the path would keep the GIF open for the length of the
-    work - and the background warm outlives its request, which on Windows would
-    leave a file the user just scrubbed locked against being moved or deleted.
-    A GIF is small enough that reading it whole costs less than that risk.
-    """
+    """Slurp the file so no decode holds the path; a background warm would lock it on Windows."""
     try:
         return path.read_bytes()
     except OSError as exc:
@@ -195,11 +153,7 @@ def _walk_to_frame(path: Path, index: int) -> bytes:
 
 
 def _decode_strip(path: Path) -> list[bytes] | None:
-    """Every frame as JPEG bytes, or ``None`` if the strip outgrows the budget.
-
-    Abandoning an oversized decode matters: a strip that cannot be cached would
-    otherwise be rebuilt in full on every single request.
-    """
+    """Every frame as JPEG bytes, or ``None`` if the strip outgrows the budget."""
     data = _read_gif_bytes(path)
     total = 0
     strip: list[bytes] = []
@@ -250,9 +204,7 @@ def _decode_lock(key: str) -> threading.Lock:
     with _decode_locks_lock:
         lock = _decode_locks.get(key)
         if lock is None:
-            # Dropping the table wholesale is safe: a lock still held by a running
-            # decode keeps working, it just stops guarding new callers, and the
-            # cache re-check inside makes a duplicate decode wasteful, not wrong.
+            # Clearing is safe: a held lock still works; a duplicate decode is wasteful, not wrong.
             if len(_decode_locks) >= _MAX_FRAME_COUNT_CACHE:
                 _decode_locks.clear()
             lock = threading.Lock()
@@ -266,18 +218,13 @@ def _is_uncacheable(key: str, token: tuple[int, int]) -> bool:
 
 
 def warm_gif_frames(path: Path) -> bool:
-    """Decode and cache every frame. Returns whether a strip is now resident.
-
-    Synchronous, and the whole of the work :func:`extract_gif_frame` schedules in
-    the background. Call it directly to make the cache state deterministic.
-    """
+    """Decode and cache every frame. Returns whether a strip is now resident."""
     key = str(path.resolve())
     token = _cache_token(path)
     if token is None or _is_uncacheable(key, token):
         return False
 
     with _decode_lock(key):
-        # Another caller may have finished the decode while this one waited.
         if _strip_from_cache(key, token) is not None:
             return True
 
@@ -312,17 +259,7 @@ def _schedule_warm(path: Path, key: str, token: tuple[int, int]) -> None:
 
 
 def extract_gif_frame(path: Path, index: int) -> bytes:
-    """One frame as JPEG bytes.
-
-    Raises :class:`GifFrameUnavailableError` when the GIF has no frame at
-    ``index``, and :class:`GifFrameError` when it cannot be decoded.
-
-    A cache miss is answered by replaying the file up to ``index`` and warming the
-    full strip in the background, rather than by blocking on that decode. Both
-    halves matter: the walk keeps the first frame of a capture session as quick as
-    it ever was, and the strip means the scrub that follows stops re-reading the
-    animation from the start once per frame.
-    """
+    """One frame as JPEG bytes. Raises GifFrameUnavailableError / GifFrameError."""
     if index < 0:
         raise GifFrameUnavailableError("Frame index is out of range")
 
@@ -342,16 +279,7 @@ def extract_gif_frame(path: Path, index: int) -> bytes:
 
 
 def keyframe_indices(total_frames: int, count: int) -> list[int]:
-    """Up to ``count`` evenly spaced indices, de-duplicated and ascending.
-
-    The first and last frame are always among them, so the model sees where the
-    motion starts and where it ends up rather than a sample of the middle. A
-    sequence shorter than ``count`` yields every frame once rather than repeating
-    frames to pad the list out.
-
-    Lives here for history rather than for GIFs: ``automation.vision`` is now its
-    only caller, sampling videos with it. A GIF reaches the model as one frame.
-    """
+    """Up to ``count`` evenly spaced indices, always including first and last."""
     if total_frames <= 0 or count <= 0:
         return []
     if total_frames <= count:
@@ -362,18 +290,7 @@ def keyframe_indices(total_frames: int, count: int) -> list[int]:
 
 
 def extract_gif_first_frame(path: Path) -> Image.Image | None:
-    """The opening frame as opaque RGB, or ``None`` if the GIF cannot be read.
-
-    What the captioning jobs send: a GIF is described as a still, and this is the
-    frame they describe. It goes through :func:`_flatten` rather than a plain
-    ``convert("RGB")`` because that would discard the alpha without compositing,
-    leaving transparent pixels showing whatever colour the palette happens to hold
-    at the transparent index - a different backdrop per file, and a different one
-    again from the JPG the frame scrubber saves.
-
-    Decodes from an in-memory copy so the path is never held open across the read
-    (same Windows lock discipline as the frame endpoint).
-    """
+    """Opening frame as opaque RGB. Flatten rather than convert("RGB"), which would emit the transparent palette entry."""
     try:
         data = _read_gif_bytes(path)
         with _open_gif(data) as image:

@@ -9,10 +9,6 @@ interface GalleryProps {
   displayMode?: GalleryDisplayMode;
 }
 
-/**
- * Two layouts share the gallery: large cards keep each file's own shape and are
- * packed into columns, while small cards and list rows sit on uniform rows.
- */
 export function Gallery({ items, onSelect, displayMode = DEFAULT_DISPLAY_MODE }: GalleryProps) {
   if (items.length === 0) {
     return null;

@@ -1,5 +1,3 @@
-"""Unit tests for the JSON preference wrappers."""
-
 from __future__ import annotations
 
 import unittest

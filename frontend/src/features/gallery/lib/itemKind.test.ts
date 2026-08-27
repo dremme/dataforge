@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GalleryItem } from "@/shared/types";
 import { isEditableVideo, isGif, isMotion, isVideo, isVideoName, mediaLabelFor } from "./itemKind";
 
-/**
- * `media_type` is required on the wire, so the extension fallback is only ever
- * reachable at runtime - a cached item from before the field existed, or a
- * partial the server never sent. Passing `undefined` here is how that state is
- * reproduced, and the cast is what lets the test describe it.
- */
+/** media_type is required on the wire; undefined reproduces a partial item for the fallback. */
 function item(name: string, mediaType: GalleryItem["media_type"] | undefined): GalleryItem {
   return {
     name,
@@ -77,8 +72,7 @@ describe("isEditableVideo", () => {
   });
 
   it("refuses a container the browser cannot decode", () => {
-    // ffmpeg re-muxes matroska without complaint. The editor cannot: it reads its
-    // duration and frame size off the `<video>` element, which never decodes one.
+    // ffmpeg remuxes matroska; the editor reads duration off <video>, which never decodes one.
     expect(isEditableVideo(item("clip.mkv", "video"))).toBe(false);
   });
 

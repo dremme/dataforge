@@ -1,23 +1,14 @@
-// 1. Tokens
 @use "tokens/root";
-
-// 2. Base
 @use "base/reset";
 @use "base/scrollbar";
 @use "base/typography";
 @use "base/modal-locks";
-
-// 3. Utilities
 @use "utilities/icons";
 @use "utilities/animations";
 @use "utilities/text";
 @use "utilities/skeleton";
 @use "utilities/sticky";
-
-// 4. Layout
 @use "layout/app";
-
-// 5. Components (alphabetical)
 @use "components/anchored";
 @use "components/automation";
 @use "components/breadcrumbs";
@@ -52,5 +43,5 @@
 @use "components/video-frame-bar";
 @use "components/zoomable-image";
 
-// 6. Overrides that must outrank the component layer
+// Must load after the component layer: equal specificity, source order wins.
 @use "utilities/reduced-motion";

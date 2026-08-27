@@ -137,8 +137,7 @@ def comfy_handler(*, fail_on: set[str] | None = None):
 def run_with(handler, folder: Path, *, preset: str = "upscale", **kwargs: object) -> dict:
     """Run the job against a mocked ComfyUI."""
 
-    # Bound before the patch: `httpx.Client` is what gets replaced, so looking it up
-    # inside the factory would call the factory again.
+    # Bound before the patch: looking up `httpx.Client` inside the factory would recurse.
     real_client = httpx.Client
 
     def make_client(*_args: object, **_kwargs: object) -> httpx.Client:
@@ -168,8 +167,7 @@ class ValidateTests(unittest.TestCase):
             self.assertIn("staging folder", str(caught.exception))
 
     def test_an_unknown_preset_surfaces_as_a_value_error(self) -> None:
-        # ValueError is what the route turns into a 400; a ComfyWorkflowError escaping
-        # here would be a 500 and lose the message that names the fix.
+        # ValueError is a 400; a ComfyWorkflowError escaping here would be a 500.
         with Workspace() as workspace, self.assertRaises(ValueError):
             validate_comfy_process_folder(workspace.folder, preset="nope")
 
@@ -184,8 +182,7 @@ class ValidateTests(unittest.TestCase):
         self.assertIn("No images", str(caught.exception))
 
     def test_a_prompt_is_refused_when_the_preset_has_nowhere_to_put_it(self) -> None:
-        # build_comfy_prompt has no node to write to and would drop the text in silence,
-        # which looks exactly like a prompt the model ignored.
+        # build_comfy_prompt has no node to write to and would drop the text in silence.
         with Workspace() as workspace, self.assertRaises(ValueError) as caught:
             validate_comfy_process_folder(
                 workspace.folder, preset="upscale", prompt_text="sharp photograph"
@@ -283,11 +280,7 @@ class RunJobTests(unittest.TestCase):
             self.assertEqual(stored.prompt_id, "p-1")
 
     def test_a_candidate_records_how_far_it_moved_from_the_source(self) -> None:
-        """Scored during the run, so the review queue never has to open two files.
-
-        The fixture images are flat, which hashes to zero on both sides - what is under
-        test is that a number was written at all, not what it was.
-        """
+        """Scored during the run, so the review queue never has to open two files."""
         with Workspace(names=("a.png",)) as workspace:
             run_with(comfy_handler(), workspace.folder)
 
@@ -296,8 +289,7 @@ class RunJobTests(unittest.TestCase):
             self.assertIsNotNone(stored.difference_percent)
 
     def test_the_candidate_keeps_the_sources_format(self) -> None:
-        # ComfyUI returns PNG; a JPEG source must come back JPEG or its sidecars would
-        # be orphaned the moment the candidate was accepted.
+        # ComfyUI returns PNG; a JPEG source must come back JPEG or sidecars would be orphaned.
         with Workspace(names=()) as workspace:
             Image.new("RGB", (16, 16), "red").save(workspace.folder / "photo.jpg")
 
@@ -334,8 +326,7 @@ class RunJobTests(unittest.TestCase):
             self.assertEqual(result["processed"], result["total"])
 
     def test_a_partly_skipped_run_finishes_at_the_total(self) -> None:
-        # The reported shape: most files process, a couple already have candidates, and
-        # the run used to stop short of 100% by exactly that couple.
+        # The run used to stop short of 100% by the count of already-staged candidates.
         with Workspace(names=("a.png",)) as workspace:
             run_with(comfy_handler(), workspace.folder)
             Image.new("RGB", (16, 16), "red").save(workspace.folder / "b.png")
@@ -376,8 +367,7 @@ class RunJobTests(unittest.TestCase):
         with Workspace(names=("a.png", "b.png", "c.png")) as workspace:
             result = run_with(comfy_handler(), workspace.folder, should_cancel=lambda: True)
 
-            # Cancelled between files, before anything was sent: every file is credited
-            # as cancelled and none as done.
+            # Cancelled between files, before anything was sent.
             self.assertEqual(result["stats"]["cancelled"], 3)
             self.assertEqual(result["stats"].get("success", 0), 0)
             self.assertEqual(result["processed"], 0)
@@ -385,8 +375,7 @@ class RunJobTests(unittest.TestCase):
 
 class AwaitOutputTests(unittest.TestCase):
     def test_a_cancel_mid_image_raises_rather_than_waiting_it_out(self) -> None:
-        # run_media_job only checks between files, so at a minute an image a cancel
-        # would otherwise look dead for the length of whatever is in flight.
+        # run_media_job only checks between files; cancel must also interrupt an in-flight image.
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/queue":
                 return httpx.Response(200, json={"queue_running": [], "queue_pending": []})
@@ -410,8 +399,7 @@ class AwaitOutputTests(unittest.TestCase):
         ) as client:
             ref = _await_output(client, "p-1", should_cancel=None)
 
-        # Last wins: a graph that previews an intermediate step and saves the final one
-        # lists them in execution order.
+        # Last wins: preview then save lists them in execution order.
         self.assertEqual(ref["filename"], "final.png")
 
     def test_a_run_that_produced_nothing_says_so(self) -> None:
@@ -446,8 +434,7 @@ class RequestStopTests(unittest.TestCase):
         self.assertIn("/interrupt", calls)
 
     def test_someone_elses_prompt_is_never_interrupted(self) -> None:
-        # The sharpest trap in the feature: interrupting here would kill another job's
-        # image, or the user's own work in the ComfyUI tab.
+        # Interrupting here would kill another job's image, or work in the ComfyUI tab.
         calls: list[str] = []
         payload = {"queue_running": [[0, "someone-else", {}]], "queue_pending": []}
 

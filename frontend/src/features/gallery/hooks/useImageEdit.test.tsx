@@ -46,10 +46,6 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
   return { crop: null, mirror_h: false, mirror_v: false, rotate: 0, scale: 1, ...overrides };
 }
 
-/**
- * jsdom decodes nothing, so the hook is handed a stand-in element rather than waiting
- * for a `load` that would never carry a size.
- */
 function decoded(width = 1920, height = 1080) {
   return { naturalWidth: width, naturalHeight: height } as HTMLImageElement;
 }
@@ -73,7 +69,6 @@ function renderEdit(overrides: Partial<UseImageEditOptions> = {}) {
   return { ...view, setEditMode, onEdited, initial };
 }
 
-/** Renders, then reports the size the panel is gated on. */
 async function renderReady(overrides: Partial<UseImageEditOptions> = {}) {
   const view = renderEdit(overrides);
   await act(async () => {
@@ -299,9 +294,7 @@ describe("useImageEdit", () => {
     });
 
     it("survives the listing learning about the backup it just made", async () => {
-      // The apply flips `has_backup` when the folder reloads. The `<img>` is not reloaded
-      // with it - it was already showing the original - so anything that reset on that
-      // field would clear the frame size with nothing left to fire `load` again.
+      // Apply flips has_backup; resetting on it clears the frame size with nothing to fire load.
       const { result, rerender, initial } = await renderReady();
 
       act(() => result.current.rotateClockwise());
@@ -448,9 +441,7 @@ describe("useImageEdit", () => {
     });
 
     it("puts the original back when every value is dialled to where it started", async () => {
-      // An edited image has to be able to come back upright. Comparing against an
-      // untouched source rather than against what is on disk left Apply permanently
-      // disabled here, and the server refuses a spec that changes nothing in any case.
+      // Identity vs on-disk spec: an untouched source left Apply disabled on a return upright.
       fetchStateMock.mockResolvedValue({
         path: PHOTO,
         has_backup: true,

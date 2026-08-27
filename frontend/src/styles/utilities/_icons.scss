@@ -1,6 +1,5 @@
 @use "../abstracts/mixins" as *;
 
-// Lucide icons use explicit pixel sizes (via icon-size mixin) for crisp strokes.
 .lucide {
   display: block;
   flex-shrink: 0;
@@ -10,17 +9,7 @@
   fill: none;
 }
 
-// Lucide draws on a 24-unit viewBox, so scaling its 2-unit stroke into a 16px box
-// renders a 1.333px line: never a whole pixel, always smeared. `non-scaling-stroke`
-// reads the width in CSS pixels instead of viewBox units, which is what makes it
-// land. Safe across the set: no lucide icon uses stroke-dasharray, so nothing here
-// depends on the stroke scaling with the shape.
-//
-// The width has to be EVEN. Lucide's geometry sits on the 24-grid, which scales to
-// whole-pixel positions, and a stroke is centred on its path - so an odd width
-// straddles two pixels and fills neither, while an even one covers both outright.
-// Measured over a rasterised icon, the share of fully covered pixels at 16px is
-// 0.02 at 1px against 0.45 at 2px; at 24px it is 0.00 against 0.88.
+// `non-scaling-stroke` keeps the 2px stroke in CSS pixels (a 16px box would otherwise smear a 1.333px line). Width must be even: Lucide geometry sits on the 24-grid and an odd stroke straddles two pixels.
 .lucide :is(path, circle, line, rect, polyline, polygon, ellipse) {
   vector-effect: non-scaling-stroke;
   stroke-width: var(--icon-stroke, 2px);
@@ -30,7 +19,6 @@
   @include spin;
 }
 
-// Separator dot between inline metadata bits, in place of a "·" character.
 .app-icon--dot {
   display: inline-block;
   vertical-align: middle;

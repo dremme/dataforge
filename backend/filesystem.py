@@ -45,11 +45,6 @@ def list_folder_roots() -> list[dict[str, str]]:
     return roots
 
 
-# ---------------------------------------------------------------------------
-# Path handling (single entry point for host + cross-OS path strings)
-# ---------------------------------------------------------------------------
-
-
 def looks_like_windows_path(path: str) -> bool:
     """True for drive roots / absolute Windows paths (``C:\\...`` or ``C:/...``)."""
     text = path.strip()
@@ -61,11 +56,7 @@ def looks_like_windows_path(path: str) -> bool:
 
 
 def normalize_user_path(path: str) -> Path:
-    """Resolve a client path string against the **host** filesystem.
-
-    - Windows: accept ``/`` or ``\\``, uppercase bare drive roots (``c:`` → ``C:\\``).
-    - POSIX: leave ``/`` alone (never convert to ``\\`` — that breaks real paths/CI).
-    """
+    """Resolve a client path against the host filesystem. POSIX never converts ``/`` to ``\\``."""
     text = path.strip()
     if not text:
         return Path.cwd().resolve()
@@ -81,11 +72,7 @@ def normalize_user_path(path: str) -> Path:
 
 
 def path_leaf_name(path: str | Path) -> str:
-    """Last path segment, safe for Windows-style strings on any host OS.
-
-    ``Path(r"C:\\\\a\\\\b").name`` is wrong on POSIX (``\\\\`` is not a separator).
-    Prefer :class:`~pathlib.PureWindowsPath` when the string looks Windows-like.
-    """
+    """Last path segment. ``Path(r"C:\\\\a\\\\b").name`` is wrong on POSIX."""
     text = str(path).strip()
     if not text:
         return ""
@@ -100,12 +87,7 @@ def path_leaf_name(path: str | Path) -> str:
 
 
 def preference_folder_key(path: str) -> str:
-    """Stable preference-map key for a folder path.
-
-    Host paths resolve on the host OS. Windows-style strings (including fixtures
-    and Windows clients) stay Windows-shaped via :class:`~pathlib.PureWindowsPath`
-    so write/read keys match on Linux CI.
-    """
+    """Stable preference-map key. Windows-style strings stay Windows-shaped so keys match on Linux CI."""
     text = path.strip()
     if not text:
         return text
@@ -130,7 +112,6 @@ def preference_folder_key(path: str) -> str:
 
 
 def folder_display_name(path: str | Path) -> str:
-    """Short UI label for a folder (drive root letter, else leaf name)."""
     if isinstance(path, Path):
         resolved = path
         if resolved.drive and resolved == Path(resolved.anchor):
@@ -140,7 +121,6 @@ def folder_display_name(path: str | Path) -> str:
 
 
 def resolve_folder(path: str) -> Path:
-    """Normalize and require an existing directory (API helper)."""
     folder = normalize_user_path(path)
     if not folder.exists():
         raise HTTPException(status_code=404, detail="Folder not found")
@@ -176,7 +156,6 @@ def _subfolder_with_stats(entry: Path) -> dict[str, str | int]:
 
 
 def _iter_child_directories(folder: Path) -> list[Path]:
-    """Immediate listable child directories, sorted by name (no content stats)."""
     scan = scan_folder(folder)
     if scan is None:
         return []
@@ -184,7 +163,6 @@ def _iter_child_directories(folder: Path) -> list[Path]:
 
 
 def list_child_folders(folder: Path) -> list[dict[str, str]]:
-    """Lightweight child folder list: name + path only (no media/caption scans)."""
     return [{"name": entry.name, "path": str(entry)} for entry in _iter_child_directories(folder)]
 
 
@@ -226,7 +204,6 @@ def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:
 
 
 def list_subfolders(folder: Path) -> list[dict[str, str | int]]:
-    """Child folders with per-folder media/caption stats (for the main gallery listing)."""
     subfolder_entries = _iter_child_directories(folder)
     if not subfolder_entries:
         return []

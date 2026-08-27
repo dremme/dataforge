@@ -26,8 +26,6 @@ OSTRIS_TRAIN_POLL_INTERVAL_SECONDS = 3.0
 OSTRIS_SAVE_MAX_WAIT_SECONDS = 1800.0
 OSTRIS_STOP_MAX_WAIT_SECONDS = 300.0
 DEFAULT_OSTRIS_GPU_IDS = "0"
-# Queued and stopping runs matter now that DataForge creates jobs: a run has to be
-# visible from the moment it is queued, not only once training actually starts.
 ACTIVE_OSTRIS_STATUSES = frozenset({"running", "queued", "stopping"})
 TERMINAL_OSTRIS_STATUSES = frozenset({"stopped", "completed", "error"})
 

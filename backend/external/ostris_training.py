@@ -25,8 +25,6 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "ostris-templates"
 
 DEFAULT_TRAINING_MODEL = "krea2_turbo"
 
-# One template per supported model. Adding a model is a new YAML plus a line here,
-# kept in step with ``TrainingModel`` in ``schemas.py`` - ``test_schemas.py`` guards the pair.
 TRAINING_TEMPLATES: dict[str, str] = {
     "krea2_turbo": "krea2-turbo.yml",
     "h3_fl2va": "h3-fl2va.yml",
@@ -34,12 +32,9 @@ TRAINING_TEMPLATES: dict[str, str] = {
 
 SAMPLES_DIR_NAME = "samples"
 
-# A per-job template override arrives as text in the start request. The shipped templates
-# are ~2 KB, so this only rules out something that was never a template.
 MAX_TEMPLATE_TEXT_LENGTH = 256 * 1024
 
 MAX_LORA_NAME_LENGTH = 80
-# The name becomes a folder under the AI-Toolkit training folder.
 INVALID_NAME_CHARACTERS = frozenset('<>:"/\\|?*')
 
 # Ostris writes samples as "<epoch millis>__<step zero-padded to 9>_<prompt index>.<ext>".
@@ -77,11 +72,7 @@ def _process_config(config: dict[str, Any], source: str = "training template") -
 
 
 def read_training_template_text(model: str = DEFAULT_TRAINING_MODEL) -> str:
-    """The template exactly as it sits on disk, placeholders and comments intact.
-
-    This is what the editor shows, so it must stay the raw text: parsing and re-dumping
-    would drop every comment explaining what the settings mean.
-    """
+    """The template exactly as it sits on disk; parsing and re-dumping would drop comments."""
     filename = TRAINING_TEMPLATES.get(model)
     if filename is None:
         raise OstrisTrainingError(f'Unknown training model "{model}".')
@@ -93,11 +84,7 @@ def read_training_template_text(model: str = DEFAULT_TRAINING_MODEL) -> str:
 
 
 def parse_training_template(raw: str, *, source: str = "training template") -> dict[str, Any]:
-    """Parse template YAML and check it has the shape ``build_training_config`` fills.
-
-    Every failure here is something the user can see and fix in the editor, so the
-    messages name the missing piece rather than the exception.
-    """
+    """Parse template YAML and check it has the shape ``build_training_config`` fills."""
     if len(raw) > MAX_TEMPLATE_TEXT_LENGTH:
         raise OstrisTrainingError(
             f"The {source} is larger than {MAX_TEMPLATE_TEXT_LENGTH // 1024} KB."

@@ -1,18 +1,4 @@
-"""Pixel size and video length from a media file header, not its sample data.
-
-The gallery reports megapixels and (for video) duration per item, so a listing
-needs those facts for every file it returns - hundreds per folder, on the path
-every navigation waits for. Both probes therefore stop at the header: Pillow
-reads an image header without decoding it, and an MP4-family video is walked box
-by box to its track and media headers, seeking over the sample data rather than
-reading it. The result is memoized against the file's stat signature, so
-re-listing an unchanged folder costs no file access at all.
-
-A container outside that family - matroska, avi, asf, flv - has no size or
-length here at all. Reading one would mean a parser per format or an ffprobe
-subprocess per file on the listing path, and the gallery already renders a
-missing fact as an empty cell.
-"""
+"""Pixel size and video length from a media file header, not its sample data. Non-MP4-family containers return empty."""
 
 from __future__ import annotations
 
@@ -34,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 _NAMESPACE = "media-info"
 
-#: A `moov` box past this is not a header any more, and is not worth the read.
+#: A `moov` box past this is not a header any more.
 _MAX_MOOV_BYTES = 8 << 20
 
 type Dimensions = tuple[int, int] | None
@@ -60,24 +46,8 @@ def _image_dimensions(path: Path) -> Dimensions:
         return None
 
 
-# ---------------------------------------------------------------------------
-# ISOBMFF (.mp4, .mov, .m4v) boxes
-#
-# Only enough of the container to reach `moov/trak/tkhd` for size and
-# `mdia/mdhd` (or `mvhd`) for length. Sizes come in three forms - a 32-bit
-# size, 1 for a 64-bit size that follows the type, and 0 for "runs to the
-# end" - and getting any of them wrong walks into the middle of a box, so
-# each is handled rather than assumed away.
-# ---------------------------------------------------------------------------
-
-
 def _read_moov(handle: BinaryIO, file_size: int) -> bytes | None:
-    """The `moov` box, seeking over every box before it.
-
-    Encoders put `moov` either in front of the sample data or behind it, and the
-    file is only ever read where a box header actually sits, so a trailing `moov`
-    costs the same handful of seeks as a leading one.
-    """
+    """The `moov` box, seeking over every box before it. Size 1 is 64-bit; size 0 runs to the end."""
     position = 0
 
     while position + 8 <= file_size:
@@ -178,7 +148,6 @@ def _timescale_duration(data: bytes, start: int, end: int) -> float | None:
 
 
 def _track_info(data: bytes, start: int, end: int) -> tuple[Dimensions, float | None]:
-    """Display size and media-header duration from one ``trak``, in a single walk."""
     dimensions: Dimensions = None
     duration: float | None = None
     for kind, payload, box_end in _iter_boxes(data, start, end):
@@ -206,9 +175,7 @@ def _video_info(path: Path, file_size: int) -> MediaInfo:
         logger.debug("No video header for %s: no moov box", path)
         return MediaInfo()
 
-    # The largest picture track rather than the first: a sound track is 0x0, and
-    # a file with several picture tracks is showing the biggest one. ``mvhd`` is
-    # the length fallback when the winning track has no ``mdhd``.
+    # Largest picture track, not the first: a sound track is 0x0. ``mvhd`` is the length fallback.
     largest: Dimensions = None
     track_duration: float | None = None
     movie_duration: float | None = None
@@ -237,13 +204,7 @@ def _image_info(path: Path) -> MediaInfo:
 
 
 def media_info(path: Path, media_type: str, mtime_ns: int, size: int) -> MediaInfo:
-    """Pixel size and, for an MP4-family video, length in seconds.
-
-    Missing facts are ``None``: unreadable, malformed, or a type that has no
-    header we can walk. The gallery treats those the same way - an empty cell.
-    ``size`` is the listing's already-paid-for stat, so the probe never stats
-    the file a second time.
-    """
+    """Pixel size and, for an MP4-family video, length in seconds. Missing facts are ``None``."""
     if media_type == "video":
         return cached_by_stat(_NAMESPACE, path, mtime_ns, size, lambda: _video_info(path, size))
     if media_type in {"image", "gif"}:
@@ -252,12 +213,7 @@ def media_info(path: Path, media_type: str, mtime_ns: int, size: int) -> MediaIn
 
 
 def media_dimensions(path: Path, media_type: str, mtime_ns: int, size: int) -> Dimensions:
-    """``(width, height)`` for ``path``, or ``None`` when they cannot be read.
-
-    ``None`` covers a file that is unreadable, malformed, or of a type that has no
-    pixel dimensions at all, because the gallery treats all three the same way: it
-    leaves the megapixel column of that row empty.
-    """
+    """``(width, height)``, or ``None`` when they cannot be read."""
     info = media_info(path, media_type, mtime_ns, size)
     if info.width is None or info.height is None:
         return None

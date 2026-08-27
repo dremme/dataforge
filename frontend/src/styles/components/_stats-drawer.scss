@@ -1,11 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .stats-button
-// ---------------------------------------------------------------------------
-
-// Sits beside `.jobs-button` in the toolbar and matches it, minus the activity dot.
 .stats-button {
   @include pill-btn-ghost(0.4rem);
   padding: 0 0.5625rem;
@@ -20,10 +15,6 @@
     background: var(--accent-soft);
   }
 }
-
-// ---------------------------------------------------------------------------
-// .stats-drawer
-// ---------------------------------------------------------------------------
 
 .stats-drawer {
   position: fixed;
@@ -42,8 +33,6 @@
     right: 0;
     display: flex;
     flex-direction: column;
-    // Narrower than the jobs drawer: every row here is a label and a figure,
-    // where a job card carries a folder path and a progress bar.
     width: min(100%, 24rem);
     height: 100%;
     background: var(--bg-elevated);
@@ -52,8 +41,7 @@
     pointer-events: auto;
     animation: drawer-slide-in 0.22s ease;
 
-    // A sheet leaves the way it arrived. Two classes beat the generic
-    // `.modal-panel--exit` fade on specificity, so load order does not matter.
+    // Two classes beat `.modal-panel--exit` fade on specificity, so load order does not matter.
     &.modal-panel--exit {
       animation: drawer-slide-out 0.18s ease-in both;
     }
@@ -116,16 +104,6 @@
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Statistics
-  //
-  // One column, and one hue on the distribution charts: bar length already
-  // encodes every count there, so the colour channel stays unspent rather than
-  // re-stating it. The media mix is the exception — colour names the filename
-  // suffix, width is its share of the folder. Status colours appear only where
-  // they actually mean good or bad.
-  // ---------------------------------------------------------------------------
-
   &__stats {
     display: flex;
     flex-direction: column;
@@ -135,8 +113,6 @@
   &__section {
     min-width: 0;
 
-    // The lead block owns the drawer's one hero figure, so it carries more air
-    // beneath it than the sections that follow.
     &--lead {
       padding-bottom: 0.25rem;
     }
@@ -159,8 +135,6 @@
     }
   }
 
-  // Hero figure: the one number the drawer leads with. Proportional figures, not
-  // tabular — equal-width digits make a short number look loose at this size.
   &__hero {
     display: flex;
     align-items: baseline;
@@ -173,8 +147,7 @@
     color: var(--text);
 
     &-value {
-      // Proportional figures, not tabular: this number stands alone rather than
-      // aligning in a column, and equal-width digits look loose at 3rem.
+      // Proportional, not tabular: equal-width digits look loose at 3rem.
       font-variant-numeric: normal;
     }
 
@@ -191,8 +164,6 @@
     }
   }
 
-  // Meter: the unfilled track is a dim step of the fill's own hue, so the state
-  // reads across the whole bar rather than only where the fill reaches.
   &__meter {
     height: 0.5rem;
     border-radius: var(--radius-pill);
@@ -206,8 +177,6 @@
     }
   }
 
-  // Status never rides on colour alone - every one of these pairs its hue with an
-  // icon and the words that say the same thing.
   &__status {
     display: flex;
     align-items: center;
@@ -225,8 +194,6 @@
       color: var(--warning);
     }
 
-    // Duplicates. Accent rather than amber, so it reads as work to do rather than as
-    // a defect, and matches the accent the card badge and the resolver already use.
     &--info {
       color: var(--accent);
     }
@@ -236,13 +203,11 @@
     }
   }
 
-  // Stat tiles: a handful of headline numbers, side by side.
   &__tiles {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
 
-    // Caption length stacks tiles on the chart; Media tiles sit on the mix bar.
     + .stats-drawer__chart,
     + .stats-drawer__mix {
       margin-top: 0.875rem;
@@ -279,8 +244,6 @@
     color: var(--text-muted);
   }
 
-  // Stacked share of filename suffixes. Colour is the suffix; width is the
-  // percentage. Gaps keep neighbouring hues from blending at the join.
   &__mix {
     margin: 0;
 
@@ -290,8 +253,7 @@
       gap: 0.125rem;
     }
 
-    // Two classes so this beats `.tooltip` from `_tooltip.scss`, which loads later
-    // and would otherwise shrink the slice to an unhoverable inline box.
+    // Two classes so this beats `.tooltip` from `_tooltip.scss`, which loads later and would shrink the slice to an unhoverable inline box.
     &-cell.tooltip {
       flex-basis: 0;
       flex-shrink: 1;
@@ -322,7 +284,6 @@
       display: block;
       width: 100%;
       height: 100%;
-      // Unknown suffix: a neutral sliver rather than borrowing a named hue.
       background: #94a3b8;
 
       &[data-extension=".png"] {
@@ -376,10 +337,6 @@
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Bar chart
-  // ---------------------------------------------------------------------------
-
   &__chart {
     margin: 0;
   }
@@ -390,8 +347,6 @@
     gap: 0.125rem;
     margin: 0;
 
-    // Bucket labels are short and uniform ("< 256"); words vary, so they get more
-    // room and truncate rather than wrapping the row.
     &--narrow {
       --stats-label-width: 4.75rem;
     }
@@ -433,8 +388,6 @@
     min-width: 0;
     height: 0.375rem;
     border-radius: var(--radius-pill);
-    // One step off the surface: present enough to show the full scale, recessive
-    // enough that the fill is what the eye lands on.
     background: var(--surface-hover);
   }
 

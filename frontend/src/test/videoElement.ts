@@ -1,11 +1,4 @@
-/**
- * jsdom's `HTMLMediaElement` reports `duration` as `NaN` and no intrinsic size, so
- * anything gated on loaded video metadata never becomes reachable in a test. This
- * defines those readings on the prototype and hands back a restore function.
- *
- * The restore is not optional: `vi.restoreAllMocks()` does not undo
- * `Object.defineProperty`, so a test that skips it leaks into the next file.
- */
+/** jsdom reports `NaN` duration; restore is needed as `restoreAllMocks` skips `defineProperty`. */
 export function stubVideoElement({
   duration = 12,
   width = 1920,

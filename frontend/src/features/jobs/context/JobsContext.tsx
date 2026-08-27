@@ -39,14 +39,10 @@ import {
 // Fast poll only when the push stream is down.
 export const DISCONNECTED_ACTIVE_POLL_MS = 1000;
 export const DISCONNECTED_IDLE_POLL_MS = 8000;
-// Reconciliation while the stream is up. Push covers progress; this covers what push
-// cannot: a deleted job (which publishes nothing at all) and a dropped terminal frame,
-// which is the last one a job ever sends and so is never restated.
+// Slow reconciliation while connected: push misses deleted jobs and dropped terminal frames.
 export const CONNECTED_ACTIVE_POLL_MS = 15000;
 export const CONNECTED_IDLE_POLL_MS = 60000;
-// A hidden tab has given up its stream on purpose. Without this it would read as
-// "disconnected" and poll on the fast cadence - the opposite of what is wanted, and
-// worse than before it dropped the stream.
+// Hidden tabs drop the stream on purpose; do not treat that as disconnected (fast poll).
 export const HIDDEN_POLL_MS = 60000;
 
 function jobsPollDelay(streamConnected: boolean, hasActiveJobs: boolean): number {
@@ -77,7 +73,6 @@ interface JobsContextValue {
   stoppingOstrisJobId: string | null;
   closeDrawer: () => void;
   toggleDrawer: () => void;
-  /** Starts any job type; ``body`` carries whatever that type's route expects. */
   startJob: (
     jobType: JobType,
     folderPath: string,
@@ -106,9 +101,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const refreshGenerationRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<JobsRefreshResult> | null>(null);
   const refreshQueuedRef = useRef(false);
-  // Jobs pushed while a refresh request was open. That request was answered from
-  // state older than the push, so applying its snapshot as-is would roll those jobs
-  // back until the next poll - visibly, for the seconds between safety polls.
+  // Pushes that race an in-flight refresh must be reapplied; the response is older than the push.
   const pushedDuringRefreshRef = useRef<Map<string, Job>>(new Map());
   const refreshAllJobsRef = useRef<() => Promise<JobsRefreshResult>>(async () => ({
     internal: { jobs: [], active_count: 0 },
@@ -132,8 +125,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         while (refreshQueuedRef.current) {
           refreshQueuedRef.current = false;
           const generation = ++refreshGenerationRef.current;
-          // Cleared synchronously with the request going out, so the map ends up
-          // holding exactly the pushes that raced this response.
           pushedDuringRefreshRef.current.clear();
 
           const [internal, external] = await Promise.all([
@@ -145,9 +136,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
           last = { internal, external };
 
-          // Only the newest generation may apply: an older response must not clobber
-          // a later hydrate. Pushes that raced this one are newer than anything in it,
-          // so they go back on top of the snapshot rather than being overwritten by it.
           if (generation === refreshGenerationRef.current) {
             const pushed = [...pushedDuringRefreshRef.current.values()];
             setJobs(pushed.reduce((merged, job) => upsertJob(merged, job), internal.jobs));
@@ -159,8 +147,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         return last;
       } finally {
         refreshInFlightRef.current = null;
-        // A caller may have queued after the last loop check but before we
-        // cleared in-flight; kick another run so that request is not dropped.
         if (refreshQueuedRef.current) {
           void refreshAllJobsRef.current();
         }
@@ -174,8 +160,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
   refreshAllJobsRef.current = refreshAllJobs;
 
-  // `/api/external/ostris/jobs` only ever lists runs that are still going, so its
-  // length is the external active count.
   const activeCount = useMemo(
     () => jobs.filter((job) => isActiveJobStatus(job.status)).length + externalJobs.length,
     [jobs, externalJobs],
@@ -188,9 +172,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Matched explicitly rather than as an else: an unrecognised frame must be inert,
-    // not read as an external-jobs one. Reading it as one sets `externalJobs` to
-    // undefined, which throws in `activeCount` below and takes the whole provider down.
+    // Unrecognised frames stay inert; as external-jobs they set jobs to undefined and throw.
     if (event.type === "external_jobs") {
       setExternalJobs(event.jobs);
       setOstrisAvailable(event.available);
@@ -198,13 +180,9 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // A fresh connection may have missed changes while it was down, and the stream
-    // carries no history, so start again from the full state.
     if (streamConnected) void refreshAllJobs();
   }, [streamConnected, refreshAllJobs]);
 
-  // Always poll: fast when the stream is down, slow while it is up. Push cannot be the
-  // only source - see the cadence constants for what it misses.
   useEffect(() => {
     let cancelled = false;
     let timeoutId = 0;
@@ -230,8 +208,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     };
   }, [streamConnected, refreshAllJobs]);
 
-  // Other tabs (and any missed SSE frames) leave this tab's list stale. Re-fetch
-  // when the user is about to look at jobs, or when they return to this tab.
   useEffect(() => {
     if (!drawerOpen) return;
     void refreshAllJobs();
@@ -273,10 +249,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     }
   }, [jobs, notify]);
 
-  // Keep the transient "cancelling" indicator for a job until we observe (via poll or refresh)
-  // that it has left the active (queued/running) state. This is especially noticeable for
-  // long-per-item jobs like auto-caption, where the runner may still be finishing the current
-  // file after the cancel flag was set.
+  // Keep "cancelling" until the job leaves queued/running; slow jobs finish the file first.
   useEffect(() => {
     if (cancellingJobId) {
       const cjob = jobs.find((j) => j.id === cancellingJobId);
@@ -331,10 +304,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       try {
         const job = await cancelJob(jobId);
         await refreshAllJobs();
-        // Do not clear cancellingJobId here. The effect above will clear it once
-        // a subsequent jobs update shows that this job is no longer active/running.
-        // This keeps the "Cancelling..." spinner visible until the runner has actually
-        // reacted to the cancel (important for auto-caption and other slow-per-item jobs).
         return job;
       } catch (error) {
         notify({ variant: "danger", message: formatApiError(error) });

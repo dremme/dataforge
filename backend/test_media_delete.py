@@ -1,5 +1,3 @@
-"""Tests for media_delete: Windows Recycle Bin vs permanent unlink."""
-
 from __future__ import annotations
 
 import sys

@@ -1,11 +1,4 @@
-"""Lightweight folder signatures for folder change detection.
-
-Change detection asks "did anything move?" every few seconds. A fingerprint answers
-that in one hash, but answering it with *yes* used to mean refetching the whole folder
-— every item, with its full caption text — because that was the only shape the API
-could produce. :class:`FolderSignature` keeps the per-entry detail behind the
-fingerprint so the same question can be answered with *what* moved instead.
-"""
+"""Folder signatures for change detection."""
 
 from __future__ import annotations
 
@@ -28,25 +21,15 @@ from folder_scan import FolderScan, folder_entries_in_order, scan_folder
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]
 
-#: Looked up against the media's stem, which is where captions live.
 _SIDECAR_EXTENSIONS = CAPTION_SIDECAR_EXTENSIONS
 
-#: Looked up against the media's whole filename: the findings, plus the editor backup
-#: whose presence the gallery item reports as ``has_backup``.
-#: Every suffix here has to appear in *both* the fingerprint and the item signature - a
-#: suffix in only the first makes the folder look changed while the delta reports every
-#: item unchanged, so the flag stays stale until something forces a full refetch.
-#: Candidates live in ``staging/`` rather than beside the media; they are appended
-#: from ``scan.candidates`` in both places for the same reason.
+#: Whole-filename sidecars. Every suffix must appear in the fingerprint and the item signature.
 _FINDING_SIDECAR_SUFFIXES = (
     ISSUE_SIDECAR_SUFFIX,
     DUPLICATE_SIDECAR_SUFFIX,
     EDIT_BACKUP_SUFFIX,
 )
 
-#: Two generations for each of a handful of folders: enough to answer the next poll
-#: for the folder in view and the one just navigated away from, without holding an
-#: item map for every folder ever visited.
 MAX_REMEMBERED_SIGNATURES = 16
 
 
@@ -92,24 +75,14 @@ def compute_folder_fingerprint(folder: Path) -> str | None:
 
 @dataclass(frozen=True)
 class FolderSignature:
-    """One listing of one folder, broken down finely enough to diff.
-
-    ``items`` maps a media file's name to a signature covering the file *and* its
-    sidecars, because a caption rewrite changes the item the client shows without
-    touching the media file at all.
-
-    ``shell`` covers the parts of a folder response that are not items — the child
-    directories and the sysprompt. A change there is rare and drags in data the delta
-    does not carry, so it sends the client back for a full response instead.
-    """
+    """``items`` covers the file and its sidecars; a ``shell`` change forces a full refetch."""
 
     fingerprint: str
     items: dict[str, ItemSignature]
     shell: tuple[EntrySignature, ...]
 
 
-#: Stands in for a sidecar that is not there, so gaining or losing one shows up as a
-#: change rather than as a shorter tuple that happens to compare equal.
+#: Stands in for a missing sidecar so gaining or losing one shows up as a change.
 _ABSENT_SIDECAR = (-1, -1)
 
 
@@ -125,9 +98,6 @@ def _item_signature(
         sidecar = scan.files.get(f"{stem}{extension}")
         parts.append(_ABSENT_SIDECAR if sidecar is None else (sidecar.mtime_ns, sidecar.size))
 
-    # The whole-filename sidecars belong here too, not only in the fingerprint: gaining
-    # an issue, a duplicate finding or an archive changes what the card renders while
-    # leaving the media file untouched.
     for suffix in _FINDING_SIDECAR_SUFFIXES:
         finding = scan.files.get(f"{name}{suffix}")
         parts.append(_ABSENT_SIDECAR if finding is None else (finding.mtime_ns, finding.size))
@@ -147,8 +117,7 @@ def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
     shell: list[EntrySignature] = []
     for entry in scan.dirs:
         if entry.name == STAGING_DIR_NAME:
-            # Files inside staging are tracked per-item as candidates. Using this
-            # directory's mtime would full-reload the gallery on every write.
+            # Staging files are tracked per-item; using this directory's mtime would full-reload on every write.
             shell.append(("dir", entry.name, 0, 0))
         else:
             shell.append(("dir", entry.name, entry.mtime_ns, entry.size))
@@ -168,7 +137,6 @@ _remembered_lock = threading.Lock()
 
 
 def remember_folder_signature(folder: Path, signature: FolderSignature) -> None:
-    """Keep ``signature`` so a later poll can be answered as a delta against it."""
     key = (str(folder), signature.fingerprint)
 
     with _remembered_lock:
@@ -179,7 +147,6 @@ def remember_folder_signature(folder: Path, signature: FolderSignature) -> None:
 
 
 def recall_folder_signature(folder: Path, fingerprint: str) -> FolderSignature | None:
-    """The remembered signature for this folder at ``fingerprint``, if still held."""
     if not fingerprint:
         return None
 

@@ -1,10 +1,3 @@
-"""Registry-integrity tests for automation job settings.
-
-These are the tests that keep the feature honest over time: they pin the registry to
-the wire response and to the start requests, so a new dialog cannot quietly opt out of
-per-folder settings and a destructive field cannot quietly opt in.
-"""
-
 from __future__ import annotations
 
 import unittest

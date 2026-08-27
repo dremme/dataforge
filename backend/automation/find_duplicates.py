@@ -1,14 +1,4 @@
-"""Utility job that finds duplicate and near-duplicate media in a folder.
-
-Near-duplicate frames skew a LoRA, so the job hashes every file perceptually, groups
-files whose hashes are close, and writes each member a ``.duplicate.json`` naming its
-group. The duplicate resolver then walks those groups side by side.
-
-Findings deliberately do **not** go in the caption-issue sidecar. A caption issue is
-resolved by editing text; a duplicate by deleting a file. Sharing one file meant the
-issue resolver's "save and clear" deleted still-true duplicate findings, and the two
-concerns competed for the same three-fix budget. See :mod:`duplicates`.
-"""
+"""Find duplicate and near-duplicate media; findings go in ``.duplicate.json``, not the issue sidecar."""
 
 from __future__ import annotations
 
@@ -31,22 +21,15 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 ShouldCancel = Callable[[], bool]
 
-#: Mirrors ``schemas.DuplicateThreshold``. The values are Hamming distances between
-#: two 64-bit hashes: 0 is pixel-identical after downscaling, 10 is a loose match.
 THRESHOLD_DISTANCES = {"exact": 0, "near": 5, "loose": 10}
 
 DEFAULT_THRESHOLD = "near"
 
-#: Side length of the hash grid. 8 gives the 64-bit hash the distances above assume.
 HASH_SIZE = 8
 
 
 def difference_hash(image: Image.Image, size: int = HASH_SIZE) -> int:
-    """A 64-bit perceptual hash: each bit compares a pixel with the one to its right.
-
-    Pillow only, deliberately - a DCT-based pHash would want numpy, which is present
-    here solely as an opencv dependency and is not in ``requirements.txt``.
-    """
+    """A 64-bit perceptual hash; Pillow only, so numpy stays out of ``requirements.txt``."""
     small = image.convert("L").resize((size + 1, size), Image.Resampling.LANCZOS)
     pixels = list(small.getdata())
 
@@ -63,11 +46,7 @@ def hamming_distance(left: int, right: int) -> int:
 
 
 def _representative_frame(media_path: Path) -> tuple[Image.Image | None, str | None]:
-    """One frame standing in for the whole file: a still, or a video's middle frame.
-
-    Mid-clip rather than the opening frame, which is a fade or a title card often
-    enough that two unrelated clips would hash alike.
-    """
+    """A still, or a video's middle frame so opening fades do not hash unrelated clips alike."""
     if media_kind_for(media_path) != "video":
         images, error = load_image_rgb(media_path)
         if not images:
@@ -81,12 +60,7 @@ def _representative_frame(media_path: Path) -> tuple[Image.Image | None, str | N
 
 
 def _group_duplicates(hashes: dict[Path, int], max_distance: int) -> list[list[Path]]:
-    """Files grouped so every member is within ``max_distance`` of another member.
-
-    Union-find over the pairwise comparisons, which is quadratic in the file count.
-    That is a few million integer XORs on a large folder - slow enough to notice, but
-    far cheaper than the decoding pass that produced the hashes.
-    """
+    """Files grouped so every member is within ``max_distance`` of another member."""
     paths = list(hashes)
     parent = {path: path for path in paths}
 
@@ -114,12 +88,7 @@ def _group_duplicates(hashes: dict[Path, int], max_distance: int) -> list[list[P
 
 
 def _group_max_distance(group: list[Path], hashes: dict[Path, int]) -> int:
-    """The group's worst pairwise distance.
-
-    Measured rather than inherited from the threshold: under ``near``, two identical
-    files are still identical, and calling them "near-duplicates" because the run
-    allowed slack would misstate the finding.
-    """
+    """The group's worst pairwise distance, not the run's threshold."""
     worst = 0
     for index, left in enumerate(group):
         for right in group[index + 1 :]:
@@ -189,9 +158,7 @@ def run_find_duplicates_job(
     if not isinstance(stats, dict):
         return result
 
-    # Grouping needs every hash, so it cannot run inside the per-file loop. A cancelled
-    # run has only part of the folder hashed, and grouping that would flag files as
-    # unique on the strength of partners that were never looked at.
+    # Skip grouping on cancel: partial hashes would flag files unique against unseen partners.
     if stats.get("cancelled"):
         return result
 
@@ -207,9 +174,7 @@ def run_find_duplicates_job(
         for path in group:
             findings[path] = finding
 
-    # Every hashed file is written, not only the flagged ones: a file that was a
-    # duplicate on the last run and is not on this one has to lose its sidecar, or the
-    # resolver keeps offering a group that is no longer there.
+    # Write every hashed file so a former duplicate loses its sidecar on this run.
     for media_path in hashes:
         try:
             save_duplicate_finding(media_path, findings.get(media_path))

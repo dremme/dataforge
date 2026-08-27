@@ -225,10 +225,7 @@ describe("Tooltip placement", () => {
     } as DOMRect;
   }
 
-  /**
-   * jsdom performs no layout, so the trigger's position and the bubble's size
-   * are supplied here — the only two measurements a placement depends on.
-   */
+  /** jsdom has no layout; supply the trigger rect and bubble size. */
   function showTooltip(anchor: Partial<DOMRect>, bubble: Partial<DOMRect>) {
     vi.useFakeTimers();
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);

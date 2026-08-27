@@ -11,14 +11,6 @@ interface FolderScrollPositionOptions {
   hasError: boolean;
 }
 
-/**
- * Applies the pending navigation's scroll intent once the destination folder
- * has content to scroll.
- *
- * Called from the workspace hook rather than from anything inside the gallery:
- * React runs layout effects child-first, so from the root component this fires
- * after the grid's own layout work and sees the finished DOM.
- */
 export function useFolderScrollPosition({
   intent,
   folderPath,
@@ -35,9 +27,7 @@ export function useFolderScrollPosition({
     cancelRef.current?.();
     cancelRef.current = null;
 
-    // On a cache miss the path change and the loading flag land in the same
-    // commit, which renders the skeleton with the grid unmounted — applying
-    // there would target an empty document and never get another chance.
+    // Cache miss lands path+loading together; the skeleton has no grid to restore onto.
     if (loading || !folderPath) return;
 
     const element = getAppScrollElement();
@@ -55,9 +45,7 @@ export function useFolderScrollPosition({
     cancelRef.current = settleScrollPosition(element, target);
   }, [intent, folderPath, loading, hasError]);
 
-  // Deliberately not a cleanup on the effect above: an unrelated dependency
-  // change, such as a silent reload swapping the folder object, would otherwise
-  // kill a settle that is still legitimately in flight.
+  // Not a cleanup of the effect above: a silent reload would kill a settle still in flight.
   useEffect(
     () => () => {
       cancelRef.current?.();

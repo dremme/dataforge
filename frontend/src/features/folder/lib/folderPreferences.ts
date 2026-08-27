@@ -110,13 +110,6 @@ interface FolderFetchOptions {
   signal?: AbortSignal;
 }
 
-/**
- * Retry only while the API server has yet to come up.
- *
- * The ladder exists for cold start, when the frontend is served before the
- * backend is listening. Retrying anything else — a 500, a folder the backend
- * choked on — just piles more heavy listings onto a struggling server.
- */
 function shouldRetryFolder(error: unknown): boolean {
   return resolveFolderError(error)?.kind === "backend-unreachable";
 }

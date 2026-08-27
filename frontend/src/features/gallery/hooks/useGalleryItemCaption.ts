@@ -33,7 +33,6 @@ type CaptionSavePayload = {
 interface UseGalleryItemCaptionOptions {
   item: GalleryItem | undefined;
   onCaptionSaved: (path: string, update: CaptionSaveResponse) => void;
-  /** When false, caption edits stay local until the caller saves explicitly. Default true. */
   autoSave?: boolean;
 }
 
@@ -46,9 +45,7 @@ export function useGalleryItemCaption({
   const { next, isCurrent } = useStaleRequest();
   const captionRef = useRef(caption);
   const captionRevisionRef = useRef<string | null>(null);
-  // Every caption state this hook has already shown for the open item. The folder
-  // poller reloads folder ~1.5s after a save, and that reload can be answered from
-  // data older than the save, so it echoes a revision we have already moved past.
+  // Revisions already shown here. A poller reload can answer from data older than the save.
   const seenRevisionsRef = useRef(new Set<string>());
 
   captionRef.current = caption;
@@ -66,16 +63,13 @@ export function useGalleryItemCaption({
       const result = await saveCaption(payload.path, payload.text);
 
       setCaption((current) => {
-        // Characters typed while the request was open are not in the response.
         if (current.trim() !== payload.text) return current;
-        // Keep the editor buffer when the server only echoes the same trimmed text.
         if (current === result.description || current.trim() === (result.description ?? "")) {
           return current;
         }
         return result.description ?? "";
       });
-      // Match the folder revision produced by onCaptionSaved so background sync
-      // does not wipe a save.
+      // Match the folder revision from onCaptionSaved so background sync does not wipe a save.
       markRevision(revisionFromSaveResult(result));
       onCaptionSaved(payload.path, result);
     },
@@ -124,8 +118,6 @@ export function useGalleryItemCaption({
         .then((fresh) => {
           if (!isCurrent(requestId)) return;
 
-          // Typing can start before this lands; the editor buffer wins over the
-          // file on disk, and the pending save carries it to the server.
           if (hasUnsavedChanges({ path: itemPath, text: captionRef.current })) {
             return;
           }
@@ -136,15 +128,11 @@ export function useGalleryItemCaption({
           markRevision(revisionFromSaveResult(fresh));
           onCaptionSaved(itemPath, fresh);
         })
-        .catch(() => {
-          // Keep cached folder data when the refresh request fails.
-        });
+        .catch(() => {});
     });
 
     return cancelDeferredCaptionLoad;
-    // Depend on itemPath only — not `item`. fetchCaption calls onCaptionSaved which
-    // updates the parent folder state and replaces the item object, which would
-    // retrigger this effect endlessly if `item` were listed here.
+    // itemPath only, not item: onCaptionSaved replaces the item object and would retrigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isCurrent/next/item omitted on purpose
   }, [
     applyCaptionFromItem,
@@ -164,9 +152,7 @@ export function useGalleryItemCaption({
 
     const hadPreviousRevision = captionRevisionRef.current !== null;
 
-    // A folder reload answered from data older than our last write echoes a state
-    // this item already had. Applying it would undo newer text, so it is dropped
-    // without recording the revision — a later reload still reconciles real edits.
+    // Stale poller echo of a revision already shown; applying it would undo newer text.
     if (hadPreviousRevision && seenRevisionsRef.current.has(itemRevision)) return;
 
     markRevision(itemRevision);
@@ -180,8 +166,7 @@ export function useGalleryItemCaption({
     const incomingCaption = item.description ?? "";
     const current = captionRef.current;
     if (current === incomingCaption || current.trim() === incomingCaption) {
-      // The folder listing echoed our own save (possibly after server-side whitespace normalization).
-      // Keep the editor's exact buffer (e.g. trailing spaces while typing) and baseline.
+      // Listing echoed our own save (possibly whitespace-normalized); keep the editor buffer.
       return;
     }
 
@@ -193,10 +178,7 @@ export function useGalleryItemCaption({
       if (!item) return;
       setCaption(value);
       if (!autoSave) return;
-      // Send a normalized (trimmed) version for save so that the persisted
-      // value and server echoes match the backend normalization. The local
-      // `caption` buffer retains the user's exact input (including temporary
-      // trailing whitespace) for a smooth typing experience.
+      // Persist trimmed so server echoes match backend normalization; the local buffer keeps exact input.
       scheduleSave({ path: item.path, text: value.trim() });
     },
     [autoSave, item, scheduleSave],

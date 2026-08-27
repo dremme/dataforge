@@ -16,9 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# This one only spawns subprocesses, but they run the same interpreter and the
-# tests import the backend - which uses PEP 695 syntax older versions cannot
-# parse. Failing here names the cause instead of a SyntaxError from pytest.
+# Subprocesses use this interpreter; failing here names the cause, not pytest's SyntaxError.
 from py_version import require_python
 
 require_python()
@@ -121,17 +119,27 @@ def _run_fix_steps(python: Path | None, npm: str | None) -> None:
         _run_fix_step("Auto-fix frontend Prettier", [npm, "run", "format"], cwd=FRONTEND)
 
 
-def _run_check_steps(python: Path | None, npm: str | None, *, lint_only: bool = False) -> None:
+def _run_check_steps(
+    python: Path | None,
+    npm: str | None,
+    *,
+    interpreter: Path,
+    scope: str,
+    lint_only: bool = False,
+) -> None:
     """``None`` for either tool means that side of the stack is out of scope."""
     if python is not None:
         _run_step("Backend format + lint", [str(python), str(SCRIPTS / "run_lint.py")], cwd=ROOT)
     if npm is not None:
         _run_step("Frontend ESLint", [npm, "run", "lint"], cwd=FRONTEND)
         _run_step("Frontend Prettier", [npm, "run", "format:check"], cwd=FRONTEND)
-        # Grouped with the static checks rather than the tests, so ``--lint-only``
-        # (what the pre-commit hook runs) still catches type errors. Vitest does not
-        # typecheck, so nothing else here would.
+        # Grouped with static checks so ``--lint-only`` still catches type errors; vitest does not.
         _run_step("Frontend typecheck", [npm, "run", "typecheck"], cwd=FRONTEND)
+    _run_step(
+        "Comment width",
+        [str(interpreter), str(SCRIPTS / "check_comments.py"), "--scope", scope],
+        cwd=ROOT,
+    )
     if lint_only:
         return
 
@@ -161,11 +169,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # The backend venv is always needed, even for a frontend-only run: the frontend's
-    # API types are generated from ``backend/schemas.py`` and are not checked in, so
-    # they have to exist before anything compiles. Node is resolved only when the
-    # frontend is in scope, and ``backend_python`` is what gates the backend's own
-    # steps -- having the interpreter is not the same as having the backend in scope.
+    # Backend venv is always needed: frontend API types are generated and not checked in.
+    # ``backend_python`` gates backend steps; holding the interpreter is not the same thing.
     python = _resolve_python()
     backend_python = python if args.scope != "frontend" else None
     npm = _resolve_npm() if args.scope != "backend" else None
@@ -184,7 +189,13 @@ def main() -> int:
             status_after = _git_status_porcelain()
             auto_fixed = status_before != status_after
 
-        _run_check_steps(backend_python, npm, lint_only=args.lint_only)
+        _run_check_steps(
+            backend_python,
+            npm,
+            interpreter=python,
+            scope=args.scope,
+            lint_only=args.lint_only,
+        )
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
         if code != 0:

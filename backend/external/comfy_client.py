@@ -1,15 +1,4 @@
-"""Drive a running ComfyUI over its HTTP API.
-
-The contract is four calls per image: upload the source, submit a patched prompt graph,
-poll history until the prompt leaves the queue, then fetch the bytes the output node
-wrote. Free functions taking an ``httpx.Client``, like ``external.ostris_jobs`` - the
-caller owns the client so one job can hold one connection pool for its whole run.
-
-Polling rather than the websocket: the job's unit of progress is a file, and the socket
-only carries sub-image sampler steps, which ``JobResponse`` has nowhere to put. History
-stays the authority on whether a prompt finished either way, so adding the socket later
-would not change anything here.
-"""
+"""Drive a running ComfyUI over its HTTP API."""
 
 from __future__ import annotations
 
@@ -22,15 +11,11 @@ import httpx
 
 from comfy_settings import get_comfy_base_url
 
-# Queue, history and status probes are all small JSON over loopback.
 COMFY_REQUEST_TIMEOUT_SECONDS = 10.0
-# A 4K PNG going out, and a possibly larger one coming back.
 COMFY_TRANSFER_TIMEOUT_SECONDS = 120.0
 COMFY_POLL_INTERVAL_SECONDS = 1.0
 
-# Uploads land under one subfolder of ComfyUI's input directory rather than loose among
-# the user's own files. ComfyUI has no delete-input endpoint, so this is what makes the
-# debris identifiable and removable by hand.
+# Uploads land in this subfolder; ComfyUI has no delete-input endpoint.
 COMFY_INPUT_SUBFOLDER = "dataforge"
 
 _TERMINAL_STATUS_STRINGS = frozenset({"success", "error"})
@@ -88,17 +73,7 @@ def upload_image(
     name: str,
     subfolder: str = COMFY_INPUT_SUBFOLDER,
 ) -> str:
-    """Put ``source`` in ComfyUI's input folder, returning the LoadImage widget value.
-
-    Uploaded rather than written straight into ComfyUI's ``input`` directory: an upload
-    is the only path that still works when ComfyUI is a container or another machine,
-    and it needs no write access to someone else's install.
-
-    ``name`` must be unique per image. Reusing one filename would keep the input folder
-    tidy and is safe with the stock ``LoadImage`` - it hashes file content in
-    ``IS_CHANGED`` - but a custom loader without ``IS_CHANGED`` would serve the previous
-    image's cached result, and the failure looks like a model that ignored its input.
-    """
+    """Put ``source`` in ComfyUI's input folder; ``name`` must be unique per image."""
     files = {"image": (name, source.read_bytes(), _image_media_type(source))}
     data = {"type": "input", "subfolder": subfolder, "overwrite": "true"}
 
@@ -125,13 +100,7 @@ def upload_image(
 
 
 def submit_prompt(client: httpx.Client, prompt: dict[str, Any], *, client_id: str) -> str:
-    """Queue a patched graph, returning its prompt id.
-
-    A rejected graph is reported two different ways depending on the build - a 400 with
-    an ``error`` body, or a 200 carrying ``node_errors`` - so both are checked. Trusting
-    the status code alone would have the job wait out its timeout on a prompt that was
-    never queued.
-    """
+    """Queue a patched graph, returning its prompt id. A 200 with ``node_errors`` is still a reject."""
     try:
         response = client.post(
             comfy_url("/prompt"),
@@ -219,12 +188,7 @@ def history_error_text(entry: dict[str, Any]) -> str | None:
 
 
 def history_outputs(entry: dict[str, Any]) -> list[dict[str, str]]:
-    """Every image the run wrote, as ``{filename, subfolder, type}`` refs.
-
-    Only the ``images`` key is read. Video nodes report under ``gifs``/``videos``, which
-    is a separate contract - a still workflow is what this job runs, and reporting "no
-    output" for a video graph is the honest answer rather than a partial guess.
-    """
+    """Every image the run wrote, as ``{filename, subfolder, type}`` refs; video keys are ignored."""
     outputs = entry.get("outputs")
     if not isinstance(outputs, dict):
         return []
@@ -251,12 +215,7 @@ def history_outputs(entry: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def download_view(client: httpx.Client, ref: dict[str, str]) -> bytes:
-    """The bytes behind one output ref.
-
-    The three fields are passed straight through from history, which is what lets a
-    preset author choose SaveImage or PreviewImage with no branching here: a preview
-    lands as ``type=temp`` and ComfyUI cleans it up itself.
-    """
+    """The bytes behind one output ref."""
     try:
         response = client.get(
             comfy_url("/view"),
@@ -288,7 +247,6 @@ def fetch_queue(client: httpx.Client) -> tuple[list[str], list[str]]:
         entries = payload.get(key)
         if not isinstance(entries, list):
             return []
-        # Each entry is a tuple-ish list whose second element is the prompt id.
         return [
             entry[1]
             for entry in entries
@@ -299,13 +257,7 @@ def fetch_queue(client: httpx.Client) -> tuple[list[str], list[str]]:
 
 
 def interrupt(client: httpx.Client) -> None:
-    """Stop whatever ComfyUI is executing right now.
-
-    Deliberately blunt: ComfyUI has no per-prompt interrupt, so this kills the running
-    prompt whoever queued it. Callers must confirm the running prompt is theirs - see
-    ``automation.comfy_process._request_stop`` - or they will cancel the user's own work
-    in the ComfyUI tab.
-    """
+    """Stop whatever ComfyUI is executing right now; there is no per-prompt interrupt."""
     try:
         response = client.post(comfy_url("/interrupt"), timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()

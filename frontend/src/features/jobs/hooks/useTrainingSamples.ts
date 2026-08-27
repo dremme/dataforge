@@ -54,12 +54,6 @@ export function useOstrisTrainingSamples(
   return samples;
 }
 
-/**
- * The samples a finished run recorded in its job results.
- *
- * Results are not part of the job itself — they would dominate the job list, which is
- * polled while work runs — so they are fetched here, once, when a run has stopped.
- */
 function useFinishedRunSamples(job: Job | null, enabled: boolean): OstrisTrainingSample[] {
   const [samples, setSamples] = useState<OstrisTrainingSample[]>([]);
   const jobId = job?.id ?? null;

@@ -37,7 +37,6 @@ const HANDLE_LABELS: Record<CropHandle, string> = {
 const EMPTY_BOX = { left: 0, top: 0, width: 0, height: 0 };
 
 interface CropOverlayProps {
-  /** The element the frame is painted into, so the overlay can find the picture in it. */
   mediaRef: RefObject<HTMLElement | null>;
   crop: CropRect;
   sourceWidth: number;
@@ -45,34 +44,13 @@ interface CropOverlayProps {
   /** Width over height for the locked shape, or null while the rect is free. */
   aspectRatio: number | null;
   disabled: boolean;
-  /**
-   * How the preview is turned, when the host renders this inside the same transform the
-   * picture carries. Video never sets it; the image editor rotates and mirrors in place.
-   */
+  /** Preview turn when the host shares the picture's transform. Video never sets it. */
   orientation?: Orientation;
-  /**
-   * How the readout turns fractions into pixels. The default rounds, which is what Pillow
-   * is asked for; the video editor passes `evenTrunc`, because `yuv420p` cannot express an
-   * odd dimension and a readout that disagreed with the render would quietly lie.
-   */
+  /** Fraction-to-pixel rounding. Default matches Pillow; video needs `evenTrunc` for yuv420p. */
   round?: (value: number) => number;
   onCropChange: (crop: CropRect) => void;
 }
 
-/**
- * The crop rectangle, drawn on the frame rather than beside it.
- *
- * Everything here works in fractions of the source and is positioned against the box the
- * media actually paints: `object-fit: contain` letterboxes the picture inside the
- * element, so a rect laid over the element would sit off by exactly the bars.
- *
- * When the host has turned the preview, this rides inside that transform - so the browser
- * puts the rectangle on the pixels the user sees for free, and the only thing left to
- * undo is the direction a drag reads in. That is `screenDeltaToSource`. The handles keep
- * their source-relative names, which is why the top-left one appears elsewhere under a
- * quarter turn: naming them by where they land would make the labels disagree with the
- * numbers they change.
- */
 export function CropOverlay({
   mediaRef,
   crop,
@@ -87,25 +65,13 @@ export function CropOverlay({
   const [box, setBox] = useState(EMPTY_BOX);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
 
-  // The painted box moves with the window, the panel and the media's own metadata, so it
-  // is measured rather than derived once.
   useEffect(() => {
     const media = mediaRef.current;
     if (!media) return;
 
     const measure = () => {
-      // `containedBox` answers in the media element's own coordinates, but this overlay
-      // is absolutely positioned against its host, which pads the media in and centres
-      // it. Without the element's own offset inside that box the whole rectangle lands
-      // up and to the left by exactly the padding.
-      //
-      // Layout offsets rather than `getBoundingClientRect`, for two reasons: `offsetLeft`
-      // is already measured from `offsetParent`'s padding box, which is the very box an
-      // absolutely positioned sibling is placed against, and offsets are untransformed.
-      // A rect is not - it comes back scaled and turned by any ancestor transform, and
-      // writing that straight into `left`/`width` would apply it a second time. The modal
-      // panel really does carry one while its entrance animation runs, and the image
-      // editor's stage carries one for as long as the preview is rotated.
+      // containedBox is in media coords; add offsetLeft/Top so padding does not shift the rect.
+      // Layout offsets, not getBoundingClientRect: a rect is transformed and would apply it twice.
       if (!media.offsetParent) {
         setBox(EMPTY_BOX);
         return;
@@ -129,21 +95,17 @@ export function CropOverlay({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(media);
-    // The host too: a stage that grows taller re-centres media already clamped by
-    // `max-height`, moving it without ever resizing it.
+    // Host too: a taller stage re-centres max-height-clamped media without resizing it.
     observer.observe(media.offsetParent ?? media);
     return () => observer.disconnect();
   }, [sourceHeight, sourceWidth, mediaRef]);
 
-  // Aspect is a ratio of real pixels; this rectangle is in fractions of the frame, so the
-  // frame's own aspect divides out before the two can be compared.
+  // Aspect is in source pixels; this rect is fractions, so divide by the frame's aspect first.
   const rectRatio =
     aspectRatio !== null && sourceWidth > 0 && sourceHeight > 0
       ? aspectRatio / (sourceWidth / sourceHeight)
       : null;
 
-  // Un-turned in pixels, before the division: `box` is the untransformed layout box, so
-  // its width already corresponds to the source's width whichever way the preview faces.
   const fractionDelta = useCallback(
     (screenDx: number, screenDy: number) => {
       const { dx, dy } = screenDeltaToSource(screenDx, screenDy, orientation);
@@ -158,9 +120,7 @@ export function CropOverlay({
   const startDrag = useCallback(
     (event: PointerEvent<HTMLElement>) => {
       if (disabled) return;
-      // `preventDefault` suppresses the click's own focus along with the drag-select it
-      // is there to stop, so focus is taken by hand: a handle only answers the arrow
-      // keys once it holds it, and unfocused arrows navigate the gallery instead.
+      // preventDefault drops the click's focus; take it or unfocused arrows navigate the gallery.
       event.preventDefault();
       event.stopPropagation();
       event.currentTarget.focus();
@@ -215,8 +175,7 @@ export function CropOverlay({
       if (!move) return;
 
       event.preventDefault();
-      // Through the same mapping as a drag: the arrow keys point at the screen, and under
-      // a quarter turn the screen's right is not the frame's.
+      // Arrow keys point at the screen; under a quarter-turn the screen's right is not the frame's.
       const { dx, dy } = screenDeltaToSource(move[0], move[1], orientation);
       onCropChange(resizeCrop(crop, handle, dx, dy, rectRatio));
     },
@@ -238,8 +197,7 @@ export function CropOverlay({
     "--crop-y": `${crop.y * 100}%`,
     "--crop-w": `${crop.width * 100}%`,
     "--crop-h": `${crop.height * 100}%`,
-    // The readout rides the host's transform with everything else, so it carries the
-    // inverse and stays upright. Each mirror is its own inverse, hence the same signs.
+    // Inverse of the host transform so the readout stays upright.
     "--crop-readout-transform":
       `rotate(${-orientation.rotate}deg)` +
       ` scaleX(${orientation.mirrorH ? -1 : 1}) scaleY(${orientation.mirrorV ? -1 : 1})`,
@@ -268,8 +226,7 @@ export function CropOverlay({
             type="button"
             className={classNames("crop-overlay__handle", `crop-overlay__handle--${handle}`)}
             aria-label={HANDLE_LABELS[handle]}
-            // An edge drag has no second axis to derive the locked dimension from, so
-            // under a ratio only the corners can preserve it without guessing.
+            // Under a ratio only corners preserve it; an edge drag has no second axis.
             disabled={disabled || (aspectRatio !== null && !isCornerHandle(handle))}
             onPointerDown={startDrag}
             onPointerMove={dragHandle(handle)}

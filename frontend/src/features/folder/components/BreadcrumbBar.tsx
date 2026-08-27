@@ -19,15 +19,9 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 interface BreadcrumbBarProps {
   breadcrumbs: Breadcrumb[];
   currentFolder: string;
-  /**
-   * Whether the current folder has any children — the caller already knows, and
-   * a dropdown is only worth offering on the trailing crumb when it does. Every
-   * earlier crumb has at least the next crumb to list.
-   */
   hasSubfolders: boolean;
   folderNotFound?: boolean;
   onNavigate: (path: string) => void;
-  /** The picker itself is mounted with the other overlays, in `AppOverlays`. */
   onOpenPicker: () => void;
 }
 

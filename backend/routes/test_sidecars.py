@@ -1,5 +1,3 @@
-"""Tests for /api/sidecars/delete."""
-
 from __future__ import annotations
 
 import unittest
@@ -163,8 +161,7 @@ class DeleteSidecarsTests(unittest.TestCase):
 
             payload = delete_sidecars(root, "issue")
 
-            # The listing does not read this as a sidecar either, so it was never in
-            # the count the confirmation showed.
+            # The listing does not read this as a sidecar, so it was never in the confirmation count.
             self.assertEqual(payload["deleted"], [])
             self.assertTrue(odd.is_file())
 

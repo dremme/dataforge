@@ -27,9 +27,7 @@ TAB_QUERY = Query("", description="Caller's tab id, so this folder is watched fo
 
 
 def _folder_payload(folder: Path) -> str:
-    # Serializing on the worker thread keeps a multi-megabyte folder from tying up
-    # the event loop, which would otherwise stall the thumbnail requests the
-    # gallery fires as soon as it renders.
+    # Serialize on a worker thread so a large folder does not stall thumbnail requests.
     return build_folder_response(folder).model_dump_json()
 
 
@@ -43,9 +41,7 @@ async def read_folder_contents(
     tab: str = TAB_QUERY,
 ) -> Response:
     folder = resolve_initial_folder(path)
-    # Asking for a folder is what registers interest in it, so there is no separate
-    # registration to race with a navigation. Keyed off the resolved folder because
-    # ``path`` may be absent here.
+    # Registers interest, keyed off the resolved path because ``path`` may be absent.
     folder_watch.touch(tab, str(folder))
     payload = await asyncio.to_thread(_folder_payload, folder)
     return Response(content=payload, media_type=JSON_MEDIA_TYPE)
@@ -81,8 +77,7 @@ async def read_folder_changes(
     ),
     tab: str = TAB_QUERY,
 ) -> FolderChangesResponse:
-    # Before resolving: a folder that has just vanished still needs to stay watched
-    # long enough for the client to be told it is gone.
+    # Watch a vanished folder long enough for the client to be told it is gone.
     folder_watch.touch(tab, path)
     folder = resolve_folder(path)
     return await asyncio.to_thread(build_folder_changes, folder, since)

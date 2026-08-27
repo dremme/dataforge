@@ -1,5 +1,3 @@
-"""Tests for /api/media and /api/thumbnail."""
-
 from __future__ import annotations
 
 import tempfile
@@ -541,8 +539,7 @@ class GifFrameEndpointTests(unittest.TestCase):
             self.assertEqual(past_end.status_code, 204)
 
     def test_caches_hard_only_when_versioned(self) -> None:
-        # The save re-reads the URL the preview painted, so a versioned frame has
-        # to be a cache hit rather than a second decode.
+        # The save re-reads the preview URL, so a versioned frame has to be a cache hit.
         with TempMediaFolder() as root:
             media = write_gif(root, frames=4)
 

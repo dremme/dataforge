@@ -1,5 +1,3 @@
-"""Unit tests for automation.job_messages."""
-
 from __future__ import annotations
 
 import unittest
@@ -77,8 +75,7 @@ class JobMessagesTests(unittest.TestCase):
         self.assertIsNone(auto_caption_failure_message({"success": 4, "skipped_long": 1}))
 
     def test_auto_caption_reports_media_that_never_reached_the_model(self) -> None:
-        # These files failed before any request went out, so a "restart the server"
-        # message would send the user after a service that is working fine.
+        # These files never reached the server, so do not say to restart it.
         message = auto_caption_failure_message({"read_error": 1, "frame_error": 2})
 
         self.assertEqual(
@@ -148,8 +145,7 @@ class EditCaptionsFailureMessageTests(unittest.TestCase):
         self.assertIsNone(edit_captions_failure_message({"success": 12, "unchanged": 3}))
 
     def test_a_rejected_caption_is_not_an_error(self) -> None:
-        # The caption is intact and the job declined to write junk: that is the safe
-        # path working, so it must surface as a warning rather than a failed job.
+        # The caption is intact; rejected is a warning, not a failed job.
         self.assertIsNone(edit_captions_failure_message({"success": 8, "rejected": 4}))
 
     def test_a_captionless_file_is_not_an_error(self) -> None:

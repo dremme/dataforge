@@ -5,12 +5,6 @@ export function formatMegapixels(width: number, height: number): string {
   return `${Math.round(mp)} MP`;
 }
 
-/**
- * Built once and reused. The gallery formats a date per file - for every row it
- * draws and again for every file when it sizes the list's columns - and building
- * the formatter is what that costs: reusing one instance runs a folder's worth of
- * dates around forty times faster than `toLocaleString` does.
- */
 let modifiedAtFormat: Intl.DateTimeFormat | null = null;
 
 export function formatModifiedAt(isoDate: string): string | null {
@@ -52,10 +46,7 @@ export function formatBytes(bytes: number): string {
 
 const FILE_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
-/**
- * Scaled file size for a single media file, unlike {@link formatBytes}, which is
- * pinned to GB because it reports disk capacity.
- */
+/** Per-file size; formatBytes is pinned to GB for disk capacity. */
 export function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
 

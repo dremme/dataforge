@@ -152,10 +152,7 @@ describe("loadAutomationSettings", () => {
   });
 
   it("never touches Web Storage", async () => {
-    // Deliberately uncached, unlike the sibling preference modules that mirror to
-    // localStorage: job settings change on every run, and in another folder or
-    // another tab, so a local copy could only ever be a stale one. The backend is
-    // the single source of truth and the fetch is a few hundred bytes.
+    // Uncached on purpose: job settings change per run/folder/tab, so a local copy would be stale.
     const storages = [localStorage, sessionStorage];
     const spies = storages.flatMap((storage) => [
       vi.spyOn(storage, "getItem"),

@@ -61,8 +61,7 @@ describe("useDuplicateResolverOverlay", () => {
   });
 
   it("says so rather than opening on nothing when every finding lost its partner", async () => {
-    // What a folder looks like when flagged files have outlived their groups: the
-    // sidecars still count toward the toolbar, but no group has two live members.
+    // Flagged files outlived their groups: sidecars count, but no group has two live members.
     fetchGroups.mockResolvedValue(listing({ groups: [], stale: ["gone.png", "also-gone.png"] }));
     const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });
 

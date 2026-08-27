@@ -107,7 +107,6 @@ export function useGalleryQuery(items: GalleryItem[]) {
     [mediaTypeFilteredItems, filter],
   );
 
-  /** Everything the filters keep, before the search narrows it further. */
   const filterMatchedItems = useMemo(
     () => applyFileFilter(captionFilteredItems, fileFilter),
     [captionFilteredItems, fileFilter],
@@ -131,8 +130,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const hasActiveFilters = filter !== "all" || mediaTypeFilter !== "all" || fileFilter !== "all";
   const captionedCount = useMemo(() => countCaptioned(items), [items]);
 
-  // Each axis is counted with every *other* axis applied, so a count in the menu always
-  // equals what picking it would leave on screen. Miss one and the numbers quietly lie.
+  // Each axis counts with the others applied, so a menu count is what picking it leaves.
   const captionFilterCountItems = useMemo(
     () =>
       filterBySearch(
@@ -155,9 +153,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     [captionScopedItems, fileFilter, searchQuery, searchRegex, searchNames],
   );
 
-  // Deliberately not file-scoped: these are the counts on the Files options themselves,
-  // so each has to say what picking it would leave on screen, which means measuring with
-  // this axis off and every other one on.
+  // Files-option counts: this axis off, the others on, so each number is what it leaves.
   const fileFilterCountItems = useMemo(
     () => filterBySearch(captionFilteredItems, searchQuery, searchRegex, searchNames),
     [captionFilteredItems, searchQuery, searchRegex, searchNames],
@@ -174,8 +170,6 @@ export function useGalleryQuery(items: GalleryItem[]) {
     } as const;
   }, [captionFilterCountItems]);
 
-  // Files, not duplicate groups: these counts sit beside the others in the filter menu
-  // and say how many items each option would leave on screen.
   const fileFilterCounts = useMemo(
     () =>
       ({

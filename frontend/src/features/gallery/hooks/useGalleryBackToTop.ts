@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { scrollContainerToTop } from "@/features/gallery/lib/scrollRoot";
 
-/** Show once the user has scrolled past roughly one gallery row. */
 export const GALLERY_BACK_TO_TOP_THRESHOLD_PX = 400;
 
 export function useGalleryBackToTop(scrollElement: HTMLElement | null) {

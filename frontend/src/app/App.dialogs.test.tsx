@@ -115,11 +115,6 @@ describe("App: dialogs", () => {
     ).toBe(true);
   });
 
-  /**
-   * The whole chain in one go: a selection reaches `getJobPaths`, which scopes
-   * the count the dialog reports and the paths the job would start with. A
-   * dialog that said "all N files" here would be promising the wrong thing.
-   */
   it("scopes a job dialog to the selection when one is active", async () => {
     const user = userEvent.setup();
     installMockBackend();
@@ -148,12 +143,10 @@ describe("App: dialogs", () => {
     await user.click(screen.getByRole("button", { name: /Auto-caption/ }));
 
     const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
-    // Scope lives in its own row now: nothing is selected, so the job takes the folder.
     expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
       /^All \d+ files? in Photos$/,
     );
 
-    // default is Reasoning (thinking)
     expect(screen.getByRole("radio", { name: /Reasoning/i })).toBeChecked();
 
     await user.keyboard("{Escape}");
@@ -169,7 +162,6 @@ describe("App: dialogs", () => {
     await user.click(screen.getByRole("button", { name: /Auto-caption/ }));
     await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
 
-    // select Instruct (non-thinking), turn on audio, and click the confirm button
     const instructRadio = screen.getByRole("radio", { name: /Instruct/i });
     await user.click(instructRadio);
     expect(instructRadio).toBeChecked();

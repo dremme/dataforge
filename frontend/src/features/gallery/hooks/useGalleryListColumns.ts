@@ -13,14 +13,7 @@ const TEXT_COLUMNS = [
 
 const WIDTH_COLUMNS = ["markers", "status", ...TEXT_COLUMNS] as const;
 
-/**
- * How many of a column's distinct values get measured.
- *
- * The widest string is not reliably the longest one - a date's month name and a
- * file size's unit are different widths at equal length - so the longest few are
- * measured instead of only the longest, which costs a handful of reads rather
- * than one per file.
- */
+/** Longest few values per column: the widest string is not reliably the longest one. */
 const MEASURED_CANDIDATES = 6;
 
 /** Guards against a fractional measurement rounding a column into an ellipsis. */
@@ -31,7 +24,6 @@ interface ListColumnContent {
   markerCount: number;
 }
 
-/** The two icon columns are sized by their icons, not by any text they carry. */
 type ColumnWidths = Record<(typeof WIDTH_COLUMNS)[number], number>;
 
 function emptyTextColumns<T>(value: () => T): Record<TextColumn, T> {
@@ -45,13 +37,7 @@ function longestFirst(values: Set<string>): string[] {
   return [...values].sort((a, b) => b.length - a.length).slice(0, MEASURED_CANDIDATES);
 }
 
-/**
- * The values a folder will actually show, per column.
- *
- * Taken from every item rather than the rendered ones: only a screenful of rows
- * is ever in the DOM, and columns sized from those would resize under the cursor
- * as the list scrolls.
- */
+/** Values from every item, not the rendered rows: DOM-sized columns resize as it scrolls. */
 function collectColumnContent(items: GalleryItem[]): ListColumnContent {
   const distinct = emptyTextColumns(() => new Set<string>());
   let markerCount = 0;
@@ -83,22 +69,13 @@ function probeElement(className: string): HTMLSpanElement {
 
 function probeTextCell(className: string, text: string): HTMLSpanElement {
   const span = probeElement(className);
-  // The real cells truncate and are stretched by their track; a probe has to be
-  // free to take exactly the width its content wants. Only text cells get this:
-  // an icon's width comes from its own class, which an inline style would beat.
+  // Real cells truncate; a probe takes the width its content wants. Icons keep their class.
   span.style.cssText = "display:inline-flex;width:auto;max-width:none;overflow:visible;";
   span.textContent = text;
   return span;
 }
 
-/**
- * Widest rendered width per column, in a single measuring pass.
- *
- * Measured in the DOM rather than through a canvas so the probe inherits the
- * real font, weight, and tabular figures - canvas text metrics ignore font
- * features and come back a few pixels narrow, which is the error that would
- * truncate a column.
- */
+/** Measure in the DOM: canvas metrics ignore font features and come back narrow. */
 function measureColumns(host: HTMLElement, content: ListColumnContent): ColumnWidths {
   const probe = document.createElement("div");
   probe.setAttribute("aria-hidden", "true");
@@ -114,8 +91,6 @@ function measureColumns(host: HTMLElement, content: ListColumnContent): ColumnWi
     }
   }
 
-  // Both icon columns are built from the real classes, so the icon size and the
-  // gap between icons come from the stylesheet rather than numbers repeated here.
   if (content.markerCount > 0) {
     const markers = probeElement("gallery-list-row__markers");
     markers.style.cssText = "width:auto;overflow:visible;";
@@ -128,7 +103,6 @@ function measureColumns(host: HTMLElement, content: ListColumnContent): ColumnWi
     cells.push({ column: "markers", element: markers });
   }
 
-  // Every item has a caption state, so this column is always exactly one icon.
   const status = probeElement("gallery-list-row__status");
   status.style.cssText = "width:auto;";
   status.appendChild(probeElement("gallery-list-row__status-icon"));
@@ -154,16 +128,6 @@ function toStyle(widths: ColumnWidths): CSSProperties {
   ) as CSSProperties;
 }
 
-/**
- * Sizes the list's columns to the folder's own content, the way a table sizes
- * itself to its widest cell.
- *
- * A table can do that because one element owns every row. Here the virtualizer
- * gives each row its own grid, so the widths are measured once per folder and
- * handed to every row as custom properties. A folder of small clips ends up with
- * a narrower size column than a folder of raw photos, and in both the name gets
- * whatever is left.
- */
 export function useGalleryListColumns(
   hostRef: RefObject<HTMLElement | null>,
   items: GalleryItem[],

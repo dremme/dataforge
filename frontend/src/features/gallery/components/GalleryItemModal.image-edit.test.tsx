@@ -148,8 +148,7 @@ describe("GalleryItemModal", () => {
       });
 
       it("gives up zooming for the duration", async () => {
-        // The stage carries the rotation instead, and two transforms on one picture would
-        // fight over the crop overlay's measurements.
+        // The stage carries the rotation; two transforms would fight the overlay's measurements.
         const user = userEvent.setup();
         renderModal(imageItem());
 
@@ -175,9 +174,7 @@ describe("GalleryItemModal", () => {
       });
 
       it("says the picture is on its side, which is what swaps its size constraints", async () => {
-        // The stage measures nothing - a rotated `<img>` still lays out upright, so
-        // sizing it from the box it has already inflated is a loop. This class is the
-        // whole input the stylesheet gets.
+        // Stage measures nothing: a rotated img lays out upright, so sizing from that box loops.
         const user = userEvent.setup();
         renderModal(imageItem());
         const dialog = await openEditMode(user);
@@ -235,8 +232,7 @@ describe("GalleryItemModal", () => {
       });
 
       it("turns frame capture off when a GIF is left for an image", async () => {
-        // One `editMode` flag serves both editors, and frame capture shares the stage
-        // with neither, so the three have to stay mutually exclusive.
+        // One editMode flag for both editors; frame capture shares the stage with neither.
         const user = userEvent.setup();
         const gif = makeItem("loop.gif", { media_type: "gif" });
         const { rerender, props } = renderModal(gif);

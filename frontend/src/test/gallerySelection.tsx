@@ -55,7 +55,6 @@ function baseValue(overrides: Partial<GallerySelectionValue>): GallerySelectionV
   };
 }
 
-/** Wrap a subtree in a selection provider, overriding only what the test cares about. */
 export function withGallerySelection(
   children: ReactNode,
   overrides: Partial<GallerySelectionValue> = {},
@@ -63,10 +62,6 @@ export function withGallerySelection(
   return <GallerySelectionProvider {...baseValue(overrides)}>{children}</GallerySelectionProvider>;
 }
 
-/**
- * Same, but with live delete / move / copy and their dialogs. Use this over
- * `withGallerySelection` whenever a test drives a batch action end to end.
- */
 export function withGallerySelectionActions(
   children: ReactNode,
   overrides: Partial<GallerySelectionValue> = {},

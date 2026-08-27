@@ -1,5 +1,3 @@
-"""Tests for /api/folders/contents and /api/folders/fingerprint."""
-
 from __future__ import annotations
 
 import unittest
@@ -67,8 +65,7 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertEqual(payload["breadcrumbs"][-1]["name"], root.name)
             self.assertEqual(payload["subfolder_count"], 1)
 
-            # Counts are deferred to /api/folders/subfolder-stats so the grid can
-            # render before every child folder's captions have been read.
+            # Counts are deferred to /api/folders/subfolder-stats so the grid can render first.
             album = payload["subfolders"][0]
             self.assertEqual(album["name"], "album")
             self.assertIsNone(album["file_count"])
@@ -110,8 +107,7 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertNotIn("caption_file_type", item)
 
     def test_lists_video_without_reading_its_header(self) -> None:
-        # The listing reports what the directory scan already knows. Nothing shown
-        # for a video needs its container parsed, so nothing parses it.
+        # The listing reports what the directory scan already knows; nothing parses a video.
         with TempMediaFolder() as root:
             write_mp4_video(root, sample_count=120, timescale=30_000, sample_delta=1_000)
 
@@ -164,13 +160,11 @@ class FolderContentsEndpointTests(unittest.TestCase):
             items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
             item = next(entry for entry in items if entry["name"] == "loop.gif")
 
-            # Not "video": the frontend would hand it to a <video> element, which
-            # cannot show a GIF at all.
+            # Not "video": the frontend would hand it to a <video> element.
             self.assertEqual(item["media_type"], "gif")
 
     def test_lists_gif_without_decoding_its_frames(self) -> None:
-        # A listing builds every item in a thread pool, so walking each GIF's
-        # frames here would turn opening a folder into hundreds of decodes.
+        # Walking each GIF's frames here would turn opening a folder into hundreds of decodes.
         with TempMediaFolder() as root:
             write_gif(root, "loop.gif", frames=8)
 

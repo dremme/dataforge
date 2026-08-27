@@ -1,14 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .duplicate-resolver-modal
-//
-// A comparison rather than an editor, which is what separates it from the issue
-// resolver: the members sit side by side at equal weight, and the only decision is
-// which one survives. Cards are radios, so the choice is one tab stop and arrow keys.
-// ---------------------------------------------------------------------------
-
 .duplicate-resolver-modal {
   @include modal-shell($z-index-modal);
 
@@ -61,15 +53,13 @@
     padding: var(--panel-padding);
   }
 
-  // Auto-fit so a pair sits at half width and a group of five wraps instead of
-  // shrinking every card past the point where the image says anything.
+  // Auto-fit so a pair sits at half width and a group of five wraps instead of shrinking every card.
   &__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
     gap: 0.875rem;
 
-    // A pair is the common case and reads best as exactly two columns, even on a
-    // narrow window where auto-fit would otherwise stack them.
+    // Two columns even on a narrow window where auto-fit would stack them.
     &--pair {
       grid-template-columns: repeat(2, 1fr);
     }
@@ -100,8 +90,6 @@
       opacity: var(--disabled-opacity);
     }
 
-    // The keeper is the affirmative state, so it takes the accent; every other card
-    // is on its way out and stays neutral rather than shouting in red.
     &--keep {
       border-color: var(--accent);
       background: var(--accent-soft);
@@ -164,8 +152,6 @@
     color: var(--text);
   }
 
-  // The issue resolver's meta row, wrapped: a card is narrower than that modal's
-  // details column, so the values flow onto a second line instead of truncating.
   &__meta {
     display: flex;
     flex-wrap: wrap;
@@ -177,7 +163,6 @@
     &-value {
       @include tabular-nums;
 
-      // A separator between values, rather than a divider element per gap.
       &:not(:last-child)::after {
         content: "·";
         margin-left: 0.5rem;
@@ -207,9 +192,8 @@
 
   &__footer {
     @include modal-chrome-footer;
-    // Tighter than the chrome default: this is a row of buttons, not a meta row.
     gap: 0.5625rem;
-    // Four actions, so a narrow panel wraps them instead of pushing Back off the edge.
+    // Four actions; wrap so a narrow panel does not push Back off the edge.
     flex-wrap: wrap;
   }
 }

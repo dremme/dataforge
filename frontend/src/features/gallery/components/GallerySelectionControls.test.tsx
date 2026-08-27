@@ -31,16 +31,7 @@ const previewMediaTransferMock = vi.mocked(mediaApi.previewMediaTransfer);
 
 const BOTH_SELECTED = new Set([`${HOME_PATH}\\sunset.png`, `${HOME_PATH}\\beach.jpg`]);
 
-/**
- * Everything about the selection comes from context, batch actions included —
- * the harness mounts the real ones with their dialogs, the way the app does.
- * `totalCount` stays 2 so "all selected" matches BOTH_SELECTED.
- *
- * No filter is active in these cases, so everything selected is also on screen:
- * the visible pair is derived from `selectedPaths` rather than restated, which
- * keeps a case from claiming a count its own set contradicts. Pass
- * `visibleSelectedPaths` explicitly to test the two coming apart.
- */
+/** Real batch-action dialogs; pass visibleSelectedPaths to split on-screen vs selected. */
 function renderControls(selection: Partial<GallerySelectionValue> = {}, totalCount = 2) {
   const merged = {
     selectionMode: true,

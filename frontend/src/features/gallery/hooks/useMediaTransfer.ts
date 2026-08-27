@@ -13,22 +13,13 @@ export type MediaTransferPrompt = {
   mode: MediaTransferMode;
   destination: string;
   conflicts: string[];
-  /** Snapshotted when the destination was picked, so the continuation cannot retarget. */
   paths: string[];
 };
 
 export interface UseMediaTransferOptions {
-  /** Files this flow acts on. Read when a flow starts, so identity churn is harmless. */
   paths: readonly string[];
-  /** A move empties the source folder. */
   onMoved: (succeeded: string[]) => void | Promise<void>;
-  /** A copy only changes folder stats, so it gets no paths. */
   onCopied: () => void | Promise<void>;
-  /**
-   * Defaults phrase the batch case; per-item callers name the file instead.
-   * Both receive the flow's own paths, so a message built after the viewed item
-   * has moved on still describes the files the flow actually acted on.
-   */
   emptyPreviewMessage?: (mode: MediaTransferMode, paths: string[]) => string;
   copySuccessMessage?: (succeeded: string[], destinationLabel: string) => string;
 }
@@ -42,23 +33,14 @@ function defaultCopySuccessMessage(succeeded: string[], destinationLabel: string
   return `Copied ${count} to ${destinationLabel}.`;
 }
 
-/**
- * The destination picker → conflict prompt → transfer flow, shared by the batch
- * selection toolbar and the single-item viewer modal.
- *
- * Re-entrancy is guarded at the two entry points only. `executeTransfer` must
- * stay unguarded: `selectDestination` sets `transferring` before awaiting it, so
- * a guard there would reject every conflict-free transfer.
- */
+/** executeTransfer stays unguarded: selectDestination sets transferring before awaiting it. */
 export function useMediaTransfer(options: UseMediaTransferOptions) {
   const notify = useNotify();
 
-  // Read through a ref so every returned callback is dependency-free, and so a
-  // flow that outlives an item swap still finishes against the values it started with.
+  // Ref so callbacks stay dependency-free; a flow outliving a swap keeps its starting values.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  /** Non-null while the destination picker is open, and says which action it is for. */
   const [transferPicker, setTransferPicker] = useState<MediaTransferMode | null>(null);
   const [overwritePrompt, setOverwritePrompt] = useState<MediaTransferPrompt | null>(null);
   const [transferring, setTransferring] = useState<MediaTransferMode | null>(null);
@@ -194,7 +176,6 @@ export function useMediaTransfer(options: UseMediaTransferOptions) {
     transferPicker,
     overwritePrompt,
     transferring,
-    /** True while either transfer dialog is mounted — feeds a parent's child-overlay flag. */
     transferDialogOpen: transferPicker !== null || overwritePrompt !== null,
     openTransferPicker,
     closeTransferPicker,

@@ -1,5 +1,3 @@
-"""HTTP contract tests for /api/automation/*."""
-
 from __future__ import annotations
 
 import os
@@ -800,8 +798,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-#: One non-default start body per job type, with the endpoint that accepts it. Keyed by
-#: job type so ``JobSettingsPersistenceTests`` can assert it covers the whole registry.
+# One non-default start body per job type, keyed so persistence tests cover the registry.
 _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
     "auto_caption": (
         "auto-caption",
@@ -858,16 +855,13 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
         "watermark",
         {"text": "Sample Studio", "size": "large", "opacity": 75, "position": "top"},
     ),
-    # The preset has to be a real file: queue-time validation parses it, and only the
-    # runner is patched out. The shipped example doubles as the fixture, so a broken
-    # example fails here rather than in the user's dialog.
+    # Queue-time validation parses the preset; the shipped example doubles as the fixture.
     "comfy_process": (
         "comfy-process",
         {
             "preset": "example-lanczos-2x",
             "seed": 1234,
-            # The example preset has no prompt node, and a non-empty prompt would be
-            # refused with a 400 rather than remembered.
+            # The example preset has no prompt node; a non-empty prompt would be a 400.
             "prompt_text": "",
             "overwrite_candidates": True,
         },
@@ -880,11 +874,7 @@ def _noop_runner(folder: Path, **params: object) -> dict[str, object]:
 
 
 class JobSettingsPersistenceTests(unittest.TestCase):
-    """Every job with a dialog remembers what it ran with, for this folder and the next.
-
-    Table-driven on purpose: a new job type that registers settings but never stores
-    them fails here, which is the guarantee the per-folder settings rest on.
-    """
+    """Every job with a dialog remembers what it ran with, for this folder and the next."""
 
     def setUp(self) -> None:
         reset_job_manager()
@@ -942,8 +932,7 @@ class JobSettingsPersistenceTests(unittest.TestCase):
                 )
 
     def test_the_destructive_fields_are_never_remembered(self) -> None:
-        # Each of these must be re-chosen every run: two overwrite toggles, the LoRA
-        # name (the job's resume key) and a per-run template override.
+        # Overwrite toggles, LoRA name, and per-run template override must be re-chosen every run.
         never_stored = {"overwrite", "backup", "lora_name", "template", "paths"}
         stored_fields = {
             name for model in JOB_SETTINGS_MODELS.values() for name in model.model_fields

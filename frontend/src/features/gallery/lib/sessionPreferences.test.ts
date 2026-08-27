@@ -110,9 +110,7 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery().searchNames).toBe(true);
   });
 
-  // `filter: "duplicate"` predates duplicates becoming their own axis. It no longer passes
-  // `isItemFilter`, so without the migration a session in flight would silently drop the
-  // filter it was showing instead of carrying it over.
+  // Retired filter: "duplicate"; without the migration a session in flight would silently drop it.
   it("carries the retired duplicate filter value over to its own axis", () => {
     window.sessionStorage.setItem(
       SESSION_QUERY_CACHE_KEY,
@@ -141,9 +139,7 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery().fileFilter).toBe("candidates");
   });
 
-  // `"pending"` is what the candidates axis was called before the ComfyUI results
-  // settled on one name. Without the migration a session in flight falls through to
-  // the legacy booleans and silently widens to every file.
+  // Retired fileFilter "pending"; without the migration a session widens to every file.
   it("carries the retired pending value onto the candidates axis", () => {
     window.sessionStorage.setItem(
       SESSION_QUERY_CACHE_KEY,

@@ -1,13 +1,6 @@
 const FOLDER_PARAM = "path";
 
-/**
- * Identity for a single history entry, so scroll positions can be remembered per
- * visit rather than per folder — the same folder reached twice at different
- * offsets gets two entries, and Back returns to the right one.
- *
- * Random prefix plus a counter rather than `crypto.randomUUID`, which is absent
- * over plain HTTP on a LAN address.
- */
+// Random prefix plus a counter: `crypto.randomUUID` is absent over plain HTTP on a LAN address.
 const ENTRY_KEY_PREFIX = `fs-${Math.random().toString(36).slice(2, 8)}`;
 let entryKeyCounter = 0;
 
@@ -45,15 +38,12 @@ function buildDefaultUrl(): string {
 
 export type HistoryMode = "push" | "replace" | "none";
 
-/** Returns the entry key now current, or undefined for mode "none". */
 export function syncFolderHistory(path: string | undefined, mode: HistoryMode): string | undefined {
   if (mode === "none") return undefined;
 
   const url = path ? buildFolderUrl(path) : buildDefaultUrl();
 
   if (mode === "replace") {
-    // A replace stays on the same entry, so it keeps that entry's key — only a
-    // first write, where nothing has been stamped yet, needs a fresh one.
     const entryKey = readEntryKey(history.state) ?? mintEntryKey();
     history.replaceState({ folderPath: path ?? null, entryKey }, "", url);
     return entryKey;

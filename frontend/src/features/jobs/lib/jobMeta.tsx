@@ -18,25 +18,14 @@ import {
 } from "@/shared/icons";
 import type { JobType } from "@/shared/types";
 
-/** How the app asks the user before starting this job type. */
 type JobStartUi = "dialog" | "confirm";
 
-/** Folder state that decides whether a job can run right now. */
 export interface JobAvailability {
   hasCaptionBackup: boolean;
   ostrisAvailable: boolean;
-  /**
-   * Whether any ComfyUI workflow preset exists.
-   *
-   * Gated on presets rather than on ComfyUI answering: a preset folder is something the
-   * user sets up once, while ComfyUI itself is started and stopped all day, and hiding
-   * the job because it happens to be closed right now would read as the feature being
-   * gone. The dialog says so instead.
-   */
   comfyPresetsAvailable: boolean;
 }
 
-/** Sections of the secondary jobs menu, in display order. */
 export const JOB_GROUPS = [
   { id: "datasets", label: "Datasets" },
   { id: "backup", label: "Backup" },
@@ -50,28 +39,18 @@ interface JobTypeMeta {
   label: string;
   icon: AppIcon;
   startUi: JobStartUi;
-  /** Menu section. Required on every job so a new one cannot land nowhere. */
   group: JobGroup;
-  /** Primary panel CTA (auto-caption). Others appear in the more-jobs menu. */
   primary?: boolean;
-  /** Label in the secondary jobs menu (defaults to label). */
   menuLabel?: string;
-  /** Short description in the secondary jobs menu. */
   menuDescription?: string;
-  /** Confirm-dialog copy when startUi is "confirm". */
   confirm?: {
     title: string;
     description: () => ReactNode;
     confirmLabel: string;
   };
-  /** Whether this job can run in the current folder. Omit for jobs that always can. */
   isAvailable?: (availability: JobAvailability) => boolean;
 }
 
-/**
- * Single source of truth for job presentation and start UX.
- * Adding a job type: extend JobType, add an entry here, wire API + dialog if needed.
- */
 export const JOB_TYPE_META = {
   auto_caption: {
     type: "auto_caption" as const,
@@ -223,11 +202,6 @@ export const SECONDARY_JOB_TYPES: JobType[] = JOB_TYPES.filter(
   (type) => !jobTypeMeta(type).primary,
 );
 
-/**
- * Secondary jobs bucketed into menu sections, in `JOB_GROUPS` order, with jobs
- * keeping their registry order inside each. Sections with no jobs are dropped,
- * so the menu needs no knowledge of which groups are populated.
- */
 export const SECONDARY_JOB_GROUPS: Array<{ id: JobGroup; label: string; types: JobType[] }> =
   JOB_GROUPS.map((group) => ({
     id: group.id,
@@ -235,7 +209,6 @@ export const SECONDARY_JOB_GROUPS: Array<{ id: JobGroup; label: string; types: J
     types: SECONDARY_JOB_TYPES.filter((type) => jobTypeMeta(type).group === group.id),
   })).filter((group) => group.types.length > 0);
 
-/** Safe for persisted job rows holding a type retired since they were written. */
 export function jobTypeLabelFor(type: string): string {
   return isKnownJobType(type) ? JOB_TYPE_META[type].label : type.trim();
 }
@@ -248,7 +221,6 @@ export function isConfirmableJobType(type: JobType): type is ConfirmableJobType 
   return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "confirm";
 }
 
-/** Whether ``type`` can be started for a folder in this state. */
 export function isJobAvailable(type: JobType, availability: JobAvailability): boolean {
   if (!isKnownJobType(type)) return true;
   return jobTypeMeta(type).isAvailable?.(availability) ?? true;

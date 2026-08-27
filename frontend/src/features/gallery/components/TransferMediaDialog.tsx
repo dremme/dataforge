@@ -24,21 +24,14 @@ import { Icon } from "@/shared/ui/Icon";
 interface TransferMediaDialogProps {
   mode: MediaTransferMode;
   currentFolder: string;
-  /**
-   * What the transfer will move or copy. Optional: the single-item modal reuses
-   * this dialog for one named file, where the description says which one and a
-   * "selected files" row would only muddy it.
-   */
   scope?: DialogScopeInfo;
   selectedCount: number;
-  /** Replaces the default "N selected files" phrasing — the item modal names the file. */
   description?: ReactNode;
   busy?: boolean;
   onClose: () => void;
   onSelectDestination: (path: string) => void;
 }
 
-/** Move and copy share this picker; only the wording differs. */
 const MODE_COPY: Record<MediaTransferMode, { title: string; confirm: string; busy: string }> = {
   move: { title: "Move to folder", confirm: "Move here", busy: "Moving..." },
   copy: { title: "Copy to folder", confirm: "Copy here", busy: "Copying..." },
@@ -46,9 +39,7 @@ const MODE_COPY: Record<MediaTransferMode, { title: string; confirm: string; bus
 
 interface RootNode {
   name: string;
-  /** Display path (normalized separators / drive root form). */
   path: string;
-  /** Canonical key for maps / expansion / selection. */
   key: string;
 }
 
@@ -59,7 +50,6 @@ interface TreeEntry {
   depth: number;
 }
 
-/** Case-insensitive path identity used for tree maps and selection. */
 function pathKey(path: string): string {
   return normalizeFolderPath(path).replace(/\\/g, "/").toLowerCase();
 }
@@ -78,8 +68,6 @@ function sortChildren(entries: FolderChild[]): FolderChild[] {
   );
 }
 
-/** Keep roots unique by path. Nested roots (Home under C:\\) stay — walk skips
- *  a path if it already appeared higher in the tree. */
 function dedupeRoots(raw: { name: string; path: string }[]): RootNode[] {
   const seen = new Set<string>();
   const result: RootNode[] = [];
@@ -96,7 +84,6 @@ function dedupeRoots(raw: { name: string; path: string }[]): RootNode[] {
   return result;
 }
 
-/** Expand from drive root down to the current folder so the tree opens in context. */
 function ancestorPathsToExpand(folder: string, roots: RootNode[]): string[] {
   const target = normalizeFolderPath(folder);
   if (!target) return [];
@@ -155,12 +142,9 @@ export function TransferMediaDialog({
   const didScrollToCurrentRef = useRef(false);
 
   const [roots, setRoots] = useState<RootNode[]>([]);
-  /** Children keyed by pathKey for stable lookups. */
   const [childrenByKey, setChildrenByKey] = useState<Record<string, FolderChild[]>>({});
-  /** Expanded folder keys. */
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(() => new Set());
-  /** Selected destination path (display form), or empty until the user picks. */
   const [selectedPath, setSelectedPath] = useState("");
   const [rootsLoading, setRootsLoading] = useState(true);
 

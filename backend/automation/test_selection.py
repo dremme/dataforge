@@ -1,5 +1,3 @@
-"""Unit tests for automation.selection helpers."""
-
 from __future__ import annotations
 
 import unittest

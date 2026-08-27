@@ -24,14 +24,6 @@ export interface SelectionActionOverlaysProps {
   onCancelDelete: () => void;
 }
 
-/**
- * The destination picker, conflict prompt and delete confirmation for the gallery
- * selection.
- *
- * Mounted with the app's other overlays rather than inside the selection toolbar:
- * the toolbar disappears the moment a filter empties the grid, and a dialog that
- * went with it would abandon a transfer already in flight.
- */
 export function SelectionActionOverlays({
   currentFolder,
   selectedPaths,

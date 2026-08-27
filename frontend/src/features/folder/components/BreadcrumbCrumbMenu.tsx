@@ -25,11 +25,6 @@ function sortChildren(children: FolderChild[]): FolderChild[] {
   );
 }
 
-/**
- * The chevron that follows a breadcrumb, opening its subfolders as a flat list —
- * the Windows Explorer gesture. Every crumb gets one, including the last, so the
- * bar can drill down as well as back up.
- */
 export function BreadcrumbCrumbMenu({
   folderPath,
   label,
@@ -40,8 +35,7 @@ export function BreadcrumbCrumbMenu({
   const [children, setChildren] = useState<FolderChild[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Folders change on disk, so every open refetches. The previous list stays on
-  // screen while the request is in flight — reopening should not flash empty.
+
   useEffect(() => {
     if (!open) return;
 

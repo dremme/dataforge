@@ -22,9 +22,7 @@
   border-radius: var(--radius);
   pointer-events: none;
 
-  // The overlay still covers the whole drop zone (a tall gallery included).
-  // This box is only as tall as the visible scroller and sticks with it, so
-  // the prompt stays on screen instead of sitting at the gallery's midpoint.
+  // Overlay covers the whole drop zone; this box is only as tall as the visible scroller so the prompt stays on screen.
   &__viewport {
     position: sticky;
     top: 0;

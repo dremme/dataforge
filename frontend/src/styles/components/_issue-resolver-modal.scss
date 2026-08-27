@@ -1,10 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .issue-resolver-modal
-// ---------------------------------------------------------------------------
-
 .issue-resolver-modal {
   @include modal-shell($z-index-modal);
 
@@ -151,8 +147,6 @@
     background: linear-gradient(180deg, $color-warning-soft, transparent 120%);
   }
 
-  // Stepping back to an item this session already resolved: the fixes below are
-  // a record of work done, not a list of work outstanding.
   &__issue-card--resolved {
     border-color: $color-success-border;
     background: linear-gradient(180deg, $color-success-soft, transparent 120%);
@@ -199,8 +193,7 @@
     gap: 0.3125rem;
     margin: 0;
     padding-left: 0;
-    // Native markers cannot be aligned flush nor spaced from their text, so the
-    // numbering is drawn as a baseline-aligned flex item instead.
+    // Native markers cannot be aligned flush nor spaced from their text.
     list-style: none;
     counter-reset: issue-fix;
 
@@ -213,7 +206,7 @@
       &::before {
         content: counter(issue-fix) ".";
         flex: none;
-        // Proportional digits vary in width, which would leave the text column ragged.
+        // Proportional digits vary in width and would leave the text column ragged.
         @include tabular-nums;
         color: $color-warning;
         font-size: var(--text-xs);
@@ -221,8 +214,6 @@
       }
     }
 
-    // A lone fix reads as a statement; the numbering only earns its place once
-    // there is an order to follow.
     &:has(li:only-child) li::before {
       content: none;
     }
@@ -257,7 +248,6 @@
 
   &__footer {
     @include modal-chrome-footer;
-    // Tighter than the chrome default: this is a button pair, not a meta row.
     gap: 0.5625rem;
   }
 }

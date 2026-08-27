@@ -1,16 +1,3 @@
-"""Unit tests for in-place image editing.
-
-Unlike ``test_video_edit.py``, which can only assert on an ffmpeg argv it never runs,
-everything here runs for real: Pillow is a library, not a subprocess. So the assertions
-are on pixels. Every fixture paints its four corners a different colour, and each test
-says where those colours must end up - which is the only way to catch a mirror written
-as a rotation, or Pillow's counter-clockwise ``ROTATE_*`` taken at face value.
-
-The ordering test is the important one. Crop, mirror, rotate and scale each pass in
-isolation under almost any order; only a spec that uses all four at once pins down the
-one order ``frontend/src/features/gallery/lib/imageEdit.ts`` also promises.
-"""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database
@@ -38,12 +25,7 @@ HEIGHT = 20
 
 
 def corner_marked(width: int = WIDTH, height: int = HEIGHT) -> Image.Image:
-    """An image whose four corner pixels are individually identifiable.
-
-    Deliberately not square: a rotation that silently kept the frame's shape would still
-    pass every corner check on a square, and the aspect swap is half of what 90 degrees
-    means.
-    """
+    """Four identifiable corner pixels. Not square: a rotation that kept the frame shape would still pass on a square."""
     image = Image.new("RGB", (width, height), (10, 10, 10))
     image.putpixel((0, 0), RED)
     image.putpixel((width - 1, 0), GREEN)
@@ -188,8 +170,7 @@ class RenderOrderTests(unittest.TestCase):
 
         result = image_edit.render_image_edit(corner_marked(), spec)
 
-        # Crop keeps the left half (20x20), the mirror swaps its columns, the quarter turn
-        # swaps the axes, and the scale halves both.
+        # Crop keeps the left half, the mirror swaps columns, the quarter turn swaps axes, then scale.
         self.assertEqual(result.size, (HEIGHT // 2, WIDTH // 4))
 
     def test_the_crop_is_measured_before_the_rotation(self) -> None:
@@ -357,8 +338,7 @@ class ExifOrientationTests(unittest.TestCase):
 
             image_edit.apply_image_edit(media, ImageEditSpec(rotate=90))
 
-            # Displayed 48x64, turned another quarter, lands at 64x48 - not 48x64, which
-            # is what ignoring the tag and rotating the stored pixels would produce.
+            # Displayed 48x64, turned another quarter, lands at 64x48, not 48x64.
             with Image.open(media) as written:
                 self.assertEqual(written.size, (64, 48))
 

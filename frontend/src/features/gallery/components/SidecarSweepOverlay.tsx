@@ -11,13 +11,6 @@ export interface SidecarSweepOverlayProps {
   onCancel: () => void;
 }
 
-/**
- * The confirmation for deleting every finding sidecar of one kind in the folder.
- *
- * Mounted with the app's other overlays rather than inside the palette: the bar
- * closes as soon as the action runs, and a dialog that went with it would abandon
- * a sweep already in flight.
- */
 export function SidecarSweepOverlay({
   pending,
   count,

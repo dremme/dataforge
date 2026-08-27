@@ -1,5 +1,3 @@
-"""Unit tests for the shared vision plumbing, focused on cancelling a stuck model call."""
-
 from __future__ import annotations
 
 import base64
@@ -116,8 +114,7 @@ class RetryReencodeWorkaroundTests(unittest.TestCase):
         return captured["images"]
 
     def test_a_retry_sends_different_bytes_than_the_attempt_that_failed(self) -> None:
-        # The whole point of the workaround: byte-identical repeats are short-circuited
-        # by the server, so a retry that resends them is not a second attempt at all.
+        # Byte-identical repeats are short-circuited, so a retry that resends them is not a second attempt.
         first = self._sent_images(1)
         second = self._sent_images(2)
 
@@ -125,8 +122,7 @@ class RetryReencodeWorkaroundTests(unittest.TestCase):
         self.assertNotEqual(first, second)
 
     def test_the_first_attempt_is_unchanged_by_the_workaround(self) -> None:
-        # Only the retries differ. A first attempt that started encoding at some other
-        # quality would make every request in every job a different one.
+        # Only retries differ; a first attempt at another quality would change every request.
         self.assertEqual(retry_jpeg_quality(1), JPEG_QUALITY)
 
 
@@ -159,9 +155,7 @@ class LoadImageRgbTests(unittest.TestCase):
                 self.assertTrue(handle is None or handle.closed)
 
     def test_closes_the_file_for_a_multi_frame_image(self) -> None:
-        # Pillow keeps the handle open past load() so later frames stay seekable,
-        # so an APNG (still a plain .png to the rest of the app) is what catches a
-        # regression here; a single-frame PNG closes itself either way.
+        # Pillow keeps the handle open on multi-frame files; an APNG (plain .png) catches that.
         with TempMediaFolder() as root:
             media = root / "animated.png"
             frames = [Image.new("RGB", (32, 32), color=tone) for tone in ("red", "green")]
@@ -203,8 +197,7 @@ class MediaKindTests(unittest.TestCase):
             self.assertEqual(media_kind_for(Path(name)), "video")
 
     def test_gifs_are_images(self) -> None:
-        # The rendering layer still calls a GIF a gif and the gallery still scrubs
-        # its frames; only the captioning axis folds it in with the stills.
+        # Gallery still treats a GIF as a gif; only captioning folds it in with stills.
         for name in ("loop.gif", "LOOP.GIF"):
             self.assertEqual(media_kind_for(Path(name)), "image")
 
@@ -218,14 +211,12 @@ class KeyframeCountTests(unittest.TestCase):
         self.assertEqual(keyframe_count_for_seconds(20), 42)
 
     def test_a_part_second_counts_as_a_whole_one(self) -> None:
-        # Rounding down would leave the last fraction of a second unsampled, so the
-        # boundary is pinned against a later int() or round() creeping in.
+        # Rounding down would leave the last fraction of a second unsampled.
         self.assertEqual(keyframe_count_for_seconds(10.0), 22)
         self.assertEqual(keyframe_count_for_seconds(10.4), 24)
 
     def test_a_short_clip_keeps_the_fixed_count(self) -> None:
-        # The formula alone would hand a 1s clip four frames, which is fewer than it
-        # gets today. Below the floor nothing about a short clip changes.
+        # The formula alone would hand a 1s clip four frames; the floor keeps short clips unchanged.
         for seconds in (0.5, 1, 3):
             self.assertEqual(keyframe_count_for_seconds(seconds), VIDEO_KEYFRAME_COUNT)
 
@@ -233,9 +224,7 @@ class KeyframeCountTests(unittest.TestCase):
         self.assertEqual(keyframe_count_for_seconds(6.0), 14)
 
     def test_a_long_clip_stops_at_the_cap(self) -> None:
-        # Every frame is inlined in one request, so an uncapped count would build a
-        # payload no model accepts - and retry it. Twenty seconds is the last length
-        # that still grows: 2 * 20 + 2 is the cap.
+        # Uncapped frames are inlined (and retried); 2 * 20s + 2 is the cap.
         self.assertEqual(keyframe_count_for_seconds(20), MAX_VIDEO_KEYFRAME_COUNT)
         self.assertEqual(keyframe_count_for_seconds(31), MAX_VIDEO_KEYFRAME_COUNT)
         for seconds in (32, 60, 300):
@@ -292,8 +281,7 @@ class FrameBudgetEnvTests(unittest.TestCase):
                 self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
     def test_each_media_kind_reads_its_own_configured_budget(self) -> None:
-        # One helper, two knobs, and neither may be bound at import: a still and a
-        # keyframe have to come back at the sizes actually configured for them.
+        # Neither knob may be bound at import.
         with patch.dict(
             os.environ,
             {IMAGE_MAX_PIXELS_VAR: "900000", VIDEO_FRAME_MAX_PIXELS_VAR: "262144"},
@@ -302,8 +290,7 @@ class FrameBudgetEnvTests(unittest.TestCase):
             self.assertEqual(media_kind_max_pixels("video"), 262_144)
 
     def test_the_two_budgets_are_independent(self) -> None:
-        # They were separate constants in two job modules before they were one pair of
-        # knobs; setting the video one must not drag the still one down with it.
+        # Setting the video knob must not drag the still one down with it.
         with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "262144"}):
             self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
 
@@ -432,8 +419,7 @@ class VisionMessagesTests(unittest.TestCase):
         self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", audio_wav=b""), baseline)
 
     def test_a_timestamp_precedes_every_frame(self) -> None:
-        # Qwen3-VL's own video path emits this marker before each frame, so the
-        # spelling and the single decimal place are the contract, not a style choice.
+        # Spelling and one decimal place are the Qwen3-VL contract, not a style choice.
         messages = vision_messages("Sys", ["aaa", "bbb"], "Caption it.", timestamps=[0.0, 3.26])
 
         parts = messages[1]["content"]
@@ -453,8 +439,7 @@ class VisionMessagesTests(unittest.TestCase):
         self.assertEqual(vision_messages("Sys", ["aaa"], "Caption it.", timestamps=[]), baseline)
 
     def test_a_timestamp_per_frame_mismatch_labels_nothing(self) -> None:
-        # Half-labelled frames would silently attach each timestamp to the wrong
-        # frame, which is worse than sending none.
+        # Half-labelled frames would attach each timestamp to the wrong frame.
         baseline = vision_messages("Sys", ["aaa", "bbb"], "Caption it.")
 
         self.assertEqual(
@@ -507,8 +492,7 @@ class LoadMediaImagesTests(unittest.TestCase):
             self.assertIsNone(frames.timestamps)
 
     def test_an_unreadable_still_reports_read_error_with_a_message(self) -> None:
-        # The jobs surface this message as the file's result, so a read_error without
-        # one would report the failure without saying why.
+        # Jobs surface this message as the file's result, so a read_error without one says nothing.
         with TempMediaFolder() as root:
             broken = root / "broken.png"
             broken.write_bytes(b"not an image")
@@ -548,8 +532,7 @@ class LoadMediaImagesTests(unittest.TestCase):
         self.assertEqual(len(frames.images), 1)
 
     def test_an_unreadable_gif_reports_read_error(self) -> None:
-        # It reaches the still path now, so it lands with the stills rather than
-        # under the frame extractor's counter.
+        # GIFs take the still path, so they land with stills rather than the frame extractor.
         with TempMediaFolder() as root:
             broken = root / "broken.gif"
             broken.write_bytes(b"not a gif")

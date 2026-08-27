@@ -10,11 +10,7 @@ def auto_caption_error_message(count: int) -> str:
 
 
 def auto_caption_failure_message(stats: dict[str, int]) -> str | None:
-    """Blame the model server only for errors it caused.
-
-    Media that never decoded never reached the server, so pointing at the server
-    would send the user to restart a service that is working fine.
-    """
+    """Blame the model server only for ``api_error``; decode failures never reached it."""
     api_errors = int(stats.get("api_error") or 0)
     if api_errors:
         return auto_caption_error_message(api_errors)
@@ -88,12 +84,7 @@ def watermark_error_message(stats: dict[str, int]) -> str | None:
 
 
 def comfy_process_error_message(stats: dict[str, int]) -> str | None:
-    """Blame ComfyUI only for what it did.
-
-    A file that never decoded never reached ComfyUI, and a candidate that could not be
-    written is a disk problem — pointing at the graph in either case would send the user
-    to debug a workflow that is working fine.
-    """
+    """Blame ComfyUI only for ``comfy_error``; read/write failures never reached the graph."""
     comfy_errors = int(stats.get("comfy_error") or 0)
     read_errors = int(stats.get("read_error") or 0)
     write_errors = int(stats.get("write_error") or 0)
@@ -162,8 +153,6 @@ def find_duplicates_error_message(stats: dict[str, int]) -> str | None:
     if read_errors == 0:
         return None
 
-    # A file that never decoded was never compared, so it may be an unreported
-    # duplicate rather than merely a file the job skipped.
     if read_errors == 1:
         return "1 file could not be read and was left out of the comparison."
     return f"{read_errors} files could not be read and were left out of the comparison."
@@ -241,12 +230,7 @@ def verify_captions_failure_message(stats: dict[str, int]) -> str | None:
 
 
 def edit_captions_failure_message(stats: dict[str, int]) -> str | None:
-    """Errors only.
-
-    ``rejected`` is deliberately absent: the model returned something unusable, the job
-    declined to write it, and the caption is intact — that is the safe outcome working,
-    not a failure. It surfaces as a warning instead. ``no_caption`` is a warning too.
-    """
+    """Errors only; ``rejected`` and ``no_caption`` are warnings, not failures."""
     api_errors = int(stats.get("api_error") or 0)
     read_errors = int(stats.get("read_error") or 0)
     write_errors = int(stats.get("write_error") or 0)
@@ -290,11 +274,7 @@ def resolve_job_error(
     stats: dict[str, int],
     stored_error: str | None,
 ) -> str | None:
-    """Return the persisted job error, or reconstruct one from stats when missing.
-
-    ``train_lora`` has no branch on purpose: a failed training run raises out of its
-    runner, so its message is always stored and never has to be rebuilt from stats.
-    """
+    """Return the persisted job error, or reconstruct one from stats when missing."""
     if stored_error:
         return stored_error
 

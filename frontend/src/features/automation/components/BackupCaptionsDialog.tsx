@@ -4,7 +4,6 @@ import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 
 interface BackupCaptionsDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
   /** No field survives the destructive-field rule; taken so every dialog is alike. */
   initialSettings: JobSettingsByType["backup_captions"];

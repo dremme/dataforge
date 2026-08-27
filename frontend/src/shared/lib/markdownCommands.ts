@@ -38,22 +38,18 @@ function insertAtLineStart(view: EditorView, prefix: string) {
   const { doc } = state;
 
   const changes = state.changeByRange((range) => {
-    // Always expand to full lines that the range intersects
     const startLine = doc.lineAt(range.from);
     const endLine = doc.lineAt(range.to);
 
     const from = startLine.from;
     const to = endLine.to;
 
-    // Get the full text of all affected lines
     const text = doc.sliceString(from, to);
     const lines = text.split("\n");
 
-    // Prefix every line (preserving original behavior of trimStart + space)
     const newLines = lines.map((line) => `${prefix}${line.trimStart()}`);
     const newText = newLines.join("\n");
 
-    // Determine new selection behavior
     let newRange;
     if (range.empty) {
       newRange = EditorSelection.cursor(range.from + prefix.length);
@@ -105,7 +101,6 @@ export const markdownCommands: MarkdownCommands = {
       let from = range.from;
       let to = range.to;
 
-      // If nothing is selected, operate on the current line (common UX)
       if (from === to) {
         const line = state.doc.lineAt(from);
         from = line.from;
@@ -114,36 +109,24 @@ export const markdownCommands: MarkdownCommands = {
 
       let text = state.doc.sliceString(from, to);
 
-      // === 1. Remove block-level formatting (per line) ===
       const lines = text.split("\n");
       const cleanedLines = lines.map((line) => {
-        // Remove heading markers (#, ##, ###, etc.)
         line = line.replace(/^#{1,6}\s+/, "");
-        // Remove unordered list markers (-, *, +)
         line = line.replace(/^(\s*[-*+]\s+)/, "");
-        // Remove ordered list markers (1., 2., etc.)
         line = line.replace(/^(\s*\d+\.\s+)/, "");
-        // Remove blockquote markers
         line = line.replace(/^>\s?/, "");
         return line;
       });
       text = cleanedLines.join("\n");
 
-      // === 2. Remove inline formatting ===
       text = text
-        // Images: ![alt](url) → alt
         .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
-        // Links: [text](url) → text
         .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-        // Bold: **text** or __text__
         .replace(/\*\*(.+?)\*\*/g, "$1")
         .replace(/__(.+?)__/g, "$1")
-        // Italic: *text* or _text_
         .replace(/\*(.+?)\*/g, "$1")
         .replace(/_(.+?)_/g, "$1")
-        // Strikethrough: ~~text~~
         .replace(/~~(.+?)~~/g, "$1")
-        // Inline code: `code`
         .replace(/`(.+?)`/g, "$1");
 
       return {

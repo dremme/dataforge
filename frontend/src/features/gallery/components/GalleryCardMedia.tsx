@@ -14,8 +14,6 @@ interface GalleryCardMediaProps {
 }
 
 export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
-  // Two different questions, so two flags. Only a video cannot be shown by an
-  // `<img>` at all, while both it and a GIF want the motion placeholder.
   const itemIsVideo = item.media_type === "video";
   const itemIsGif = item.media_type === "gif";
   const itemIsMotion = itemIsVideo || itemIsGif;
@@ -31,8 +29,6 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
     previewUrl,
   );
 
-  // A new revision of the file deserves a fresh thumbnail attempt: the miss that
-  // forced the fallback is often just the previous revision being mid-write.
   useEffect(() => {
     setUseFullMediaFallback(false);
     setThumbnailUnavailable(false);
@@ -48,8 +44,7 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
     );
   }
 
-  // A GIF takes the image path here: unlike an MP4, the full file does render in
-  // an `<img>`, so a missed thumbnail can still fall back to the real thing.
+  // A GIF can fall back to the full file in an <img>; an MP4 cannot.
   const handlePreviewError = () => {
     if (!useFullMediaFallback && !itemIsVideo) {
       setUseFullMediaFallback(true);

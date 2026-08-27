@@ -8,9 +8,7 @@ import sqlite3
 from db import get_connection
 from filesystem import normalize_user_path, path_leaf_name
 
-# The single source of truth for the jobs table: the CREATE statements, the SELECT
-# column list, the row mapping, the INSERT, and the add-missing-column migration are
-# all derived from it. Adding a column means adding one line here.
+# CREATE, SELECT, INSERT, and the add-column migration are all derived from this.
 _JOB_SCHEMA: tuple[tuple[str, str], ...] = (
     ("id", "TEXT PRIMARY KEY"),
     ("folder", "TEXT NOT NULL"),
@@ -33,14 +31,9 @@ _JOB_SCHEMA: tuple[tuple[str, str], ...] = (
 _JOB_COLUMN_NAMES = tuple(name for name, _ in _JOB_SCHEMA)
 _JOB_COLUMNS = ", ".join(_JOB_COLUMN_NAMES)
 
-# ``results_json`` holds one entry per processed file, and an auto-caption entry carries
-# the whole generated caption, so a finished run over a large folder is megabytes in a
-# single cell. Queries that feed the job list read this narrower set and leave the blob
-# on disk; ``get_job`` still reads it whole for ``/api/jobs/{id}/results``.
 _JOB_SUMMARY_COLUMN_NAMES = tuple(name for name in _JOB_COLUMN_NAMES if name != "results_json")
 _JOB_SUMMARY_COLUMNS = ", ".join(_JOB_SUMMARY_COLUMN_NAMES)
 
-# Never overwritten by an update: the id identifies the row and the creation time is fixed.
 _IMMUTABLE_JOB_COLUMNS = frozenset({"id", "created_at"})
 
 
@@ -56,12 +49,7 @@ def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
 
 
 def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
-    """Add any schema column the live table lacks, so the rebuild below can SELECT them all.
-
-    SQLite only accepts an added column that is nullable or carries a default, which every
-    column added since the original table has been. A new one that is neither fails loudly
-    here at startup rather than corrupting anything.
-    """
+    """Add any schema column the live table lacks so the rebuild can SELECT them all."""
     existing = _column_names(conn, "jobs")
     for name, definition in _JOB_SCHEMA:
         if name not in existing:
@@ -114,11 +102,7 @@ def init_jobs_table() -> None:
 
 
 def list_active_jobs() -> list[dict[str, object]]:
-    """Jobs still marked queued or running. Read before recovery to find resumable work.
-
-    Reads the full column set: a resumed job is put back under management and saved
-    again, so it has to carry the results it already accumulated.
-    """
+    """Jobs still marked queued or running; reads the full column set for resume."""
     with get_connection() as conn:
         rows = conn.execute(
             f"""
@@ -167,11 +151,7 @@ def _decode_json_array(raw: object) -> list:
 
 
 def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> dict[str, object]:
-    """Map one row to a job dict. ``results`` is absent when ``columns`` omits the blob.
-
-    Absent rather than empty on purpose: an empty list would look like a job that
-    produced no results, and re-saving such a job would erase what is on disk.
-    """
+    """Map one row to a job dict. ``results`` is absent (not empty) when ``columns`` omits the blob."""
     values = dict(zip(columns, row, strict=True))
 
     stats = _decode_json_object(values.pop("stats_json"))
@@ -327,11 +307,7 @@ def delete_all_jobs() -> int:
 def delete_jobs_for_folder(
     folder: str, *, job_type: str | None = None, keep_id: str | None = None
 ) -> int:
-    """Delete job records for the given folder (and optionally job_type), except an optional keep_id.
-
-    Used to enforce keeping only the latest job per folder per job type.
-    Returns number of rows deleted.
-    """
+    """Delete job records for the given folder (and optionally job_type), except an optional keep_id."""
     normalized = _normalize_folder(folder)
 
     query = "DELETE FROM jobs WHERE folder = ?"
@@ -350,10 +326,7 @@ def delete_jobs_for_folder(
 
 
 def prune_duplicate_jobs() -> int:
-    """Remove older job records so that only the most recent (by created_at) remains for each (folder, job_type).
-
-    Returns the number of rows deleted. Safe to call on startup to clean legacy duplicate history.
-    """
+    """Keep only the most recent job record for each (folder, job_type)."""
     with get_connection() as conn:
         cursor = conn.execute(
             """

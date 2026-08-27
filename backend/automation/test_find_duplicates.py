@@ -1,5 +1,3 @@
-"""Unit tests for automation.find_duplicates."""
-
 from __future__ import annotations
 
 import json
@@ -29,12 +27,7 @@ from testing_fixtures import (
 
 
 def write_patterned_image(root: Path, name: str, *, seed: int, size: int = 64) -> Path:
-    """An image with real structure, which a flat colour fixture does not have.
-
-    A difference hash compares each pixel with its right-hand neighbour, so every
-    single-colour image hashes to zero whatever the colour - fine as a duplicate
-    pair, useless as a distinct one.
-    """
+    """An image with real structure; a flat colour fixture hashes to zero."""
     from PIL import Image
 
     image = Image.new("RGB", (size, size))
@@ -282,16 +275,7 @@ class FindDuplicatesJobTests(unittest.TestCase):
 
 
 class StemSharingTests(unittest.TestCase):
-    """A generated folder holds a video beside the still that previews it.
-
-    Both sit under one stem, and a stem-named sidecar would be one file for the two of
-    them. Order decided the damage: the run wrote the video's finding, reached the still
-    it does not group, and cleared what it had just written - leaving a group of one that
-    no re-run could repair, because every re-run did the same thing.
-
-    The fixtures stand in for that shape with images, and the extensions are chosen so the
-    unique file sorts *after* the duplicate one, the way ``clip.png`` follows ``clip.mp4``.
-    """
+    """A generated folder holds a video beside the still that previews it, sharing one stem."""
 
     def test_a_still_sharing_a_stem_does_not_clear_the_media_finding(self) -> None:
         with TempMediaFolder() as root:

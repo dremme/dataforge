@@ -9,17 +9,6 @@ import type { Subfolder } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
 
-/**
- * What the card is warning about, in the words its label uses.
- *
- * Caption issues and duplicates are counted from separate sidecars and one file can
- * carry both, so they stay two clauses instead of one total: a sum could claim more
- * findings than the folder has files.
- *
- * Each count is read on its own rather than requiring both to have arrived. A folder
- * with caption issues has to keep warning while its duplicate count is still null -
- * gating on both would drop the warning it used to show.
- */
 function folderFindings({ issue_count: issues, duplicate_count: duplicates }: Subfolder): string[] {
   const findings: string[] = [];
   if (issues) findings.push(issues === 1 ? "1 caption issue" : `${issues} caption issues`);
@@ -30,8 +19,6 @@ function folderFindings({ issue_count: issues, duplicate_count: duplicates }: Su
 function FolderCardStats({ folder }: { folder: Subfolder }) {
   const { file_count: fileCount, captioned_count: captionedCount } = folder;
 
-  // Counts arrive after the cards do. The slot keeps its height either way, so
-  // nothing reflows underneath the pointer once the numbers land.
   if (fileCount === null || captionedCount === null) {
     return (
       <span className="folder-card__stat folder-card__stat--pending" aria-hidden="true">
@@ -48,7 +35,6 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
     >
       <Icon icon={iconImage} className="folder-card__stat-icon" />
       <strong>{captionedCount}</strong> / {fileCount} captioned
-      {/* Same source as the label, so the icon cannot appear unexplained. */}
       {folderFindings(folder).length > 0 && (
         <Icon icon={iconTriangleAlert} className="folder-card__issue-icon" aria-hidden="true" />
       )}
@@ -56,14 +42,12 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
   );
 }
 
-/** The warning icon is `aria-hidden`, so this is the only place it gets explained. */
 function folderCardLabel(folder: Subfolder): string {
   const findings = folderFindings(folder);
   return findings.length > 0 ? `${folder.name} (${findings.join(", ")})` : folder.name;
 }
 
 interface FolderGridProps {
-  /** Folders left after the search; `totalCount` carries the unfiltered size. */
   folders: Subfolder[];
   totalCount?: number;
   onOpen: (path: string) => void;
@@ -78,7 +62,6 @@ export function FolderGrid({
   onCreateFolder,
   createFolderDisabled = false,
 }: FolderGridProps) {
-  // The header stays put even with nothing to list, so the count is always readable.
   return (
     <section className="folder-section" aria-label="Subfolders">
       <SectionHeader

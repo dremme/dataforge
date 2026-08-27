@@ -142,8 +142,7 @@ describe("crop geometry", () => {
     });
 
     it("reads a full frame as free rather than as its own aspect", () => {
-      // 1920x1080 is 16:9, and calling that a lock would put the overlay's handles under
-      // a constraint the user never asked for.
+      // 1920x1080 is 16:9; calling that a lock would constrain handles the user never asked for.
       expect(aspectIdForCrop(IDENTITY_CROP, HD)).toBe("free");
     });
 
@@ -162,8 +161,7 @@ describe("screenDeltaToSource", () => {
     expect(screenDeltaToSource(7, -3, upright())).toEqual({ dx: 7, dy: -3 });
   });
 
-  // Screen y points down, so a clockwise quarter turn sends the source's +x to the
-  // screen's +y - and the inverse below sends the screen's +y back to the source's +x.
+  // Screen y points down, so a clockwise quarter-turn sends source +x to screen +y.
   it.each([
     [0, { dx: 10, dy: 4 }],
     [90, { dx: 4, dy: -10 }],
@@ -185,8 +183,7 @@ describe("screenDeltaToSource", () => {
   });
 
   it("undoes the rotation before the mirror, the way the transform applies them", () => {
-    // `rotate(90deg) scaleX(-1)` maps a source (dx, dy) to (-dy, -dx) on screen; anything
-    // that undid the two in the other order would answer (dy, dx) here.
+    // rotate(90deg) scaleX(-1) maps (dx, dy) to (-dy, -dx); the other order answers (dy, dx).
     expect(screenDeltaToSource(-4, -10, upright({ rotate: 90, mirrorH: true }))).toEqual({
       dx: 10,
       dy: 4,

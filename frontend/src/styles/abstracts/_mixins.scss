@@ -1,9 +1,5 @@
 @use "variables" as *;
 
-// ---------------------------------------------------------------------------
-// Layout
-// ---------------------------------------------------------------------------
-
 @mixin flex-center($direction: row, $gap: null) {
   display: flex;
   align-items: center;
@@ -35,18 +31,13 @@
   margin: 0 calc(50% - max(50vw, #{$min-app-width * 0.5}));
 }
 
-// ---------------------------------------------------------------------------
-// Typography
-// ---------------------------------------------------------------------------
-
 @mixin truncate {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-// Single-line path: ellipsis on the start so the leaf end stays visible
-// (...\Photos\Deep\Nested\Folder). Uses RTL overflow without reversing glyphs.
+// RTL overflow so the ellipsis is on the start without reversing glyphs.
 @mixin truncate-path-start {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -54,7 +45,7 @@
   direction: rtl;
   text-align: left;
 
-  // Keep the path string itself LTR so drive letters and separators read correctly.
+  // Keep the path string LTR so drive letters and separators read correctly.
   & > * {
     direction: ltr;
     unicode-bidi: embed;
@@ -98,10 +89,6 @@
   border: 0;
 }
 
-// ---------------------------------------------------------------------------
-// Interactive states
-// ---------------------------------------------------------------------------
-
 @mixin focus-ring {
   &:focus-visible {
     outline: 2px solid var(--accent);
@@ -118,9 +105,7 @@
   opacity: var(--icon-muted);
 }
 
-// The stroke travels with the size. It is pinned in whole, even pixels rather
-// than scaled with the box - see .lucide in utilities/_icons.scss for why odd
-// widths are the blurry case.
+// Stroke is pinned in even CSS pixels; odd widths smear — see .lucide in utilities/_icons.scss.
 @mixin icon-size($size, $stroke: 2px) {
   width: $size;
   height: $size;
@@ -143,26 +128,15 @@
   @include focus-ring;
 }
 
-// ---------------------------------------------------------------------------
-// Dropdown menus
-//
-// Shared by every hand-rolled `role="menu"` popover (toolbar filters, gallery
-// display mode). The trigger stays per-call-site because each sits in chrome of
-// a different scale, but the panel a user drops open should look the same
-// everywhere — keeping these here is what stops the two from drifting apart.
-// ---------------------------------------------------------------------------
-
-// Appearance only: `.anchored` places these and owns their geometry, so a panel
-// that declared its own would fight the primitive rather than compose with it.
+// Appearance only: `.anchored` owns geometry, so a panel that declared its own would fight it.
 @mixin dropdown-menu-surface($min-width: 15rem) {
   display: flex;
   flex-direction: column;
-  // Pass null where the panel sizes itself, as the multi-column job menu does.
+  // Pass null where the panel sizes itself.
   @if $min-width {
     min-width: min($min-width, calc(100vw - 2rem));
   }
-  // Pairs with the max-height `useAnchoredPosition` sets when a panel runs out
-  // of room below its trigger: it scrolls there rather than being cut off.
+  // Scrolls when `useAnchoredPosition` caps max-height.
   overflow-y: auto;
   padding: 0.375rem;
   background: var(--bg-card);
@@ -204,10 +178,6 @@
   animation: spin 0.9s linear infinite;
 }
 
-// ---------------------------------------------------------------------------
-// Surfaces & pills
-// ---------------------------------------------------------------------------
-
 @mixin count-pill($accent: true) {
   display: inline-flex;
   align-items: center;
@@ -233,10 +203,6 @@
   color: var(--text-muted);
   font-weight: var(--font-medium);
 }
-
-// ---------------------------------------------------------------------------
-// Buttons — shared surfaces (border, background, color, hover)
-// ---------------------------------------------------------------------------
 
 @mixin btn-hover-default {
   &:hover:not(:disabled) {
@@ -319,10 +285,6 @@
   }
 }
 
-// ---------------------------------------------------------------------------
-// Buttons — pill variants
-// ---------------------------------------------------------------------------
-
 @mixin pill-btn($gap: null) {
   @include inline-flex-center;
   @include control-interactive;
@@ -388,10 +350,6 @@
 @mixin pill-btn-compact-accent {
   @include pill-btn-compact(accent);
 }
-
-// ---------------------------------------------------------------------------
-// Buttons — icon variants
-// ---------------------------------------------------------------------------
 
 @mixin icon-btn($size: var(--control-height)) {
   @include inline-flex-center;
@@ -479,10 +437,6 @@
   @include btn-disabled;
 }
 
-// ---------------------------------------------------------------------------
-// Confirm / form dialogs (used by confirm-dialog.scss variants)
-// ---------------------------------------------------------------------------
-
 @mixin dialog-form-field {
   margin-top: 1.125rem;
 }
@@ -525,9 +479,7 @@
   }
 }
 
-/// The W/H pair the image and video edit panels both carry. Narrow, right-aligned
-/// and tabular so a changing digit never shifts the ones beside it, and sized to
-/// `--control-height-sm` because `__tool-controls` pins its row height to these.
+/// W/H pair for image and video edit panels: tabular, right-aligned, sized to `--control-height-sm` because `__tool-controls` pins row height to these.
 @mixin edit-panel-fields {
   display: flex;
   align-items: center;
@@ -567,11 +519,7 @@
     border-color var(--transition),
     background var(--transition);
 
-  // The real radio is visually hidden, so the tile cannot carry :disabled itself
-  // and reads its input's state instead. Without this a disabled tile still shows
-  // a pointer and still lights its border, advertising a click that does nothing.
-  // The radio and the label text are faded separately, so the tile itself only
-  // drops the affordance - stacking another opacity here would double-fade them.
+  // Input is visually hidden, so the tile reads :disabled from it. Do not stack opacity: the radio and label already fade.
   &:has(input:disabled) {
     cursor: not-allowed;
   }
@@ -591,9 +539,7 @@
   }
 }
 
-// Custom checkbox (pair with a visually-hidden real input).
-// Surface = the square; mark = rotated L. Keep separate so CodeMirror can put
-// the box on label::before and the mark on label::after.
+/// Square surface and rotated-L mark as separate mixins so CodeMirror can put them on ::before / ::after.
 @mixin custom-checkbox-box-surface {
   box-sizing: border-box;
   display: grid;
@@ -610,7 +556,6 @@
     border-color var(--transition);
 }
 
-// Rotated L checkmark; parent should center it (grid or absolute 50%/50%).
 @mixin custom-checkbox-mark {
   content: "";
   box-sizing: border-box;
@@ -618,7 +563,7 @@
   height: 0.5rem;
   border: solid currentColor;
   border-width: 0 2px 2px 0;
-  // Optical lift: L shape sits slightly low after rotate
+  // Optical lift: the L sits slightly low after rotate.
   transform: translateY(-0.05rem) rotate(45deg);
   opacity: 0;
   transition: opacity var(--transition);
@@ -641,7 +586,6 @@
   }
 }
 
-// Custom radio control (pair with a visually-hidden real input).
 @mixin custom-radio-control {
   box-sizing: border-box;
   display: grid;
@@ -660,7 +604,7 @@
 
   &::after {
     content: "";
-    // Odd-pixel-friendly size so the disc sits on the grid center
+    // Odd-pixel size so the disc sits on the grid center.
     width: 0.375rem;
     height: 0.375rem;
     border-radius: 50%;
@@ -687,10 +631,6 @@
     outline-offset: 2px;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Status panels & alerts
-// ---------------------------------------------------------------------------
 
 @mixin status-panel-danger {
   border-color: var(--danger-border);
@@ -739,10 +679,6 @@
     @include icon-size(var(--icon-size-base));
   }
 }
-
-// ---------------------------------------------------------------------------
-// Modals
-// ---------------------------------------------------------------------------
 
 @mixin app-scrollbar {
   scrollbar-width: thin;
@@ -808,7 +744,6 @@
   }
 }
 
-/// The frosted surface a sticky element takes on once it docks.
 @mixin floating-sticky-surface {
   background: var(--bg-sticky);
   backdrop-filter: blur(var(--modal-backdrop-blur));
@@ -844,14 +779,7 @@
   transform: translateY(-50%);
 }
 
-// ---------------------------------------------------------------------------
-// Modal chrome
-//
-// The bordered header/footer bars shared by every full-panel overlay. Not used
-// by `.confirm-dialog`, which is a padded card: its header is a margin, not a
-// bar, and that difference is deliberate.
-// ---------------------------------------------------------------------------
-
+/// Bordered header/footer bars. `.confirm-dialog` is a padded card and does not use these.
 @mixin modal-chrome-frame {
   display: flex;
   flex-shrink: 0;
@@ -874,7 +802,6 @@
   border-top: 1px solid var(--border);
 }
 
-// The editor overlays' header sits its title above a subtitle, so it top-aligns.
 @mixin modal-editor-header {
   @include modal-chrome-header(flex-start);
 }
@@ -965,10 +892,6 @@
   background: var(--border);
 }
 
-// ---------------------------------------------------------------------------
-// Progress
-// ---------------------------------------------------------------------------
-
 @mixin progress-track {
   height: var(--progress-height);
   overflow: hidden;
@@ -991,10 +914,6 @@
     background: linear-gradient(90deg, $color-warning, rgba(251, 191, 36, 0.55));
   }
 }
-
-// ---------------------------------------------------------------------------
-// Skeleton
-// ---------------------------------------------------------------------------
 
 @mixin skeleton-shimmer {
   background: linear-gradient(

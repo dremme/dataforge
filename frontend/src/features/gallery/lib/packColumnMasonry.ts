@@ -7,17 +7,11 @@ export interface PackedMasonryCard<T> {
 }
 
 export interface PackedMasonryLayout<T> {
-  /** Every card, in item order. */
   cards: PackedMasonryCard<T>[];
   columnCount: number;
   totalHeight: number;
 }
 
-/**
- * Round-robin column masonry: item `i` goes to column `i % columnCount`.
- * That keeps sort order left-to-right along the top of the grid, then stacks
- * tightly down each column so a short card does not leave a hole beside a tall one.
- */
 export function packColumnMasonry<T>(
   items: readonly T[],
   options: {
@@ -46,16 +40,10 @@ export function packColumnMasonry<T>(
   return { cards, columnCount, totalHeight };
 }
 
-/** How many cards lane `lane` holds, given round-robin assignment. */
 function laneLength(count: number, lane: number, columnCount: number): number {
   return Math.max(0, Math.ceil((count - lane) / columnCount));
 }
 
-/**
- * First card in the lane whose bottom edge clears `start`. Card heights are
- * exact, so tops and bottoms both ascend within a lane and the boundary can be
- * found by bisection rather than by scanning the whole folder on every scroll.
- */
 function firstBelow<T>(
   cards: readonly PackedMasonryCard<T>[],
   lane: number,
@@ -79,7 +67,6 @@ function firstBelow<T>(
   return low;
 }
 
-/** The cards intersecting `view`, in item order. */
 export function visibleMasonryCards<T>(
   layout: PackedMasonryLayout<T>,
   view: { start: number; end: number },

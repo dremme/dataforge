@@ -27,11 +27,7 @@ function draft(overrides: Partial<VideoEditDraft> = {}): VideoEditDraft {
 }
 
 describe("outputDimensions", () => {
-  /**
-   * The same table as `backend/test_video_edit.py::OutputDimensionsTests`. Both sides
-   * implement `trunc(x / 2) * 2`, and the panel labels the output from this one, so a
-   * drift between them would promise the user a size the render does not produce.
-   */
+  /** Same cases as backend OutputDimensionsTests; both even-truncate so sizes agree. */
   const cases: Array<[{ width: number; height: number }, number, number, number, number, number]> =
     [
       [{ width: 1920, height: 1080 }, 1, 1, 1, 1920, 1080],

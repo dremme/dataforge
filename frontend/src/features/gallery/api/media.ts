@@ -8,7 +8,6 @@ import type {
   MediaTransferResponse,
 } from "@/shared/types";
 
-/** Move takes the files, copy leaves the originals in place. */
 export type MediaTransferMode = "move" | "copy";
 
 export async function openMediaInViewer(mediaPath: string): Promise<MediaOpenResponse> {
@@ -62,21 +61,14 @@ export async function deleteSelectedMedia(
 
 export function mediaUrl(mediaPath: string, cacheKey?: string): string {
   const params = new URLSearchParams({ path: mediaPath });
-  // Without a token the browser may hold a rewritten file's old bytes: the
-  // response has no max-age, so it falls back to heuristic freshness.
+  // Without a token the browser may hold a rewritten file's old bytes: the response has no max-age.
   if (cacheKey) {
     params.set("v", cacheKey);
   }
   return `/api/media?${params}`;
 }
 
-/**
- * Marks a URL whose file may legitimately be gone by the time it is requested.
- *
- * The browser logs a failed `<img>` load itself, and no JavaScript handler can
- * suppress it, so a caller that expects misses would spam the console. The flag
- * asks the API for a silent 204 instead; `onError` still fires either way.
- */
+/** Silent 204 when the file may already be gone; the browser logs a failed <img> load. */
 function asOptional(url: string): string {
   return `${url}&optional=1`;
 }
@@ -125,12 +117,6 @@ export async function fetchGifInfo(mediaPath: string): Promise<GifInfoResponse> 
   return requestJson<GifInfoResponse>(`/api/gif-info?${params}`);
 }
 
-/**
- * One decoded GIF frame as a JPEG.
- *
- * The same URL backs the scrub preview and the save, so a saved frame is the very
- * bytes the browser painted rather than a second, independent decode.
- */
 export function gifFrameUrl(mediaPath: string, frame: number, cacheKey?: string): string {
   const params = new URLSearchParams({
     path: mediaPath,

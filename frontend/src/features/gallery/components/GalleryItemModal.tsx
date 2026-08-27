@@ -75,28 +75,22 @@ import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 
-/** Stands in when the owner supplies no transfer handler — the buttons are hidden then. */
 const noop = () => {};
 
 interface GalleryItemModalProps {
   items: GalleryItem[];
   index: number;
-  /** Active gallery toolbar search — highlighted in the caption field. */
   searchQuery?: string;
   searchRegex?: boolean;
-  /** Folder the viewed item lives in — the transfer picker's origin. Move/copy
-   *  stay hidden without it, since the picker reads it during render. */
+  /** Transfer picker's origin; move/copy stay hidden without it. */
   currentFolder?: string;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onCaptionSaved: (path: string, update: CaptionSaveResponse) => void;
   onDeleted?: (path: string) => void;
-  /** Takes the moved path so the owner can drop it and advance this modal. */
   onMoved?: (paths: string[]) => void | Promise<void>;
-  /** A copy or a saved video frame leaves the item here, so only folder stats change. */
   onCopied?: () => void | Promise<void>;
-  /** Hands the item off to the issue resolver; this modal closes in the same commit. */
   onResolveIssue?: (item: GalleryItem) => void;
 }
 
@@ -127,17 +121,10 @@ export function GalleryItemModal({
   const [deleting, setDeleting] = useState(false);
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
-  // Owned here so next/prev can keep frame capture on across videos and GIFs.
-  // Each capture hook used to hold its own flag, which dropped mode on every
-  // item swap and could not stick when switching video <-> GIF.
+  // Owned here so next/prev keeps capture across videos and GIFs; per-hook flags dropped it.
   const [frameMode, setFrameMode] = useState(false);
-  // Owned here for the same reason, and mutually exclusive with it: one `<video>`
-  // cannot serve a capture scrubber and an edit timeline at once. The draft resets
-  // per item, but the mode itself survives navigation.
-  //
-  // One flag for both editors rather than two. Which one it turns on follows from the
-  // item, and the two can never apply to the same file, so a second piece of state
-  // could only ever disagree with this one.
+  // Mutually exclusive with frameMode: one `<video>` cannot serve a scrubber and a timeline.
+  // One flag for both editors; which one it turns on follows from the item.
   const [editMode, setEditMode] = useState(false);
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
 
@@ -168,9 +155,7 @@ export function GalleryItemModal({
   const itemIsVideo = item ? isVideo(item) : false;
   const gifFrameCount = useGifFrameCount(item?.path, itemIsGif);
 
-  // Both hooks run unconditionally - hooks cannot be called behind a branch - and
-  // the shared `FrameCapture` shape lets the rest of the modal read whichever one
-  // matches the item without asking again which format it is.
+  // Both hooks run unconditionally; hooks cannot be called behind a branch.
   const videoCapture = useVideoFrameCapture({
     item,
     folderPath: currentFolder,
@@ -190,8 +175,7 @@ export function GalleryItemModal({
 
   const videoEdit = useVideoEdit({
     item,
-    // The capture hook already owns the ref on the one `<video>`, and only one of
-    // the two modes can be on, so they share it rather than racing for it.
+    // Capture already owns the one `<video>` ref; only one mode can be on, so they share it.
     videoRef: videoCapture.videoRef,
     onEdited: onCopied,
     editMode,
@@ -208,11 +192,9 @@ export function GalleryItemModal({
   const gifToMp4 = useGifToMp4({ item, onConverted: onCopied });
 
   const { transferPicker, overwritePrompt, transferring } = transfer;
-  /** Modal work other than a frame save — the capture bar locks itself on this. */
   const otherWorkBusy = deleting || transferring !== null || gifToMp4.converting;
   const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
-  // Frame mode stays out of this flag: it feeds `ModalShell`'s `suspended`, which
-  // makes the panel inert, and the slider has to stay reachable.
+  // Frame mode stays out: this feeds ModalShell.suspended, which would make the slider inert.
   const childOverlayOpen =
     deleteConfirmOpen ||
     revertConfirmOpen ||
@@ -220,9 +202,7 @@ export function GalleryItemModal({
     gifToMp4.conflict !== null;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
 
-  // Transfer state is deliberately absent here. A successful move advances this
-  // modal to the next item while the flow's own `finally` is still pending, so
-  // clearing it on the swap would race the hook and re-enable the buttons early.
+  // Transfer state stays out: a move advances the item while finally is pending, re-enabling early.
   useEffect(() => {
     setDeleteConfirmOpen(false);
     setDeleting(false);
@@ -230,17 +210,13 @@ export function GalleryItemModal({
     setViewerError(null);
   }, [item?.path]);
 
-  // Sticky capture only applies to items that can actually capture. Landing on a
-  // still (or losing the destination folder) drops the mode so the bar does not
-  // hang over a surface that has no scrubber.
+  // Drop sticky capture on a still or missing destination so the bar needs no scrubber.
   useEffect(() => {
     if (!item || !currentFolder || (!itemIsVideo && !itemIsGif)) {
       setFrameMode(false);
     }
   }, [item, currentFolder, itemIsVideo, itemIsGif]);
 
-  // Editing needs no destination folder - it rewrites the file where it already is - so
-  // this only drops the mode when the item itself cannot be edited by either editor.
   useEffect(() => {
     if (!item || (!isEditableVideo(item) && !isEditableImage(item))) {
       setEditMode(false);
@@ -248,7 +224,6 @@ export function GalleryItemModal({
     }
   }, [item]);
 
-  // Warm next/previous full-size media (idle/low priority) so nav does not flash empty.
   useEffect(() => {
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(items, index));
   }, [index, items]);
@@ -289,8 +264,7 @@ export function GalleryItemModal({
   const handleResolveIssue = useCallback(() => {
     if (!item || busy || !onResolveIssue) return;
     flushPendingSave();
-    // Hand over what the editor shows, not the folder snapshot: the flushed save
-    // has not reached disk yet when the resolver seeds itself from this item.
+    // Hand over the editor buffer, not the folder snapshot: the flushed save has not reached disk yet.
     onResolveIssue({ ...item, description: caption });
   }, [busy, caption, flushPendingSave, item, onResolveIssue]);
 
@@ -332,9 +306,7 @@ export function GalleryItemModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      // A focused scrubber is exempt via `isEditableTarget` so arrows still step
-      // frames. Everywhere else, arrows move to the next/prev gallery item even
-      // while frame capture is on — mode sticks when the next item can capture.
+      // A focused scrubber is exempt via isEditableTarget so arrows still step frames.
       if (childOverlayOpen || busy) return;
       if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft") onPrevious();
@@ -347,15 +319,12 @@ export function GalleryItemModal({
     };
   }, [busy, childOverlayOpen, onPrevious, onNext]);
 
-  // Which editor the one `editMode` flag drives. Derived here, above the early return,
-  // so the hooks below can be gated on it without any of them being called conditionally.
+  // Derived above the early return so the hooks below are not called conditionally.
   const canEditVideoItem = item ? isEditableVideo(item) : false;
   const canEditImageItem = item ? isEditableImage(item) : false;
 
-  // In frame mode Escape steps back to plain viewing instead of closing outright.
-  // `ModalShell` stands down for the duration via its `escape` prop below.
+  // In frame/edit mode Escape steps back to viewing; ModalShell stands down via escape="none".
   useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);
-  // A file is one kind or the other, so these can never both be live.
   useEscapeKey(videoEdit.exitEditMode, editMode && canEditVideoItem && !busy);
   useEscapeKey(imageEdit.exitEditMode, editMode && canEditImageItem && !busy);
 
@@ -368,8 +337,7 @@ export function GalleryItemModal({
   const copyContent = caption;
   const canCopyCaption = copyContent.length > 0;
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
-  // Only the destination folder is required; a missing `onCopied` costs the refresh,
-  // not the save, so it must not gate the toggle the way `canTransfer` does.
+  // Destination folder only; a missing onCopied costs the refresh, not the save.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
@@ -382,9 +350,7 @@ export function GalleryItemModal({
         onClose={closeModal}
         busy={busy}
         suspended={childOverlayOpen}
-        // The scroll lock belongs to `useGalleryOverlays`, which holds it across
-        // the whole overlay session. That leaves the depth non-zero here, so the
-        // nesting decision has to be stated rather than measured.
+        // useGalleryOverlays holds the scroll lock, so depth is non-zero and nested must be stated.
         nested={false}
         escape={frameCapture.frameMode || editMode ? "none" : "bubble"}
         panelRef={modalRef}
@@ -564,14 +530,12 @@ export function GalleryItemModal({
           {itemIsVideo ? (
             <>
               <video
-                // Editing plays the untouched original, so the source has to change with
-                // the mode, not just its bytes - hence the key.
+                // Editing plays the original, so source and key change with the mode, not just the bytes.
                 key={editMode ? `${item.path}#original` : item.path}
                 ref={videoCapture.videoRef}
                 className="gallery-item-modal__video"
                 src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
-                // The native timeline would let the user seek behind the capture
-                // slider's or the trim handles' back, so both modes own scrubbing.
+                // Native timeline would seek behind the capture slider or trim handles.
                 controls={!frameCapture.frameMode && !editMode}
                 autoPlay={!editMode}
                 muted
@@ -582,8 +546,7 @@ export function GalleryItemModal({
                   videoCapture.handleLoadedMetadata(video);
                   videoEdit.handleLoadedMetadata(video);
                 }}
-                // Streamed MP4s report `Infinity` at `loadedmetadata` and only settle
-                // on a real duration later, which would strand the slider without this.
+                // Streamed MP4s report Infinity at loadedmetadata and settle later, stranding the slider.
                 onDurationChange={(event) => {
                   videoCapture.handleLoadedMetadata(event.currentTarget);
                   videoEdit.handleLoadedMetadata(event.currentTarget);
@@ -603,9 +566,6 @@ export function GalleryItemModal({
               )}
             </>
           ) : editMode && canEditImageItem ? (
-            // The untouched original, for the same reason the video editor plays one:
-            // the draft is expressed against it. Zooming is deliberately given up for
-            // the duration - the stage carries the rotation instead.
             <ImageEditStage
               edit={imageEdit}
               src={imageOriginalUrl(item.path)}
@@ -614,9 +574,7 @@ export function GalleryItemModal({
             />
           ) : (
             <ZoomableImage
-              // Frame mode swaps in a still, so it needs a fresh instance: a zoom
-              // transform left over from the animated GIF would be applied to a
-              // differently decoded image.
+              // Frame mode swaps in a still; a leftover GIF zoom would apply to a differently decoded image.
               key={gifCapture.previewUrl ? `${item.path}#frame` : item.path}
               className="gallery-item-modal__media-wrap"
               imgClassName="gallery-item-modal__img"
@@ -640,8 +598,7 @@ export function GalleryItemModal({
           </button>
         </div>
 
-        {/* Outside the stage on purpose: that block centres its content and hangs
-            the nav buttons over it, so a strip inside would fight both. */}
+        {/* Outside the stage: that block centres content and hangs nav over it. */}
         {frameCapture.frameMode &&
           (itemIsGif ? (
             <FrameCaptureBar
@@ -693,9 +650,6 @@ export function GalleryItemModal({
           />
         )}
 
-        {/* Hidden while editing rather than merely ignored: the caption and the meta
-            strip have nothing to do with a cut, and the height they give back goes to
-            the stage, where a larger frame is worth more than either of them. */}
         {!editMode && (
           <footer className="gallery-item-modal__footer">
             <GalleryItemModalMeta
@@ -745,8 +699,7 @@ export function GalleryItemModal({
                 </div>
               </div>
               <CaptionEditor
-                // A fresh editor per item: CodeMirror maps its selection through the
-                // document swap, so a reused one lands selected on the next caption.
+                // Fresh editor per item: CodeMirror maps selection through a document swap.
                 key={item.path}
                 id="gallery-item-caption"
                 value={caption}

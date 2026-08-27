@@ -90,9 +90,7 @@ export function Tooltip({
   const childAriaLabel = childProps["aria-label"];
   const tooltipDuplicatesLabel =
     typeof childAriaLabel === "string" && typeof content === "string" && childAriaLabel === content;
-  // Hover must not cover the menu or drawer this trigger just opened. Forced
-  // `open` (copy confirmation) still wins, because that bubble *is* the click
-  // feedback.
+  // Hover must not cover a menu/drawer this trigger just opened; forced `open` still wins.
   const shown =
     !disabled && content != null && content !== "" && (open || (visible && !childExpanded));
   const describedBy = shown && !tooltipDuplicatesLabel ? id : undefined;

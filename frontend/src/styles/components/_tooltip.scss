@@ -8,8 +8,7 @@
     cursor: not-allowed;
   }
 
-  // Portalled to the body by `AnchoredLayer`, so this is styled on its own and
-  // not as a descendant of the wrapper above.
+  // Portalled to the body by `AnchoredLayer`, so this is styled on its own, not as a descendant of the wrapper.
   &__bubble {
     width: max-content;
     max-width: 14rem;
@@ -25,11 +24,7 @@
     text-align: center;
     white-space: normal;
     pointer-events: none;
-    // An animation rather than a transition: the bubble mounts on show, and a
-    // transition has no earlier value to run from on the frame it appears.
-    // No fill mode on the way in, deliberately: the bubble's resting state is
-    // visible, so a tab that never runs the animation still shows the tooltip
-    // rather than holding it at the transparent first keyframe forever.
+    // Animation, not transition: the bubble mounts on show, so there is no earlier value to transition from. No fill mode on the way in: a tab that never runs the animation must still show the tooltip rather than holding the transparent first keyframe.
     animation: tooltip-in 0.15s ease;
 
     &[data-side="top"] {
@@ -45,8 +40,7 @@
   &__arrow {
     position: absolute;
     top: -0.3125rem;
-    // Travels back by however far the bubble was nudged off centre, stopping
-    // short of the rounded corners at either end.
+    // Travels back by however far the bubble was nudged off centre, stopping short of the rounded corners.
     left: clamp(0.75rem, calc(50% - var(--anchored-shift, 0px)), calc(100% - 0.75rem));
     width: 0.5rem;
     height: 0.5rem;
@@ -56,7 +50,6 @@
     transform: translateX(-50%) rotate(45deg);
   }
 
-  // A bubble that flipped above its trigger points down instead.
   &__bubble[data-side="top"] &__arrow {
     top: auto;
     bottom: -0.3125rem;

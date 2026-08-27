@@ -1,10 +1,4 @@
-"""Regression guards for scripts/prod_server.py.
-
-Production must stay a single non-reloading process - the reloader re-runs job
-recovery, and the job manager plus SSE broker hold state in memory. The graceful
-shutdown timeout has to stay finite for the same reason as in dev: /api/events keeps
-an SSE stream open, and uvicorn otherwise waits for it forever.
-"""
+"""Production must stay a single non-reloading process; SSE streams would otherwise block shutdown forever."""
 
 from __future__ import annotations
 

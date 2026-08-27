@@ -36,8 +36,6 @@
   }
 }
 
-// Shared by every right-hand drawer (jobs, stats), so it is named for the shape
-// rather than for whichever one happened to need it first.
 @keyframes drawer-slide-in {
   from {
     transform: translateX(100%);

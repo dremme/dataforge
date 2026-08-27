@@ -1,9 +1,5 @@
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .zoomable-image
-// ---------------------------------------------------------------------------
-
 .zoomable-image {
   position: relative;
   display: inline-flex;
@@ -18,8 +14,7 @@
   user-select: none;
 
   &--zoomed {
-    // Lock layout to the pre-zoom box (inline width/height) and anchor the
-    // enlarged canvas at the top-left so pan math is not offset by flex centering.
+    // Lock layout to the pre-zoom box and anchor the enlarged canvas at top-left so pan math is not offset by flex centering.
     display: block;
     cursor: zoom-out;
     flex-shrink: 0;

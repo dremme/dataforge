@@ -16,7 +16,6 @@ import { GalleryListRow } from "./GalleryListRow";
 interface GalleryUniformGridProps {
   items: GalleryItem[];
   onSelect: (path: string) => void;
-  /** Large mode packs its own columns; see `GalleryMasonry`. */
   displayMode: Exclude<GalleryDisplayMode, "large">;
 }
 
@@ -26,7 +25,6 @@ function estimateRowSize(row: GalleryItem[], layout: GalleryModeLayout): number 
     : layout.rowEstimate;
 }
 
-/** Equal-width, equal-height cells on virtualized rows: the small grid and the list. */
 export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUniformGridProps) {
   const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo } =
     useGallerySelectionContext();
@@ -53,9 +51,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
     enabled: rowCount > 0,
   });
 
-  // Row keys are path-based, so a mode switch that happens to keep the same
-  // column count would otherwise reuse the heights measured for the previous
-  // card size.
+  // Row keys are path-based; a mode switch at the same column count would reuse old heights.
   const { measure } = virtualizer;
   useEffect(() => {
     measure();
@@ -92,8 +88,6 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                 }}
               >
                 {rowItems.map((item) =>
-                  // `selected` is resolved here, not in the item, so a toggle
-                  // only re-renders the one whose boolean actually changed.
                   displayMode === "list" ? (
                     <GalleryListRow
                       key={item.path}

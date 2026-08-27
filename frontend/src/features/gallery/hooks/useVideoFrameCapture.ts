@@ -16,14 +16,9 @@ import type { GalleryItem } from "@/shared/types";
 
 export interface UseVideoFrameCaptureOptions {
   item: GalleryItem | undefined;
-  /** Where the frame is written. Frame mode is not offered without it. */
   folderPath: string | undefined;
-  /** Runs once the frame is on disk, so the owner can reload the folder. */
   onSaved?: () => void | Promise<void>;
-  /**
-   * Owned by the modal so mode can stick across next/prev between videos and
-   * GIFs. This hook only drives enter/exit and reads the flag for UI.
-   */
+  /** Owned by the modal so mode sticks across next/prev between videos and GIFs. */
   frameMode: boolean;
   setFrameMode: (frameMode: boolean) => void;
 }
@@ -31,29 +26,19 @@ export interface UseVideoFrameCaptureOptions {
 export interface VideoFrameCapture extends FrameCapture {
   videoRef: RefObject<HTMLVideoElement | null>;
   duration: number;
-  /** Controlled value of the range input. */
   sliderTime: number;
-  /** The presented frame's time where known, otherwise `sliderTime`. Drives the readout. */
+  /** Presented frame time where known, otherwise sliderTime. */
   displayTime: number;
   setSliderTime: (time: number) => void;
-  /** Wire to the video's `onLoadedMetadata` and `onDurationChange` alike. */
   handleLoadedMetadata: (video: HTMLVideoElement) => void;
 }
 
-/**
- * Frame-capture mode for the gallery's video viewer: scrub the element itself as
- * the preview, then write the shown frame to a sibling JPG.
- *
- * The encode is client-side on purpose. Drawing the very element the user is
- * looking at is the only way to guarantee the saved file is the frame they picked;
- * a server-side seek to the same timestamp can land on a different frame.
- */
+/** Client-side encode: a server seek to the same timestamp can land on a different frame. */
 export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): VideoFrameCapture {
   const notify = useNotify();
   const { item, frameMode, setFrameMode } = options;
 
-  // Read through a ref so every returned callback is dependency-free, and so a save
-  // that outlives an item swap still finishes against the values it started with.
+  // Ref so callbacks stay dependency-free; a save outliving a swap keeps its starting values.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -62,11 +47,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
 
   const [duration, setDuration] = useState(Number.NaN);
   const [sliderTime, setSliderTimeState] = useState(0);
-  /**
-   * Where the decoder says it actually landed. Kept apart from `sliderTime` so it
-   * never fights the controlled input mid-drag: the slider stays authoritative for
-   * the element, and this only ever feeds the readout.
-   */
+  // Decoder landing; kept apart from sliderTime so it never fights the controlled input mid-drag.
   const [presentedTime, setPresentedTime] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -86,9 +67,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
     };
   }, []);
 
-  // Scrubber only. Frame mode is owned by the modal so next/prev can keep capture
-  // on across items. `saving` is deliberately absent: a save in flight against the
-  // previous item must run its own `finally`, and clearing the flag here would race it.
+  // Scrubber only; a save in flight against the previous item must run its own finally.
   useEffect(() => {
     setDuration(Number.NaN);
     setSliderTimeState(0);
@@ -98,11 +77,8 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   const setSliderTime = useCallback((time: number) => {
     const next = clampFrameTime(time, durationRef.current);
     setSliderTimeState(next);
-    // Let the readout track the drag; the seek settles it back onto a real frame.
     setPresentedTime(null);
 
-    // Written straight through with no debounce: the element is the preview, and
-    // coalescing rapid seeks is the browser's job.
     const video = videoRef.current;
     if (video) {
       video.currentTime = next;
@@ -111,7 +87,6 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
 
   const stepFrame = useCallback(
     (direction: -1 | 1) => {
-      // Stepping starts from the frame on screen, not from the last slider write.
       setSliderTime(stepFrameTime(displayTime, direction, durationRef.current));
     },
     [displayTime, setSliderTime],
@@ -119,8 +94,6 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
 
   const seedFromVideo = useCallback((video: HTMLVideoElement) => {
     video.pause();
-    // Seed from the playhead: the toggle was pressed because *this* is the frame,
-    // or sticky mode just landed on a newly mounted video still at its start.
     const seeded = snapFrameTime(clampFrameTime(video.currentTime, video.duration));
     setSliderTimeState(seeded);
     setPresentedTime(video.currentTime);
@@ -129,8 +102,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   const handleLoadedMetadata = useCallback(
     (video: HTMLVideoElement) => {
       setDuration(video.duration);
-      // Sticky capture remounts a new <video autoPlay> under an already-open bar;
-      // pause and seed so playback does not run behind the scrubber.
+      // Sticky capture remounts a new <video autoPlay>; pause and seed so playback stays off.
       if (optionsRef.current.frameMode) {
         seedFromVideo(video);
       }
@@ -146,10 +118,6 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
     setFrameMode(true);
   }, [seedFromVideo, setFrameMode]);
 
-  // Nothing is restored on the way out. The playhead stays where it was dragged
-  // (scrubbers behave that way) and playback stays paused rather than snapping back
-  // to motion over a frame the user just spent effort finding. Native controls come
-  // back with the mode, so resuming is one click away.
   const exitFrameMode = useCallback(() => {
     setFrameMode(false);
   }, [setFrameMode]);
@@ -164,8 +132,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
   }, [enterFrameMode, exitFrameMode, frameMode]);
 
   const saveFrame = useCallback(() => {
-    // The re-entrancy guard reads a ref: a double click lands before `saving` state
-    // has re-rendered the button into its disabled form.
+    // Ref guard: a double click lands before saving has re-rendered the button disabled.
     if (savingRef.current) return;
 
     const video = videoRef.current;
@@ -175,8 +142,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
     // Snapshotted so an item swap mid-upload cannot retarget the write.
     const sourcePath = currentItem.path;
     const targetTime = clampFrameTime(sliderTimeRef.current, durationRef.current);
-    // Named from the requested time up front so a failure before the seek still has
-    // a filename to report; the presented frame's own time replaces it below.
+    // Named from the requested time so a failure before the seek still has a filename.
     let target = videoFrameTargetName(sourcePath, targetTime);
 
     savingRef.current = true;
@@ -187,14 +153,10 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
         video.pause();
         const presented = await seekVideoTo(video, targetTime);
         if (mountedRef.current) setPresentedTime(presented);
-        // The decoder's own timestamp for the frame it showed, so scrubbing anywhere
-        // inside one frame keeps naming that frame's file.
         target = videoFrameTargetName(sourcePath, presented);
 
         const blob = await encodeVideoFrame(video, JPEG_QUALITY);
         const file = new File([blob], target, { type: "image/jpeg" });
-        // Overwrite still applies, but now only when the same frame is saved twice:
-        // distinct frames get distinct names, so earlier saves stay put.
         const result = await importFiles(destination, [file], true);
 
         const outcome = frameSaveOutcome(result, target);
@@ -203,8 +165,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
           await onSaved?.();
         }
       } catch (error) {
-        // Unguarded by `mountedRef`: the notification store outlives this modal, so
-        // a save that finishes after a close still reports.
+        // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
         notify({
           variant: "danger",
           message: `Could not save ${target}: ${formatApiError(error)}`,

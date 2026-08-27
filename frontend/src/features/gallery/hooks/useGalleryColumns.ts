@@ -11,8 +11,6 @@ export function useGalleryColumns(
   const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    // A null min width means the mode is single-column by definition (list), so
-    // there is nothing to measure and no observer to keep alive.
     if (minColumnWidth === null) {
       setColumnCount(1);
       setWidth(0);

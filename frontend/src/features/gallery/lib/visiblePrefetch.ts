@@ -14,10 +14,6 @@ const SCROLL_IDLE_MS = 150;
 
 const NO_ITEMS: readonly GalleryItem[] = [];
 
-/**
- * The items a virtualized index covers. Rows hold a whole row of cards; the
- * masonry indexes single cards, so it answers with one.
- */
 export type RowAt = (index: number) => readonly GalleryItem[];
 
 interface PreviewTarget {
@@ -75,12 +71,9 @@ function usePrefetchRange(
   rowAt: RowAt,
   rowCount: number,
   getVirtualItems: () => { index: number }[],
-  /** What a re-sync hangs on: the item source and the visible range. */
   triggers: readonly unknown[],
   neighbors?: { before?: number; after?: number },
 ): void {
-  // Both accessors close over the current render's data, so they are read
-  // through a ref rather than being tracked as dependencies.
   const sourceRef = useRef({ rowAt, getVirtualItems });
   sourceRef.current = { rowAt, getVirtualItems };
 
@@ -150,10 +143,6 @@ function usePrefetchRange(
   }, [markScrollActive, runPrefetch, scrollElement]);
 }
 
-/**
- * Masonry indexes single cards, and its visible cards are a contiguous band of
- * item indexes, so the two ends of that band stand in for the virtual items.
- */
 export function useGalleryItemPrefetch(
   scrollElement: HTMLElement | null,
   items: GalleryItem[],

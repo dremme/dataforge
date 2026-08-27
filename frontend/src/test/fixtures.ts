@@ -12,12 +12,6 @@ const MEDIA_TYPE_BY_EXTENSION: Record<string, GalleryItem["media_type"]> = {
   [GIF_EXTENSION]: "gif",
 };
 
-/**
- * A gallery item typed from its own extension.
- *
- * Mapped rather than tested against one suffix so a fixture named `loop.gif` can
- * never quietly come back as an image and let a GIF test pass on the wrong type.
- */
 export function mediaItem(
   name: string,
   folder: string,
@@ -45,12 +39,6 @@ export function mediaItem(
   };
 }
 
-/**
- * A queued job with nothing done yet.
- *
- * The server always sends `folder_name` and `job_type`, so both are required on the
- * wire; spelling them out in every test is what this exists to avoid.
- */
 export function job(options: Partial<Job> = {}): Job {
   const folder = options.folder ?? HOME_PATH;
   return {

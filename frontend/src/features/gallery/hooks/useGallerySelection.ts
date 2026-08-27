@@ -6,13 +6,7 @@ export function useGallerySelection() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set());
 
-  /**
-   * The item a Shift+click measures its range from — the last one clicked.
-   *
-   * A ref, not state: every card would re-render on every click if this were in
-   * the context, which is exactly what `GalleryCard`'s `memo` exists to prevent.
-   * Nothing renders it, so nothing needs to know when it moves.
-   */
+  // Last-clicked item for Shift+click. A ref, not state: context would re-render every card.
   const selectionAnchorRef = useRef<string | null>(null);
 
   const clearSelectedPaths = useCallback(() => {
@@ -20,16 +14,7 @@ export function useGallerySelection() {
     setSelectedPaths(new Set());
   }, []);
 
-  /**
-   * Drop everything tied to the folder being left: the selection, and — via the
-   * token — any overlay still showing one of its items.
-   *
-   * Only folder navigation calls this. Narrowing the view (search, sort, filters)
-   * deliberately does not: hidden paths stay in the set so that widening the
-   * filter restores them. They are inert while hidden — every count, button
-   * state and batch action reads `visibleSelectedPaths` in `useGallerySession`,
-   * which intersects this set with what the filters are actually showing.
-   */
+  // Folder navigation only. Filters keep hidden paths so widening restores them, inert till then.
   const clearSelection = useCallback(() => {
     setFolderResetToken((token) => token + 1);
     setSelectionMode(false);
@@ -58,14 +43,7 @@ export function useGallerySelection() {
     });
   }, []);
 
-  /**
-   * Add the run between the anchor and `path` to the selection, in the order the
-   * view is currently showing. Additive, like every other selection action here:
-   * extending a range never drops what was picked out by hand before it.
-   *
-   * The anchor deliberately does not move, so a second Shift+click re-measures
-   * from the same start rather than walking the range along.
-   */
+  // Additive range from the anchor. It does not move, so a second Shift+click starts there.
   const selectPathRange = useCallback((orderedPaths: readonly string[], path: string) => {
     const range = pathRangeBetween(orderedPaths, selectionAnchorRef.current, path);
     if (selectionAnchorRef.current === null) {
@@ -80,11 +58,7 @@ export function useGallerySelection() {
     });
   }, []);
 
-  /**
-   * Union, not replace: "select everything visible" must not discard what an
-   * earlier, wider filter left selected out of view. Mirrors
-   * `invertSelectedPaths`, which has always been additive.
-   */
+  // Union, not replace: select-all must not discard what a wider filter left selected out of view.
   const selectAllPaths = useCallback((paths: string[]) => {
     setSelectedPaths((current) => {
       const next = new Set(current);
@@ -95,11 +69,7 @@ export function useGallerySelection() {
     });
   }, []);
 
-  /**
-   * Flip membership of the given paths, leaving anything outside that set as it
-   * is — a path the filters hide keeps its state rather than being dropped, so
-   * widening the filter restores exactly what was there before.
-   */
+  // Flip only the given paths; hidden membership stays so widening the filter restores it.
   const invertSelectedPaths = useCallback((paths: string[]) => {
     setSelectedPaths((current) => {
       const next = new Set(current);
@@ -121,11 +91,6 @@ export function useGallerySelection() {
     });
   }, []);
 
-  /**
-   * Every path in the set, hidden ones included — the stale-path sweep in
-   * `useGallerySession` prunes renamed files and needs the raw list to do it.
-   * Anything user-facing counts `visibleSelectedPaths` instead.
-   */
   const selectedPathsList = useMemo(() => Array.from(selectedPaths), [selectedPaths]);
 
   return {

@@ -3,16 +3,10 @@ import { iconFiles, iconMessageWarning, type AppIcon } from "@/shared/icons";
 import type { NotifyOptions } from "@/shared/notifications/notifications";
 import type { SidecarDeleteResponse, SidecarKind } from "@/shared/types";
 
-/** Issue first, matching the order the two resolvers appear in the palette. */
 export const SIDECAR_SWEEP_KINDS = ["issue", "duplicate"] as const;
 
 type SidecarSweepCopy = {
-  /**
-   * Names the suffix rather than the finding. "Delete all duplicates" would read as
-   * deleting the duplicate media, which is the one dangerous misreading available here.
-   */
   label: string;
-  /** The resolver's icon for the same finding, so the two read as a pair. */
   icon: AppIcon;
   keywords: string;
   singular: string;
@@ -59,17 +53,12 @@ function sidecarCountPhrase(kind: SidecarKind, count: number): string {
   return count === 1 ? `1 ${copy.singular}` : `${count} ${copy.plural}`;
 }
 
-/** The palette's second line: whether running it would do anything, and to how much. */
 export function sidecarSweepDetail(kind: SidecarKind, count: number): string {
   if (count === 0) return "Nothing to delete";
   return sidecarCountPhrase(kind, count);
 }
 
-/**
- * Built from the response rather than from the count the palette showed: that count
- * comes from the last folder listing, and the sweep also clears orphaned sidecars no
- * gallery item ever carried, so the server's number is the only honest one.
- */
+/** Built from the response: the palette count is a listing, and the sweep clears orphans. */
 export function sidecarSweepOutcome(result: SidecarDeleteResponse): NotifyOptions {
   const { plural } = SIDECAR_SWEEP_COPY[result.kind];
   const deleted = result.deleted.length;
@@ -91,7 +80,6 @@ export function sidecarSweepOutcome(result: SidecarDeleteResponse): NotifyOption
   }
 
   const phrase = sidecarCountPhrase(result.kind, deleted);
-  // The capability, not the platform: a trash backend added later flips this on its own.
   return {
     variant: "success",
     message: result.deletes_to_trash ? `Moved ${phrase} to the Recycle Bin.` : `Deleted ${phrase}.`,

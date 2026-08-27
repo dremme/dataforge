@@ -1,5 +1,3 @@
-"""Unit tests for pulling a clip's audio track out with ffmpeg."""
-
 from __future__ import annotations
 
 import subprocess
@@ -63,8 +61,7 @@ class ExtractAudioTests(unittest.TestCase):
 
             command = run_ffmpeg.call_args.args[0]
             self.assertEqual(command[0], "ffmpeg")
-            # Selecting the audio stream explicitly is also the silence detector: a
-            # file without one fails the command instead of yielding an empty track.
+            # ``-map 0:a:0`` fails if there is no audio stream, instead of yielding an empty track.
             self.assertIn("-map", command)
             self.assertEqual(command[command.index("-map") + 1], "0:a:0")
             self.assertEqual(command[command.index("-t") + 1], str(AUDIO_MAX_SECONDS))

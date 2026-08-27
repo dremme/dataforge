@@ -40,9 +40,7 @@ if sys.platform == "win32":
 
 def _send_to_recycle_bin(path: Path) -> None:
     """Move ``path`` to the Windows Recycle Bin (FOF_ALLOWUNDO)."""
-    # PCZZWSTR: path entries are null-terminated, list ends with an extra null.
-    # create_unicode_buffer adds a trailing null; appending "\0" after the path
-    # yields the required double-null terminator.
+    # PCZZWSTR entries are null-terminated; a trailing "\0" yields the double-null terminator.
     absolute = str(path.resolve(strict=False))
     from_buffer = ctypes.create_unicode_buffer(absolute + "\0")
 
@@ -59,7 +57,7 @@ def _send_to_recycle_bin(path: Path) -> None:
 
 
 def delete_path(path: Path) -> None:
-    """Remove a file: Recycle Bin on Windows, permanent unlink elsewhere."""
+    """Recycle Bin on Windows, permanent unlink elsewhere."""
     if sys.platform == "win32":
         _send_to_recycle_bin(path)
         return
@@ -67,15 +65,7 @@ def delete_path(path: Path) -> None:
 
 
 def deletes_to_trash() -> bool:
-    """Whether :func:`delete_path` puts a file somewhere it can be recovered from.
-
-    Reported to the UI so a flow that deletes without asking can ask where the
-    deletion is final. Deliberately phrased as a capability rather than as
-    "is Windows": adding a freedesktop trash implementation should flip this and
-    silence the extra confirmation, with nothing in the frontend to change.
-
-    Kept beside ``delete_path`` so the two cannot drift apart.
-    """
+    """Whether :func:`delete_path` puts a file somewhere it can be recovered from."""
     return sys.platform == "win32"
 
 
@@ -99,10 +89,7 @@ def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
         except OSError as exc:
             logger.warning("Failed to delete sidecar %s: %s", sidecar.name, exc)
 
-    # Named explicitly rather than folded into SIDECAR_EXTENSIONS: none of these is one
-    # `with_suffix` away from the media name - the first two are two suffixes deep, and
-    # the backup keeps the whole filename. Leaving the backup behind would litter the
-    # folder with an original nothing can ever reach again.
+    # Not SIDECAR_EXTENSIONS: these are two suffixes deep or keep the whole filename.
     for extra in (
         issue_file_path(file_path),
         duplicate_file_path(file_path),

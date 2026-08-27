@@ -1,5 +1,3 @@
-"""Tests for /api/folders/*."""
-
 from __future__ import annotations
 
 import os

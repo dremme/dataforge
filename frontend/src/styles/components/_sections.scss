@@ -1,10 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .folder-section, .gallery-section
-// ---------------------------------------------------------------------------
-
 .folder-section,
 .gallery-section {
   margin-bottom: 2rem;
@@ -17,14 +13,10 @@
     padding: 0 var(--panel-padding);
     min-height: 1.5rem;
 
-    // Docks below the automation panel, whose measured height arrives as
-    // --sticky-dock-offset. The frosted surface is painted by a pseudo-element
-    // rather than the header itself so that docking changes nothing about the
-    // box the virtualized gallery measures its scroll margin against.
+    // Docks below the automation panel (--sticky-dock-offset). Frosted surface is a pseudo so docking does not change the box the virtualized gallery measures scroll margin against.
     &--sticky {
       position: sticky;
-      // The bar's own padding sits above the header box, so the dock offset has
-      // to clear it for the gap below the panel to come out at $sticky-dock-gap.
+      // Bar padding sits above the header box, so the dock offset must clear it for the gap to come out at $sticky-dock-gap.
       top: calc(var(--sticky-dock-offset, 0px) + #{$sticky-dock-gap + $sticky-dock-padding});
       z-index: $z-index-sticky-section-header;
 
@@ -32,16 +24,14 @@
         @include floating-sticky-surface;
         content: "";
         position: absolute;
-        // Bleeds by the bar's padding only, leaving $sticky-dock-gap of open
-        // space below the panel for cards to pass through.
+        // Bleeds by the bar's padding only, leaving $sticky-dock-gap below the panel.
         inset-block: calc(-1 * #{$sticky-dock-padding});
         inset-inline: 0;
         z-index: -1;
         border: 1px solid var(--border);
         border-radius: var(--radius);
         opacity: 0;
-        // Paired with opacity so the blur costs nothing while hidden: a
-        // transparent backdrop-filter still repaints every frame.
+        // Paired with opacity so the blur costs nothing while hidden: a transparent backdrop-filter still repaints every frame.
         visibility: hidden;
         transition:
           opacity 0.22s ease,
@@ -71,10 +61,6 @@
   opacity: 0.65;
 }
 
-// Says the pill is counting a selection rather than what the filters left —
-// the two readings are otherwise the same shape. Matches the checkmark the
-// cards themselves carry, and sits a step under the digits so it reads as a
-// label on the number, not as part of it.
 .section-header__count-icon {
   @include icon-block;
   @include icon-size(0.75rem);

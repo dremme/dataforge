@@ -1,7 +1,6 @@
 @use "../abstracts/variables" as *;
 
 :root {
-  /* Color */
   --bg: #{$color-bg};
   --bg-elevated: #{$color-bg-elevated};
   --bg-card: #{$color-bg-card};
@@ -31,7 +30,6 @@
   --modal-backdrop: #{$color-modal-backdrop};
   --modal-backdrop-blur: #{$modal-backdrop-blur};
 
-  /* Layout */
   --content-max: #{$content-max};
   --radius: #{$radius};
   --radius-sm: #{$radius-sm};
@@ -46,7 +44,6 @@
   --modal-gutter: #{$modal-gutter};
   --progress-height: #{$progress-height};
 
-  /* Opacity */
   --disabled-opacity: #{$disabled-opacity};
   --icon-muted: #{$icon-muted-opacity};
   --icon-muted-strong: #{$icon-muted-strong-opacity};
@@ -56,10 +53,8 @@
   --icon-size-lg: #{$icon-size-lg};
   --icon-size-xl: #{$icon-size-xl};
 
-  /* Motion */
   --transition: #{$transition-fast};
 
-  /* Typography */
   --font-sans: #{$font-sans};
   --font-features: #{$font-features};
   --font-features-numeric: #{$font-features-numeric};

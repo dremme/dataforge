@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
-/** The palette binds Ctrl+Space at the window, so no element needs focus first. */
 async function openQuickAction(user: ReturnType<typeof userEvent.setup>) {
   await user.keyboard("{Control>}{ }{/Control}");
 }
@@ -94,7 +93,6 @@ describe("App: quick action bar", () => {
     await openQuickAction(user);
     palette = await screen.findByRole("dialog", { name: "Quick actions" });
 
-    // No query typed, so this is the persisted recent list, not a search result.
     const recent = within(palette).getByRole("group", { name: "Recent" });
     expect(within(recent).getAllByRole("option")[0]).toHaveTextContent("Refresh folder");
   });
@@ -166,8 +164,6 @@ describe("App: quick action bar", () => {
     const palette = await screen.findByRole("dialog", { name: "Quick actions" });
     await user.type(within(palette).getByRole("combobox"), "selected");
 
-    // Read whole rows rather than text nodes: the query match is wrapped in a
-    // <mark>, which splits the label across elements.
     const rows = within(palette)
       .getAllByRole("option")
       .map((row) => row.textContent ?? "");
@@ -175,7 +171,6 @@ describe("App: quick action bar", () => {
     expect(rows.some((row) => row.startsWith("Move selected files"))).toBe(true);
     expect(rows.some((row) => row.startsWith("Copy selected files"))).toBe(true);
     expect(rows.some((row) => row.startsWith("Delete selected files"))).toBe(true);
-    // The count is what tells the user what the action will act on.
     expect(rows.filter((row) => row.includes("1 selected file"))).toHaveLength(3);
 
     for (const name of ["Move selected files", "Copy selected files", "Delete selected files"]) {

@@ -35,7 +35,6 @@ interface CandidateReviewModalProps {
   index: number;
   onClose: () => void;
   onIndexChange: (index: number) => void;
-  /** Fires after files change on disk, so the folder listing can catch up. */
   onResolved: () => void;
 }
 
@@ -46,8 +45,7 @@ export function CandidateReviewModal({
   onIndexChange,
   onResolved,
 }: CandidateReviewModalProps) {
-  // Frozen at mount, like the duplicate resolver's queue: accepting rewrites the file
-  // the gallery is listing, which would otherwise reshuffle the list under the index.
+  // Frozen at mount: accepting rewrites the listed file and would reshuffle it under the index.
   const [queue] = useState(() => entries);
   const entry = queue[index];
 
@@ -114,10 +112,7 @@ export function CandidateReviewModal({
     [advance, busy, entry, settled],
   );
 
-  // Navigation only. Accepting publishes one image over another and cannot be undone, so
-  // it is never a keystroke away - the footer buttons are the only way to settle, and
-  // the arrow keys just move. The editable-target guard stays regardless: a key pressed
-  // into a text field is typing, not a command aimed at the queue behind it.
+  // Navigation only; accept/reject is irreversible so it is never a keystroke.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -223,15 +218,6 @@ export function CandidateReviewModal({
   );
 }
 
-/**
- * The bar of facts about the pair, in the app's shared modal-meta idiom: a value with a
- * small uppercase label under it, divided from its neighbours.
- *
- * Where the gallery item's version reports single facts, every fact here is a *change*,
- * so the values read as transitions. An orphaned candidate has no before to transition
- * from and shows the after alone - the warning below the bar is what explains why, so
- * the bar itself does not need to.
- */
 function CompareMeta({ entry }: { entry: CandidateReviewEntry }) {
   const details = useCandidateDetails(entry);
   const { source, candidate } = entry;
@@ -355,24 +341,6 @@ function CompareMeta({ entry }: { entry: CandidateReviewEntry }) {
   );
 }
 
-/**
- * Before and after under one zoom.
- *
- * Both panes are driven by a single `useImageZoom`, whose state is a pointer origin in
- * percent plus a scale: feeding two canvases from one instance is what keeps them
- * looking at the same part of the frame with nothing to synchronise. The natural size
- * recorded is the *candidate's*, so the shared scale is allowed to reach the upscale's
- * own detail - clamping to the smaller original would cap the zoom exactly where the
- * comparison starts being worth making, and a soft "before" is the honest rendering of
- * an image that really does have fewer pixels.
- *
- * That same natural size shapes the box the two panes are drawn in, via
- * `--stage-aspect`. The zoom scales the *box* and paints the image across it, so a box
- * that is not the image's shape distorts it - which is what a fixed square stage used
- * to do, hardest at full zoom where the comparison is actually made. The stylesheet
- * also sizes the pair from it, so a portrait candidate narrows both columns together
- * instead of stranding the two frames at opposite edges of the panel.
- */
 function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [loadedSize, setLoadedSize] = useState<{ width: number; height: number } | null>(null);
@@ -386,9 +354,7 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
     recordNaturalSize,
   } = useImageZoom(entry.path);
 
-  // The measured size belongs to the image that reported it. `useImageZoom` drops its
-  // own copy on every new entry; this one has to go with it, or the next candidate is
-  // laid out in the previous one's shape until it finishes decoding.
+  // Drop with the entry like useImageZoom, or the next candidate keeps the old shape until decode.
   useEffect(() => {
     setLoadedSize(null);
   }, [entry.path]);
@@ -448,9 +414,6 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
   };
 
   return (
-    // The ratio is set here rather than on each stage, so the two panes read one value
-    // and the grid can size itself from the same number - two boxes of this shape at
-    // full height is exactly what the pair is allowed to grow to.
     <div
       className="candidate-review-modal__compare"
       style={{ "--stage-aspect": aspect } as CSSProperties}

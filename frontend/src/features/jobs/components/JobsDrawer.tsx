@@ -32,10 +32,6 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
   const [clearingAll, setClearingAll] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // The sheet slides out rather than vanishing, so it outlives `drawerOpen` by
-  // the length of that animation. Derived during render (React's documented
-  // way to adjust state from changing input) so there is no extra commit and
-  // no frame where the panel is gone but the animation has not started.
   const [closing, setClosing] = useState(false);
   const [renderedOpen, setRenderedOpen] = useState(drawerOpen);
   if (renderedOpen !== drawerOpen) {
@@ -43,19 +39,10 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
     setClosing(renderedOpen && !drawerOpen);
   }
 
-  // Suspends the trap as well as marking the panel inert — `inert` alone does
-  // not stop it, because the trap keys off aria-hidden on each element itself
-  // rather than its ancestors. See `ModalShell`'s `suspended` prop.
-  // Nothing sits above a drawer that is on its way out.
   const overlayAbove = !closing && (clearAllOpen || lightboxOpen);
 
-  // Everything below the guard only mounts while the drawer is open, which is
-  // what lets `ModalShell` own the focus, lock and Escape wiring: its
-  // mount-scoped effects fire on open rather than at app start.
   if (!drawerOpen && !closing) return null;
 
-  // While Ostris still lists the run, show only the external card. Once training
-  // finishes (or Ostris is offline), the DataForge train_lora job stays visible.
   const localJobs = jobs.filter((job) => !isTrainLoraCoTrackedByExternal(job, externalJobs));
   const hasLocalJobs = localJobs.length > 0;
   const hasExternalJobs = externalJobs.length > 0;
@@ -67,7 +54,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
       await deleteAllJobs();
       setClearAllOpen(false);
     } catch {
-      // Errors surface in drawer state.
+      // Shown in drawer state.
     } finally {
       setClearingAll(false);
     }
@@ -78,16 +65,12 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
       <ModalShell
         block="jobs-drawer"
         panelAs="aside"
-        // `JobsButton` points `aria-controls` at this id from outside the
-        // drawer, so it stays a fixed string rather than a generated one.
         panelId="jobs-drawer-panel"
         labelledById="jobs-drawer-title"
         onClose={closeDrawer}
         suspended={overlayAbove}
         scrollLock="jobs-drawer-open"
         backdropLabel="Close jobs panel"
-        // The panel has its own slide-in, and `_jobs-drawer.scss` overrides the
-        // shell's generic fade-out with a matching slide-out.
         enterAnimation="none"
         closing={closing}
         onExited={() => setClosing(false)}
@@ -150,9 +133,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                         }}
                         stopping={stoppingOstrisJobId === job.id}
                         onStop={(jobId) => {
-                          stopExternalOstrisJob(jobId).catch(() => {
-                            // Errors surface in drawer state.
-                          });
+                          stopExternalOstrisJob(jobId).catch(() => {});
                         }}
                         onLightboxOpenChange={setLightboxOpen}
                       />
@@ -181,14 +162,10 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                         }}
                         cancelling={cancellingJobId === job.id}
                         onCancel={(jobId) => {
-                          cancelJob(jobId).catch(() => {
-                            // Errors surface in drawer state.
-                          });
+                          cancelJob(jobId).catch(() => {});
                         }}
                         onDelete={(jobId) => {
-                          deleteJob(jobId).catch(() => {
-                            // Errors surface in drawer state.
-                          });
+                          deleteJob(jobId).catch(() => {});
                         }}
                         onLightboxOpenChange={setLightboxOpen}
                       />

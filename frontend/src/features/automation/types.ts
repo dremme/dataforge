@@ -14,10 +14,6 @@ import type {
   WatermarkSizeName,
 } from "@/shared/types";
 
-/**
- * Every job dialog carries the settings its last run was started with, so all nine
- * open the same way: `null` until this folder's preferences have loaded.
- */
 type FolderBusyDialogState<TConfirm, TSettings> = {
   open: boolean;
   scope: DialogScopeInfo;

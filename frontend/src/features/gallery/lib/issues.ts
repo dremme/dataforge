@@ -1,11 +1,7 @@
 import { isSysPrompt } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 
-/**
- * Stated as "not a sysprompt" rather than as a list of media types on purpose: an
- * allowlist silently drops every type added later out of the resolver queue and
- * the issue count, with nothing failing to show for it.
- */
+/** Not a sysprompt, so a media type added later cannot fall out of the count. */
 export function isResolvableIssueItem(item: GalleryItem): boolean {
   return item.has_issue_file && !isSysPrompt(item);
 }

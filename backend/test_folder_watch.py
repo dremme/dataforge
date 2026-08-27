@@ -18,9 +18,7 @@ class WatchRegistryTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_tab_without_a_live_stream_watches_nothing(self) -> None:
         folder_watch.touch("tab-a", "C:\\Photos")
 
-        # The tab asked, but it has no stream to be told on. Scanning for it would be
-        # work nobody can receive - which is what makes a backgrounded tab dropping its
-        # stream actually reduce load rather than just move it.
+        # No live stream: scanning would be work nobody can receive.
         self.assertEqual(folder_watch.watchers_by_folder(), {})
 
     async def test_paths_differing_only_in_case_or_separator_are_one_folder(self) -> None:
@@ -30,15 +28,12 @@ class WatchRegistryTests(unittest.IsolatedAsyncioTestCase):
 
             watchers = folder_watch.watchers_by_folder()
 
-            # One entry, or the same directory would be scanned twice a tick and each
-            # tab would be told about it separately.
+            # One entry, or the same directory would be scanned twice a tick.
             self.assertEqual(len(watchers), 1)
             self.assertEqual(next(iter(watchers.values())), {"tab-a", "tab-b"})
 
     async def test_folders_differing_by_more_than_case_stay_separate(self) -> None:
-        # Full case folding maps "ß" onto "ss", which would make these one key: one of
-        # two real folders would stop being scanned, and the path published for the
-        # survivor would match neither tab's own folder.
+        # Full case folding maps "ß" onto "ss", which would make these one key.
         with _fake_subscriber("tab-a"), _fake_subscriber("tab-b"):
             folder_watch.touch("tab-a", "C:\\Stra\u00dfe")
             folder_watch.touch("tab-b", "C:\\Strasse")
@@ -167,12 +162,11 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIsNotNone(first_event)
             self.assertIsNotNone(second_event)
-            # Paths are published in the folded form the watcher keys on; the client
-            # compares them the same way.
+            # Paths are published in the folded form the watcher keys on.
             self.assertTrue(first_event["path"].endswith("photos"))  # type: ignore[index]
             self.assertTrue(second_event["path"].endswith("videos"))  # type: ignore[index]
 
-            # Neither tab is told about the other's folder, and neither missed its own.
+            # Neither tab is told about the other's folder.
             self.assertIsNone(await first.next_event(0.2))
             self.assertIsNone(await second.next_event(0.2))
 
@@ -190,8 +184,7 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(await first.next_event(2.0))
             self.assertIsNotNone(await second.next_event(2.0))
 
-            # Both were told, but the directory was read once for the pass that told
-            # them - the whole point of moving the poll to the server.
+            # Both were told, but the directory was read once.
             self.assertEqual(scan.call_count, 1)
 
     async def test_job_events_still_reach_every_tab(self) -> None:

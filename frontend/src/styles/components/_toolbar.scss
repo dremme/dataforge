@@ -6,10 +6,6 @@ $toolbar-search-expand-ease: cubic-bezier(0.22, 1, 0.36, 1);
 $toolbar-search-width-min: 14rem;
 $toolbar-search-width-max: 22rem;
 
-// ---------------------------------------------------------------------------
-// .toolbar
-// ---------------------------------------------------------------------------
-
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -77,8 +73,7 @@ $toolbar-search-width-max: 22rem;
     }
 
     &--expanded {
-      // Holds the min width until the query fills it (~18 characters), then trails
-      // it to the cap. The base offset sets that hand-off point.
+      // Holds min width until the query fills it (~18 characters), then trails it to the cap.
       width: clamp(
         #{$toolbar-search-width-min},
         calc(4rem + var(--toolbar-search-length, 0) * 1ch),
@@ -249,7 +244,6 @@ $toolbar-search-width-max: 22rem;
     }
   }
 
-  // Media type + caption status filters, collapsed into a dropdown
   &__filter-menu {
     position: relative;
     height: var(--toolbar-control-height);
@@ -263,7 +257,6 @@ $toolbar-search-width-max: 22rem;
         @include icon-size(var(--icon-size-base));
       }
 
-      // Marks a narrowed gallery while the chosen filters are out of sight.
       &-dot {
         position: absolute;
         top: calc(50% - 0.25rem);
@@ -348,10 +341,6 @@ $toolbar-search-width-max: 22rem;
   }
 }
 
-// ---------------------------------------------------------------------------
-// .stat
-// ---------------------------------------------------------------------------
-
 .stat {
   display: inline-flex;
   align-items: center;
@@ -395,8 +384,6 @@ $toolbar-search-width-max: 22rem;
     }
   }
 
-  // Stats that drive the caption filter. They keep the plain stat metrics, so the
-  // cursor and an underline on the count carry the affordance instead of a pill.
   &--filter {
     cursor: pointer;
 
@@ -407,7 +394,6 @@ $toolbar-search-width-max: 22rem;
     }
   }
 
-  // Icon-only marker; the rule keeps it from reading as a count that lost its number.
   &--backup {
     padding-left: 0.625rem;
     border-left: 1px solid var(--border);

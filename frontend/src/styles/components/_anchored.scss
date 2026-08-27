@@ -1,8 +1,6 @@
 @use "../abstracts/variables" as *;
 
-// Geometry only. Every anchored surface brings its own look; what they share is
-// being taken out of the document and placed by `useAnchoredPosition`, which
-// owns `left`, `top` and the two size caps from the moment the surface mounts.
+// Geometry only: `useAnchoredPosition` owns `left`, `top` and the two size caps.
 .anchored {
   position: fixed;
   top: 0;

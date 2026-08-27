@@ -19,8 +19,7 @@ from __future__ import annotations
 import os
 import sys
 
-# Raise this in step with backend/pyproject.toml's requires-python and the CI matrix
-# in .github/workflows/checks.yml.
+# Keep in step with pyproject.toml's requires-python and the CI matrix.
 MIN_PYTHON = (3, 12)
 
 
@@ -37,8 +36,7 @@ def require_python(minimum: tuple = MIN_PYTHON) -> None:
     want = ".".join(str(part) for part in minimum)
     have = ".".join(str(part) for part in sys.version_info[:3])
 
-    # The remedy has to be runnable as printed, and the venv layout differs: a
-    # Unix-shaped path on Windows sends people looking for a bin\ that is not there.
+    # Remedy must be runnable as printed: a Unix path on Windows points at a missing bin\.
     if os.name == "nt":
         launcher = "py -%s" % want
         venv_python = r"backend\.venv\Scripts\python"

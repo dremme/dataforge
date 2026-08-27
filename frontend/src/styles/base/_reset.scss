@@ -23,8 +23,7 @@ body {
   flex-direction: column;
   height: 100%;
   min-height: 100vh;
-  // Narrower windows scroll sideways instead of reflowing; the desktop layout
-  // is not designed below this and there is no smaller layout to fall back to.
+  // Narrower windows scroll sideways instead of reflowing; there is no smaller layout to fall back to.
   min-width: $min-app-width;
 }
 
@@ -33,10 +32,7 @@ input {
   font: inherit;
 }
 
-// Chrome and Safari draw the number spinners from the UA's light colour scheme —
-// this app never declares `color-scheme`, so they arrive as white arrows inside a
-// dark field, and in the 4.25rem W/H boxes they crowd the right-aligned digits.
-// Up/Down and the scroll wheel still step a focused field with them gone.
+// Chrome/Safari draw number spinners from the UA's light scheme; this app never declares `color-scheme`, so they crowd the right-aligned digits in the 4.25rem W/H boxes.
 input[type="number"] {
   appearance: textfield;
 }

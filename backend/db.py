@@ -44,11 +44,7 @@ def get_connection():
 
 def init_db() -> None:
     with get_connection() as conn:
-        # WAL lets the UI keep reading while a running job writes progress. Journal
-        # mode is stored in the database file, so setting it once here is enough.
-        # Paired with synchronous=NORMAL it cannot corrupt the database; it only
-        # risks losing the most recent commits on power loss, which for job progress
-        # and UI preferences is a fine trade for much cheaper writes.
+        # WAL lets the UI keep reading while a job writes. Journal mode is stored in the file.
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
             """

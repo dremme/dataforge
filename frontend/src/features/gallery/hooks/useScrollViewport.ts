@@ -7,13 +7,7 @@ export interface ScrollViewport {
 
 const AT_TOP: ScrollViewport = { scrollTop: 0, height: 0 };
 
-/**
- * The scroll element's offset and visible height, coalesced to one update per
- * frame. Scroll events fire far faster than the browser paints and every update
- * here re-runs the visible-card search, so a scroll burst must not become a
- * burst of renders. The first read is synchronous so the initial paint already
- * knows the real window.
- */
+/** One update per frame so a scroll burst is not a burst of visible-card searches. */
 export function useScrollViewport(scrollElement: HTMLElement | null): ScrollViewport {
   const [viewport, setViewport] = useState<ScrollViewport>(AT_TOP);
 

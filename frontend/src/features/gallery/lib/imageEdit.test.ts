@@ -123,8 +123,7 @@ describe("scaleForTarget", () => {
   });
 
   it("measures against the turned frame, which is what the field is labelled with", () => {
-    // Sideways, 1080 across is the whole width; asking against the unrotated 1920 would
-    // shrink the picture to a little over half of what was asked for.
+    // Sideways, 1080 across is the whole width; the unrotated 1920 would halve it.
     const scale = scaleForTargetWidth(HD, IDENTITY_CROP, 90, 540);
 
     expect(scale).toBeCloseTo(0.5);
@@ -170,8 +169,7 @@ describe("edit identity", () => {
 
 describe("wire conversion", () => {
   it("sends a full-frame crop as no crop at all", () => {
-    // The server normalizes the same way, so anything else would make the two disagree
-    // about whether an edit changes the file.
+    // The server normalizes the same way, or the two disagree on whether an edit changed it.
     expect(toImageEditSpec(emptyDraft()).crop).toBeNull();
   });
 

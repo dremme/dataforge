@@ -1,5 +1,3 @@
-"""Tests for /api/preferences/*."""
-
 from __future__ import annotations
 
 import json
@@ -196,8 +194,7 @@ class AutomationPreferencesEndpointTests(unittest.TestCase):
         )
 
     def test_there_is_no_write_endpoint(self) -> None:
-        # Settings are stored by the job-start routes, so a client cannot set them
-        # without running the job it is describing.
+        # Settings are stored by the job-start routes, not a separate write.
         response = client.put("/api/preferences/automation", json={})
 
         self.assertEqual(response.status_code, 405)

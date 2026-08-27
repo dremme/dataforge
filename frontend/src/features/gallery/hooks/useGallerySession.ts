@@ -25,16 +25,10 @@ type UseGallerySessionOptions = {
   sysprompt: GalleryItem | null;
   setFolder: Dispatch<SetStateAction<FolderResponse | null>>;
   mainRef: RefObject<HTMLElement | null>;
-  /** Full silent reload + fingerprint sync (after delete/move/import). */
   refreshFolder: () => Promise<void>;
-  /** Fingerprint-only sync after local folder patches (caption save). */
   syncBaseline: () => Promise<void> | void;
 };
 
-/**
- * Gallery filters, item/sysprompt modals, caption patch, issue resolver.
- * Selection is owned by the caller so navigation can clear it first.
- */
 export function useGallerySession({
   selection,
   items,
@@ -60,13 +54,8 @@ export function useGallerySession({
     clearSelectedPaths,
   } = selection;
 
-  // A selected path outlives the file it names. A rename — the batch rename job,
-  // Explorer, another window — reaches the folder as a delta, and the selection
-  // would otherwise keep pointing at a name nothing on disk answers to, so the
-  // next move, copy, or delete fails on a file the user can plainly see.
-  //
-  // Only the folder's own contents prune it. Narrowing the view (search, sort,
-  // filters) deliberately does not — see `useGallerySelection`.
+  // Prune paths gone from disk; a rename would fail the next move/copy/delete.
+  // Search/sort/filters deliberately do not prune — see useGallerySelection.
   useEffect(() => {
     if (selectedPathsList.length === 0) return;
     const present = new Set(items.map((item) => item.path));
@@ -78,15 +67,7 @@ export function useGallerySession({
 
   const query = useGalleryQuery(items);
 
-  /**
-   * The selection as the current filters leave it — what every count, every
-   * button state and every batch action operates on.
-   *
-   * Derived rather than pruned: `selectedPaths` keeps the entries the filters
-   * hide, so widening the filter restores them instead of a stray keystroke in
-   * the search box destroying the selection. While hidden they are inert, which
-   * is what stops a delete from reaching an item the user cannot see.
-   */
+  // Derived, not pruned: hidden paths stay so widening restores them and no delete reaches them.
   const visibleSelectedPaths = useMemo(() => {
     const visible = new Set<string>();
     for (const item of query.filteredItems) {
@@ -99,7 +80,6 @@ export function useGallerySession({
 
   const visibleSelectedCount = visibleSelectedPaths.size;
 
-  /** Paths for an automation run: what is selected *and* on screen, or the whole folder. */
   const getJobPaths = useCallback((): string[] | undefined => {
     if (!selectionMode || visibleSelectedCount === 0) return undefined;
     return Array.from(visibleSelectedPaths);
@@ -131,10 +111,7 @@ export function useGallerySession({
     mainRef,
   });
 
-  // Reopening on a path that has dropped out of the filtered set would leave
-  // `selectedPath` set with a `selectedIndex` of -1: nothing renders while the
-  // scroll lock stays held. The check mirrors what `openGalleryItem` snapshots,
-  // so the two cannot disagree.
+  // Skip paths out of the filtered set: selectedIndex is -1 with the scroll lock still held.
   const returnToGalleryItem = useCallback(
     (path: string) => {
       if (!query.filteredItems.some((item) => item.path === path)) return;
@@ -154,12 +131,8 @@ export function useGallerySession({
     [handleCaptionSaved, syncBaseline],
   );
 
-  // Hands a single item to the issue resolver as a queue of one. Both state
-  // updates land in the same commit, so the item modal never overlaps it.
-  // The guard matters: an item the queue would filter out leaves the resolver
-  // open with nothing to render and no close to return from, shutting both
-  // modals at once. The path rather than the item is the return ticket, so the
-  // reopened modal reads the saved caption from the live folder list.
+  // Same commit so the item modal never overlaps the resolver.
+  // Guard: a non-resolvable item opens the resolver empty with no close to return from.
   const onResolveGalleryItemIssue = useCallback(
     (item: GalleryItem) => {
       if (!isResolvableIssueItem(item)) return;
@@ -199,16 +172,10 @@ export function useGallerySession({
     [removeGalleryItem, removeSelectedPaths, refreshFolder],
   );
 
-  // A copy keeps every item and its selection; only subfolder counts move.
   const onGalleryItemsCopied = useCallback(async () => {
     await refreshFolder();
   }, [refreshFolder]);
 
-  /**
-   * Ctrl/Cmd+click, and a plain click once selection mode is on. Entering is
-   * idempotent, so the one handler covers both without the card knowing which
-   * gesture it was.
-   */
   const handleToggleSelectPath = useCallback(
     (path: string) => {
       enterSelectionMode();
@@ -217,13 +184,7 @@ export function useGallerySession({
     [enterSelectionMode, toggleSelectedPath],
   );
 
-  /**
-   * Shift+click. The range is measured in the order the view is showing.
-   *
-   * Read through a ref so this handler never changes identity: it reaches every
-   * card as a prop, and a new function each time the folder's items changed
-   * would re-render the whole grid — the thing `GalleryCard`'s `memo` is for.
-   */
+  // Ref so this handler keeps identity; a new function per folder change re-renders the grid.
   const filteredItemsRef = useRef(query.filteredItems);
   filteredItemsRef.current = query.filteredItems;
 

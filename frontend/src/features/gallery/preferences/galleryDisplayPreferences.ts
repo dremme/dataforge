@@ -14,11 +14,6 @@ import type {
 } from "@/shared/types";
 
 const CACHE_KEY = "gallery-display-modes";
-/**
- * The mirror only exists to paint the right layout before the request lands, so
- * it is bounded: folders past this many fall out oldest-first rather than
- * growing a localStorage entry without limit.
- */
 const CACHE_LIMIT = 50;
 
 type ModeCache = Record<string, GalleryDisplayMode>;
@@ -40,7 +35,6 @@ function readCache(): ModeCache {
   return readStoredJson<ModeCache>(CACHE_KEY, parseCache, {});
 }
 
-/** The cached mode for a folder, or `null` when this folder has not been seen. */
 export function readCachedDisplayMode(folderPath: string | undefined): GalleryDisplayMode | null {
   if (!folderPath) return null;
   return readCache()[cacheKeyFor(folderPath)] ?? null;
@@ -49,8 +43,7 @@ export function readCachedDisplayMode(folderPath: string | undefined): GalleryDi
 function cacheDisplayMode(folderPath: string, mode: GalleryDisplayMode): void {
   const key = cacheKeyFor(folderPath);
   const cache = readCache();
-  // Re-inserting moves the folder to the end, so the trim below drops the least
-  // recently chosen rather than whichever happened to be written first.
+  // Re-inserting moves the folder to the end so the trim drops the least recently chosen.
   delete cache[key];
   cache[key] = mode;
 
@@ -72,7 +65,6 @@ async function fetchDisplayMode(folderPath: string): Promise<GalleryDisplayMode>
   return mode;
 }
 
-/** Never throws: an unreachable backend falls back to the cache, then the default. */
 export async function loadGalleryDisplayMode(folderPath: string): Promise<GalleryDisplayMode> {
   try {
     return await withRetry(() => fetchDisplayMode(folderPath));

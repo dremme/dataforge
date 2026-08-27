@@ -180,8 +180,7 @@ def run_rename_media_job(
         for index, media_path in enumerate(media_files, start=normalized_start)
     ]
 
-    # Two rename passes per file (to temp, then to final). Report one continuous
-    # progress range so the UI does not fill to 100% after phase 1 and again after phase 2.
+    # Two rename passes per file; one progress range so the UI does not fill twice.
     progress_total = total * 2
 
     for index, (source_media, target_media) in enumerate(plan, start=1):

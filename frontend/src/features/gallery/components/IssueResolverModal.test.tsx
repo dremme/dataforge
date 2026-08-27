@@ -228,9 +228,7 @@ describe("IssueResolverModal", () => {
     expect(video).not.toBeNull();
     expect(video).toHaveAttribute("autoplay");
     expect(video).toHaveAttribute("loop");
-    // Autoplay is only permitted while muted, so losing this silently stops the
-    // clip from ever starting. React assigns `muted` as a property and never
-    // reflects it to an attribute, so this is the only way to see it.
+    // Autoplay requires muted; React never reflects muted to an attribute.
     expect(video!.muted).toBe(true);
     // The loop runs until the user pauses it, which needs the native controls.
     expect(video).toHaveAttribute("controls");
@@ -309,9 +307,7 @@ describe("IssueResolverModal", () => {
       makeIssueItem("four.png", { issue_fixes: ["Fix four."] }),
     ];
 
-    // The backend reports each item's real issue state on a caption fetch, so the
-    // mock has to know these items: otherwise every fetch answers "no issue file"
-    // and the harness below cannot tell a fetch from a resolve.
+    // Caption fetch reports issue state; the mock must know these or every fetch says none.
     installMockBackend({
       folderByPath: { [HOME_PATH]: { ...homeFolder, items: initialItems } },
     });

@@ -15,12 +15,7 @@ import type {
   WatermarkStartRequest,
 } from "@/shared/types";
 
-/**
- * Selects the body shape for a given job type.
- *
- * Derived from the generated request types rather than mirroring them, so renaming a
- * body model on the backend fails this file at compile time instead of drifting.
- */
+/** Derived from generated request types so a renamed body model fails at compile time. */
 export interface JobStartBodies {
   auto_caption: AutoCaptionStartRequest;
   set_captions: SetCaptionsStartRequest;

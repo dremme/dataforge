@@ -16,7 +16,6 @@ type FolderAutomation = ReturnType<typeof useFolderAutomation>;
 type UseAutomationHostOptions = {
   folder: string | undefined;
   breadcrumbs: Breadcrumb[];
-  /** Every item in the folder; only the default job size is derived from it. */
   items: GalleryItem[];
   filteredItems: GalleryItem[];
   sysprompt: GalleryItem | null;
@@ -28,17 +27,12 @@ type UseAutomationHostOptions = {
   onEditSysprompt: () => void;
   issueCount: number;
   onResolveIssues?: () => void;
-  /** Groups, not files: the resolver walks one group per step. */
   duplicateGroupCount: number;
   onResolveDuplicates?: () => void;
   candidateCount: number;
   onReviewCandidates?: () => void;
 };
 
-/**
- * Job start UX (dialog vs confirm via registry), panel props, and overlay slices.
- * Receives folder automation core so change-detection can suspend on active jobs first.
- */
 export function useAutomationHost({
   folder,
   breadcrumbs,

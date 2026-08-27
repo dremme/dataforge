@@ -31,7 +31,6 @@ function compareJobRecency(a: Job, b: Job): number {
   return bTime - aTime;
 }
 
-/** Prefer an active job for the folder; otherwise the most recently created job. */
 export function selectFolderJob(
   jobs: Job[],
   folderPath: string | undefined,
@@ -55,15 +54,6 @@ export function selectFolderJob(
   }, null);
 }
 
-/**
- * Merge a pushed job snapshot into the list.
- *
- * A snapshot for a job already listed replaces it in place, so the order the server
- * sorted the list into survives live updates. A snapshot for a job we have never seen
- * goes to the front and evicts any other job for the same folder and type — the server
- * keeps only the latest of those, so keeping the older one here would show a job that
- * no longer exists.
- */
 export function upsertJob(jobs: Job[], job: Job): Job[] {
   const index = jobs.findIndex((entry) => entry.id === job.id);
   if (index !== -1) {
@@ -81,11 +71,6 @@ export function upsertJob(jobs: Job[], job: Job): Job[] {
   ];
 }
 
-/**
- * True when this DataForge train_lora row is already represented by an Ostris
- * external card (same LoRA name). The jobs drawer hides those to avoid listing
- * the same active run twice; finished runs reappear once Ostris drops them.
- */
 export function isTrainLoraCoTrackedByExternal(
   job: Job,
   externalJobs: ReadonlyArray<{ name: string }>,
@@ -125,29 +110,19 @@ function jobVerifyErrorCount(job: Job): number {
   );
 }
 
-/** Media that never decoded fails the job too, even though no model request went out. */
 function jobCaptionErrorCount(job: Job): number {
   const stats = job.stats ?? {};
   return (stats.api_error ?? 0) + (stats.read_error ?? 0) + (stats.frame_error ?? 0);
 }
 
-/** Media skipped for having no caption to work from. */
 function jobNoCaptionCount(job: Job): number {
   return job.stats?.no_caption ?? 0;
 }
 
-/**
- * Captions the model came back with in a form the job would not write. A warning,
- * never an error: the caption on disk is untouched, which is the safe path working.
- */
 function jobRejectedCount(job: Job): number {
   return job.stats?.rejected ?? 0;
 }
 
-/**
- * Clips that carried no audio while audio captioning was on. A warning, never an
- * error: they were captioned anyway, from their keyframes alone.
- */
 function jobNoAudioCount(job: Job): number {
   return job.stats?.audio_error ?? 0;
 }
@@ -202,8 +177,6 @@ export function jobShowsWarningState(job: Job): boolean {
     return false;
   }
 
-  // auto_caption and verify_captions both warn about media skipped for a missing caption sidecar,
-  // and auto_caption additionally about clips that carried no audio to caption from.
   if (type === "auto_caption") {
     return jobNoCaptionCount(job) + jobNoAudioCount(job) > 0;
   }
@@ -256,7 +229,6 @@ export function jobWarningMessage(job: Job): string | null {
     return `${orphaned} backed up captions had no matching media file and were skipped.`;
   }
 
-  // Both can land in the same run, so neither hides the other.
   const parts = [noCaptionWarning(jobNoCaptionCount(job))];
   if (jobTypeOf(job) === "auto_caption") {
     parts.push(noAudioWarning(jobNoAudioCount(job)));
@@ -419,15 +391,13 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
     return { fast: stats.cancelled ?? 0, slow };
   }
 
-  // Only the videos are slow here: re-encoding one costs orders of magnitude more
-  // than compositing text onto a still, so counting both alike wrecks the estimate.
+  // Watermark videos are slow; treating stills the same wrecks the remaining-time estimate.
   if (type === "watermark") {
     const slow = (stats.video_success ?? 0) + (stats.ffmpeg_error ?? 0);
     const fast = (stats.image_success ?? 0) + (stats.read_error ?? 0) + (stats.write_error ?? 0);
     return { fast, slow };
   }
 
-  // File copies are uniformly cheap, so every handled item counts as fast.
   if (type === "backup_captions" || type === "restore_captions") {
     return { fast: job.processed, slow: 0 };
   }
@@ -490,10 +460,7 @@ function estimateSlowRemainingFraction(
   return 0.5;
 }
 
-/**
- * Job timestamps normally arrive as UTC ISO strings, but rows finished by a SQLite
- * fallback (interrupted jobs) carry "YYYY-MM-DD HH:MM:SS" with no zone marker.
- */
+/** Interrupted-job SQLite timestamps are "YYYY-MM-DD HH:MM:SS" with no zone; treat them as UTC. */
 function parseJobTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
 
@@ -509,7 +476,6 @@ export function formatDuration(totalSeconds: number): string {
     return seconds <= 1 ? "1s" : `${seconds}s`;
   }
 
-  // Round up to whole minutes first so the carry lands in the hours, never "1 hr 60 min".
   const totalMinutes = Math.ceil(seconds / 60);
   if (totalMinutes < 60) {
     return totalMinutes === 1 ? "1 min" : `${totalMinutes} min`;
@@ -524,13 +490,11 @@ export function formatDuration(totalSeconds: number): string {
   return `${hours} hr ${minutes} min`;
 }
 
-/** The Ostris sec/iter the training runner recorded, if it has reported one yet. */
 function jobSecondsPerStep(job: Job): number | null {
   const speedMs = job.stats?.speed_ms_per_step;
   return typeof speedMs === "number" && speedMs > 0 ? speedMs / 1000 : null;
 }
 
-/** Remaining-time label from step progress and seconds-per-step (Ostris sec/iter). */
 export function trainingRemainingTimeLabel(
   step: number,
   totalSteps: number | null | undefined,
@@ -651,9 +615,7 @@ export function jobRemainingTimeLabel(
     return null;
   }
 
-  // Training runs entirely inside AI-Toolkit, whose own sec/iter the runner records into
-  // stats. A wall-clock rate would be wrong here anyway: queueing and model loading happen
-  // before step 1, so early elapsed time says nothing about how long the steps take.
+  // Training remaining time uses Ostris sec/iter; wall-clock includes queue/load before step 1.
   if (jobTypeOf(job) === "train_lora") {
     return trainingRemainingTimeLabel(job.processed, job.total, jobSecondsPerStep(job));
   }
@@ -670,7 +632,6 @@ export function jobRemainingTimeLabel(
   return `~${formatDuration(remainingSeconds)} left`;
 }
 
-/** Exact wall-clock time a run took, unlike the rounded-up estimate `formatDuration` gives. */
 export function formatElapsed(totalSeconds: number): string {
   const seconds = Math.round(Math.max(0, totalSeconds));
 
@@ -693,7 +654,6 @@ export function formatElapsed(totalSeconds: number): string {
   return minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
 }
 
-/** How long a finished run took, including cancelled and failed ones. */
 export function jobElapsedSeconds(job: Job): number | null {
   if (!isTerminalJobStatus(job.status)) {
     return null;
@@ -704,7 +664,6 @@ export function jobElapsedSeconds(job: Job): number | null {
     return null;
   }
 
-  // Jobs cancelled before they started running never got a started_at.
   const startedMs = parseJobTimestamp(job.started_at) ?? parseJobTimestamp(job.created_at);
   if (startedMs === null) {
     return null;
@@ -722,7 +681,6 @@ export function jobElapsedTimeLabel(job: Job): string | null {
   return `Took ${formatElapsed(elapsedSeconds)}`;
 }
 
-/** The countdown while a job runs, then the time it took once it settles. */
 export function jobTimeLabel(
   job: Job,
   nowMs = Date.now(),

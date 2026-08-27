@@ -114,21 +114,11 @@ export function AppFolderContent({
                     icon={iconImages}
                     title="Media"
                     count={selectionMode ? visibleSelectedCount : filteredItems.length}
-                    // Each numerator is measured against the set it belongs to:
-                    // the filters against the folder, the selection against what
-                    // the filters left. A search that narrows 2473 to 12 turns
-                    // "12 / 2473" into "1 / 12" on entering selection mode, so
-                    // the denominator moving is half of what tells the two
-                    // readings apart — the check icon is the other half, for the
-                    // unfiltered case where both denominators agree.
                     total={selectionMode ? filteredItems.length : items.length}
                     alwaysShowTotal={selectionMode}
                     countIcon={selectionMode ? iconCheck : undefined}
                     sticky
                     actions={
-                      // The layout picker stays put while the filters empty the
-                      // grid; only the selection controls, which would have
-                      // nothing to act on, drop out.
                       items.length > 0 ? (
                         <div className="gallery-section__actions">
                           {filteredItems.length > 0 && (

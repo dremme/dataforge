@@ -3,10 +3,6 @@ import { axisViewportShift } from "./viewportShift";
 export type AnchoredSide = "top" | "right" | "bottom" | "left";
 export type AnchoredAlign = "start" | "center" | "end";
 
-/**
- * Written in full rather than allowing a bare side: twelve explicit values are
- * self-documenting at the call site and cost nothing to parse.
- */
 export type AnchoredPlacement = `${AnchoredSide}-${AnchoredAlign}`;
 
 export interface AnchoredRect {
@@ -73,10 +69,6 @@ function roomOn(
   }
 }
 
-/**
- * Where the floating element starts along the cross axis, before it is nudged
- * back inside the window. `start` lines the near edges up, `end` the far ones.
- */
 function alignedStart(
   align: AnchoredAlign,
   anchorStart: number,
@@ -88,14 +80,6 @@ function alignedStart(
   return anchorStart + anchorLength / 2 - length / 2;
 }
 
-/**
- * Place a floating element against an anchor: pick a side, keep it on screen,
- * and report how much room it may occupy there.
- *
- * The order is flip, then shift, then shrink, and it has to be that one. A side
- * is only worth flipping to while the element is still at its natural size, and
- * the cross-axis nudge is only correct once the element's final size is known.
- */
 export function computeAnchoredPosition({
   anchor,
   floating,

@@ -29,7 +29,6 @@ import { ModalShell } from "@/shared/ui/ModalShell";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 
-/** What the card's list is, once the item's state in this session is known. */
 function issueCardLabel(fixCount: number, resolved: boolean): string {
   if (fixCount === 0) return resolved ? "Resolved" : "Issue";
   return resolved ? "Applied changes" : "Suggested changes";
@@ -55,9 +54,7 @@ export function IssueResolverModal({
   const { recordResolution, getResolution } = useMediaResolution();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<boolean>(false);
-  // The queue is frozen at mount, so a resolved entry still carries its issue
-  // fixes. Stepping back to it would present settled work as outstanding
-  // without this record of what the session has already put right.
+  // Queue is frozen at mount, so a resolved entry keeps its fixes unless this records them.
   const [resolvedPaths, setResolvedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [openingInViewer, setOpeningInViewer] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
@@ -75,8 +72,6 @@ export function IssueResolverModal({
     setViewerError(null);
   }, [item?.path]);
 
-  // Warm both queue neighbours — the walk goes backwards as well. Idle + low
-  // priority so the current stage media is not starved.
   useEffect(() => {
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(queue, index));
   }, [index, queue]);
@@ -91,8 +86,6 @@ export function IssueResolverModal({
     if (index < queue.length - 1) onIndexChange(index + 1);
   }, [index, onIndexChange, queue.length, saving]);
 
-  // Skipped or already resolved, an earlier item stays reachable: the queue keeps
-  // every entry it started with, so the index is all that has to move.
   const handlePrevious = useCallback(() => {
     if (saving) return;
     if (index > 0) onIndexChange(index - 1);
@@ -136,7 +129,6 @@ export function IssueResolverModal({
     }
   }, [caption, index, item, onCaptionSaved, onClose, onIndexChange, queue.length, saving]);
 
-  // Escape is `ModalShell`'s, via the `busy={saving}` gate below.
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (saving || isEditableTarget(event.target)) return;
@@ -216,9 +208,7 @@ export function IssueResolverModal({
               className="issue-resolver-modal__video"
               src={galleryItemMediaUrl(item)}
               controls
-              // Judging a caption against a clip means watching it more than once,
-              // so it runs on repeat until the player's own pause stops it. `muted`
-              // is what makes the autoplay permitted rather than blocked.
+              // Loop + muted so autoplay is permitted rather than blocked.
               autoPlay
               loop
               muted
@@ -302,8 +292,7 @@ export function IssueResolverModal({
               Caption
             </label>
             <CaptionEditor
-              // A fresh editor per item: CodeMirror maps its selection through the
-              // document swap, so a reused one lands selected on the next caption.
+              // Fresh editor per item: CodeMirror maps selection through a document swap.
               key={item.path}
               id="issue-resolver-caption"
               value={caption}

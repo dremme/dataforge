@@ -1,19 +1,10 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .quick-action
-//
-// The Ctrl+Space palette. Top-anchored rather than centred, the way Spotlight
-// and every command palette sits: the list grows downward from a fixed input, so
-// the field does not walk up the screen as results come and go.
-// ---------------------------------------------------------------------------
-
 .quick-action {
   @include modal-shell($z-index-confirm);
   align-items: flex-start;
-  // Scales with the window so even a short one clears the tallest list the row
-  // cap allows — 8 rows spread across every section — without a scrollbar.
+  // Top-anchored so the list grows down from a fixed input and the field does not walk up as results change.
   padding-top: min(6vh, 5rem);
 
   &__backdrop {
@@ -25,10 +16,7 @@
     display: flex;
     flex-direction: column;
     width: min(40rem, 100%);
-    // Sizes to its content: the result list is capped at MAX_RESULT_ROWS, so the
-    // panel is short by construction and simply ends where the rows do. The
-    // percentage is the flex container's content box — the viewport less its
-    // top offset and gutter — and only bites on a window too short for 8 rows.
+    // Sizes to content (list capped at MAX_RESULT_ROWS). 100% is the flex content box and only bites on a window too short for 8 rows.
     max-height: 100%;
     overflow: hidden;
     @include modal-panel-surface;
@@ -59,8 +47,7 @@
     font-size: var(--text-md);
     line-height: var(--leading-snug);
 
-    // The panel border already frames the field; a focus ring inside it would
-    // read as a second, nested control.
+    // The panel border already frames the field; a focus ring inside it would read as a second control.
     &:focus {
       outline: none;
     }
@@ -73,15 +60,11 @@
   &__results {
     @include app-scrollbar;
     display: flex;
-    // Grows to its content rather than filling the panel, so a two-row result
-    // does not leave a tall empty well below it.
     flex: 0 1 auto;
     flex-direction: column;
     gap: 0.375rem;
     min-height: 0;
-    // A safety valve for a window too short to fit the capped list, never the
-    // normal case — hence no `scrollbar-gutter`, which would reserve a visible
-    // gutter on every open for a scrollbar that never appears.
+    // Safety valve for a window too short for the capped list. No scrollbar-gutter: that would reserve a gutter on every open for a scrollbar that never appears.
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 0.375rem;
@@ -110,18 +93,13 @@
     line-height: var(--leading-snug);
     cursor: pointer;
 
-    // Keyboard and pointer must agree on what "active" looks like: hovering a row
-    // makes it the active row, so the mixin's own hover styling is redundant here
-    // and has to go — left in, it also *outranks* the active state, because
-    // `.a:hover` scores above a plain `.a--active` and would strip the highlight
-    // off the very row the pointer is on.
+    // Hovering a row makes it active, so the mixin's hover must go: `.a:hover` outranks a plain `.a--active` and would strip the highlight off the pointed-at row.
     &:hover {
       background: transparent;
       color: var(--text-muted);
     }
 
-    // Matched on the attribute the markup already carries, which ties with
-    // `:hover` on specificity and wins on source order.
+    // Ties with `:hover` on specificity and wins on source order.
     &[aria-selected="true"] {
       color: var(--text);
       background: var(--accent-soft);

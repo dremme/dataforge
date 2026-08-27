@@ -1,5 +1,3 @@
-"""Unit tests for automation.verify_captions."""
-
 from __future__ import annotations
 
 import base64
@@ -21,6 +19,7 @@ from automation.llm import (
 )
 from automation.verify_captions import (
     VerificationResult,
+    _response_preview,
     build_verification_system_prompt,
     build_verification_user_text,
     list_verify_captions_media,
@@ -60,10 +59,7 @@ def _rules_section(prompt: str) -> str:
 
 
 def _fixes_json(*fixes: str, correct: bool | None = None) -> str:
-    """Build a model response: fixes become the sentences of the ``issues`` prose.
-
-    ``correct`` defaults to agreeing with whether any issue was described.
-    """
+    """Build a model response: fixes become the sentences of the ``issues`` prose."""
     verdict = not fixes if correct is None else correct
     return json.dumps({"correct": verdict, "issues": " ".join(fixes) if fixes else "None"})
 
@@ -209,6 +205,24 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
         self.assertIsNotNone(parsed)
         assert parsed is not None
         self.assertFalse(should_write_issue_file(parsed))
+
+
+class ResponsePreviewTests(unittest.TestCase):
+    def test_a_short_response_is_returned_whole(self) -> None:
+        self.assertEqual(_response_preview("Not JSON at all."), "Not JSON at all.")
+
+    def test_whitespace_is_collapsed(self) -> None:
+        self.assertEqual(_response_preview("two\n\nlines  here"), "two lines here")
+
+    def test_a_long_response_is_cut_to_the_limit(self) -> None:
+        preview = _response_preview("a" * 400, limit=40)
+
+        self.assertEqual(len(preview), 40)
+        self.assertTrue(preview.endswith("…"))
+
+    def test_the_cut_matches_how_the_frontend_elides(self) -> None:
+        """This message reaches the browser, where CSS and captionDiff both elide with U+2026."""
+        self.assertNotIn("...", _response_preview("a" * 400, limit=40))
 
 
 class SplitFixSentencesTests(unittest.TestCase):
@@ -388,8 +402,7 @@ def _sent_image_pixels(captured: dict) -> int:
 
 class VerifyCaptionsApiTests(unittest.TestCase):
     def test_a_configured_still_budget_reaches_the_request(self) -> None:
-        # Verify-captions and auto-caption share one still budget now, and it is read
-        # per call: bound at import, the frame would go out at the default size.
+        # Shared still budget is read per call; bound at import, the frame goes out at the default size.
         with TempMediaFolder() as root:
             media = write_media(root, "img.png")
             frames = [Image.new("RGB", (2000, 2000), color="blue")]
@@ -518,8 +531,7 @@ class VerifyCaptionsApiTests(unittest.TestCase):
                 )
                 self.assertEqual(captured["extra_body"].get("repeat_penalty"), 1.1)
 
-            # Unset again: the key must disappear rather than fall back to 1.0,
-            # so servers that do not recognise it keep seeing the pre-existing request.
+            # Unset the key rather than fall back to 1.0, so unknown servers keep the old request.
             fake_client, captured = _make_fake_verify_client()
             verify_caption(
                 fake_client,
@@ -771,9 +783,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(mock_verify.call_count, 3)
 
     def test_a_retry_re_encodes_the_frames_the_failed_attempt_sent(self) -> None:
-        # WORKAROUND coverage: the server short-circuits a byte-identical repeat of a
-        # multimodal request, so all three attempts have to carry distinct payloads or
-        # only the first one is a real attempt.
+        # WORKAROUND: llama.cpp short-circuits byte-identical multimodal retries.
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")
             write_txt_caption(media, "Draft.")
@@ -821,8 +831,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             write_txt_caption(video, "A short clip.")
             frames = [Image.new("RGB", (64, 64), color="blue") for _ in range(3)]
 
-            # Fixture MP4s are often not seekable; the job only needs a successful load
-            # here so verify_caption is reached for both motion types.
+            # Fixture MP4s are often not seekable; a successful load is enough to reach verify_caption.
             def fake_load(path):
                 return MediaFrames(images=frames), None
 
@@ -841,9 +850,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(verified_names, {"loop.gif", "clip.mp4"})
 
     def test_run_job_picks_the_prompt_matching_each_media_kind(self) -> None:
-        # The kinds share every other code path, so nothing else catches a still
-        # being fact-checked against the keyframe prompt or the reverse. The GIF is
-        # here to pin which side of that line it falls on: the still one.
+        # Nothing else catches a still checked against the keyframe prompt; GIF is the still side.
         with TempMediaFolder() as root:
             photo = write_media(root, "photo.png")
             gif = write_gif(root, "loop.gif", frames=8)

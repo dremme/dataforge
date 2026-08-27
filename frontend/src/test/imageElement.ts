@@ -1,12 +1,4 @@
-/**
- * jsdom decodes nothing, so every `<img>` reports `naturalWidth` and `naturalHeight` as
- * `0` - and the image editor is gated on those being real, so its panel never becomes
- * reachable in a test. This defines them on the prototype and hands back a restore
- * function, the way `stubVideoElement` does for a `<video>`'s metadata.
- *
- * The restore is not optional: `vi.restoreAllMocks()` does not undo
- * `Object.defineProperty`, so a test that skips it leaks into the next file.
- */
+/** jsdom reports 0 size; restore is required as `restoreAllMocks` skips `defineProperty`. */
 export function stubImageElement({
   width = 1920,
   height = 1080,

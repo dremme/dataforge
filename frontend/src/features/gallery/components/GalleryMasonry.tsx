@@ -28,12 +28,6 @@ interface GalleryMasonryProps {
 
 const UNMEASURED: PackedMasonryLayout<GalleryItem> = { cards: [], columnCount: 1, totalHeight: 0 };
 
-/**
- * Large mode: equal-width columns filled round-robin, each card as tall as its
- * own media plus a fixed body. Every height is exact — the card is pinned to the
- * numbers packed here — so the layout is a pure function of the items and the
- * column width, with nothing to measure and nothing to shift afterwards.
- */
 export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
   const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo } =
     useGallerySelectionContext();
@@ -50,9 +44,7 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
 
   const columnWidth = galleryColumnWidth(width, columnCount, layout.gap);
 
-  // Width arrives from a layout effect, so the first commit has none. Packing at
-  // a guessed width would hand the folder's scroll restore a full-length layout
-  // to land on and then contradict.
+  // Width arrives from a layout effect; a guessed width gives scroll restore a stale layout.
   const packed = useMemo(
     () =>
       columnWidth > 0
@@ -65,8 +57,6 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
     [columnCount, columnWidth, items, layout.gap],
   );
 
-  // `rowEstimate` no longer estimates a row here; it is only the unit the mode's
-  // overscan is counted in.
   const overscanPx = layout.overscan * layout.rowEstimate;
   const viewHeight = viewport.height > 0 ? viewport.height : overscanPx;
   const viewTop = viewport.scrollTop - scrollMargin;
@@ -143,8 +133,6 @@ function MasonryCard({
           left: `${card.lane * (columnWidth + gap)}px`,
           width: `${columnWidth}px`,
           height: `${card.height}px`,
-          // The card's two parts are pinned to the numbers this box was packed
-          // with, so the rendered card can never disagree with the packed one.
           "--card-media-h": `${box.media}px`,
           "--card-body-h": `${box.body}px`,
         } as CSSProperties

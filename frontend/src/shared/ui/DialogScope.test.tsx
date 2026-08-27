@@ -2,11 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DialogScope } from "./DialogScope";
 
-/**
- * The row exists to answer one question a dialog used to leave open: is this
- * about the whole folder, or only what I picked? So the two phrasings have to
- * stay plainly different from each other.
- */
 describe("DialogScope", () => {
   it("names the selection when one is narrowing the job", () => {
     const { container } = render(<DialogScope itemCount={23} folderLabel="Photos" fromSelection />);

@@ -36,13 +36,6 @@ function makeFolder(subfolders: Subfolder[]): FolderResponse {
   };
 }
 
-/**
- * Drives the hook off real React state, the way `useAppWorkspace` does.
- *
- * The merged counts have to flow back into the hook's own input - a harness that
- * only records what `setFolder` was called with would never re-render, and so
- * would not exercise the settling behaviour these tests are about.
- */
 function renderWithFolder(initial: FolderResponse) {
   const view = renderHook(() => {
     const [folder, setFolder] = useState<FolderResponse | null>(initial);
@@ -50,7 +43,6 @@ function renderWithFolder(initial: FolderResponse) {
     return { folder, setFolder };
   });
 
-  /** Stand in for a background reload: a fresh payload with counts stripped. */
   const silentReload = async (next: FolderResponse) => {
     await act(async () => {
       view.result.current.setFolder(next);
@@ -113,10 +105,7 @@ describe("useSubfolderStats", () => {
   });
 
   it("refetches when a background reload replaces the payload with blank counts", async () => {
-    // A drag-and-drop import - or any background reload - swaps in a fresh
-    // folder response whose subfolders carry no counts. The folder path and the
-    // number of subfolders both come back unchanged, so nothing about the
-    // folder's identity signals that the numbers need fetching again.
+    // Reload can replace the payload with blank counts while path and subfolder count stay the same.
     const fetchStats = vi
       .spyOn(api, "fetchSubfolderStats")
       .mockResolvedValueOnce({

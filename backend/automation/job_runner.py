@@ -1,9 +1,4 @@
-"""Shared driver for the per-file loop every media automation job runs.
-
-Each job supplies a function that handles one file and reports what happened;
-the driver owns the parts every job must get identical: progress cadence,
-cancellation accounting, and the result payload the job manager persists.
-"""
+"""Shared driver for the per-file loop every media automation job runs."""
 
 from __future__ import annotations
 
@@ -19,12 +14,7 @@ CANCELLED = "cancelled"
 
 @dataclass(frozen=True)
 class FileOutcome:
-    """What a job made of one file.
-
-    ``stats`` are increments applied to the job's counters, ``fields`` are extra
-    entries for this file's result (``description``, ``message``, ``preview``).
-    Set ``stop`` to end the run without touching the remaining files.
-    """
+    """One file's result: ``stats`` increments, extra result ``fields``, and ``stop`` to abort the run."""
 
     status: str
     stats: dict[str, int] = field(default_factory=dict)
@@ -45,12 +35,7 @@ def run_media_job(
     should_cancel: ShouldCancel | None = None,
     processed_stat_keys: tuple[str, ...] | None = None,
 ) -> dict[str, object]:
-    """Run ``process`` over ``media_files``, reporting progress and honouring cancellation.
-
-    ``processed_stat_keys`` sums those counters into ``processed``; omit it for
-    jobs whose counters include sub-stats that must not inflate the count, and
-    the number of handled files is used instead.
-    """
+    """Run ``process`` over ``media_files``. Omit ``processed_stat_keys`` when counters include sub-stats."""
     file_results: list[dict[str, object]] = []
     total = len(media_files)
 
@@ -81,7 +66,6 @@ def run_media_job(
 
         if outcome.stop:
             if outcome.status == CANCELLED:
-                # This file was abandoned mid-flight; the rest are never started.
                 stats[CANCELLED] = stats.get(CANCELLED, 0) + total - index
             break
 

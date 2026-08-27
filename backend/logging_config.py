@@ -1,5 +1,3 @@
-"""Central logging configuration for the DataForge backend."""
-
 from __future__ import annotations
 
 import logging
@@ -23,7 +21,6 @@ def resolve_log_level(level: str | int | None = None) -> int:
 
 
 def configure_logging(*, level: str | int | None = None) -> None:
-    """Configure root logging once for API server, dev server, and CLI entry points."""
     global _CONFIGURED
 
     resolved_level = resolve_log_level(level)
@@ -52,7 +49,6 @@ def log_job_summary(
     *,
     stat_keys: tuple[str, ...],
 ) -> None:
-    """Emit a consistent summary for automation CLI jobs."""
     stats = result.get("stats") or {}
     if not isinstance(stats, dict):
         stats = {}

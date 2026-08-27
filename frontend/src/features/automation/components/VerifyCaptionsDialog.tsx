@@ -15,9 +15,7 @@ import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 export type VerifyCaptionsMode = AutomationMode;
 
 interface VerifyCaptionsDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["verify_captions"];
   busy?: boolean;
   onConfirm: (

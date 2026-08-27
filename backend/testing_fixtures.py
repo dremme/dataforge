@@ -1,5 +1,3 @@
-"""Shared helpers for backend API tests."""
-
 from __future__ import annotations
 
 import atexit
@@ -26,15 +24,9 @@ def _cleanup_test_database() -> None:
 
 
 def isolate_test_database() -> Path:
-    """Point the backend at a temporary SQLite file for tests.
-
-    Call this before importing modules that read or write preferences.
-    Also disables project ``.env`` loading so developer machine config cannot
-    leak into assertions.
-    """
+    """Call before importing modules that read preferences. Also disables project ``.env`` loading."""
     global _test_database_dir
 
-    # Must be set before any import of main / env_file load runs.
     os.environ["DATAFORGE_DISABLE_DOTENV"] = "1"
 
     if _test_database_dir is None:
@@ -132,7 +124,6 @@ def write_jpeg(
     color: tuple[int, int, int] = (0, 0, 0),
     orientation: int | None = None,
 ) -> Path:
-    """A real JPEG, optionally carrying an EXIF Orientation tag."""
     from PIL import Image
 
     media = root / name
@@ -155,7 +146,6 @@ def write_image(
     height: int = 48,
     color: tuple[int, int, int] = (120, 90, 60),
 ) -> Path:
-    """A real image in whatever format the name asks for, via Pillow's own suffix map."""
     from PIL import Image
 
     media = root / name
@@ -172,12 +162,7 @@ def write_gif(
     height: int = 48,
     duration_ms: int = 100,
 ) -> Path:
-    """An animated GIF whose frames are all visibly different.
-
-    The moving block is not decoration: Pillow's GIF encoder merges frames that
-    render identically and folds their delays together, so a fixture drawn from
-    one repeated image silently writes a one-frame GIF.
-    """
+    """Frames must be visibly different: Pillow merges identical frames into a one-frame GIF."""
     from PIL import Image, ImageDraw
 
     images = []
@@ -254,7 +239,7 @@ def _mp4_udta_meta(metadata: dict[str, str]) -> bytes:
 
 
 def _mp4_tkhd(width: int, height: int, *, version: int = 0) -> bytes:
-    """A track header carrying a 16.16 fixed-point display size."""
+    """16.16 fixed-point display size."""
     times = (
         struct.pack(">QQI4xQ", 0, 0, 1, 0) if version == 1 else struct.pack(">IIII4x", 0, 0, 1, 0)
     )
@@ -287,11 +272,7 @@ def make_minimal_mp4_bytes(
     tkhd_version: int = 0,
     trailing_moov: bool = False,
 ) -> bytes:
-    """A header-only MP4.
-
-    ``trailing_moov`` puts the sample data in front of the header, the way many
-    encoders write a file that was not prepared for streaming.
-    """
+    """Header-only MP4. ``trailing_moov`` puts sample data in front of the header."""
 
     def make_hdlr(handler_type: str) -> bytes:
         payload = b"\x00" * 4 + handler_type.encode("latin1") + b"\x00" * 12 + b"Handler\x00"
@@ -313,8 +294,6 @@ def make_minimal_mp4_bytes(
 
     stbl = _mp4_box("stbl", make_stsz(sample_count) + make_stts([(sample_count, sample_delta)]))
     minf = _mp4_box("minf", stbl)
-    # Wrapped in a real `mdia` box rather than concatenated loose into `trak`:
-    # that is where the spec puts these, and it is the nesting a reader meets.
     mdia = _mp4_box(
         "mdia",
         make_hdlr("vide") + make_mdhd(timescale, sample_count * sample_delta) + minf,
@@ -402,23 +381,14 @@ class TempMediaFolder:
 
 
 def reset_job_manager() -> None:
-    """Cancel active work and clear in-memory + SQLite job state between tests.
-
-    Only wiping memory left persisted ``running``/``queued`` rows visible to
-    ``list_jobs`` (active_count flakiness). Clearing ``_deleted_ids`` also let
-    finishing worker threads re-save jobs after a test thought they were gone.
-    """
+    """Clear in-memory and SQLite job state. Wiping memory alone left persisted running rows."""
     from automation.jobs import job_manager
 
     job_manager.delete_all_jobs()
 
 
 def wait_for_job(job_id: str, *, timeout: float = 5.0):
-    """Poll until a background job reaches a terminal status in memory and store.
-
-    Store and memory are updated under the same lock, but wait until the
-    persisted row matches so tests that read SQLite never race a lagging write.
-    """
+    """Wait until memory and the persisted row agree on a terminal status."""
     import time
 
     from automation.jobs import ACTIVE_STATUSES, job_manager

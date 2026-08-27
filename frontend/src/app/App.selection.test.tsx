@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
-/** The home folder, sorted name-ascending as the gallery renders it. */
 const ORDER = ["beach.jpg", "sunset.png", "waves.mp4"];
 
 async function waitForHomeFolder() {
@@ -13,7 +12,6 @@ async function waitForHomeFolder() {
   });
 }
 
-/** A card is labelled "View x" outside selection mode, "Select"/"Deselect x" inside it. */
 function card(name: string) {
   return screen.getByRole("button", { name: new RegExp(`^(View|Select|Deselect) ${name}$`) });
 }
@@ -34,7 +32,6 @@ describe("App: modifier-click selection", () => {
 
     fireEvent.click(card("sunset.png"), { ctrlKey: true });
 
-    // The controls swapping to Done is the tell that selection mode is on.
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
     });
@@ -119,8 +116,6 @@ describe("App: modifier-click selection", () => {
     });
   });
 
-  // The anchor stays put, so a second Shift+click re-measures the same range
-  // rather than walking it along from wherever the last one landed.
   it("re-measures from the same anchor on a second Shift+click", async () => {
     installMockBackend();
     await renderApp();
@@ -138,8 +133,6 @@ describe("App: modifier-click selection", () => {
 
     fireEvent.click(card("sunset.png"), { shiftKey: true });
 
-    // Still anchored on beach.jpg, so this adds nothing new rather than
-    // starting a fresh range at waves.mp4.
     await waitFor(() => {
       expect(selectedNames()).toEqual(ORDER);
     });

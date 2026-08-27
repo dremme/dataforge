@@ -2,10 +2,6 @@ import { useCallback, useState } from "react";
 import { listResolvableIssueItems } from "@/features/gallery/lib/issues";
 import type { GalleryItem } from "@/shared/types";
 
-/**
- * Issue resolver queue state. A session opened for one file carries the path it
- * came from, so closing hands control back there instead of dropping to the grid.
- */
 export function useIssueResolverOverlay(onReturnToItem?: (path: string) => void) {
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -24,8 +20,7 @@ export function useIssueResolverOverlay(onReturnToItem?: (path: string) => void)
     setIndex(0);
     setItems([]);
     setReturnPath(null);
-    // Read from state, not from a setter callback: the return has to fire once
-    // per close, and a second close finds `returnPath` already cleared.
+    // From state, not a setter callback: the return fires once, and a second close finds it clear.
     if (returnPath) {
       onReturnToItem?.(returnPath);
     }

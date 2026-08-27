@@ -21,8 +21,7 @@ from typing import Any
 
 import uvicorn
 
-# Ahead of every backend import below: the backend uses PEP 695 syntax that older
-# interpreters cannot parse, so an unguarded run dies with a bare SyntaxError.
+# Before any backend import: older interpreters die on PEP 695 with a bare SyntaxError.
 from py_version import require_python
 
 require_python()
@@ -33,8 +32,7 @@ DIST_INDEX = ROOT / "frontend" / "dist" / "index.html"
 
 DEFAULT_HOST = "127.0.0.1"
 
-# Same cap as the dev server, for the same reason: /api/events holds SSE streams open,
-# and uvicorn's default is to wait for them forever, so Ctrl+C would never return.
+# Same cap as the dev server: /api/events holds SSE open and the default waits forever.
 GRACEFUL_SHUTDOWN_SECONDS = 2
 
 
@@ -88,8 +86,7 @@ if __name__ == "__main__":
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
 
-    # Running this script is what production mode means, so nobody has to remember
-    # the variable. Set before main:app is imported, which is when it is read.
+    # Set before main:app is imported, which is when it is read.
     os.environ["DATAFORGE_SERVE_UI"] = "1"
 
     from env_file import load_env_file

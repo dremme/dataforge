@@ -2,10 +2,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .gallery-controls
-// ---------------------------------------------------------------------------
-
 .gallery-controls {
   display: inline-flex;
   align-items: center;
@@ -35,13 +31,7 @@
   }
 }
 
-// ---------------------------------------------------------------------------
-// .gallery-section__actions — selection controls + display mode menu
-// ---------------------------------------------------------------------------
-
 .gallery-section__actions {
-  // Fills the header's free space so the display menu can sit hard against the
-  // gallery's right edge while the selection controls stay next to the count.
   display: flex;
   flex: 1;
   align-items: center;
@@ -49,14 +39,6 @@
   flex-wrap: wrap;
   min-height: 1.5rem;
 }
-
-// ---------------------------------------------------------------------------
-// .gallery-display-menu
-//
-// The panel is the shared dropdown, identical to .toolbar__filter-menu's. Only
-// the trigger differs: the section header runs compact 1.5rem pills, not the
-// toolbar's full-height ones, so it matches .gallery-controls__btn beside it.
-// ---------------------------------------------------------------------------
 
 .gallery-display-menu {
   position: relative;
@@ -109,10 +91,6 @@
   }
 }
 
-// ---------------------------------------------------------------------------
-// .gallery layout
-// ---------------------------------------------------------------------------
-
 .gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -140,16 +118,11 @@
 .gallery-masonry-item {
   position: absolute;
 
-  // The wrapper carries the height the masonry packed with, and the card fills
-  // it exactly, so a rendered card can never disagree with its packed box.
+  // Wrapper height is the masonry packed box; the card fills it so the two cannot disagree.
   > .card {
     height: 100%;
   }
 }
-
-// ---------------------------------------------------------------------------
-// .gallery-back-to-top
-// ---------------------------------------------------------------------------
 
 .gallery-back-to-top {
   @include icon-btn-round;
@@ -182,17 +155,12 @@
   }
 }
 
-// ---------------------------------------------------------------------------
-// .card
-// ---------------------------------------------------------------------------
-
 .card {
   display: flex;
   flex-direction: column;
   width: 100%;
   padding: 0;
-  // Shift+click extends the selection; without this it drags a text selection
-  // across the grid at the same time.
+  // Shift+click extends the selection; without this it also drags a text selection.
   user-select: none;
   overflow: hidden;
   background: var(--bg-card);
@@ -266,7 +234,6 @@
     }
   }
 
-  // Media
   &__media {
     position: relative;
     display: block;
@@ -276,8 +243,7 @@
     overflow: hidden;
   }
 
-  // Large cards are laid out by the masonry, which hands each one the exact
-  // height of its two parts. 4:3 is the small grid's crop, not theirs.
+  // Masonry hands each large card the exact height of its two parts; 4:3 is the small grid's crop.
   &--large &__media {
     flex: none;
     height: var(--card-media-h);
@@ -441,7 +407,6 @@
     }
   }
 
-  // Body
   &__body {
     display: flex;
     flex: 1;
@@ -497,7 +462,6 @@
     }
   }
 
-  // Skeleton
   &__skeleton-line {
     @include skeleton-line(0.7rem);
 
@@ -508,10 +472,6 @@
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// .card--small — same card, denser body so more fit per row
-// ---------------------------------------------------------------------------
 
 .card--small {
   .card__body {
@@ -562,26 +522,10 @@
   }
 }
 
-// ---------------------------------------------------------------------------
-// .gallery-list-row
-//
-// A condensed single line, not a card laid on its side: no card chrome, rows
-// meeting on hairline separators (the virtualizer runs list mode at gap 0), and
-// a fixed height that lets the virtualizer size rows exactly.
-//
-// The trailing fields are columns shared by every row, so the facts line up down
-// the list instead of drifting with each row's own content. Their widths are the
-// custom properties `useGalleryListColumns` measures from the folder's own
-// values - a table sizing itself to its widest cell, which a virtualized list
-// cannot do unaided because every row is a separate grid. The fallbacks here
-// only cover the first paint, before that measurement lands.
-// ---------------------------------------------------------------------------
-
+// Column widths come from `useGalleryListColumns`; fallbacks cover the first paint before that measurement lands. A virtualized list cannot size like a table because every row is a separate grid.
 $gallery-list-row-height: 2.5rem;
 $gallery-list-col-check: 1.05rem;
 $gallery-list-col-thumb: 2.75rem;
-// The name yields to the measured columns and truncates; the app's own
-// min-width keeps that floor far from reachable in practice.
 $gallery-list-col-name-min: 8rem;
 
 $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min, 1fr)
@@ -596,19 +540,16 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
   align-items: center;
   gap: 0.625rem;
   width: 100%;
-  // See `.card` — Shift+click must not drag a text selection down the list.
+  // Shift+click must not drag a text selection down the list.
   user-select: none;
   height: $gallery-list-row-height;
   padding: 0 0.75rem;
   background: transparent;
   border: none;
-  // The separator is an inset shadow rather than a border so it stays out of the
-  // box: a 1px border would leave 39px of content, and centring a 14px icon in an
-  // odd box puts it on a half pixel, which is exactly what makes a stroke blur.
+  // Inset shadow, not a border: a 1px border would leave 39px of content, and centering a 14px icon in an odd box puts it on a half pixel.
   box-shadow: inset 0 -1px 0 var(--border);
   color: var(--text);
   text-align: left;
-  // A row that lifts under the cursor reads as jitter in a dense list.
   transition:
     background var(--transition),
     color var(--transition);
@@ -617,17 +558,14 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
     background: var(--surface-hover);
   }
 
-  // Closes the list at the top, the way the last row's own bottom border closes
-  // it at the foot. Keyed on the virtualizer's row index rather than :first-child,
-  // which every row satisfies - each one is the only child of its own wrapper.
+  // Keyed on the virtualizer's row index: `:first-child` matches every row because each is the only child of its wrapper.
   .gallery-row[data-row-index="0"] & {
     box-shadow:
       inset 0 1px 0 var(--border),
       inset 0 -1px 0 var(--border);
   }
 
-  // The checkbox exists only while selecting, so it gets its own leading track
-  // rather than a placeholder that would indent the list during normal browsing.
+  // Own leading track rather than a placeholder that would indent the list while not selecting.
   &--selecting {
     grid-template-columns: $gallery-list-col-check $gallery-list-columns;
   }
@@ -640,7 +578,6 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
     }
   }
 
-  // Leading checkbox, so a column of them lines up down the left edge.
   &__check {
     display: inline-flex;
     align-items: center;
@@ -672,8 +609,7 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
   }
 
   &__name {
-    // Without this the name refuses to shrink and shoves the file facts out of
-    // the row instead of ellipsising.
+    // Without this the name refuses to shrink and shoves the file facts out of the row.
     min-width: 0;
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
@@ -685,8 +621,6 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
     align-items: center;
     justify-content: flex-end;
     gap: 0.25rem;
-    // The column is measured from the most markers any item in the folder carries,
-    // so this only ever clips if a row somehow outgrows that count.
     overflow: hidden;
   }
 
@@ -729,8 +663,6 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
     @include icon-size(var(--icon-size-sm));
   }
 
-  // One fact per column. Right-aligned so the values read as a column and the
-  // row ends on a straight edge, whatever width the formatted value happens to be.
   &__meta-item {
     color: var(--text-muted);
     font-size: var(--text-2xs);

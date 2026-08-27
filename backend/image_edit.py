@@ -1,19 +1,4 @@
-"""Crop, mirror, rotate and rescale one image in place, from its untouched original.
-
-Every render reads ``photo.jpg.bak`` rather than ``photo.jpg``. The backup is written the
-first time a file is edited and is never rewritten, so a spec always describes the
-finished result rather than a step on top of the last one: rotating an already-cropped
-file keeps the crop, and no edit ever resamples a resample.
-
-That is also why the spec is kept beside the file, in ``photo.edit.json``. Without it the
-editor would re-open on an already-cropped image with an empty draft, and the next apply
-would silently drop the crop.
-
-Unlike ``video_edit``, nothing here is truncated to an even number of pixels: that rule
-exists because ``yuv420p`` cannot express an odd dimension, and a still has no chroma
-plane to keep in step. ``frontend/src/features/gallery/lib/imageEdit.ts`` rounds the same
-way, because the panel promises an output size before the render exists.
-"""
+"""Crop, mirror, rotate and rescale one image in place from its untouched original. Odd dimensions are kept: a still has no yuv420p chroma plane."""
 
 from __future__ import annotations
 
@@ -40,8 +25,7 @@ from schemas import EditCropRect, ImageEditResponse, ImageEditSpec
 
 IDENTITY_EPSILON = 1e-9
 
-#: Pillow's ``ROTATE_*`` turn counter-clockwise; the spec's ``rotate`` is clockwise
-#: degrees, matching the arrows on the panel's buttons. Do not "align" these names.
+#: Pillow's ``ROTATE_*`` are counter-clockwise; the spec's ``rotate`` is clockwise.
 _CLOCKWISE_TRANSPOSE = {
     90: Image.Transpose.ROTATE_270,
     180: Image.Transpose.ROTATE_180,
@@ -54,7 +38,6 @@ def read_image_edit_spec(media: Path) -> ImageEditSpec | None:
 
 
 def is_identity_spec(spec: ImageEditSpec) -> bool:
-    """Whether applying ``spec`` would re-encode the original into itself."""
     return (
         spec.crop is None
         and not spec.mirror_h
@@ -65,7 +48,6 @@ def is_identity_spec(spec: ImageEditSpec) -> bool:
 
 
 def resolve_image_format(media: Path) -> str:
-    """The suffix to write as, since the temp file carries no media suffix of its own."""
     suffix = media.suffix.lower()
     if suffix not in IMAGE_EDIT_EXTENSIONS:
         raise ValueError(f"{media.suffix} images cannot be edited")
@@ -73,12 +55,7 @@ def resolve_image_format(media: Path) -> str:
 
 
 def crop_box(size: tuple[int, int], crop: EditCropRect) -> tuple[int, int, int, int]:
-    """The crop, in whole pixels of a frame of ``size``.
-
-    Rounded on each edge rather than by width and offset separately, so a rectangle that
-    reaches the frame's edge in fractions still reaches it in pixels. Clamped so a spec
-    validated to within an epsilon of 1.0 cannot ask Pillow for a row that is not there.
-    """
+    """Rounded per edge so a rect that reaches the frame still reaches it in pixels."""
     width, height = size
     left = min(round(width * crop.x), width - 1)
     top = min(round(height * crop.y), height - 1)
@@ -94,12 +71,7 @@ def scaled_size(size: tuple[int, int], scale: float) -> tuple[int, int]:
 
 
 def render_image_edit(image: Image.Image, spec: ImageEditSpec) -> Image.Image:
-    """Apply the whole spec, in its one fixed order: crop, mirror, rotate, scale.
-
-    Crop comes first because it is expressed against the source frame - that is what lets
-    the crop overlay hand over the rectangle it measured without undoing a rotation first.
-    Scale comes last so it resamples once, over the pixels that survive.
-    """
+    """Order is crop, mirror, rotate, scale."""
     if spec.crop is not None:
         image = image.crop(crop_box(image.size, spec.crop))
 
@@ -131,12 +103,7 @@ def describe_edited(media: Path, *, has_backup: bool) -> ImageEditResponse:
 
 
 def apply_image_edit(media: Path, spec: ImageEditSpec) -> ImageEditResponse:
-    """Render ``spec`` from the original and put the result back under ``media``'s name.
-
-    On any failure the live file is left byte-identical. The backup created on the way in
-    survives that failure on purpose: dropping it would mean the next attempt re-copies,
-    and if this one did damage the output there would be nothing left to copy from.
-    """
+    """Render ``spec`` from the original. On failure the live file is left byte-identical."""
     suffix = resolve_image_format(media)
     sweep_edit_temp_files(media.parent)
 
@@ -162,7 +129,6 @@ def apply_image_edit(media: Path, spec: ImageEditSpec) -> ImageEditResponse:
 
 
 def revert_image_edit(media: Path) -> ImageEditResponse:
-    """Put the untouched original back and forget the edit that replaced it."""
     restore_backup(media)
 
     return describe_edited(media, has_backup=False)

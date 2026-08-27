@@ -1,5 +1,3 @@
-"""Unit tests for automation.llm."""
-
 from __future__ import annotations
 
 import threading
@@ -13,17 +11,20 @@ from testing_fixtures import isolate_test_database
 isolate_test_database()
 
 from automation.llm import (
+    _STRIPPED_PREFIXES,
     API_ERROR,
     CANCEL_POLL_SECONDS,
     CANCELLED,
     SUCCESS,
     ModelOutcome,
     call_with_retries,
+    clean_model_text,
     close_model_client,
     describe_empty_completion,
     describe_exception,
     model_client,
     run_chat_completion,
+    strip_code_fences,
 )
 from testing_fixtures import (
     TempMediaFolder,
@@ -32,7 +33,7 @@ from testing_fixtures import (
     write_txt_caption,
 )
 
-# Long enough that a test hitting it means cancellation did not drop the request.
+# Long enough that hitting it means cancellation did not drop the request.
 WEDGED_SERVER_SECONDS = 30.0
 # Cancellation polls every 100ms, so a working drop lands far inside this.
 CANCEL_DEADLINE_SECONDS = 5.0
@@ -106,9 +107,7 @@ class CancelWhileWaitingTests(unittest.TestCase):
             self.assertNotIn("error", results)
             self.assertLess(waited, CANCEL_DEADLINE_SECONDS)
             self.assertTrue(client.closed.is_set(), "the abandoned request was not torn down")
-            # Once to tear down the request that was still hanging, once when the run
-            # scope ended. A single close means the in-flight teardown never happened,
-            # which the event alone can no longer tell apart.
+            # Once for the hanging request, once when the run scope ended.
             self.assertEqual(client.close_count, 2)
 
             stats = results["value"]["stats"]
@@ -481,6 +480,22 @@ class DescribeExceptionTests(unittest.TestCase):
             self.assertIsNone(run_chat_completion(client, [], mode="thinking"))
 
         self.assertIn("RuntimeError: boom", logs.output[0])
+
+
+class CleanModelTextTests(unittest.TestCase):
+    def test_strips_each_prefix(self) -> None:
+        for prefix in _STRIPPED_PREFIXES:
+            with self.subTest(prefix=prefix):
+                self.assertEqual(clean_model_text(f"{prefix} a red hatchback"), "a red hatchback")
+
+    def test_strips_a_thinking_block(self) -> None:
+        self.assertEqual(clean_model_text("<think>hmm</think>a red hatchback"), "a red hatchback")
+
+    def test_strips_a_code_fence(self) -> None:
+        self.assertEqual(strip_code_fences("```\na red hatchback\n```"), "a red hatchback")
+
+    def test_strips_a_chat_template_marker(self) -> None:
+        self.assertEqual(clean_model_text("a red hatchback<|im_end|>"), "a red hatchback")
 
 
 class _StubCompletions:

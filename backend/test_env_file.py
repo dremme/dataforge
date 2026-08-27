@@ -1,9 +1,4 @@
-"""Tests for env_file loading.
-
-These tests never read the developer's project-root ``.env``.
-They only load temporary files via a patched candidate list and ``force=True``
-(so they still work when the test runner sets ``DATAFORGE_DISABLE_DOTENV``).
-"""
+"""Never reads the developer's project-root ``.env``; loads temp files via ``force=True``."""
 
 from __future__ import annotations
 

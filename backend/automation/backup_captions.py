@@ -1,16 +1,4 @@
-"""Copy caption sidecars into a `.backup` folder, and restore them from it again.
-
-Captions only. A caption is written work, and losing one costs the writing; findings -
-the caption issues verify-captions writes, the duplicate groups find-duplicates writes -
-are derived from the media and the caption, and a job re-run rebuilds them in seconds.
-Storing them here would only let a restore put back a verdict the folder has since
-disproved.
-
-Neither direction ever deletes anything, so a backup is a safety net rather than an
-exact snapshot. Restoring always overwrites the current caption, which is the point of
-restoring. Backing up keeps what is already stored unless ``overwrite`` is set, so a
-second run cannot bury a good copy under a caption that was edited by mistake.
-"""
+"""Copy caption sidecars into a `.backup` folder, and restore them from it again."""
 
 from __future__ import annotations
 
@@ -44,11 +32,6 @@ def list_backup_captions_media(folder: Path) -> list[Path]:
 
 
 def caption_sidecars(media_path: Path) -> list[Path]:
-    """Caption sidecars of ``media_path``.
-
-    Walks :data:`CAPTION_SIDECAR_EXTENSIONS` so backup and restore stay on the same
-    files the rest of the app treats as captions.
-    """
     candidates = [
         media_path.parent / f"{media_path.stem}{suffix}" for suffix in CAPTION_SIDECAR_EXTENSIONS
     ]
@@ -63,20 +46,11 @@ def list_backup_sidecars(folder: Path) -> list[Path]:
 
 
 def has_caption_backup(folder: Path) -> bool:
-    """Whether ``folder`` has anything to restore.
-
-    Goes through :func:`list_backup_sidecars` so that "a backup exists" and
-    "these are the files to restore" can never disagree.
-    """
     return bool(list_backup_sidecars(folder))
 
 
 def _has_media_for(folder: Path, sidecar: Path) -> bool:
-    """Whether the media a caption was written for is still in ``folder``.
-
-    A caption is named after its media's stem, so the media is whichever file wears that
-    stem with a media extension.
-    """
+    """Whether the media a caption was written for is still in ``folder``."""
     return any((folder / f"{sidecar.stem}{extension}").is_file() for extension in MEDIA_EXTENSIONS)
 
 
@@ -139,8 +113,6 @@ def run_backup_captions_job(
                 fields={"message": "No sidecar to back up"},
             )
 
-        # Filtered per sidecar, not per media file, so a later caption is not
-        # treated as already backed up because an older one is.
         pending = (
             sidecars
             if overwrite

@@ -1,9 +1,4 @@
-"""Locating the ffmpeg executable, for every module that shells out to it.
-
-Thumbnails, watermarking, metadata stripping and audio extraction all need the same
-answer, and all of them work without it - each degrades on its own terms when this
-returns ``None``, so resolution is deliberately non-raising.
-"""
+"""Locate ffmpeg. Returns ``None`` rather than raising so each caller can degrade on its own terms."""
 
 from __future__ import annotations
 
@@ -15,12 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def ffmpeg_path() -> str | None:
-    """The ffmpeg to run, preferring one on PATH over the bundled wheel's copy.
-
-    Resolved per call rather than cached: an install that adds ffmpeg while the server
-    is up should start working without a restart, and ``shutil.which`` is cheap next to
-    the process it precedes.
-    """
+    """Prefer PATH over the bundled wheel. Resolved per call so a mid-run install is picked up."""
     found = shutil.which("ffmpeg")
     if found:
         return found

@@ -1,5 +1,3 @@
-"""Unit tests for logging_config."""
-
 from __future__ import annotations
 
 import logging

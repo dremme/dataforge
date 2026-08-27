@@ -1,5 +1,3 @@
-"""Unit tests for resolving the ffmpeg executable."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database

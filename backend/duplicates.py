@@ -1,29 +1,4 @@
-"""The ``.duplicate.json`` sidecar: which duplicate group a media file belongs to.
-
-A finding records only a **group id**, never the names of the file's partners. The group
-is *"every file in this folder whose sidecar carries this id"*, which is what makes the
-findings survive the things that happen to a dataset between a scan and a review:
-
-- **Renamed** - the sidecar travels with its media under the same id, so nothing to update.
-- **Deleted** - the file leaves its group by no longer being there.
-- **Moved out of the folder** - it becomes a lone member, which reads as resolved.
-
-A stored member list would go stale on all three, in each case naming a file that is no
-longer where the list says. The id is the only cross-file reference, and it is derived
-from the group's sorted names so an unchanged group keeps its id across re-runs.
-
-The sidecar is named after the media's **whole filename** - ``clip.mp4`` is recorded in
-``clip.mp4.duplicate.json``, not ``clip.duplicate.json``. A stem-based name is one file
-shared by every media that happens to sit under the same stem, which is the ordinary
-shape of a generated folder: a video beside the still that previews it. Sharing it is
-not a naming quibble - the writer clears the findings of files it no longer groups, so
-the still being unique deleted the video's finding in the same pass that wrote it, and
-every re-run reproduced it.
-
-Only that name is read. A folder written before the rename reports no findings until the
-job runs again, which takes seconds and is the only thing that can rebuild them anyway;
-the files it leaves behind are what the folder-wide sidecar sweep is for.
-"""
+"""The ``.duplicate.json`` sidecar records a group id, never member names; named after the whole filename so ``clip.mp4`` and ``clip.png`` cannot share one."""
 
 from __future__ import annotations
 
@@ -40,20 +15,14 @@ from folder_scan import FolderScan
 
 logger = logging.getLogger(__name__)
 
-#: Length of the hex group id. Twelve hex digits of SHA-1 over the sorted member names:
-#: collision-free in any realistic folder, and short enough to read in a sidecar.
 GROUP_ID_LENGTH = 12
 
 
 @dataclass(frozen=True)
 class DuplicateFinding:
-    """One file's membership in a duplicate group."""
-
     group: str
-    #: The group's worst pairwise Hamming distance, so ``exact`` describes the files
-    #: themselves rather than the threshold the run happened to use.
+    #: Worst pairwise Hamming distance, so ``exact`` describes the files, not the threshold.
     max_distance: int
-    #: Which threshold produced the finding, kept for display only.
     threshold: str
 
     @property
@@ -62,16 +31,11 @@ class DuplicateFinding:
 
 
 def duplicate_file_path(media_path: Path) -> Path:
-    """Where ``media_path``'s finding is written: ``clip.mp4`` -> ``clip.mp4.duplicate.json``."""
     return media_path.with_name(media_path.name + DUPLICATE_SIDECAR_SUFFIX)
 
 
 def group_id_for(names: list[str]) -> str:
-    """A stable id for the group made up of ``names``.
-
-    Derived rather than random so re-running the job over an unchanged folder rewrites
-    the same ids, leaving the sidecars byte-identical instead of churning their mtimes.
-    """
+    """Derived so a re-run over an unchanged folder rewrites the same ids."""
     joined = "\n".join(sorted(names))
     return hashlib.sha1(joined.encode("utf-8")).hexdigest()[:GROUP_ID_LENGTH]
 
@@ -93,8 +57,7 @@ def _finding_from_data(data: object) -> DuplicateFinding | None:
 
 
 def _finding_from_file(sidecar_path: Path) -> DuplicateFinding | None:
-    # utf-8-sig, matching the caption reader: a sidecar hand-edited in Notepad picks up a
-    # BOM, and plain utf-8 would reject the whole file over three leading bytes.
+    # utf-8-sig: a sidecar hand-edited in Notepad picks up a BOM.
     try:
         data = json.loads(sidecar_path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
@@ -108,11 +71,7 @@ def duplicate_finding_from_sidecar(
     mtime_ns: int,
     size: int,
 ) -> DuplicateFinding | None:
-    """:func:`load_duplicate_finding` for a sidecar the caller has already stat'ed.
-
-    The gallery listing reads one of these per file, so it goes through the same
-    stat-keyed cache the caption and issue summaries use.
-    """
+    """:func:`load_duplicate_finding` for a sidecar the caller has already stat'ed."""
     return cached_by_stat(
         "duplicate",
         sidecar_path,
@@ -131,7 +90,6 @@ def load_duplicate_finding(media_path: Path) -> DuplicateFinding | None:
 
 
 def save_duplicate_finding(media_path: Path, finding: DuplicateFinding | None) -> None:
-    """Write the finding, or remove the sidecar when there is no longer one to record."""
     sidecar_path = duplicate_file_path(media_path)
 
     if finding is None:
@@ -155,15 +113,7 @@ def delete_duplicate_file(media_path: Path) -> None:
 
 
 def group_duplicate_findings(scan: FolderScan) -> dict[str, list[tuple[Path, DuplicateFinding]]]:
-    """Every duplicate group in ``scan``, keyed by group id and ordered by file name.
-
-    Takes a scan rather than a folder so a caller that also needs the listing pays for
-    one directory walk. ``scan_folder`` is uncached, and two walks could disagree.
-
-    Groups left with fewer than two live members are dropped: the partners were deleted
-    or moved away, so the finding is spent even though the sidecar is still on disk.
-    :func:`stale_duplicate_members` reports those separately, for clearing.
-    """
+    """Groups with fewer than two live members are dropped; ``scan_folder`` is uncached so two walks could disagree."""
     groups: dict[str, list[tuple[Path, DuplicateFinding]]] = {}
 
     for media_path, finding in findings_in_scan(scan):
@@ -177,7 +127,6 @@ def group_duplicate_findings(scan: FolderScan) -> dict[str, list[tuple[Path, Dup
 
 
 def stale_duplicate_members(scan: FolderScan) -> list[Path]:
-    """Files whose group has no other member left, so their sidecar says nothing."""
     findings = list(findings_in_scan(scan))
 
     counts: dict[str, int] = {}
@@ -191,11 +140,7 @@ def stale_duplicate_members(scan: FolderScan) -> list[Path]:
 
 
 def findings_in_scan(scan: FolderScan) -> Iterator[tuple[Path, DuplicateFinding]]:
-    """Every ``(media_path, finding)`` pair in ``scan``, driven by the media files.
-
-    Media-driven rather than sidecar-driven so an orphaned ``.duplicate.json`` - its
-    media gone from under it - is ignored rather than reported as a group member.
-    """
+    """Media-driven so an orphaned sidecar is ignored rather than reported as a member."""
     for media in scan.media:
         sidecar = scan.sidecar(media.name, DUPLICATE_SIDECAR_SUFFIX)
         if sidecar is None:

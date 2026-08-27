@@ -28,15 +28,12 @@ import type { GalleryItem } from "@/shared/types";
 
 interface StatsDrawerProps {
   open: boolean;
-  /** The whole folder, not the filtered view: a dataset overview ignores the search. */
   items: GalleryItem[];
   onClose: () => void;
 }
 
-/** What the open folder looks like as a training set, as a side drawer. */
 export function StatsDrawer({ open, items, onClose }: StatsDrawerProps) {
-  // The sheet slides out rather than vanishing, so it outlives `open` by the length
-  // of that animation. Derived during render, as in `JobsDrawer`.
+  // Slides out rather than vanishing, so it outlives open by the animation length.
   const [closing, setClosing] = useState(false);
   const [renderedOpen, setRenderedOpen] = useState(open);
   if (renderedOpen !== open) {
@@ -44,24 +41,18 @@ export function StatsDrawer({ open, items, onClose }: StatsDrawerProps) {
     setClosing(renderedOpen && !open);
   }
 
-  // Everything below only mounts while the drawer is open, which is what lets
-  // `ModalShell` own the focus, lock and Escape wiring, and keeps the stats off
-  // the render path entirely while the drawer is shut.
   if (!open && !closing) return null;
 
   return (
     <ModalShell
       block="stats-drawer"
       panelAs="aside"
-      // `StatsButton` points `aria-controls` here from outside the drawer, so it
-      // stays a fixed string rather than a generated one.
+      // StatsButton points aria-controls here from outside the drawer, so the id stays a fixed string.
       panelId="stats-drawer-panel"
       labelledById="stats-drawer-title"
       onClose={onClose}
       scrollLock="stats-drawer-open"
       backdropLabel="Close dataset statistics"
-      // The panel has its own slide-in, and `_stats-drawer.scss` overrides the
-      // shell's generic fade-out with a matching slide-out.
       enterAnimation="none"
       closing={closing}
       onExited={() => setClosing(false)}
@@ -84,7 +75,6 @@ export function StatsDrawer({ open, items, onClose }: StatsDrawerProps) {
   );
 }
 
-/** `1284` reads as `1.3K` at display sizes, where the exact digit adds nothing. */
 function compactCount(value: number): string {
   if (value < 1000) return String(value);
   const thousands = value / 1000;
@@ -170,18 +160,6 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
   );
 }
 
-/**
- * The headline: how much of the folder is ready to train on, and what is not.
- *
- * A ratio against a limit is a meter, not a chart - and the percentage is the one
- * number the drawer leads with, so it gets hero treatment. The findings ride
- * underneath as status rows rather than as slices of the meter, because they cut
- * across the captioned/missing split rather than partitioning it: a file can be
- * captioned *and* flagged, *and* a duplicate.
- *
- * Titled for the whole block rather than for the meter alone, since a duplicate is a
- * property of the file and would read as a non-sequitur under "Caption coverage".
- */
 function Overview({ stats }: { stats: DatasetStats }) {
   const { captioned, missingCaption, captionIssues, duplicates, duplicateGroups } = stats.findings;
   const percent = stats.total === 0 ? 0 : Math.round((captioned / stats.total) * 100);
@@ -213,7 +191,6 @@ function Overview({ stats }: { stats: DatasetStats }) {
         {captioned} of {stats.total} files captioned
       </p>
 
-      {/* Status is never colour alone: each of these carries its own icon and words. */}
       {missingCaption > 0 && (
         <p className="stats-drawer__status stats-drawer__status--warning">
           <Icon icon={iconMessageDashed} className="stats-drawer__status-icon" />
@@ -228,9 +205,6 @@ function Overview({ stats }: { stats: DatasetStats }) {
         </p>
       )}
 
-      {/* Accent rather than amber, matching the card badge and the resolver: a
-          duplicate is a housekeeping decision, not a defect in the caption, and it
-          should not compete with the rows above for alarm. */}
       {duplicates > 0 && (
         <p className="stats-drawer__status stats-drawer__status--info">
           <Icon icon={iconFiles} className="stats-drawer__status-icon" />
@@ -271,7 +245,6 @@ function Section({
   );
 }
 
-/** Headline numbers, side by side. Tabular figures: they tick through a count-up. */
 function Tile({ value, label }: { value: number; label: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const displayed = useCountUp(value, ref);
@@ -286,18 +259,10 @@ function Tile({ value, label }: { value: number; label: string }) {
   );
 }
 
-/** User-facing format name: `.jpeg` is JPEG. */
 function formatName(extension: string): string {
   return extension.replace(/^\./, "").toUpperCase();
 }
 
-/**
- * A single stacked bar of the folder's filename suffixes.
- *
- * Colour names the suffix and width is its share, the way GitHub names languages.
- * Hovering a slice spells the format in a tooltip, so the hues are never the only
- * encoding.
- */
 function MediaMix({ buckets, total }: { buckets: StatBucket[]; total: number }) {
   if (buckets.length === 0 || total === 0) return null;
 
@@ -324,17 +289,6 @@ function MediaMix({ buckets, total }: { buckets: StatBucket[]; total: number }) 
   );
 }
 
-/**
- * A horizontal bar per category, sized against the fullest one rather than the
- * total, so a lopsided distribution still shows its shape.
- *
- * One hue for every bar: length already encodes the count, and spending the colour
- * channel on the same fact would double-encode it. The value sits at the bar's tip
- * in a text token, never in the bar's own colour, so nothing is gated behind hover.
- *
- * Empty buckets draw no row at all: a wall of zero counts says nothing about the
- * dataset and only clutters the drawer, so the chart shows what it actually holds.
- */
 function BarChart({
   buckets,
   unit,
@@ -349,8 +303,6 @@ function BarChart({
   const peak = Math.max(...visible.map((bucket) => bucket.count));
 
   return (
-    // A figure is what a chart is, and it takes an accessible name - a bare <dl>
-    // exposes no role for the label to attach to.
     <figure className="stats-drawer__chart" aria-label={`Distribution by ${unit}`}>
       <dl className={`stats-drawer__bars stats-drawer__bars--${labelWidth}`}>
         {visible.map((bucket) => (

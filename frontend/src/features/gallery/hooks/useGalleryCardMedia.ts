@@ -18,7 +18,6 @@ const HIDDEN_ZONES: GalleryMediaZones = {
   priority: "hidden",
 };
 
-/** Cancellations to absorb before giving up on the shared loader for this card. */
 const MAX_PREVIEW_ATTEMPTS = 2;
 
 function syncImageReadyState(image: HTMLImageElement | null, onReady: () => void): void {
@@ -36,7 +35,6 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [zones, setZones] = useState<GalleryMediaZones>(HIDDEN_ZONES);
   const [ready, setReady] = useState(() => isMediaPathWarmed(path));
-  /** Set once the shared loader gives up, so the <img> fetches the URL itself. */
   const [loadDirectly, setLoadDirectly] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const attemptsRef = useRef(0);
@@ -55,9 +53,7 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
 
       attemptsRef.current += 1;
 
-      // A load that failed, or one cancelled more often than it is worth waiting
-      // on, hands the URL to the <img>. Anything else leaves the card on its
-      // placeholder with no src, where its own error fallback can never run.
+      // Failed or cancelled too often: hand the URL over, or the <img> error fallback never runs.
       if (outcome === "failed" || attemptsRef.current >= MAX_PREVIEW_ATTEMPTS) {
         setLoadDirectly(true);
         return;
@@ -126,7 +122,6 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
     imageRef,
     showImage,
     ready,
-    /** Whether the <img> may carry a src yet — true once warmed, or once we stop waiting. */
     srcReady: ready || loadDirectly,
     handleReady,
   };

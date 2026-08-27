@@ -24,16 +24,7 @@ interface DuplicateResolverModalProps {
   index: number;
   onClose: () => void;
   onIndexChange: (index: number) => void;
-  /**
-   * Whether a discarded file lands somewhere recoverable.
-   *
-   * Where it does - the Recycle Bin on Windows - deleting is a click, because
-   * walking a long queue with a dialog between every group is its own kind of bad
-   * and the deletion can be undone. Where it does not, the same click is permanent,
-   * so it earns a confirmation naming the files.
-   */
   deletesToTrash: boolean;
-  /** Fires after files are removed, so the folder listing can catch up. */
   onResolved: () => void;
 }
 
@@ -45,14 +36,11 @@ export function DuplicateResolverModal({
   deletesToTrash,
   onResolved,
 }: DuplicateResolverModalProps) {
-  // Frozen at mount, like the issue resolver's queue: resolving a group removes files,
-  // which would otherwise reshuffle the list under the index mid-walk.
+  // Frozen at mount: resolving a group removes files and would reshuffle it under the index.
   const [queue] = useState(() => groups);
   const group = queue[index];
 
   const [keepPath, setKeepPath] = useState<string | null>(null);
-  // Which request is in flight, so the two footer actions can spin their own button
-  // while both block the rest of the modal.
   const [pending, setPending] = useState<PendingAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [settledGroups, setSettledGroups] = useState<ReadonlySet<string>>(() => new Set());
@@ -62,7 +50,6 @@ export function DuplicateResolverModal({
 
   const suggestion = useMemo(() => (group ? chooseKeeper(group.members) : null), [group]);
 
-  // A new group arrives with its own suggestion, and none of the previous state.
   useEffect(() => {
     setKeepPath(null);
     setError(null);
@@ -94,8 +81,6 @@ export function DuplicateResolverModal({
     [busy, onIndexChange, queue.length],
   );
 
-  // A settled group is behind the user either way, whether its extra copies were
-  // deleted or the whole finding was thrown away.
   const settle = useCallback(
     (groupId: string) => {
       setSettledGroups((current) => new Set(current).add(groupId));
@@ -136,8 +121,6 @@ export function DuplicateResolverModal({
     }
   }, [busy, discard, group, selectedPath, settle]);
 
-  // The answer to a false positive: two shots of the same subject hash alike often
-  // enough that "keep one, delete the rest" cannot be the only way out of a group.
   const handleDismiss = useCallback(async () => {
     if (!group || busy) return;
 
@@ -160,8 +143,6 @@ export function DuplicateResolverModal({
     }
   }, [busy, group, settle]);
 
-  // Where a delete is recoverable this is the whole action; where it is not, the
-  // dialog stands between the click and the files.
   const requestResolve = useCallback(() => {
     if (deletesToTrash) {
       void handleResolve();

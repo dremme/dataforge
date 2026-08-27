@@ -12,24 +12,15 @@ import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem } from "@/shared/types";
 
-/** How long the scrub must sit still before neighbouring frames are warmed. */
 const NEIGHBOUR_WARM_DELAY_MS = 120;
-
-/** Warmed on either side of the shown frame, so a step or two lands instantly. */
 const NEIGHBOUR_WARM_OFFSETS = [-2, -1, 1, 2] as const;
 
 export interface UseGifFrameCaptureOptions {
   item: GalleryItem | undefined;
-  /** Frame count from `useGifInfo`. Frame mode is not offered without it. */
   frameCount: number | undefined;
-  /** Where the frame is written. Frame mode is not offered without it. */
   folderPath: string | undefined;
-  /** Runs once the frame is on disk, so the owner can reload the folder. */
   onSaved?: () => void | Promise<void>;
-  /**
-   * Owned by the modal so mode can stick across next/prev between videos and
-   * GIFs. This hook only drives enter/exit and reads the flag for UI.
-   */
+  /** Owned by the modal so mode sticks across next/prev between videos and GIFs. */
   frameMode: boolean;
   setFrameMode: (frameMode: boolean) => void;
 }
@@ -37,27 +28,16 @@ export interface UseGifFrameCaptureOptions {
 export interface GifFrameCapture extends FrameCapture {
   frameCount: number;
   frameIndex: number;
-  /** The stage's `src` while in frame mode; `undefined` leaves the GIF animating. */
+  /** Stage src in frame mode; undefined leaves the GIF animating. */
   previewUrl: string | undefined;
   setFrameIndex: (index: number) => void;
 }
 
-/**
- * Frame-capture mode for the gallery's GIF viewer.
- *
- * The video path draws its own `<video>` element to a canvas so the saved file is
- * provably the frame on screen. An `<img>` cannot be seeked at all, so this asks
- * the server to decode instead — and then saves by re-reading the very URL the
- * preview painted. Because that URL is versioned and cached immutably, the save is
- * a cache hit on those exact bytes, which ties the file to the pixels at least as
- * tightly as the canvas route does.
- */
 export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrameCapture {
   const notify = useNotify();
   const { item, frameCount, frameMode, setFrameMode } = options;
 
-  // Read through a ref so every returned callback is dependency-free, and so a save
-  // that outlives an item swap still finishes against the values it started with.
+  // Ref so callbacks stay dependency-free; a save outliving a swap keeps its starting values.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -74,8 +54,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
   const frameCountRef = useRef(resolvedCount);
   frameCountRef.current = resolvedCount;
 
-  // A one-frame GIF is still worth saving, so this is `>= 1`. The slider goes
-  // inert at that size while the save button stays live.
+  // >= 1 so a one-frame GIF is still savable; the slider goes inert at that size.
   const ready = resolvedCount >= 1;
 
   useEffect(() => {
@@ -85,9 +64,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
     };
   }, []);
 
-  // Scrubber only. Frame mode is owned by the modal so next/prev can keep capture
-  // on across items. `saving` is deliberately absent: a save in flight against the
-  // previous item must run its own `finally`, and clearing the flag here would race it.
+  // Scrubber only; a save in flight against the previous item must run its own finally.
   useEffect(() => {
     setFrameIndexState(0);
   }, [item?.path]);
@@ -95,11 +72,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
   const previewUrl =
     frameMode && item && ready ? galleryItemGifFrameUrl(item, frameIndex) : undefined;
 
-  // Warm the frames around the one on screen so stepping does not wait on a
-  // request. Deferred until the scrub settles rather than fired per index: a drag
-  // crosses dozens of frames, and warming each one races the visible frame for
-  // the handful of connections the browser allows per origin. Blanking `src` on
-  // cleanup aborts any warm the next move has already made pointless.
+  // Warm neighbours after the scrub settles; per-index would race the visible frame.
   useEffect(() => {
     if (!frameMode || !item || !ready) return;
 
@@ -117,8 +90,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
     return () => {
       window.clearTimeout(timer);
       for (const image of warmed) {
-        // Dropping the attribute rather than blanking it: an empty `src` has a
-        // legacy reading where the browser re-requests the page URL instead.
+        // Drop the attribute rather than blanking it: empty src re-requests the page URL.
         image.removeAttribute("src");
       }
     };
@@ -142,8 +114,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
   }, [frameMode, setFrameMode]);
 
   const saveFrame = useCallback(() => {
-    // The re-entrancy guard reads a ref: a double click lands before `saving` state
-    // has re-rendered the button into its disabled form.
+    // Ref guard: a double click lands before saving has re-rendered the button disabled.
     if (savingRef.current) return;
 
     const { item: currentItem, folderPath: destination, onSaved } = optionsRef.current;
@@ -166,8 +137,6 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
         }
         const blob = await response.blob();
         const file = new File([blob], target, { type: "image/jpeg" });
-        // Overwrite still applies, but now only when the same frame is saved twice:
-        // distinct frames get distinct names, so earlier saves stay put.
         const result = await importFiles(destination, [file], true);
 
         const outcome = frameSaveOutcome(result, target);
@@ -176,8 +145,7 @@ export function useGifFrameCapture(options: UseGifFrameCaptureOptions): GifFrame
           await onSaved?.();
         }
       } catch (error) {
-        // Unguarded by `mountedRef`: the notification store outlives this modal, so
-        // a save that finishes after a close still reports.
+        // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
         notify({
           variant: "danger",
           message: `Could not save ${target}: ${formatApiError(error)}`,

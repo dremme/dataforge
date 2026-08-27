@@ -1,8 +1,4 @@
-"""Tests for serving the built frontend from the API process.
-
-The mount is production-only and must stay invisible in development, must never take
-priority over /api, and must not turn a missing build into a startup failure.
-"""
+"""The UI mount must stay off in development, never take priority over /api, and not fail startup if the build is missing."""
 
 from __future__ import annotations
 

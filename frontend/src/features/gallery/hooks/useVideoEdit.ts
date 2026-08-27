@@ -34,24 +34,19 @@ const LOOP_EPSILON = 0.03;
 
 export interface UseVideoEditOptions {
   item: GalleryItem | undefined;
-  /** Shared with the frame-capture hook: there is one `<video>` and one active mode. */
+  /** Shared with frame capture: one `<video>`, one active mode. */
   videoRef: RefObject<HTMLVideoElement | null>;
-  /** Runs once the new file is on disk, so the owner can reload the folder. */
   onEdited?: () => void | Promise<void>;
-  /**
-   * Owned by the modal so the mode sticks across next/prev, exactly as frame capture's
-   * does. This hook only drives enter/exit and reads the flag for its UI.
-   */
+  /** Owned by the modal so the mode sticks across next/prev. */
   editMode: boolean;
   setEditMode: (editMode: boolean) => void;
 }
 
 export interface VideoEdit {
   editMode: boolean;
-  /** Metadata has landed, so the timeline has a real range and the crop a real frame. */
   ready: boolean;
   applying: boolean;
-  /** 0..1 while rendering, or null when the output length could not be predicted. */
+  /** Null when the output length could not be predicted. */
   progress: number | null;
   draft: VideoEditDraft;
   duration: number;
@@ -60,11 +55,8 @@ export interface VideoEdit {
   hasBackup: boolean;
   dirty: boolean;
   cropActive: boolean;
-  /** Which of `CROP_ASPECTS` the crop is locked to; "free" for none. */
   aspectId: string;
-  /** That lock's width over height, or null. The overlay's handles honour it. */
   aspectRatio: number | null;
-  /** Whether the preview is silent. The element is muted everywhere else. */
   muted: boolean;
   playing: boolean;
   playheadTime: number;
@@ -92,20 +84,11 @@ export interface VideoEdit {
   handleLoadedMetadata: (video: HTMLVideoElement) => void;
 }
 
-/**
- * Editing mode for the gallery's video viewer: describe the whole edit, then render it
- * from the untouched original in one pass.
- *
- * The draft is expressed against that original, never against the last render, which is
- * why the modal plays the original while this is on. Re-opening on an edited file seeds
- * the draft from the spec stored beside it, so changing one value keeps the rest.
- */
 export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const notify = useNotify();
   const { item, videoRef, editMode, setEditMode } = options;
 
-  // Read through a ref so every returned callback is dependency-free, and so an apply
-  // that outlives an item swap still finishes against the values it started with.
+  // Ref so callbacks stay dependency-free; an apply outliving a swap keeps its starting values.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -116,17 +99,14 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const [sourceWidth, setSourceWidth] = useState(0);
   const [sourceHeight, setSourceHeight] = useState(0);
   const [draft, setDraft] = useState<VideoEditDraft>(() => emptyDraft(Number.NaN));
-  // What is on disk, as a spec rather than a draft: a spec carries no duration, so it
-  // survives the window between an item swap and the new element reporting one.
+  // Spec (no duration) so it survives the gap between an item swap and the new element reporting one.
   const [savedSpec, setSavedSpec] = useState<VideoEditSpec | null>(null);
   const [hasBackup, setHasBackup] = useState(false);
   const [aspectId, setAspectId] = useState("free");
   const [applying, setApplying] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [cropActive, setCropActive] = useState(false);
-  // Not reset with the item: this is a volume setting, and those stay where you put
-  // them. The element is remounted per item and per mode, so the effect below and
-  // `handleLoadedMetadata` are what carry the choice onto each new one.
+  // Sticky across items; remounts pick it up from the muted effect and handleLoadedMetadata.
   const [muted, setMuted] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [playheadTime, setPlayheadTime] = useState(0);
@@ -152,16 +132,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     };
   }, []);
 
-  // Keyed on the path alone. `has_backup` must stay out of it: an apply flips that field
-  // when the folder reloads, and since the element is not reloaded with it - the editor
-  // was already playing the original - nothing would fire `loadedmetadata` a second time
-  // to put back the duration and frame size this clears.
-  //
-  // `applying` is deliberately absent for a different reason: a render in flight against
-  // the previous item must run its own `finally`, and clearing the flag here would race it.
-  // `cropActive` is deliberately absent: it is the crop tool being selected, and the tool
-  // outlives the item exactly as the mode does. Clearing it here left the panel showing
-  // the crop tool with no handles on the frame after every next/prev.
+  // Keyed on path alone: has_backup would clear duration on apply (loadedmetadata never re-fires),
+  // and applying/cropActive must stay out or they race the previous item / drop handles on next/prev.
   useEffect(() => {
     setDuration(Number.NaN);
     setSourceWidth(0);
@@ -173,8 +145,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setPlayheadTime(0);
   }, [path]);
 
-  // Seeded separately so a listing that learns about a backup can say so without
-  // resetting the editor around it.
+  // Separate so a listing that learns about a backup does not reset the editor.
   useEffect(() => {
     setHasBackup(item?.has_backup ?? false);
   }, [item?.path, item?.has_backup]);
@@ -190,23 +161,19 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     );
   });
 
-  // Metadata only. Seeding the draft from the stored spec waits for the fetch below,
-  // which cannot run until this has supplied the duration the spec is measured against.
+  // Metadata only; the fetch below seeds the draft once this has a duration.
   const handleLoadedMetadata = useCallback((video: HTMLVideoElement) => {
     const previousDuration = durationRef.current;
     setDuration(video.duration);
     setSourceWidth(video.videoWidth);
     setSourceHeight(video.videoHeight);
 
-    // A `durationchange` that lands on the value already held is not a new source, and
-    // treating it as one would wipe a draft the user is part way through.
+    // Same duration is not a new source; treating it as one would wipe a draft in progress.
     if (!hasUsableDuration(video.duration) || previousDuration === video.duration) return;
 
     setDraft(emptyDraft(video.duration));
 
-    // Sticky mode remounts a fresh `<video autoPlay>` under an already-open panel;
-    // pause so playback does not run behind the timeline. The in point is parked on
-    // once the spec says where it is.
+    // Sticky mode remounts a fresh `<video autoPlay>`; pause so playback stays off the timeline.
     if (optionsRef.current.editMode) {
       video.pause();
       video.currentTime = 0;
@@ -226,8 +193,6 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     [videoRef],
   );
 
-  // The draft, the shape the crop reads as and where the playhead sits all describe one
-  // stored edit, so they are set together rather than left to find each other.
   const seedDraft = useCallback(
     (spec: VideoEditSpec | null, forDuration: number) => {
       const seeded = draftFromSpec(spec, forDuration);
@@ -238,11 +203,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     [seekTo],
   );
 
-  // One fetch per item, and not until the element has reported a duration: the stored
-  // spec is in seconds, and seeding against a duration of NaN collapsed the timeline to
-  // 0:00-0:00 until a second fetch happened to put it right. Keyed on the path rather
-  // than the item, so a folder refresh - which hands back a new object for the same
-  // file - cannot throw away a draft the user is in the middle of.
+  // Wait for a real duration: seeding against NaN collapsed the timeline to 0:00-0:00.
+  // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
   useEffect(() => {
     if (!editMode || !path || !hasUsableDuration(duration)) return;
 
@@ -255,8 +217,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         setSavedSpec(state.spec ?? null);
         seedDraft(state.spec ?? null, duration);
       } catch {
-        // A missing spec is not worth a toast: the panel simply opens on an empty draft,
-        // which is what an unedited file gets anyway.
+        // Missing spec: open on an empty draft like an unedited file.
       }
     })();
 
@@ -265,18 +226,12 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     };
   }, [editMode, path, duration, seedDraft]);
 
-  // Playback is clamped to the kept span rather than merely started there: dialling in
-  // an out point is a lot of small adjustments, and each one should replay the result.
-  // Re-run on the item as well as the mode. The `<video>` is keyed on both, so both
-  // remount it - and a ref never re-runs an effect by itself, so navigating with the
-  // mode sticky used to leave these listeners on a discarded element: the play icon
-  // stopped answering and the trim loop stopped looping.
+  // Re-run on item path as well as mode: the video remounts on both, and a ref never re-runs,
+  // so sticky-mode navigation used to leave these listeners on a discarded element.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !editMode) return;
 
-    // Read off the element rather than assumed: the listeners below report changes from
-    // here on, and the element can already be playing by the time they attach.
     setPlaying(!video.paused);
     setPlayheadTime(video.currentTime);
 
@@ -300,17 +255,14 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     };
   }, [editMode, item?.path, videoRef]);
 
-  // The preview is honest about speed, and deliberately flattering about slow motion:
-  // the browser plays every source frame at half rate, where `setpts` produces a file
-  // with half the frames. Do not "fix" the preview to match without saying so.
+  // Preview plays every source frame at the chosen rate; setpts drops frames instead.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.playbackRate = editMode ? draft.speed : 1;
   }, [draft.speed, editMode, videoRef]);
 
-  // Only while editing. Everywhere else the element carries a `muted` attribute and the
-  // native controls own the volume, and remounting per mode is what restores that.
+  // Editing only; elsewhere the muted attribute and native controls own volume.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !editMode) return;
@@ -366,21 +318,16 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setDraft((current) => ({ ...current, crop }));
   }, []);
 
-  // Owned here rather than by the modal so that it resets with the item and is restored
-  // with a stored spec, both of which are this hook's job. A chip left reading "1:1"
-  // over the next video's untouched frame was the visible half of that.
+  // Owned here so it resets with the item and restores with a stored spec.
   const selectAspect = useCallback((nextAspectId: string) => {
     setAspectId(nextAspectId);
 
-    // Free only releases the lock: the rectangle the user has already shaped is theirs
-    // to keep, and reshaping it to nothing in particular would be a strange thing to do
-    // to it.
+    // Free only releases the lock; keep the rectangle the user already shaped.
     const ratio = CROP_ASPECTS.find((aspect) => aspect.id === nextAspectId)?.ratio ?? null;
     if (ratio === null) return;
 
-    // Picking a shape is asking to frame with it, so the handles come out with it.
     setCropActive(true);
-    // Expressed in frame fractions, so the source's own aspect divides out first.
+    // Frame fractions, so the source's own aspect divides out first.
     const frame = sourceRef.current.width / sourceRef.current.height;
     if (!Number.isFinite(frame) || frame <= 0) return;
     setDraft((current) => ({ ...current, crop: cropForAspect(ratio / frame) }));
@@ -427,8 +374,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       describe: (path: string) => string,
       settle: () => void,
     ) => {
-      // The guard reads a ref: a double click lands before `applying` has re-rendered
-      // the button into its disabled form.
+      // Ref guard: a double click lands before applying has re-rendered the button disabled.
       if (applyingRef.current) return;
 
       const { item: currentItem, onEdited } = optionsRef.current;
@@ -448,14 +394,10 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
           if (mountedRef.current) setHasBackup(result.has_backup);
           notify({ variant: "success", message: describe(name) });
           await onEdited?.();
-          // The mode stays on. Nothing about the surface needs to change: the editor was
-          // already playing the original and the spec is expressed against it, so the
-          // element is not even reloaded. `settle` records what is now on disk, which is
-          // what makes Apply go quiet until something is changed again.
+          // settle records what is now on disk so Apply stays quiet until the next change.
           if (mountedRef.current) settle();
         } catch (error) {
-          // Unguarded by `mountedRef`: the notification store outlives this modal, so a
-          // render that finishes after a close still reports.
+          // Unguarded by mountedRef: the store outlives this modal, so a finish after close reports.
           notify({
             variant: "danger",
             message: `Could not edit ${name}: ${formatApiError(error)}`,
@@ -477,8 +419,6 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       revertVideoEdit,
       (name) => `Restored the original ${name}.`,
       () => {
-        // The file is the original again, so the spec that described the edit is no
-        // longer true of anything.
         setSavedSpec(null);
         seedDraft(null, durationRef.current);
       },
@@ -489,10 +429,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     const currentDraft = draftRef.current;
     const currentDuration = durationRef.current;
 
-    // Dialling every value back to where it started asks for the file the backup already
-    // holds, so restoring it is the honest way to grant that: a copy rather than a
-    // re-encode, and the server refuses a spec that changes nothing in any case. Without
-    // this, an edited clip could never be put back to 1x except by hunting for Revert.
+    // Identity draft restores the backup instead of re-encoding; else only Revert returns to 1x.
     if (isIdentityEdit(currentDraft, currentDuration)) {
       revert();
       return;
@@ -514,10 +451,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     void cancelVideoEdit(currentItem.path);
   }, []);
 
-  // Apply asks whether this differs from what is on disk, not from an untouched source:
-  // the mode outlives an apply, so "already rendered exactly this" has to read as nothing
-  // to do. An identity draft counts as a difference whenever something was written before
-  // it - that is the request to have the original back, which `apply` routes to Revert.
+  // Dirty vs disk, not an untouched source: an identity draft after a write means Revert.
   const dirty =
     ready &&
     (savedSpec === null

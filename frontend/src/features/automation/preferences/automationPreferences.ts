@@ -14,14 +14,8 @@ import type {
   WatermarkSizeName,
 } from "@/shared/types";
 
-/** Every job's remembered settings for one folder, exactly as the backend stores them. */
 export type AutomationSettings = AutomationSettingsResponse;
 
-/**
- * The settings block each job type gets, derived from the response so a backend
- * rename fails here rather than drifting. Mirrors the `JobStartBodies` trick in
- * `@/shared/api/jobStartBodies`.
- */
 export type JobSettingsByType = {
   auto_caption: AutomationSettings["auto_caption"];
   set_captions: AutomationSettings["set_captions"];
@@ -53,12 +47,6 @@ const WATERMARK_SIZES: readonly WatermarkSizeName[] = ["small", "medium", "large
 const WATERMARK_OPACITIES: readonly WatermarkOpacity[] = [25, 50, 75];
 const WATERMARK_POSITIONS: readonly WatermarkPosition[] = ["top", "center", "bottom"];
 
-/**
- * Narrow a stored value to one the UI can render, or fall back to the default.
- *
- * Every field that drives a `RadioTileGroup` goes through this: a value the backend
- * no longer recognises would otherwise leave the group with nothing checked.
- */
 function oneOf<T extends string | number>(options: readonly T[], value: unknown, fallback: T): T {
   return options.includes(value as T) ? (value as T) : fallback;
 }
@@ -208,9 +196,6 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
       position: oneOf(WATERMARK_POSITIONS, watermark.position, DEFAULT_WATERMARK_POSITION),
     },
     comfy_process: {
-      // Not narrowed against the preset list: presets are files the user adds and
-      // removes, and the dialog fetches the current ones anyway. A stored name that no
-      // longer exists is dropped there, where the real list is known.
       preset: text(comfyProcess.preset),
       seed:
         typeof comfyProcess.seed === "number" && Number.isFinite(comfyProcess.seed)
@@ -230,21 +215,7 @@ async function fetchAutomationSettings(folderPath: string): Promise<AutomationSe
   );
 }
 
-/**
- * Never rejects: a preferences outage must not stop the user from starting a job.
- *
- * There is no matching update: the job-start routes store what they ran with, so
- * settings are remembered by running a job and never by opening its dialog.
- *
- * Deliberately uncached — no localStorage mirror and no memoised answer, unlike the
- * sibling modules in `shared/preferences/uiPreferences.ts` and
- * `features/gallery/preferences/galleryDisplayPreferences.ts`. Every job start moves
- * the per-folder value *and* the "last used" fallback every other folder reads, and
- * it can happen in another folder or another tab, so a local copy could only ever be
- * a stale one. The backend is the single source of truth; the payload is a few
- * hundred bytes and the dialog already awaits it before opening. A test in
- * `automationPreferences.test.ts` pins that Web Storage is never touched.
- */
+/** Never rejects: a preferences outage must not block a job start. Other tabs stale any cache. */
 export async function loadAutomationSettings(folderPath: string): Promise<AutomationSettings> {
   try {
     return await withRetry(() => fetchAutomationSettings(folderPath));

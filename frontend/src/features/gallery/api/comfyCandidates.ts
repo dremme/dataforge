@@ -6,24 +6,12 @@ import type {
   ComfyCandidateStateResponse,
 } from "@/shared/types";
 
-/**
- * Every candidate call names the *source* image, never the staged file.
- *
- * One identifier for the pair, matching the backend: the staging path is derivable and
- * having two ways to name the same review item is how they drift apart.
- */
+/** Every candidate call names the source image, never the staged file. */
 function candidateParams(mediaPath: string): URLSearchParams {
   return new URLSearchParams({ path: mediaPath });
 }
 
-/**
- * The file an accepted candidate replaced.
- *
- * Shares `&original=1` with the image editor's backup: the server serves whichever
- * archive exists, and the two can never both be there because accepting is refused
- * while an unreverted edit is. Unversioned for the same reason `imageOriginalUrl` is -
- * an archive's bytes never change once written.
- */
+/** Unversioned archive of the file an accepted candidate replaced. */
 export function comfyOriginalUrl(mediaPath: string): string {
   return `${mediaUrl(mediaPath)}&original=1`;
 }

@@ -1,5 +1,3 @@
-"""Unit tests for backing up caption sidecars and restoring them."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database
@@ -248,11 +246,7 @@ class HasCaptionBackupTests(unittest.TestCase):
             self.assertFalse(has_caption_backup(root))
 
     def test_survives_a_listing_that_fails_only_once_iterated(self) -> None:
-        """Python 3.12's ``iterdir`` is a generator, so it raises on iteration.
-
-        Guarding just the ``iterdir()`` call is therefore a no-op on 3.12 while
-        looking correct on 3.13, where the scan happens eagerly.
-        """
+        """Python 3.12's ``iterdir`` is a generator, so it raises on iteration."""
 
         def lazily_failing_iterdir(self: Path):
             raise FileNotFoundError(2, "No such file or directory", str(self))

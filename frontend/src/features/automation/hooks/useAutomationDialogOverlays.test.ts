@@ -78,10 +78,7 @@ describe("useAutomationDialogOverlays scope", () => {
     });
   });
 
-  /**
-   * The backend drops the paths for this one (`train_lora.py`), so reporting the
-   * selection here would promise a narrowing that never happens.
-   */
+  /** train_lora drops selected paths; a selection here would promise a narrowing it never does. */
   it("keeps LoRA training on the folder and says why while a selection is active", () => {
     const { result } = setupOverlays(null, {
       itemCount: 23,

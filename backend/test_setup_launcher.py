@@ -1,12 +1,4 @@
-"""Regression guards for the Windows self-contained bootstrap.
-
-``setup.bat`` + ``start.bat`` have to work on a clone that has no Python and no
-Node on PATH. These tests lock the properties that make that true: the bootstrap
-never calls a global interpreter, downloads portable zip distributions (not the
-Python installer, which needs a UI or UAC), forces TLS 1.2 so PowerShell 5.1 can
-talk to python.org and nodejs.org, and the launchers prefer the copies it left
-in ``.python`` / ``.node``.
-"""
+"""Windows bootstrap never calls a global interpreter; it downloads portable zips and forces TLS 1.2."""
 
 from __future__ import annotations
 

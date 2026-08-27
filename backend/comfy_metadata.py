@@ -1,5 +1,3 @@
-"""Detect ComfyUI workflow metadata embedded in PNG and video files."""
-
 from __future__ import annotations
 
 import json

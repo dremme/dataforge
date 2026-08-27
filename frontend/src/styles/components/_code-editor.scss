@@ -1,10 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// ---------------------------------------------------------------------------
-// .code-editor
-// ---------------------------------------------------------------------------
-
 .code-editor-wrapper {
   display: flex;
   flex-direction: column;
@@ -62,12 +58,6 @@
   }
 }
 
-// Chrome + highlight layers (syntax token colors stay in codeEditorTheme HighlightStyle).
-// Layers use distinct Monokai hues so selection / same-word / find stay separable when stacked:
-//   selection            soft cyan
-//   selectionMatch       soft purple (other occurrences of the selected word)
-//   searchMatch          yellow (find hits)
-//   searchMatch-selected pink (current find hit)
 $code-editor-text: #d6d6dd;
 $code-editor-bright: #fcfcfa;
 $code-editor-muted: #939293;
@@ -123,7 +113,6 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     min-height: inherit;
   }
 
-  // --- Chrome (moved from EditorView.theme) ---
   .cm-editor {
     height: 100%;
     min-height: inherit;
@@ -137,7 +126,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     outline: none;
   }
 
-  // Keep the Ctrl+F panel inside the editor chrome (parent is overflow:hidden).
+  // Keep the Ctrl+F panel inside the editor chrome (parent is overflow: hidden).
   .cm-scroller {
     flex: 1 1 auto;
     min-height: 0;
@@ -167,14 +156,14 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     @include tabular-nums;
   }
 
-  // Beat CodeMirror base theme (uses .cm-light/.cm-dark + deep focused path).
+  // Beat CodeMirror base theme (.cm-light/.cm-dark + deep focused path).
   .cm-editor.cm-light .cm-selectionBackground,
   .cm-editor.cm-dark .cm-selectionBackground,
   .cm-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
     background: $code-editor-selection;
   }
 
-  // Same-word highlight (highlightSelectionMatches). Default lime clashes with green tokens.
+  // Default lime clashes with green tokens.
   .cm-selectionMatch {
     background-color: $code-editor-selection-match;
   }
@@ -184,8 +173,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     background-color: transparent;
   }
 
-  // Find hits — beat light/dark baseTheme yellow-cyan / orange-magenta defaults.
-  // Gallery toolbar search matches in caption (distinct from Ctrl+F find).
+  // Beat light/dark baseTheme yellow-cyan / orange-magenta defaults. `.cm-query-match` is gallery toolbar search, distinct from Ctrl+F.
   .cm-editor.cm-light .cm-searchMatch,
   .cm-editor.cm-dark .cm-searchMatch,
   .cm-searchMatch,
@@ -221,7 +209,6 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   .cm-panel.cm-search {
     color: var(--text);
 
-    // Height only for real controls — not labels (text + checkbox centering).
     input.cm-textfield,
     button.cm-button {
       vertical-align: middle;
@@ -251,8 +238,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
       border-radius: var(--radius-sm);
     }
 
-    // label = [hidden input] + text; box/mark via ::before/::after.
-    // Keep box in normal flex flow so text shares the same align-items center line.
+    // Box stays in flex flow so text shares the same center line.
     label {
       display: inline-flex;
       align-items: center;
@@ -263,7 +249,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
       margin: 0.2em 0.6em 0.2em 0;
       padding: 0;
       font-size: var(--text-xs);
-      // Match the 1rem checkbox so the text cap-height sits on the same mid-line
+      // Match the 1rem checkbox so text cap-height sits on the same mid-line.
       line-height: 1rem;
       color: var(--text);
       cursor: pointer;
@@ -312,14 +298,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // .code-editor--caption
-  // ---------------------------------------------------------------------------
-
-  // Compact caption field. Unlike the tall markdown shell (22rem), a short
-  // caption (6.5rem / max 18vh) does not always make CM's contentHeight fill
-  // the viewport, so gutters would stop with the text. Stretch the scroller
-  // row and force gutter min-height past CM's inline contentHeight.
+  // Short captions do not always fill CM's contentHeight, so gutters would stop with the text. Stretch the scroller and force gutter min-height past CM's inline contentHeight.
   &--caption {
     display: flex;
     flex-direction: column;
@@ -376,23 +355,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
       background-color: transparent;
       border-right-color: var(--border);
       color: var(--text-muted);
-      // Two cases to satisfy, and they need different mechanisms:
-      //   short caption  - CM's inline `minHeight = contentHeight` stops the gutter
-      //                    rule at the last line, so stretch it to the visible box.
-      //   scrolled caption - the gutter rule must span the whole scroll height, which
-      //                    is exactly CM's inline contentHeight, so leave it alone.
-      // Hence the !important flags on height/align-self but NOT on min-height:
-      //   height     - CM's base theme sets `height: 100%`, which cannot resolve here
-      //                (no definite height up the chain) and therefore falls back to
-      //                content height. `stretch` below is ignored unless this is auto.
-      //   align-self - guards against losing the specificity tie with CM's base
-      //                theme, which sets `align-items: flex-start !important` on the
-      //                scroller (same specificity as ours, so order would decide).
-      //   min-height - a plain floor for the first paint, before CM has written its
-      //                inline value. It must stay non-!important: an !important
-      //                percentage beats the inline contentHeight and caps the gutter
-      //                at one viewport, which truncates the rule as soon as you
-      //                scroll a long caption.
+      // Short caption: stretch past CM's inline minHeight=contentHeight. Scrolled: leave min-height alone so the rule spans contentHeight. !important on height (CM's 100% cannot resolve here) and align-self (ties CM's flex-start !important); not on min-height, or an !important percentage caps the gutter at one viewport.
       height: auto !important;
       min-height: 100%;
       align-self: stretch !important;

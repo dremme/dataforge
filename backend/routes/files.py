@@ -40,8 +40,7 @@ async def import_files(
         raise HTTPException(status_code=400, detail="No valid files were provided")
 
     try:
-        # Copying gigabytes must not sit on the event loop: the gallery behind this
-        # import is still asking for thumbnails, and they would all wait for it.
+        # Copying gigabytes must not sit on the event loop or thumbnail requests stall.
         result = await asyncio.to_thread(
             import_uploaded_files, folder, uploads, overwrite=overwrite
         )

@@ -1,14 +1,4 @@
-"""One directory scan, shared by listing, counting, and fingerprinting.
-
-``os.scandir`` hands back the entry type and the stat data gathered during the
-directory enumeration itself, so a single pass replaces the ``iterdir`` +
-``is_file`` + ``stat`` + per-sidecar ``is_file`` probes each caller used to run
-on its own. Sidecar existence becomes a dict hit against :attr:`FolderScan.files`
-instead of a syscall, which is what a folder listing spends most of its time on.
-
-This module deliberately imports nothing but ``constants`` — ``filesystem`` and
-``media_listing`` both depend on it, so any import back the other way would cycle.
-"""
+"""One directory scan. Imports nothing but ``constants`` so it cannot cycle with ``filesystem``/``media_listing``."""
 
 from __future__ import annotations
 
@@ -28,12 +18,7 @@ from constants import (
 
 @dataclass(frozen=True)
 class ScannedEntry:
-    """A directory entry plus the stat data ``scandir`` already had in hand.
-
-    ``mtime`` and ``mtime_ns`` are both kept: the API reports the float form and
-    caches key off the integer one, and deriving either from the other loses
-    precision in a way that would spuriously bust those caches.
-    """
+    """Both ``mtime`` and ``mtime_ns``: deriving one from the other loses precision and busts caches."""
 
     name: str
     path: Path
@@ -44,28 +29,15 @@ class ScannedEntry:
 
 @dataclass(frozen=True)
 class FolderScan:
-    """Everything a folder listing needs to know about one directory."""
-
     folder: Path
-    #: Every regular file, keyed by exact name, for O(1) sidecar lookup.
     files: dict[str, ScannedEntry]
-    #: Listable child directories, sorted by lowercased name.
     dirs: list[ScannedEntry]
-    #: Media files, sorted by lowercased name. Excludes the sysprompt.
     media: list[ScannedEntry]
-    #: Files in ``staging/``, keyed by exact name, so listing can answer
-    #: ``has_candidate`` without a syscall per item. Empty when there is no staging
-    #: directory.
     candidates: dict[str, ScannedEntry]
     sysprompt: ScannedEntry | None
 
     def sidecar(self, prefix: str, extension: str) -> ScannedEntry | None:
-        """The sidecar named ``<prefix><extension>``, or ``None`` if absent.
-
-        Captions hang off the media's stem, a convention the training tools own. Findings
-        hang off its whole filename, so that ``clip.mp4`` and ``clip.png`` cannot end up
-        sharing one.
-        """
+        """Captions hang off the stem; findings hang off the whole filename so ``clip.mp4`` and ``clip.png`` cannot share one."""
         return self.files.get(f"{prefix}{extension}")
 
 
@@ -87,8 +59,7 @@ def is_listable_dir_name(name: str) -> bool:
 
 
 def _sort_key(entry: ScannedEntry) -> tuple[str, str]:
-    # The secondary key keeps ordering deterministic when two names differ only
-    # by case, which `scandir` order alone would leave up to the filesystem.
+    # Secondary key: two names that differ only by case would otherwise be filesystem-order.
     return (entry.name.lower(), entry.name)
 
 
@@ -107,7 +78,6 @@ def _entry_from_dir_entry(entry: os.DirEntry, folder: Path) -> ScannedEntry | No
 
 
 def _scan_staging_files(folder: Path) -> dict[str, ScannedEntry]:
-    """One extra ``scandir`` of ``staging/``. Empty when the directory is missing."""
     candidates: dict[str, ScannedEntry] = {}
     staging = folder / STAGING_DIR_NAME
     try:
@@ -127,7 +97,7 @@ def _scan_staging_files(folder: Path) -> dict[str, ScannedEntry]:
 
 
 def scan_folder(folder: Path) -> FolderScan | None:
-    """Enumerate ``folder`` once. ``None`` when the directory cannot be read."""
+    """``None`` when the directory cannot be read."""
     files: dict[str, ScannedEntry] = {}
     dirs: list[ScannedEntry] = []
     media: list[ScannedEntry] = []
@@ -185,11 +155,7 @@ def scan_folder(folder: Path) -> FolderScan | None:
 
 
 def folder_entries_in_order(scan: FolderScan) -> list[tuple[str, ScannedEntry]]:
-    """Dirs, sysprompt, and media as one name-ordered sequence with kind tags.
-
-    The folder fingerprint hashes entries in directory order, so it needs the
-    three collections merged back together rather than concatenated.
-    """
+    """Merged in directory order; concatenating the three collections would not match the fingerprint."""
     tagged: list[tuple[str, ScannedEntry]] = [("dir", entry) for entry in scan.dirs]
     tagged.extend(("media", entry) for entry in scan.media)
     if scan.sysprompt is not None:

@@ -1,15 +1,4 @@
-"""Unit tests for in-place video editing.
-
-Nothing here invokes ffmpeg, matching the rest of the backend: the fixtures produce
-header-only MP4s that no decoder would accept. What is asserted instead is the argv,
-literally, because a wrong flag is a silently wrong render and this is the only thing
-standing in front of one.
-
-The even-rounding cases in ``OutputDimensionsTests`` are the same table as
-``frontend/src/features/gallery/lib/videoEdit.test.ts``. They have to stay in step: the
-panel labels the output from its own copy of this arithmetic, and a drift between the
-two would show the user a size the render does not produce.
-"""
+"""Even-rounding cases must stay in step with ``frontend/src/features/gallery/lib/videoEdit.test.ts``."""
 
 from __future__ import annotations
 
@@ -150,9 +139,7 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertNotIn("-af", command_for(VideoEditSpec()))
 
     def test_retiming_pins_the_rate_back_to_the_source(self) -> None:
-        """`setpts` keeps every frame and compresses the timestamps, so without this a
-        2x speedup emits double the source's rate - and a training set with two rates in
-        it is not one rate."""
+        """`setpts` keeps every frame and compresses timestamps; without fps a 2x 24fps clip becomes 48fps."""
         command = command_for(VideoEditSpec(speed=2.0), frame_rate=24.0)
 
         self.assertEqual(
@@ -161,8 +148,7 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         )
 
     def test_the_rate_is_pinned_after_the_retime_not_before(self) -> None:
-        # Ordered the other way it would resample the source and then retime the result,
-        # which changes the rate right back.
+        # Ordered the other way it would resample the source and then retime the result.
         filters = command_for(VideoEditSpec(speed=0.5), frame_rate=30.0)
         chain = filters[filters.index("-vf") + 1].split(",")
 
@@ -300,8 +286,7 @@ class SpecHelperTests(unittest.TestCase):
 
 
 class SourceFrameRateTests(unittest.TestCase):
-    """The bounds around the probe. A fake capture keeps a real one - and the C++ level
-    warning an unreadable file draws out of OpenCV - away from the suite."""
+    """A fake capture keeps OpenCV's C++ warning for an unreadable file off the suite."""
 
     #: The real cv2 value, so a capture handed the wrong one is still recognisable.
     CAP_PROP_FPS = 5
@@ -339,8 +324,7 @@ class SourceFrameRateTests(unittest.TestCase):
         self.assertEqual(self._rate(fps=23.976)[0], 23.976)
 
     def test_releases_the_capture_even_when_it_never_opened(self) -> None:
-        # An unreleased capture holds the file on Windows, against the very replace
-        # this render is about to perform.
+        # An unreleased capture holds the file on Windows, against the replace this render performs.
         rate, released = self._rate(fps=24.0, opened=False)
 
         self.assertIsNone(rate)
@@ -356,8 +340,7 @@ class ApplyVideoEditTests(unittest.TestCase):
     """The runner is replaced; what is checked is what it was asked to do."""
 
     def setUp(self) -> None:
-        # The fixtures are header-only, so a real probe would both fail and log a C++
-        # level warning past the test output. What the probe answers is its own test.
+        # Header-only fixtures: a real probe would fail and log a C++ warning.
         patcher = patch("video_edit.source_frame_rate", return_value=24.0)
         self.frame_rate = patcher.start()
         self.addCleanup(patcher.stop)

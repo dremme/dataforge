@@ -2,11 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useGallerySelection } from "./useGallerySelection";
 
-/**
- * This hook owns the raw set only. Scoping it to the filtered view — the counts,
- * and the paths a job or a batch action ends up with — belongs to
- * `useGallerySession`, which is where `filteredItems` lives.
- */
 describe("useGallerySelection", () => {
   it("enters selection mode and tracks selected paths", () => {
     const { result } = renderHook(() => useGallerySelection());

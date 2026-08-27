@@ -35,10 +35,6 @@ export interface RowMetaCell {
 
 export type RowMetaColumn = "megapixels" | "duration" | "size" | "modified";
 
-/**
- * Icon-only counterpart of the card's `CardBadge`. A row has one line to spend,
- * so the badge text drops and the label survives as the tooltip.
- */
 export function rowMarkers(item: GalleryItem): RowMarker[] {
   const markers: RowMarker[] = [];
 
@@ -76,17 +72,7 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
   return markers;
 }
 
-/**
- * Megapixels, duration, size, and modified date. A fact the item lacks stays as
- * an empty string rather than dropping out: each one owns a column of the list,
- * and a missing value that collapsed would slide every later fact out of
- * alignment.
- *
- * Resolution is megapixels rather than `w × h` for the same reason the modals
- * report it that way — one short number reads down a column, where a dimension
- * pair is two numbers to compare per row. Duration is seconds for the same
- * reason: one short number, not a clock readout, down the column.
- */
+/** Missing facts stay empty strings: dropping a cell slides later columns out of line. */
 export function rowMetaCells(item: GalleryItem): RowMetaCell[] {
   const modified = item.modified_at ? formatModifiedAt(item.modified_at) : null;
 
@@ -101,11 +87,6 @@ export function rowMetaCells(item: GalleryItem): RowMetaCell[] {
   ];
 }
 
-/**
- * The message-bubble family the toolbar's caption stats use, so the same three
- * caption states read the same way in the header and down the list. Deliberately
- * not the triangle: that one already means "has an issue file" one column over.
- */
 const ROW_STATUS_ICONS: Record<CaptionStatusVariant, AppIcon> = {
   success: iconMessageCheck,
   warning: iconMessageWarning,
@@ -118,7 +99,6 @@ export interface RowStatus {
   variant: CaptionStatusVariant;
 }
 
-/** Caption state as an icon, with the wording it replaces kept as the tooltip. */
 export function rowStatus(item: GalleryItem): RowStatus {
   const { message, variant } = getRowCaptionDisplay(item);
   return { icon: ROW_STATUS_ICONS[variant], label: message, variant };

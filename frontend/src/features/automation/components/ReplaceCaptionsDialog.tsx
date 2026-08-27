@@ -26,9 +26,7 @@ export interface ReplaceCaptionsSettings {
 }
 
 interface ReplaceCaptionsDialogProps {
-  /** Files this run will touch and the folder they are in; rendered above the copy. */
   scope: DialogScopeInfo;
-  /** What the last run of this job used; every dialog starts from it. */
   initialSettings: JobSettingsByType["replace_captions"];
   folderPath: string;
   /** Paths the job will be limited to, or undefined for the whole folder. */
@@ -72,9 +70,7 @@ export function ReplaceCaptionsDialog({
 
   const isReplace = mode === "replace";
 
-  // The only dialog that talks to the API: the preview has to round-trip through the
-  // backend, because Python's regular expressions are not JavaScript's, and a preview
-  // built from a different engine would promise edits the job does not make.
+  // Preview must use Python regex via the API; a JS engine would promise edits the job does not make.
   useEffect(() => {
     if (isReplace ? !search : !replacement.trim()) {
       setPreview(null);
@@ -347,10 +343,6 @@ function ReplacePreviewBody({ preview, hidden }: { preview: PreviewState | null;
   );
 }
 
-/**
- * Captions are long and arbitrary, so a sample shows the edit rather than the
- * caption: the untouched text is trimmed back to the words around the change.
- */
 function ReplaceSample({ sample }: { sample: CaptionReplacePreviewSample }) {
   const { prefix, removed, added, suffix } = diffCaption(sample.before, sample.after);
 

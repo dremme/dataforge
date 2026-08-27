@@ -6,7 +6,6 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 import type { FolderResponse } from "@/shared/types";
 
-/** Home, with sunset.png carrying a caption issue the resolver can act on. */
 const issueFolder: FolderResponse = {
   ...homeFolder,
   items: homeFolder.items.map((item) =>
@@ -21,7 +20,6 @@ const issueFolder: FolderResponse = {
   ),
 };
 
-/** The first load asks for no path, so both keys have to carry the payload. */
 function installIssueBackend() {
   return installMockBackend({
     folderByPath: { undefined: issueFolder, [HOME_PATH]: issueFolder },
@@ -89,8 +87,6 @@ describe("App: gallery item modal", () => {
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
     await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
-    // The grid sorts name-asc, so sunset.png sits at index 1 and waves.mp4 slides
-    // into the slot it vacates. The modal follows the slot, it does not close.
     await screen.findByRole("dialog", { name: "Viewing waves.mp4" });
   });
 
@@ -112,7 +108,6 @@ describe("App: gallery item modal", () => {
     await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
     expect(screen.getByLabelText("1 of 3")).toHaveClass("gallery-section__count");
 
-    // The total stays visible once everything is selected.
     await user.click(screen.getByRole("button", { name: "All" }));
     expect(screen.getByLabelText("3 of 3")).toHaveClass("gallery-section__count");
   });
@@ -137,8 +132,6 @@ describe("App: gallery item modal", () => {
     await user.type(caption, "Golden hour over the river");
     await user.click(within(resolver).getByRole("button", { name: "Resolve" }));
 
-    // The detour ends where it started, not on the grid: same file, saved
-    // caption, and the issue button gone now that the flag is cleared.
     const reopened = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
     await waitFor(() => {
       expect(within(reopened).getByLabelText("Caption for sunset.png")).toHaveValue(

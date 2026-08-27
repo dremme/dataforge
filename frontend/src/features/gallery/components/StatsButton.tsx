@@ -8,7 +8,6 @@ interface StatsButtonProps {
   onToggle: () => void;
 }
 
-/** Opens the dataset stats drawer. Sits beside `JobsButton`, and matches it. */
 export function StatsButton({ open, onToggle }: StatsButtonProps) {
   return (
     <Tooltip content="Dataset statistics">

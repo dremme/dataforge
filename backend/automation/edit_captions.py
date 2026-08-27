@@ -1,11 +1,4 @@
-"""Rewrite existing captions with the local model, from a user instruction.
-
-The first text-only job: the caption is the entire input and no media is sent, which
-makes it far cheaper per file than the captioning jobs. It talks to ``automation.llm``
-directly rather than through ``automation.vision`` — the model is multi-modal and
-describes an image only when given one, so a request with no media in it is simply a
-text request.
-"""
+"""Rewrite existing captions with the local model, from a user instruction."""
 
 from __future__ import annotations
 
@@ -46,8 +39,7 @@ UNCHANGED = "unchanged"
 
 NON_SUCCESS_STATUSES = frozenset({NO_CAPTION_STATUS, "read_error", "api_error", REJECTED})
 
-#: Every file is handled exactly once, so all of these count toward ``processed``;
-#: leaving any out would stop the progress bar short of ``total``.
+# Every terminal per-file status; omitting one stops the progress bar short of ``total``.
 PROCESSED_STAT_KEYS = (
     "success",
     UNCHANGED,
@@ -58,15 +50,10 @@ PROCESSED_STAT_KEYS = (
     "write_error",
 )
 
-#: How far an edit may move a caption's length before the reply is treated as something
-#: other than an edited caption. Ratios against the original's stripped length.
 MIN_EDIT_LENGTH_RATIO = 0.25
 MAX_EDIT_LENGTH_RATIO = 4.0
 
-#: A reply at least this long is a caption whatever the ratio says, so an instruction that
-#: deliberately collapses a long caption ("shorten to one sentence") is not rejected for
-#: succeeding. Deliberately not ``DRAFT_CAPTION_THRESHOLD``: that gate asks "is this a
-#: finished LoRA caption", and this job exists partly to fall below it on purpose.
+# Floor for a collapsed caption ("shorten to one sentence"); not ``DRAFT_CAPTION_THRESHOLD``.
 MIN_EDITED_CAPTION_CHARS = 40
 
 _QUOTE_PAIRS = (('"', '"'), ("'", "'"), ("“", "”"))
@@ -75,11 +62,7 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 
 def build_edit_system_prompt(instruction: str) -> str:
-    """Assemble the system prompt for one run.
-
-    Built once per job, not once per file, so the system message is byte-identical
-    across the whole folder and the server's prompt-prefix cache stays warm.
-    """
+    """Assemble the system prompt once per job so the prefix cache stays warm."""
     sections = [
         textwrap.dedent(
             """
@@ -95,9 +78,7 @@ def build_edit_system_prompt(instruction: str) -> str:
             """
         ).strip(),
         f"# Edit to apply\n{instruction.strip()}",
-        # Four rules, all about judging what to change. Output mechanics belong in the
-        # output format below: growing this list with them regressed verify-captions
-        # badly enough to be worth remembering here.
+        # Keep this list to judging; output mechanics here once regressed verify-captions.
         textwrap.dedent(
             """
             # Rules
@@ -121,11 +102,6 @@ def build_edit_system_prompt(instruction: str) -> str:
 
 
 def build_edit_user_text(caption: str) -> str:
-    """The per-file turn: the caption, then a restatement of what to do with it.
-
-    The caption is unfenced because fencing the input invites a fenced answer, and the
-    instruction is referenced rather than repeated so the two copies cannot drift.
-    """
     return (
         f"Caption to edit:\n{caption.strip()}\n\n"
         "Apply the edit from the system instructions to this caption. "
@@ -134,12 +110,7 @@ def build_edit_user_text(caption: str) -> str:
 
 
 def strip_wrapping_quotes(text: str) -> str:
-    """Drop one pair of wrapping quotes, keeping a caption that is itself a quotation.
-
-    "Return only the caption" reliably provokes a quoted reply, and no prefix rule can
-    catch it. The interior check is what stops this eating the quotes off a caption
-    whose whole content is one quoted phrase.
-    """
+    """Drop one wrapping quote pair, keeping a caption that is itself a quotation."""
     stripped = text.strip()
     if len(stripped) < 2:
         return stripped
@@ -159,14 +130,7 @@ def clean_edited_caption(raw_text: str) -> str:
 
 
 def edit_rejection_reason(original: str, edited: str) -> str | None:
-    """Why this reply is not an edited caption, or ``None`` when it is.
-
-    The bounds are asymmetric on purpose. A bare ratio floor would reject "shorten to
-    one sentence" for working, so a reply that still reads as a caption on its own is
-    kept however far it fell. There is no matching allowance on the long side: writing
-    new material from the media is auto-caption's job, and nothing here has the media
-    to write it from, so a caption that quadrupled was invented.
-    """
+    """Why this reply is not an edited caption, or ``None`` when it is."""
     edited = edited.strip()
     if not edited:
         return "The model returned no text."
@@ -207,11 +171,6 @@ def edit_caption(
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
 ) -> str | None:
-    """Ask the model for the edited caption, or ``None`` when the request fails.
-
-    The user content is a bare string rather than a parts list: parts exist to carry
-    media, and there is none here.
-    """
     return run_chat_completion(
         client,
         [
@@ -237,15 +196,12 @@ def process_media(
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, str | None, str, str | None]:
-    """Read one caption, edit it, and report ``(path, edited, status, message)``."""
     resolved_model = model if model is not None else get_openai_model()
     ref_caption, status = load_reference_caption(media_path)
     if status != "ok" or ref_caption is None:
         return media_path, None, status, None
 
     def attempt(_number: int) -> ModelOutcome[str]:
-        # The attempt number exists for the frame re-encode workaround in ``vision``;
-        # a text request sends the same bytes every time, so it is ignored here.
         raw = edit_caption(
             client,
             system_prompt,
@@ -264,7 +220,6 @@ def process_media(
         edited = clean_edited_caption(raw)
         reason = edit_rejection_reason(ref_caption, edited)
         if reason is not None:
-            # Non-success, so this retries: a leaked preamble is often a one-off.
             return ModelOutcome(status=REJECTED, value=edited, message=reason)
 
         return ModelOutcome(status="success", value=edited)
@@ -280,11 +235,7 @@ def process_media(
 
 
 def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:
-    """Copy this file's sidecars into ``backup_dir``, keeping any copy already there.
-
-    Keeping the existing copy is what makes a second run safe: the backup stays the
-    caption as it was before the *first* edit, which is the one worth restoring.
-    """
+    """Copy this file's sidecars into ``backup_dir``, keeping any copy already there."""
     for sidecar in caption_sidecars(media_path):
         target = backup_dir / sidecar.name
         if not target.exists():
@@ -306,7 +257,6 @@ def _initial_job_stats(total: int) -> dict[str, int]:
 
 
 def _failure_outcome(status: str, message: str | None) -> FileOutcome:
-    """Map a non-success ``process_media`` status onto its counter and message."""
     return FileOutcome(
         status=status,
         stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
@@ -335,7 +285,6 @@ def run_edit_captions_job(
 
     backup_dir = caption_backup_dir(folder)
     if backup:
-        # A folder that cannot hold the backups is a whole-run problem, not a per-file one.
         try:
             backup_dir.mkdir(exist_ok=True)
         except OSError as exc:
@@ -363,7 +312,6 @@ def run_edit_captions_job(
 
             original, _status = load_reference_caption(media_path)
             if original is not None and edited.strip() == original.strip():
-                # Nothing to write, so nothing to back up either.
                 return FileOutcome(
                     status=UNCHANGED,
                     stats={UNCHANGED: 1},
@@ -371,15 +319,13 @@ def run_edit_captions_job(
                 )
 
             if should_cancel and should_cancel():
-                # Do not touch the folder when cancellation landed around this file.
                 return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
             if backup:
                 try:
                     back_up_caption_sidecars(media_path, backup_dir)
                 except OSError as exc:
-                    # Writing the edit now would break the promise the backup exists to
-                    # make, so the caption is left alone and the run moves on.
+                    # Do not write the edit if backup failed; that would break the restore promise.
                     return FileOutcome(
                         status="write_error",
                         stats={"write_error": 1},

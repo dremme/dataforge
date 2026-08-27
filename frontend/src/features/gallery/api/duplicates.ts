@@ -20,7 +20,6 @@ export async function resolveDuplicateGroup(
   return postJson<DuplicateResolveResponse>("/api/duplicates/resolve", body);
 }
 
-/** Clears a group's findings without touching the media - a false positive. */
 export async function dismissDuplicateGroup(paths: string[]): Promise<DuplicateDismissResponse> {
   const body: DuplicateDismissRequest = { paths };
   return postJson<DuplicateDismissResponse>("/api/duplicates/dismiss", body);

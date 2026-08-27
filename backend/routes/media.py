@@ -100,13 +100,7 @@ _OPTIONAL_DESCRIPTION = (
 
 
 def _gone() -> Response:
-    """The answer for an `optional` request whose file is no longer there.
-
-    A 404 on an `<img>` is logged by the browser itself and cannot be silenced from
-    JavaScript, which spams the console for callers that expect files to disappear
-    (AI-Toolkit prunes training samples). A bodyless 204 still fires the image's
-    error handler, so those callers drop the sample exactly as they did before.
-    """
+    """204 for an `optional` request whose file is gone; a 404 on `<img>` cannot be silenced."""
     return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 
@@ -127,20 +121,16 @@ def serve_media(
     else:
         file_path = resolve_media_file(path)
 
-    # The content type still comes from the media path: the backup deliberately carries
-    # a non-media suffix so nothing else in the app treats it as a file of its own.
+    # Content type comes from the media path; the backup suffix is deliberately non-media.
     served_path = file_path
     if original:
         archive = backup_path_for(file_path)
         if archive.is_file():
             served_path = archive
 
-    # A versioned URL names one revision of the file, so it can be cached hard.
-    # Without one, the response must be revalidated: browsers otherwise apply
-    # heuristic freshness and keep serving an edited file's old bytes.
+    # A versioned URL can be cached hard; without one, revalidate or browsers keep old bytes.
     cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
-    # MediaFileResponse: share-delete open + cancel on disconnect so a video
-    # range request cannot leave the source locked against delete on Windows.
+    # MediaFileResponse: share-delete open + cancel on disconnect so Windows cannot lock deletes.
     return MediaFileResponse(
         served_path,
         media_type=MEDIA_MIME_TYPES.get(file_path.suffix.lower()),
@@ -177,14 +167,7 @@ def delete_media(
 
 
 def _resolve_transfer_sources(paths: list[str]) -> tuple[list[Path], list[dict[str, str]]]:
-    """Split requested paths into the files still on disk and the ones that have vanished.
-
-    A path goes stale the moment the file behind it is renamed, moved, or deleted —
-    by a rename job, another window, or Explorer — and the client can hold the old
-    name until its next folder refresh. That is one file's problem: failing the whole
-    request over it would strand every other file in the batch, so a missing source
-    is reported per file instead, the same way a failed transfer is.
-    """
+    """Split requested paths into files still on disk and ones that have vanished."""
     source_paths: list[Path] = []
     missing: list[dict[str, str]] = []
 
@@ -285,12 +268,7 @@ def serve_gif_frame(
     ),
     optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
 ) -> Response:
-    """One GIF frame as a JPEG, which is what the frame-capture viewer previews.
-
-    Deliberately not written to the thumbnail cache: these are full-resolution and
-    live only as long as the scrub, so caching them would evict real thumbnails.
-    The browser holds them instead, which is why a versioned URL is cached hard.
-    """
+    """One GIF frame as a JPEG; not written to the thumbnail cache."""
     if optional:
         file_path = resolve_optional_gif_file(path)
         if file_path is None:
@@ -340,11 +318,7 @@ def convert_gif(
     path: str = Query(..., description="Absolute path to a GIF file"),
     overwrite: bool = Query(False, description="Replace an MP4 that already holds the name"),
 ) -> GifToMp4Response:
-    """Write the GIF out as an MP4 beside it, at the fixed conversion frame rate.
-
-    A plain ``def`` on purpose: FastAPI runs it on the threadpool, so a long encode never
-    stalls the event loop.
-    """
+    """Write the GIF out as an MP4 beside it, at the fixed conversion frame rate."""
     media = resolve_gif_file(path)
     target = mp4_target_for(media)
 
@@ -352,9 +326,7 @@ def convert_gif(
         raise HTTPException(status_code=409, detail=f"{target.name} already exists in this folder")
 
     try:
-        # Held against the file being written rather than the one being read: two GIFs
-        # in one folder can never target the same name, and it is the write that must
-        # not be raced.
+        # Lock the write target: two GIFs in one folder can never share a destination.
         with render_slot(target) as should_cancel:
             return convert_gif_to_mp4(media, should_cancel=should_cancel)
     except (EditBusyError, FfmpegCancelled, RuntimeError, OSError) as exc:
@@ -400,8 +372,7 @@ def serve_thumbnail(
             detail=f"Failed to generate thumbnail: {exc}",
         ) from exc
 
-    # MediaFileResponse for the same reason as /media: cache pruning deletes
-    # these .webp files, and a plain FileResponse would lock one mid-stream.
+    # MediaFileResponse: cache pruning deletes these .webp files mid-stream.
     return MediaFileResponse(
         thumbnail_path,
         media_type="image/webp",
@@ -409,17 +380,11 @@ def serve_thumbnail(
     )
 
 
-#: Progress frames are thinned the way job frames are: the bar has one width, and the
-#: encoder reports far more often than it is worth waking every reader for.
 VIDEO_EDIT_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
 def _video_edit_progress(media: Path, tab: str, duration: float | None):
-    """A callback that pushes render progress to the one tab waiting on it.
-
-    Returns ``None`` when there is no tab to address, so the encode is not asked to
-    report into nothing.
-    """
+    """A callback that pushes render progress to the one tab waiting on it, or None."""
     if not tab:
         return None
 
@@ -472,11 +437,7 @@ def edit_video(
     tab: str = Query("", description="Client tab id, so progress reaches the right stream"),
     body: VideoEditSpec = ...,
 ) -> VideoEditResponse:
-    """Render the spec from the untouched original and put it back under the same name.
-
-    A plain ``def`` on purpose: FastAPI runs it on the threadpool, so a long encode never
-    stalls the event loop that carries its own progress frames.
-    """
+    """Render the spec from the untouched original and put it back under the same name."""
     media = resolve_editable_video(path)
 
     if is_identity_spec(body):
@@ -543,12 +504,7 @@ def edit_image(
     path: str = Query(..., description="Absolute path to an image file"),
     body: ImageEditSpec = ...,
 ) -> ImageEditResponse:
-    """Render the spec from the untouched original and put it back under the same name.
-
-    A plain ``def`` on purpose: FastAPI runs it on the threadpool, so a large resample
-    never stalls the event loop. There is no progress channel and no cancel - a Pillow
-    pass finishes in the time it would take to draw a bar.
-    """
+    """Render the spec from the untouched original and put it back under the same name."""
     media = resolve_editable_image(path)
 
     if is_identity_image_spec(body):
@@ -580,14 +536,11 @@ def _candidate_failure(exc: Exception) -> HTTPException:
     if isinstance(exc, CandidateBusyError):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, ValueError):
-        # Includes the refusal to accept over an unreverted edit, which is a conflict
-        # with the file's own state rather than a malformed request.
         return HTTPException(status_code=409, detail=str(exc))
     return HTTPException(status_code=500, detail=str(exc))
 
 
-#: Every candidate route is keyed by the *source* path, never the staging path. One
-#: identifier for the pair, and it keeps ``resolve_editable_image`` as the single gate.
+# Keyed by the source path, never the staging path.
 _CANDIDATE_PATH = Query(..., description="Absolute path to the dataset image, not its candidate")
 
 
@@ -621,15 +574,7 @@ def _settle_candidates(
     paths: list[str],
     settle: Callable[[Path], ComfyCandidateResponse],
 ) -> ComfyCandidateBatchResponse:
-    """Settle each path on its own, recording rather than raising what fails.
-
-    Deliberately not all-or-nothing: rejecting three hundred candidates must not fail
-    wholesale because one file is locked.
-
-    There is no batch *accept*. Accepting is irreversible per file, so settling a queue
-    of them on one click was removed as too dangerous - the review modal accepts one
-    image at a time, after the user has seen both.
-    """
+    """Settle each path on its own, recording rather than raising what fails."""
     settled: list[str] = []
     skipped: list[str] = []
     failed: list[ComfyCandidateFailure] = []

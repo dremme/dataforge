@@ -13,23 +13,9 @@ interface GalleryListRowProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
-  /** Shift+click: extend the selection from the last-clicked item to this one. */
   onExtendSelect?: (path: string) => void;
 }
 
-/**
- * One item as a condensed list row: leading checkbox, thumbnail, name, then the
- * file facts. Separate from `GalleryCard` because the two share no layout — the
- * row is a fixed-height line, which is also what lets the virtualizer size list
- * rows exactly instead of measuring each one.
- *
- * The trailing fields sit in columns shared by every row, sized once from the
- * whole folder by `useGalleryListColumns`, so a folder reads down as a table
- * rather than each line re-flowing around its own content.
- *
- * Memoized on the same terms as the card: the list re-renders on every selection
- * change, but a row only changes when its own `selected` flag flips.
- */
 export const GalleryListRow = memo(function GalleryListRow({
   item,
   onSelect,

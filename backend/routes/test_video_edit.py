@@ -1,5 +1,3 @@
-"""Tests for /api/media/video-edit."""
-
 from __future__ import annotations
 
 import threading

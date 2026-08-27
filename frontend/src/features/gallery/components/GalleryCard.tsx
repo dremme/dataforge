@@ -20,7 +20,6 @@ import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
 import { Icon } from "@/shared/ui/Icon";
 
-/** List mode has no card; it renders `GalleryListRow` instead. */
 type GalleryCardMode = Exclude<GalleryDisplayMode, "list">;
 
 interface GalleryCardProps {
@@ -30,14 +29,9 @@ interface GalleryCardProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
-  /** Shift+click: extend the selection from the last-clicked item to this one. */
   onExtendSelect?: (path: string) => void;
 }
 
-/**
- * Memoized: the grid is virtualized and re-renders on every selection change,
- * but an individual card only changes when its own `selected` flag flips.
- */
 export const GalleryCard = memo(function GalleryCard({
   item,
   onSelect,
@@ -49,8 +43,6 @@ export const GalleryCard = memo(function GalleryCard({
 }: GalleryCardProps) {
   const captionDisplay = getCardCaptionDisplay(item);
   const statusIcon = captionDisplay?.variant === "warning" ? iconTriangleAlert : iconMessageDashed;
-  // The overlay asks whether the card opens a player, which a GIF does not; the
-  // card modifier and badge ask what the file is.
   const itemIsVideo = isVideo(item);
   const itemIsGif = isGif(item);
 

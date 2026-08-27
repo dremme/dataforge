@@ -5,18 +5,13 @@ import { Icon } from "@/shared/ui/Icon";
 interface FrameCaptureBarProps {
   min: number;
   max: number;
-  /** The slider's arrow-key increment: one frame, however the format counts them. */
   step: number;
   value: number;
-  /** The source is loaded, so the slider has a real range to move over. */
   ready: boolean;
   saving: boolean;
-  /** Other modal work is in flight — the bar locks itself rather than racing it. */
   busy: boolean;
-  /** The position on screen: a timestamp for video, a frame ordinal for a GIF. */
   currentLabel: string;
   totalLabel: string;
-  /** Shown while the source is still loading. */
   hint: string;
   onValueChange: (value: number) => void;
   onStepFrame: (direction: -1 | 1) => void;
@@ -58,15 +53,11 @@ export function FrameCaptureBar({
           type="range"
           className="video-frame-bar__slider"
           min={min}
-          // Never let this become NaN: React would render `max="NaN"` and the
-          // control's own clamping stops making sense. A single-frame source has
-          // no span either, so the track needs a width it can still paint.
+          // Never NaN: React renders max="NaN". A single-frame source has no span, so give a width.
           max={ready && span > 0 ? max : min + 1}
           step={step}
           value={ready ? value : min}
           disabled={locked}
-          // Firefox has ::-moz-range-progress and Chromium has no equivalent, so the
-          // filled track is a gradient driven by this custom property.
           style={{ "--frame-progress": `${progress}%` } as CSSProperties}
           onChange={(event) => onValueChange(Number(event.target.value))}
           aria-label="Frame position"

@@ -47,7 +47,6 @@ describe("App: search and filters", () => {
     expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
 
-    // Both section counts read "matches / total" while the search narrows them.
     expect(screen.getByLabelText("1 of 2")).toHaveClass("folder-section__count");
     expect(screen.getByLabelText("0 of 3")).toHaveClass("gallery-section__count");
   });
@@ -70,7 +69,6 @@ describe("App: search and filters", () => {
       expect(screen.queryByRole("button", { name: /Vacation/ })).not.toBeInTheDocument();
     });
 
-    // No folder card survives the search, but the section still reports 0 of 2.
     expect(screen.getByRole("region", { name: "Subfolders" })).toBeInTheDocument();
     expect(screen.getByLabelText("0 of 2")).toHaveClass("folder-section__count");
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
@@ -86,11 +84,9 @@ describe("App: search and filters", () => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    // Expand search so the in-field toggles are reachable.
     await user.keyboard("{Control>}k{/Control}");
     await user.click(screen.getByRole("button", { name: "Match file and folder names" }));
 
-    // "golden" only appears in sunset.png's caption, never in a file name.
     await user.type(screen.getByRole("searchbox", { name: "Search captions" }), "golden");
 
     await waitFor(() => {
@@ -98,8 +94,6 @@ describe("App: search and filters", () => {
       expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument();
     });
 
-    // Folders stay fully visible; only media is narrowed. The folder count stays a
-    // plain total (no "of") because nothing was filtered out of that section.
     expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Empty/ })).toBeInTheDocument();
     expect(document.querySelector(".folder-section__count")).toHaveTextContent("2");
@@ -257,13 +251,9 @@ describe("App: search and filters", () => {
       expect(screen.queryByRole("button", { name: /waves\.mp4/ })).not.toBeInTheDocument();
     });
 
-    // Still in selection mode, and the visible half of the selection is untouched.
     expect(screen.getByRole("button", { name: "Deselect sunset.png" })).toBeInTheDocument();
-    // waves.mp4 stops counting: the pill reads selected-and-visible over visible.
     expect(screen.getByLabelText("1 of 1")).toHaveClass("gallery-section__count");
 
-    // Hidden, not dropped — widening the search brings it back. This is what
-    // makes the scoping a lens over the selection rather than an edit to it.
     await user.clear(searchbox);
 
     await waitFor(() => {
@@ -335,12 +325,10 @@ describe("App: search and filters", () => {
     await user.click(screen.getByRole("button", { name: "Select beach.jpg" }));
     expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
 
-    // First press empties the selection but keeps the mode.
     await user.keyboard("{Escape}");
     expect(screen.getByLabelText("0 of 3")).toHaveClass("gallery-section__count");
     expect(screen.getByRole("button", { name: "Exit selection mode" })).toBeInTheDocument();
 
-    // Second press, with nothing selected, leaves selection mode.
     await user.keyboard("{Escape}");
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Select" })).toBeInTheDocument();
@@ -363,8 +351,6 @@ describe("App: search and filters", () => {
     });
   });
 
-  // Navigation is the only thing left that drops a selection, so it is the one
-  // caller keeping `clearSelection` alive.
   it("drops the selection when another folder is opened", async () => {
     const user = userEvent.setup();
     installMockBackend();
@@ -408,11 +394,8 @@ describe("App: search and filters", () => {
       expect(screen.getByText("Empty folder")).toBeInTheDocument();
     });
 
-    // The seeded search matches no folder, so the folder section is gone — but the
-    // empty-folder copy still reflects the real subfolder list.
     expect(screen.queryByRole("button", { name: /Vacation/ })).not.toBeInTheDocument();
     expect(screen.queryByText("No matches")).not.toBeInTheDocument();
-    // The media header stays put above the empty state.
     expect(screen.getByRole("heading", { name: "Media" })).toBeInTheDocument();
     expect(document.querySelector(".gallery-section__count")).toHaveTextContent("0");
     expect(

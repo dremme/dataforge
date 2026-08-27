@@ -6,7 +6,6 @@ import type { FolderResponse } from "@/shared/types";
 type AppHeaderProps = {
   folder: FolderResponse;
   folderNotFound?: boolean;
-  /** A reload running underneath content that stays on screen. */
   refreshing?: boolean;
   onNavigate: (path?: string) => void;
   onOpenFolderPicker: () => void;

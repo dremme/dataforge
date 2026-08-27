@@ -1,5 +1,3 @@
-"""Unit tests for automation.rename_media."""
-
 from __future__ import annotations
 
 import os

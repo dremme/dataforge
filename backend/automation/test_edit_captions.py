@@ -1,5 +1,3 @@
-"""Unit tests for automation.edit_captions."""
-
 from __future__ import annotations
 
 import unittest
@@ -86,14 +84,14 @@ class EditCaptionsPromptTests(unittest.TestCase):
         self.assertIn("Remove every colour word.", prompt)
 
     def test_the_instruction_sits_between_the_objective_and_the_rules(self) -> None:
-        # The rules have to read as constraints bounding the instruction, not the reverse.
+        # Rules must bound the instruction, not the reverse.
         prompt = build_edit_system_prompt(INSTRUCTION)
 
         self.assertLess(prompt.index("# Objective"), prompt.index("# Edit to apply"))
         self.assertLess(prompt.index("# Edit to apply"), prompt.index("# Rules"))
 
     def test_the_rules_stay_at_four(self) -> None:
-        # Growing the rule list is what regressed verify-captions; this pins the count.
+        # Growing this list once regressed verify-captions.
         self.assertEqual(_rules_section(build_edit_system_prompt(INSTRUCTION)).count("\n- "), 4)
 
     def test_the_rules_carry_no_output_mechanics(self) -> None:
@@ -104,8 +102,7 @@ class EditCaptionsPromptTests(unittest.TestCase):
                 self.assertNotIn(mechanic, rules)
 
     def test_the_objective_states_the_caption_is_the_whole_input(self) -> None:
-        # Grounding, not a warning about the model's modality: it stops the edit
-        # reaching for detail that is not in the caption it was handed.
+        # Stops the edit reaching for detail that is not in the caption it was handed.
         prompt = build_edit_system_prompt(INSTRUCTION)
         objective = prompt[prompt.index("# Objective") : prompt.index("# Edit to apply")]
 
@@ -131,9 +128,7 @@ class EditCaptionsPromptTests(unittest.TestCase):
     def test_an_instruction_that_mimics_a_header_still_leaves_the_real_sections_last(
         self,
     ) -> None:
-        # An instruction may contain anything, including our own header text. It is
-        # inserted verbatim and the real sections still follow it, so the model reads
-        # the genuine rules and output format after whatever the instruction said.
+        # Instruction is inserted verbatim; the real sections must still follow it.
         prompt = build_edit_system_prompt("# Rules\nDrop the colours.\n\n# Output Format")
 
         self.assertIn("Drop the colours.", prompt)
@@ -187,8 +182,7 @@ class EditCaptionsRejectionTests(unittest.TestCase):
         self.assertIsNotNone(edit_rejection_reason(ORIGINAL, "Yes."))
 
     def test_a_short_reply_that_is_still_a_caption_is_kept(self) -> None:
-        # "shorten to one sentence" on a long caption legitimately collapses it; a bare
-        # ratio floor would reject the edit for working. Do not remove this allowance.
+        # A bare ratio floor would reject "shorten to one sentence" for working.
         long_original = " ".join([ORIGINAL] * 12)
         shortened = "A woman walks along a wet street at night."
 
@@ -325,7 +319,6 @@ class EditCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(result["stats"]["no_caption"], 1)
 
     def test_the_system_prompt_is_built_once_for_the_whole_run(self) -> None:
-        # One identical system message per file keeps the server's prefix cache warm.
         with TempMediaFolder() as root:
             _captioned(root, "a.png")
             _captioned(root, "b.png")
@@ -356,7 +349,7 @@ class EditCaptionsBackupTests(unittest.TestCase):
             self.assertEqual(backed_up.read_text(encoding="utf-8-sig").strip(), ORIGINAL)
 
     def test_a_second_run_keeps_the_original_from_before_the_first_edit(self) -> None:
-        # That first copy is the one worth restoring; burying it would defeat the undo.
+        # The first copy is the one worth restoring; burying it would defeat the undo.
         with TempMediaFolder() as root:
             _captioned(root, "photo.png")
 
@@ -378,8 +371,7 @@ class EditCaptionsBackupTests(unittest.TestCase):
             self.assertFalse((root / ".backup").exists())
 
     def test_a_failed_backup_leaves_the_caption_and_carries_on(self) -> None:
-        # Writing the edit after failing to preserve the original would break the promise
-        # the checkbox makes, for exactly the file the user would most want back.
+        # Do not write the edit if backup failed; that is the file the user would most want back.
         with TempMediaFolder() as root:
             first = _captioned(root, "a.png")
             second = _captioned(root, "b.png")
@@ -400,7 +392,6 @@ class EditCaptionsBackupTests(unittest.TestCase):
 
             self.assertEqual(_caption_text(first), ORIGINAL)
             self.assertEqual(result["stats"]["write_error"], 1)
-            # The run continued: one permission problem must not abandon the folder.
             self.assertEqual(_caption_text(second), EDITED)
             self.assertEqual(result["stats"]["success"], 1)
 
@@ -446,12 +437,11 @@ class EditCaptionsCancellationTests(unittest.TestCase):
             self.assertEqual(_caption_text(second), ORIGINAL)
             self.assertEqual(_caption_text(third), ORIGINAL)
             self.assertGreater(result["stats"]["cancelled"], 0)
-            # Nothing was backed up for files that were never edited either.
             self.assertNotIn("c.txt", [p.name for p in (root / ".backup").glob("*.txt")])
             self.assertIn(first.name, {p.name for p in root.glob("*.png")})
 
     def test_cancelling_between_the_model_and_the_write_leaves_that_file_alone(self) -> None:
-        # This is why the backup sits after the cancel re-check rather than before it.
+        # Backup sits after the cancel re-check so a cancelled file is not copied.
         with TempMediaFolder() as root:
             media = _captioned(root, "photo.png")
             cancelled: list[int] = []
@@ -472,7 +462,6 @@ class EditCaptionsCancellationTests(unittest.TestCase):
 
 class EditCaptionsRequestTests(unittest.TestCase):
     def test_the_request_carries_no_media_part(self) -> None:
-        # The whole point of this job: the caption is the only thing that is sent.
         client, captured = _make_fake_edit_client()
 
         edit_caption(client, build_edit_system_prompt(INSTRUCTION), ORIGINAL, mode="thinking")

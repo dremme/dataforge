@@ -30,9 +30,7 @@ interface ToolbarProps {
   subfolderCount: number;
   fileCount: number;
   captionedCount: number;
-  /** Files with a caption issue file; the stat stays hidden while there are none. */
   issueCount?: number;
-  /** Whether the open folder has captions saved in `.backup`. */
   hasCaptionBackup?: boolean;
   statsLoading?: boolean;
   searchQuery: string;

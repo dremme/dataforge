@@ -42,9 +42,7 @@ from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
 
-#: Characters. One knob, two gates: a reference caption longer than this is already a
-#: finished caption and is left alone, and a freshly generated one this short or shorter
-#: is not an answer and is retried. Read per call so a configured value reaches both.
+# Longer reference captions are left alone; generated captions this short or shorter are retried.
 DRAFT_CAPTION_THRESHOLD = 256
 DRAFT_CAPTION_THRESHOLD_VAR = "DRAFT_CAPTION_THRESHOLD"
 
@@ -55,8 +53,7 @@ def get_draft_caption_threshold() -> int:
 
 AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
-#: Motion media that carried no audio track while audio captioning was on. Counted, not
-#: failed: the file is still captioned, and the model is expected to call it silent.
+# Missing audio on an audio run: counted, not failed; the file is still captioned as silent.
 AUDIO_ERROR = "audio_error"
 
 PROCESSED_STAT_KEYS = (
@@ -80,17 +77,13 @@ ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 MEDIA_KINDS: tuple[MediaKind, ...] = ("image", "video")
 
 
-#: Added to every video prompt. Without it a walking subject gets captioned as standing:
-#: the Output Format section asks for what is "clearly visible" and forbids speculation,
-#: and motion is only readable as change between frames. One sentence, like the audio one.
+# Without this a walking subject is captioned as standing.
 MOTION_OBJECTIVE_SENTENCE = (
     "What changes between consecutive frames is directly observed, not speculation - "
     "compare them and state the motion that occurred, naming the action and its direction."
 )
 
-#: Added to the video prompts only while audio captioning is on. Kept to one sentence
-#: each: the rest of the prompt is calibrated, and a longer aside about sound pulls the
-#: caption toward the audio at the expense of what is on screen.
+# One sentence only; a longer audio aside pulls the caption off what is on screen.
 AUDIO_OBJECTIVE_SENTENCE = (
     "The clip's audio track is attached alongside the keyframes - analyze it as well and fold "
     "what is heard (speech, music, ambient sound, or silence) into the same caption."
@@ -113,15 +106,9 @@ def build_system_prompt(
     media_kind: MediaKind = "image",
     caption_audio: bool = False,
 ) -> str:
-    """The system prompt for one media kind, optionally asking for the audio too.
-
-    The audio sentence goes in for every video once the option is on, including clips
-    whose track turned out to be missing: being told to describe the sound is what makes
-    the model report a silent clip instead of ignoring the subject.
-    """
+    """The system prompt for one media kind; audio wording stays even when the track is missing."""
     specific_sys_prompt = _load_specific_sysprompt(folder)
-    # Interpolated inline rather than as its own line so a single-line .sysprompt still
-    # dedents the way it does today.
+    # Inline so a single-line .sysprompt still dedents.
     audio_objective = f" {AUDIO_OBJECTIVE_SENTENCE}" if caption_audio else ""
 
     if media_kind == "video":
@@ -175,13 +162,7 @@ def _build_user_text(
     has_audio: bool = False,
     seconds: float | None = None,
 ) -> str:
-    """The instruction for one request, which states what that request actually carries.
-
-    ``has_audio`` tracks the attachment rather than the job's setting: a silent clip is
-    sent with the audio sentence left out, so nothing invites the model to describe a
-    track that is not there. The system prompt still asks about sound, which is what
-    makes it report the silence.
-    """
+    """Per-request instruction; ``has_audio`` follows the attachment, not the job setting."""
     if media_kind == "video":
         audio_note = f" {AUDIO_USER_SENTENCE}" if has_audio else ""
         return textwrap.dedent(
@@ -227,17 +208,7 @@ def complete_caption(
     audio_wav: bytes | None = None,
     attempt: int = 1,
 ) -> str | None:
-    """Ask the model to caption ``images``, which the caller has already loaded.
-
-    Decoding stays with ``process_media`` so a file that never opened is reported as
-    such instead of being retried three times as a model failure. ``audio_wav`` and
-    ``timestamps`` follow the same rule: resolved once by the caller, sent again on
-    every retry.
-
-    ``attempt`` is passed straight through to the frame encoding, which is a workaround
-    rather than a feature - ``vision.retry_jpeg_quality`` explains why a retry must not
-    resend the bytes that just failed.
-    """
+    """Caption already-loaded ``images``; ``attempt`` is for the JPEG re-encode workaround."""
     media_kind = media_kind_for(media_path)
     return request_vision_text(
         client,
@@ -288,11 +259,7 @@ def process_media(
     caption_audio: bool = False,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[Path, str | None, str, str | None, bool]:
-    """Caption one file, reporting the outcome and whether its audio was missing.
-
-    The trailing flag is only ever ``True`` for motion media on an audio run; a still
-    has no track to miss, and a job with audio off never looks for one.
-    """
+    """Caption one file; the trailing flag is True only for motion media missing audio on an audio run."""
     resolved_model = model if model is not None else get_openai_model()
     resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
     ref_caption, status = _read_draft_caption(media_path)
@@ -304,8 +271,7 @@ def process_media(
     if load_error is not None:
         return media_path, None, load_error.status, load_error.message, False
 
-    # Extracted once, outside ``attempt``, so three retries re-send the same bytes
-    # instead of decoding the clip three times.
+    # Extracted once so retries re-send the same bytes instead of decoding the clip three times.
     audio_wav = extract_audio_wav(media_path) if caption_audio and media_kind == "video" else None
     audio_missing = caption_audio and media_kind == "video" and audio_wav is None
 
@@ -354,8 +320,7 @@ def validate_auto_caption_folder(folder: Path, *, caption_audio: bool = False) -
     if not list_auto_caption_media(folder):
         raise ValueError("No supported images or videos found in folder")
 
-    # Checked once up front rather than per file: without ffmpeg every clip in the
-    # folder would silently caption without audio, which is not what was asked for.
+    # Without ffmpeg every clip would silently caption without audio.
     if caption_audio and ffmpeg_path() is None:
         raise ValueError("ffmpeg is required for audio captioning")
 
@@ -377,7 +342,6 @@ def _initial_job_stats(total: int) -> dict[str, int]:
 
 
 def _failure_outcome(status: str, message: str | None) -> FileOutcome:
-    """Map a non-success ``process_media`` status onto its counter and message."""
     return FileOutcome(
         status=status,
         stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
@@ -392,13 +356,11 @@ def _caption_outcome(
     message: str | None,
     should_cancel: Callable[[], bool] | None,
 ) -> FileOutcome:
-    """What one captioned file did to the job, before the audio counter rides along."""
     if status == "cancelled":
         return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
     if status == "success" and clean_text:
         if should_cancel and should_cancel():
-            # Do not write the sidecar when cancellation landed around this file.
             return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
         try:
@@ -456,8 +418,6 @@ def run_auto_caption_job(
             if not audio_missing or outcome.status == "cancelled":
                 return outcome
 
-            # The clip was captioned regardless, so this counts alongside whatever the
-            # caption attempt made of it rather than replacing it.
             return replace(outcome, stats={**outcome.stats, AUDIO_ERROR: 1})
 
         return run_media_job(

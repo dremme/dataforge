@@ -1,10 +1,4 @@
-"""Automation job settings, remembered per folder with a most-recent fallback.
-
-One preferences row per job type, rather than one blob for all of them: a corrupt
-row costs exactly one job its settings, the keys are greppable, and
-:class:`~preferences.FolderScopedPreference` stays a clean generic. The combined
-read is a handful of tiny local ``SELECT``s; starting a job touches one row.
-"""
+"""Automation job settings, remembered per folder with a most-recent fallback."""
 
 from __future__ import annotations
 
@@ -29,10 +23,7 @@ from schemas import (
 
 AUTOMATION_SETTINGS_KEY_PREFIX = "automation_settings"
 
-#: Every job whose dialog has settings. The keys are job types and they are also the
-#: field names of :class:`~schemas.AutomationSettingsResponse`; ``test_automation_settings``
-#: pins the two together, so a new dialog that forgets to register here fails there.
-#: ``strip_metadata`` and ``restore_captions`` are absent because they have no dialog.
+#: Keys are job types and field names of AutomationSettingsResponse; jobs with no dialog are absent.
 JOB_SETTINGS_MODELS: dict[str, type[BaseModel]] = {
     "auto_caption": AutoCaptionJobSettings,
     "set_captions": SetCaptionsJobSettings,
@@ -47,7 +38,6 @@ JOB_SETTINGS_MODELS: dict[str, type[BaseModel]] = {
     "comfy_process": ComfyProcessJobSettings,
 }
 
-# Re-export so callers/tests keep a single import for folder-keyed preferences.
 __all__ = [
     "AUTOMATION_SETTINGS_KEY_PREFIX",
     "JOB_SETTINGS_MODELS",
@@ -69,7 +59,6 @@ _STORES: dict[str, FolderScopedPreference] = {
 
 
 def get_automation_settings(*, folder_path: str) -> AutomationSettingsResponse:
-    """Return every job's settings for a folder, falling back to the last used."""
     folder_key = preference_folder_key(folder_path)
     return AutomationSettingsResponse(
         folder_path=folder_key,
@@ -78,12 +67,7 @@ def get_automation_settings(*, folder_path: str) -> AutomationSettingsResponse:
 
 
 def remember_job_settings(job_type: str, body: BaseModel, *, folder_path: str) -> None:
-    """Store the settings slice of a start request, so the next run starts from it.
-
-    A job type with no registered model is silently skipped, which is what keeps the
-    settings-less jobs free. Because every start request inherits its settings model,
-    the ``include`` below always covers every field the model declares.
-    """
+    """A job type with no registered model is skipped, which keeps settings-less jobs free."""
     model = JOB_SETTINGS_MODELS.get(job_type)
     if model is None:
         return

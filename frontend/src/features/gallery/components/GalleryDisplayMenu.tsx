@@ -11,7 +11,6 @@ interface GalleryDisplayMenuProps {
   onChange: (value: GalleryDisplayMode) => void;
 }
 
-/** Picks the gallery layout. Sits in the media section header, beside the selection controls. */
 export function GalleryDisplayMenu({ value, onChange }: GalleryDisplayMenuProps) {
   const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
   const active = displayModeOption(value);

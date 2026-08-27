@@ -6,22 +6,12 @@ import {
 } from "../types";
 import { MAX_RECENT_ACTIONS } from "./quickActionHistory";
 
-/**
- * Rows the palette will ever show at once — across all sections, not per section.
- * A per-section cap let six sections stack into a list that had to scroll; one
- * global cap is what keeps the panel a fixed, scrollbar-free height.
- */
+/** Global cap so six sections cannot stack into a scrolling list. */
 export const MAX_RESULT_ROWS = 8;
 
 /**
- * Match tiers, best first. Deliberately substring rather than fuzzy subsequence:
- * every other search in the app (`filterBySearch`) is substring, and a subsequence
- * matcher turns short queries into noise.
- *
- * The exact tier earns its place: typing a job's whole name should reach the job,
- * and a prefix tier alone cannot do that — "watermark" is a prefix of both the
- * Watermark job and a folder called "watermarked", so they would tie and the
- * folder would win on declared section order.
+ * Substring, not fuzzy: other search is substring and short fuzzy queries are noise.
+ * Exact beats prefix so "watermark" ranks the job over a "watermarked" folder.
  */
 const RANK_LABEL_EXACT = 0;
 const RANK_LABEL_PREFIX = 1;
@@ -45,17 +35,6 @@ function rankOf(item: QuickActionItem, needle: string): number | null {
   return null;
 }
 
-/**
- * Filter, then group by section.
- *
- * Sections are ordered by their best contained match, falling back to the declared
- * order when two tie. Grouping alone is not enough: typing "watermark" turns up the
- * Watermark job (an exact label prefix) and a folder called "watermarked" (a weaker
- * word match), and a fixed section order would bury the better hit under the worse
- * one purely because folders are declared first.
- *
- * Returns an empty array for a blank query; the caller shows the recent list instead.
- */
 export function rankQuickActionItems(items: QuickActionItem[], query: string): QuickActionGroup[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
@@ -63,9 +42,7 @@ export function rankQuickActionItems(items: QuickActionItem[], query: string): Q
   const declaredIndex = new Map(QUICK_ACTION_SECTIONS.map((section, index) => [section.id, index]));
   const sectionRank = (section: QuickActionSection) => declaredIndex.get(section) ?? 0;
 
-  // Ranked as one flat list before grouping. Ranking inside each section instead
-  // would let a weak match in an early section crowd out a strong one later,
-  // because the cap is global.
+  // Rank flat before grouping so a weak early match cannot crowd out a stronger later one.
   const best = items
     .map((item, buildIndex) => ({ item, rank: rankOf(item, needle), buildIndex }))
     .filter(
@@ -80,8 +57,6 @@ export function rankQuickActionItems(items: QuickActionItem[], query: string): Q
     )
     .slice(0, MAX_RESULT_ROWS);
 
-  // Sections appear in the order their best row does, so the heading carrying the
-  // strongest match leads without needing a second sort.
   const groups: QuickActionGroup[] = [];
   const bySection = new Map<QuickActionSection, QuickActionGroup>();
 
@@ -101,15 +76,6 @@ export function rankQuickActionItems(items: QuickActionItem[], query: string): Q
   return groups;
 }
 
-/**
- * The empty-query list: the last actions the user actually ran, rebuilt against
- * current state.
- *
- * An id that no longer resolves — a deleted job, a job type the folder cannot run
- * — is skipped rather than rendered dead. `synthesize` covers the case that matters
- * most: a folder that has since dropped out of recents and favorites is still
- * perfectly navigable, because its path is inside the id.
- */
 export function resolveRecentActions(
   recentIds: string[],
   items: QuickActionItem[],
@@ -135,7 +101,6 @@ export function resolveRecentActions(
     push(byId.get(id.toLowerCase()) ?? synthesize(id));
   }
 
-  // A short or first-run history would otherwise open on an empty panel.
   for (const item of topUp) {
     if (resolved.length >= MAX_RECENT_ACTIONS) break;
     push(item);
@@ -148,20 +113,11 @@ export function recentActionsGroup(items: QuickActionItem[]): QuickActionGroup[]
   return items.length > 0 ? [{ id: "recent", label: "Recent", items }] : [];
 }
 
-/** Flatten groups back into the selectable order the arrow keys walk. */
 export function flattenGroups(groups: QuickActionGroup[]): QuickActionItem[] {
   return groups.flatMap((group) => group.items);
 }
 
-/**
- * Strip repeat ids across groups, keeping the first, and drop any group that
- * empties out.
- *
- * The palette resolves its active row by id, so two rows sharing one would pin
- * the highlight to the first copy and make the arrow keys look stuck. Enforced
- * here, at the boundary the rendering and the selection both read, rather than
- * trusted of whoever assembled the groups.
- */
+/** Drop duplicate ids; the palette tracks the active row by id, so repeats pin the highlight. */
 export function withUniqueIds(groups: QuickActionGroup[]): QuickActionGroup[] {
   const taken = new Set<string>();
 
@@ -178,19 +134,6 @@ export function withUniqueIds(groups: QuickActionGroup[]): QuickActionGroup[] {
   });
 }
 
-/**
- * Flatten the per-section builders into one list, in `QUICK_ACTION_SECTIONS`
- * order, keeping the first item to claim each id.
- *
- * The dedupe is load-bearing, not tidiness. A folder can legitimately be both a
- * subfolder of the folder you are in and a recent folder, and both builders mint
- * the same `folder:<path>` id — so it would render twice, and the palette tracks
- * the active row *by id*: `findIndex` would resolve the second copy back to the
- * first, pinning the highlight and making arrow keys look stuck.
- *
- * Ordering here from the same constant that drives display keeps the two from
- * drifting: reordering a section reorders which copy of a shared id survives.
- */
 export function orderQuickActionItems(
   bySection: Record<QuickActionSection, QuickActionItem[]>,
 ): QuickActionItem[] {

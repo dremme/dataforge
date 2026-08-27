@@ -94,11 +94,6 @@ function FilterMenuGroup<T extends string>({
   );
 }
 
-/**
- * Media type, caption status and file filters, folded into one dropdown to spare toolbar
- * width. All three are one-of-many axes that compose rather than overwrite each other,
- * so each renders the same radio group.
- */
 export function ToolbarFilterMenu({
   searchQuery,
   filter,

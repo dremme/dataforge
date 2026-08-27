@@ -23,8 +23,7 @@ describe("candidateStageAspect", () => {
   });
 
   it("prefers the size the browser measured over the listing's", () => {
-    // The listing can be stale or wrong; what decoded is what is on screen, and a stage
-    // shaped from anything else stretches the image it is holding.
+    // Listing can be stale; what decoded is on screen, and any other stage stretches it.
     const aspect = candidateStageAspect(entry({ width: 1000, height: 1000 }), {
       width: 800,
       height: 1600,
@@ -44,8 +43,7 @@ describe("differenceLabel", () => {
     expect(differenceLabel(4.9)).toBe("composition kept");
   });
 
-  // Both edges of the middle band, because an off-by-one there silently reclassifies
-  // every borderline result rather than failing.
+  // Both edges of the middle band: an off-by-one silently reclassifies borderline results.
   it("spans the middle band from its lower edge to just under its upper one", () => {
     expect(differenceLabel(5)).toBe("noticeably changed");
     expect(differenceLabel(11.9)).toBe("noticeably changed");

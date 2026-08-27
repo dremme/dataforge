@@ -1,5 +1,3 @@
-"""Tests for /api/system/*."""
-
 from __future__ import annotations
 
 import unittest

@@ -71,9 +71,7 @@ describe("automation API", () => {
   it("rejects a body field the job type does not accept", async () => {
     postJsonMock.mockResolvedValue({ id: "job-4", status: "queued" });
 
-    // The job type selects its body shape, so a camelCase slip or a field
-    // borrowed from another job type fails to compile rather than silently
-    // reaching the API and being dropped.
+    // Job type selects the body shape; a camelCase slip must fail to compile.
     await startAutomationJob("train_lora", "C:\\Photos", {
       // @ts-expect-error -- the wire field is lora_name
       loraName: "sample_train_v1",

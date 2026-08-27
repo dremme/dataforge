@@ -52,7 +52,6 @@ type DuplicateResolverOverlayState = {
   index: number;
   onClose: () => void;
   onIndexChange: (index: number) => void;
-  /** False where a delete is permanent, which is what earns the extra confirmation. */
   deletesToTrash: boolean;
   onResolved: () => void;
 };
@@ -68,7 +67,6 @@ type CandidateReviewOverlayState = {
 
 type StatsOverlayState = {
   open: boolean;
-  /** The whole folder: the dataset overview ignores the search and filters. */
   items: GalleryItem[];
   onClose: () => void;
 };

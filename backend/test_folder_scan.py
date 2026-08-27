@@ -1,5 +1,3 @@
-"""Unit tests for the shared directory scan and the stat-keyed sidecar cache."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database

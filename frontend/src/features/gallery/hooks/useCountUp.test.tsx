@@ -40,8 +40,7 @@ describe("useCountUp", () => {
 
     expect(screen.getByText("0")).toBeInTheDocument();
 
-    // Layout after opening the drawer often lands the first frame tens or hundreds
-    // of milliseconds later. That delay is not part of the curve.
+    // Layout after opening the drawer can delay the first frame; that delay is not part of the curve.
     frames.fire(200);
     expect(screen.getByText("0")).toBeInTheDocument();
 

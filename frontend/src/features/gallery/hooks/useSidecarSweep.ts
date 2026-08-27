@@ -7,26 +7,12 @@ import type { SidecarKind } from "@/shared/types";
 
 export interface UseSidecarSweepOptions {
   folderPath: string | undefined;
-  /** Named in the confirmation, as the job dialogs name it. */
   folderLabel: string;
-  /** Media carrying an `.issue.json`, from the folder listing. */
   issueCount: number;
-  /** Media carrying a `.duplicate.json` — files, not groups: one sidecar each. */
   duplicateCount: number;
-  /** Silent reload plus baseline sync: the counts are derived from that listing. */
   onSwept: () => void | Promise<void>;
 }
 
-/**
- * Deleting every finding sidecar of one kind in the open folder.
- *
- * Composed at the workspace level rather than inside the palette, for the reason the
- * selection actions are: the bar closes the moment an action runs, and a dialog that
- * went with it would abandon a sweep already in flight.
- *
- * One `pending` discriminator rather than a flag per kind — at most one confirmation
- * is ever open, and two booleans could contradict each other.
- */
 export function useSidecarSweep({
   folderPath,
   folderLabel,

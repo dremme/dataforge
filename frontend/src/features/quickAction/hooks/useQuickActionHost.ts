@@ -42,10 +42,6 @@ import { orderQuickActionItems, resolveRecentActions } from "../lib/quickActionR
 import type { QuickActionItem, QuickActionSection } from "../types";
 import { useQuickAction } from "./useQuickAction";
 
-/**
- * What a first-run palette falls back to when there is no history yet. Places,
- * not actions: an empty palette offering to start a job would be a trap.
- */
 const TOP_UP_SECTIONS = new Set<QuickActionSection>(["subfolders", "recentFolders", "favorites"]);
 
 interface UseQuickActionHostOptions {
@@ -55,27 +51,16 @@ interface UseQuickActionHostOptions {
   refreshFolder: () => void | Promise<void>;
   onOpenFolderPicker: () => void;
   onCreateFolder: () => void;
-  /** The automation panel's props — the palette drives the same handlers its menu does. */
   panel: AutomationPanelProps;
-  /** Delete / move / copy for the gallery selection, as the toolbar drives them. */
   selection: GallerySelectionActions;
   selectedCount: number;
   selectionMode: boolean;
-  /** Items visible under the active filters — select all and invert act on these. */
   visibleCount: number;
   onSelectAll: () => void;
   onInvertSelection: () => void;
-  /** Delete every finding sidecar of one kind, as a folder-scoped batch. */
   sidecarSweep: SidecarSweepActions;
 }
 
-/**
- * Assembles everything the quick action bar can search, and owns its open state.
- *
- * Composed alongside `useAutomationHost` rather than inside the overlay so the
- * palette reads the same handlers the panel and menu already use — starting a job
- * from here is indistinguishable from starting it there.
- */
 export function useQuickActionHost({
   folder,
   folderNotFound,
@@ -100,8 +85,6 @@ export function useQuickActionHost({
   const [recentFolderPaths, setRecentFolderPaths] = useState<string[]>([]);
   const [recentActionIds, setRecentActionIds] = useState<string[]>([]);
 
-  // Both lists live in localStorage and change outside React, so they are re-read
-  // on every open rather than memoised for the life of the session.
   useEffect(() => {
     if (!open) return;
 
@@ -120,8 +103,6 @@ export function useQuickActionHost({
 
   const copyFolderPath = useCallback(
     (path: string) => {
-      // The palette is already gone by the time this resolves, so the outcome has
-      // to surface as a notification rather than as inline button feedback.
       void navigator.clipboard.writeText(path).then(
         () => notify({ variant: "success", message: "Folder path copied." }),
         () => notify({ variant: "danger", message: "Could not copy the folder path." }),
@@ -332,8 +313,6 @@ export function useQuickActionHost({
     visibleCount,
   ]);
 
-  // Keyed by section rather than concatenated, so `QUICK_ACTION_SECTIONS` alone
-  // decides both the display order and which copy of a shared id survives.
   const items = useMemo<QuickActionItem[]>(
     () =>
       orderQuickActionItems({
@@ -370,14 +349,10 @@ export function useQuickActionHost({
       resolveRecentActions(
         recentActionIds,
         items,
-        // A folder that has since fallen out of recents and favorites is still
-        // navigable — its path is inside the id.
         (id) => {
           const path = folderPathFromQuickActionId(id);
           return path ? folderQuickAction(path, "recentFolders", goTo) : null;
         },
-        // Drawn from the ordered list rather than the raw builders, so the
-        // top-up cannot reintroduce a folder the dedupe just dropped.
         items.filter((item) => TOP_UP_SECTIONS.has(item.section)),
       ),
     [goTo, items, recentActionIds],

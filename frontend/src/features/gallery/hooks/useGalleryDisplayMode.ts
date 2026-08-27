@@ -7,13 +7,7 @@ import {
 } from "@/features/gallery/preferences/galleryDisplayPreferences";
 import type { GalleryDisplayMode } from "@/shared/types";
 
-/**
- * The gallery layout for the open folder, persisted per folder in the backend.
- *
- * Seeded from the local mirror rather than the default because `useFolderNavigation`
- * serves cached folders synchronously: without it, a revisit paints large cards for
- * a frame before the stored mode arrives.
- */
+/** Seeded from the local mirror: cached folders paint at once, so the default would flash. */
 export function useGalleryDisplayMode(folderPath: string | undefined) {
   const [displayMode, setDisplayModeState] = useState<GalleryDisplayMode>(
     () => readCachedDisplayMode(folderPath) ?? DEFAULT_DISPLAY_MODE,

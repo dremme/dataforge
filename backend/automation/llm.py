@@ -1,14 +1,4 @@
-"""Local-model plumbing shared by every job that talks to the LLM.
-
-Owning the client for a run, issuing a chat completion with the right sampling
-profile for the mode, cleaning the reply, explaining a request that came back
-empty, and retrying a flaky model — none of which knows anything about images.
-What a job asks for, and how it reads the answer, stays in the job module.
-
-``vision.py`` builds on this to send media; ``edit_captions.py`` uses it directly
-with nothing but text. The split is the point: a text-only job has no business
-importing a vision module.
-"""
+"""Local-model plumbing shared by every job that talks to the LLM."""
 
 from __future__ import annotations
 
@@ -35,20 +25,16 @@ logger = logging.getLogger(__name__)
 
 MAX_MODEL_ATTEMPTS = 3
 
-# How often a waiting job re-checks for cancellation while the model request is in flight.
 CANCEL_POLL_SECONDS = 0.1
 
-# Used as a trailing assistant prefill for "instruct" (non-thinking) mode on Qwen3 hybrid models.
-# Signals that any thinking phase is complete/empty so the model emits the final answer directly.
+# Instruct-mode prefill so hybrid Qwen models skip thinking and emit the answer.
 INSTRUCT_THINK_PREFILL = "<think>\n\n</think>"
 
 SUCCESS = "success"
 API_ERROR = "api_error"
 CANCELLED = "cancelled"
 
-# Openers the model reaches for when told to answer with the bare thing. The two
-# media-flavoured ones are here rather than in ``vision`` because they are only
-# strings to strip: a text-only job that somehow gets one still wants it gone.
+# Includes media-flavoured openers so a text-only job still strips them.
 _STRIPPED_PREFIXES = (
     "assistant:",
     "Here is the caption:",
@@ -62,11 +48,7 @@ _STRIPPED_PREFIXES = (
 
 
 def strip_code_fences(text: str) -> str:
-    """Drop a wrapping ``` block, whatever language tag it carries.
-
-    Shared by every job that asks for a bare answer and gets a fenced one, which is
-    the most common way this model dresses up a reply it was told not to dress up.
-    """
+    """Drop a wrapping ``` block, whatever language tag it carries."""
     stripped = text.strip()
     if not stripped.startswith("```"):
         return stripped
@@ -105,16 +87,7 @@ def _field(source: object, name: str) -> object:
 
 
 def describe_exception(exc: BaseException) -> str:
-    """The exception's own words plus the chain that actually explains it.
-
-    ``str(exc)`` is frequently the least informative part: the OpenAI SDK reports
-    every transport failure as ``APIConnectionError("Connection error.")`` and
-    leaves the socket error that caused it - a reset, a half-closed connection, a
-    server that died mid-upload - reachable only through ``__cause__``. Logging the
-    bare string is what turned a wedged model server into an unexplained
-    ``api_error``, so the causes are walked and the HTTP status and body of a
-    status error are pulled in alongside.
-    """
+    """The exception's own words plus the ``__cause__`` chain that actually explains it."""
     parts: list[str] = []
     current: BaseException | None = exc
     while current is not None and len(parts) < 4:
@@ -132,19 +105,7 @@ def describe_exception(exc: BaseException) -> str:
 
 
 def describe_empty_completion(response: object) -> str:
-    """Why a request that the server answered normally carried no text.
-
-    This is the failure that reports nothing anywhere: the server returns 200, the
-    choice says it stopped of its own accord, ``completion_tokens`` is 0, and the
-    content is an empty string - so the model server logs a served request, the SDK
-    raises nothing, and the job used to record a bare ``api_error``. Everything the
-    response does carry is worth having, because which field looks wrong is what
-    separates the causes: a ``length`` finish means the generation budget ran out,
-    a ``prompt_tokens`` well below what the same request reports on its own means the
-    server reused a prompt prefix that did not belong to it, and content that is
-    empty while ``reasoning_content`` is not means the model spent the whole budget
-    thinking.
-    """
+    """Why a 200 response carried no usable assistant text."""
     choices = _field(response, "choices") or []
     if not choices:
         return "the response carried no choices"
@@ -175,23 +136,11 @@ def run_chat_completion(
     model: str | None = None,
     max_tokens: int | None = None,
 ) -> str | None:
-    """Send a chat completion, returning the assistant text or ``None`` on failure.
-
-    ``messages`` is passed through untouched, so a caller sends whatever content
-    shape it needs: a media parts list from ``vision.vision_messages``, or a plain
-    string for a text-only job.
-
-    Both ways of coming back empty are logged before ``None`` is returned. Neither
-    used to be: an exception was reduced to ``str(exc)``, and a well-formed response
-    that simply contained no text was returned as ``None`` in complete silence, which
-    is the whole reason a failed video looked like nothing had happened at all.
-    """
     profile = get_sampling_profile(mode)
     resolved_model = model if model is not None else get_openai_model()
     outbound = messages
     if mode == "instruct":
-        # Empty-think prefill skips reasoning on hybrid Qwen models; kwargs for servers
-        # that honor them (vLLM, some LM Studio builds). Prefill helps when kwargs are ignored.
+        # Prefill skips thinking on hybrid Qwen; helps when extra_body kwargs are ignored.
         outbound = [*messages, {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}]
 
     try:
@@ -234,11 +183,7 @@ def run_chat_completion(
 
 @dataclass(frozen=True)
 class ModelOutcome[T]:
-    """One model attempt. ``status`` is ``SUCCESS`` when ``value`` is usable.
-
-    A failed attempt may still carry a ``value`` so callers can report what the
-    model kept producing (e.g. a caption that came back too short every time).
-    """
+    """One attempt; failed outcomes may still carry ``value`` for reporting."""
 
     status: str
     value: T | None = None
@@ -246,11 +191,7 @@ class ModelOutcome[T]:
 
 
 def close_model_client(client: object) -> None:
-    """Best-effort teardown of a client that will not be used again.
-
-    Safe to call twice: a cancelled job closes the client the moment it abandons an
-    in-flight request, and ``model_client`` closes it again when the run unwinds.
-    """
+    """Best-effort teardown; safe to call twice."""
     close = getattr(client, "close", None)
     if close is None:
         return
@@ -263,12 +204,7 @@ def close_model_client(client: object) -> None:
 
 @contextmanager
 def model_client() -> Iterator[Any]:
-    """A model client scoped to one job run.
-
-    The client owns a connection pool, so a run that walked away from it would leave
-    that pool alive until the process collected it - one per run, on a server that
-    stays up across many.
-    """
+    """A model client scoped to one job run."""
     client = create_openai_client()
     try:
         yield client
@@ -280,13 +216,7 @@ def _await_attempt[T](
     attempt: Callable[[], ModelOutcome[T]],
     should_cancel: Callable[[], bool],
 ) -> ModelOutcome[T] | None:
-    """Run ``attempt`` on a helper thread, returning ``None`` when cancellation wins the race.
-
-    A model request blocks in a socket read that cannot be interrupted, so a cancelled job
-    stops waiting for it rather than holding the whole job hostage until the server answers.
-    The abandoned thread ends on its own once the request completes or hits its timeout, and
-    its result is discarded: every file write happens after this returns, never inside it.
-    """
+    """Run ``attempt`` on a helper thread; ``None`` if cancellation wins the uninterruptible socket wait."""
     outcomes: list[ModelOutcome[T]] = []
     failures: list[Exception] = []
 
@@ -319,15 +249,7 @@ def call_with_retries[T](
     on_abandon: Callable[[], None] | None = None,
     attempts: int = MAX_MODEL_ATTEMPTS,
 ) -> ModelOutcome[T]:
-    """Run ``attempt`` until it succeeds, the attempts run out, or the job is cancelled.
-
-    The last failing outcome is returned once the attempts are exhausted. ``on_abandon``
-    runs when cancellation drops a request that is still in flight.
-
-    ``attempt`` is handed its own 1-based number, which is how a retry can tell it is
-    one and send something other than the payload that just failed - see
-    ``vision.retry_jpeg_quality``. A text-only job has no such payload and ignores it.
-    """
+    """Retry ``attempt`` until success, exhaustion, or cancel; ``on_abandon`` runs if an in-flight request is dropped."""
     outcome: ModelOutcome[T] = ModelOutcome(status=API_ERROR)
 
     for number in range(1, attempts + 1):

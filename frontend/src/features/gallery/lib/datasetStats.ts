@@ -1,16 +1,7 @@
-/**
- * What a folder looks like as training data, derived entirely in the browser.
- *
- * Every input is already on the gallery item - `description` carries the full caption
- * text, not a truncation - so this needs no endpoint of its own and costs nothing the
- * folder listing has not already paid for.
- */
-
 import { isGif, isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
 
-/** Words too common to say anything about a dataset. */
 const STOP_WORDS = new Set([
   "a",
   "an",
@@ -47,7 +38,6 @@ const STOP_WORDS = new Set([
 
 const TOP_WORD_LIMIT = 15;
 
-/** Upper bound of each megapixel bucket; anything larger lands in the last one. */
 const MEGAPIXEL_BUCKETS = [
   { label: "< 0.3 MP", max: 0.3 },
   { label: "0.3 – 0.5 MP", max: 0.5 },
@@ -59,7 +49,6 @@ const MEGAPIXEL_BUCKETS = [
   { label: "> 48 MP", max: Number.POSITIVE_INFINITY },
 ] as const;
 
-/** Upper bound of each video-duration bucket, in seconds. */
 const DURATION_BUCKETS = [
   { label: "0 – 2 s", max: 2 },
   { label: "2 – 4 s", max: 4 },
@@ -70,7 +59,6 @@ const DURATION_BUCKETS = [
   { label: "> 15 s", max: Number.POSITIVE_INFINITY },
 ] as const;
 
-/** Upper bound of each caption-length bucket, in characters. */
 const LENGTH_BUCKETS = [
   { label: "< 256", max: 256 },
   { label: "256 – 400", max: 400 },
@@ -82,11 +70,6 @@ const LENGTH_BUCKETS = [
   { label: "> 1400", max: Number.POSITIVE_INFINITY },
 ] as const;
 
-/**
- * Named training buckets, square first, then landscape widening, then the matching
- * portraits. Anything farther than 15% from all of these is "Other" — ultrawide
- * and odd phone crops, not a silent snap to 16:9.
- */
 const ASPECT_RATIO_BUCKETS = [
   { label: "1:1", ratio: 1 },
   { label: "4:3", ratio: 4 / 3 },
@@ -99,7 +82,6 @@ const ASPECT_RATIO_BUCKETS = [
 
 const OTHER_ASPECT_LABEL = "Other";
 
-/** Relative drift from a named ratio before a file is counted as Other. */
 const ASPECT_RATIO_MAX_DRIFT = 1.15;
 
 export interface StatBucket {
@@ -116,13 +98,11 @@ export interface MediaTypeStats {
   images: number;
   videos: number;
   gifs: number;
-  /** Filename suffixes present in each type, most common first. Dotted lowercase. */
   extensions: {
     images: string[];
     videos: string[];
     gifs: string[];
   };
-  /** Every suffix in the folder with its file count, most common first. The mix bar. */
   byExtension: StatBucket[];
 }
 
@@ -133,27 +113,15 @@ export interface CaptionLengthStats {
   buckets: StatBucket[];
 }
 
-/**
- * What the folder needs before it is worth training on.
- *
- * Named counts rather than a labelled list: these used to be rows of filter buttons,
- * and the labels were their display text. Nothing renders them as a list any more, so
- * reading them back out by matching on a display string would be a trap the next
- * wording change springs.
- */
 export interface DatasetFindings {
   captioned: number;
   missingCaption: number;
-  /** Files carrying a caption issue from verify-captions. */
   captionIssues: number;
-  /** Files in a duplicate group. */
   duplicates: number;
-  /** How many groups those files span, which is what the resolver walks. */
   duplicateGroups: number;
 }
 
 export interface DatasetStats {
-  /** Media files only; the .sysprompt is not part of the dataset. */
   total: number;
   findings: DatasetFindings;
   captionLength: CaptionLengthStats | null;
@@ -161,11 +129,8 @@ export interface DatasetStats {
   mediaTypes: MediaTypeStats;
   megapixels: StatBucket[];
   aspectRatios: StatBucket[];
-  /** Files whose dimensions are unknown, e.g. every non-MP4-family video. */
   unknownResolution: number;
-  /** Video length in seconds; stills, GIFs, and videos without a header duration stay out. */
   durations: StatBucket[];
-  /** Videos whose length is unknown, e.g. every non-MP4-family container. */
   unknownDuration: number;
 }
 
@@ -248,8 +213,6 @@ function countWords(captions: string[]): WordCount[] {
   const counts = new Map<string, number>();
 
   for (const caption of captions) {
-    // Split on anything that is not a letter, digit, or intra-word apostrophe, so
-    // punctuation and the comma-separated tag style both tokenize the same way.
     for (const raw of caption.toLowerCase().split(/[^\p{L}\p{N}']+/u)) {
       const word = raw.replace(/^'+|'+$/g, "");
       if (word.length < 2 || STOP_WORDS.has(word)) continue;
@@ -264,8 +227,7 @@ function countWords(captions: string[]): WordCount[] {
 }
 
 export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
-  // The .sysprompt carries captioning instructions in its description; counting it
-  // would report the instructions as if they were a caption.
+  // .sysprompt description is captioning instructions, not a caption.
   const media = items.filter((item) => !isSysPrompt(item));
 
   const captions: string[] = [];
@@ -276,7 +238,6 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
   let captioned = 0;
   let issues = 0;
   let duplicates = 0;
-  // Group ids, so a folder with one four-way match reports one group rather than four.
   const duplicateGroups = new Set<string>();
   let ungroupedDuplicates = 0;
   let images = 0;
@@ -293,8 +254,7 @@ export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
 
     if (item.has_duplicate_file) {
       duplicates += 1;
-      // A flagged file with no group id counts as a group of its own - the safe
-      // direction, since a group is then never under-reported.
+      // No group id counts as its own group so a group is never under-reported.
       if (item.duplicate_group) duplicateGroups.add(item.duplicate_group);
       else ungroupedDuplicates += 1;
     }

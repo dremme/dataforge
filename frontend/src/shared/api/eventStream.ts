@@ -6,14 +6,6 @@ const TAB_ID_KEY = "server-events-tab";
 
 let cachedTabId: string | null = null;
 
-/**
- * This tab's identity on the push channel, so the server can address folder events
- * to the tab that is actually looking at that folder.
- *
- * `sessionStorage` is per-tab and survives a reload. The module-level memo is what
- * makes the id stable when storage is unavailable, where every read would otherwise
- * mint a new one.
- */
 export function serverEventsTabId(): string {
   if (cachedTabId) return cachedTabId;
 
@@ -32,16 +24,9 @@ export function serverEventsTabId(): string {
 
 export interface ServerEventHandlers {
   onEvent: (event: ServerEvent) => void;
-  /** Called on every connect and every drop. `EventSource` retries on its own. */
   onConnectedChange: (connected: boolean) => void;
 }
 
-/**
- * Subscribe to the server's push channel. Returns an unsubscribe function.
- *
- * Where `EventSource` does not exist the subscription is inert and never reports a
- * connection, which leaves the caller's fallback poll in charge.
- */
 export function subscribeToServerEvents({
   onEvent,
   onConnectedChange,
@@ -60,15 +45,11 @@ export function subscribeToServerEvents({
     try {
       frame = JSON.parse(message.data);
     } catch {
-      // One unreadable frame is not worth tearing down a working stream.
       return;
     }
 
     if (!isServerEvent(frame)) {
-      // Nothing downstream re-checks: a job frame is upserted by id and anything else
-      // is read as an external-jobs frame, so a malformed one would land as `undefined`
-      // rather than fail. Warn once, because a mismatch here means the two halves of
-      // the app disagree about the wire format, not that a packet went bad.
+      // Warn once: a mismatch is a schema drift, and an unguarded frame would land as undefined.
       if (!warnedOnMismatch) {
         warnedOnMismatch = true;
         console.warn("Ignoring a server event that does not match the wire schema.");

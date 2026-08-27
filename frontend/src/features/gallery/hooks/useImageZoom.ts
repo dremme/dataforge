@@ -38,7 +38,7 @@ export function originFromPointer(
   };
 }
 
-/** Prefer the requested zoom, but never paint larger than the source pixels allow. */
+/** Never paint larger than the source pixels allow. */
 export function effectiveZoomScale(
   requestedScale: number,
   viewport: ImageSize,
@@ -52,12 +52,6 @@ export function effectiveZoomScale(
   return Math.max(1, Math.min(requestedScale, maxSharpScale));
 }
 
-/**
- * Layout for a zoomed canvas anchored at the viewport's top-left.
- * Origin is the pointer position in the viewport (0–100%).
- * Pan keeps that viewport point over the matching image point and stays
- * within [-(scaled - viewport), 0] so edges are never overscrolled.
- */
 export function zoomCanvasLayout(
   viewport: ImageSize,
   origin: ImageZoomOrigin,

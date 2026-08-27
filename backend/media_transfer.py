@@ -1,8 +1,4 @@
-"""Move or copy media files together with the sidecars that belong to them.
-
-Both directions share one path: they differ only in whether the source survives,
-so only the per-file operation and the undo-on-failure step are mode-aware.
-"""
+"""Move or copy media files together with the sidecars that belong to them."""
 
 from __future__ import annotations
 
@@ -27,7 +23,6 @@ TransferMode = Literal["copy", "move"]
 
 
 def related_media_paths(media_path: Path) -> list[Path]:
-    """The media file plus every sidecar that belongs to it, in a stable order."""
     paths = [media_path]
 
     for extension in sorted(SIDECAR_EXTENSIONS):
@@ -35,13 +30,7 @@ def related_media_paths(media_path: Path) -> list[Path]:
         if sidecar.is_file():
             paths.append(sidecar)
 
-    # Named explicitly for the same reason the issue and duplicate sidecars are: none of
-    # these is one `with_suffix` away from the media name. The backup travels because a
-    # file that arrives without it silently stops being revertible.
-    #
-    # A *candidate* deliberately does not travel. It lives in the staging folder under
-    # this same filename, so listing it here would have it written to the media's own
-    # destination and overwrite the file that just moved.
+    # Not `with_suffix` names. A candidate does not travel: it lives in staging under this filename.
     for extra in (
         issue_file_path(media_path),
         duplicate_file_path(media_path),
@@ -55,20 +44,11 @@ def related_media_paths(media_path: Path) -> list[Path]:
 
 
 def sidecar_suffix(media_path: Path, related: Path) -> str:
-    """The part of ``related``'s name after the media stem, e.g. ``.issue.json``.
-
-    ``Path.suffix`` only reports the last extension, so it would collapse
-    ``photo.issue.json`` onto ``.json``.
-    """
+    """The part after the media stem. ``Path.suffix`` would collapse ``photo.issue.json`` onto ``.json``."""
     return related.name[len(media_path.stem) :]
 
 
 def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[str, list[str]]:
-    """Split ``source_paths`` into what can land, what collides, and what has nowhere to go.
-
-    Mode-independent: a file already sitting in the destination can neither be
-    moved there nor copied alongside itself, so both modes skip it.
-    """
     destination = destination.resolve()
     existing_names = _existing_file_names(destination)
 
@@ -96,14 +76,7 @@ def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[
 
 
 def move_one_file(source: Path, destination: Path) -> None:
-    """Move a single file, replacing ``destination``, without ever leaving a stray copy.
-
-    ``shutil.move`` answers a failed rename by copying and then deleting the source. When
-    the source cannot be deleted — on Windows, any other process holding it open blocks
-    that — the copy stays at the destination while the original stays put, so one "moved"
-    file ends up in both folders. Rename instead, and only copy for a genuine cross-volume
-    move, undoing the copy when the original survives.
-    """
+    """Rename, and only copy for a cross-volume move. ``shutil.move`` can leave a stray copy on Windows."""
     try:
         os.replace(source, destination)
         return
@@ -127,10 +100,7 @@ def transfer_one_file(source: Path, destination: Path, mode: TransferMode) -> No
 
 
 def undo_transfer(done: list[tuple[Path, Path]], mode: TransferMode) -> None:
-    """Unwind a half-finished group, so a failure never splits media from its sidecars.
-
-    A move puts the originals back; a copy leaves them alone and drops what it wrote.
-    """
+    """Unwind a half-finished group so a failure never splits media from its sidecars."""
     if mode == "copy":
         for _origin, destination in reversed(done):
             try:
@@ -149,11 +119,7 @@ def undo_transfer(done: list[tuple[Path, Path]], mode: TransferMode) -> None:
 
 
 def discard_replaced_sidecars(destination_media: Path, arrived_names: set[str]) -> None:
-    """Drop sidecars of the replaced destination file that the source did not bring along.
-
-    Runs only once the whole group has landed, so an aborted transfer never costs
-    the destination the caption it already had.
-    """
+    """Drop destination sidecars the source did not bring. Runs only after the whole group has landed."""
     for path in related_media_paths(destination_media):
         if path.name in arrived_names:
             continue

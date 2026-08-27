@@ -55,11 +55,7 @@ function drag(element: Element, dx: number, dy: number) {
   fireEvent.pointerUp(element, { pointerId: 1 });
 }
 
-/**
- * jsdom ships neither `PointerEvent` nor the pointer capture API. Without the class,
- * Testing Library falls back to a bare `Event` and the coordinates never arrive, so a
- * drag reads as `NaN` rather than as a distance.
- */
+/** jsdom has neither PointerEvent nor pointer capture; without this a drag reads as NaN. */
 class PointerEventPolyfill extends MouseEvent {
   readonly pointerId: number;
 
@@ -92,11 +88,7 @@ describe("CropOverlay", () => {
   });
 
   it("sits over the painted frame, not over the box it is positioned in", () => {
-    // It is absolutely positioned against the stage, which pads the video in and
-    // centres it. Measuring only inside the element put the whole rect up and to the
-    // left by exactly that padding. Layout offsets are used rather than a client rect
-    // so an ancestor transform - the modal's own entrance animation carries one -
-    // cannot scale the result a second time on the way into `left` and `width`.
+    // Offset by host padding; layout offsets, not a client rect, so no transform scales it twice.
     renderOverlay();
 
     const overlay = screen.getByRole("group", { name: "Crop region" });
@@ -221,9 +213,7 @@ describe("CropOverlay", () => {
   });
 
   describe("on a turned preview", () => {
-    // The overlay rides inside the host's transform, so the browser puts the rectangle on
-    // the rotated pixels for free. What it cannot do is tell a drag which way it went:
-    // these cover the mapping back into the frame the crop is measured in.
+    // Overlay rides the host transform; these cover mapping a drag back into the crop frame.
     const turned = (overrides: Partial<Orientation>): Orientation => ({
       rotate: 0,
       mirrorH: false,

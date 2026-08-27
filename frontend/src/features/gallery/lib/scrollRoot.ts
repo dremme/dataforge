@@ -1,8 +1,6 @@
 import { getAppScrollElement } from "@/shared/lib/appScroll";
 
-/** Start loading roughly one row ahead of the viewport. */
 const GALLERY_MEDIA_LOAD_MARGIN_PX = 400;
-/** Keep loaded previews until several rows outside the viewport. */
 export const GALLERY_MEDIA_KEEP_MARGIN_PX = 1200;
 
 export type GalleryMediaZonePriority = "visible" | "prefetch" | "hidden";
@@ -17,10 +15,7 @@ export function getGalleryScrollRoot(): HTMLElement | null {
   return getAppScrollElement();
 }
 
-/**
- * Scroll a container to the top in a way that survives virtualized list remeasurement.
- * Browser `behavior: "smooth"` often stalls when row heights change mid-scroll.
- */
+/** Smooth scroll often stalls when virtualized row heights change mid-scroll. */
 export function scrollContainerToTop(scrollElement: HTMLElement): () => void {
   let cancelled = false;
   let rafId = 0;
@@ -121,7 +116,6 @@ export function getGalleryMediaZones(
 ): GalleryMediaZones {
   const targetRect = element.getBoundingClientRect();
   if (targetRect.width === 0 && targetRect.height === 0) {
-    // Layout may not be measured yet; trust IntersectionObserver when it reports visible.
     if (isIntersectingHint) {
       return {
         shouldLoad: true,

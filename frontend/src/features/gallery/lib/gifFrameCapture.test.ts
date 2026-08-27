@@ -21,8 +21,7 @@ describe("gifFrameTargetName", () => {
   });
 
   it("cannot collide with a video frame from the same stem", () => {
-    // The video path stamps milliseconds, so `clip.mp4` and `clip.gif` in one
-    // folder must never resolve to the same target name.
+    // Video stamps milliseconds, so clip.mp4 and clip.gif in one folder must never share a target name.
     expect(gifFrameTargetName("clip.gif", 4500)).toBe("clip_f4500.jpg");
   });
 

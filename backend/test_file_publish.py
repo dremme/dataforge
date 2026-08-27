@@ -1,5 +1,3 @@
-"""Unit tests for publishing a temp file onto a name that may still be open."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database

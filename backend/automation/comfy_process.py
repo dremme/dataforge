@@ -1,13 +1,4 @@
-"""Run every image in a folder through a ComfyUI workflow, staging the results.
-
-Upscaling, watermark removal and defect repair all have the same shape: one graph, one
-image at a time, and a result nobody should trust sight unseen. So this job never writes
-into the dataset. Each result lands in ``<folder>/staging/`` under the source's own name,
-beside a record of what produced it, and the review queue decides what becomes real.
-
-The graph itself stays in ComfyUI, where it is authored and where it belongs. A preset is
-an API-format export with its input and output nodes titled; see ``external.comfy_workflows``.
-"""
+"""Run every image in a folder through a ComfyUI workflow, staging the results."""
 
 from __future__ import annotations
 
@@ -69,16 +60,7 @@ from schemas import ComfyCandidateSidecar
 
 logger = logging.getLogger(__name__)
 
-#: Every terminal outcome one file can reach, summed into the job's ``processed`` count.
-#: A run that handled every file has to end at ``total``, so each new ``FileOutcome``
-#: status belongs here - ``skipped`` included, because the job looked at that file and
-#: decided there was nothing to do, which is handled rather than pending. Leaving it out
-#: is what stalled a 76-image run at 74/76.
-#:
-#: ``cancelled`` is deliberately absent: it also counts the files that were never
-#: started, so counting it would report a cancelled run as complete. And the keys are
-#: listed rather than falling back to the number of results because ``stats`` also
-#: carries the ``seconds_per_image`` gauge, which is not a count of anything.
+# Terminal per-file statuses. Omit ``cancelled`` or a cancelled run looks complete.
 PROCESSED_STAT_KEYS = (
     "success",
     "skipped",
@@ -92,10 +74,7 @@ ShouldCancel = Callable[[], bool]
 
 NO_OUTPUT_MESSAGE = "The workflow produced no image"
 
-# ComfyUI runs one graph at a time on one GPU. Holding this across submit-and-wait keeps
-# at most one DataForge image in its queue, so two jobs on two folders interleave whole
-# images rather than piling up behind each other with meaningless ETAs - and so the
-# interrupt below can only ever be aimed at our own prompt.
+# One image in ComfyUI at a time so interrupt can only target our own prompt.
 _gpu_lock = threading.Lock()
 
 
@@ -115,13 +94,7 @@ def validate_comfy_process_folder(
     selected_paths: list[Path] | None = None,
     **_ignored: object,
 ) -> None:
-    """Refuse at queue time what would otherwise fail on the first file.
-
-    Deliberately does not probe ComfyUI. Starting ComfyUI and opening this dialog race
-    each other, and a job that fails on file one with the reason attached is already
-    loud enough - unlike ``train_lora``, nothing here has to reach a remote service in
-    order to *create* anything.
-    """
+    """Refuse at queue time what would otherwise fail on the first file. Does not probe ComfyUI."""
     if not folder.is_dir():
         raise ValueError(f"Folder not found: {folder}")
 
@@ -140,13 +113,10 @@ def validate_comfy_process_folder(
     try:
         workflow = load_comfy_workflow(preset)
     except ComfyWorkflowError as exc:
-        # ValueError is what queue_job lets through as a 400; a ComfyWorkflowError would
-        # escape the route as a 500 and lose the message that names the fix.
+        # ValueError is a 400; ComfyWorkflowError would escape the route as a 500.
         raise ValueError(str(exc)) from exc
 
-    # Refuse rather than drop it. `build_comfy_prompt` has nowhere to put the text when
-    # the preset carries no prompt node, and a run that quietly ignored what the user
-    # typed would look like the prompt simply had no effect on the model.
+    # Refuse rather than drop a prompt when the preset has no prompt node.
     if prompt_text.strip() and workflow.prompt_node is None:
         raise ValueError(
             f'The preset "{preset}" has no node titled "{PROMPT_NODE_TITLE}", so there is '
@@ -159,13 +129,7 @@ def validate_comfy_process_folder(
 
 
 def _request_stop(client: httpx.Client, prompt_id: str) -> None:
-    """Take our prompt out of ComfyUI, without touching anyone else's.
-
-    ``/interrupt`` has no prompt argument: it kills whatever is executing right now,
-    which may be another job's image or the user's own work in the ComfyUI tab. So the
-    queue is read first, and the blunt call is only made once our prompt is confirmed to
-    be the one running.
-    """
+    """Take our prompt out of ComfyUI; ``/interrupt`` only after the queue confirms it is ours."""
     try:
         running, pending = fetch_queue(client)
     except ComfyError:
@@ -187,12 +151,7 @@ def _await_output(
     *,
     should_cancel: ShouldCancel | None,
 ) -> dict[str, str]:
-    """Poll until the prompt finishes, and return the ref for the image it wrote.
-
-    Cancellation is checked here rather than only between files: at a minute or more per
-    image, ``run_media_job``'s between-files check would leave a cancelled job looking
-    dead for the length of whatever is in flight.
-    """
+    """Poll until the prompt finishes; cancel is checked here because one image can take a minute."""
     deadline = time.monotonic() + get_comfy_image_timeout()
     stop_requested = False
 
@@ -206,8 +165,6 @@ def _await_output(
             refs = history_outputs(entry)
             if not refs:
                 raise ComfyPromptError(NO_OUTPUT_MESSAGE)
-            # Last wins: a graph that previews an intermediate step and saves the final
-            # one lists them in execution order.
             return refs[-1]
 
         if not stop_requested and should_cancel and should_cancel():
@@ -225,19 +182,7 @@ def _await_output(
 
 
 def _write_candidate(source: Path, data: bytes, destination: Path) -> float:
-    """Save ComfyUI's bytes under the source's name, in the source's format.
-
-    Re-encoded rather than written through, because the candidate must be able to stand
-    in for the source: the review queue, the accept, and every full-filename sidecar all
-    pair the two by name, and a ``photo.jpg`` whose candidate is a PNG would orphan the
-    caption, issue and duplicate records the moment it was accepted.
-
-    Returns how far the result moved from the source, for the sidecar. Scored here rather
-    than anywhere tidier because this is the one moment both images are decoded and in
-    hand - the source was already being read for its mode and EXIF, and its pixels were
-    being thrown away. Doing it later means opening two files again, one of them an
-    upscale.
-    """
+    """Save ComfyUI's bytes in the source's format so sidecars stay paired by name."""
     try:
         with Image.open(io.BytesIO(data)) as opened:
             opened.load()
@@ -245,8 +190,6 @@ def _write_candidate(source: Path, data: bytes, destination: Path) -> float:
     except (OSError, UnidentifiedImageError) as exc:
         raise ComfyError(f"ComfyUI returned something that is not an image: {exc}") from exc
 
-    # The mode and EXIF go to the saved file; the pixels come from ComfyUI and the
-    # original's are only compared against.
     original, source_mode, exif = load_image_for_edit(source)
     difference = difference_percent(original, produced)
 
@@ -287,8 +230,7 @@ def _process_one(
         image_ref=image_ref,
         filename_prefix=f"DataForge/{job_tag}/{media_path.stem}",
         seed=seed,
-        # An empty box means "run the graph as saved", which is not the same request as
-        # writing an empty prompt into it, so it stays None rather than "".
+        # Empty box means run the graph as saved, not write "" into the prompt node.
         prompt_text=prompt_text or None,
     )
 
@@ -339,7 +281,6 @@ def run_comfy_process_job(
     job_tag = uuid.uuid4().hex[:8]
     client_id = uuid.uuid4().hex
 
-    # One client for the whole run, so three hundred images share one connection pool.
     client = httpx.Client(timeout=COMFY_TRANSFER_TIMEOUT_SECONDS)
     counter = {"index": 0}
 
@@ -398,8 +339,6 @@ def run_comfy_process_job(
         return FileOutcome(
             status="success",
             stats={"success": 1},
-            # The dead `preview` field on JobFileResult, finally carrying something: it
-            # gives the results panel a thumbnail of what was staged for free.
             fields={"preview": str(candidate_path_for(media_path))},
         )
 

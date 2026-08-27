@@ -1,5 +1,3 @@
-"""Tests for /api/media/gif-to-mp4."""
-
 from __future__ import annotations
 
 import unittest

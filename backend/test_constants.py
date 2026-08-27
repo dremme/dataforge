@@ -1,9 +1,3 @@
-"""Invariants between the media extension sets.
-
-Every set here is derived from the others by hand, and a new format is added by
-editing one line. These are the couplings that a one-line edit silently breaks.
-"""
-
 from __future__ import annotations
 
 import unittest

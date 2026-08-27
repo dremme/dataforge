@@ -95,8 +95,7 @@ describe("GalleryItemModal", () => {
       renderGifModal();
 
       const dialog = await screen.findByRole("dialog", { name: "Viewing loop.gif" });
-      // A GIF handed to a <video> shows nothing at all, so this is the whole reason
-      // "gif" is its own media type instead of folding into "video".
+      // A GIF handed to a <video> shows nothing, so gif is its own media type.
       expect(dialog.querySelector("video")).toBeNull();
       expect(within(dialog).getByRole("img", { name: "loop.gif" })).toBeInTheDocument();
     });

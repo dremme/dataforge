@@ -1,5 +1,3 @@
-"""Unit tests for folder fingerprint helpers."""
-
 from __future__ import annotations
 
 from testing_fixtures import isolate_test_database
@@ -48,11 +46,7 @@ class FolderFingerprintTests(unittest.TestCase):
             self.assertNotEqual(first, second)
 
     def test_fingerprint_changes_when_a_finding_is_written(self) -> None:
-        """Findings sit under the media's whole filename, which the signature must watch.
-
-        A job that only writes findings changes nothing else in the folder, so missing
-        them here would leave every open tab showing counts from before the run.
-        """
+        """Findings sit under the whole filename; missing them would leave open tabs on stale counts."""
         with TempMediaFolder() as root:
             media = write_media(root, "alpha.png")
             first = compute_folder_fingerprint(root)
@@ -69,11 +63,7 @@ class FolderFingerprintTests(unittest.TestCase):
             self.assertNotEqual(second, third)
 
     def test_fingerprint_changes_when_a_candidate_is_written(self) -> None:
-        """Candidates live in a child directory the parent listing does not enumerate.
-
-        Missing them here would leave the candidates filter showing yesterday's count
-        until something else forced a full refetch.
-        """
+        """Candidates live in a child directory the parent listing does not enumerate."""
         with TempMediaFolder() as root:
             write_media(root, "alpha.png")
             (root / STAGING_DIR_NAME).mkdir()

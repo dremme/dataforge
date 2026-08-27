@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Load project .env before other modules read os.environ.
+# Load .env before other modules read os.environ.
 from env_file import load_env_file
 
 load_env_file()
@@ -28,8 +28,6 @@ async def lifespan(_app: FastAPI):
     init_db()
     job_manager.initialize()
 
-    # Reclaims what jobs that rewrote media orphaned since the last run. Off the
-    # startup path, since nothing waits on it and it walks the whole cache tree.
     prune = asyncio.create_task(asyncio.to_thread(prune_thumbnail_cache))
     external_jobs = asyncio.create_task(run_external_jobs_feed())
     folder_watch = asyncio.create_task(run_folder_watch_feed())
@@ -37,9 +35,7 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
-        # Bound wait: prune walks the whole cache tree in a thread, and cancel
-        # does not interrupt it. Awaiting forever would pad every reload/exit
-        # after open SSE/media connections have already been cut off.
+        # Bound wait: prune walks the cache in a thread and cancel does not interrupt it.
         for task in (external_jobs, folder_watch, prune):
             task.cancel()
         with suppress(asyncio.TimeoutError):
@@ -61,6 +57,5 @@ app.add_middleware(
 
 app.include_router(router)
 
-# After the router: the mount answers "/" and everything below it, so the API has to
-# claim its paths first.
+# After the router: the mount answers "/" and everything below it.
 mount_ui(app)

@@ -36,8 +36,7 @@ describe("imageOriginalUrl", () => {
   });
 
   it("carries no cache token, because the backup's bytes never change", () => {
-    // A versioned URL is cached hard and immutably; the one URL here has to stay correct
-    // across every apply, so it is left to revalidate instead.
+    // Versioned URLs cache immutably; this one revalidates so it stays correct across applies.
     expect(imageOriginalUrl(PHOTO)).not.toContain("&v=");
   });
 });

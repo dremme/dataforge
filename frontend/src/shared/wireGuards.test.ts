@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isServerEvent } from "@/shared/wireGuards";
 import { job } from "@/test/fixtures";
 
-/**
- * `wireGuards.ts` is generated, so this pins the behaviour the generator has to keep:
- * `/api/events` frames are pushed rather than requested, and `JobsContext` treats
- * anything that is not a job event as an external-jobs one. A frame that slips through
- * malformed therefore reaches `setExternalJobs` as `undefined`.
- */
+/** Generated guards: a non-job `/api/events` frame must not reach setExternalJobs as undefined. */
 describe("isServerEvent", () => {
   const jobEvent = { type: "job", job: job() };
   const externalEvent = { type: "external_jobs", jobs: [], active_count: 0, available: true };

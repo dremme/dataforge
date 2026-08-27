@@ -95,10 +95,7 @@ describe("CandidateReviewModal", () => {
       </NotificationsProvider>,
     );
 
-    // The stage is the box the shared zoom scales up and paints the image across, so its
-    // shape is the image's shape or the image is stretched. The ratio sits on the grid
-    // both panes live in: the zoom origin is a percentage, so it has to mean the same
-    // place in each of them, and the grid sizes the pair from the same number.
+    // Stage aspect is the image's shape; the ratio sits on the grid so both panes share an origin.
     const compare = document.querySelector<HTMLElement>(".candidate-review-modal__compare");
     expect(document.querySelectorAll(".candidate-review-modal__stage")).toHaveLength(2);
     expect(Number(compare?.style.getPropertyValue("--stage-aspect"))).toBeCloseTo(16 / 9);
@@ -113,9 +110,7 @@ describe("CandidateReviewModal", () => {
   });
 
   it("reads both sides of every measurement into one bar", () => {
-    // Deliberately under a thousand: dimensions render through `toLocaleString`, the
-    // same as the gallery item modal's, so four digits would assert this machine's
-    // group separator rather than the layout.
+    // Under a thousand: toLocaleString would otherwise assert this machine's group separator.
     const sources = [mediaItem("a.png", HOME_PATH, { width: 480, height: 270, size: 1000 })];
     const candidates = [mediaItem("a.png", STAGING_PATH, { width: 960, height: 540, size: 4000 })];
 
@@ -131,10 +126,7 @@ describe("CandidateReviewModal", () => {
       </NotificationsProvider>,
     );
 
-    // The before/after arrow is an icon, so it contributes nothing to `textContent` and
-    // the two halves of each value sit directly against each other below. It is asserted
-    // as the element it is instead, which is also what proves the direction is drawn at
-    // all rather than the two numbers merely being adjacent.
+    // The before/after arrow is an icon, so textContent would just concatenate the two numbers.
     expect(metaItem("Dimensions")).toHaveTextContent("480×270960×540px");
     expect(metaItem("Megapixels")).toHaveTextContent("0.130.52MP");
     expect(metaItem("File size")).toHaveTextContent("1000 B3.9 KB");
@@ -249,8 +241,6 @@ describe("CandidateReviewModal", () => {
     expect(screen.getByRole("status")).toHaveTextContent("no longer in the folder");
   });
 
-  // Accepting is irreversible per file, so there is no way to settle a queue of them on
-  // one click. Every accept costs a look at both images first.
   it("offers no way to accept the queue in bulk", () => {
     renderModal();
 
@@ -267,9 +257,7 @@ describe("CandidateReviewModal", () => {
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
 
-  // Settling is a button-only decision. A stray keystroke must never be able to publish
-  // one image over another, so the arrow keys move through the queue and nothing else
-  // is bound.
+  // Accept/reject is never a keystroke.
   it("does not settle anything from a bare keypress", async () => {
     const user = userEvent.setup();
     renderModal();

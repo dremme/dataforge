@@ -1,5 +1,3 @@
-"""Typed JSON preferences backed by the SQLite ``preferences`` table."""
-
 from __future__ import annotations
 
 import json
@@ -10,12 +8,7 @@ from db import get_preference, set_preference
 
 
 def validate_or_salvage[T: BaseModel](model: type[T], data: dict) -> T:
-    """Build ``model`` from ``data``, keeping each field that validates on its own.
-
-    ``model`` must be constructible with no arguments: those defaults are what an
-    invalid field falls back to, so a bad stored value can never break the
-    endpoint that reads it.
-    """
+    """Keep each field that validates on its own. ``model`` must be constructible with no arguments."""
     try:
         return model.model_validate(data)
     except ValidationError:
@@ -35,7 +28,6 @@ def validate_or_salvage[T: BaseModel](model: type[T], data: dict) -> T:
 
 
 def _stored_mapping(key: str) -> dict | None:
-    """The row's JSON object, or ``None`` when it is missing or unusable."""
     raw = get_preference(key)
     if not raw:
         return None
@@ -49,12 +41,7 @@ def _stored_mapping(key: str) -> dict | None:
 
 
 class JsonPreference[T: BaseModel]:
-    """One preferences row holding a JSON-serialised Pydantic model.
-
-    ``model`` must be constructible with no arguments: those defaults are what a
-    missing, corrupt, or partially invalid row falls back to, field by field, so
-    a bad stored value can never break the endpoint that reads it.
-    """
+    """``model`` must be constructible with no arguments so a bad stored value cannot break the reader."""
 
     def __init__(self, key: str, model: type[T]) -> None:
         self.key = key
@@ -69,34 +56,19 @@ class JsonPreference[T: BaseModel]:
         return settings
 
     def update(self, **changes: object) -> T:
-        """Store the stored value with every non-``None`` change applied on top."""
         applied = {name: value for name, value in changes.items() if value is not None}
         return self.save(self.get().model_copy(update=applied))
 
 
 class FolderScopedEnvelope(BaseModel):
-    """The last save, plus a save per folder key.
-
-    Payloads stay untyped on purpose. Were this ``dict[str, T]``, one corrupt
-    folder entry would fail validation of the whole envelope and take every
-    other folder down with it; as plain mappings the envelope always validates
-    and each payload is salvaged on read, so a bad entry costs one folder.
-    """
+    """Payloads stay untyped: a typed ``dict[str, T]`` would fail the whole envelope on one corrupt folder."""
 
     latest: dict[str, object] | None = None
     by_folder: dict[str, dict[str, object]] = Field(default_factory=dict)
 
 
 class FolderScopedPreference[T: BaseModel]:
-    """Settings remembered per folder, falling back to the most recent save.
-
-    A folder nobody has saved for reads ``latest`` — the settings last used
-    anywhere — rather than the model defaults, so a new folder starts from
-    whatever the user is actually working with. ``folder_key`` must already be
-    canonical: callers apply :func:`filesystem.preference_folder_key`, which
-    this module deliberately does not import (it would pull the whole media
-    scanning stack into a module that only needs ``db``).
-    """
+    """Falls back to the most recent save. ``folder_key`` must already be canonical; this module does not import filesystem."""
 
     def __init__(self, key: str, model: type[T]) -> None:
         self.key = key
@@ -113,7 +85,6 @@ class FolderScopedPreference[T: BaseModel]:
         return self._model() if payload is None else validate_or_salvage(self._model, payload)
 
     def latest(self) -> T:
-        """The settings last saved for any folder."""
         payload = self._envelope.get().latest
         return self._model() if payload is None else validate_or_salvage(self._model, payload)
 

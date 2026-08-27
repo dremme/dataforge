@@ -74,12 +74,6 @@ export function useAutomationDialogOverlays({
     [folderLabel, itemCount, selectionActive],
   );
 
-  /**
-   * LoRA training is folder-wide however much is selected — AI-Toolkit trains on
-   * its own dataset folder and the backend drops the paths (`train_lora.py`). So
-   * this one reports the folder, and says why whenever a selection is active and
-   * the user would otherwise expect it to have narrowed things.
-   */
   const trainLoraScope = useMemo<DialogScopeInfo>(
     () => ({
       itemCount: folderItemCount,

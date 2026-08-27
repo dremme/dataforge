@@ -13,7 +13,6 @@ from constants import (
 from filesystem import normalize_user_path, resolve_folder
 from schemas import JobResponse
 
-# Re-export so route modules keep a single import style.
 __all__ = [
     "job_response",
     "resolve_editable_image",

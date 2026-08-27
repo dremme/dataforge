@@ -19,10 +19,6 @@ function buildMatchDecorations(view: EditorView, query: string, useRegex: boolea
   return builder.finish();
 }
 
-/**
- * Highlights spans that match the active gallery search query.
- * Empty / whitespace query yields no decorations.
- */
 export function queryMatchHighlight(query: string, useRegex: boolean): Extension {
   const trimmed = query.trim();
   if (!trimmed) return [];

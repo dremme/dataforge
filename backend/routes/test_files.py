@@ -1,5 +1,3 @@
-"""Tests for /api/files/import*."""
-
 from __future__ import annotations
 
 import io

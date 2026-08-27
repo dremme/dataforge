@@ -1,19 +1,4 @@
-"""Shared OpenAI-compatible vision LLM settings for auto-caption and verify jobs.
-
-Environment (all optional):
-
-- ``OPENAI_API_BASE_URL`` — base URL of the OpenAI-compatible server
-- ``OPENAI_API_KEY`` — only needed if the server was started with ``--api-key``
-- ``OPENAI_MODEL`` — chat ``model`` id the server expects
-- ``OPENAI_MAX_TOKENS`` — completion max tokens
-- ``OPENAI_TIMEOUT`` — seconds to wait for a model response before giving up
-- ``OPENAI_THINKING_TEMPERATURE`` / ``OPENAI_THINKING_PRESENCE_PENALTY`` / ``OPENAI_THINKING_TOP_P`` / ``OPENAI_THINKING_MIN_P`` / ``OPENAI_THINKING_REPEAT_PENALTY``
-- ``OPENAI_INSTRUCT_TEMPERATURE`` / ``OPENAI_INSTRUCT_PRESENCE_PENALTY`` / ``OPENAI_INSTRUCT_TOP_P`` / ``OPENAI_INSTRUCT_MIN_P`` / ``OPENAI_INSTRUCT_REPEAT_PENALTY``
-- ``OPENAI_TOP_K`` / min-p / repeat-penalty vars — sampling extras via ``extra_body`` (local servers)
-
-Reasoning effort and preserve-thinking are deliberately absent from that list: they are
-per-job choices made in the caption dialogs, not environment settings.
-"""
+"""Shared OpenAI-compatible vision LLM settings. Reasoning effort is a per-job choice, not an env var."""
 
 from __future__ import annotations
 
@@ -22,38 +7,26 @@ from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:8888/v1"
-# The SDK refuses to build a client without an api_key, but llama.cpp, vLLM and
-# Unsloth authenticate nothing unless started with --api-key. "EMPTY" is the
-# placeholder vLLM's own docs use: it is a required-field filler, not a credential.
+# SDK requires api_key; local servers do not. "EMPTY" is a filler, not a credential.
 DEFAULT_OPENAI_API_KEY = "EMPTY"
 DEFAULT_OPENAI_MODEL = "qwen38"
 
 DEFAULT_MAX_TOKENS = 16384
 DEFAULT_TOP_K = 20
 
-# Generous enough for a slow local GPU working through a long thinking-mode generation.
 DEFAULT_TIMEOUT_SECONDS = 600.0
-# A model server that is up answers the handshake immediately; one that is not should
-# fail fast rather than sit in the response budget.
 CONNECT_TIMEOUT_SECONDS = 10.0
 
-# 1.0 disables the repetition penalty, so it is both the default and the value
-# at which the key is left out of ``extra_body`` entirely.
+# 1.0 disables the repetition penalty; the key is omitted from extra_body at this value.
 NEUTRAL_REPEAT_PENALTY = 1.0
 
-# The chat template defaults reasoning effort to "xhigh" and accepts only
-# xhigh/medium/low, raising on anything else. Captioning is high-volume work on a
-# narrow task, where xhigh mostly buys latency, so DataForge defaults lower - and
-# because that differs from the template's own default, the key has to be sent
-# every time rather than omitted at the default the way ``repeat_penalty`` is.
+# Chat template defaults to xhigh and raises on anything else; DataForge sends medium every time.
 DEFAULT_REASONING_EFFORT = "medium"
 DEFAULT_PRESERVE_THINKING = True
 
 
 @dataclass(frozen=True)
 class SamplingProfile:
-    """Sampling knobs for one generation mode."""
-
     temperature: float
     presence_penalty: float
     top_p: float
@@ -82,7 +55,6 @@ def _env_str(name: str) -> str:
 
 
 def env_int(name: str, default: int) -> int:
-    """Public because callers outside this module parse their own vars with it."""
     raw = _env_str(name)
     if not raw:
         return default
@@ -93,13 +65,7 @@ def env_int(name: str, default: int) -> int:
 
 
 def positive_env_int(name: str, default: int) -> int:
-    """Env-configured count, ignoring a value that would switch the thing off.
-
-    Zero and below are not smaller settings, they are silent disablements: a keyframe
-    cap of 0 sends no frames, a pixel budget of 0 sends no image, and a caption
-    threshold of 0 puts every generated caption past the length check. Each comes back
-    as a bad caption rather than as an error, so the default wins instead.
-    """
+    """Ignore zero and below: they silently disable the thing rather than shrinking it."""
     value = env_int(name, default)
     return value if value > 0 else default
 
@@ -140,7 +106,6 @@ def get_openai_timeout() -> float:
 
 
 def get_sampling_profile(mode: str) -> SamplingProfile:
-    """Env-configured sampling knobs for ``mode``. Unknown modes fall back to thinking."""
     instruct = mode == "instruct"
     defaults = INSTRUCT_DEFAULTS if instruct else THINKING_DEFAULTS
     prefix = "OPENAI_INSTRUCT" if instruct else "OPENAI_THINKING"
@@ -160,20 +125,7 @@ def build_sampling_extra_body(
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
 ) -> dict[str, object]:
-    """Sampling knobs local servers accept outside the OpenAI chat schema.
-
-    ``repeat_penalty`` is the llama.cpp / LM Studio name for the knob Hugging
-    Face and vLLM call ``repetition_penalty``. It is only sent once configured
-    away from its neutral 1.0, so servers that do not recognise the key keep
-    seeing exactly the request they saw before the setting existed.
-
-    Reasoning effort gets no such treatment: the template falls back to ``xhigh``,
-    so leaving the key out would silently ignore the ``medium`` DataForge defaults
-    to. Unsloth and vLLM feed ``chat_template_kwargs`` to the Jinja render while
-    llama.cpp reads the top-level field, so it goes out both ways; a server that
-    knows neither ignores both. Instruct mode has no reasoning to size, so it
-    sends only its own kwarg.
-    """
+    """``repeat_penalty`` is omitted at 1.0. Reasoning effort is always sent: the template falls back to ``xhigh``."""
     profile = get_sampling_profile(mode)
 
     extra: dict[str, object] = {
@@ -195,12 +147,7 @@ def build_sampling_extra_body(
 
 
 def create_openai_client() -> Any:
-    """Return an OpenAI client configured from environment / defaults.
-
-    Retries are disabled because ``automation.vision.call_with_retries`` already owns
-    them; the SDK default would silently turn every attempt into three HTTP requests,
-    multiplying how long a wedged server can hold a job hostage.
-    """
+    """Retries are disabled: ``automation.vision.call_with_retries`` already owns them."""
     import httpx
     from openai import OpenAI
 
@@ -222,11 +169,7 @@ def assistant_message_text(
     *,
     allow_reasoning_fallback: bool = False,
 ) -> str:
-    """Prefer ``content``; optionally fall back to ``reasoning_content`` if empty.
-
-    Fallback is for instruct mode only (e.g. LM Studio + Gemma). Thinking mode
-    must use ``content`` only so Qwen chain-of-thought is never treated as the answer.
-    """
+    """Prefer ``content``. Fallback is instruct-only so Qwen chain-of-thought is never treated as the answer."""
     content = _message_str(message, "content")
     if content:
         return content

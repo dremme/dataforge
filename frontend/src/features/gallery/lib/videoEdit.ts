@@ -1,22 +1,10 @@
 import { clampCrop, IDENTITY_CROP, isIdentityCrop, type CropRect, type Size } from "./crop";
 import type { EditCropRect, VideoEditSpec } from "@/shared/types";
 
-/**
- * The video editing panel's arithmetic, kept pure so the panel itself only has to draw.
- *
- * The crop rectangle's geometry lives in `./crop`, shared with the image editor. What is
- * here is what only a video has - trim, speed - plus the sizing, which is video's own
- * because of the rounding: sizes are truncated to even numbers exactly the way
- * `backend/video_edit.py` writes them into the `crop=` and `scale=` filters. That parity
- * is the whole point: the panel promises the user an output resolution before the render
- * exists, and a formula that drifts from the backend's turns that promise into a quiet
- * lie. `test_video_edit.py` asserts the same table.
- */
-
+/** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
 export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
 
-/** Matches the lower bound `VideoEditSpec` enforces server-side. */
 export const MIN_SCALE = 0.05;
 export const MIN_TRIM_SECONDS = 0.1;
 
@@ -32,7 +20,6 @@ export interface VideoEditDraft {
   scale: number;
 }
 
-/** `trunc(value / 2) * 2` - the ffmpeg expression, in TypeScript. */
 export function evenTrunc(value: number): number {
   return Math.trunc(value / 2) * 2;
 }
@@ -84,19 +71,12 @@ export function outputDimensions(source: Size, crop: CropRect, scale: number): S
   return { width: evenTrunc(cropped.width * scale), height: evenTrunc(cropped.height * scale) };
 }
 
-/** The scale fraction that lands the output on ``targetWidth`` as closely as it can. */
 export function scaleForTargetWidth(source: Size, crop: CropRect, targetWidth: number): number {
   const cropped = croppedSize(source, crop);
   if (cropped.width <= 0) return 1;
   return clamp(targetWidth / cropped.width, MIN_SCALE, 1);
 }
 
-/**
- * The same for a target height.
- *
- * Both axes resolve to the one `scale` the spec carries, which is what keeps the output
- * on the source's aspect: setting either dimension moves the other with it.
- */
 export function scaleForTargetHeight(source: Size, crop: CropRect, targetHeight: number): number {
   const cropped = croppedSize(source, crop);
   if (cropped.height <= 0) return 1;
@@ -158,14 +138,7 @@ function sameCrop(a: EditCropRect | null, b: EditCropRect | null): boolean {
   );
 }
 
-/**
- * Whether two specs would render the same file.
- *
- * Compared as specs rather than as drafts because `toVideoEditSpec` has already
- * normalized the two ways of saying "no change" - a trim that reaches the end, and a
- * crop that is the whole frame - so this cannot report a difference the backend would
- * not see.
- */
+/** Compared as specs, not drafts: toVideoEditSpec normalizes trim-to-end and full crops. */
 export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
   return (
     sameNumber(a.trim_start, b.trim_start) &&
