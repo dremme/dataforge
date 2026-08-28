@@ -320,6 +320,19 @@ class FormatPreservationTests(unittest.TestCase):
                 self.assertIn("A", written.getbands())
                 self.assertEqual(written.convert("RGBA").getpixel((0, 0))[3], 0)
 
+    def test_a_paletted_png_keeps_its_transparency(self) -> None:
+        with TempMediaFolder() as root:
+            media = root / "sprite.png"
+            indexed = Image.new("P", (WIDTH, HEIGHT), 0)
+            indexed.putpalette([255, 0, 0] + [0] * 765)
+            indexed.save(media, transparency=0)
+
+            image_edit.apply_image_edit(media, ImageEditSpec(rotate=90))
+
+            with Image.open(media) as written:
+                self.assertIn("A", written.getbands())
+                self.assertEqual(written.convert("RGBA").getpixel((0, 0))[3], 0)
+
     def test_an_opaque_source_is_not_given_an_alpha_channel_it_never_had(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png", width=WIDTH, height=HEIGHT)

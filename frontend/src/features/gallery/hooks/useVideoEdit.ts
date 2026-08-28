@@ -115,6 +115,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   draftRef.current = draft;
   const durationRef = useRef(duration);
   durationRef.current = duration;
+  const seededPathRef = useRef<string | null>(null);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
   const savedSpecRef = useRef(savedSpec);
@@ -143,6 +144,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setAspectId("free");
     setPlaying(false);
     setPlayheadTime(0);
+    seededPathRef.current = null;
   }, [path]);
 
   // Separate so a listing that learns about a backup does not reset the editor.
@@ -168,8 +170,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setSourceWidth(video.videoWidth);
     setSourceHeight(video.videoHeight);
 
-    // Same duration is not a new source; treating it as one would wipe a draft in progress.
-    if (!hasUsableDuration(video.duration) || previousDuration === video.duration) return;
+    // A later durationchange is still this source. Wiping here throws away trim/crop/speed.
+    if (!hasUsableDuration(video.duration) || hasUsableDuration(previousDuration)) return;
 
     setDraft(emptyDraft(video.duration));
 
@@ -206,24 +208,26 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   // Wait for a real duration: seeding against NaN collapsed the timeline to 0:00-0:00.
   // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
   useEffect(() => {
-    if (!editMode || !path || !hasUsableDuration(duration)) return;
+    if (!editMode) {
+      seededPathRef.current = null;
+      return;
+    }
+    if (!path || !hasUsableDuration(duration) || seededPathRef.current === path) return;
 
-    let cancelled = false;
+    seededPathRef.current = path;
+    const forPath = path;
     void (async () => {
       try {
-        const state = await fetchVideoEditState(path);
-        if (cancelled || !mountedRef.current) return;
+        const state = await fetchVideoEditState(forPath);
+        if (!mountedRef.current) return;
+        if (optionsRef.current.item?.path !== forPath) return;
         setHasBackup(state.has_backup);
         setSavedSpec(state.spec ?? null);
-        seedDraft(state.spec ?? null, duration);
+        seedDraft(state.spec ?? null, durationRef.current);
       } catch {
         // Missing spec: open on an empty draft like an unedited file.
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [editMode, path, duration, seedDraft]);
 
   // Re-run on item path as well as mode: the video remounts on both, and a ref never re-runs,

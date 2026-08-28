@@ -22,7 +22,11 @@ def load_image_for_edit(source: Path) -> tuple[Image.Image, str, Image.Exif]:
             opened.load()
             # Drops Orientation so an edit is expressed against the frame the viewer sees.
             oriented = ImageOps.exif_transpose(opened) or opened
-            return oriented.convert("RGBA"), oriented.mode, oriented.getexif()
+            source_mode = oriented.mode
+            # Paletted tRNS lives on the original; convert("RGBA") drops it from info.
+            if source_mode == "P" and "transparency" in oriented.info:
+                source_mode = "PA"
+            return oriented.convert("RGBA"), source_mode, oriented.getexif()
     except OSError as exc:
         raise ImageReadError(str(exc)) from exc
 

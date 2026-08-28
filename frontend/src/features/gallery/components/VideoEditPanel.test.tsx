@@ -225,6 +225,26 @@ describe("VideoEditPanel", () => {
       expect(edit.setScale).toHaveBeenCalledWith(0.5);
     });
 
+    it("lets a width be typed without snapping back to the last output size", () => {
+      const edit = makeEdit({ outputWidth: 1920, outputHeight: 1080 });
+      renderPanel(edit);
+      fireEvent.click(tool("Size"));
+
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "9" } });
+
+      expect(screen.getByLabelText("W")).toHaveValue(9);
+    });
+
+    it("does not treat a cleared field as a scale of zero", () => {
+      const edit = makeEdit({ outputWidth: 1920, outputHeight: 1080 });
+      renderPanel(edit);
+      fireEvent.click(tool("Size"));
+
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "" } });
+
+      expect(edit.setScale).not.toHaveBeenCalled();
+    });
+
     it("offers every speed from a quarter to double", () => {
       renderPanel(makeEdit());
 

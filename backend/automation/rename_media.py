@@ -235,7 +235,7 @@ def run_rename_media_job(
     for index, (original_media, temp_media, target_media) in enumerate(temp_entries, start=1):
         if should_cancel and should_cancel():
             stats["cancelled"] = total - index + 1
-            _rollback_temp_entries(temp_entries)
+            _rollback_after_phase2_failure(temp_entries, index - 1)
             break
 
         result: dict[str, object] = {

@@ -21,6 +21,7 @@ import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import type { AppIcon } from "@/shared/icons";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
+import { SizeNumberField } from "./SizeNumberField";
 
 type ToolId = "crop" | "rotate" | "size";
 
@@ -178,46 +179,32 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                 ))}
               </ToolPresets>
               <div className="image-edit-panel__fields">
-                <label className="image-edit-panel__field">
-                  <span>W</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={edit.outputWidth}
-                    disabled={locked}
-                    onChange={(event) =>
-                      edit.setScale(
-                        scaleForTargetWidth(
-                          source,
-                          edit.draft.crop,
-                          edit.draft.rotate,
-                          Number(event.target.value),
-                        ),
-                      )
-                    }
-                  />
-                </label>
-                <label className="image-edit-panel__field">
-                  <span>H</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={edit.outputHeight}
-                    disabled={locked}
-                    onChange={(event) =>
-                      edit.setScale(
-                        scaleForTargetHeight(
-                          source,
-                          edit.draft.crop,
-                          edit.draft.rotate,
-                          Number(event.target.value),
-                        ),
-                      )
-                    }
-                  />
-                </label>
+                <SizeNumberField
+                  label="W"
+                  className="image-edit-panel__field"
+                  value={edit.outputWidth}
+                  min={1}
+                  step={1}
+                  disabled={locked}
+                  onCommit={(width) =>
+                    edit.setScale(
+                      scaleForTargetWidth(source, edit.draft.crop, edit.draft.rotate, width),
+                    )
+                  }
+                />
+                <SizeNumberField
+                  label="H"
+                  className="image-edit-panel__field"
+                  value={edit.outputHeight}
+                  min={1}
+                  step={1}
+                  disabled={locked}
+                  onCommit={(height) =>
+                    edit.setScale(
+                      scaleForTargetHeight(source, edit.draft.crop, edit.draft.rotate, height),
+                    )
+                  }
+                />
               </div>
             </>
           )}

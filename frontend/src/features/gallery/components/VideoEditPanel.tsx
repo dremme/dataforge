@@ -20,6 +20,7 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { VideoEditTimeline } from "./VideoEditTimeline";
+import { SizeNumberField } from "./SizeNumberField";
 import type { AppIcon } from "@/shared/icons";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 
@@ -198,36 +199,28 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 ))}
               </ToolPresets>
               <div className="video-edit-panel__fields">
-                <label className="video-edit-panel__field">
-                  <span>W</span>
-                  <input
-                    type="number"
-                    min={2}
-                    step={2}
-                    value={edit.outputWidth}
-                    disabled={locked}
-                    onChange={(event) =>
-                      edit.setScale(
-                        scaleForTargetWidth(source, edit.draft.crop, Number(event.target.value)),
-                      )
-                    }
-                  />
-                </label>
-                <label className="video-edit-panel__field">
-                  <span>H</span>
-                  <input
-                    type="number"
-                    min={2}
-                    step={2}
-                    value={edit.outputHeight}
-                    disabled={locked}
-                    onChange={(event) =>
-                      edit.setScale(
-                        scaleForTargetHeight(source, edit.draft.crop, Number(event.target.value)),
-                      )
-                    }
-                  />
-                </label>
+                <SizeNumberField
+                  label="W"
+                  className="video-edit-panel__field"
+                  value={edit.outputWidth}
+                  min={2}
+                  step={2}
+                  disabled={locked}
+                  onCommit={(width) =>
+                    edit.setScale(scaleForTargetWidth(source, edit.draft.crop, width))
+                  }
+                />
+                <SizeNumberField
+                  label="H"
+                  className="video-edit-panel__field"
+                  value={edit.outputHeight}
+                  min={2}
+                  step={2}
+                  disabled={locked}
+                  onCommit={(height) =>
+                    edit.setScale(scaleForTargetHeight(source, edit.draft.crop, height))
+                  }
+                />
               </div>
             </>
           )}

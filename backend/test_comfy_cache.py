@@ -7,7 +7,11 @@ isolate_test_database()
 import unittest
 from unittest.mock import patch
 
-from comfy_metadata import clear_comfy_workflow_cache_for_tests, media_has_comfy_workflow
+from comfy_metadata import (
+    clear_comfy_workflow_cache_for_tests,
+    media_has_comfy_workflow,
+    read_media_metadata_values,
+)
 from testing_fixtures import TempMediaFolder, write_media
 
 
@@ -60,6 +64,31 @@ class ComfyWorkflowCacheTests(unittest.TestCase):
                 self.assertTrue(media_has_comfy_workflow(media))
 
             self.assertEqual(probe_calls["count"], 2)
+
+
+class ComfyWorkflowReadCapTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_comfy_workflow_cache_for_tests()
+
+    def tearDown(self) -> None:
+        clear_comfy_workflow_cache_for_tests()
+
+    def test_a_png_larger_than_the_read_cap_still_yields_workflow_text(self) -> None:
+        workflow = '{"nodes": [], "last_node_id": 1}'
+        with TempMediaFolder() as root:
+            media = write_media(
+                root,
+                "comfy.png",
+                width=256,
+                height=256,
+                text_chunks={"workflow": workflow},
+            )
+            cap = 200
+            self.assertGreater(media.stat().st_size, cap)
+
+            with patch("comfy_metadata._MAX_READ_BYTES", cap):
+                self.assertTrue(media_has_comfy_workflow(media))
+                self.assertEqual(read_media_metadata_values(media).get("workflow"), workflow)
 
 
 if __name__ == "__main__":

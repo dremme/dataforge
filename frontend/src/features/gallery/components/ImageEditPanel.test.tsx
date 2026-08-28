@@ -243,6 +243,26 @@ describe("ImageEditPanel", () => {
 
       expect(vi.mocked(edit.setScale).mock.calls[0][0]).toBeCloseTo(0.5);
     });
+
+    it("lets a width be typed without snapping back to the last output size", async () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+      await openSize();
+
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "9" } });
+
+      expect(screen.getByLabelText("W")).toHaveValue(9);
+    });
+
+    it("does not treat a cleared field as a scale of zero", async () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+      await openSize();
+
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "" } });
+
+      expect(edit.setScale).not.toHaveBeenCalled();
+    });
   });
 
   describe("the output readout", () => {

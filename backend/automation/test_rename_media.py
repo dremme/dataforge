@@ -233,3 +233,41 @@ class RenameMediaJobTests(unittest.TestCase):
             )
             processed_values = [processed for processed, _total in progress_samples]
             self.assertEqual(processed_values, sorted(processed_values))
+
+    def test_cancel_during_the_second_pass_restores_every_original_name(self) -> None:
+        with TempMediaFolder() as root:
+            files = [write_media(root, name) for name in ("a.png", "b.png", "c.png")]
+            write_txt_caption(files[0], "Caption one.")
+            now = time.time()
+            for index, path in enumerate(files):
+                os.utime(path, (now - 30 + index, now - 30 + index))
+
+            cancel = {"armed": False}
+
+            def on_progress(
+                _path: str,
+                _name: str,
+                processed: int,
+                _total: int,
+                stats: dict[str, int],
+            ) -> None:
+                # Phase 2 reports file-count+index; the first of those means a final name landed.
+                if processed > stats["total"]:
+                    cancel["armed"] = True
+
+            result = run_rename_media_job(
+                root,
+                stem="sample",
+                on_progress=on_progress,
+                should_cancel=lambda: cancel["armed"],
+            )
+
+            self.assertGreater(result["stats"]["cancelled"], 0)
+            self.assertTrue((root / "a.png").is_file())
+            self.assertTrue((root / "b.png").is_file())
+            self.assertTrue((root / "c.png").is_file())
+            self.assertTrue((root / "a.txt").is_file())
+            self.assertFalse((root / "sample_001.png").exists())
+            self.assertFalse((root / "sample_001.txt").exists())
+            self.assertFalse((root / "sample_002.png").exists())
+            self.assertFalse((root / "sample_003.png").exists())

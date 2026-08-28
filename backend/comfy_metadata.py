@@ -361,6 +361,9 @@ def _read_media_bytes(file_path: Path) -> bytes:
             if size <= _MAX_READ_BYTES:
                 return handle.read()
 
+            if file_path.suffix.lower() == ".png":
+                return handle.read(_MAX_READ_BYTES)
+
             # ComfyUI/ffmpeg MP4s usually place the moov atom at the end of the file.
             handle.seek(max(0, size - _MAX_READ_BYTES))
             return handle.read()
