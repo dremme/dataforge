@@ -1,6 +1,8 @@
 import type { GalleryItem } from "@/shared/types";
 import type { MediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
+import { Icon } from "@/shared/ui/Icon";
+import { iconComfyUi } from "@/shared/brandIcons";
 
 interface GalleryItemModalMetaProps {
   item: GalleryItem;
@@ -67,6 +69,7 @@ export function GalleryItemModalMeta({
               onClick={onInspectComfyWorkflow}
               title="Show the prompts in the embedded ComfyUI workflow"
             >
+              <Icon icon={iconComfyUi} className="gallery-item-modal__meta-badge-icon" />
               ComfyUI
             </button>
             <span className="gallery-item-modal__meta-label">Workflow</span>

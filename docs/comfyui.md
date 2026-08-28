@@ -2,7 +2,7 @@
 
 Upscale, restore, or otherwise run a folder of stills through a [ComfyUI](https://github.com/comfyanonymous/ComfyUI) graph, then review each result before it replaces anything.
 
-The job never writes into the dataset. Each result lands in `<folder>/staging/` under the source's own filename, beside a `.comfy.json` recording what produced it. **Review candidates** is what makes a result real — accept publishes the candidate under the real name; reject discards it. A cancelled run, a crashed run, or a preset that turned out to be wrong all cost nothing.
+The job never writes into the dataset. Each result lands in `<folder>/staging/` as `<stem>.png` (ComfyUI only saves PNG), beside a `.comfy.json` recording what produced it. **Review candidates** is what makes a result real — accept publishes that PNG in place of the source; reject discards it. A cancelled run, a crashed run, or a preset that turned out to be wrong all cost nothing.
 
 Stills only: a ComfyUI image graph has nothing to say about a video.
 
@@ -20,27 +20,33 @@ Uploads accumulate in ComfyUI's `input/dataforge/` folder. DataForge cannot clea
 
 The **Review candidates** button appears on the automation panel once any image in the folder has a staged result. The gallery's **Candidates** file filter and a **Candidate** badge on cards and list rows mark the same files.
 
+For each image the job uploads it to ComfyUI, points the input node at the upload, runs the graph, and writes ComfyUI's PNG into `staging/` under the source's stem.
+
 ## Review candidates
 
 The review modal walks the queue side by side: the dataset file on the left, ComfyUI's result on the right, with a bar beneath reading each measurement as a change — dimensions, megapixels, file size, the resolution gain, and a difference score.
 
-**Difference** is the share of perceptual-hash bits that disagree between the source and the candidate. A hash bit compares a pixel with its neighbour, so the score is deliberately blind to the thing a prep run is _for_ — added sharpness and detail leave it where it was — and moves when content moves, vanishes, or is reframed. Expect low single digits from a clean upscale, more from de-watermarking, and 15%+ where the picture has genuinely been rearranged; two unrelated images sit near 50%.
+**Difference** is the share of perceptual-hash bits that disagree. Sharpening and added detail barely move it; content that moves, vanishes, or is reframed does. Expect low single digits from a clean upscale, more from de-watermarking, and 15%+ where the picture has genuinely been rearranged; two unrelated images sit near 50%.
 
-It is a triage aid, not a verdict. The grid is 16×16, so on a large image each cell covers roughly 128 pixels and a small local defect — a mangled hand, a botched eye — barely registers. It tells you which images deserve a longer look; the two panes are still what you decide from.
+It is a triage aid, not a verdict. The hash is a 16×16 grid, so a small local defect — a mangled hand, a botched eye — barely registers. It tells you which images deserve a longer look; decide from the two panes.
 
-The score is computed during the run, while both images are already decoded, and stored in the candidate's `.comfy.json`. Candidates staged before a score existed are scored on demand when you open them.
+The score is stored in the candidate's `.comfy.json` during the run. Candidates staged before a score existed are scored when you open them.
 
-| Action              | What it does                                                                                                                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Accept**          | Publishes the candidate under the real name, replacing the dataset file. Caption, issue, and duplicate sidecars stay with the file because the candidate was re-encoded into the source's format. |
-| **Reject**          | Discards the candidate and its `.comfy.json`. The dataset file is never opened.                                                                                                                   |
-| **Skip** / **Back** | Move through the queue without settling.                                                                                                                                                          |
+| Action              | What it does |
+| ------------------- | ------------ |
+| **Accept**          | Publishes the candidate as PNG, replacing the dataset file. A JPEG, WebP, or BMP becomes a PNG of the same stem; a PNG is overwritten in place. The caption stays (`photo.txt` already matches `photo.png`); issue and duplicate sidecars are renamed onto the new file. |
+| **Reject**          | Discards the candidate and its `.comfy.json`. The dataset file is never opened. |
+| **Skip** / **Back** | Move through the queue without settling. |
 
-A candidate whose source has been renamed, moved, or deleted since the run is kept in the queue rather than hidden — it is a real file taking up real space. It can only be discarded from here.
+A candidate whose source has been renamed, moved, or deleted since the run stays in the queue — it is a real file taking up real space. Discard it from here.
 
 Accept is refused while the image has an unreverted edit. The image editor always re-renders from `.bak`, so publishing a candidate on top would leave the next crop silently rendering from pre-ComfyUI pixels. Revert the edit, then accept.
 
-**Accepting is final.** No copy of the replaced file is kept, so the way back is to reject before accepting — which is what the side-by-side view is for. There is deliberately no "accept the rest" action: one irreversible replacement per look at the image is the whole safeguard, and a button that settled a queue of them would spend it in one click. A candidate does not travel with its source either: move, copy, rename, and delete leave it in `staging/`, because writing it to the media's own destination would overwrite the file that just moved.
+**Accepting is final.** No copy of the replaced file is kept; reject first if you might want it back. There is deliberately no "accept the rest" action: one irreversible replacement per look at the image is the whole safeguard.
+
+A candidate does not travel with its source. Move, copy, rename, and delete leave it in `staging/`.
+
+Pairing is by stem: `photo.jpg` claims `staging/photo.png`. A candidate already staged under the source's exact filename still matches, so a queue from before this change keeps working. If a sibling already uses that PNG name (`photo.jpg` next to `photo.png`), the staged file belongs to the PNG alone.
 
 ## Adding a preset
 
@@ -56,13 +62,13 @@ The two titles are only needed to break a tie: a graph with exactly one `LoadIma
 ## Optional titles
 
 - **`DataForge Seed`** — a node whose `seed` (or `noise_seed`) the job overwrites when a seed is set in the dialog. Left alone otherwise, so a seed you baked into the graph stays put.
-- **`DataForge Prompt`** — a text node whose `text` the job overwrites with the prompt typed in the dialog, the same text for every image in the run. Left alone when the box is empty, so a prompt baked into the graph stays put. The node has to hold its own text: a `text` input wired in from another node cannot be written to, and the preset is refused rather than quietly running the graph's own prompt. Typing a prompt for a preset that has no such node is refused for the same reason — the alternative is a run that looks like the model ignored you.
+- **`DataForge Prompt`** — a text node whose `text` the job overwrites with the prompt typed in the dialog, the same text for every image in the run. Left alone when the box is empty. The node has to hold its own text: a `text` input wired in from another node cannot be written to, and the preset is refused rather than quietly running the graph's own prompt. Typing a prompt for a preset that has no such node is refused for the same reason — the alternative is a run that looks like the model ignored you.
 
-## What the job does with a preset
+## Viewing an embedded workflow
 
-For each image: uploads it to ComfyUI, points the input node at the upload, runs the graph, and writes the result into the dataset's `staging/` folder under the source's own filename. Nothing in the dataset changes until you accept the candidate in the review queue.
+A PNG or MP4-family file that ComfyUI wrote carries the graph in its metadata. The detail view shows a **ComfyUI** badge when that is there; click it to read the prompts, LoRAs, and settings on the path that produced the file. A graph with several outputs lists each one, and flags the save node whose filename matches.
 
-Results are re-encoded into the source's format, because the candidate has to be able to stand in for the source — a `photo.jpg` whose candidate was a PNG would orphan its caption and finding sidecars on accept.
+This is independent of Process with ComfyUI — it reads what is already in the file, including images made outside DataForge.
 
 ## `example-lanczos-2x.json`
 

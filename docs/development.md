@@ -4,31 +4,31 @@ Working on DataForge itself. For running the app, see the [README](../README.md#
 
 ## Running with hot reload
 
-`dev.bat` (or `.\dev.ps1`) on Windows, `./dev.sh` on Linux and macOS. Either one starts the API with the
-uvicorn reloader on **http://localhost:8080** and the Vite dev server on **http://localhost:8081**, with Vite
-proxying `/api` to the API, waits until both are serving, then opens the browser and supervises them. It
-regenerates the API types first; see [Generated frontend code](#generated-frontend-code).
+`dev.bat` (or `.\dev.ps1`) on Windows, `./dev.sh` on Linux and macOS. Either one:
+
+- Regenerates the API types first; see [Generated frontend code](#generated-frontend-code)
+- Starts the API with the uvicorn reloader on **http://localhost:8080**
+- Starts the Vite dev server on **http://localhost:8081**, proxying `/api` to the API
+- Waits until both are serving, then opens the browser and supervises them
 
 | Windows | Unix | Effect |
 | --- | --- | --- |
 | `-BackendOnly` / `-FrontendOnly` | `--backend-only` / `--frontend-only` | Start just one server |
 | `-NoBrowser` | `--no-browser` | Do not open the browser |
-| `-NoReload` | `--no-reload` | Run the API without the uvicorn reloader — use this while a long job is running, since a reload re-runs job recovery and re-spawns worker threads mid-flight |
+| `-NoReload` | `--no-reload` | Run the API without the uvicorn reloader. Use this while a long job is running: a reload re-runs job recovery and re-spawns worker threads mid-flight |
 | `-Detach` | `--detach` | Exit once both are ready instead of supervising; stop them later with `stop.bat` / `./stop.sh` |
 
-The two differ in how they keep the logs apart, because the platforms make different things easy. Windows
-opens **two consoles**, so uvicorn's reload output never steps on Vite's, and needs a Win32 console-control
-handler (`Register-DevExitGuard`) to keep a closed launcher from orphaning them. Unix runs both as background
-children in their own process groups and tags their output `[api]` and `[ui]` in the one terminal, where a
-single shell trap covers Ctrl+C, `kill`, and a closed terminal alike.
+Windows opens **two consoles** so uvicorn and Vite do not interleave. Unix runs both as background
+children in one terminal and tags their output `[api]` and `[ui]`.
 
-`start-backend.ps1` and `start-frontend.ps1` run a single dev server in the current terminal and prefer
-`.python` / `.node` when present; on Unix, `./dev.sh --backend-only` and `--frontend-only` cover the same
-ground. Each platform's launchers share one helper — `scripts/dev-common.ps1` and `scripts/dev-common.sh` —
-so type regeneration, port cleanup, and the dependency-drift warning behave identically everywhere. The two
-helpers are deliberate mirrors of each other: port defaults, `.env` precedence, the build- and dependency-stamp
-filenames, and the rule that only leftover `python`/`node` processes are ever killed all match. Change one and
-change the other.
+`start-backend.ps1` and `start-frontend.ps1` run a single dev server in the current terminal and
+prefer `.python` / `.node` when present. On Unix, `./dev.sh --backend-only` and `--frontend-only`
+cover the same ground.
+
+Each platform's launchers share one helper — `scripts/dev-common.ps1` and `scripts/dev-common.sh` —
+so type regeneration, port cleanup, and the dependency-drift warning behave identically. The two
+helpers are deliberate mirrors: port defaults, `.env` precedence, stamp filenames, and the rule that
+only leftover `python`/`node` processes are ever killed all match. Change one and change the other.
 
 Without the launchers, run the two halves yourself from the project root:
 
@@ -40,25 +40,25 @@ backend/.venv/bin/python scripts/dev_server.py
 cd frontend && npm run dev
 ```
 
-`stop.bat` / `./stop.sh` frees both ports and covers either launcher. You should rarely need it: stopping a
-launcher stops the servers it started. It is for `-Detach` / `--detach`, for a server console closed by hand,
-and for the manual shape above where nothing is supervising.
+`stop.bat` / `./stop.sh` frees both ports. You should rarely need it: stopping a launcher stops the
+servers it started. It is for `-Detach` / `--detach`, for a server console closed by hand, and for
+the manual shape above where nothing is supervising.
 
 ### Checking the Unix launchers after a change
 
-They cannot be exercised on Windows — `bash -n` catches syntax errors from anywhere, but nothing past that.
-On a real Unix host, from a clean clone:
+They cannot be exercised on Windows — `bash -n` catches syntax errors from anywhere, but nothing past
+that. On a real Unix host, from a clean clone:
 
-- `./setup.sh` → `./start.sh` → the app answers on http://localhost:8081 → Ctrl+C leaves both ports free
-  (`./stop.sh` confirms).
-- `./dev.sh` → both servers come up, HMR works, Ctrl+C reaps the **uvicorn reload child**. This is the case
-  most likely to leave an orphan, so check the port is actually free afterwards.
-- `./start.sh` immediately after `./dev.sh` — the leftover Vite listener on the UI port must be cleared, not
-  fatal.
-- `./start.sh` twice — the second run should print "Frontend build is up to date" and skip the build. Then
-  `touch frontend/src/main.tsx` and confirm the next run rebuilds.
-- `nc -l 8081`, then `./start.sh` — `clear_port` must name the process and refuse, rather than killing
-  something that is not ours.
+- `./setup.sh` → `./start.sh` → the app answers on http://localhost:8081 → Ctrl+C leaves both ports
+  free (`./stop.sh` confirms).
+- `./dev.sh` → both servers come up, HMR works, Ctrl+C reaps the **uvicorn reload child**. This is
+  the case most likely to leave an orphan, so check the port is actually free afterwards.
+- `./start.sh` immediately after `./dev.sh` — the leftover Vite listener on the UI port must be
+  cleared, not fatal.
+- `./start.sh` twice — the second run should print "Frontend build is up to date" and skip the
+  build. Then `touch frontend/src/main.tsx` and confirm the next run rebuilds.
+- `nc -l 8081`, then `./start.sh` — `clear_port` must name the process and refuse, rather than
+  killing something that is not ours.
 
 ## Tech stack
 
@@ -97,7 +97,8 @@ DataForge/
 ## Generated frontend code
 
 `backend/schemas.py` and `backend/constants.py` are the single source of truth for the API contract.
-[`scripts/generate_types.py`](../scripts/generate_types.py) writes three files from them, so nothing is mirrored by hand:
+[`scripts/generate_types.py`](../scripts/generate_types.py) writes three files from them, so nothing
+is mirrored by hand:
 
 | File | Contents |
 | --- | --- |
@@ -105,25 +106,24 @@ DataForge/
 | `frontend/src/shared/constants.ts` | `constants.SHARED_CONSTANTS` |
 | `frontend/src/shared/wireGuards.ts` | Runtime guards for `schemas.GUARDED_WIRE_MODELS` |
 
-All three are **gitignored**, so a fresh clone does not have them, and two of them carry real values rather
-than types alone — the frontend will not build or start until they exist.
+All three are **gitignored**. A fresh clone does not have them, and two of them carry real values
+rather than types alone — the frontend will not build or start until they exist.
 
-They are generated by the setup scripts, by `scripts/run_checks.py` before anything compiles, and by every
-launcher on every run. The launchers do it because gitignored files are exactly the ones git leaves alone
-when you switch branches — they keep the other branch's shape, with a perfectly ordinary
-mtime, and an existence check cannot tell that from a fresh one. Regenerating only rewrites a file whose
-content actually changed, so an unchanged shape still leaves the launchers' build-freshness check alone.
+They are generated by the setup scripts, by `scripts/run_checks.py` before anything compiles, and by
+every launcher on every run. The launchers do it so a branch switch cannot leave the other branch's
+contract sitting in a gitignored file. Regenerating only rewrites a file whose content actually
+changed, so an unchanged shape still leaves the launchers' build-freshness check alone.
 
-Generate them by hand after editing `schemas.py` or `constants.py` during a running dev session — nothing
-regenerates until the next launch or the next `run_checks.py`.
+Generate them by hand after editing `schemas.py` or `constants.py` during a running dev session —
+nothing regenerates until the next launch or the next `run_checks.py`.
 
-**Never edit these files.** They carry a `Do not edit` header and the next generator run overwrites them;
-frontend-only shapes belong in the module that uses them.
+**Never edit these files.** They carry a `Do not edit` header and the next generator run overwrites
+them. Frontend-only shapes belong in the module that uses them.
 
 ## Commands
 
-Run these from the **project root** using the backend venv Python — `backend\.venv\Scripts\python.exe` on
-Windows, `backend/.venv/bin/python` on Unix:
+Run these from the **project root** using the backend venv Python — `backend\.venv\Scripts\python.exe`
+on Windows, `backend/.venv/bin/python` on Unix:
 
 | Task | Command |
 | --- | --- |

@@ -2,6 +2,17 @@
 
 How to configure DataForge after the [quick start](../README.md#quick-start).
 
+- [The `.env` file](#the-env-file)
+- [Server ports](#server-ports)
+- [Vision LLM](#vision-llm)
+- [Audio captioning](#audio-captioning)
+- [Sampling knobs](#sampling-knobs)
+- [Still image detail](#still-image-detail)
+- [Video keyframe sampling](#video-keyframe-sampling)
+- [Draft caption length](#draft-caption-length)
+- [Reasoning effort](#reasoning-effort)
+- [Paths, integrations, and logging](#paths-integrations-and-logging)
+
 ## The `.env` file
 
 On startup the backend loads the **first** file that exists:
@@ -23,15 +34,14 @@ OS and shell environment variables always win over the file. `.env` is gitignore
 Production serves both halves from one process, so `DATAFORGE_API_PORT` is never bound there and CORS
 never applies.
 
-All four readers — [`frontend/vite.config.ts`](../frontend/vite.config.ts), [`backend/server_settings.py`](../backend/server_settings.py),
-[`scripts/dev_server.py`](../scripts/dev_server.py), and [`scripts/dev-common.ps1`](../scripts/dev-common.ps1) — resolve these
-from the same project-root `.env`, and an OS environment variable overrides the file in each.
-Restart the servers after a change; Vite reads its port once at startup.
+The API, Vite, and the launchers all read these from the same project-root `.env`. An OS environment
+variable overrides the file. Restart the servers after a change; Vite reads its port once at startup.
 
 ## Vision LLM
 
-DataForge talks to any **OpenAI-compatible** vision endpoint. Load a model in llama.cpp, Unsloth, or similar before
-running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — not necessarily the Hugging Face repo name.
+DataForge talks to any **OpenAI-compatible** vision endpoint. Load a model in llama.cpp, Unsloth, or
+similar before running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — not
+necessarily the Hugging Face repo name.
 
 **Suggested models, best first:**
 
@@ -46,8 +56,9 @@ running AI jobs, and set `OPENAI_MODEL` to the **id your server exposes** — no
 | [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) | Lighter VLM for smaller GPUs |
 
 [Gemma 4 31B it](https://huggingface.co/google/gemma-4-31B-it) and [Gemma 4 26B A4B it](https://huggingface.co/google/gemma-4-26B-A4B-it)
-also work with some tuning. Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`, where the
-Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in instruct mode and leave `OPENAI_THINKING_*` alone.
+also work with some tuning. Gemma-family models typically want `OPENAI_INSTRUCT_REPEAT_PENALTY` around `1.1`,
+where the Qwen3.6 defaults leave it disabled. They have no thinking mode, so run them in instruct mode and
+leave `OPENAI_THINKING_*` alone.
 
 **Connection settings** — defaults target a local server:
 
@@ -74,23 +85,21 @@ your media. No API key is needed unless you start the server with `--api-key`.
 
 ### Audio captioning
 
-Video models that condition on sound need captions that say what a clip *sounds* like,
-which keyframes alone cannot supply. Tick **Caption audio** in the auto-caption dialog and each MP4's audio track
-is sent in the same request as its keyframes, with a line added to the system prompt asking the model to describe
-what it hears.
+Video models that condition on sound need captions that say what a clip *sounds* like, which keyframes
+alone cannot supply. Tick **Caption audio** in the auto-caption dialog and each MP4's audio track is
+sent in the same request as its keyframes.
 
 This needs an **omni** model — one that accepts audio input, such as
-[Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) — served by a backend
-built with audio support. A vision-only model ignores the audio and captions the frames as usual, so the option
-is off by default. Set `OPENAI_MODEL` to the omni model's id as your server exposes it.
-
-Details worth knowing:
+[Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct) — served by a
+backend built with audio support. A vision-only model ignores the audio and captions the frames as
+usual, so the option is off by default. Set `OPENAI_MODEL` to the omni model's id as your server
+exposes it.
 
 - Only the **first 15 seconds** of a clip are sent — as much as current local omni models take
-- Clips with no audio track are **still captioned** from their keyframes — the model typically calls them
-  silent — and the job finishes with a warning naming how many there were
-- Still images are unaffected, and so are GIFs: they are captioned as images
-- Verify-captions never sends audio, so it works with a vision-only model as before
+- Clips with no audio track are **still captioned** from their keyframes (typically called silent),
+  and the job finishes with a warning naming how many there were
+- Still images and GIFs are unaffected: they are captioned as images
+- Verify-captions never sends audio, so it works with a vision-only model
 
 ## Sampling knobs
 
@@ -111,8 +120,7 @@ Per-mode temperature, penalties, and top-p/k:
 | `OPENAI_TOP_K` | `20` | Top-k (via `extra_body`) |
 
 `repeat_penalty` follows llama.cpp naming. Hugging Face– and vLLM-style stacks call the same knob
-`repetition_penalty`, which is the spelling you will see on model cards — rename it if you point
-DataForge at one of those servers.
+`repetition_penalty` — rename it if you point DataForge at one of those servers.
 
 ## Still image detail
 
@@ -120,14 +128,14 @@ DataForge at one of those servers.
 | --- | --- | --- |
 | `IMAGE_MAX_PIXELS` | `1500000` | Per-image pixel budget for a still |
 
-A still is the only image in its request, so it affords detail a keyframe cannot — both caption jobs
-send them at this one budget. Lower it the way you would lower the video budget below, if a still
-ever runs into the same VRAM wall.
+A still is the only image in its request, so it affords more detail than a keyframe. Both caption
+jobs send stills at this budget. Lower it if a still hits the same VRAM wall as a long clip.
 
 ## Video keyframe sampling
 
-A video is sent as still keyframes, sampled twice a second plus both endpoints, each labelled with its
-timestamp. Short clips keep at least eight frames. Values that are not positive whole numbers are ignored.
+A video is sent as still keyframes: twice a second plus both endpoints, each labelled with its
+timestamp. Short clips keep at least eight frames. Values that are not positive whole numbers are
+ignored.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -136,19 +144,19 @@ timestamp. Short clips keep at least eight frames. Values that are not positive 
 | `VIDEO_FRAME_MAX_PIXELS` | `500000` | Per-frame pixel budget through 7 seconds |
 | `VIDEO_FRAME_MIN_PIXELS` | `262144` | Per-frame pixel budget from 20 seconds on, and the per-side resize floor |
 
-**Count.** The cap is why brief actions go missing on long clips. At the default it binds from 20
-seconds, so a two-minute clip still sends 42 frames (~0.35 fps) and a one-second action is likelier
-to fall between frames than land on one. Raising `VIDEO_MAX_KEYFRAMES` is the fix, at roughly 640
-vision tokens per frame — 84 frames is about 54k tokens before the prompt.
+**How many frames.** The cap is why brief actions go missing on long clips. At the default it binds
+from 20 seconds, so a two-minute clip still sends 42 frames (~0.35 fps). Raise `VIDEO_MAX_KEYFRAMES`
+to keep more of the clip; each frame costs roughly 640 vision tokens (84 frames is about 54k tokens
+before the prompt).
 
-**Size.** Per-frame pixels stay at `VIDEO_FRAME_MAX_PIXELS` through 7 seconds, then lerp down to
-`VIDEO_FRAME_MIN_PIXELS` at 20 seconds and stay there. That is what keeps a long clip inside context
-and VRAM without thinning the short clips. Raise `VIDEO_FRAME_MAX_PIXELS` for detail on short clips;
-lower `VIDEO_FRAME_MIN_PIXELS` to shrink long-clip frames further.
+**How large.** Per-frame pixels stay at `VIDEO_FRAME_MAX_PIXELS` through 7 seconds, then lerp down to
+`VIDEO_FRAME_MIN_PIXELS` at 20 seconds and stay there. That keeps a long clip inside context and VRAM
+without thinning the short clips. Raise `VIDEO_FRAME_MAX_PIXELS` for detail on short clips; lower
+`VIDEO_FRAME_MIN_PIXELS` to shrink long-clip frames further.
 
-**The min also sets the per-side resize floor.** The default `262144` is 512×512, Qwen's 32-pixel
-patch grid. Neither side is scaled below that floor unless you lower `VIDEO_FRAME_MIN_PIXELS`. With
-the default, a 1920×1080 frame goes 928×512 at `500000`, 640×512 at `250000` (squashed to 1.25 from
+The min also sets the per-side resize floor. The default `262144` is 512×512, Qwen's 32-pixel patch
+grid. Neither side is scaled below that floor unless you lower `VIDEO_FRAME_MIN_PIXELS`. With the
+default, a 1920×1080 frame goes 928×512 at `500000`, 640×512 at `250000` (squashed to 1.25 from
 1.78), and 512×512 at `125000`. Lowering `VIDEO_FRAME_MAX_PIXELS` alone does not buy more frames, and
 below the min it changes shape instead of shrinking.
 
@@ -167,8 +175,7 @@ reports on a run that succeeds.
 
 - A smaller quantization, or a shorter context
 - Send less per request: lower `VIDEO_FRAME_MAX_PIXELS` (short clips) and/or `VIDEO_FRAME_MIN_PIXELS`
-  (long clips). `VIDEO_FRAME_MAX_PIXELS=262144` with the default min is the previous advice, and
-  still the first thing to try.
+  (long clips). `VIDEO_FRAME_MAX_PIXELS=262144` with the default min is the first thing to try.
 
 ## Draft caption length
 
@@ -182,15 +189,16 @@ an answer, so it is retried and, if it stays short, counted `too_short`. Raise i
 detail; lower it to accept shorter captions and to stop re-visiting drafts you consider done.
 
 Verify-captions ignores it — it checks captions rather than writing them. Edit-captions ignores it
-too, though it does write them: an instruction like "shorten to one sentence" is meant to land under
-this threshold, so gating on it would reject the edit for working.
+too: an instruction like "shorten to one sentence" is meant to land under this threshold, so gating
+on it would reject the edit for working.
 
 ## Reasoning effort
 
 Not an environment setting: **Reasoning effort** and **Preserve thinking** are picked per job, in the
-auto-caption, verify-captions and edit-captions dialogs.
+auto-caption, verify-captions, and edit-captions dialogs.
 
-The three levels are fixed by the chat template, which **raises** on anything else, so `high` is not a value:
+The three levels are fixed by the chat template, which **raises** on anything else, so `high` is not
+a value:
 
 | Level | Effect |
 | --- | --- |
@@ -199,17 +207,16 @@ The three levels are fixed by the chat template, which **raises** on anything el
 | `xhigh` | Adds an instruction to validate assumptions and weigh alternatives. The *template's* own default |
 
 DataForge defaults to `medium` where the template defaults to `xhigh`, so the value is sent on every
-reasoning-mode request rather than omitted at the default the way `repeat_penalty` is. It goes out twice —
-inside `chat_template_kwargs`, which Unsloth and vLLM feed to the Jinja render, and as a top-level
-`reasoning_effort` field, which llama.cpp reads. A server that knows neither ignores both.
+reasoning-mode request rather than omitted. It goes out as both `chat_template_kwargs` (Unsloth,
+vLLM) and top-level `reasoning_effort` (llama.cpp). A server that knows neither ignores both.
 
 Only templates that read the key respond to it: the shipped
-[`llm-templates/qwen38_template.jinja`](../llm-templates/qwen38_template.jinja) does, while the Qwen3.6 and
-Gemma 4 templates ignore it and caption the same at every level.
+[`llm-templates/qwen38_template.jinja`](../llm-templates/qwen38_template.jinja) does, while the
+Qwen3.6 and Gemma 4 templates ignore it and caption the same at every level.
 
-**Preserve thinking** keeps earlier assistant reasoning in the rendered prompt. It is on by default, matching
-every shipped template. It has no visible effect on captioning today, since each request is a single turn with
-no prior reasoning to keep — it matters only once a flow sends the model its own earlier answers.
+**Preserve thinking** keeps earlier assistant reasoning in the rendered prompt. It is on by default,
+matching every shipped template. Caption jobs are a single turn, so it has no effect until a flow
+reuses the model's earlier answers.
 
 ## Paths, integrations, and logging
 
