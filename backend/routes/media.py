@@ -37,6 +37,7 @@ from media_delete import delete_media_with_sidecars
 from media_file_response import MediaFileResponse
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
+    resolve_candidate_source,
     resolve_editable_image,
     resolve_editable_video,
     resolve_folder,
@@ -562,7 +563,7 @@ def accept_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateRespons
 
 @router.post("/media/comfy-candidate/reject", response_model=ComfyCandidateResponse)
 def reject_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateResponse:
-    media = resolve_editable_image(path)
+    media = resolve_candidate_source(path)
 
     try:
         return reject_candidate(media)
@@ -581,7 +582,7 @@ def _settle_candidates(
 
     for raw in paths:
         try:
-            media = resolve_editable_image(raw)
+            media = resolve_candidate_source(raw)
         except HTTPException as exc:
             failed.append(ComfyCandidateFailure(path=raw, detail=str(exc.detail)))
             continue

@@ -255,6 +255,33 @@ describe("CandidateReviewModal", () => {
     expect(screen.getByRole("status")).toHaveTextContent("no longer in the folder");
   });
 
+  it("discards an orphaned candidate keyed by the staged name", async () => {
+    const user = userEvent.setup();
+    const orphan = buildCandidateReviewQueue(HOME_PATH, [], [mediaItem("gone.png", STAGING_PATH)]);
+    const onResolved = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <NotificationsProvider>
+        <CandidateReviewModal
+          entries={orphan}
+          index={0}
+          onClose={onClose}
+          onIndexChange={vi.fn()}
+          onResolved={onResolved}
+        />
+      </NotificationsProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => {
+      expect(rejectOne).toHaveBeenCalledWith(`${HOME_PATH}\\gone.png`);
+    });
+    expect(onResolved).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("offers no way to accept the queue in bulk", () => {
     renderModal();
 

@@ -168,11 +168,11 @@ def read_candidate_sidecar(candidate: Path) -> ComfyCandidateSidecar | None:
         return None
 
 
-def _describe(media: Path, *, accepted: bool) -> ComfyCandidateResponse:
+def _describe(media: Path, *, accepted: bool, path: Path | None = None) -> ComfyCandidateResponse:
     stat = media.stat()
     dimensions = media_dimensions(media, "image", stat.st_mtime_ns, stat.st_size)
     return ComfyCandidateResponse(
-        path=str(media),
+        path=str(path if path is not None else media),
         accepted=accepted,
         size=stat.st_size,
         modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
@@ -264,11 +264,14 @@ def accept_candidate(media: Path) -> ComfyCandidateResponse:
 
 
 def reject_candidate(media: Path) -> ComfyCandidateResponse:
+    """Discard the staged candidate. The source may already be gone."""
     candidate = resolve_candidate(media)
     if candidate is None:
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
 
     with settle_slot(media):
+        stats_from = media if media.is_file() else candidate
+        described = _describe(stats_from, accepted=False, path=media)
         _discard_candidate(candidate)
 
-    return _describe(media, accepted=False)
+    return described

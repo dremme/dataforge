@@ -266,6 +266,35 @@ class RejectCandidateTests(unittest.TestCase):
             with self.assertRaises(NoCandidateError):
                 reject_candidate(fixture.media)
 
+    def test_rejecting_discards_a_candidate_whose_source_is_gone(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.jpg", (32, 32), "red")
+            candidate = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+            write_candidate_sidecar(candidate, sidecar())
+            media.unlink()
+
+            # The review queue keys orphans by the staged name: the jpg is gone.
+            reconstructed = folder / "photo.png"
+            response = reject_candidate(reconstructed)
+
+            self.assertFalse(response.accepted)
+            self.assertEqual(response.path, str(reconstructed))
+            self.assertFalse(candidate.is_file())
+            self.assertFalse(candidate_sidecar_path(candidate).is_file())
+
+    def test_rejecting_an_orphan_by_the_deleted_source_path_still_finds_it(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.jpg", (32, 32), "red")
+            candidate = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+            media.unlink()
+
+            response = reject_candidate(media)
+
+            self.assertFalse(response.accepted)
+            self.assertFalse(candidate.is_file())
+
 
 class SettleSlotTests(unittest.TestCase):
     def test_a_second_settle_on_the_same_file_is_refused(self) -> None:

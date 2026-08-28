@@ -15,6 +15,7 @@ from schemas import JobResponse
 
 __all__ = [
     "job_response",
+    "resolve_candidate_source",
     "resolve_editable_image",
     "resolve_editable_video",
     "resolve_folder",
@@ -68,6 +69,20 @@ def resolve_editable_image(path: str) -> Path:
             detail=f"{file_path.suffix} images cannot be edited",
         )
 
+    return file_path
+
+
+def resolve_candidate_source(path: str) -> Path:
+    """Source path a candidate is keyed by. The file may already be gone."""
+    file_path = normalize_user_path(path)
+    suffix = file_path.suffix.lower()
+    if suffix not in MEDIA_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a supported media file")
+    if suffix not in IMAGE_EDIT_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{file_path.suffix} images cannot be edited",
+        )
     return file_path
 
 

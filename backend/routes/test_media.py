@@ -11,6 +11,7 @@ from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
+    write_jpeg,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -548,6 +549,46 @@ class GifFrameEndpointTests(unittest.TestCase):
 
             self.assertIn("immutable", versioned.headers["cache-control"])
             self.assertIn("no-cache", plain.headers["cache-control"])
+
+
+class ComfyCandidateEndpointTests(unittest.TestCase):
+    def test_reject_discards_a_candidate_whose_source_is_gone(self) -> None:
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            media = write_jpeg(root, "photo.jpg")
+            (root / STAGING_DIR_NAME).mkdir()
+            candidate = write_media(root / STAGING_DIR_NAME, "photo.png")
+            media.unlink()
+
+            reconstructed = root / "photo.png"
+            response = client.post(
+                f"/api/media/comfy-candidate/reject?path={quote(str(reconstructed))}"
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json()["accepted"])
+            self.assertFalse(candidate.is_file())
+
+    def test_batch_reject_discards_a_candidate_whose_source_is_gone(self) -> None:
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            media = write_jpeg(root, "photo.jpg")
+            (root / STAGING_DIR_NAME).mkdir()
+            candidate = write_media(root / STAGING_DIR_NAME, "photo.png")
+            media.unlink()
+
+            reconstructed = root / "photo.png"
+            response = client.post(
+                "/api/media/comfy-candidates/reject",
+                json={"paths": [str(reconstructed)]},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["settled"], [str(reconstructed)])
+            self.assertEqual(response.json()["failed"], [])
+            self.assertFalse(candidate.is_file())
 
 
 if __name__ == "__main__":
