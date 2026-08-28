@@ -122,6 +122,34 @@ describe("useGifToMp4", () => {
     expect(convertMock).not.toHaveBeenCalled();
   });
 
+  it("does not attach a late overwrite prompt to the item the modal moved to", async () => {
+    let release: (value: {
+      path: string;
+      target: string;
+      target_exists: boolean;
+    }) => void = () => {};
+    fetchStateMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    const { result, rerender, initial } = renderConversion();
+
+    act(() => result.current.convert());
+    await waitFor(() => expect(fetchStateMock).toHaveBeenCalledWith(GIF));
+
+    rerender({ ...initial, item: makeItem("second.gif", { media_type: "gif" }) });
+    await act(async () => {
+      release({ path: GIF, target: MP4, target_exists: true });
+    });
+
+    expect(result.current.conflict).toBeNull();
+    act(() => result.current.confirmOverwrite());
+    expect(convertMock).not.toHaveBeenCalled();
+  });
+
   it("converts the item it was clicked on, even after the modal advances", async () => {
     let release = () => {};
     convertMock.mockImplementation(async () => {

@@ -58,6 +58,7 @@ export function useGifToMp4(options: UseGifToMp4Options): GifToMp4Conversion {
           if (!overwrite) {
             const state = await fetchGifToMp4State(sourcePath);
             if (state.target_exists) {
+              if (optionsRef.current.item?.path !== sourcePath) return;
               conflictSourceRef.current = sourcePath;
               if (mountedRef.current) setConflict(pathBaseName(state.target));
               return;
