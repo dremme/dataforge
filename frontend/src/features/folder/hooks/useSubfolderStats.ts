@@ -37,11 +37,13 @@ function mergeStats(
 
 export function useSubfolderStats(
   folderPath: string | undefined,
+  fingerprint: string | undefined,
   subfolders: Subfolder[],
   setFolder: Dispatch<SetStateAction<FolderResponse | null>>,
   enabled = true,
 ): void {
-  // Watch for missing counts, not folder identity: silent reloads keep path and size unchanged.
+  // Missing counts say a fetch is due; the fingerprint says which listing the answer describes.
+  // Both, because a reload that lands mid-flight leaves the counts missing but makes them stale.
   const needsCounts = subfolders.some((entry) => entry.file_count == null);
 
   useEffect(() => {
@@ -58,6 +60,8 @@ export function useSubfolderStats(
 
         setFolder((current) => {
           if (!current || current.path !== folderPath) return current;
+          // Counts belong to the listing they were read from; a newer one has to ask again.
+          if (current.fingerprint !== fingerprint) return current;
 
           const merged = mergeStats(current, stats);
           if (!merged) return current;
@@ -73,5 +77,5 @@ export function useSubfolderStats(
     })();
 
     return () => controller.abort();
-  }, [enabled, folderPath, needsCounts, setFolder]);
+  }, [enabled, fingerprint, folderPath, needsCounts, setFolder]);
 }

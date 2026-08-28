@@ -37,6 +37,37 @@ describe("candidateStageAspect", () => {
   });
 });
 
+describe("buildCandidateReviewQueue", () => {
+  it("pairs a PNG candidate with the JPEG it was made from", () => {
+    const source = mediaItem("holiday.jpg", HOME_PATH, {
+      has_candidate: true,
+      candidate_name: "holiday.png",
+    });
+
+    const [item] = buildCandidateReviewQueue(
+      HOME_PATH,
+      [source],
+      [mediaItem("holiday.png", STAGING_PATH)],
+    );
+
+    expect(item.source).toBe(source);
+    // Accept and reject are keyed by the dataset image, so a staging path here would 404.
+    expect(item.path).toBe(source.path);
+    expect(item.name).toBe("holiday.jpg");
+  });
+
+  it("leaves a candidate no source claims orphaned", () => {
+    const [item] = buildCandidateReviewQueue(
+      HOME_PATH,
+      [mediaItem("other.jpg", HOME_PATH)],
+      [mediaItem("gone.png", STAGING_PATH)],
+    );
+
+    expect(item.source).toBeNull();
+    expect(item.name).toBe("gone.png");
+  });
+});
+
 describe("differenceLabel", () => {
   it("calls a low score composition kept", () => {
     expect(differenceLabel(0)).toBe("composition kept");

@@ -90,7 +90,7 @@ export function useAppWorkspace() {
   const items = useMemo(() => folder?.items ?? [], [folder?.items]);
   const sysprompt = folder?.sysprompt ?? null;
 
-  useSubfolderStats(folder?.path, subfolders, setFolder, !folderNotFound);
+  useSubfolderStats(folder?.path, folder?.fingerprint, subfolders, setFolder, !folderNotFound);
 
   useDocumentTitle(folder?.path, folder?.breadcrumbs ?? []);
 

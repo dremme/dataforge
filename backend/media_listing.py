@@ -16,7 +16,13 @@ from constants import (
     ISSUE_SIDECAR_SUFFIX,
 )
 from duplicates import duplicate_finding_from_sidecar
-from folder_scan import FolderScan, ScannedEntry, get_media_type, scan_folder
+from folder_scan import (
+    FolderScan,
+    ScannedEntry,
+    candidate_name_for,
+    get_media_type,
+    scan_folder,
+)
 from media_dimensions import media_info
 
 __all__ = [
@@ -189,6 +195,7 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
     )
 
     info = media_info(media.path, media_type, media.mtime_ns, media.size)
+    candidate_name = candidate_name_for(media.name, scan.candidates, scan.files)
 
     return {
         "name": media.name,
@@ -200,7 +207,8 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "has_issue_file": has_issue_file,
         "duplicate_group": None if duplicate_finding is None else duplicate_finding.group,
         "has_duplicate_file": duplicate_finding is not None,
-        "has_candidate": media.name in scan.candidates,
+        "has_candidate": candidate_name is not None,
+        "candidate_name": candidate_name,
         "caption_status": caption_status,
         "media_type": media_type,
         "width": info.width,

@@ -26,7 +26,13 @@ const STAGING_PATH = `${HOME_PATH}\\staging`;
 
 function entries(names: string[]) {
   const sources: GalleryItem[] = names.map((name) =>
-    mediaItem(name, HOME_PATH, { width: 512, height: 512, size: 1000 }),
+    mediaItem(name, HOME_PATH, {
+      width: 512,
+      height: 512,
+      size: 1000,
+      has_candidate: true,
+      candidate_name: name,
+    }),
   );
   const candidates = names.map((name) =>
     mediaItem(name, STAGING_PATH, { width: 1024, height: 1024, size: 4000 }),
@@ -111,7 +117,15 @@ describe("CandidateReviewModal", () => {
 
   it("reads both sides of every measurement into one bar", () => {
     // Under a thousand: toLocaleString would otherwise assert this machine's group separator.
-    const sources = [mediaItem("a.png", HOME_PATH, { width: 480, height: 270, size: 1000 })];
+    const sources = [
+      mediaItem("a.png", HOME_PATH, {
+        width: 480,
+        height: 270,
+        size: 1000,
+        has_candidate: true,
+        candidate_name: "a.png",
+      }),
+    ];
     const candidates = [mediaItem("a.png", STAGING_PATH, { width: 960, height: 540, size: 4000 })];
 
     render(

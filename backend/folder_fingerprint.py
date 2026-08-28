@@ -16,7 +16,7 @@ from constants import (
     ISSUE_SIDECAR_SUFFIX,
     STAGING_DIR_NAME,
 )
-from folder_scan import FolderScan, folder_entries_in_order, scan_folder
+from folder_scan import FolderScan, candidate_name_for, folder_entries_in_order, scan_folder
 
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]
@@ -53,7 +53,8 @@ def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
             if finding is not None:
                 signatures.append(("sidecar", finding.name, finding.mtime_ns, finding.size))
 
-        candidate = scan.candidates.get(entry.name)
+        candidate_name = candidate_name_for(entry.name, scan.candidates, scan.files)
+        candidate = scan.candidates.get(candidate_name) if candidate_name else None
         if candidate is not None:
             signatures.append(("candidate", candidate.name, candidate.mtime_ns, candidate.size))
 
@@ -102,7 +103,9 @@ def _item_signature(
         finding = scan.files.get(f"{name}{suffix}")
         parts.append(_ABSENT_SIDECAR if finding is None else (finding.mtime_ns, finding.size))
 
-    candidate = scan.candidates.get(name)
+    # A non-PNG source's candidate is staged as ``<stem>.png``, so pair it the way the listing does.
+    candidate_name = candidate_name_for(name, scan.candidates, scan.files)
+    candidate = scan.candidates.get(candidate_name) if candidate_name else None
     parts.append(_ABSENT_SIDECAR if candidate is None else (candidate.mtime_ns, candidate.size))
 
     return tuple(parts)

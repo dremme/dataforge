@@ -381,19 +381,23 @@ def _comfy_workflow_cache_token(file_path: Path) -> tuple[int, int] | None:
         return None
 
 
-def _probe_comfy_workflow(file_path: Path) -> bool:
+def read_media_metadata_values(file_path: Path) -> dict[str, str]:
     suffix = file_path.suffix.lower()
     if suffix not in COMFY_WORKFLOW_EXTENSIONS:
-        return False
+        return {}
 
     data = _read_media_bytes(file_path)
     if not data:
-        return False
+        return {}
 
     if suffix == ".png":
-        return _metadata_values_have_comfy_workflow(_parse_png_text_chunks(data))
+        return _parse_png_text_chunks(data)
 
-    return _metadata_values_have_comfy_workflow(_parse_isobmff_metadata(data))
+    return _parse_isobmff_metadata(data)
+
+
+def _probe_comfy_workflow(file_path: Path) -> bool:
+    return _metadata_values_have_comfy_workflow(read_media_metadata_values(file_path))
 
 
 def media_has_comfy_workflow(file_path: Path) -> bool:

@@ -118,6 +118,24 @@ class FolderChangesTests(unittest.TestCase):
             self.assertTrue(changes["changed"][0]["has_candidate"])
             self.assertEqual(changes["removed"], [])
 
+    def test_a_png_candidate_for_a_jpeg_source_arrives_in_changes(self) -> None:
+        """ComfyUI stages PNG, so the candidate for photo.jpg is photo.png; the diff must still pair it."""
+        with TempMediaFolder() as root:
+            write_media(root, "photo.jpg")
+            write_media(root, "untouched.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            listed = self._listing(root)
+
+            write_media(root / STAGING_DIR_NAME, "photo.png")
+
+            changes = self._changes(root, listed["fingerprint"])
+
+            self.assertFalse(changes["full"])
+            self.assertEqual([item["name"] for item in changes["changed"]], ["photo.jpg"])
+            self.assertTrue(changes["changed"][0]["has_candidate"])
+            self.assertEqual(changes["changed"][0]["candidate_name"], "photo.png")
+            self.assertNotEqual(changes["fingerprint"], listed["fingerprint"])
+
     def test_a_new_subfolder_asks_for_a_full_reload(self) -> None:
         """Subfolders are not part of a delta, so the shell changing sends the client back."""
         with TempMediaFolder() as root:

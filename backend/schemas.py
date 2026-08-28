@@ -20,6 +20,9 @@ type WatermarkPosition = Annotated[
 
 type AutomationMode = Literal["thinking", "instruct"]
 
+#: Which sampler input a workflow's text reached; anything not named negative counts as positive.
+type ComfyPromptRole = Literal["positive", "negative"]
+
 #: Keys of ``TRAINING_TEMPLATES``; ``h3_fl2va`` is video, ``krea2_turbo`` is image.
 type TrainingModel = Literal["krea2_turbo", "h3_fl2va"]
 
@@ -95,6 +98,8 @@ class GalleryItem(BaseModel):
     has_duplicate_file: bool = False
     #: Staging is a child directory, so this is not answered from ``scan.files``.
     has_candidate: bool = False
+    #: The staged filename, which differs from this item's whenever the source is not a PNG.
+    candidate_name: str | None = None
     caption_status: CaptionStatus
     media_type: MediaType
     width: int | None = None
@@ -644,6 +649,42 @@ class MediaOpenResponse(BaseModel):
 
 class PngWorkflowResponse(BaseModel):
     has_workflow: bool
+
+
+class ComfyPromptText(BaseModel):
+    role: ComfyPromptRole
+    text: str
+    node_id: str
+    node_title: str | None = None
+    input_name: str
+
+
+class ComfyParameter(BaseModel):
+    label: str
+    value: str
+
+
+class ComfyOutputBranch(BaseModel):
+    """One saved result of the workflow, named by the subgraph that fed it."""
+
+    node_id: str
+    class_type: str
+    label: str
+    filename_prefix: str | None = None
+    is_preview: bool = False
+    matches_filename: bool = False
+    prompts: list[ComfyPromptText] = Field(default_factory=list)
+    parameters: list[ComfyParameter] = Field(default_factory=list)
+    loras: list[str] = Field(default_factory=list)
+
+
+class ComfyWorkflowPromptsResponse(BaseModel):
+    """``matched_node_id`` is set only when exactly one branch claims the filename."""
+
+    has_workflow: bool
+    branches: list[ComfyOutputBranch] = Field(default_factory=list)
+    matched_node_id: str | None = None
+    orphan_prompts: list[ComfyPromptText] = Field(default_factory=list)
 
 
 class GifInfoResponse(BaseModel):

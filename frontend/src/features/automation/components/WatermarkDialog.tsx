@@ -77,8 +77,8 @@ export function WatermarkDialog({
       title="Add watermark?"
       description={
         <>
-          Originals stay untouched — marked copies go to the <strong>watermarked</strong>
-          subfolder, without caption sidecars.
+          Originals stay untouched — marked copies go to the <strong>watermarked</strong> subfolder,
+          without caption sidecars.
         </>
       }
       panelClassName="watermark-dialog"

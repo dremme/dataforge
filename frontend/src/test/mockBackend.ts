@@ -441,6 +441,15 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ has_workflow: false });
     }
 
+    if (url.pathname === "/api/comfy-workflow/prompts") {
+      return jsonResponse({
+        has_workflow: false,
+        branches: [],
+        matched_node_id: null,
+        orphan_prompts: [],
+      });
+    }
+
     if (url.pathname === "/api/media/open" && method === "POST") {
       const path = url.searchParams.get("path") ?? "";
       const fileName = path.split(/[/\\]/).pop() ?? "";

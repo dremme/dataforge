@@ -2,6 +2,7 @@ import { putJson, requestJson } from "@/shared/api/http";
 import type {
   CaptionSaveResponse,
   CaptionUpdate,
+  ComfyWorkflowPromptsResponse,
   PngWorkflowResponse,
   SysPromptSaveResponse,
 } from "@/shared/types";
@@ -14,6 +15,16 @@ export async function fetchCaption(mediaPath: string): Promise<CaptionSaveRespon
 export async function fetchComfyWorkflow(mediaPath: string): Promise<PngWorkflowResponse> {
   const params = new URLSearchParams({ path: mediaPath });
   return requestJson<PngWorkflowResponse>(`/api/comfy-workflow?${params}`);
+}
+
+export async function fetchComfyWorkflowPrompts(
+  mediaPath: string,
+  signal?: AbortSignal,
+): Promise<ComfyWorkflowPromptsResponse> {
+  const params = new URLSearchParams({ path: mediaPath });
+  return requestJson<ComfyWorkflowPromptsResponse>(`/api/comfy-workflow/prompts?${params}`, {
+    signal,
+  });
 }
 
 export async function saveCaption(

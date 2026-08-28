@@ -64,6 +64,7 @@ import { FileImportOverwriteDialog } from "@/features/folder/components/FileImpo
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
+import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
 import { TransferMediaDialog } from "./TransferMediaDialog";
 import { FrameCaptureBar } from "./FrameCaptureBar";
 import { CropOverlay } from "./CropOverlay";
@@ -127,6 +128,7 @@ export function GalleryItemModal({
   // One flag for both editors; which one it turns on follows from the item.
   const [editMode, setEditMode] = useState(false);
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
+  const [comfyWorkflowOpen, setComfyWorkflowOpen] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -198,6 +200,7 @@ export function GalleryItemModal({
   const childOverlayOpen =
     deleteConfirmOpen ||
     revertConfirmOpen ||
+    comfyWorkflowOpen ||
     transfer.transferDialogOpen ||
     gifToMp4.conflict !== null;
   const canTransfer = Boolean(currentFolder) && Boolean(onMoved) && Boolean(onCopied);
@@ -208,6 +211,7 @@ export function GalleryItemModal({
     setDeleting(false);
     setOpeningInViewer(false);
     setViewerError(null);
+    setComfyWorkflowOpen(false);
   }, [item?.path]);
 
   // Drop sticky capture on a still or missing destination so the bar needs no scrubber.
@@ -656,6 +660,7 @@ export function GalleryItemModal({
               resolution={resolution}
               hasComfyWorkflow={hasComfyWorkflow}
               captionCharacterCount={captionCharacterCount}
+              onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
             />
 
             <div className="gallery-item-modal__caption-editor">
@@ -773,6 +778,14 @@ export function GalleryItemModal({
           confirmVariant="danger"
           onConfirm={gifToMp4.confirmOverwrite}
           onCancel={gifToMp4.cancelOverwrite}
+        />
+      )}
+
+      {comfyWorkflowOpen && (
+        <ComfyWorkflowDialog
+          mediaPath={item.path}
+          mediaName={item.name}
+          onClose={() => setComfyWorkflowOpen(false)}
         />
       )}
 

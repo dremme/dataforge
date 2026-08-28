@@ -1,7 +1,7 @@
 import { isSysPrompt } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 
-/** Paired by filename. A gone source stays null, or staging fills with no way to see why. */
+/** Paired by the source's `candidate_name`. A gone source stays null, or staging fills silently. */
 export interface CandidateReviewEntry {
   path: string;
   name: string;
@@ -31,15 +31,21 @@ export function buildCandidateReviewQueue(
   items: readonly GalleryItem[],
   candidates: readonly GalleryItem[],
 ): CandidateReviewEntry[] {
-  const byName = new Map(items.map((item) => [item.name, item]));
+  const byCandidateName = new Map(
+    items.flatMap((item) => (item.candidate_name ? [[item.candidate_name, item] as const] : [])),
+  );
   const separator = folderPath.includes("/") && !folderPath.includes("\\") ? "/" : "\\";
 
-  return candidates.map((candidate) => ({
-    path: `${folderPath}${separator}${candidate.name}`,
-    name: candidate.name,
-    source: byName.get(candidate.name) ?? null,
-    candidate,
-  }));
+  return candidates.map((candidate) => {
+    const source = byCandidateName.get(candidate.name) ?? null;
+    return {
+      // The settle endpoints are keyed by the dataset image, never by what sits in staging.
+      path: source?.path ?? `${folderPath}${separator}${candidate.name}`,
+      name: source?.name ?? candidate.name,
+      source,
+      candidate,
+    };
+  });
 }
 
 /** Shared pane aspect from the candidate (loaded size wins), or one zoom shows two crops. */

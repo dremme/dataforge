@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Container
 from dataclasses import dataclass
 from pathlib import Path
 
 from constants import (
+    COMFY_CANDIDATE_SUFFIX,
     GIF_EXTENSION,
     IMAGE_EXTENSIONS,
     SKIP_DIR_NAMES,
@@ -56,6 +58,25 @@ def is_listable_dir_name(name: str) -> bool:
     if name in SKIP_DIR_NAMES:
         return False
     return name not in {".", ".."}
+
+
+def candidate_name_for(
+    media_name: str, staged: Container[str], folder_names: Container[str]
+) -> str | None:
+    """The staged file this media claims, or None. One rule, so the listing and accept agree."""
+    if media_name in staged:
+        return media_name
+
+    stem, dot, suffix = media_name.rpartition(".")
+    if not dot or f".{suffix.lower()}" == COMFY_CANDIDATE_SUFFIX:
+        return None
+
+    staged_name = f"{stem}{COMFY_CANDIDATE_SUFFIX}"
+    # A sibling of that exact name is its own media file, and owns the candidate outright.
+    if staged_name in staged and staged_name not in folder_names:
+        return staged_name
+
+    return None
 
 
 def _sort_key(entry: ScannedEntry) -> tuple[str, str]:

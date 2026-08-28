@@ -1,13 +1,45 @@
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query
 
 from captions import build_caption_response, save_caption
 from comfy_metadata import media_has_comfy_workflow
+from comfy_prompts import PromptText, extract_workflow_prompts
 from constants import COMFY_WORKFLOW_EXTENSIONS
 from routes._helpers import resolve_media_file, resolve_sysprompt_target
-from schemas import CaptionSaveResponse, CaptionUpdate, PngWorkflowResponse, SysPromptSaveResponse
+from schemas import (
+    CaptionSaveResponse,
+    CaptionUpdate,
+    ComfyOutputBranch,
+    ComfyParameter,
+    ComfyPromptText,
+    ComfyWorkflowPromptsResponse,
+    PngWorkflowResponse,
+    SysPromptSaveResponse,
+)
 from sysprompt import save_sysprompt
 
 router = APIRouter()
+
+
+def _resolve_comfy_media(path: str) -> Path:
+    file_path = resolve_media_file(path)
+    if file_path.suffix.lower() not in COMFY_WORKFLOW_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="ComfyUI workflow metadata is only supported for PNG, MP4, MOV, and M4V files",
+        )
+    return file_path
+
+
+def _prompt_text(prompt: PromptText) -> ComfyPromptText:
+    return ComfyPromptText(
+        role=prompt.role,
+        text=prompt.text,
+        node_id=prompt.node_id,
+        node_title=prompt.node_title,
+        input_name=prompt.input_name,
+    )
 
 
 @router.get("/caption", response_model=CaptionSaveResponse)
@@ -22,14 +54,38 @@ def read_caption(
 def read_comfy_workflow(
     path: str = Query(..., description="Absolute path to image or video file"),
 ) -> PngWorkflowResponse:
-    file_path = resolve_media_file(path)
-    if file_path.suffix.lower() not in COMFY_WORKFLOW_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail="ComfyUI workflow metadata is only supported for PNG, MP4, MOV, and M4V files",
-        )
+    return PngWorkflowResponse(has_workflow=media_has_comfy_workflow(_resolve_comfy_media(path)))
 
-    return PngWorkflowResponse(has_workflow=media_has_comfy_workflow(file_path))
+
+@router.get("/comfy-workflow/prompts", response_model=ComfyWorkflowPromptsResponse)
+def read_comfy_workflow_prompts(
+    path: str = Query(..., description="Absolute path to image or video file"),
+) -> ComfyWorkflowPromptsResponse:
+    file_path = _resolve_comfy_media(path)
+    extracted = extract_workflow_prompts(file_path)
+
+    return ComfyWorkflowPromptsResponse(
+        has_workflow=extracted.has_workflow,
+        branches=[
+            ComfyOutputBranch(
+                node_id=branch.node_id,
+                class_type=branch.class_type,
+                label=branch.label,
+                filename_prefix=branch.filename_prefix,
+                is_preview=branch.is_preview,
+                matches_filename=branch.matches_filename,
+                prompts=[_prompt_text(prompt) for prompt in branch.prompts],
+                parameters=[
+                    ComfyParameter(label=parameter.label, value=parameter.value)
+                    for parameter in branch.parameters
+                ],
+                loras=branch.loras,
+            )
+            for branch in extracted.branches
+        ],
+        matched_node_id=extracted.matched_node_id,
+        orphan_prompts=[_prompt_text(prompt) for prompt in extracted.orphan_prompts],
+    )
 
 
 @router.put("/caption", response_model=CaptionSaveResponse)

@@ -7,6 +7,7 @@ interface GalleryItemModalMetaProps {
   resolution: MediaResolution | undefined;
   hasComfyWorkflow: boolean;
   captionCharacterCount: number;
+  onInspectComfyWorkflow: () => void;
 }
 
 function MetaDivider({ show }: { show: boolean }) {
@@ -19,6 +20,7 @@ export function GalleryItemModalMeta({
   resolution,
   hasComfyWorkflow,
   captionCharacterCount,
+  onInspectComfyWorkflow,
 }: GalleryItemModalMetaProps) {
   const modifiedLabel = item.modified_at ? formatModifiedAt(item.modified_at) : null;
   const hasFollowingMeta = Boolean(resolution) || hasComfyWorkflow;
@@ -59,9 +61,14 @@ export function GalleryItemModalMeta({
         <>
           <MetaDivider show={Boolean(resolution)} />
           <div className="gallery-item-modal__meta-item">
-            <span className="gallery-item-modal__meta-badge" title="Embedded ComfyUI workflow">
+            <button
+              type="button"
+              className="gallery-item-modal__meta-badge gallery-item-modal__meta-badge--action"
+              onClick={onInspectComfyWorkflow}
+              title="Show the prompts in the embedded ComfyUI workflow"
+            >
               ComfyUI
-            </span>
+            </button>
             <span className="gallery-item-modal__meta-label">Workflow</span>
           </div>
         </>

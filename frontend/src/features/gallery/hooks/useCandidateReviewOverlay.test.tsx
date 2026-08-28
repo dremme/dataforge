@@ -40,7 +40,12 @@ describe("useCandidateReviewOverlay", () => {
   });
 
   it("pairs each candidate with the dataset image of the same name", async () => {
-    const source = mediaItem("lake.png", HOME_PATH, { width: 512, height: 512 });
+    const source = mediaItem("lake.png", HOME_PATH, {
+      width: 512,
+      height: 512,
+      has_candidate: true,
+      candidate_name: "lake.png",
+    });
     const candidate = mediaItem("lake.png", STAGING_PATH, { width: 1024, height: 1024 });
     fetchFolderMock.mockResolvedValue(stagingListing([candidate]));
 

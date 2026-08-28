@@ -19,8 +19,9 @@ from PIL import Image, UnidentifiedImageError
 from automation.job_runner import CANCELLED, FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from comfy_candidates import (
-    candidate_path_for,
+    candidate_write_path,
     difference_percent,
+    has_candidate,
     staging_dir,
     stale_path_for,
     sweep_comfy_temp_files,
@@ -54,7 +55,7 @@ from external.comfy_workflows import (
     load_comfy_workflow,
 )
 from file_publish import publish_replacing
-from image_io import ImageReadError, load_image_for_edit, save_image_preserving_format
+from image_io import ImageReadError, load_image_for_edit
 from logging_config import configure_logging, log_job_summary
 from schemas import ComfyCandidateSidecar
 
@@ -182,7 +183,7 @@ def _await_output(
 
 
 def _write_candidate(source: Path, data: bytes, destination: Path) -> float:
-    """Save ComfyUI's bytes in the source's format so sidecars stay paired by name."""
+    """Stage ComfyUI's PNG bytes untouched; accept re-encodes into the source's format."""
     try:
         with Image.open(io.BytesIO(data)) as opened:
             opened.load()
@@ -190,18 +191,12 @@ def _write_candidate(source: Path, data: bytes, destination: Path) -> float:
     except (OSError, UnidentifiedImageError) as exc:
         raise ComfyError(f"ComfyUI returned something that is not an image: {exc}") from exc
 
-    original, source_mode, exif = load_image_for_edit(source)
+    original, _, _ = load_image_for_edit(source)
     difference = difference_percent(original, produced)
 
     temp_path = temp_path_for(destination)
     try:
-        save_image_preserving_format(
-            produced,
-            temp_path,
-            suffix=destination.suffix,
-            source_mode=source_mode,
-            exif=exif,
-        )
+        temp_path.write_bytes(data)
         publish_replacing(temp_path, destination, stale_path_for(destination))
     finally:
         with suppress(OSError):
@@ -239,7 +234,7 @@ def _process_one(
         ref = _await_output(client, prompt_id, should_cancel=should_cancel)
         data = download_view(client, ref)
 
-    destination = candidate_path_for(media_path)
+    destination = candidate_write_path(media_path)
     difference = _write_candidate(media_path, data, destination)
     write_candidate_sidecar(
         destination,
@@ -287,7 +282,7 @@ def run_comfy_process_job(
     def process(media_path: Path) -> FileOutcome:
         counter["index"] += 1
 
-        if not overwrite_candidates and candidate_path_for(media_path).is_file():
+        if not overwrite_candidates and has_candidate(media_path):
             return FileOutcome(
                 status="skipped",
                 stats={"skipped": 1},
@@ -339,7 +334,7 @@ def run_comfy_process_job(
         return FileOutcome(
             status="success",
             stats={"success": 1},
-            fields={"preview": str(candidate_path_for(media_path))},
+            fields={"preview": str(candidate_write_path(media_path))},
         )
 
     try:

@@ -79,6 +79,9 @@ WATERMARK_DIR_NAME = "watermarked"
 # Same as WATERMARK_DIR_NAME: the review queue pairs candidates with sources by name.
 STAGING_DIR_NAME = "staging"
 
+# ComfyUI only saves PNG, so a candidate pairs by stem and is re-encoded on accept, not on arrival.
+COMFY_CANDIDATE_SUFFIX = ".png"
+
 # Two suffixes deep, like issue and duplicate findings.
 COMFY_CANDIDATE_SIDECAR_SUFFIX = ".comfy.json"
 

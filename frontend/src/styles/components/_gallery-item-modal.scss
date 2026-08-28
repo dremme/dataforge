@@ -193,6 +193,15 @@ $meta-badge-color: #fcd34d;
       line-height: 1;
       text-transform: uppercase;
       letter-spacing: var(--tracking-caps);
+
+      &--action {
+        cursor: pointer;
+
+        &:hover {
+          border-color: rgba($meta-badge-color, 0.45);
+          background: rgba($meta-badge-color, 0.22);
+        }
+      }
     }
   }
 

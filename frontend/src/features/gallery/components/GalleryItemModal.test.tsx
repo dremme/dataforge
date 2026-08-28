@@ -7,6 +7,7 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { formatModifiedAt } from "@/shared/lib/format";
 import * as useCopyFeedbackModule from "@/shared/hooks/useCopyFeedback";
+import * as captionsApi from "@/features/gallery/api/captions";
 import * as mediaApi from "@/features/gallery/api/media";
 import { GalleryItemModal } from "./GalleryItemModal";
 
@@ -66,6 +67,53 @@ describe("GalleryItemModal", () => {
     const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
     expect(within(dialog).queryByText("fps")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("Frames")).not.toBeInTheDocument();
+  });
+
+  it("opens the workflow prompts from the ComfyUI badge", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(captionsApi, "fetchComfyWorkflow").mockResolvedValue({ has_workflow: true });
+    vi.spyOn(captionsApi, "fetchComfyWorkflowPrompts").mockResolvedValue({
+      has_workflow: true,
+      matched_node_id: "7",
+      orphan_prompts: [],
+      branches: [
+        {
+          node_id: "7",
+          class_type: "SaveImage",
+          label: "Text to Image",
+          filename_prefix: "sunset",
+          is_preview: false,
+          matches_filename: true,
+          prompts: [
+            {
+              role: "positive",
+              text: "a mountain lake at sunrise",
+              node_id: "3",
+              node_title: "Positive Prompt",
+              input_name: "positive",
+            },
+          ],
+          parameters: [],
+          loras: [],
+        },
+      ],
+    });
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /ComfyUI/ }));
+
+    const prompts = await screen.findByRole("dialog", { name: "ComfyUI prompts" });
+    expect(within(prompts).getByText("a mountain lake at sunrise")).toBeInTheDocument();
   });
 
   it("shows the modified date in the media meta section", async () => {

@@ -19,7 +19,7 @@ from automation.comfy_process import (
     run_comfy_process_job,
     validate_comfy_process_folder,
 )
-from comfy_candidates import candidate_path_for, read_candidate_sidecar
+from comfy_candidates import candidate_write_path, read_candidate_sidecar
 from constants import STAGING_DIR_NAME
 from external.comfy_client import ComfyError
 
@@ -231,7 +231,7 @@ class RunJobTests(unittest.TestCase):
             # Trimmed on the way in: the padding is typing, not part of the prompt.
             self.assertEqual(submitted[0]["7"]["inputs"]["text"], "sharp studio photograph")
 
-            stored = read_candidate_sidecar(candidate_path_for(workspace.folder / "a.png"))
+            stored = read_candidate_sidecar(candidate_write_path(workspace.folder / "a.png"))
             assert stored is not None
             self.assertEqual(stored.prompt_text, "sharp studio photograph")
 
@@ -249,7 +249,7 @@ class RunJobTests(unittest.TestCase):
 
             self.assertEqual(submitted[0]["7"]["inputs"]["text"], "as saved")
 
-            stored = read_candidate_sidecar(candidate_path_for(workspace.folder / "a.png"))
+            stored = read_candidate_sidecar(candidate_write_path(workspace.folder / "a.png"))
             assert stored is not None
             self.assertIsNone(stored.prompt_text)
 
@@ -271,7 +271,7 @@ class RunJobTests(unittest.TestCase):
         with Workspace(names=("a.png",)) as workspace:
             run_with(comfy_handler(), workspace.folder, seed=4321)
 
-            stored = read_candidate_sidecar(candidate_path_for(workspace.folder / "a.png"))
+            stored = read_candidate_sidecar(candidate_write_path(workspace.folder / "a.png"))
             self.assertIsNotNone(stored)
             assert stored is not None
             self.assertEqual(stored.preset, "upscale")
@@ -284,21 +284,21 @@ class RunJobTests(unittest.TestCase):
         with Workspace(names=("a.png",)) as workspace:
             run_with(comfy_handler(), workspace.folder)
 
-            stored = read_candidate_sidecar(candidate_path_for(workspace.folder / "a.png"))
+            stored = read_candidate_sidecar(candidate_write_path(workspace.folder / "a.png"))
             assert stored is not None
             self.assertIsNotNone(stored.difference_percent)
 
-    def test_the_candidate_keeps_the_sources_format(self) -> None:
-        # ComfyUI returns PNG; a JPEG source must come back JPEG or sidecars would be orphaned.
+    def test_a_jpeg_source_is_staged_as_the_png_comfyui_returned(self) -> None:
         with Workspace(names=()) as workspace:
             Image.new("RGB", (16, 16), "red").save(workspace.folder / "photo.jpg")
 
             run_with(comfy_handler(), workspace.folder)
 
-            candidate = workspace.folder / STAGING_DIR_NAME / "photo.jpg"
+            candidate = workspace.folder / STAGING_DIR_NAME / "photo.png"
             self.assertTrue(candidate.is_file())
+            self.assertFalse((workspace.folder / STAGING_DIR_NAME / "photo.jpg").exists())
             with Image.open(candidate) as staged:
-                self.assertEqual(staged.format, "JPEG")
+                self.assertEqual(staged.format, "PNG")
 
     def test_a_failed_prompt_is_counted_without_stopping_the_run(self) -> None:
         with Workspace() as workspace:
@@ -350,7 +350,7 @@ class RunJobTests(unittest.TestCase):
 
             self.assertEqual(
                 result["results"][0]["preview"],
-                str(candidate_path_for(workspace.folder / "a.png")),
+                str(candidate_write_path(workspace.folder / "a.png")),
             )
 
     def test_an_unreachable_comfy_reports_itself_per_file(self) -> None:

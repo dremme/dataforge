@@ -3,7 +3,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
 import { clearFolderCache } from "@/features/folder/lib/folderCache";
-import type { FolderResponse, Subfolder } from "@/shared/types";
+import type { FolderResponse, Subfolder, SubfolderStatsResponse } from "@/shared/types";
 import { useSubfolderStats } from "./useSubfolderStats";
 
 const FOLDER = "C:\\Photos";
@@ -20,7 +20,7 @@ function makeSubfolder(overrides: Partial<Subfolder> = {}): Subfolder {
   };
 }
 
-function makeFolder(subfolders: Subfolder[]): FolderResponse {
+function makeFolder(subfolders: Subfolder[], fingerprint = "fp-v1"): FolderResponse {
   return {
     path: FOLDER,
     home: FOLDER,
@@ -32,14 +32,14 @@ function makeFolder(subfolders: Subfolder[]): FolderResponse {
     has_caption_backup: false,
     item_count: 0,
     subfolder_count: subfolders.length,
-    fingerprint: "fp-v1",
+    fingerprint,
   };
 }
 
 function renderWithFolder(initial: FolderResponse) {
   const view = renderHook(() => {
     const [folder, setFolder] = useState<FolderResponse | null>(initial);
-    useSubfolderStats(folder?.path, folder?.subfolders ?? [], setFolder);
+    useSubfolderStats(folder?.path, folder?.fingerprint, folder?.subfolders ?? [], setFolder);
     return { folder, setFolder };
   });
 
@@ -126,6 +126,41 @@ describe("useSubfolderStats", () => {
     expect(view.result.current.folder?.subfolders[0].file_count).toBe(3);
 
     await silentReload(makeFolder([makeSubfolder()]));
+    await act(async () => {});
+
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+    expect(view.result.current.folder?.subfolders[0].file_count).toBe(5);
+  });
+
+  it("refetches when a reload lands while the stats request is still in flight", async () => {
+    // The in-flight answer predates the new files; letting it settle would strand a stale count.
+    let settleFirst: (stats: SubfolderStatsResponse) => void = () => {};
+    const first = new Promise<SubfolderStatsResponse>((resolve) => {
+      settleFirst = resolve;
+    });
+    const fetchStats = vi
+      .spyOn(api, "fetchSubfolderStats")
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce({
+        folder: FOLDER,
+        subfolders: [
+          { path: ALBUM, file_count: 5, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
+        ],
+      });
+
+    const { view, silentReload } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await act(async () => {});
+    expect(fetchStats).toHaveBeenCalledTimes(1);
+
+    await silentReload(makeFolder([makeSubfolder()], "fp-v2"));
+    await act(async () => {
+      settleFirst({
+        folder: FOLDER,
+        subfolders: [
+          { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
+        ],
+      });
+    });
     await act(async () => {});
 
     expect(fetchStats).toHaveBeenCalledTimes(2);

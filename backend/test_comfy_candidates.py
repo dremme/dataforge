@@ -14,12 +14,14 @@ from comfy_candidates import (
     NoCandidateError,
     accept_candidate,
     candidate_difference,
-    candidate_path_for,
     candidate_sidecar_path,
+    candidate_write_path,
     describe_candidate_state,
     difference_percent,
+    has_candidate,
     read_candidate_sidecar,
     reject_candidate,
+    resolve_candidate,
     settle_slot,
     staging_dir,
     sweep_comfy_temp_files,
@@ -75,10 +77,10 @@ class CandidateFolder:
         self.media = write_image(self.folder / "photo.png", (32, 32), "red")
 
         if staged:
-            self.candidate = write_image(candidate_path_for(self.media), (64, 64), "blue")
+            self.candidate = write_image(candidate_write_path(self.media), (64, 64), "blue")
             write_candidate_sidecar(self.candidate, sidecar())
         else:
-            self.candidate = candidate_path_for(self.media)
+            self.candidate = candidate_write_path(self.media)
 
     def __enter__(self) -> "CandidateFolder":
         return self
@@ -88,13 +90,88 @@ class CandidateFolder:
 
 
 class CandidatePathTests(unittest.TestCase):
-    def test_a_candidate_keeps_the_source_filename(self) -> None:
+    def test_a_candidate_keeps_the_source_stem_and_is_staged_as_png(self) -> None:
         media = Path("photos") / "holiday.jpg"
 
         self.assertEqual(
-            candidate_path_for(media),
-            Path("photos") / STAGING_DIR_NAME / "holiday.jpg",
+            candidate_write_path(media),
+            Path("photos") / STAGING_DIR_NAME / "holiday.png",
         )
+
+    def test_a_png_candidate_pairs_with_a_jpeg_source(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.jpg", (32, 32), "red")
+            staged = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+
+            self.assertEqual(resolve_candidate(media), staged)
+            self.assertTrue(has_candidate(media))
+
+    def test_a_sibling_of_the_staged_name_keeps_its_own_candidate(self) -> None:
+        # photo.png is a dataset image in its own right, so staging/photo.png is its candidate alone.
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            jpeg = write_image(folder / "photo.jpg", (32, 32), "red")
+            png = write_image(folder / "photo.png", (32, 32), "green")
+            staged = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+
+            self.assertEqual(resolve_candidate(png), staged)
+            self.assertIsNone(resolve_candidate(jpeg))
+
+    def test_a_candidate_named_exactly_like_the_source_still_pairs(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.jpg", (32, 32), "red")
+            staged = write_image(folder / STAGING_DIR_NAME / "photo.jpg", (64, 64), "blue")
+
+            self.assertEqual(resolve_candidate(media), staged)
+
+    def test_accepting_replaces_a_jpeg_source_with_the_png_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.jpg", (32, 32), "red")
+            write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+
+            response = accept_candidate(media)
+
+            published = folder / "photo.png"
+            self.assertFalse(media.exists())
+            self.assertTrue(published.is_file())
+            self.assertEqual(response.path, str(published))
+            with Image.open(published) as opened:
+                self.assertEqual(opened.format, "PNG")
+                self.assertEqual(opened.size, (64, 64))
+
+    def test_accepting_a_png_source_overwrites_it_in_place(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.png", (32, 32), "red")
+            write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+
+            accept_candidate(media)
+
+            self.assertTrue(media.is_file())
+            with Image.open(media) as opened:
+                self.assertEqual(opened.format, "PNG")
+                self.assertEqual(opened.size, (64, 64))
+
+    def test_accepting_carries_findings_onto_the_new_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = write_image(folder / "photo.jpg", (32, 32), "red")
+            (folder / "photo.txt").write_text("A caption for this photo.", encoding="utf-8")
+            (folder / "photo.jpg.issue.json").write_text("{}", encoding="utf-8")
+            (folder / "photo.jpg.duplicate.json").write_text("{}", encoding="utf-8")
+            write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+
+            accept_candidate(media)
+
+            # Caption is stem-based, so it already belongs to photo.png untouched.
+            self.assertTrue((folder / "photo.txt").is_file())
+            self.assertTrue((folder / "photo.png.issue.json").is_file())
+            self.assertTrue((folder / "photo.png.duplicate.json").is_file())
+            self.assertFalse((folder / "photo.jpg.issue.json").exists())
+            self.assertFalse((folder / "photo.jpg.duplicate.json").exists())
 
     def test_none_of_the_markers_end_in_a_media_suffix(self) -> None:
         # A marker whose last suffix is a media one would surface as a phantom gallery

@@ -144,6 +144,19 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertTrue(by_name["upscaled.png"]["has_candidate"])
             self.assertFalse(by_name["plain.png"]["has_candidate"])
 
+    def test_a_png_candidate_is_listed_against_its_jpeg_source(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "holiday.jpg")
+            staging = root / STAGING_DIR_NAME
+            staging.mkdir()
+            write_media(staging, "holiday.png")
+
+            items = client.get(f"/api/folders/contents?path={quote(str(root))}").json()["items"]
+            by_name = {item["name"]: item for item in items}
+
+            self.assertTrue(by_name["holiday.jpg"]["has_candidate"])
+            self.assertEqual(by_name["holiday.jpg"]["candidate_name"], "holiday.png")
+
     def test_a_stored_original_is_not_listed_as_media_of_its_own(self) -> None:
         with TempMediaFolder() as root:
             write_mp4_video(root, "clip.mp4")
