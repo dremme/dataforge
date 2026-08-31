@@ -18,6 +18,7 @@ const PHOTO = "C:\\Photos\\sunset.png";
 const ENCODED = "C%3A%5CPhotos%5Csunset.png";
 
 const SPEC: ImageEditSpec = {
+  masks: [],
   crop: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
   mirror_h: true,
   mirror_v: false,

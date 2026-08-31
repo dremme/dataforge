@@ -166,7 +166,7 @@ describe("GalleryItemModal", () => {
         const dialog = await openEditMode(user);
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right 90°" }));
+        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
 
         expect(dialog.querySelector(".image-edit-stage__canvas")).toHaveStyle({
           "--edit-rotate": "90deg",
@@ -183,11 +183,11 @@ describe("GalleryItemModal", () => {
         expect(stage).not.toHaveClass("image-edit-stage--turned");
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right 90°" }));
+        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
         expect(stage).toHaveClass("image-edit-stage--turned");
 
         // A half turn leaves the frame the way up it started.
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right 90°" }));
+        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
         expect(stage).not.toHaveClass("image-edit-stage--turned");
       });
 
@@ -197,7 +197,7 @@ describe("GalleryItemModal", () => {
         const dialog = await openEditMode(user);
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Mirror horizontally" }));
+        await user.click(within(dialog).getByRole("button", { name: "Flip hori." }));
 
         expect(dialog.querySelector(".image-edit-stage__canvas")).toHaveStyle({
           "--edit-flip-x": "-1",
@@ -283,12 +283,13 @@ describe("GalleryItemModal", () => {
         const dialog = await openEditMode(user);
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right 90°" }));
+        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
         await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
         await waitFor(() => expect(applyMock).toHaveBeenCalled());
         expect(applyMock.mock.calls[0][0]).toBe(PHOTO);
         expect(applyMock.mock.calls[0][1]).toEqual({
+          masks: [],
           crop: null,
           mirror_h: false,
           mirror_v: false,
@@ -314,7 +315,7 @@ describe("GalleryItemModal", () => {
         const dialog = await openEditMode(user);
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right 90°" }));
+        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
         await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
         await waitFor(() =>
@@ -335,7 +336,7 @@ describe("GalleryItemModal", () => {
         const dialog = await openEditMode(user);
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Rotate right 90°" }));
+        await user.click(within(dialog).getByRole("button", { name: "Rotate right" }));
         await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
         expect(await screen.findByText(/Could not edit sunset.png/)).toBeInTheDocument();
@@ -349,7 +350,7 @@ describe("GalleryItemModal", () => {
         fetchStateMock.mockResolvedValue({
           path: PHOTO,
           has_backup: true,
-          spec: { crop: null, mirror_h: false, mirror_v: false, rotate: 90, scale: 1 },
+          spec: { masks: [], crop: null, mirror_h: false, mirror_v: false, rotate: 90, scale: 1 },
         });
         renderModal(imageItem({ has_backup: true }));
         const dialog = await openEditMode(user);

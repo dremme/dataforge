@@ -1,18 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type PointerEvent,
-  type RefObject,
-} from "react";
+import { useCallback, useRef, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import {
   CROP_HANDLES,
   CROP_NUDGE_FRACTION,
   CROP_NUDGE_MULTIPLIER,
   UPRIGHT,
-  containedBox,
   isCornerHandle,
   moveCrop,
   resizeCrop,
@@ -21,6 +12,7 @@ import {
   type CropRect,
   type Orientation,
 } from "@/features/gallery/lib/crop";
+import { usePaintedBox } from "@/features/gallery/hooks/usePaintedBox";
 import { classNames } from "@/shared/lib/classNames";
 
 const HANDLE_LABELS: Record<CropHandle, string> = {
@@ -33,8 +25,6 @@ const HANDLE_LABELS: Record<CropHandle, string> = {
   sw: "Crop bottom-left corner",
   w: "Crop left edge",
 };
-
-const EMPTY_BOX = { left: 0, top: 0, width: 0, height: 0 };
 
 interface CropOverlayProps {
   mediaRef: RefObject<HTMLElement | null>;
@@ -62,43 +52,12 @@ export function CropOverlay({
   round = Math.round,
   onCropChange,
 }: CropOverlayProps) {
-  const [box, setBox] = useState(EMPTY_BOX);
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
-
-  useEffect(() => {
-    const media = mediaRef.current;
-    if (!media) return;
-
-    const measure = () => {
-      // containedBox is in media coords; add offsetLeft/Top so padding does not shift the rect.
-      // Layout offsets, not getBoundingClientRect: a rect is transformed and would apply it twice.
-      if (!media.offsetParent) {
-        setBox(EMPTY_BOX);
-        return;
-      }
-
-      const painted = containedBox(
-        media.offsetWidth,
-        media.offsetHeight,
-        sourceWidth,
-        sourceHeight,
-      );
-
-      setBox({
-        left: media.offsetLeft + painted.left,
-        top: media.offsetTop + painted.top,
-        width: painted.width,
-        height: painted.height,
-      });
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(media);
-    // Host too: a taller stage re-centres max-height-clamped media without resizing it.
-    observer.observe(media.offsetParent ?? media);
-    return () => observer.disconnect();
-  }, [sourceHeight, sourceWidth, mediaRef]);
+  const box = usePaintedBox(mediaRef, sourceWidth, sourceHeight);
+  // Anchored to where the drag began: pointer moves outrun rendering, so a delta applied to the
+  // last rendered rect loses every move that landed inside the same frame.
+  const dragRef = useRef<{ x: number; y: number; rect: CropRect } | null>(null);
+  const cropRef = useRef(crop);
+  cropRef.current = crop;
 
   // Aspect is in source pixels; this rect is fractions, so divide by the frame's aspect first.
   const rectRatio =
@@ -125,7 +84,7 @@ export function CropOverlay({
       event.stopPropagation();
       event.currentTarget.focus();
       event.currentTarget.setPointerCapture(event.pointerId);
-      dragRef.current = { x: event.clientX, y: event.clientY };
+      dragRef.current = { x: event.clientX, y: event.clientY, rect: cropRef.current };
     },
     [disabled],
   );
@@ -143,10 +102,9 @@ export function CropOverlay({
       if (disabled || !origin || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
 
       const { dx, dy } = fractionDelta(event.clientX - origin.x, event.clientY - origin.y);
-      dragRef.current = { x: event.clientX, y: event.clientY };
-      onCropChange(resizeCrop(crop, handle, dx, dy, rectRatio));
+      onCropChange(resizeCrop(origin.rect, handle, dx, dy, rectRatio));
     },
-    [crop, disabled, fractionDelta, onCropChange, rectRatio],
+    [disabled, fractionDelta, onCropChange, rectRatio],
   );
 
   const dragRect = useCallback(
@@ -155,10 +113,9 @@ export function CropOverlay({
       if (disabled || !origin || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
 
       const { dx, dy } = fractionDelta(event.clientX - origin.x, event.clientY - origin.y);
-      dragRef.current = { x: event.clientX, y: event.clientY };
-      onCropChange(moveCrop(crop, dx, dy));
+      onCropChange(moveCrop(origin.rect, dx, dy));
     },
-    [crop, disabled, fractionDelta, onCropChange],
+    [disabled, fractionDelta, onCropChange],
   );
 
   const nudge = useCallback(
@@ -218,7 +175,7 @@ export function CropOverlay({
         onPointerCancel={endDrag}
       >
         <span className="crop-overlay__readout">
-          {pixels.width} x {pixels.height}
+          {pixels.width} × {pixels.height}
         </span>
         {CROP_HANDLES.map((handle) => (
           <button

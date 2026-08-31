@@ -68,6 +68,7 @@ import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
 import { TransferMediaDialog } from "./TransferMediaDialog";
 import { FrameCaptureBar } from "./FrameCaptureBar";
 import { CropOverlay } from "./CropOverlay";
+import { MaskOverlay } from "./MaskOverlay";
 import { ImageEditPanel } from "./ImageEditPanel";
 import { ImageEditStage } from "./ImageEditStage";
 import { VideoEditPanel } from "./VideoEditPanel";
@@ -556,6 +557,21 @@ export function GalleryItemModal({
                   videoEdit.handleLoadedMetadata(event.currentTarget);
                 }}
               />
+              {editMode && videoEdit.draft.masks.length > 0 && (
+                <MaskOverlay
+                  mediaRef={videoCapture.videoRef}
+                  src={videoOriginalUrl(item.path)}
+                  masks={videoEdit.draft.masks}
+                  selectedId={videoEdit.selectedMaskId}
+                  sourceWidth={videoEdit.sourceWidth}
+                  sourceHeight={videoEdit.sourceHeight}
+                  disabled={busy}
+                  interactive={videoEdit.maskActive}
+                  onSelect={videoEdit.selectMask}
+                  onChange={videoEdit.setMaskRect}
+                  onRemove={videoEdit.removeMask}
+                />
+              )}
               {editMode && videoEdit.cropActive && (
                 <CropOverlay
                   mediaRef={videoCapture.videoRef}

@@ -9,10 +9,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PIL import Image
+from pydantic import ValidationError
 
 import edit_sidecars
 import image_edit
-from schemas import EditCropRect, ImageEditSpec
+import schemas
+from schemas import EditCropRect, ImageEditSpec, MaskRegion
 from testing_fixtures import TempMediaFolder, write_image, write_jpeg
 
 RED = (255, 0, 0)
@@ -32,6 +34,20 @@ def corner_marked(width: int = WIDTH, height: int = HEIGHT) -> Image.Image:
     image.putpixel((width - 1, height - 1), BLUE)
     image.putpixel((0, height - 1), YELLOW)
     return image
+
+
+def graded(width: int = WIDTH, height: int = HEIGHT) -> Image.Image:
+    """Every pixel differs from its neighbours, so a blur or a mosaic flattens something visible."""
+    image = Image.new("RGB", (width, height))
+    for x in range(width):
+        for y in range(height):
+            image.putpixel((x, y), (x * 6 % 256, y * 12 % 256, (x + y) * 3 % 256))
+    return image
+
+
+def columns(image: Image.Image, row: int = 0) -> list[tuple[int, int, int]]:
+    pixels = image.convert("RGB")
+    return [pixels.getpixel((x, row)) for x in range(image.width)]
 
 
 def corners(image: Image.Image) -> tuple[tuple[int, int, int], ...]:
@@ -158,6 +174,129 @@ class RenderScaleTests(unittest.TestCase):
         self.assertEqual(image_edit.scaled_size((8, 4), 0.05), (1, 1))
 
 
+class RenderMaskTests(unittest.TestCase):
+    def test_a_blur_changes_only_the_pixels_inside_the_region(self) -> None:
+        source = graded()
+
+        result = image_edit.render_image_edit(
+            source,
+            ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=0.5, height=1.0)]),
+        )
+
+        self.assertNotEqual(columns(result)[:20], columns(source)[:20])
+        self.assertEqual(columns(result)[20:], columns(source)[20:])
+
+    def test_pixelating_leaves_flat_blocks_of_the_size_the_strength_asks_for(self) -> None:
+        result = image_edit.render_image_edit(
+            graded(),
+            ImageEditSpec(
+                masks=[
+                    MaskRegion(x=0.0, y=0.0, width=1.0, height=1.0, mode="pixelate", strength=0.25)
+                ]
+            ),
+        )
+
+        # A quarter of the 20px height is a 5px block, so five columns share one value.
+        self.assertEqual(len(set(columns(result)[:5])), 1)
+        self.assertNotEqual(columns(result)[4], columns(result)[5])
+
+    def test_a_blur_leaves_no_flat_blocks(self) -> None:
+        result = image_edit.render_image_edit(
+            graded(),
+            ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=1.0, height=1.0, strength=0.25)]),
+        )
+
+        self.assertNotEqual(columns(result)[0], columns(result)[1])
+
+    def test_a_region_outside_the_crop_is_cropped_away(self) -> None:
+        left_half = EditCropRect(x=0.0, y=0.0, width=0.5, height=1.0)
+        right_half = MaskRegion(x=0.5, y=0.0, width=0.5, height=1.0)
+
+        masked = image_edit.render_image_edit(
+            graded(), ImageEditSpec(masks=[right_half], crop=left_half)
+        )
+        plain = image_edit.render_image_edit(graded(), ImageEditSpec(crop=left_half))
+
+        self.assertEqual(masked.tobytes(), plain.tobytes())
+
+    def test_the_region_is_measured_against_the_source_and_not_the_crop(self) -> None:
+        """Read against the cropped frame the same fractions would leave the crop's left half sharp."""
+        spec = ImageEditSpec(
+            masks=[MaskRegion(x=0.5, y=0.0, width=0.5, height=1.0, mode="pixelate", strength=0.5)],
+            crop=EditCropRect(x=0.5, y=0.0, width=0.5, height=1.0),
+        )
+
+        result = image_edit.render_image_edit(graded(), spec)
+
+        self.assertEqual(len(set(columns(result)[:10])), 1)
+
+    def test_every_region_in_the_list_is_applied(self) -> None:
+        source = graded()
+
+        result = image_edit.render_image_edit(
+            source,
+            ImageEditSpec(
+                masks=[
+                    MaskRegion(x=0.0, y=0.0, width=0.25, height=1.0),
+                    MaskRegion(x=0.75, y=0.0, width=0.25, height=1.0),
+                ]
+            ),
+        )
+
+        self.assertNotEqual(columns(result)[:10], columns(source)[:10])
+        self.assertEqual(columns(result)[10:30], columns(source)[10:30])
+        self.assertNotEqual(columns(result)[30:], columns(source)[30:])
+
+    def test_a_region_smaller_than_one_blur_radius_still_renders(self) -> None:
+        result = image_edit.render_image_edit(
+            graded(),
+            ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=0.05, height=0.05, strength=0.02)]),
+        )
+
+        self.assertEqual(result.size, (WIDTH, HEIGHT))
+
+    def test_the_loaded_original_is_left_alone_for_the_next_render(self) -> None:
+        source = graded()
+        before = source.tobytes()
+
+        image_edit.render_image_edit(
+            source,
+            ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=1.0, height=1.0)]),
+        )
+
+        self.assertEqual(source.tobytes(), before)
+
+
+class MaskSpecTests(unittest.TestCase):
+    def test_a_full_frame_region_stands_where_a_full_frame_crop_would_be_dropped(self) -> None:
+        spec = ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=1.0, height=1.0)])
+
+        self.assertEqual(len(spec.masks), 1)
+
+    def test_a_region_reaching_past_an_edge_is_refused(self) -> None:
+        for region in (
+            MaskRegion(x=0.6, y=0.0, width=0.5, height=0.5),
+            MaskRegion(x=0.0, y=0.6, width=0.5, height=0.5),
+        ):
+            with self.subTest(region=region), self.assertRaises(ValidationError):
+                ImageEditSpec(masks=[region])
+
+    def test_more_regions_than_the_cap_are_refused(self) -> None:
+        region = MaskRegion(x=0.0, y=0.0, width=0.1, height=0.1)
+
+        with self.assertRaises(ValidationError):
+            ImageEditSpec(masks=[region] * (schemas.MAX_MASK_REGIONS + 1))
+
+    def test_a_strength_outside_the_range_is_refused(self) -> None:
+        for strength in (0.0, 1.0):
+            with self.subTest(strength=strength), self.assertRaises(ValidationError):
+                MaskRegion(x=0.0, y=0.0, width=0.5, height=0.5, strength=strength)
+
+    def test_a_mode_that_is_not_a_known_one_is_refused(self) -> None:
+        with self.assertRaises(ValidationError):
+            MaskRegion(x=0.0, y=0.0, width=0.5, height=0.5, mode="swirl")
+
+
 class RenderOrderTests(unittest.TestCase):
     def test_crop_then_mirror_then_rotate_then_scale(self) -> None:
         """The one test that pins the order down; each step alone would pass under others."""
@@ -199,6 +338,7 @@ class IdentitySpecTests(unittest.TestCase):
 
     def test_each_field_on_its_own_is_a_real_edit(self) -> None:
         for spec in (
+            ImageEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.8, height=0.8)]),
             ImageEditSpec(crop=EditCropRect(x=0.1, y=0.1, width=0.8, height=0.8)),
             ImageEditSpec(mirror_h=True),
             ImageEditSpec(mirror_v=True),

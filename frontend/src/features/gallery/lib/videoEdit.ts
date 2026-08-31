@@ -1,4 +1,5 @@
 import { clampCrop, IDENTITY_CROP, isIdentityCrop, type CropRect, type Size } from "./crop";
+import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
 import type { EditCropRect, VideoEditSpec } from "@/shared/types";
 
 /** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
@@ -15,6 +16,7 @@ const IDENTITY_EPSILON = 1e-9;
 export interface VideoEditDraft {
   trimStart: number;
   trimEnd: number;
+  masks: MaskDraft[];
   crop: CropRect;
   speed: number;
   scale: number;
@@ -32,6 +34,7 @@ export function emptyDraft(duration: number): VideoEditDraft {
   return {
     trimStart: 0,
     trimEnd: Number.isFinite(duration) && duration > 0 ? duration : 0,
+    masks: [],
     crop: IDENTITY_CROP,
     speed: 1,
     scale: 1,
@@ -42,6 +45,7 @@ export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean
   return (
     draft.trimStart < TRIM_END_EPSILON &&
     draft.trimEnd >= duration - TRIM_END_EPSILON &&
+    draft.masks.length === 0 &&
     isIdentityCrop(draft.crop) &&
     Math.abs(draft.speed - 1) < IDENTITY_EPSILON &&
     Math.abs(draft.scale - 1) < IDENTITY_EPSILON
@@ -101,6 +105,7 @@ export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoE
   return {
     trim_start: draft.trimStart,
     trim_end: runsToTheEnd ? null : draft.trimEnd,
+    masks: toMaskRegions(draft.masks),
     crop: isIdentityCrop(draft.crop) ? null : { ...draft.crop },
     speed: draft.speed,
     scale: draft.scale,
@@ -114,6 +119,7 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
   return {
     trimStart: Math.min(spec.trim_start, draft.trimEnd),
     trimEnd: spec.trim_end == null ? draft.trimEnd : Math.min(spec.trim_end, draft.trimEnd),
+    masks: maskDraftsFromSpec(spec.masks),
     crop: spec.crop ? clampCrop(toCropRect(spec.crop)) : IDENTITY_CROP,
     speed: spec.speed,
     scale: spec.scale,
@@ -145,6 +151,7 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
     (a.trim_end == null || b.trim_end == null
       ? a.trim_end == b.trim_end
       : sameNumber(a.trim_end, b.trim_end)) &&
+    masksEqual(a.masks, b.masks) &&
     sameCrop(a.crop ?? null, b.crop ?? null) &&
     sameNumber(a.speed, b.speed) &&
     sameNumber(a.scale, b.scale)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   IDENTITY_CROP,
   MIN_CROP_FRACTION,
+  MIN_MASK_FRACTION,
   aspectIdForCrop,
   clampCrop,
   containedBox,
@@ -130,6 +131,39 @@ describe("crop geometry", () => {
     expect(wide.width).toBe(1);
     expect(wide.height).toBeCloseTo(0.5);
     expect(wide.y).toBeCloseTo(0.25);
+  });
+
+  describe("the smallest a rectangle may be", () => {
+    it("stops a crop at the size that keeps it grabbable", () => {
+      const squeezed = resizeCrop({ x: 0, y: 0, width: 1, height: 1 }, "e", -1, 0);
+
+      expect(squeezed.width).toBeCloseTo(MIN_CROP_FRACTION);
+    });
+
+    it("lets a blur region go down to the smaller minimum it is given", () => {
+      const squeezed = resizeCrop(
+        { x: 0, y: 0, width: 1, height: 1 },
+        "e",
+        -1,
+        0,
+        null,
+        MIN_MASK_FRACTION,
+      );
+
+      expect(squeezed.width).toBeCloseTo(MIN_MASK_FRACTION);
+    });
+
+    it("clamps and moves against that same minimum", () => {
+      expect(clampCrop({ x: 0, y: 0, width: 0.02, height: 0.02 }).width).toBeCloseTo(
+        MIN_CROP_FRACTION,
+      );
+      expect(
+        clampCrop({ x: 0, y: 0, width: 0.02, height: 0.02 }, MIN_MASK_FRACTION).width,
+      ).toBeCloseTo(0.02);
+      expect(
+        moveCrop({ x: 0, y: 0, width: 0.02, height: 0.02 }, 0, 0, MIN_MASK_FRACTION).width,
+      ).toBeCloseTo(0.02);
+    });
   });
 
   describe("aspectIdForCrop", () => {

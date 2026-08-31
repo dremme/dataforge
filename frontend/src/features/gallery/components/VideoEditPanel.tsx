@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CROP_ASPECTS, isIdentityCrop } from "@/features/gallery/lib/crop";
 import {
   SCALE_PRESETS,
@@ -8,13 +8,17 @@ import {
   scaleForTargetHeight,
   scaleForTargetWidth,
 } from "@/features/gallery/lib/videoEdit";
+import { MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import {
   iconCrop,
+  iconDroplets,
   iconGauge,
   iconLoader2,
   iconMaximize2,
+  iconPlus,
   iconScissors,
+  iconTrash2,
   iconUndo2,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -24,13 +28,14 @@ import { SizeNumberField } from "./SizeNumberField";
 import type { AppIcon } from "@/shared/icons";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 
-type ToolId = "trim" | "crop" | "speed" | "size";
+type ToolId = "trim" | "crop" | "blur" | "speed" | "size";
 
 const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "trim", label: "Trim", icon: iconScissors },
-  { id: "crop", label: "Crop", icon: iconCrop },
   { id: "speed", label: "Speed", icon: iconGauge },
+  { id: "crop", label: "Crop", icon: iconCrop },
   { id: "size", label: "Size", icon: iconMaximize2 },
+  { id: "blur", label: "Blur", icon: iconDroplets },
 ];
 
 interface VideoEditPanelProps {
@@ -50,16 +55,18 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
   const modified: Record<ToolId, boolean> = {
     trim: edit.draft.trimStart > 0 || (edit.ready && edit.draft.trimEnd < edit.duration),
     crop: !isIdentityCrop(edit.draft.crop),
+    blur: edit.draft.masks.length > 0,
     speed: edit.draft.speed !== 1,
     size: edit.draft.scale !== 1,
   };
 
-  const selectTool = (tool: ToolId) => {
-    setActiveTool(tool);
-    // Selecting the crop tool is what brings the handles out, the way picking a tool
-    // reveals its gizmo anywhere else. It replaces a button that did nothing but that.
-    edit.setCropActive(tool === "crop");
-  };
+  const { setCropActive, setMaskActive } = edit;
+
+  // Keyed on the tool rather than on the click, or the one the panel opens on is never armed.
+  useEffect(() => {
+    setCropActive(activeTool === "crop");
+    setMaskActive(activeTool === "blur");
+  }, [activeTool, setCropActive, setMaskActive]);
 
   return (
     <div className="video-edit-panel" role="group" aria-label="Video editing">
@@ -79,7 +86,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
         onToggleMuted={edit.toggleMuted}
       />
 
-      <div className="video-edit-panel__bar">
+      <div className="video-edit-panel__bar video-edit-panel__bar--tabs">
         <div className="video-edit-panel__tools" role="group" aria-label="Editing tool">
           {TOOLS.map((tool) => (
             <button
@@ -93,7 +100,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
               aria-pressed={activeTool === tool.id}
               aria-label={modified[tool.id] ? `${tool.label}, changed` : tool.label}
               disabled={locked}
-              onClick={() => selectTool(tool.id)}
+              onClick={() => setActiveTool(tool.id)}
             >
               <Icon icon={tool.icon} />
               {tool.label}
@@ -111,6 +118,11 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                   {edit.outputWidth} x {edit.outputHeight}
                 </strong>
               </span>
+              {modified.blur && (
+                <span className="video-edit-panel__output-part">
+                  {describeMasks(edit.draft.masks.length)}
+                </span>
+              )}
               <span className="video-edit-panel__output-part">
                 {formatFrameTime(edit.duration)}
                 <span className="video-edit-panel__output-arrow"> to </span>
@@ -129,43 +141,27 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
         <div className="video-edit-panel__tool-controls">
           {activeTool === "trim" && (
             <>
-              <button
-                type="button"
-                className="video-edit-panel__control"
-                disabled={locked}
-                onClick={edit.setTrimStartAtPlayhead}
-              >
-                Set in
-              </button>
-              <button
-                type="button"
-                className="video-edit-panel__control"
-                disabled={locked}
-                onClick={edit.setTrimEndAtPlayhead}
-              >
-                Set out
-              </button>
+              <div className="video-edit-panel__tool-actions">
+                <button
+                  type="button"
+                  className="video-edit-panel__control"
+                  disabled={locked}
+                  onClick={edit.setTrimStartAtPlayhead}
+                >
+                  Set in
+                </button>
+                <button
+                  type="button"
+                  className="video-edit-panel__control"
+                  disabled={locked}
+                  onClick={edit.setTrimEndAtPlayhead}
+                >
+                  Set out
+                </button>
+              </div>
               <span className="video-edit-panel__hint">
                 Both follow the playhead. Drag a handle, or nudge it with the arrow keys.
               </span>
-            </>
-          )}
-
-          {activeTool === "crop" && (
-            <>
-              <ToolPresets label="Aspect">
-                {CROP_ASPECTS.map((aspect) => (
-                  <PresetButton
-                    key={aspect.id}
-                    active={edit.aspectId === aspect.id}
-                    disabled={locked}
-                    onClick={() => edit.selectAspect(aspect.id)}
-                  >
-                    {aspect.label}
-                  </PresetButton>
-                ))}
-              </ToolPresets>
-              <span className="video-edit-panel__hint">Or drag the rectangles on the frame.</span>
             </>
           )}
 
@@ -182,6 +178,23 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 </PresetButton>
               ))}
             </ToolPresets>
+          )}
+
+          {activeTool === "crop" && (
+            <>
+              <ToolPresets label="Aspect">
+                {CROP_ASPECTS.map((aspect) => (
+                  <PresetButton
+                    key={aspect.id}
+                    active={edit.aspectId === aspect.id}
+                    disabled={locked}
+                    onClick={() => edit.selectAspect(aspect.id)}
+                  >
+                    {aspect.label}
+                  </PresetButton>
+                ))}
+              </ToolPresets>
+            </>
           )}
 
           {activeTool === "size" && (
@@ -222,6 +235,59 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                   }
                 />
               </div>
+            </>
+          )}
+
+          {activeTool === "blur" && (
+            <>
+              <div className="video-edit-panel__tool-actions">
+                <button
+                  type="button"
+                  className="video-edit-panel__control"
+                  disabled={locked || edit.maskLimitReached}
+                  onClick={edit.addMask}
+                >
+                  <Icon icon={iconPlus} />
+                  Add
+                </button>
+                <button
+                  type="button"
+                  className="video-edit-panel__control"
+                  disabled={locked || !modified.blur}
+                  onClick={edit.clearMasks}
+                >
+                  <Icon icon={iconTrash2} />
+                  Clear
+                </button>
+              </div>
+              <ToolPresets label="Blur style">
+                <PresetButton
+                  active={edit.maskMode === "blur"}
+                  disabled={locked}
+                  onClick={() => edit.setMaskMode("blur")}
+                >
+                  Blur
+                </PresetButton>
+                <PresetButton
+                  active={edit.maskMode === "pixelate"}
+                  disabled={locked}
+                  onClick={() => edit.setMaskMode("pixelate")}
+                >
+                  Pixelate
+                </PresetButton>
+              </ToolPresets>
+              <ToolPresets label="Strength">
+                {MASK_STRENGTHS.map((strength) => (
+                  <PresetButton
+                    key={strength.id}
+                    active={edit.maskStrength === strength.value}
+                    disabled={locked}
+                    onClick={() => edit.setMaskStrength(strength.value)}
+                  >
+                    {strength.label}
+                  </PresetButton>
+                ))}
+              </ToolPresets>
             </>
           )}
         </div>

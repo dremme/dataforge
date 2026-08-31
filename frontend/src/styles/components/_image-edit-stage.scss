@@ -6,7 +6,7 @@
   position: relative;
   flex: 1 1 0;
   min-width: 0;
-  height: $modal-media-max-height;
+  height: $modal-edit-media-max-height;
   // Width comes from the flex row via 100cqi on the turned image.
   container-type: inline-size;
 
@@ -20,18 +20,20 @@
     transform-origin: center;
   }
 
+  // Fills the stage the way the viewer's own preview does; `contain` letterboxes what is left.
   &__img {
     display: block;
-    max-width: 100%;
-    max-height: $modal-media-max-height;
+    width: 100cqi;
+    max-height: $modal-edit-media-max-height;
     border-radius: var(--radius-sm);
+    object-fit: contain;
     pointer-events: none;
     user-select: none;
   }
 
   // On its side the constraints swap: layout width becomes painted height (the cap) and layout height becomes painted width (100cqi).
   &--turned &__img {
-    max-width: $modal-media-max-height;
+    width: $modal-edit-media-max-height;
     max-height: 100cqi;
   }
 }

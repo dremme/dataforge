@@ -19,8 +19,19 @@ import {
   toVideoEditSpec,
   type VideoEditDraft,
 } from "./videoEdit";
+import { newMaskDraft } from "./mask";
+import type { MaskRegion } from "@/shared/types";
 
 const HD = { width: 1920, height: 1080 };
+
+const REGION: MaskRegion = {
+  x: 0.1,
+  y: 0.1,
+  width: 0.3,
+  height: 0.3,
+  mode: "blur",
+  strength: 0.12,
+};
 
 function draft(overrides: Partial<VideoEditDraft> = {}): VideoEditDraft {
   return { ...emptyDraft(12), ...overrides };
@@ -104,6 +115,7 @@ describe("edit identity", () => {
     ["a speed change", { speed: 2 }],
     ["a rescale", { scale: 0.5 }],
     ["a crop", { crop: { x: 0, y: 0, width: 0.5, height: 1 } }],
+    ["a blur region", { masks: [newMaskDraft("blur", 0.12, 0)] }],
   ])("counts %s as an edit", (_label, overrides) => {
     expect(isIdentityEdit(draft(overrides), 12)).toBe(false);
   });
@@ -133,6 +145,21 @@ describe("wire conversion", () => {
     expect(draftFromSpec(toVideoEditSpec(original, 12), 12)).toEqual(original);
   });
 
+  it("sends every region across with its style and strength", () => {
+    const masks = [newMaskDraft("pixelate", 0.22, 0)];
+
+    const sent = toVideoEditSpec(draft({ masks }), 12).masks;
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ mode: "pixelate", strength: 0.22, ...masks[0].rect });
+  });
+
+  it("brings the regions back out of a stored spec", () => {
+    const seeded = draftFromSpec(toVideoEditSpec(draft({ masks: [] }), 12), 12);
+
+    expect(seeded.masks).toEqual([]);
+  });
+
   it("opens on an empty draft when nothing is stored", () => {
     expect(draftFromSpec(null, 12)).toEqual(emptyDraft(12));
   });
@@ -146,6 +173,20 @@ describe("wire conversion", () => {
 
 describe("specsEqual", () => {
   const base = () => toVideoEditSpec(draft({ trimStart: 1, trimEnd: 8, speed: 2, scale: 0.5 }), 12);
+
+  it("reports a difference in the regions", () => {
+    expect(specsEqual({ ...base(), masks: [REGION] }, base())).toBe(false);
+    expect(
+      specsEqual(
+        { ...base(), masks: [REGION] },
+        { ...base(), masks: [{ ...REGION, strength: 0.4 }] },
+      ),
+    ).toBe(false);
+  });
+
+  it("reads the same regions as the same file", () => {
+    expect(specsEqual({ ...base(), masks: [REGION] }, { ...base(), masks: [REGION] })).toBe(true);
+  });
 
   it("matches a spec against itself", () => {
     expect(specsEqual(base(), base())).toBe(true);

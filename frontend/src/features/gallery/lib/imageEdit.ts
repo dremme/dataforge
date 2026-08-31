@@ -7,9 +7,10 @@ import {
   type RotationDegrees,
   type Size,
 } from "./crop";
+import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
 import type { EditCropRect, ImageEditSpec } from "@/shared/types";
 
-/** Order matches backend/image_edit.py: crop, mirror, rotate, scale. Sizes round. */
+/** Order matches backend/image_edit.py: mask, crop, mirror, rotate, scale. Sizes round. */
 export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
 
 export const MIN_SCALE = 0.05;
@@ -19,6 +20,7 @@ const IDENTITY_EPSILON = 1e-9;
 const QUARTER_TURNS: readonly RotationDegrees[] = [0, 90, 180, 270];
 
 export interface ImageEditDraft {
+  masks: MaskDraft[];
   crop: CropRect;
   mirrorH: boolean;
   mirrorV: boolean;
@@ -31,11 +33,12 @@ function clamp(value: number, low: number, high: number): number {
 }
 
 export function emptyDraft(): ImageEditDraft {
-  return { crop: IDENTITY_CROP, mirrorH: false, mirrorV: false, rotate: 0, scale: 1 };
+  return { masks: [], crop: IDENTITY_CROP, mirrorH: false, mirrorV: false, rotate: 0, scale: 1 };
 }
 
 export function isIdentityEdit(draft: ImageEditDraft): boolean {
   return (
+    draft.masks.length === 0 &&
     isIdentityCrop(draft.crop) &&
     !draft.mirrorH &&
     !draft.mirrorV &&
@@ -110,6 +113,7 @@ export function scaleForTargetHeight(
 
 export function toImageEditSpec(draft: ImageEditDraft): ImageEditSpec {
   return {
+    masks: toMaskRegions(draft.masks),
     crop: isIdentityCrop(draft.crop) ? null : { ...draft.crop },
     mirror_h: draft.mirrorH,
     mirror_v: draft.mirrorV,
@@ -123,6 +127,7 @@ export function draftFromSpec(spec: ImageEditSpec | null): ImageEditDraft {
   if (!spec) return draft;
 
   return {
+    masks: maskDraftsFromSpec(spec.masks),
     crop: spec.crop ? clampCrop(toCropRect(spec.crop)) : IDENTITY_CROP,
     mirrorH: spec.mirror_h,
     mirrorV: spec.mirror_v,
@@ -152,6 +157,7 @@ function sameCrop(a: EditCropRect | null, b: EditCropRect | null): boolean {
 /** Compared as specs, not drafts, because toImageEditSpec already normalizes a whole-frame crop. */
 export function specsEqual(a: ImageEditSpec, b: ImageEditSpec): boolean {
   return (
+    masksEqual(a.masks, b.masks) &&
     sameCrop(a.crop ?? null, b.crop ?? null) &&
     a.mirror_h === b.mirror_h &&
     a.mirror_v === b.mirror_v &&

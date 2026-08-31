@@ -14,7 +14,7 @@ import edit_sidecars
 import video_edit
 from constants import EDIT_STALE_SUFFIX, EDIT_TEMP_SUFFIX, VIDEO_EDIT_MUXERS
 from ffmpeg_run import FfmpegCancelled
-from schemas import EditCropRect, VideoEditSpec
+from schemas import EditCropRect, MaskRegion, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_mp4_video
 
 SOURCE = Path("clip.mp4.bak")
@@ -39,11 +39,26 @@ FASTSTART = ["-movflags", "+faststart"]
 
 
 def command_for(
-    spec: VideoEditSpec, *, muxer: str = "mp4", frame_rate: float | None = None
+    spec: VideoEditSpec,
+    *,
+    muxer: str = "mp4",
+    frame_rate: float | None = None,
+    source_size: tuple[int, int] | None = None,
 ) -> list[str]:
     return video_edit.build_video_edit_command(
-        SOURCE, DESTINATION, spec, executable="ffmpeg", muxer=muxer, frame_rate=frame_rate
+        SOURCE,
+        DESTINATION,
+        spec,
+        executable="ffmpeg",
+        muxer=muxer,
+        frame_rate=frame_rate,
+        source_size=source_size,
     )
+
+
+def graph_for(spec: VideoEditSpec, size: tuple[int, int] = (640, 360)) -> str:
+    command = command_for(spec, source_size=size)
+    return command[command.index("-filter_complex") + 1]
 
 
 def even_trunc(value: float) -> int:
@@ -198,6 +213,102 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertEqual(command[-3:], ["-f", "mp4", str(DESTINATION)])
 
 
+class MaskFiltergraphTests(unittest.TestCase):
+    """Region geometry is in whole even pixels; ``gblur`` cannot read ``iw`` the way ``crop`` can."""
+
+    def region(self, **overrides: object) -> MaskRegion:
+        values: dict[str, object] = {"x": 0.1, "y": 0.1, "width": 0.3, "height": 0.3}
+        values.update(overrides)
+        return MaskRegion(**values)
+
+    def test_a_spec_without_regions_keeps_the_linear_filter_chain(self) -> None:
+        command = command_for(VideoEditSpec(scale=0.5), source_size=(640, 360))
+
+        self.assertNotIn("-filter_complex", command)
+        self.assertIn("-vf", command)
+
+    def test_regions_move_the_video_onto_a_filtergraph_and_map_its_output(self) -> None:
+        command = command_for(VideoEditSpec(masks=[self.region()]), source_size=(640, 360))
+
+        self.assertIn("-filter_complex", command)
+        self.assertNotIn("-vf", command)
+        self.assertEqual(command[command.index("-map") + 1], "[v]")
+        self.assertIn("0:a:0?", command)
+
+    def test_the_frame_is_split_once_for_each_region_plus_the_base(self) -> None:
+        graph = graph_for(VideoEditSpec(masks=[self.region(), self.region(x=0.5)]))
+
+        self.assertIn("[0:v]split=3[base][cut0][cut1]", graph)
+
+    def test_every_region_is_overlaid_back_where_it_was_cut_from(self) -> None:
+        graph = graph_for(VideoEditSpec(masks=[self.region(mode="pixelate")]))
+
+        # 10% of 640 and of 360, both already even.
+        self.assertIn("crop=192:108:64:36", graph)
+        self.assertIn("[base][mask0]overlay=64:36[over0]", graph)
+
+    def test_a_blur_widens_its_cut_and_trims_the_padding_back_off(self) -> None:
+        graph = graph_for(VideoEditSpec(masks=[self.region(mode="blur", strength=0.1)]))
+
+        # 10% of the region's 108px short side is a sigma of 2.7, so 6px of padding each way.
+        self.assertIn("crop=204:120:58:30,gblur=sigma=2.700000,crop=192:108:6:6", graph)
+
+    def test_a_mosaic_averages_down_and_comes_back_up_on_hard_edges(self) -> None:
+        graph = graph_for(VideoEditSpec(masks=[self.region(mode="pixelate", strength=0.25)]))
+
+        # A quarter of 108 rounds to an even 26, which divides the region into 7 by 4 blocks.
+        self.assertIn("crop=192:108:64:36,scale=7:4:flags=area,scale=192:108:flags=neighbor", graph)
+
+    def test_the_crop_and_scale_run_after_the_regions_are_laid_in(self) -> None:
+        spec = VideoEditSpec(masks=[self.region()], crop=EditCropRect(width=0.5), scale=0.5)
+
+        graph = graph_for(spec)
+
+        overlay = graph.index("overlay=")
+        self.assertLess(overlay, graph.index("crop=trunc(iw*"))
+        self.assertLess(graph.index("crop=trunc(iw*"), graph.index("scale=trunc(iw*"))
+
+    def test_a_spec_that_only_masks_still_terminates_the_graph(self) -> None:
+        graph = graph_for(VideoEditSpec(masks=[self.region()]))
+
+        self.assertTrue(graph.endswith("[over0]null[v]"))
+
+    def test_every_edge_of_a_region_lands_on_an_even_pixel(self) -> None:
+        region = self.region(x=0.077, y=0.077, width=0.313, height=0.313)
+
+        left, top, right, bottom = video_edit.mask_box((640, 360), region)
+
+        for edge in (left, top, right, bottom):
+            self.assertEqual(edge % 2, 0)
+
+    def test_a_region_too_small_to_measure_still_leaves_two_pixels(self) -> None:
+        left, top, right, bottom = video_edit.mask_box(
+            (640, 360), self.region(x=0.999, y=0.999, width=0.001, height=0.001)
+        )
+
+        self.assertGreaterEqual(right - left, 2)
+        self.assertGreaterEqual(bottom - top, 2)
+
+    def test_padding_never_reaches_outside_the_frame(self) -> None:
+        box = video_edit.mask_box((640, 360), self.region(x=0.0, y=0.0, width=0.2, height=0.2))
+
+        left, top, right, bottom = video_edit.padded_box((640, 360), box, 40)
+
+        self.assertEqual((left, top), (0, 0))
+        self.assertLessEqual(right, 640)
+        self.assertLessEqual(bottom, 360)
+
+    def test_an_unreadable_frame_size_refuses_rather_than_dropping_the_regions(self) -> None:
+        """Rendering the rest would hand back a file that looks edited but hides nothing."""
+        with self.assertRaises(RuntimeError):
+            command_for(VideoEditSpec(masks=[self.region()], scale=0.5), source_size=None)
+
+    def test_a_spec_without_regions_does_not_need_a_frame_size(self) -> None:
+        command = command_for(VideoEditSpec(scale=0.5), source_size=None)
+
+        self.assertIn("-vf", command)
+
+
 class AtempoChainTests(unittest.TestCase):
     def test_a_single_link_covers_the_documented_range(self) -> None:
         self.assertEqual(video_edit.atempo_chain(1.5), "atempo=1.500000")
@@ -257,6 +368,7 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(speed=2.0),
             VideoEditSpec(scale=0.5),
             VideoEditSpec(crop=EditCropRect(width=0.5)),
+            VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
         )
         for spec in changed:
             with self.subTest(spec=spec):
@@ -285,22 +397,28 @@ class SpecHelperTests(unittest.TestCase):
             video_edit.resolve_muxer(Path("clip.avi"))
 
 
-class SourceFrameRateTests(unittest.TestCase):
+class ProbeSourceTests(unittest.TestCase):
     """A fake capture keeps OpenCV's C++ warning for an unreadable file off the suite."""
 
-    #: The real cv2 value, so a capture handed the wrong one is still recognisable.
+    #: The real cv2 values, so a capture handed the wrong one is still recognisable.
     CAP_PROP_FPS = 5
+    CAP_PROP_FRAME_WIDTH = 3
+    CAP_PROP_FRAME_HEIGHT = 4
 
-    def _fake_cv2(self, *, fps: float, opened: bool = True):
+    def _fake_cv2(self, *, fps: float, size: tuple[int, int] = (800, 450), opened: bool = True):
         released: list[bool] = []
+        properties = {
+            ProbeSourceTests.CAP_PROP_FPS: fps,
+            ProbeSourceTests.CAP_PROP_FRAME_WIDTH: size[0],
+            ProbeSourceTests.CAP_PROP_FRAME_HEIGHT: size[1],
+        }
 
         class FakeCapture:
             def isOpened(inner) -> bool:  # mirrors the cv2 API
                 return opened
 
             def get(inner, prop: int) -> float:
-                assert prop == SourceFrameRateTests.CAP_PROP_FPS
-                return fps
+                return properties[prop]
 
             def release(inner) -> None:
                 released.append(True)
@@ -311,29 +429,41 @@ class SourceFrameRateTests(unittest.TestCase):
             {
                 "VideoCapture": staticmethod(lambda _path: FakeCapture()),
                 "CAP_PROP_FPS": self.CAP_PROP_FPS,
+                "CAP_PROP_FRAME_WIDTH": self.CAP_PROP_FRAME_WIDTH,
+                "CAP_PROP_FRAME_HEIGHT": self.CAP_PROP_FRAME_HEIGHT,
             },
         )
         return fake, released
 
-    def _rate(self, **kwargs) -> tuple[float | None, list[bool]]:
+    def _probe(self, **kwargs):
         fake, released = self._fake_cv2(**kwargs)
         with patch.dict("sys.modules", {"cv2": fake}):
-            return video_edit.source_frame_rate(Path("clip.mp4")), released
+            return video_edit.probe_source(Path("clip.mp4")), released
 
-    def test_reports_a_plausible_rate(self) -> None:
-        self.assertEqual(self._rate(fps=23.976)[0], 23.976)
+    def test_reports_a_plausible_rate_and_the_frame_size(self) -> None:
+        probe, _ = self._probe(fps=23.976)
+
+        self.assertEqual(probe.frame_rate, 23.976)
+        self.assertEqual(probe.size, (800, 450))
 
     def test_releases_the_capture_even_when_it_never_opened(self) -> None:
         # An unreleased capture holds the file on Windows, against the replace this render performs.
-        rate, released = self._rate(fps=24.0, opened=False)
+        probe, released = self._probe(fps=24.0, opened=False)
 
-        self.assertIsNone(rate)
+        self.assertIsNone(probe.frame_rate)
+        self.assertIsNone(probe.size)
         self.assertEqual(released, [True])
 
     def test_rejects_a_rate_the_container_cannot_mean(self) -> None:
         for fps in (0.0, -1.0, float("nan"), float("inf"), video_edit.MAX_PLAUSIBLE_FPS + 1):
             with self.subTest(fps=fps):
-                self.assertIsNone(self._rate(fps=fps)[0])
+                self.assertIsNone(self._probe(fps=fps)[0].frame_rate)
+
+    def test_an_unmeasurable_frame_keeps_the_rate_it_did_read(self) -> None:
+        probe, _ = self._probe(fps=24.0, size=(0, 0))
+
+        self.assertEqual(probe.frame_rate, 24.0)
+        self.assertIsNone(probe.size)
 
 
 class ApplyVideoEditTests(unittest.TestCase):
@@ -341,8 +471,11 @@ class ApplyVideoEditTests(unittest.TestCase):
 
     def setUp(self) -> None:
         # Header-only fixtures: a real probe would fail and log a C++ warning.
-        patcher = patch("video_edit.source_frame_rate", return_value=24.0)
-        self.frame_rate = patcher.start()
+        patcher = patch(
+            "video_edit.probe_source",
+            return_value=video_edit.SourceProbe(frame_rate=24.0, size=(800, 450)),
+        )
+        self.probe = patcher.start()
         self.addCleanup(patcher.stop)
 
     def _render(self, content: bytes = b"rendered"):
@@ -350,6 +483,25 @@ class ApplyVideoEditTests(unittest.TestCase):
             Path(command[-1]).write_bytes(content)
 
         return run
+
+    def test_regions_survive_the_trip_through_apply(self) -> None:
+        """The backup has no media suffix, so a header-only size read hands back nothing."""
+        commands: list[list[str]] = []
+
+        def run(command, **_kwargs):
+            commands.append(command)
+            Path(command[-1]).write_bytes(b"rendered")
+
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4", width=800, height=450)
+            spec = VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)])
+
+            with patch("video_edit.run_ffmpeg", side_effect=run):
+                video_edit.apply_video_edit(media, spec, ffmpeg="ffmpeg")
+
+        self.assertIn("-filter_complex", commands[0])
+        graph = commands[0][commands[0].index("-filter_complex") + 1]
+        self.assertIn("gblur", graph)
 
     def test_the_render_reads_the_backup_and_publishes_over_the_original(self) -> None:
         with TempMediaFolder() as root:
@@ -372,7 +524,7 @@ class ApplyVideoEditTests(unittest.TestCase):
             self.assertTrue(result.has_backup)
             self.assertEqual(result.path, str(media))
 
-    def test_the_rate_is_read_from_the_backup_the_render_reads(self) -> None:
+    def test_the_source_is_probed_from_the_backup_the_render_reads(self) -> None:
         # Not from the live file: an earlier edit may already have retimed that one.
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
@@ -385,7 +537,7 @@ class ApplyVideoEditTests(unittest.TestCase):
             with patch("video_edit.run_ffmpeg", side_effect=run):
                 video_edit.apply_video_edit(media, VideoEditSpec(speed=2.0), ffmpeg="ffmpeg")
 
-            self.frame_rate.assert_called_once_with(root / "clip.mp4.bak")
+            self.probe.assert_called_once_with(root / "clip.mp4.bak")
             command = captured[0]
             self.assertIn("fps=24.000000", command[command.index("-vf") + 1])
 

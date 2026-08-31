@@ -11,6 +11,8 @@ import {
   type CropRect,
   type Orientation,
 } from "@/features/gallery/lib/crop";
+import { useMaskRegions, type MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions";
+import type { MaskDraft } from "@/features/gallery/lib/mask";
 import {
   draftFromSpec,
   emptyDraft,
@@ -34,7 +36,7 @@ export interface UseImageEditOptions {
   setEditMode: (editMode: boolean) => void;
 }
 
-export interface ImageEdit {
+export interface ImageEdit extends MaskRegionControls {
   editMode: boolean;
   ready: boolean;
   applying: boolean;
@@ -93,6 +95,16 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const sourceRef = useRef({ width: sourceWidth, height: sourceHeight });
   sourceRef.current = { width: sourceWidth, height: sourceHeight };
 
+  const setMasks = useCallback((update: (current: MaskDraft[]) => MaskDraft[]) => {
+    setDraft((current) => ({ ...current, masks: update(current.masks) }));
+  }, []);
+
+  const {
+    clearSelection: clearMaskSelection,
+    deactivate: deactivateMasks,
+    ...maskControls
+  } = useMaskRegions(draft.masks, setMasks);
+
   const path = item?.path;
   const ready = sourceWidth > 0 && sourceHeight > 0;
 
@@ -111,7 +123,8 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setDraft(emptyDraft());
     setSavedSpec(null);
     setAspectId("free");
-  }, [path]);
+    clearMaskSelection();
+  }, [path, clearMaskSelection]);
 
   // Separate so a listing that learns about a backup does not reset the editor.
   useEffect(() => {
@@ -123,11 +136,15 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setSourceHeight(image.naturalHeight);
   }, []);
 
-  const seedDraft = useCallback((spec: ImageEditSpec | null) => {
-    const seeded = draftFromSpec(spec);
-    setDraft(seeded);
-    setAspectId(aspectIdForCrop(seeded.crop, sourceRef.current));
-  }, []);
+  const seedDraft = useCallback(
+    (spec: ImageEditSpec | null) => {
+      const seeded = draftFromSpec(spec);
+      setDraft(seeded);
+      setAspectId(aspectIdForCrop(seeded.crop, sourceRef.current));
+      clearMaskSelection();
+    },
+    [clearMaskSelection],
+  );
 
   // Wait for a real size: seeding 0x0 makes aspectIdForCrop answer "free" over a locked rect.
   // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
@@ -196,8 +213,9 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
 
   const exitEditMode = useCallback(() => {
     setCropActive(false);
+    deactivateMasks();
     setEditMode(false);
-  }, [setEditMode]);
+  }, [deactivateMasks, setEditMode]);
 
   const toggleEditMode = useCallback(() => {
     if (applyingRef.current) return;
@@ -307,6 +325,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     hasBackup,
     dirty,
     cropActive,
+    ...maskControls,
     aspectId,
     aspectRatio: CROP_ASPECTS.find((aspect) => aspect.id === aspectId)?.ratio ?? null,
     orientation: orientationOf(draft),

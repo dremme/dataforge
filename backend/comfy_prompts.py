@@ -115,16 +115,6 @@ def _node_title(node: object) -> str | None:
     return None
 
 
-def _build_consumers(graph: dict[str, dict]) -> dict[str, list[tuple[str, str]]]:
-    consumers: dict[str, list[tuple[str, str]]] = {}
-    for node_id, node in graph.items():
-        for input_name, value in _node_inputs(node).items():
-            source = _link_target(value)
-            if source is not None:
-                consumers.setdefault(source, []).append((node_id, input_name))
-    return consumers
-
-
 def _ancestors(graph: dict[str, dict], root: str) -> list[str]:
     seen = {root}
     order = [root]
@@ -288,13 +278,10 @@ def _matches_filename(prefix: str | None, file_base: str) -> bool:
     return bool(basename) and basename.lower() == file_base.lower()
 
 
-def _is_output_node(node: object, node_id: str, consumers: dict[str, list]) -> bool:
+def _is_output_node(node: object) -> bool:
+    """Named by class, not by having no consumer: a graph is full of dead ends that write nothing."""
     lowered = _node_class(node).lower()
-    if any(marker in lowered for marker in _SAVE_CLASS_MARKERS + _PREVIEW_CLASS_MARKERS):
-        return True
-    if node_id in consumers:
-        return False
-    return any(_link_target(value) is not None for value in _node_inputs(node).values())
+    return any(marker in lowered for marker in _SAVE_CLASS_MARKERS + _PREVIEW_CLASS_MARKERS)
 
 
 def _instance_id(node_id: str) -> str:
@@ -367,6 +354,34 @@ def _parse_workflow(raw: str) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+#: Where a payload hides when the container has no per-key metadata of its own.
+_NESTED_KEYS = ("prompt", "Prompt", "PROMPT", "workflow", "Workflow", "WORKFLOW")
+
+
+def _nested_values(values: dict[str, str]) -> dict[str, str]:
+    """A muxed video writes the whole payload into one comment, so unwrap a level before reading.
+
+    ``prompt`` arrives as a JSON string and ``workflow`` as an object; both come back as text.
+    """
+    nested: dict[str, str] = {}
+
+    for raw in values.values():
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(parsed, dict):
+            continue
+
+        for key in _NESTED_KEYS:
+            if key in nested or key not in parsed:
+                continue
+            value = parsed[key]
+            nested[key] = value if isinstance(value, str) else json.dumps(value)
+
+    return nested
+
+
 def _sort_branches(branches: list[OutputBranch]) -> list[OutputBranch]:
     return sorted(
         branches,
@@ -394,6 +409,9 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
     if not values:
         return _empty()
 
+    # Top level wins: a PNG names its chunks, and only a container that cannot needs unwrapping.
+    values = {**_nested_values(values), **values}
+
     graph = None
     for key in ("prompt", "Prompt", "PROMPT"):
         graph = _parse_graph(values.get(key, ""))
@@ -409,7 +427,6 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
     if graph is None:
         return _empty(has_workflow=False, source="none")
 
-    consumers = _build_consumers(graph)
     subgraph_labels = _subgraph_labels(workflow)
     file_base = _file_stem_base(file_path)
 
@@ -418,7 +435,7 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
 
     for node_id, node in graph.items():
         class_type = _node_class(node)
-        if not _is_output_node(node, node_id, consumers):
+        if not _is_output_node(node):
             continue
 
         ancestry = _ancestors(graph, node_id)

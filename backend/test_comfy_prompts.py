@@ -4,7 +4,7 @@ import json
 import unittest
 
 from comfy_prompts import extract_workflow_prompts
-from testing_fixtures import TempMediaFolder, write_media
+from testing_fixtures import TempMediaFolder, write_media, write_mp4_video
 
 LOADER = {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "landscape.safetensors"}}
 
@@ -35,6 +35,172 @@ def _write(root, name: str, graph: dict, workflow: dict | None = None):
     if workflow is not None:
         chunks["workflow"] = json.dumps(workflow)
     return write_media(root, name, text_chunks=chunks)
+
+
+def _write_muxed(
+    root, name: str, graph: dict, workflow: dict | None = None, *, key: str = "comment", **kwargs
+):
+    """The shape ComfyUI's video muxer writes: one payload under `comment`, a level down."""
+    payload: dict[str, object] = {"prompt": json.dumps(graph)}
+    if workflow is not None:
+        # Not a string like `prompt` is; the muxer embeds this one as an object.
+        payload["workflow"] = workflow
+    return write_mp4_video(root, name, metadata={key: json.dumps(payload)}, **kwargs)
+
+
+class NestedPayloadTests(unittest.TestCase):
+    """A video carries no top-level `prompt` key; the whole payload sits inside `comment`."""
+
+    def graph(self) -> dict:
+        return {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": {
+                "class_type": "VHS_VideoCombine",
+                "inputs": {"images": ["4", 0], "filename_prefix": "harbour"},
+            },
+        }
+
+    def test_reads_a_payload_nested_under_a_comment(self) -> None:
+        with TempMediaFolder() as root:
+            media = _write_muxed(root, "harbour_00001.mp4", self.graph())
+
+            result = extract_workflow_prompts(media)
+
+        self.assertTrue(result.has_workflow)
+        self.assertEqual(len(result.branches), 1)
+        texts = {prompt.role: prompt.text for prompt in result.branches[0].prompts}
+        self.assertEqual(texts["positive"], "a harbour at dawn")
+
+    def test_the_nested_workflow_still_labels_the_branch(self) -> None:
+        workflow = {
+            "definitions": {"subgraphs": [{"id": "sub-1", "name": "Harbour at dawn"}]},
+            "nodes": [{"id": 9, "type": "sub-1"}],
+        }
+        graph = self.graph()
+        graph["9:5"] = graph.pop("5")
+        graph["9:5"]["inputs"]["images"] = ["4", 0]
+
+        with TempMediaFolder() as root:
+            media = _write_muxed(root, "harbour_00001.mp4", graph, workflow)
+
+            result = extract_workflow_prompts(media)
+
+        self.assertEqual(len(result.branches), 1)
+        self.assertEqual(result.branches[0].label, "Harbour at dawn")
+
+    def test_a_top_level_prompt_still_wins_over_a_nested_one(self) -> None:
+        """A PNG carries both the chunk and, sometimes, a comment; the chunk is the real one."""
+        with TempMediaFolder() as root:
+            media = write_media(
+                root,
+                "harbour_00001.png",
+                text_chunks={
+                    "prompt": json.dumps(self.graph()),
+                    "comment": json.dumps({"prompt": json.dumps({"1": LOADER})}),
+                },
+            )
+
+            result = extract_workflow_prompts(media)
+
+        self.assertEqual(len(result.branches), 1)
+        self.assertTrue(result.branches[0].prompts)
+
+    def test_a_comment_that_carries_no_workflow_is_left_alone(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(
+                root, "clip_00001.mp4", metadata={"comment": "rendered on the farm"}
+            )
+
+            result = extract_workflow_prompts(media)
+
+        self.assertFalse(result.has_workflow)
+        self.assertEqual(result.branches, [])
+
+    def test_it_reads_the_same_payload_from_a_classic_metadata_box(self) -> None:
+        with TempMediaFolder() as root:
+            # Classic boxes key on four characters; ffmpeg writes the comment as `©cmt`.
+            media = _write_muxed(
+                root, "harbour_00001.mp4", self.graph(), metadata_format="classic", key="©cmt"
+            )
+
+            result = extract_workflow_prompts(media)
+
+        self.assertTrue(result.has_workflow)
+        self.assertEqual(len(result.branches), 1)
+
+
+class OutputNodeTests(unittest.TestCase):
+    """Only a node that writes a file is a branch; the graph is full of dead ends that do not."""
+
+    def test_a_dangling_decode_is_not_an_output(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": _save("4", "harbour"),
+            # Nothing consumes it and it writes nothing, but it does read a link.
+            "6": {"class_type": "VAEDecode", "inputs": {"samples": ["4", 0], "vae": ["1", 2]}},
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual([branch.class_type for branch in result.branches], ["SaveImage"])
+
+    def test_every_dead_end_class_seen_in_the_wild_is_left_out(self) -> None:
+        graph = {"1": LOADER, "2": _encode("a harbour"), "3": _encode(""), "4": _sampler("2", "3")}
+        for index, class_type in enumerate(
+            (
+                "VAEDecode",
+                "VHS_MergeImages",
+                "VHS_SelectImages",
+                "ReverseImageBatch",
+                "FaceDetailer",
+            )
+        ):
+            graph[f"1{index}"] = {"class_type": class_type, "inputs": {"samples": ["4", 0]}}
+        graph["9"] = _save("4", "harbour")
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual([branch.class_type for branch in result.branches], ["SaveImage"])
+
+    def test_a_preview_is_still_a_branch_even_though_it_saves_nothing(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": {"class_type": "PreviewImage", "inputs": {"images": ["4", 0]}},
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual(len(result.branches), 1)
+        self.assertTrue(result.branches[0].is_preview)
+
+    def test_a_video_muxer_is_an_output_wherever_it_sits(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": {
+                "class_type": "VHS_VideoCombine",
+                "inputs": {"images": ["4", 0], "filename_prefix": "harbour"},
+            },
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual([branch.class_type for branch in result.branches], ["VHS_VideoCombine"])
 
 
 class PromptExtractionTests(unittest.TestCase):

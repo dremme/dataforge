@@ -122,6 +122,55 @@ class ApplyImageEditTests(unittest.TestCase):
 
             self.assertEqual(client.post(edit_url(media), json={"rotate": 45}).status_code, 422)
 
+    def test_a_blur_region_on_its_own_is_a_real_edit(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+
+            response = client.post(
+                edit_url(media),
+                json={"masks": [{"x": 0.1, "y": 0.1, "width": 0.4, "height": 0.4}]},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(edit_sidecars.backup_path_for(media).exists())
+
+    def test_the_blur_regions_survive_for_the_next_time_the_editor_opens(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+
+            client.post(
+                edit_url(media),
+                json={
+                    "masks": [
+                        {
+                            "x": 0.25,
+                            "y": 0.5,
+                            "width": 0.5,
+                            "height": 0.25,
+                            "mode": "pixelate",
+                            "strength": 0.22,
+                        }
+                    ]
+                },
+            )
+
+            stored = client.get(edit_url(media)).json()["spec"]["masks"]
+            self.assertEqual(len(stored), 1)
+            self.assertEqual(stored[0]["mode"], "pixelate")
+            self.assertAlmostEqual(stored[0]["strength"], 0.22)
+            self.assertAlmostEqual(stored[0]["x"], 0.25)
+
+    def test_a_blur_region_reaching_past_the_frame_is_rejected(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+
+            response = client.post(
+                edit_url(media),
+                json={"masks": [{"x": 0.8, "y": 0.0, "width": 0.5, "height": 0.5}]},
+            )
+
+            self.assertEqual(response.status_code, 422)
+
     def test_a_crop_reaching_past_the_frame_is_rejected(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png")

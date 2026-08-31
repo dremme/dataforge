@@ -67,9 +67,18 @@ class PointerEventPolyfill extends MouseEvent {
 
 beforeEach(() => {
   vi.stubGlobal("PointerEvent", PointerEventPolyfill);
-  Element.prototype.setPointerCapture = vi.fn();
-  Element.prototype.releasePointerCapture = vi.fn();
-  Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(true);
+  // Real capture semantics: without them a move on a handle also runs the rectangle's handler.
+  const captured = new Set<Element>();
+  Element.prototype.setPointerCapture = vi.fn(function (this: Element) {
+    captured.clear();
+    captured.add(this);
+  });
+  Element.prototype.releasePointerCapture = vi.fn(function (this: Element) {
+    captured.delete(this);
+  });
+  Element.prototype.hasPointerCapture = vi.fn(function (this: Element) {
+    return captured.has(this);
+  });
 });
 
 describe("CropOverlay", () => {
@@ -84,7 +93,7 @@ describe("CropOverlay", () => {
   it("shows the output size in source pixels, not painted ones", () => {
     renderOverlay({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } });
 
-    expect(screen.getByText("960 x 540")).toBeInTheDocument();
+    expect(screen.getByText("960 × 540")).toBeInTheDocument();
   });
 
   it("sits over the painted frame, not over the box it is positioned in", () => {
@@ -132,6 +141,35 @@ describe("CropOverlay", () => {
     const next = vi.mocked(props.onCropChange).mock.calls[0][0];
     expect(next.width).toBeCloseTo(0.6);
     expect(next.height).toBeCloseTo(0.6);
+  });
+
+  it("keeps up with a drag that outruns rendering", () => {
+    // Pointer events arrive faster than React commits, so every move still sees the first rect.
+    const crop: CropRect = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
+    const props = renderOverlay({ crop });
+    const rect = document.querySelector(".crop-overlay__rect")!;
+
+    fireEvent.pointerDown(rect, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(rect, { pointerId: 1, clientX: 140, clientY: 100 });
+    fireEvent.pointerMove(rect, { pointerId: 1, clientX: 180, clientY: 100 });
+    fireEvent.pointerUp(rect, { pointerId: 1 });
+
+    const calls = vi.mocked(props.onCropChange).mock.calls;
+    expect(calls[calls.length - 1][0].x).toBeCloseTo(0.35);
+  });
+
+  it("keeps a handle under the pointer across the same run of moves", () => {
+    const crop: CropRect = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
+    const props = renderOverlay({ crop });
+    const handle = screen.getByRole("button", { name: "Crop bottom-right corner" });
+
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 140, clientY: 100 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 180, clientY: 100 });
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+
+    const calls = vi.mocked(props.onCropChange).mock.calls;
+    expect(calls[calls.length - 1][0].width).toBeCloseTo(0.6);
   });
 
   it("nudges a handle by a fixed step from the keyboard", () => {

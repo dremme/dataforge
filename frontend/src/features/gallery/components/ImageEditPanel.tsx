@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CROP_ASPECTS, isIdentityCrop } from "@/features/gallery/lib/crop";
 import {
   SCALE_PRESETS,
@@ -7,14 +7,18 @@ import {
   scaleForTargetHeight,
   scaleForTargetWidth,
 } from "@/features/gallery/lib/imageEdit";
+import { MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
 import {
   iconCrop,
+  iconDroplets,
   iconFlipHorizontal,
   iconFlipVertical,
   iconLoader2,
   iconMaximize2,
+  iconPlus,
   iconRotateCcw,
   iconRotateCw,
+  iconTrash2,
   iconUndo2,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -23,12 +27,13 @@ import type { AppIcon } from "@/shared/icons";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
 import { SizeNumberField } from "./SizeNumberField";
 
-type ToolId = "crop" | "rotate" | "size";
+type ToolId = "crop" | "blur" | "rotate" | "size";
 
 const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "crop", label: "Crop", icon: iconCrop },
-  { id: "rotate", label: "Rotate", icon: iconRotateCw },
   { id: "size", label: "Size", icon: iconMaximize2 },
+  { id: "rotate", label: "Rotate", icon: iconRotateCw },
+  { id: "blur", label: "Blur", icon: iconDroplets },
 ];
 
 interface ImageEditPanelProps {
@@ -47,20 +52,22 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
   );
   const modified: Record<ToolId, boolean> = {
     crop: !isIdentityCrop(edit.draft.crop),
+    blur: edit.draft.masks.length > 0,
     rotate: edit.draft.rotate !== 0 || edit.draft.mirrorH || edit.draft.mirrorV,
     size: edit.draft.scale !== 1,
   };
 
-  const selectTool = (tool: ToolId) => {
-    setActiveTool(tool);
-    // Selecting the crop tool is what brings the handles out, the way picking a tool
-    // reveals its gizmo anywhere else.
-    edit.setCropActive(tool === "crop");
-  };
+  const { setCropActive, setMaskActive } = edit;
+
+  // Keyed on the tool rather than on the click, or the one the panel opens on is never armed.
+  useEffect(() => {
+    setCropActive(activeTool === "crop");
+    setMaskActive(activeTool === "blur");
+  }, [activeTool, setCropActive, setMaskActive]);
 
   return (
     <div className="image-edit-panel" role="group" aria-label="Image editing">
-      <div className="image-edit-panel__bar">
+      <div className="image-edit-panel__bar image-edit-panel__bar--tabs">
         <div className="image-edit-panel__tools" role="group" aria-label="Editing tool">
           {TOOLS.map((tool) => (
             <button
@@ -74,7 +81,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
               aria-pressed={activeTool === tool.id}
               aria-label={modified[tool.id] ? `${tool.label}, changed` : tool.label}
               disabled={locked}
-              onClick={() => selectTool(tool.id)}
+              onClick={() => setActiveTool(tool.id)}
             >
               <Icon icon={tool.icon} />
               {tool.label}
@@ -92,6 +99,11 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   {edit.outputWidth} x {edit.outputHeight}
                 </strong>
               </span>
+              {modified.blur && (
+                <span className="image-edit-panel__output-part">
+                  {describeMasks(edit.draft.masks.length)}
+                </span>
+              )}
               {modified.rotate && (
                 <span className="image-edit-panel__output-part">
                   {formatRotation(edit.draft.rotate)}
@@ -122,45 +134,6 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   </PresetButton>
                 ))}
               </ToolPresets>
-              <span className="image-edit-panel__hint">Or drag the rectangles on the image.</span>
-            </>
-          )}
-
-          {activeTool === "rotate" && (
-            <>
-              <div className="image-edit-panel__presets" role="group" aria-label="Turn">
-                <IconAction
-                  icon={iconRotateCcw}
-                  label="Rotate left 90°"
-                  disabled={locked}
-                  onClick={edit.rotateCounterClockwise}
-                />
-                <IconAction
-                  icon={iconRotateCw}
-                  label="Rotate right 90°"
-                  disabled={locked}
-                  onClick={edit.rotateClockwise}
-                />
-              </div>
-              <div className="image-edit-panel__presets" role="group" aria-label="Mirror">
-                <IconAction
-                  icon={iconFlipHorizontal}
-                  label="Mirror horizontally"
-                  pressed={edit.draft.mirrorH}
-                  disabled={locked}
-                  onClick={edit.toggleMirrorH}
-                />
-                <IconAction
-                  icon={iconFlipVertical}
-                  label="Mirror vertically"
-                  pressed={edit.draft.mirrorV}
-                  disabled={locked}
-                  onClick={edit.toggleMirrorV}
-                />
-              </div>
-              <span className="image-edit-panel__hint">
-                Applied after the crop, so the rectangle stays on the pixels you framed.
-              </span>
             </>
           )}
 
@@ -206,6 +179,92 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   }
                 />
               </div>
+            </>
+          )}
+
+          {activeTool === "rotate" && (
+            <>
+              <div className="image-edit-panel__presets" role="group" aria-label="Turn">
+                <PresetButton disabled={locked} onClick={edit.rotateCounterClockwise}>
+                  <Icon icon={iconRotateCcw} />
+                  Rotate left
+                </PresetButton>
+                <PresetButton disabled={locked} onClick={edit.rotateClockwise}>
+                  <Icon icon={iconRotateCw} />
+                  Rotate right
+                </PresetButton>
+              </div>
+              <div className="image-edit-panel__presets" role="group" aria-label="Mirror">
+                <PresetButton
+                  active={edit.draft.mirrorH}
+                  disabled={locked}
+                  onClick={edit.toggleMirrorH}
+                >
+                  <Icon icon={iconFlipHorizontal} />
+                  Flip hori.
+                </PresetButton>
+                <PresetButton
+                  active={edit.draft.mirrorV}
+                  disabled={locked}
+                  onClick={edit.toggleMirrorV}
+                >
+                  <Icon icon={iconFlipVertical} />
+                  Flip vert.
+                </PresetButton>
+              </div>
+            </>
+          )}
+
+          {activeTool === "blur" && (
+            <>
+              <div className="image-edit-panel__tool-actions">
+                <button
+                  type="button"
+                  className="image-edit-panel__control"
+                  disabled={locked || edit.maskLimitReached}
+                  onClick={edit.addMask}
+                >
+                  <Icon icon={iconPlus} />
+                  Add
+                </button>
+                <button
+                  type="button"
+                  className="image-edit-panel__control"
+                  disabled={locked || !modified.blur}
+                  onClick={edit.clearMasks}
+                >
+                  <Icon icon={iconTrash2} />
+                  Clear
+                </button>
+              </div>
+              <ToolPresets label="Blur style">
+                <PresetButton
+                  active={edit.maskMode === "blur"}
+                  disabled={locked}
+                  onClick={() => edit.setMaskMode("blur")}
+                >
+                  Blur
+                </PresetButton>
+                <PresetButton
+                  active={edit.maskMode === "pixelate"}
+                  disabled={locked}
+                  onClick={() => edit.setMaskMode("pixelate")}
+                >
+                  Pixelate
+                </PresetButton>
+              </ToolPresets>
+              <ToolPresets label="Strength">
+                {MASK_STRENGTHS.map((strength) => (
+                  <PresetButton
+                    key={strength.id}
+                    active={edit.maskStrength === strength.value}
+                    disabled={locked}
+                    onClick={() => edit.setMaskStrength(strength.value)}
+                  >
+                    {strength.label}
+                  </PresetButton>
+                ))}
+              </ToolPresets>
             </>
           )}
         </div>
@@ -267,7 +326,7 @@ function PresetButton({
   onClick,
   children,
 }: {
-  active: boolean;
+  active?: boolean;
   disabled: boolean;
   onClick: () => void;
   children: ReactNode;
@@ -284,38 +343,6 @@ function PresetButton({
       onClick={onClick}
     >
       {children}
-    </button>
-  );
-}
-
-/** pressed is omitted for quarter turns: they compose rather than latch, so it would lie. */
-function IconAction({
-  icon,
-  label,
-  pressed,
-  disabled,
-  onClick,
-}: {
-  icon: AppIcon;
-  label: string;
-  pressed?: boolean;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={classNames(
-        "image-edit-panel__preset",
-        "image-edit-panel__preset--icon",
-        pressed && "image-edit-panel__preset--active",
-      )}
-      aria-label={label}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <Icon icon={icon} />
     </button>
   );
 }

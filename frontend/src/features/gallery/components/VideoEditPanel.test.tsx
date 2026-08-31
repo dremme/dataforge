@@ -2,6 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { VideoEditPanel } from "./VideoEditPanel";
 import { emptyDraft, type VideoEditDraft } from "@/features/gallery/lib/videoEdit";
+import {
+  DEFAULT_MASK_MODE,
+  DEFAULT_MASK_STRENGTH,
+  newMaskDraft,
+} from "@/features/gallery/lib/mask";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 
 function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
@@ -19,6 +24,12 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     hasBackup: false,
     dirty: false,
     cropActive: false,
+    maskActive: false,
+    selectedMaskId: null,
+    selectedMask: null,
+    maskMode: DEFAULT_MASK_MODE,
+    maskStrength: DEFAULT_MASK_STRENGTH,
+    maskLimitReached: false,
     aspectId: "free",
     aspectRatio: null,
     muted: true,
@@ -35,6 +46,14 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     setTrimEndAtPlayhead: vi.fn(),
     setCrop: vi.fn(),
     setCropActive: vi.fn(),
+    setMaskActive: vi.fn(),
+    selectMask: vi.fn(),
+    addMask: vi.fn(),
+    setMaskRect: vi.fn(),
+    setMaskMode: vi.fn(),
+    setMaskStrength: vi.fn(),
+    removeMask: vi.fn(),
+    clearMasks: vi.fn(),
     selectAspect: vi.fn(),
     toggleMuted: vi.fn(),
     setSpeed: vi.fn(),
@@ -99,6 +118,28 @@ describe("VideoEditPanel", () => {
       expect(edit.setCropActive).toHaveBeenLastCalledWith(false);
     });
 
+    it("arms the tool it opens on, rather than waiting to be switched away and back", () => {
+      const edit = makeEdit();
+
+      renderPanel(edit);
+
+      // Trim owns no gizmo, so opening on it stows both.
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(false);
+      expect(edit.setMaskActive).toHaveBeenLastCalledWith(false);
+    });
+
+    it("brings the region handles out with the blur tool", () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      fireEvent.click(tool("Blur"));
+      expect(edit.setMaskActive).toHaveBeenLastCalledWith(true);
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(false);
+
+      fireEvent.click(tool("Crop"));
+      expect(edit.setMaskActive).toHaveBeenLastCalledWith(false);
+    });
+
     it("marks a tool whose value is no longer the default", () => {
       // The whole point of collapsing them: nothing may hide behind a closed tool.
       const draft = { ...emptyDraft(12), speed: 2 };
@@ -113,6 +154,7 @@ describe("VideoEditPanel", () => {
       ["Crop", { crop: { x: 0, y: 0, width: 0.5, height: 1 } }],
       ["Speed", { speed: 2 }],
       ["Size", { scale: 0.5 }],
+      ["Blur", { masks: [newMaskDraft("blur", 0.12, 0)] }],
     ])("marks %s when it holds a value", (label, overrides) => {
       renderPanel(makeEdit({ draft: { ...emptyDraft(12), ...overrides } }));
 
@@ -254,6 +296,77 @@ describe("VideoEditPanel", () => {
         .getAllByRole("button")
         .map((b) => b.textContent?.trim());
       expect(speeds).toEqual(["0.25x", "0.5x", "0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"]);
+    });
+  });
+
+  describe("blur regions", () => {
+    function openBlur(edit: VideoEdit) {
+      renderPanel(edit);
+      fireEvent.click(tool("Blur"));
+    }
+
+    it("adds a region", () => {
+      const edit = makeEdit();
+      openBlur(edit);
+
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(edit.addMask).toHaveBeenCalled();
+    });
+
+    it("stops offering to add one past the cap", () => {
+      const edit = makeEdit({ maskLimitReached: true });
+      openBlur(edit);
+
+      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    });
+
+    it("switches the selected region between blurred and pixelated", () => {
+      const edit = makeEdit();
+      openBlur(edit);
+
+      const styles = within(screen.getByRole("group", { name: "Blur style" }));
+      fireEvent.click(styles.getByRole("button", { name: "Pixelate" }));
+
+      expect(edit.setMaskMode).toHaveBeenCalledWith("pixelate");
+    });
+
+    it("sets the strength", () => {
+      const edit = makeEdit();
+      openBlur(edit);
+
+      const strengths = within(screen.getByRole("group", { name: "Strength" }));
+      fireEvent.click(strengths.getByRole("button", { name: "Max" }));
+
+      expect(edit.setMaskStrength).toHaveBeenCalledWith(0.4);
+    });
+
+    it("has nothing to clear until a region is there", () => {
+      openBlur(makeEdit());
+
+      expect(screen.getByRole("button", { name: "Clear" })).toBeDisabled();
+    });
+
+    it("clears every region at once", () => {
+      const mask = newMaskDraft("blur", 0.12, 0);
+      const edit = makeEdit({
+        draft: { ...emptyDraft(12), masks: [mask] },
+        selectedMaskId: mask.id,
+        selectedMask: mask,
+      });
+      openBlur(edit);
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+      expect(edit.clearMasks).toHaveBeenCalled();
+    });
+
+    it("counts the regions in the readout", () => {
+      renderPanel(
+        makeEdit({ draft: { ...emptyDraft(12), masks: [newMaskDraft("blur", 0.12, 0)] } }),
+      );
+
+      expect(screen.getByText("1 blurred region")).toBeInTheDocument();
     });
   });
 

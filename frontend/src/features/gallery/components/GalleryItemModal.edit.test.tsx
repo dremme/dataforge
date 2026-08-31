@@ -169,7 +169,7 @@ describe("GalleryItemModal", () => {
       fetchStateMock.mockResolvedValue({
         path: `${HOME_PATH}\\clip.mp4`,
         has_backup: true,
-        spec: { trim_start: 2, trim_end: 8, crop: null, speed: 2, scale: 0.5 },
+        spec: { masks: [], trim_start: 2, trim_end: 8, crop: null, speed: 2, scale: 0.5 },
       });
       renderModal(videoItem({ has_backup: true }));
 
@@ -256,7 +256,7 @@ describe("GalleryItemModal", () => {
         path: mediaPath,
         has_backup: mediaPath.endsWith("second.mp4"),
         spec: mediaPath.endsWith("second.mp4")
-          ? { trim_start: 3, trim_end: 9, crop: null, speed: 2, scale: 1 }
+          ? { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 2, scale: 1 }
           : null,
       }));
 
@@ -289,6 +289,7 @@ describe("GalleryItemModal", () => {
         path: `${HOME_PATH}\\clip.mp4`,
         has_backup: true,
         spec: {
+          masks: [],
           trim_start: 0,
           trim_end: null,
           // 1080 wide of a 1920x1080 frame: square.
@@ -352,7 +353,7 @@ describe("GalleryItemModal", () => {
       fetchStateMock.mockResolvedValue({
         path: `${HOME_PATH}\\clip.mp4`,
         has_backup: true,
-        spec: { trim_start: 0, trim_end: null, crop: null, speed: 2, scale: 1 },
+        spec: { masks: [], trim_start: 0, trim_end: null, crop: null, speed: 2, scale: 1 },
       });
       renderModal(videoItem({ has_backup: true }));
       const dialog = await openEditMode(user);
@@ -445,6 +446,7 @@ describe("GalleryItemModal", () => {
       await waitFor(() => expect(applyMock).toHaveBeenCalled());
       expect(applyMock.mock.calls[0][0]).toBe(`${HOME_PATH}\\clip.mp4`);
       expect(applyMock.mock.calls[0][1]).toEqual({
+        masks: [],
         trim_start: 0,
         trim_end: null,
         crop: null,

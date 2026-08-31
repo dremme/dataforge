@@ -8,6 +8,11 @@ import {
   outputDimensions,
   type ImageEditDraft,
 } from "@/features/gallery/lib/imageEdit";
+import {
+  DEFAULT_MASK_MODE,
+  DEFAULT_MASK_STRENGTH,
+  newMaskDraft,
+} from "@/features/gallery/lib/mask";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
 
 const SOURCE = { width: 1920, height: 1080 };
@@ -26,6 +31,12 @@ function makeEdit(overrides: Partial<ImageEdit> = {}): ImageEdit {
     hasBackup: false,
     dirty: false,
     cropActive: false,
+    maskActive: false,
+    selectedMaskId: null,
+    selectedMask: null,
+    maskMode: DEFAULT_MASK_MODE,
+    maskStrength: DEFAULT_MASK_STRENGTH,
+    maskLimitReached: false,
     aspectId: "free",
     aspectRatio: null,
     orientation: orientationOf(draft),
@@ -35,6 +46,14 @@ function makeEdit(overrides: Partial<ImageEdit> = {}): ImageEdit {
     exitEditMode: vi.fn(),
     setCrop: vi.fn(),
     setCropActive: vi.fn(),
+    setMaskActive: vi.fn(),
+    selectMask: vi.fn(),
+    addMask: vi.fn(),
+    setMaskRect: vi.fn(),
+    setMaskMode: vi.fn(),
+    setMaskStrength: vi.fn(),
+    removeMask: vi.fn(),
+    clearMasks: vi.fn(),
     selectAspect: vi.fn(),
     rotateClockwise: vi.fn(),
     rotateCounterClockwise: vi.fn(),
@@ -91,6 +110,15 @@ describe("ImageEditPanel", () => {
       expect(screen.queryByRole("group", { name: "Aspect" })).not.toBeInTheDocument();
     });
 
+    it("arms the tool it opens on, rather than waiting to be switched away and back", () => {
+      const edit = makeEdit();
+
+      renderPanel(edit);
+
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(true);
+      expect(edit.setMaskActive).toHaveBeenLastCalledWith(false);
+    });
+
     it("arms the crop handles when the crop tool is selected, and stows them otherwise", async () => {
       const user = userEvent.setup();
       const edit = makeEdit();
@@ -103,12 +131,26 @@ describe("ImageEditPanel", () => {
       expect(edit.setCropActive).toHaveBeenLastCalledWith(true);
     });
 
+    it("arms the region handles the same way", async () => {
+      const user = userEvent.setup();
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      await user.click(tools().getByRole("button", { name: "Blur" }));
+      expect(edit.setMaskActive).toHaveBeenLastCalledWith(true);
+      expect(edit.setCropActive).toHaveBeenLastCalledWith(false);
+
+      await user.click(tools().getByRole("button", { name: "Crop" }));
+      expect(edit.setMaskActive).toHaveBeenLastCalledWith(false);
+    });
+
     it.each([
       ["Crop", draftWith({ crop: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 } })],
       ["Rotate", draftWith({ rotate: 90 })],
       ["Rotate", draftWith({ mirrorH: true })],
       ["Rotate", draftWith({ mirrorV: true })],
       ["Size", draftWith({ scale: 0.5 })],
+      ["Blur", draftWith({ masks: [newMaskDraft("blur", 0.12, 0)] })],
     ])("says %s holds a value once it is off its default", (label, draft) => {
       // Collapsed, the tool is the only thing that can say it carries a change.
       renderPanel(makeEdit({ draft }));
@@ -131,8 +173,8 @@ describe("ImageEditPanel", () => {
     }
 
     it.each([
-      ["Rotate left 90°", "rotateCounterClockwise"],
-      ["Rotate right 90°", "rotateClockwise"],
+      ["Rotate left", "rotateCounterClockwise"],
+      ["Rotate right", "rotateClockwise"],
     ] as const)("turns through %s", async (label, method) => {
       const edit = makeEdit();
       renderPanel(edit);
@@ -154,14 +196,14 @@ describe("ImageEditPanel", () => {
       renderPanel(makeEdit({ draft: draftWith({ rotate: 90 }) }));
       await openRotate();
 
-      expect(screen.getByRole("button", { name: "Rotate right 90°" })).not.toHaveAttribute(
+      expect(screen.getByRole("button", { name: "Rotate right" })).not.toHaveAttribute(
         "aria-pressed",
       );
     });
 
     it.each([
-      ["Mirror horizontally", "toggleMirrorH", { mirrorH: true }],
-      ["Mirror vertically", "toggleMirrorV", { mirrorV: true }],
+      ["Flip hori.", "toggleMirrorH", { mirrorH: true }],
+      ["Flip vert.", "toggleMirrorV", { mirrorV: true }],
     ] as const)("holds %s pressed while it is on", async (label, method, applied) => {
       const edit = makeEdit({ draft: draftWith(applied) });
       renderPanel(edit);
@@ -195,6 +237,94 @@ describe("ImageEditPanel", () => {
         "aria-pressed",
         "false",
       );
+    });
+  });
+
+  describe("blur", () => {
+    async function openBlur(edit: ImageEdit) {
+      const user = userEvent.setup();
+      renderPanel(edit);
+      await user.click(tools().getByRole("button", { name: /^Blur/ }));
+      return user;
+    }
+
+    it("adds a region", async () => {
+      const edit = makeEdit();
+      const user = await openBlur(edit);
+
+      await user.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(edit.addMask).toHaveBeenCalled();
+    });
+
+    it("stops offering to add one past the cap", async () => {
+      const edit = makeEdit({ maskLimitReached: true });
+      await openBlur(edit);
+
+      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    });
+
+    it("switches the selected region between blurred and pixelated", async () => {
+      const edit = makeEdit();
+      const user = await openBlur(edit);
+
+      const styles = within(screen.getByRole("group", { name: "Blur style" }));
+      await user.click(styles.getByRole("button", { name: "Pixelate" }));
+
+      expect(edit.setMaskMode).toHaveBeenCalledWith("pixelate");
+    });
+
+    it("shows which style and strength the selected region carries", async () => {
+      const mask = { ...newMaskDraft("pixelate", 0.22, 0) };
+      const edit = makeEdit({
+        draft: draftWith({ masks: [mask] }),
+        selectedMaskId: mask.id,
+        selectedMask: mask,
+        maskMode: "pixelate",
+        maskStrength: 0.22,
+      });
+      await openBlur(edit);
+
+      const styles = within(screen.getByRole("group", { name: "Blur style" }));
+      expect(styles.getByRole("button", { name: "Pixelate" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      const strengths = within(screen.getByRole("group", { name: "Strength" }));
+      expect(strengths.getByRole("button", { name: "Strong" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    it("sets the strength", async () => {
+      const edit = makeEdit();
+      const user = await openBlur(edit);
+
+      const strengths = within(screen.getByRole("group", { name: "Strength" }));
+      await user.click(strengths.getByRole("button", { name: "Max" }));
+
+      expect(edit.setMaskStrength).toHaveBeenCalledWith(0.4);
+    });
+
+    it("has nothing to clear until a region is there", async () => {
+      await openBlur(makeEdit());
+
+      expect(screen.getByRole("button", { name: "Clear" })).toBeDisabled();
+    });
+
+    it("clears every region at once", async () => {
+      const mask = newMaskDraft("blur", 0.12, 0);
+      const edit = makeEdit({
+        draft: draftWith({ masks: [mask] }),
+        selectedMaskId: mask.id,
+        selectedMask: mask,
+      });
+      const user = await openBlur(edit);
+
+      await user.click(screen.getByRole("button", { name: "Clear" }));
+
+      expect(edit.clearMasks).toHaveBeenCalled();
     });
   });
 

@@ -23,6 +23,8 @@ import {
   toVideoEditSpec,
   type VideoEditDraft,
 } from "@/features/gallery/lib/videoEdit";
+import { useMaskRegions, type MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions";
+import type { MaskDraft } from "@/features/gallery/lib/mask";
 import { hasUsableDuration, formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import { formatApiError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
@@ -42,7 +44,7 @@ export interface UseVideoEditOptions {
   setEditMode: (editMode: boolean) => void;
 }
 
-export interface VideoEdit {
+export interface VideoEdit extends MaskRegionControls {
   editMode: boolean;
   ready: boolean;
   applying: boolean;
@@ -123,6 +125,16 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const sourceRef = useRef({ width: sourceWidth, height: sourceHeight });
   sourceRef.current = { width: sourceWidth, height: sourceHeight };
 
+  const setMasks = useCallback((update: (current: MaskDraft[]) => MaskDraft[]) => {
+    setDraft((current) => ({ ...current, masks: update(current.masks) }));
+  }, []);
+
+  const {
+    clearSelection: clearMaskSelection,
+    deactivate: deactivateMasks,
+    ...maskControls
+  } = useMaskRegions(draft.masks, setMasks);
+
   const path = item?.path;
   const ready = hasUsableDuration(duration) && sourceWidth > 0 && sourceHeight > 0;
 
@@ -145,7 +157,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setPlaying(false);
     setPlayheadTime(0);
     seededPathRef.current = null;
-  }, [path]);
+    clearMaskSelection();
+  }, [path, clearMaskSelection]);
 
   // Separate so a listing that learns about a backup does not reset the editor.
   useEffect(() => {
@@ -200,9 +213,10 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       const seeded = draftFromSpec(spec, forDuration);
       setDraft(seeded);
       setAspectId(aspectIdForCrop(seeded.crop, sourceRef.current));
+      clearMaskSelection();
       seekTo(seeded.trimStart);
     },
-    [seekTo],
+    [clearMaskSelection, seekTo],
   );
 
   // Wait for a real duration: seeding against NaN collapsed the timeline to 0:00-0:00.
@@ -360,8 +374,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   const exitEditMode = useCallback(() => {
     setCropActive(false);
+    deactivateMasks();
     setEditMode(false);
-  }, [setEditMode]);
+  }, [deactivateMasks, setEditMode]);
 
   const toggleEditMode = useCallback(() => {
     if (applyingRef.current) return;
@@ -480,6 +495,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     hasBackup,
     dirty,
     cropActive,
+    ...maskControls,
     aspectId,
     aspectRatio: CROP_ASPECTS.find((aspect) => aspect.id === aspectId)?.ratio ?? null,
     muted,

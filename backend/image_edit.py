@@ -1,12 +1,13 @@
-"""Crop, mirror, rotate and rescale one image in place from its untouched original. Odd dimensions are kept: a still has no yuv420p chroma plane."""
+"""Obscure, crop, mirror, rotate and rescale one image in place from its untouched original. Odd dimensions are kept: a still has no yuv420p chroma plane."""
 
 from __future__ import annotations
 
 from contextlib import suppress
 from datetime import UTC, datetime
+from math import ceil
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from constants import IMAGE_EDIT_EXTENSIONS
 from edit_sidecars import (
@@ -21,9 +22,12 @@ from edit_sidecars import (
 from file_publish import publish_replacing
 from image_io import load_image_for_edit, save_image_preserving_format
 from media_dimensions import media_dimensions
-from schemas import EditCropRect, ImageEditResponse, ImageEditSpec
+from schemas import EditCropRect, ImageEditResponse, ImageEditSpec, MaskRegion
 
 IDENTITY_EPSILON = 1e-9
+
+#: A mosaic block hides about as much as a Gaussian a quarter its size; one strength serves both.
+BLUR_RADIUS_DIVISOR = 4
 
 #: Pillow's ``ROTATE_*`` are counter-clockwise; the spec's ``rotate`` is clockwise.
 _CLOCKWISE_TRANSPOSE = {
@@ -39,7 +43,8 @@ def read_image_edit_spec(media: Path) -> ImageEditSpec | None:
 
 def is_identity_spec(spec: ImageEditSpec) -> bool:
     return (
-        spec.crop is None
+        not spec.masks
+        and spec.crop is None
         and not spec.mirror_h
         and not spec.mirror_v
         and spec.rotate == 0
@@ -70,8 +75,58 @@ def scaled_size(size: tuple[int, int], scale: float) -> tuple[int, int]:
     return max(1, round(width * scale)), max(1, round(height * scale))
 
 
+def blurred_region(
+    image: Image.Image, box: tuple[int, int, int, int], radius: float
+) -> Image.Image:
+    """Blurred against real neighbours: a bare patch clamps at its own edge and leaves a seam."""
+    left, top, right, bottom = box
+    pad = ceil(radius * 2)
+    outer = (
+        max(0, left - pad),
+        max(0, top - pad),
+        min(image.width, right + pad),
+        min(image.height, bottom + pad),
+    )
+    blurred = image.crop(outer).filter(ImageFilter.GaussianBlur(radius))
+    return blurred.crop((left - outer[0], top - outer[1], right - outer[0], bottom - outer[1]))
+
+
+def pixelated_region(image: Image.Image, box: tuple[int, int, int, int], block: int) -> Image.Image:
+    """BOX down then NEAREST up: averaged blocks with hard edges, aligned to the region."""
+    patch = image.crop(box)
+    width, height = patch.size
+    reduced = (max(1, width // block), max(1, height // block))
+    return patch.resize(reduced, Image.Resampling.BOX).resize(patch.size, Image.Resampling.NEAREST)
+
+
+def mask_extent(box: tuple[int, int, int, int], strength: float) -> float:
+    """Strength is a fraction of the shorter side, so it reads the same at any region size."""
+    left, top, right, bottom = box
+    return strength * min(right - left, bottom - top)
+
+
+def masked_image(image: Image.Image, regions: list[MaskRegion]) -> Image.Image:
+    """Copied first: the caller's image is the loaded original and stays untouched."""
+    masked = image.copy()
+
+    for region in regions:
+        box = crop_box(masked.size, region)
+        extent = mask_extent(box, region.strength)
+        patch = (
+            pixelated_region(masked, box, max(1, round(extent)))
+            if region.mode == "pixelate"
+            else blurred_region(masked, box, max(1.0, extent / BLUR_RADIUS_DIVISOR))
+        )
+        masked.paste(patch, box)
+
+    return masked
+
+
 def render_image_edit(image: Image.Image, spec: ImageEditSpec) -> Image.Image:
-    """Order is crop, mirror, rotate, scale."""
+    """Order is mask, crop, mirror, rotate, scale."""
+    if spec.masks:
+        image = masked_image(image, spec.masks)
+
     if spec.crop is not None:
         image = image.crop(crop_box(image.size, spec.crop))
 

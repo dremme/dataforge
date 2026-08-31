@@ -2,6 +2,7 @@ import { useRef, type CSSProperties } from "react";
 import { swapsAxes } from "@/features/gallery/lib/imageEdit";
 import { classNames } from "@/shared/lib/classNames";
 import { CropOverlay } from "./CropOverlay";
+import { MaskOverlay } from "./MaskOverlay";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
 
 interface ImageEditStageProps {
@@ -11,7 +12,7 @@ interface ImageEditStageProps {
   disabled: boolean;
 }
 
-/** Measures nothing: a rotated img lays out upright. __canvas must be absolute for CropOverlay. */
+/** Measures nothing: a rotated img lays out upright. __canvas must be absolute for the overlays. */
 export function ImageEditStage({ edit, src, alt, disabled }: ImageEditStageProps) {
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -37,6 +38,22 @@ export function ImageEditStage({ edit, src, alt, disabled }: ImageEditStageProps
           draggable={false}
           onLoad={(event) => edit.handleLoad(event.currentTarget)}
         />
+        {edit.draft.masks.length > 0 && (
+          <MaskOverlay
+            mediaRef={imageRef}
+            src={src}
+            masks={edit.draft.masks}
+            selectedId={edit.selectedMaskId}
+            sourceWidth={edit.sourceWidth}
+            sourceHeight={edit.sourceHeight}
+            orientation={edit.orientation}
+            disabled={disabled}
+            interactive={edit.maskActive}
+            onSelect={edit.selectMask}
+            onChange={edit.setMaskRect}
+            onRemove={edit.removeMask}
+          />
+        )}
         {edit.cropActive && (
           <CropOverlay
             mediaRef={imageRef}

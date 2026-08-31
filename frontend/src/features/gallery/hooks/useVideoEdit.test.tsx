@@ -90,11 +90,35 @@ describe("useVideoEdit", () => {
     expect(fetchStateMock.mock.calls.length).toBe(fetches);
   });
 
+  it("re-opens on the blur regions stored beside the file", async () => {
+    fetchStateMock.mockResolvedValue({
+      path: CLIP,
+      has_backup: true,
+      spec: {
+        masks: [{ x: 0.1, y: 0.1, width: 0.3, height: 0.3, mode: "pixelate", strength: 0.22 }],
+        trim_start: 0,
+        trim_end: null,
+        crop: null,
+        speed: 1,
+        scale: 1,
+      },
+    });
+    const { result } = renderEdit();
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(12));
+    });
+
+    await waitFor(() => expect(result.current.draft.masks).toHaveLength(1));
+    expect(result.current.draft.masks[0]).toMatchObject({ mode: "pixelate", strength: 0.22 });
+    expect(result.current.dirty).toBe(false);
+  });
+
   it("still seeds once Infinity becomes a real duration", async () => {
     fetchStateMock.mockResolvedValue({
       path: CLIP,
       has_backup: true,
-      spec: { trim_start: 3, trim_end: 9, crop: null, speed: 1, scale: 1 },
+      spec: { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 1, scale: 1 },
     });
     const { result } = renderEdit();
 

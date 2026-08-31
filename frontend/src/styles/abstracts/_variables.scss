@@ -60,6 +60,8 @@ $sticky-dock-gap: 0.625rem;
 $sticky-dock-padding: 0.5rem;
 $modal-gutter: 1.5rem;
 $modal-media-max-height: min(36vh, 500px);
+// Editing has no caption or footer under it, so the picture takes the room those leave behind.
+$modal-edit-media-max-height: min(50vh, 620px);
 $progress-height: 0.375rem;
 
 $disabled-opacity: 0.5;

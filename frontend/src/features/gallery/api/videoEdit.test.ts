@@ -20,6 +20,7 @@ const CLIP = "C:\\Photos\\clip.mp4";
 const ENCODED = "C%3A%5CPhotos%5Cclip.mp4";
 
 const SPEC: VideoEditSpec = {
+  masks: [],
   trim_start: 1,
   trim_end: 4,
   crop: null,

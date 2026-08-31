@@ -34,6 +34,7 @@ export {
   Cpu as iconCpu,
   Crop as iconCrop,
   Dot as iconDot,
+  Droplets as iconDroplets,
   Expand as iconExpand,
   FileCheck as iconFileCheck,
   FileDown as iconFileDown,

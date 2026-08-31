@@ -16,7 +16,8 @@ import {
   toImageEditSpec,
   type ImageEditDraft,
 } from "./imageEdit";
-import type { ImageEditSpec } from "@/shared/types";
+import { newMaskDraft } from "./mask";
+import type { ImageEditSpec, MaskRegion } from "@/shared/types";
 
 const HD = { width: 1920, height: 1080 };
 
@@ -25,8 +26,25 @@ function draft(overrides: Partial<ImageEditDraft> = {}): ImageEditDraft {
 }
 
 function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
-  return { crop: null, mirror_h: false, mirror_v: false, rotate: 0, scale: 1, ...overrides };
+  return {
+    masks: [],
+    crop: null,
+    mirror_h: false,
+    mirror_v: false,
+    rotate: 0,
+    scale: 1,
+    ...overrides,
+  };
 }
+
+const REGION: MaskRegion = {
+  x: 0.1,
+  y: 0.1,
+  width: 0.3,
+  height: 0.3,
+  mode: "blur",
+  strength: 0.12,
+};
 
 describe("rotateBy", () => {
   it.each([
@@ -162,6 +180,7 @@ describe("edit identity", () => {
     ["a quarter turn", draft({ rotate: 90 })],
     ["a half turn", draft({ rotate: 180 })],
     ["a scale", draft({ scale: 0.5 })],
+    ["a blur region", draft({ masks: [newMaskDraft("blur", 0.12, 0)] })],
   ])("%s is a real edit on its own", (_label, value) => {
     expect(isIdentityEdit(value)).toBe(false);
   });
@@ -171,6 +190,23 @@ describe("wire conversion", () => {
   it("sends a full-frame crop as no crop at all", () => {
     // The server normalizes the same way, or the two disagree on whether an edit changed it.
     expect(toImageEditSpec(emptyDraft()).crop).toBeNull();
+  });
+
+  it("sends every region across with its style and strength", () => {
+    const masks = [newMaskDraft("pixelate", 0.22, 0), newMaskDraft("blur", 0.06, 1)];
+
+    const sent = toImageEditSpec(draft({ masks })).masks;
+
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatchObject({ mode: "pixelate", strength: 0.22, ...masks[0].rect });
+    expect(sent[1]).toMatchObject({ mode: "blur", strength: 0.06 });
+  });
+
+  it("brings the regions back out of a stored spec", () => {
+    const seeded = draftFromSpec(spec({ masks: [REGION] }));
+
+    expect(seeded.masks).toHaveLength(1);
+    expect(seeded.masks[0].rect).toMatchObject({ x: 0.1, y: 0.1, width: 0.3, height: 0.3 });
   });
 
   it("sends a real crop as its own rectangle", () => {
@@ -210,6 +246,10 @@ describe("wire conversion", () => {
 });
 
 describe("specsEqual", () => {
+  it("reads the same regions in the same order as the same file", () => {
+    expect(specsEqual(spec({ masks: [REGION] }), spec({ masks: [REGION] }))).toBe(true);
+  });
+
   it("reads two identical specs as the same file", () => {
     expect(specsEqual(spec({ rotate: 90 }), spec({ rotate: 90 }))).toBe(true);
   });
@@ -225,6 +265,12 @@ describe("specsEqual", () => {
       spec({ crop: { x: 0, y: 0, width: 0.6, height: 0.5 } }),
     ],
     ["a crop against none", spec({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } }), spec()],
+    ["a blur region against none", spec({ masks: [REGION] }), spec()],
+    [
+      "the style of a region",
+      spec({ masks: [REGION] }),
+      spec({ masks: [{ ...REGION, mode: "pixelate" }] }),
+    ],
   ])("reports a difference in %s", (_label, a, b) => {
     expect(specsEqual(a, b)).toBe(false);
   });

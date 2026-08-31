@@ -771,6 +771,10 @@ MIN_TRIM_SECONDS = 0.1
 #: Float noise from a normalized drag can push a full-width rect past 1.0.
 CROP_BOUNDS_EPSILON = 1e-6
 
+MAX_MASK_REGIONS = 24
+MIN_MASK_STRENGTH = 0.02
+MAX_MASK_STRENGTH = 0.5
+
 
 class EditCropRect(BaseModel):
     """Fractions of the source frame so ffmpeg can use ``iw``/``ih`` without ffprobe."""
@@ -797,12 +801,32 @@ def validated_crop(crop: EditCropRect | None) -> EditCropRect | None:
     return crop
 
 
+class MaskRegion(EditCropRect):
+    """One rectangle of the source frame to obscure, applied before the crop."""
+
+    mode: Literal["blur", "pixelate"] = "blur"
+    #: Fraction of the region's shorter side, so one strength reads the same at any region size.
+    strength: float = Field(0.12, ge=MIN_MASK_STRENGTH, le=MAX_MASK_STRENGTH)
+
+
+def validated_masks(masks: list[MaskRegion]) -> list[MaskRegion]:
+    """Unlike a crop, a full-frame region stands: obscuring the whole picture is a real request."""
+    for mask in masks:
+        if mask.x + mask.width > 1.0 + CROP_BOUNDS_EPSILON:
+            raise ValueError("A blur region reaches past the right edge of the frame")
+        if mask.y + mask.height > 1.0 + CROP_BOUNDS_EPSILON:
+            raise ValueError("A blur region reaches past the bottom edge of the frame")
+
+    return masks
+
+
 class VideoEditSpec(BaseModel):
     """Always applied to the untouched original in a single pass; every field defaults to identity."""
 
     trim_start: float = Field(0.0, ge=0.0)
     #: ``None`` runs to the end, so the client need not be right about a duration of ``Infinity``.
     trim_end: float | None = Field(None, gt=0.0)
+    masks: list[MaskRegion] = Field(default_factory=list, max_length=MAX_MASK_REGIONS)
     crop: EditCropRect | None = None
     speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
@@ -816,6 +840,7 @@ class VideoEditSpec(BaseModel):
                 raise ValueError(f"A trim must keep at least {MIN_TRIM_SECONDS} seconds")
 
         self.crop = validated_crop(self.crop)
+        self.masks = validated_masks(self.masks)
 
         return self
 
@@ -836,8 +861,9 @@ class VideoEditResponse(BaseModel):
 
 
 class ImageEditSpec(BaseModel):
-    """Order is crop, then mirror, then rotate, then scale — shared with the frontend overlay."""
+    """Order is mask, crop, mirror, rotate, scale — shared with the frontend overlay."""
 
+    masks: list[MaskRegion] = Field(default_factory=list, max_length=MAX_MASK_REGIONS)
     crop: EditCropRect | None = None
     mirror_h: bool = False
     mirror_v: bool = False
@@ -849,6 +875,7 @@ class ImageEditSpec(BaseModel):
     @model_validator(mode="after")
     def _check(self) -> "ImageEditSpec":
         self.crop = validated_crop(self.crop)
+        self.masks = validated_masks(self.masks)
 
         return self
 

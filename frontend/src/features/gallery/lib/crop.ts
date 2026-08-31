@@ -1,5 +1,8 @@
 /** Small enough to frame tightly, large enough that the rect stays grabbable. */
 export const MIN_CROP_FRACTION = 0.05;
+
+/** A blur region covers a face, not a composition, so it may go far smaller than a crop. */
+export const MIN_MASK_FRACTION = 0.01;
 export const CROP_NUDGE_FRACTION = 0.01;
 export const CROP_NUDGE_MULTIPLIER = 5;
 
@@ -73,9 +76,9 @@ export function isIdentityCrop(crop: CropRect): boolean {
   );
 }
 
-export function clampCrop(rect: CropRect): CropRect {
-  const width = clamp(rect.width, MIN_CROP_FRACTION, 1);
-  const height = clamp(rect.height, MIN_CROP_FRACTION, 1);
+export function clampCrop(rect: CropRect, min: number = MIN_CROP_FRACTION): CropRect {
+  const width = clamp(rect.width, min, 1);
+  const height = clamp(rect.height, min, 1);
   return {
     width,
     height,
@@ -84,8 +87,13 @@ export function clampCrop(rect: CropRect): CropRect {
   };
 }
 
-export function moveCrop(rect: CropRect, dx: number, dy: number): CropRect {
-  return clampCrop({ ...rect, x: rect.x + dx, y: rect.y + dy });
+export function moveCrop(
+  rect: CropRect,
+  dx: number,
+  dy: number,
+  min: number = MIN_CROP_FRACTION,
+): CropRect {
+  return clampCrop({ ...rect, x: rect.x + dx, y: rect.y + dy }, min);
 }
 
 export function resizeCrop(
@@ -94,33 +102,34 @@ export function resizeCrop(
   dx: number,
   dy: number,
   ratio: number | null = null,
+  min: number = MIN_CROP_FRACTION,
 ): CropRect {
   let { x, y, width, height } = rect;
 
   if (handle.includes("w")) {
-    const shift = clamp(dx, -x, width - MIN_CROP_FRACTION);
+    const shift = clamp(dx, -x, width - min);
     x += shift;
     width -= shift;
   }
   if (handle.includes("e")) {
-    width = clamp(width + dx, MIN_CROP_FRACTION, 1 - x);
+    width = clamp(width + dx, min, 1 - x);
   }
   if (handle.includes("n")) {
-    const shift = clamp(dy, -y, height - MIN_CROP_FRACTION);
+    const shift = clamp(dy, -y, height - min);
     y += shift;
     height -= shift;
   }
   if (handle.includes("s")) {
-    height = clamp(height + dy, MIN_CROP_FRACTION, 1 - y);
+    height = clamp(height + dy, min, 1 - y);
   }
 
   if (ratio === null) {
-    return clampCrop({ x, y, width, height });
+    return clampCrop({ x, y, width, height }, min);
   }
 
   // Aspect is in source pixels; this rect is fractions, so divide by the frame aspect first.
-  height = clamp(width / ratio, MIN_CROP_FRACTION, 1);
-  width = clamp(height * ratio, MIN_CROP_FRACTION, 1);
+  height = clamp(width / ratio, min, 1);
+  width = clamp(height * ratio, min, 1);
 
   if (handle.includes("n")) {
     y = rect.y + rect.height - height;
@@ -129,7 +138,7 @@ export function resizeCrop(
     x = rect.x + rect.width - width;
   }
 
-  return clampCrop({ x, y, width, height });
+  return clampCrop({ x, y, width, height }, min);
 }
 
 /** Restores the aspect lock from a stored spec so the first drag cannot break the ratio. */
