@@ -25,6 +25,19 @@ DEFAULT_MODE = "replace"
 
 CaptionReplacer = Callable[[str], str | None]
 
+# $$ first so $$1 stays the characters $1 rather than group 1.
+_DOLLAR_REPL = re.compile(r"\$(\$|\d{1,2})")
+
+
+def _python_replacement(template: str) -> str:
+    def expand(match: re.Match[str]) -> str:
+        token = match.group(1)
+        if token == "$":
+            return "$"
+        return rf"\g<{int(token)}>"
+
+    return _DOLLAR_REPL.sub(expand, template)
+
 
 def build_caption_replacer(
     *,
@@ -65,9 +78,11 @@ def _build_replacer(
     except re.error as exc:
         raise ValueError(f"Invalid regular expression: {exc}") from exc
 
+    template = _python_replacement(replacement) if use_regex else replacement
+
     def replace(text: str) -> str | None:
         try:
-            edited = pattern.sub(replacement, text)
+            edited = pattern.sub(template, text)
         except re.error as exc:
             # Group refs like ``\9`` are only resolved against a real match, not at compile time.
             raise ValueError(f"Invalid replacement text: {exc}") from exc

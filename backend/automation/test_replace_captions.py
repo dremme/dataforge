@@ -37,6 +37,44 @@ class CaptionReplacerTests(unittest.TestCase):
 
         self.assertEqual(replace("a brown dog runs"), "a brown cat runs")
 
+    def test_regex_replacement_accepts_dollar_groups(self) -> None:
+        replace = build_caption_replacer(
+            search=r"(\w+) dog",
+            replacement="$1 cat",
+            use_regex=True,
+        )
+
+        self.assertEqual(replace("a brown dog runs"), "a brown cat runs")
+
+    def test_regex_replacement_dollar_zero_is_the_whole_match(self) -> None:
+        replace = build_caption_replacer(
+            search=r"brown dog",
+            replacement="[$0]",
+            use_regex=True,
+        )
+
+        self.assertEqual(replace("a brown dog runs"), "a [brown dog] runs")
+
+    def test_regex_replacement_doubled_dollar_is_literal(self) -> None:
+        replace = build_caption_replacer(
+            search=r"(\w+) dog",
+            replacement="$$1 $1",
+            use_regex=True,
+        )
+
+        self.assertEqual(replace("a brown dog runs"), "a $1 brown runs")
+
+    def test_literal_replacement_leaves_dollar_groups_alone(self) -> None:
+        replace = build_caption_replacer(search="dog", replacement="$1")
+
+        self.assertEqual(replace("a dog"), "a $1")
+
+    def test_regex_replacement_rejects_a_missing_dollar_group(self) -> None:
+        replace = build_caption_replacer(search=r"(dog)", replacement="$9", use_regex=True)
+
+        with self.assertRaisesRegex(ValueError, "Invalid replacement text"):
+            replace("a dog")
+
     def test_matching_is_case_insensitive_by_default(self) -> None:
         insensitive = build_caption_replacer(search="Dog", replacement="cat")
         sensitive = build_caption_replacer(search="Dog", replacement="cat", case_sensitive=True)

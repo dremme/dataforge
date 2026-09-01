@@ -145,7 +145,8 @@ export function ReplaceCaptionsDialog({
   } else if (useRegex) {
     hint = (
       <>
-        Refer to capture groups in the replacement as <code>\1</code>, <code>\2</code>.
+        Refer to capture groups in the replacement as <code>$1</code>, <code>$2</code>.{" "}
+        <code>$0</code> is the whole match.
       </>
     );
   }

@@ -115,6 +115,20 @@ describe("ReplaceCaptionsDialog", () => {
     expect(screen.getByText("and 2 more")).toBeInTheDocument();
   });
 
+  it("explains dollar capture groups once regex is on", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    expect(screen.queryByText(/capture groups/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Regular expression" }));
+
+    const hint = screen.getByText(/capture groups/);
+    expect(hint).toHaveTextContent("$1");
+    expect(hint).toHaveTextContent("$2");
+    expect(hint).toHaveTextContent("$0");
+  });
+
   it("blocks submitting an edit the backend rejected", async () => {
     const user = userEvent.setup();
     preview.mockResolvedValue({
