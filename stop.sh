@@ -23,7 +23,7 @@ set -eo pipefail
 
 say "Stopping DataForge servers..."
 
-# Neither port has a fixed occupant here: 8081 is Vite under ./dev.sh and the whole
+# Neither port has a fixed occupant here: 18081 is Vite under ./dev.sh and the whole
 # app under ./start.sh, so the label names the product rather than a half of it.
 API_FREED=0
 UI_FREED=0

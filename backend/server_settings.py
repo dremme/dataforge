@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-DEFAULT_UI_PORT = 8081
+DEFAULT_UI_PORT = 18081
 
 # A browser treats the two spellings of loopback as distinct origins.
 _LOOPBACK_HOSTS = ("localhost", "127.0.0.1")

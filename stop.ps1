@@ -26,7 +26,7 @@ $Host.UI.RawUI.WindowTitle = 'DataForge - Stop'
 
 Write-Host 'Stopping DataForge servers...'
 
-# Neither port has a fixed occupant here: 8081 is Vite under dev.ps1 and the whole
+# Neither port has a fixed occupant here: 18081 is Vite under dev.ps1 and the whole
 # app under start.ps1, so the label names the product rather than a half of it.
 $apiFreed = Clear-DevPort -Port $DevApiPort -Label 'DataForge'
 $uiFreed = Clear-DevPort -Port $DevUiPort -Label 'DataForge'

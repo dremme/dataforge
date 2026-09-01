@@ -92,8 +92,8 @@ function Get-DevPort {
 # launchers use. frontend/vite.config.ts and backend/server_settings.py resolve
 # the same two variables from the same .env.
 $DevEnvMap = Get-DevEnvMap
-$DevApiPort = Get-DevPort -Name 'DATAFORGE_API_PORT' -EnvMap $DevEnvMap -Default 8080
-$DevUiPort = Get-DevPort -Name 'DATAFORGE_UI_PORT' -EnvMap $DevEnvMap -Default 8081
+$DevApiPort = Get-DevPort -Name 'DATAFORGE_API_PORT' -EnvMap $DevEnvMap -Default 18080
+$DevUiPort = Get-DevPort -Name 'DATAFORGE_UI_PORT' -EnvMap $DevEnvMap -Default 18081
 $DevApiUrl = 'http://127.0.0.1:{0}' -f $DevApiPort
 $DevUiUrl = 'http://127.0.0.1:{0}' -f $DevUiPort
 $DevHealthUrl = '{0}/api/health' -f $DevApiUrl

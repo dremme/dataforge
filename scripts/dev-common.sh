@@ -164,8 +164,8 @@ dev_port() {
 
 # frontend/vite.config.ts and backend/server_settings.py resolve the same two
 # variables from the same .env.
-DEV_API_PORT="$(dev_port DATAFORGE_API_PORT 8080)"
-DEV_UI_PORT="$(dev_port DATAFORGE_UI_PORT 8081)"
+DEV_API_PORT="$(dev_port DATAFORGE_API_PORT 18080)"
+DEV_UI_PORT="$(dev_port DATAFORGE_UI_PORT 18081)"
 DEV_API_URL="http://127.0.0.1:$DEV_API_PORT"
 DEV_UI_URL="http://127.0.0.1:$DEV_UI_PORT"
 DEV_HEALTH_URL="$DEV_API_URL/api/health"

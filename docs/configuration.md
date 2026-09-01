@@ -27,8 +27,8 @@ OS and shell environment variables always win over the file. `.env` is gitignore
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATAFORGE_UI_PORT` | `8081` | The port you open. Production binds it for the UI *and* the API; in development Vite binds it, and it drives the backend CORS allowlist |
-| `DATAFORGE_API_PORT` | `8080` | **Development only** — port the API binds, and the Vite `/api` proxy target |
+| `DATAFORGE_UI_PORT` | `18081` | The port you open. Production binds it for the UI *and* the API; in development Vite binds it, and it drives the backend CORS allowlist |
+| `DATAFORGE_API_PORT` | `18080` | **Development only** — port the API binds, and the Vite `/api` proxy target |
 | `DATAFORGE_API_HOST` | `127.0.0.1` | Interface the server binds (`scripts/dev_server.py` and `scripts/prod_server.py`) |
 
 Production serves both halves from one process, so `DATAFORGE_API_PORT` is never bound there and CORS
@@ -72,8 +72,7 @@ leave `OPENAI_THINKING_*` alone.
 
 Many single-model servers answer even with a wrong `OPENAI_MODEL`. Multi-model servers need the id to match.
 
-`llama-server` defaults to port `8080`, which DataForge's API already uses. Start it on `8888` to match
-`OPENAI_API_BASE_URL` above:
+`llama-server` defaults to port `8080`. Start it on `8888` to match `OPENAI_API_BASE_URL` above:
 
 ```bash
 llama-server --port 8888 -m <model.gguf> --mmproj <mmproj.gguf>

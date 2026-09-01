@@ -7,8 +7,8 @@ Working on DataForge itself. For running the app, see the [README](../README.md#
 `dev.bat` (or `.\dev.ps1`) on Windows, `./dev.sh` on Linux and macOS. Either one:
 
 - Regenerates the API types first; see [Generated frontend code](#generated-frontend-code)
-- Starts the API with the uvicorn reloader on **http://localhost:8080**
-- Starts the Vite dev server on **http://localhost:8081**, proxying `/api` to the API
+- Starts the API with the uvicorn reloader on **http://localhost:18080**
+- Starts the Vite dev server on **http://localhost:18081**, proxying `/api` to the API
 - Waits until both are serving, then opens the browser and supervises them
 
 | Windows | Unix | Effect |
@@ -49,7 +49,7 @@ the manual shape above where nothing is supervising.
 They cannot be exercised on Windows — `bash -n` catches syntax errors from anywhere, but nothing past
 that. On a real Unix host, from a clean clone:
 
-- `./setup.sh` → `./start.sh` → the app answers on http://localhost:8081 → Ctrl+C leaves both ports
+- `./setup.sh` → `./start.sh` → the app answers on http://localhost:18081 → Ctrl+C leaves both ports
   free (`./stop.sh` confirms).
 - `./dev.sh` → both servers come up, HMR works, Ctrl+C reaps the **uvicorn reload child**. This is
   the case most likely to leave an orphan, so check the port is actually free afterwards.
@@ -57,7 +57,7 @@ that. On a real Unix host, from a clean clone:
   cleared, not fatal.
 - `./start.sh` twice — the second run should print "Frontend build is up to date" and skip the
   build. Then `touch frontend/src/main.tsx` and confirm the next run rebuilds.
-- `nc -l 8081`, then `./start.sh` — `clear_port` must name the process and refuse, rather than
+- `nc -l 18081`, then `./start.sh` — `clear_port` must name the process and refuse, rather than
   killing something that is not ours.
 
 ## Tech stack

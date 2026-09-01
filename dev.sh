@@ -32,8 +32,8 @@ usage() {
     cat <<'USAGE'
 Usage: ./dev.sh [options]
 
-  --backend-only   Start only the API (DATAFORGE_API_PORT, default 8080)
-  --frontend-only  Start only the Vite dev server (DATAFORGE_UI_PORT, default 8081)
+  --backend-only   Start only the API (DATAFORGE_API_PORT, default 18080)
+  --frontend-only  Start only the Vite dev server (DATAFORGE_UI_PORT, default 18081)
   --no-browser     Do not open the browser once the servers are ready
   --no-reload      Run the API without uvicorn's reloader. Use this while a long
                    job is running: a reload re-runs job recovery and re-spawns

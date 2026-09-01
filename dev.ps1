@@ -17,10 +17,10 @@
   in place and nothing else would notice.
 
 .PARAMETER BackendOnly
-  Start only the API (port from DATAFORGE_API_PORT, default 8080).
+  Start only the API (port from DATAFORGE_API_PORT, default 18080).
 
 .PARAMETER FrontendOnly
-  Start only the Vite dev server (port from DATAFORGE_UI_PORT, default 8081).
+  Start only the Vite dev server (port from DATAFORGE_UI_PORT, default 18081).
 
 .PARAMETER NoBrowser
   Do not open the browser once the servers are ready.

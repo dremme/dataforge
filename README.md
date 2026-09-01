@@ -36,7 +36,7 @@ It downloads Python 3.12.6 → `.python/` and Node 20.19.0 → `.node/`, creates
 installs dependencies.
 
 **2. Run** — double-click `start.bat`, or `.\start.ps1` in PowerShell.
-The launcher builds the UI if needed, starts **one** server, and opens **http://localhost:8081**.
+The launcher builds the UI if needed, starts **one** server, and opens **http://localhost:18081**.
 The first launch spends a minute or two on the frontend build; later ones start in seconds.
 The port is configurable; see [Server ports](docs/configuration.md#server-ports).
 
@@ -61,7 +61,7 @@ installs dependencies.
 ./setup.sh
 ```
 
-**2. Run** — same as Windows: build if needed, start the server, open **http://localhost:8081**.
+**2. Run** — same as Windows: build if needed, start the server, open **http://localhost:18081**.
 
 ```bash
 ./start.sh
@@ -106,7 +106,7 @@ cd frontend && npm run build && cd ..
 backend/.venv/bin/python scripts/prod_server.py
 ```
 
-Then open **http://localhost:8081**. Re-run `npm run build` after changing frontend sources —
+Then open **http://localhost:18081**. Re-run `npm run build` after changing frontend sources —
 `prod_server.py` serves whatever is in `frontend/dist`.
 
 </details>
@@ -263,8 +263,8 @@ server. The defaults assume that server is on `http://127.0.0.1:8888/v1`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATAFORGE_API_PORT` | `8080` | **Development only** — port the API binds, and the Vite `/api` proxy target |
-| `DATAFORGE_UI_PORT` | `8081` | The port you open |
+| `DATAFORGE_API_PORT` | `18080` | **Development only** — port the API binds, and the Vite `/api` proxy target |
+| `DATAFORGE_UI_PORT` | `18081` | The port you open |
 
 Ports, model choices, audio captioning, sampling knobs, and integration paths are in
 **[Configuration](docs/configuration.md)**.

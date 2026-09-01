@@ -31,7 +31,7 @@ require_python()
 BACKEND = Path(__file__).resolve().parent.parent / "backend"
 
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8080
+DEFAULT_PORT = 18080
 
 # Glob patterns for uvicorn's watchfiles filter (pathlib Path.match). Only *.py files reach it.
 RELOAD_EXCLUDES = [

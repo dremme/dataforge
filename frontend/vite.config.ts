@@ -6,8 +6,8 @@ import react from "@vitejs/plugin-react";
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(rootDir, "..");
 
-const DEFAULT_UI_PORT = 8081;
-const DEFAULT_API_PORT = 8080;
+const DEFAULT_UI_PORT = 18081;
+const DEFAULT_API_PORT = 18080;
 
 function envPort(raw: string | undefined, fallback: number): number {
   const port = Number(raw?.trim());
