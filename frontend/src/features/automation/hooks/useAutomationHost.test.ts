@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { readRecentActionIds } from "@/features/quickAction/lib/quickActionHistory";
 import type { GalleryItem } from "@/shared/types";
 import { useAutomationHost } from "./useAutomationHost";
 
@@ -57,6 +58,10 @@ function setupHost(
 
   return { result, startJob };
 }
+
+afterEach(() => {
+  localStorage.clear();
+});
 
 describe("useAutomationHost", () => {
   it("opens the dialog before backing up captions", async () => {
@@ -125,6 +130,26 @@ describe("useAutomationHost", () => {
 
     expect(result.current.jobStartConfirm.pending).toBeNull();
     expect(startJob).not.toHaveBeenCalled();
+  });
+
+  it("records a started job so the empty palette can offer it again", async () => {
+    const { result } = setupHost();
+
+    await act(async () => {
+      result.current.panelProps.onRequestStart("replace_captions");
+    });
+
+    expect(readRecentActionIds()).toEqual(["run:replace_captions"]);
+  });
+
+  it("does not record a job the folder cannot start", () => {
+    const { result } = setupHost({ hasCaptionBackup: false });
+
+    act(() => {
+      result.current.panelProps.onRequestStart("restore_captions");
+    });
+
+    expect(readRecentActionIds()).toEqual([]);
   });
 
   it("still allows a backup when the folder has no backup yet", async () => {

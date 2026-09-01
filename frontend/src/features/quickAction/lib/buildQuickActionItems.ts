@@ -49,6 +49,10 @@ export function quickActionFolderId(path: string): string {
   return `folder:${normalizeFolderPath(path)}`;
 }
 
+export function quickActionRunJobId(type: JobType): string {
+  return `run:${type}`;
+}
+
 export function folderPathFromQuickActionId(id: string): string | null {
   if (!id.startsWith("folder:")) return null;
 
@@ -162,7 +166,7 @@ export function buildRunJobItems({
     };
 
     return {
-      id: `run:${type}`,
+      id: quickActionRunJobId(type),
       section: "run",
       label: meta.menuLabel ?? meta.label,
       detail: meta.menuDescription,

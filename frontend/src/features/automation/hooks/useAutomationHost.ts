@@ -8,6 +8,8 @@ import {
   isJobAvailable,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
+import { quickActionRunJobId } from "@/features/quickAction/lib/buildQuickActionItems";
+import { touchRecentAction } from "@/features/quickAction/lib/quickActionHistory";
 import type { Breadcrumb, GalleryItem, JobType } from "@/shared/types";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
@@ -90,6 +92,7 @@ export function useAutomationHost({
     (jobType: JobType) => {
       // The menu already disables these; re-checked so a stale flag cannot start a job.
       if (!isJobAvailable(jobType, jobAvailability)) return;
+      touchRecentAction(quickActionRunJobId(jobType));
       if (isConfirmableJobType(jobType)) {
         requestJobStart(jobType);
         return;

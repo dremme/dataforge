@@ -97,6 +97,28 @@ describe("App: quick action bar", () => {
     expect(within(recent).getAllByRole("option")[0]).toHaveTextContent("Refresh folder");
   });
 
+  it("offers a job started from the automation menu in the empty palette", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await user.click(screen.getByRole("button", { name: /More/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Find & replace/ }));
+    await screen.findByRole("alertdialog", { name: "Find and replace in captions?" });
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("alertdialog", { name: "Find and replace in captions?" }),
+      ).not.toBeInTheDocument();
+    });
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    const recent = within(palette).getByRole("group", { name: "Recent" });
+    expect(within(recent).getAllByRole("option")[0]).toHaveTextContent("Find & replace");
+  });
+
   it("stays shut while a dialog is open, and opens again once it is dismissed", async () => {
     const user = userEvent.setup();
     installMockBackend();
