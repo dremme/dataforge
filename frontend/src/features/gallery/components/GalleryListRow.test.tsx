@@ -151,6 +151,16 @@ describe("GalleryListRow", () => {
     expect(markers[0]).toHaveClass("gallery-list-row__marker--candidate");
   });
 
+  it("marks an edited file so a stored original is visible without opening it", () => {
+    const { container } = render(
+      <GalleryListRow item={{ ...captionedItem, has_backup: true }} onSelect={vi.fn()} />,
+    );
+
+    const markers = [...container.querySelectorAll(".gallery-list-row__marker")];
+    expect(markers.map((marker) => marker.getAttribute("title"))).toEqual(["Edited"]);
+    expect(markers[0]).toHaveClass("gallery-list-row__marker--edited");
+  });
+
   it("opens the item when not selecting", () => {
     const onSelect = vi.fn();
     render(<GalleryListRow item={captionedItem} onSelect={onSelect} />);

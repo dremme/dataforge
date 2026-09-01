@@ -9,6 +9,7 @@ import {
   iconMessageCheck,
   iconMessageDashed,
   iconMessageWarning,
+  iconPencil,
   iconScanSquare,
   iconVideo,
   type AppIcon,
@@ -43,6 +44,9 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
   }
   if (isGif(item)) {
     markers.push({ key: "gif", icon: iconFileImage, label: "GIF", variant: "gif" });
+  }
+  if (item.has_backup) {
+    markers.push({ key: "edited", icon: iconPencil, label: "Edited", variant: "edited" });
   }
   if (item.has_issue_file) {
     markers.push({

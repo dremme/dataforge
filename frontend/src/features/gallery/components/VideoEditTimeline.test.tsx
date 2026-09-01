@@ -10,6 +10,7 @@ function renderTimeline(overrides: Partial<Props> = {}) {
     duration: 12,
     trimStart: 2,
     trimEnd: 8,
+    speed: 1,
     playheadTime: 3,
     playing: false,
     muted: true,
@@ -129,6 +130,36 @@ describe("VideoEditTimeline", () => {
 
     expect(screen.getByText("0:02.000 - 0:08.000")).toBeInTheDocument();
     expect(screen.getByText("of 0:12.000")).toBeInTheDocument();
+  });
+
+  it("reads the kept span in the retimed length once the clip is sped up", () => {
+    renderTimeline({ speed: 2 });
+
+    expect(screen.getByText("0:01.000 - 0:04.000")).toBeInTheDocument();
+    expect(screen.getByText("of 0:06.000")).toBeInTheDocument();
+    expect(startHandle()).toHaveAttribute("aria-valuetext", "0:01.000");
+    expect(endHandle()).toHaveAttribute("aria-valuenow", "4");
+    expect(endHandle()).toHaveAttribute("aria-valuemax", "6");
+  });
+
+  it("stretches the readout when the clip is slowed down", () => {
+    renderTimeline({ speed: 0.5 });
+
+    expect(screen.getByText("0:04.000 - 0:16.000")).toBeInTheDocument();
+    expect(screen.getByText("of 0:24.000")).toBeInTheDocument();
+  });
+
+  it("still reports source seconds while retimed, which is what the render consumes", () => {
+    // Only the readouts divide by speed; ffmpeg seeks the untouched original.
+    const props = renderTimeline({ speed: 2 });
+
+    fireEvent.keyDown(endHandle(), { key: "ArrowLeft", shiftKey: true });
+    fireEvent.keyDown(startHandle(), { key: "Home" });
+    fireEvent.keyDown(endHandle(), { key: "End" });
+
+    expect(props.onTrimEndChange).toHaveBeenCalledWith(7);
+    expect(props.onTrimStartChange).toHaveBeenCalledWith(0);
+    expect(props.onTrimEndChange).toHaveBeenCalledWith(12);
   });
 
   it("locks every control while the source is still loading", () => {

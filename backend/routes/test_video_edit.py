@@ -11,6 +11,7 @@ from ffmpeg_run import FfmpegCancelled
 from routes._test_client import client
 from schemas import VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_gif, write_media, write_mp4_video
+from video_edit import SourceProbe
 
 EDIT_URL = "/api/media/video-edit"
 
@@ -233,6 +234,27 @@ class ApplyVideoEditTests(unittest.TestCase):
             self.assertEqual(event["path"], str(media))
             self.assertEqual(event["seconds"], 1.25)
             self.assertEqual(event["duration"], 2.0)
+
+    def test_a_speed_only_edit_still_reports_a_length_to_render_against(self) -> None:
+        """Without the probed runtime an untrimmed retime leaves the bar indeterminate."""
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            published: list[dict] = []
+
+            def render_with_progress(command, **kwargs):
+                kwargs["on_progress"](1.0)
+                render_into(command, **kwargs)
+
+            with patch("video_edit.run_ffmpeg", side_effect=render_with_progress):
+                with patch("routes.media.probe_source", return_value=SourceProbe(seconds=10.0)):
+                    with patch(
+                        "routes.media.events.publish_to_tabs",
+                        side_effect=lambda tabs, event: published.append(event),
+                    ):
+                        client.post(edit_url(media, tab="tab-9"), json={"speed": 2.0})
+
+            self.assertEqual(len(published), 1)
+            self.assertEqual(published[0]["duration"], 5.0)
 
     def test_no_tab_means_no_progress_frames(self) -> None:
         with TempMediaFolder() as root:

@@ -397,6 +397,17 @@ class SpecHelperTests(unittest.TestCase):
     def test_an_open_ended_trim_has_no_predictable_length(self) -> None:
         self.assertIsNone(video_edit.expected_output_seconds(VideoEditSpec()))
 
+    def test_a_probed_runtime_gives_an_open_ended_retime_a_length(self) -> None:
+        """Without this a speed-only edit renders behind an indeterminate progress bar."""
+        spec = VideoEditSpec(speed=2.0)
+
+        self.assertEqual(video_edit.expected_output_seconds(spec, 10.0), 5.0)
+
+    def test_a_stated_trim_end_wins_over_the_probe(self) -> None:
+        spec = VideoEditSpec(trim_start=2.0, trim_end=10.0, speed=2.0)
+
+        self.assertEqual(video_edit.expected_output_seconds(spec, 60.0), 4.0)
+
     def test_the_backup_is_named_after_the_whole_filename(self) -> None:
         """`with_suffix` would give `clip.bak` and collide across containers."""
         self.assertEqual(edit_sidecars.backup_path_for(Path("/data/clip.mp4")).name, "clip.mp4.bak")
@@ -419,13 +430,22 @@ class ProbeSourceTests(unittest.TestCase):
     CAP_PROP_FPS = 5
     CAP_PROP_FRAME_WIDTH = 3
     CAP_PROP_FRAME_HEIGHT = 4
+    CAP_PROP_FRAME_COUNT = 7
 
-    def _fake_cv2(self, *, fps: float, size: tuple[int, int] = (800, 450), opened: bool = True):
+    def _fake_cv2(
+        self,
+        *,
+        fps: float,
+        size: tuple[int, int] = (800, 450),
+        frames: float = 240.0,
+        opened: bool = True,
+    ):
         released: list[bool] = []
         properties = {
             ProbeSourceTests.CAP_PROP_FPS: fps,
             ProbeSourceTests.CAP_PROP_FRAME_WIDTH: size[0],
             ProbeSourceTests.CAP_PROP_FRAME_HEIGHT: size[1],
+            ProbeSourceTests.CAP_PROP_FRAME_COUNT: frames,
         }
 
         class FakeCapture:
@@ -446,6 +466,7 @@ class ProbeSourceTests(unittest.TestCase):
                 "CAP_PROP_FPS": self.CAP_PROP_FPS,
                 "CAP_PROP_FRAME_WIDTH": self.CAP_PROP_FRAME_WIDTH,
                 "CAP_PROP_FRAME_HEIGHT": self.CAP_PROP_FRAME_HEIGHT,
+                "CAP_PROP_FRAME_COUNT": self.CAP_PROP_FRAME_COUNT,
             },
         )
         return fake, released
@@ -460,6 +481,18 @@ class ProbeSourceTests(unittest.TestCase):
 
         self.assertEqual(probe.frame_rate, 23.976)
         self.assertEqual(probe.size, (800, 450))
+
+    def test_reports_the_runtime_from_the_frame_count(self) -> None:
+        """An untrimmed retime has no end of its own; this is where the progress bar gets one."""
+        probe, _ = self._probe(fps=24.0, frames=240.0)
+
+        self.assertAlmostEqual(probe.seconds or 0.0, 10.0)
+
+    def test_reports_no_runtime_when_the_container_counts_nothing(self) -> None:
+        probe, _ = self._probe(fps=24.0, frames=0.0)
+
+        self.assertIsNone(probe.seconds)
+        self.assertEqual(probe.frame_rate, 24.0)
 
     def test_releases_the_capture_even_when_it_never_opened(self) -> None:
         # An unreleased capture holds the file on Windows, against the replace this render performs.

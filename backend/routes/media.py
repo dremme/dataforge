@@ -83,6 +83,7 @@ from video_edit import (
     apply_video_edit,
     expected_output_seconds,
     is_identity_spec,
+    probe_source,
     read_edit_spec,
     revert_video_edit,
 )
@@ -444,12 +445,16 @@ def edit_video(
     if is_identity_spec(body):
         raise HTTPException(status_code=400, detail="This edit would not change the video")
 
-    on_progress = _video_edit_progress(media, tab, expected_output_seconds(body))
+    # The render reads the backup once it exists, so probe the same file apply_video_edit will,
+    # and hand the result on: an untrimmed retime has no end without it, and the bar goes blank.
+    backup = backup_path_for(media)
+    probe = probe_source(backup if backup.is_file() else media)
+    on_progress = _video_edit_progress(media, tab, expected_output_seconds(body, probe.seconds))
 
     try:
         with render_slot(media) as should_cancel:
             return apply_video_edit(
-                media, body, on_progress=on_progress, should_cancel=should_cancel
+                media, body, on_progress=on_progress, should_cancel=should_cancel, probe=probe
             )
     except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
         raise _video_edit_failure(exc) from exc

@@ -134,4 +134,22 @@ describe("useVideoEdit", () => {
     await waitFor(() => expect(result.current.draft.trimStart).toBe(3));
     expect(result.current.draft.trimEnd).toBe(9);
   });
+  it("ignores the edited file's duration when edit mode opens on the original", async () => {
+    // Browsing plays the already-shortened file; editing swaps in the untouched original.
+    const { result, rerender, initial } = renderEdit({ editMode: false });
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(6));
+    });
+
+    rerender({ ...initial, editMode: true });
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(12));
+    });
+
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.duration).toBe(12);
+    expect(result.current.draft.trimEnd).toBe(12);
+  });
 });

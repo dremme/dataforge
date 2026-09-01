@@ -136,7 +136,7 @@ def _run_check_steps(
         # Grouped with static checks so ``--lint-only`` still catches type errors; vitest does not.
         _run_step("Frontend typecheck", [npm, "run", "typecheck"], cwd=FRONTEND)
     _run_step(
-        "Comment width",
+        "Comments",
         [str(interpreter), str(SCRIPTS / "check_comments.py"), "--scope", scope],
         cwd=ROOT,
     )

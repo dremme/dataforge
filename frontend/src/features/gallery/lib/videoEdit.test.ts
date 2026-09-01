@@ -13,6 +13,7 @@ import {
   isIdentityEdit,
   outputDimensions,
   outputDuration,
+  outputTime,
   scaleForTargetHeight,
   scaleForTargetWidth,
   specsEqual,
@@ -224,6 +225,18 @@ describe("specsEqual", () => {
 describe("readouts", () => {
   it("divides the kept span by the speed", () => {
     expect(outputDuration(draft({ trimStart: 2, trimEnd: 10, speed: 2 }))).toBe(4);
+  });
+
+  it("maps a source moment onto the retimed result", () => {
+    expect(outputTime(8, 2)).toBe(4);
+    expect(outputTime(8, 0.5)).toBe(16);
+    expect(outputTime(8, 1)).toBe(8);
+  });
+
+  it("passes the time straight through rather than dividing by a speed it cannot use", () => {
+    expect(outputTime(8, 0)).toBe(8);
+    expect(outputTime(8, Number.NaN)).toBe(8);
+    expect(outputTime(8, -2)).toBe(8);
   });
 
   it("finds the scale that lands closest to a target width", () => {

@@ -11,7 +11,8 @@ These are common instructions for agents across all scenarios.
     **Never** write one about the change: not the alternatives you considered, not what you rejected, not why your version is correct.
     That belongs in the commit message or a test name, and it is the failure mode this rule exists to stop.
     One line. If it needs a paragraph, it is a test.
-    `scripts/check_comments.py` enforces the width and runs as part of `run_checks.py`; it cannot judge the altitude, so that part is on you.
+    `scripts/check_comments.py` enforces width and a two-line cap, and runs as part of
+    `run_checks.py`; it cannot judge the altitude, so that part is on you.
 - **Never** use lewd, explicit, or NSFW terms in test fixtures, examples, placeholders, or production default values in the frontend or backend.
     Use neutral, professional sample content instead (e.g. landscapes, vehicles, everyday objects).
 - **Never** add personal data to source files.
@@ -35,7 +36,7 @@ These are more project specific engineering rules.
 - **Always** format your code according to the linting rules.
 - Verify your work with `scripts/run_checks.py --fix`, run from the project root using the venv Python -
   `backend/.venv/Scripts/python` on Windows, `backend/.venv/bin/python` on Linux and macOS.
-    This covers lint, formatting, comment width, typechecking, and tests for both halves of the stack, and is what CI and the pre-commit hook run.
+    This covers lint, formatting, comments, typechecking, and tests for both halves of the stack, and is what CI and the pre-commit hook run.
     Narrow it with `--lint-only` to skip tests, or `--scope backend` / `--scope frontend` when you touched only one side.
     Per-tool commands such as `npm test` or `ruff check` cover half the project at best, so never finish on those alone.
 - `backend/schemas.py` is the single source of truth for the wire format.

@@ -1,4 +1,4 @@
-"""Check that comments stay as narrow as the code around them.
+"""Check that comments stay short: one wrapped constraint, never a paragraph.
 
 Run from the project root:
   backend/.venv/Scripts/python scripts/check_comments.py [--scope SCOPE]
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import re
 import sys
 import tokenize
 from pathlib import Path
@@ -19,12 +20,15 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Ruff's line-length, so a comment may not run wider than the code it sits in.
 MAX_LENGTH = 100
-MAX_BLOCK_LINES = 4
+MAX_BLOCK_LINES = 2
 
 PYTHON_ROOTS = ("backend", "scripts")
 TYPESCRIPT_ROOT = Path("frontend") / "src"
 SKIP_DIRS = {".venv", "__pycache__", "node_modules", "dist", "coverage", "data"}
 TYPESCRIPT_SUFFIXES = {".ts", ".tsx"}
+
+_BLOCK_COMMENT = re.compile(r"/\*[\s\S]*?\*/")
+_TRAILING_LINE_COMMENT = re.compile(r"(?<!:)//(.*)$")
 
 
 class Comment:
@@ -58,13 +62,73 @@ def _python_comments(source: str) -> list[Comment]:
     return comments
 
 
+def _block_content_line(raw: str) -> str | None:
+    stripped = raw.strip()
+    if stripped.startswith("/*"):
+        stripped = stripped[2:].lstrip("*").strip()
+        if stripped.endswith("*/"):
+            stripped = stripped[:-2].strip()
+    elif stripped.endswith("*/"):
+        stripped = stripped[:-2].strip()
+        if stripped.startswith("*"):
+            stripped = stripped[1:].strip()
+    elif stripped.startswith("*"):
+        stripped = stripped[1:].strip()
+    return stripped or None
+
+
 def _typescript_comments(source: str) -> list[Comment]:
-    comments = []
+    comments: list[Comment] = []
+    occupied: set[int] = set()
+
+    for match in _BLOCK_COMMENT.finditer(source):
+        start = source[: match.start()].count("\n") + 1
+        lines = match.group(0).splitlines() or [match.group(0)]
+        for offset, raw in enumerate(lines):
+            line_no = start + offset
+            occupied.add(line_no)
+            stripped = raw.strip()
+            if _block_content_line(raw) is None:
+                continue
+            comments.append(Comment(line_no, stripped, own_line=True))
+
     for number, line in enumerate(source.splitlines(), start=1):
-        text = line.strip()
-        if text.startswith(("//", "/*", "{/*")) or (text.startswith("*") and text != "*/"):
-            comments.append(Comment(number, text, own_line=True))
+        if number in occupied:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("//"):
+            comments.append(Comment(number, stripped, own_line=True))
+            continue
+        trailing = _TRAILING_LINE_COMMENT.search(line)
+        if trailing:
+            comments.append(Comment(number, "//" + trailing.group(1), own_line=False))
+
+    comments.sort(key=lambda comment: comment.line)
     return comments
+
+
+def _comment_body(text: str) -> str:
+    body = text.strip()
+    if body.startswith("{/*"):
+        body = body[3:]
+    elif body.startswith("/*"):
+        body = body[2:]
+    elif body.startswith("//"):
+        body = body[2:]
+    elif body.startswith("#"):
+        body = body[1:]
+    elif body.startswith("*"):
+        body = body[1:]
+    body = body.strip()
+    if body.endswith("*/}"):
+        body = body[:-3]
+    elif body.endswith("*/"):
+        body = body[:-2]
+    return body.strip()
+
+
+def _is_url_comment(text: str) -> bool:
+    return _comment_body(text).startswith(("http://", "https://"))
 
 
 def _problems(path: Path, comments: list[Comment]) -> list[str]:
@@ -72,7 +136,7 @@ def _problems(path: Path, comments: list[Comment]) -> list[str]:
     found = []
 
     for comment in comments:
-        if len(comment.text) <= MAX_LENGTH or "http" in comment.text:
+        if len(comment.text) <= MAX_LENGTH or _is_url_comment(comment.text):
             continue
         found.append(
             f"{relative}:{comment.line}: comment is {len(comment.text)} characters, "
@@ -104,19 +168,23 @@ def _check(paths: list[Path], reader) -> list[str]:
     return found
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scope", choices=("all", "backend", "frontend"), default="all")
-    args = parser.parse_args()
-
+def collect_problems(scope: str = "all") -> list[str]:
     found = []
-    if args.scope != "frontend":
+    if scope != "frontend":
         paths = [p for root in PYTHON_ROOTS for p in _walk(ROOT / root, {".py"})]
         found.extend(_check(paths, _python_comments))
-    if args.scope != "backend":
+    if scope != "backend":
         paths = _walk(ROOT / TYPESCRIPT_ROOT, TYPESCRIPT_SUFFIXES)
         found.extend(_check(paths, _typescript_comments))
+    return found
 
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scope", choices=("all", "backend", "frontend"), default="all")
+    args = parser.parse_args(argv)
+
+    found = collect_problems(args.scope)
     for problem in found:
         print(problem)
     if found:

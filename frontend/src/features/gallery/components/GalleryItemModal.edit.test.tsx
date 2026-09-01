@@ -92,6 +92,8 @@ describe("GalleryItemModal", () => {
       // Metadata never lands on its own in jsdom, so the timeline stays disabled without it.
       fireEvent.loadedMetadata(dialog.querySelector("video")!);
       await user.click(within(dialog).getByRole("button", { name: "Edit clip.mp4" }));
+      // Editing swaps in the original, so the browser mounts a fresh element and reports again.
+      fireEvent.loadedMetadata(dialog.querySelector("video")!);
       return dialog;
     }
 
@@ -175,10 +177,11 @@ describe("GalleryItemModal", () => {
 
       const dialog = await openEditMode(user);
 
+      // Half of the stored trim_start: the handles read the retimed result, and speed is 2.
       await waitFor(() => {
         expect(within(dialog).getByRole("slider", { name: "Trim start" })).toHaveAttribute(
           "aria-valuenow",
-          "2",
+          "1",
         );
       });
       // Collapsed, but the tool says it holds a value - that is what makes hiding it safe.
@@ -270,8 +273,9 @@ describe("GalleryItemModal", () => {
       rerender(<GalleryItemModal {...props} index={1} />);
       fireEvent.loadedMetadata(dialog.querySelector("video")!);
 
-      await waitFor(() => expect(trimStart()).toHaveAttribute("aria-valuenow", "3"));
-      expect(trimEnd()).toHaveAttribute("aria-valuenow", "9");
+      // 3 and 9 of source, halved: this clip's stored spec doubles the speed.
+      await waitFor(() => expect(trimStart()).toHaveAttribute("aria-valuenow", "1.5"));
+      expect(trimEnd()).toHaveAttribute("aria-valuenow", "4.5");
       expect(within(dialog).getByRole("button", { name: "Speed, changed" })).toBeInTheDocument();
 
       // ...and back the other way: the second clip's values must not follow the first.

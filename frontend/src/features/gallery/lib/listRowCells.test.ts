@@ -32,6 +32,23 @@ describe("rowMarkers", () => {
     expect(markers.map((marker) => marker.key)).toEqual(["candidate"]);
     expect(markers[0]?.label).toBe("Candidate");
   });
+
+  it("marks an edited image by the original stored beside it", () => {
+    const markers = rowMarkers(item({ media_type: "image", has_backup: true }));
+
+    expect(markers.map((marker) => marker.key)).toEqual(["edited"]);
+    expect(markers[0]?.label).toBe("Edited");
+  });
+
+  it("marks an edited video after its type", () => {
+    const markers = rowMarkers(item({ has_backup: true }));
+
+    expect(markers.map((marker) => marker.key)).toEqual(["video", "edited"]);
+  });
+
+  it("leaves an untouched file unmarked", () => {
+    expect(rowMarkers(item({ media_type: "image" }))).toEqual([]);
+  });
 });
 
 describe("rowMetaCells", () => {

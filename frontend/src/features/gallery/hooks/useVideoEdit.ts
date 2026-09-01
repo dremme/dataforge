@@ -145,9 +145,12 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     };
   }, []);
 
-  // Keyed on path alone: has_backup would clear duration on apply (loadedmetadata never re-fires),
-  // and applying/cropActive must stay out or they race the previous item / drop handles on next/prev.
+  // Keyed to the video remount so a longer original cannot keep a stale duration.
+  // Leave has_backup/applying/cropActive out: they race apply or drop handles on next/prev.
   useEffect(() => {
+    // Through the ref too: the seeding effect below runs in this same commit, where a state
+    // update is not visible yet, and would latch onto the duration of the file being replaced.
+    durationRef.current = Number.NaN;
     setDuration(Number.NaN);
     setSourceWidth(0);
     setSourceHeight(0);
@@ -158,7 +161,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setPlayheadTime(0);
     seededPathRef.current = null;
     clearMaskSelection();
-  }, [path, clearMaskSelection]);
+  }, [path, editMode, clearMaskSelection]);
 
   // Separate so a listing that learns about a backup does not reset the editor.
   useEffect(() => {
@@ -226,7 +229,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       seededPathRef.current = null;
       return;
     }
-    if (!path || !hasUsableDuration(duration) || seededPathRef.current === path) return;
+    // The ref, not the state: `duration` still holds the outgoing file's value in the commit
+    // that swaps sources. `duration` stays a dependency so this re-runs once the real one lands.
+    if (!path || !hasUsableDuration(durationRef.current) || seededPathRef.current === path) return;
 
     seededPathRef.current = path;
     const forPath = path;

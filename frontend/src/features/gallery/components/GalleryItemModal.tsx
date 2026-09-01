@@ -29,11 +29,10 @@ import {
   iconChevronLeft,
   iconChevronRight,
   iconCopy,
-  iconCrop,
   iconFolderInput,
   iconLoader2,
   iconMessageCheck,
-  iconScissors,
+  iconSquarePen,
   iconTrash2,
   iconVideo,
   iconX,
@@ -368,24 +367,6 @@ export function GalleryItemModal({
             </span>
           </div>
           <div className="gallery-item-modal__header-actions">
-            {!isMotion(item) && (
-              <Tooltip content={viewerError ?? "Open in image preview"}>
-                <button
-                  type="button"
-                  className="gallery-item-modal__preview"
-                  onClick={() => {
-                    void handleOpenInViewer();
-                  }}
-                  disabled={openingInViewer || busy}
-                  aria-label="Open in image preview"
-                >
-                  <Icon
-                    icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
-                    spin={openingInViewer}
-                  />
-                </button>
-              </Tooltip>
-            )}
             {canEditVideoItem && (
               <Tooltip content={editMode ? "Exit video editing" : "Edit video"}>
                 <button
@@ -401,7 +382,7 @@ export function GalleryItemModal({
                     editMode ? `Exit video editing for ${item.name}` : `Edit ${item.name}`
                   }
                 >
-                  <Icon icon={iconScissors} />
+                  <Icon icon={iconSquarePen} />
                 </button>
               </Tooltip>
             )}
@@ -420,7 +401,25 @@ export function GalleryItemModal({
                     editMode ? `Exit image editing for ${item.name}` : `Edit ${item.name}`
                   }
                 >
-                  <Icon icon={iconCrop} />
+                  <Icon icon={iconSquarePen} />
+                </button>
+              </Tooltip>
+            )}
+            {!isMotion(item) && (
+              <Tooltip content={viewerError ?? "Open in image preview"}>
+                <button
+                  type="button"
+                  className="gallery-item-modal__preview"
+                  onClick={() => {
+                    void handleOpenInViewer();
+                  }}
+                  disabled={openingInViewer || busy}
+                  aria-label="Open in image preview"
+                >
+                  <Icon
+                    icon={openingInViewer ? iconLoader2 : iconArrowUpRight}
+                    spin={openingInViewer}
+                  />
                 </button>
               </Tooltip>
             )}

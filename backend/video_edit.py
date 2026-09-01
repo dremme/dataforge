@@ -59,16 +59,22 @@ def is_identity_spec(spec: VideoEditSpec) -> bool:
     )
 
 
-def expected_output_seconds(spec: VideoEditSpec) -> float | None:
-    if spec.trim_end is None:
+def expected_output_seconds(
+    spec: VideoEditSpec, source_seconds: float | None = None
+) -> float | None:
+    """``None`` only when neither the spec nor a probe knows where the render stops."""
+    end = spec.trim_end if spec.trim_end is not None else source_seconds
+    if end is None:
         return None
-    return (spec.trim_end - spec.trim_start) / spec.speed
+    return max(0.0, end - spec.trim_start) / spec.speed
 
 
 @dataclass(frozen=True, slots=True)
 class SourceProbe:
     frame_rate: float | None = None
     size: tuple[int, int] | None = None
+    #: Runtime of the source, so an untrimmed retime still knows where the render ends.
+    seconds: float | None = None
 
 
 def probe_source(media: Path) -> SourceProbe:
@@ -84,6 +90,7 @@ def probe_source(media: Path) -> SourceProbe:
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0.0)
     except Exception:
         logger.debug("No probe for %s", media.name, exc_info=True)
         return SourceProbe()
@@ -91,9 +98,11 @@ def probe_source(media: Path) -> SourceProbe:
         cap.release()
 
     usable = math.isfinite(fps) and 0 < fps <= MAX_PLAUSIBLE_FPS
+    counted = usable and math.isfinite(frames) and frames > 0
     return SourceProbe(
         frame_rate=fps if usable else None,
         size=(width, height) if width > 0 and height > 0 else None,
+        seconds=frames / fps if counted else None,
     )
 
 
@@ -322,6 +331,7 @@ def apply_video_edit(
     ffmpeg: str | None = None,
     on_progress: ProgressCallback | None = None,
     should_cancel: ShouldCancel | None = None,
+    probe: SourceProbe | None = None,
 ) -> VideoEditResponse:
     """Render ``spec`` from the original. On failure the live file is left byte-identical."""
     executable = ffmpeg or ffmpeg_path()
@@ -334,7 +344,7 @@ def apply_video_edit(
     source = ensure_backup(media)
     temp_path = temp_path_for(media)
     # Probed from the backup: the live file may already have been retimed or rescaled.
-    probe = probe_source(source)
+    probe = probe or probe_source(source)
     command = build_video_edit_command(
         source,
         temp_path,

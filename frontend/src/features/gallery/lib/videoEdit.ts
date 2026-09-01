@@ -91,6 +91,12 @@ export function outputDuration(draft: VideoEditDraft): number {
   return Math.max(0, draft.trimEnd - draft.trimStart) / draft.speed;
 }
 
+/** Where a source moment lands in the rendered file. Display only: trims stay in source seconds. */
+export function outputTime(seconds: number, speed: number): number {
+  if (!Number.isFinite(speed) || speed <= 0) return seconds;
+  return seconds / speed;
+}
+
 export function cropToPixels(crop: CropRect, source: Size): CropRect {
   return {
     x: Math.round(source.width * crop.x),

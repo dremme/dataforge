@@ -2,6 +2,7 @@ import { useCallback, useRef, type CSSProperties, type PointerEvent } from "reac
 import { iconPause, iconPlay, iconVolume2, iconVolumeX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
+import { outputTime } from "@/features/gallery/lib/videoEdit";
 
 const COARSE_STEP_SECONDS = 1;
 
@@ -11,6 +12,8 @@ interface VideoEditTimelineProps {
   duration: number;
   trimStart: number;
   trimEnd: number;
+  /** Retime factor, for the readouts only — every trim value here stays in source seconds. */
+  speed: number;
   playheadTime: number;
   playing: boolean;
   muted: boolean;
@@ -27,6 +30,7 @@ export function VideoEditTimeline({
   duration,
   trimStart,
   trimEnd,
+  speed,
   playheadTime,
   playing,
   muted,
@@ -155,9 +159,9 @@ export function VideoEditTimeline({
           role="slider"
           aria-label="Trim start"
           aria-valuemin={0}
-          aria-valuemax={ready ? duration : 0}
-          aria-valuenow={trimStart}
-          aria-valuetext={formatFrameTime(trimStart)}
+          aria-valuemax={ready ? outputTime(duration, speed) : 0}
+          aria-valuenow={outputTime(trimStart, speed)}
+          aria-valuetext={formatFrameTime(outputTime(trimStart, speed))}
           disabled={locked}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove("start")}
@@ -169,9 +173,9 @@ export function VideoEditTimeline({
           role="slider"
           aria-label="Trim end"
           aria-valuemin={0}
-          aria-valuemax={ready ? duration : 0}
-          aria-valuenow={trimEnd}
-          aria-valuetext={formatFrameTime(trimEnd)}
+          aria-valuemax={ready ? outputTime(duration, speed) : 0}
+          aria-valuenow={outputTime(trimEnd, speed)}
+          aria-valuetext={formatFrameTime(outputTime(trimEnd, speed))}
           disabled={locked}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove("end")}
@@ -181,10 +185,11 @@ export function VideoEditTimeline({
 
       <span className="video-edit-timeline__times">
         <span className="video-edit-timeline__span">
-          {formatFrameTime(trimStart)} - {formatFrameTime(trimEnd)}
+          {formatFrameTime(outputTime(trimStart, speed))} -{" "}
+          {formatFrameTime(outputTime(trimEnd, speed))}
         </span>
         <span className="video-edit-timeline__total">
-          of {ready ? formatFrameTime(duration) : "--"}
+          of {ready ? formatFrameTime(outputTime(duration, speed)) : "--"}
         </span>
       </span>
     </div>
