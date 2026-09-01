@@ -119,6 +119,11 @@ def validate_rename_media_folder(
     _validate_target_names(folder, media_files, normalized_stem, normalized_start)
 
 
+def _progress_files(step: int, total: int) -> int:
+    # step runs 1..2N across the two passes; the UI counts files, not passes.
+    return min(total, (step + 1) // 2)
+
+
 def _rollback_temp_entries(temp_entries: list[tuple[Path, Path, Path]]) -> None:
     for original_media, temp_media, _target_media in reversed(temp_entries):
         if not temp_media.exists():
@@ -180,9 +185,6 @@ def run_rename_media_job(
         for index, media_path in enumerate(media_files, start=normalized_start)
     ]
 
-    # Two rename passes per file; one progress range so the UI does not fill twice.
-    progress_total = total * 2
-
     for index, (source_media, target_media) in enumerate(plan, start=1):
         if should_cancel and should_cancel():
             stats["cancelled"] = total - index + 1
@@ -190,14 +192,6 @@ def run_rename_media_job(
             break
 
         temp_media = source_media.with_name(f"{_TEMP_PREFIX}{index}{source_media.suffix.lower()}")
-        if on_progress:
-            on_progress(
-                str(source_media),
-                source_media.name,
-                index,
-                progress_total,
-                dict(stats),
-            )
 
         try:
             _rename_media_group(source_media, temp_media)
@@ -221,6 +215,14 @@ def run_rename_media_job(
             }
 
         temp_entries.append((source_media, temp_media, target_media))
+        if on_progress:
+            on_progress(
+                str(source_media),
+                source_media.name,
+                _progress_files(index, total),
+                total,
+                dict(stats),
+            )
 
     if stats["cancelled"] or not temp_entries:
         processed = len(temp_entries) if stats["cancelled"] else 0
@@ -259,8 +261,8 @@ def run_rename_media_job(
                 on_progress(
                     str(temp_media),
                     temp_media.name,
-                    total + index,
-                    progress_total,
+                    _progress_files(total + index, total),
+                    total,
                     dict(stats),
                 )
             return {
@@ -276,8 +278,8 @@ def run_rename_media_job(
             on_progress(
                 str(target_media),
                 target_media.name,
-                total + index,
-                progress_total,
+                _progress_files(total + index, total),
+                total,
                 dict(stats),
             )
 

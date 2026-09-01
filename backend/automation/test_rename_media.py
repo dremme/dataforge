@@ -206,7 +206,7 @@ class RenameMediaJobTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "already exists"):
                 validate_rename_media_folder(root, stem="portugal", selected_paths=[selected])
 
-    def test_progress_advances_monotonically_across_both_rename_phases(self) -> None:
+    def test_progress_counts_files_not_rename_passes(self) -> None:
         with TempMediaFolder() as root:
             for name in ("a.png", "b.png", "c.png"):
                 write_media(root, name)
@@ -226,13 +226,14 @@ class RenameMediaJobTests(unittest.TestCase):
 
             self.assertEqual(result["total"], 3)
             self.assertEqual(result["stats"]["success"], 3)
-            # Two rename phases per file => progress total is 2N, steps 1..2N.
-            self.assertEqual([total for _processed, total in progress_samples], [6] * 6)
+            self.assertEqual([total for _processed, total in progress_samples], [3] * 6)
             self.assertEqual(
-                [processed for processed, _total in progress_samples], [1, 2, 3, 4, 5, 6]
+                [processed for processed, _total in progress_samples],
+                [1, 1, 2, 2, 3, 3],
             )
             processed_values = [processed for processed, _total in progress_samples]
             self.assertEqual(processed_values, sorted(processed_values))
+            self.assertTrue(all(processed <= total for processed, total in progress_samples))
 
     def test_cancel_during_the_second_pass_restores_every_original_name(self) -> None:
         with TempMediaFolder() as root:
@@ -247,12 +248,11 @@ class RenameMediaJobTests(unittest.TestCase):
             def on_progress(
                 _path: str,
                 _name: str,
-                processed: int,
+                _processed: int,
                 _total: int,
                 stats: dict[str, int],
             ) -> None:
-                # Phase 2 reports file-count+index; the first of those means a final name landed.
-                if processed > stats["total"]:
+                if stats.get("success", 0) > 0:
                     cancel["armed"] = True
 
             result = run_rename_media_job(
