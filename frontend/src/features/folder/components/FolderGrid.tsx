@@ -1,4 +1,9 @@
+import { useId, useMemo, useState } from "react";
+import { clampFolders, folderCardLabel, folderFindings } from "@/features/folder/lib/folderCards";
+import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
 import {
+  iconChevronDown,
+  iconChevronUp,
   iconFolder,
   iconFolderPlus,
   iconFolderTree,
@@ -8,13 +13,6 @@ import {
 import type { Subfolder } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
-
-function folderFindings({ issue_count: issues, duplicate_count: duplicates }: Subfolder): string[] {
-  const findings: string[] = [];
-  if (issues) findings.push(issues === 1 ? "1 caption issue" : `${issues} caption issues`);
-  if (duplicates) findings.push(duplicates === 1 ? "1 duplicate" : `${duplicates} duplicates`);
-  return findings;
-}
 
 function FolderCardStats({ folder }: { folder: Subfolder }) {
   const { file_count: fileCount, captioned_count: captionedCount } = folder;
@@ -42,13 +40,10 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
   );
 }
 
-function folderCardLabel(folder: Subfolder): string {
-  const findings = folderFindings(folder);
-  return findings.length > 0 ? `${folder.name} (${findings.join(", ")})` : folder.name;
-}
-
 interface FolderGridProps {
   folders: Subfolder[];
+  /** Which folder these are the children of, so the expansion is remembered against it. */
+  folderPath?: string;
   totalCount?: number;
   onOpen: (path: string) => void;
   onCreateFolder?: () => void;
@@ -57,11 +52,25 @@ interface FolderGridProps {
 
 export function FolderGrid({
   folders,
+  folderPath,
   totalCount,
   onOpen,
   onCreateFolder,
   createFolderDisabled = false,
 }: FolderGridProps) {
+  // Seeded once per mount, and the call site remounts on navigation, so the stored choice is
+  // read for the folder being opened rather than carried over from the previous one.
+  const [expanded, setExpanded] = useState(() => readFolderExpanded(folderPath));
+  const gridId = useId();
+  const clamp = useMemo(() => clampFolders(folders), [folders]);
+  const shown = expanded ? folders : clamp.visible;
+
+  const toggleExpanded = () => {
+    const next = !expanded;
+    setExpanded(next);
+    writeFolderExpanded(folderPath, next);
+  };
+
   return (
     <section className="folder-section" aria-label="Subfolders">
       <SectionHeader
@@ -87,8 +96,8 @@ export function FolderGrid({
         }
       />
       {folders.length > 0 && (
-        <div className="folder-grid">
-          {folders.map((folder) => (
+        <div className="folder-grid" id={gridId}>
+          {shown.map((folder) => (
             <button
               key={folder.path}
               type="button"
@@ -104,6 +113,26 @@ export function FolderGrid({
               </span>
             </button>
           ))}
+        </div>
+      )}
+      {clamp.hidden > 0 && (
+        <div className="folder-more">
+          <button
+            type="button"
+            className="folder-more__btn"
+            aria-expanded={expanded}
+            aria-controls={gridId}
+            onClick={toggleExpanded}
+          >
+            <Icon icon={expanded ? iconChevronUp : iconChevronDown} className="folder-more__icon" />
+            {expanded ? "Show fewer folders" : `Show ${clamp.hidden} more folders`}
+            {!expanded && clamp.hiddenFlagged > 0 && (
+              <span className="folder-more__findings">
+                <Icon icon={iconTriangleAlert} className="folder-more__findings-icon" />
+                {clamp.hiddenFlagged} need review
+              </span>
+            )}
+          </button>
         </div>
       )}
     </section>

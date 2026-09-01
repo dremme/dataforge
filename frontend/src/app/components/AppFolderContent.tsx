@@ -99,7 +99,10 @@ export function AppFolderContent({
 
               {!folderNotFound && (
                 <FolderGrid
+                  // Remounting on navigation re-reads the stored expansion for the new folder.
+                  key={folder.path}
                   folders={filteredSubfolders}
+                  folderPath={folder.path}
                   totalCount={subfolders.length}
                   onOpen={onNavigate}
                   onCreateFolder={onCreateFolder}

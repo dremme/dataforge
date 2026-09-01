@@ -26,6 +26,7 @@ export {
   ChevronDown as iconChevronDown,
   ChevronLeft as iconChevronLeft,
   ChevronRight as iconChevronRight,
+  ChevronUp as iconChevronUp,
   CircleAlert as iconCircleAlert,
   CircleCheck as iconCircleCheck,
   CircleQuestionMark as iconCircleQuestionMark,
