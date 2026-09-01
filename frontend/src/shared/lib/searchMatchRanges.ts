@@ -41,3 +41,28 @@ export function findSearchMatchRanges(
   }
   return ranges;
 }
+
+/** Ranges in `text` matching any of `terms` literally, sorted and merged. */
+export function findLiteralMatchRanges(
+  text: string,
+  terms: readonly string[],
+): { from: number; to: number }[] {
+  if (!text || terms.length === 0) return [];
+
+  const found = terms.flatMap((term) => findSearchMatchRanges(text, term, false));
+  if (found.length === 0) return [];
+
+  // RangeSetBuilder rejects unsorted ranges, and two terms can overlap in the caption.
+  found.sort((left, right) => left.from - right.from || left.to - right.to);
+
+  const merged: { from: number; to: number }[] = [];
+  for (const range of found) {
+    const previous = merged[merged.length - 1];
+    if (previous && range.from <= previous.to) {
+      previous.to = Math.max(previous.to, range.to);
+      continue;
+    }
+    merged.push({ ...range });
+  }
+  return merged;
+}

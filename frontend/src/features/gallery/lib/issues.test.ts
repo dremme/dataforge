@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GalleryItem } from "@/shared/types";
-import { countResolvableIssues, listResolvableIssueItems } from "./issues";
+import { countResolvableIssues, flaggedCaptionPhrases, listResolvableIssueItems } from "./issues";
 
 function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
   return {
@@ -52,5 +52,32 @@ describe("listResolvableIssueItems", () => {
     const items = [item({ name: ".sysprompt", media_type: "sysprompt" })];
 
     expect(listResolvableIssueItems(items)).toHaveLength(0);
+  });
+});
+
+describe("flaggedCaptionPhrases", () => {
+  it("takes the flagged wording only, never the suggested replacement", () => {
+    expect(flaggedCaptionPhrases(['Replace "a blue car" with "a red car".'])).toEqual([
+      "a blue car",
+    ]);
+  });
+
+  it("reads typographic quotes from older sidecars", () => {
+    expect(flaggedCaptionPhrases(["Remove “parked at the curb” - the car is moving."])).toEqual([
+      "parked at the curb",
+    ]);
+  });
+
+  it("contributes nothing for a fix about something the caption omits", () => {
+    expect(flaggedCaptionPhrases(["The caption does not mention the rain."])).toEqual([]);
+  });
+
+  it("collapses phrases repeated across fixes", () => {
+    expect(
+      flaggedCaptionPhrases([
+        'Replace "a blue car" with "a red car".',
+        'The phrase "A Blue Car" also contradicts the image.',
+      ]),
+    ).toEqual(["a blue car"]);
   });
 });

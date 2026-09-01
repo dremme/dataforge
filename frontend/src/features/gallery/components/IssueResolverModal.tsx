@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { saveCaption } from "@/features/gallery/api/captions";
 import { openMediaInViewer } from "@/features/gallery/api/media";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { flaggedCaptionPhrases } from "@/features/gallery/lib/issues";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { isMotion, isVideo, mediaLabelFor } from "@/features/gallery/lib/itemKind";
@@ -75,6 +76,13 @@ export function IssueResolverModal({
   useEffect(() => {
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(queue, index));
   }, [index, queue]);
+
+  // Above the early return: the highlight terms below derive from these through a hook.
+  const fixes = useMemo(
+    () => (item?.issue_fixes ?? []).map((fix) => fix.trim()).filter(Boolean),
+    [item?.issue_fixes],
+  );
+  const flaggedPhrases = useMemo(() => flaggedCaptionPhrases(fixes), [fixes]);
 
   const closeModal = useCallback(() => {
     if (saving) return;
@@ -151,7 +159,6 @@ export function IssueResolverModal({
   const resolution = getResolution(item);
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
-  const fixes = item.issue_fixes.map((fix) => fix.trim()).filter(Boolean);
   const alreadyResolved = resolvedPaths.has(item.path);
 
   return (
@@ -297,6 +304,7 @@ export function IssueResolverModal({
               id="issue-resolver-caption"
               value={caption}
               placeholder={placeholder}
+              highlightTerms={flaggedPhrases}
               variant={captionDisplay.variant}
               saveState={saveError ? "error" : "idle"}
               aria-label={`Caption for ${item.name}`}

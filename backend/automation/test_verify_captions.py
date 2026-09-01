@@ -124,6 +124,23 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
         assert parsed is not None
         self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
 
+    def test_parse_normalizes_typographic_quotes_into_one_fix(self) -> None:
+        """Curly quotes leave the splitter blind to the span, fragmenting one finding in two."""
+        raw = json.dumps(
+            {
+                "correct": False,
+                "issues": "Replace “a blue car. parked outside” with “a red car”.",
+            }
+        )
+
+        parsed = parse_verification_response(raw)
+
+        assert parsed is not None
+        self.assertEqual(
+            parsed.fixes,
+            ('Replace "a blue car. parked outside" with "a red car".',),
+        )
+
     def test_parse_rejects_invalid_json(self) -> None:
         self.assertIsNone(parse_verification_response("not json"))
 
@@ -178,13 +195,13 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
         self.assertEqual(parsed.fixes, ())
 
     def test_parse_splits_issue_prose_into_separate_fixes(self) -> None:
-        raw = json.dumps({"correct": False, "issues": f"{DEFAULT_FIX} Remove “at dusk”."})
+        raw = json.dumps({"correct": False, "issues": f'{DEFAULT_FIX} Remove "at dusk".'})
 
         parsed = parse_verification_response(raw)
 
         self.assertIsNotNone(parsed)
         assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX, "Remove “at dusk”."))
+        self.assertEqual(parsed.fixes, (DEFAULT_FIX, 'Remove "at dusk".'))
 
     def test_parse_keeps_only_the_three_most_important_fixes(self) -> None:
         raw = json.dumps({"correct": False, "issues": "First. Second. Third. Fourth. Fifth."})
@@ -358,9 +375,25 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         """Rules that teach fix-writing shift the prompt's weight from judging to producing."""
         rules = _rules_section(build_verification_system_prompt())
 
-        self.assertEqual(rules.count("\n- "), 5)
-        for mechanic in ("most important first", "sentences"):
+        self.assertEqual(rules.count("\n- "), 4)
+        for mechanic in ("most important first", "sentences", "quote"):
             self.assertNotIn(mechanic, rules)
+
+    def test_build_system_prompt_demands_straight_double_quotes_around_the_wording(self) -> None:
+        """The splitter and the resolver's caption highlight both key off the `"` character."""
+        prompt = build_verification_system_prompt()
+
+        self.assertIn("straight double quotes", prompt)
+        self.assertIn("copied character-for-character", prompt)
+        self.assertNotIn("straight double quotes", _rules_section(prompt))
+
+    def test_build_system_prompt_exempts_findings_with_nothing_to_quote(self) -> None:
+        """An invented quote matches no caption text and points the resolver at nothing."""
+        prompt = build_verification_system_prompt()
+
+        self.assertIn("no wrong wording to quote", prompt)
+        self.assertIn("no quotation marks at all", prompt)
+        self.assertIn("never invented", prompt)
 
     def test_video_system_prompt_describes_keyframes(self) -> None:
         prompt = build_verification_system_prompt(media_kind="video")

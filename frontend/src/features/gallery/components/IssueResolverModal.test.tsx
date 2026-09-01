@@ -3,10 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/gallery/api/captions";
+import { literalMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
 import { HOME_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import type { GalleryItem } from "@/shared/types";
 import { IssueResolverModal } from "./IssueResolverModal";
+
+vi.mock("@/shared/lib/codeEditorQueryHighlight", () => ({
+  queryMatchHighlight: vi.fn(() => []),
+  literalMatchHighlight: vi.fn(() => []),
+}));
 
 vi.mock("@/shared/lib/defer", () => ({
   deferNonCriticalWork: (callback: () => void) => {
@@ -520,5 +526,22 @@ describe("IssueResolverModal", () => {
     // Escape belongs to ModalShell alone. This modal used to register its own
     // handler as well, which fired the close path twice on one keypress.
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+  it("highlights the wording each fix flags, not the wording it suggests", async () => {
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    await screen.findByRole("dialog", { name: "Resolve caption issue for sunset.png" });
+
+    // "a red car" is the replacement and sits in the caption already; highlighting it would
+    // mark correct text.
+    expect(literalMatchHighlight).toHaveBeenCalledWith(["a blue car", "parked at the curb"]);
   });
 });

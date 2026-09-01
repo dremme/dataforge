@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { classNames } from "@/shared/lib/classNames";
-import { queryMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
+import { literalMatchHighlight, queryMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
 import { CodeMirrorEditor, type CodeMirrorEditorProps } from "./CodeMirrorEditor";
 
 export type CaptionEditorVariant = "success" | "warning" | "muted";
@@ -17,7 +17,11 @@ export type CaptionEditorProps = Omit<
   /** Gallery toolbar search — highlight matching spans in the caption. */
   searchQuery?: string;
   searchRegex?: boolean;
+  /** Fixed phrases to highlight the same way, e.g. the wording an issue flags. Memoize it. */
+  highlightTerms?: readonly string[];
 };
+
+const NO_HIGHLIGHT_TERMS: readonly string[] = [];
 
 export function CaptionEditor({
   className,
@@ -25,6 +29,7 @@ export function CaptionEditor({
   saveState = "idle",
   searchQuery = "",
   searchRegex = false,
+  highlightTerms = NO_HIGHLIGHT_TERMS,
   value,
   onChange,
   ...props
@@ -37,8 +42,8 @@ export function CaptionEditor({
   }, [onChange, value]);
 
   const extensions = useMemo(
-    () => [queryMatchHighlight(searchQuery, searchRegex)],
-    [searchQuery, searchRegex],
+    () => [queryMatchHighlight(searchQuery, searchRegex), literalMatchHighlight(highlightTerms)],
+    [searchQuery, searchRegex, highlightTerms],
   );
 
   return (

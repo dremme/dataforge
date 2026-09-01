@@ -108,6 +108,14 @@ def _coerce_bool(value: object) -> bool | None:
     return None
 
 
+# The splitter and the resolver's caption highlight both key off `"`; models drift to curly.
+_TYPOGRAPHIC_QUOTES = str.maketrans({"“": '"', "”": '"', "„": '"', "‟": '"'})
+
+
+def _normalize_quotes(text: str) -> str:
+    return text.translate(_TYPOGRAPHIC_QUOTES)
+
+
 def _has_substantive_issues(issues: str) -> bool:
     return issues.strip().lower() not in {"", "none", "n/a"}
 
@@ -158,7 +166,9 @@ def _parse_verification_payload(data: dict) -> VerificationResult | None:
     if correct or not _has_substantive_issues(issues):
         return VerificationResult(fixes=())
 
-    return VerificationResult(fixes=tuple(normalize_issue_fixes(split_fix_sentences(issues))))
+    return VerificationResult(
+        fixes=tuple(normalize_issue_fixes(split_fix_sentences(_normalize_quotes(issues))))
+    )
 
 
 def parse_verification_response(raw_text: str) -> VerificationResult | None:
@@ -263,15 +273,13 @@ def build_verification_system_prompt(
               clothing, wrong pose, wrong setting, invented details, incorrect hand/leg positioning).
             - When you are unsure, set "correct" to true.
             - Do not flag caption style, formatting, or harmless omissions.
-            - When "correct" is false, quote the exact caption phrase that contradicts {contradict_ref}
-              in "issues".
 
             # Output Format
             Respond exclusively with a valid JSON object (no markdown fences):
             ```json
             {{
                 "correct": true or false,
-                "issues": "Up to {MAX_ISSUE_FIXES} sentences, most important first, each quoting the exact caption phrase that contradicts {contradict_ref} and stating what it should say instead, or 'None'."
+                "issues": "Up to {MAX_ISSUE_FIXES} sentences, most important first. Each sentence quotes the caption's own wrong wording verbatim inside straight double quotes before stating what it should say instead; when the caption leaves something out and there is no wrong wording to quote, write that sentence with no quotation marks at all. Or 'None'."
             }}
             ```
 
@@ -279,6 +287,9 @@ def build_verification_system_prompt(
             Each issue is a single sentence. Everything about one contradiction stays inside
             that one sentence, the quoted caption phrase and what it should say instead joined
             with a comma or a semicolon; a new sentence is read as a separate issue.
+            Quoted wording is copied character-for-character from the proposed caption, never
+            paraphrased and never invented; when {contradict_ref} shows something the caption
+            leaves out entirely, that sentence carries no quotes.
             """
         ).strip()
     )

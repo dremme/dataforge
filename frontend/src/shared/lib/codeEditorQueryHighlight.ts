@@ -6,34 +6,34 @@ import {
   type EditorView,
   type ViewUpdate,
 } from "@codemirror/view";
-import { findSearchMatchRanges } from "./searchMatchRanges";
+import { findLiteralMatchRanges, findSearchMatchRanges } from "./searchMatchRanges";
 
 const matchMark = Decoration.mark({ class: "cm-query-match" });
 
-function buildMatchDecorations(view: EditorView, query: string, useRegex: boolean): DecorationSet {
+type FindRanges = (text: string) => { from: number; to: number }[];
+
+function buildMatchDecorations(view: EditorView, findRanges: FindRanges): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const text = view.state.doc.toString();
-  for (const range of findSearchMatchRanges(text, query, useRegex)) {
+  for (const range of findRanges(text)) {
     builder.add(range.from, range.to, matchMark);
   }
   return builder.finish();
 }
 
-export function queryMatchHighlight(query: string, useRegex: boolean): Extension {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
-
+/** Marks every range `findRanges` reports; callers rebuild it when their inputs change. */
+function matchHighlight(findRanges: FindRanges): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildMatchDecorations(view, trimmed, useRegex);
+        this.decorations = buildMatchDecorations(view, findRanges);
       }
 
       update(update: ViewUpdate) {
         if (update.docChanged) {
-          this.decorations = buildMatchDecorations(update.view, trimmed, useRegex);
+          this.decorations = buildMatchDecorations(update.view, findRanges);
         }
       }
     },
@@ -41,4 +41,19 @@ export function queryMatchHighlight(query: string, useRegex: boolean): Extension
       decorations: (value) => value.decorations,
     },
   );
+}
+
+export function queryMatchHighlight(query: string, useRegex: boolean): Extension {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  return matchHighlight((text) => findSearchMatchRanges(text, trimmed, useRegex));
+}
+
+/** Highlights fixed phrases (issue snippets) rather than a search query. */
+export function literalMatchHighlight(terms: readonly string[]): Extension {
+  const cleaned = terms.map((term) => term.trim()).filter(Boolean);
+  if (cleaned.length === 0) return [];
+
+  return matchHighlight((text) => findLiteralMatchRanges(text, cleaned));
 }
