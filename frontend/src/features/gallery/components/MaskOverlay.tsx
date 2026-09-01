@@ -390,7 +390,8 @@ function MaskFill({ mediaRef, src, mask, box, source, registerPainter }: MaskFil
     const paint = () => {
       const canvas = canvasRef.current;
       const media = mediaRef.current;
-      if (!canvas || !media || !mediaReady(media)) return;
+      // A blackout draws none of the picture, so it need not wait for one to arrive.
+      if (!canvas || !media || (mask.mode !== "blackout" && !mediaReady(media))) return;
 
       paintMask(canvas, media, mask, box, source);
     };
@@ -409,9 +410,6 @@ function paintMask(
   box: PaintedBox,
   source: Size,
 ): void {
-  const scale = source.width > 0 ? box.width / source.width : 0;
-  if (scale <= 0) return;
-
   const width = Math.max(1, Math.round(mask.rect.width * box.width));
   const height = Math.max(1, Math.round(mask.rect.height * box.height));
 
@@ -421,6 +419,15 @@ function paintMask(
 
   const context = canvas.getContext("2d");
   if (!context) return;
+
+  if (mask.mode === "blackout") {
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, width, height);
+    return;
+  }
+
+  const scale = source.width > 0 ? box.width / source.width : 0;
+  if (scale <= 0) return;
 
   const left = mask.rect.x * source.width;
   const top = mask.rect.y * source.height;

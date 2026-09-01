@@ -274,6 +274,25 @@ describe("ImageEditPanel", () => {
       expect(edit.setMaskMode).toHaveBeenCalledWith("pixelate");
     });
 
+    it("blacks a region out, and stops offering a strength that would do nothing", async () => {
+      const edit = makeEdit({ maskMode: "blackout" });
+      const user = await openBlur(edit);
+
+      const styles = within(screen.getByRole("group", { name: "Blur style" }));
+      await user.click(styles.getByRole("button", { name: "Blackout" }));
+      expect(edit.setMaskMode).toHaveBeenCalledWith("blackout");
+
+      const strengths = within(screen.getByRole("group", { name: "Strength" }));
+      expect(strengths.getByRole("button", { name: "Medium" })).toBeDisabled();
+    });
+
+    it("leaves the strengths alive for a mode that measures one", async () => {
+      await openBlur(makeEdit({ maskMode: "pixelate" }));
+
+      const strengths = within(screen.getByRole("group", { name: "Strength" }));
+      expect(strengths.getByRole("button", { name: "Medium" })).toBeEnabled();
+    });
+
     it("shows which style and strength the selected region carries", async () => {
       const mask = { ...newMaskDraft("pixelate", 0.22, 0) };
       const edit = makeEdit({

@@ -255,6 +255,39 @@ class RenderMaskTests(unittest.TestCase):
 
         self.assertEqual(result.size, (WIDTH, HEIGHT))
 
+    def test_a_blackout_fills_its_region_and_leaves_the_rest_untouched(self) -> None:
+        source = graded()
+
+        result = image_edit.render_image_edit(
+            source,
+            ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=0.5, height=1.0, mode="blackout")]),
+        )
+
+        self.assertEqual(set(columns(result)[:20]), {(0, 0, 0)})
+        self.assertEqual(columns(result)[20:], columns(source)[20:])
+
+    def test_a_blackout_stays_opaque_over_a_transparent_source(self) -> None:
+        source = graded().convert("RGBA")
+        source.putalpha(0)
+
+        result = image_edit.render_image_edit(
+            source,
+            ImageEditSpec(masks=[MaskRegion(x=0.0, y=0.0, width=1.0, height=1.0, mode="blackout")]),
+        )
+
+        self.assertEqual(result.getpixel((0, 0)), (0, 0, 0, 255))
+
+    def test_a_blackout_runs_before_the_crop_like_the_other_modes(self) -> None:
+        result = image_edit.render_image_edit(
+            graded(),
+            ImageEditSpec(
+                masks=[MaskRegion(x=0.0, y=0.0, width=0.5, height=1.0, mode="blackout")],
+                crop=EditCropRect(x=0.5, y=0.0, width=0.5, height=1.0),
+            ),
+        )
+
+        self.assertNotIn((0, 0, 0), columns(result))
+
     def test_the_loaded_original_is_left_alone_for_the_next_render(self) -> None:
         source = graded()
         before = source.tobytes()

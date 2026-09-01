@@ -99,6 +99,13 @@ def pixelated_region(image: Image.Image, box: tuple[int, int, int, int], block: 
     return patch.resize(reduced, Image.Resampling.BOX).resize(patch.size, Image.Resampling.NEAREST)
 
 
+def blacked_region(image: Image.Image, box: tuple[int, int, int, int]) -> Image.Image:
+    """Filled opaque: a zero in an alpha band is a hole rather than a black rectangle."""
+    size = (box[2] - box[0], box[3] - box[1])
+    fill = (0, 0, 0, 255) if "A" in image.getbands() else 0
+    return Image.new(image.mode, size, fill)
+
+
 def mask_extent(box: tuple[int, int, int, int], strength: float) -> float:
     """Strength is a fraction of the shorter side, so it reads the same at any region size."""
     left, top, right, bottom = box
@@ -111,12 +118,17 @@ def masked_image(image: Image.Image, regions: list[MaskRegion]) -> Image.Image:
 
     for region in regions:
         box = crop_box(masked.size, region)
-        extent = mask_extent(box, region.strength)
-        patch = (
-            pixelated_region(masked, box, max(1, round(extent)))
-            if region.mode == "pixelate"
-            else blurred_region(masked, box, max(1.0, extent / BLUR_RADIUS_DIVISOR))
-        )
+
+        if region.mode == "blackout":
+            patch = blacked_region(masked, box)
+        else:
+            extent = mask_extent(box, region.strength)
+            patch = (
+                pixelated_region(masked, box, max(1, round(extent)))
+                if region.mode == "pixelate"
+                else blurred_region(masked, box, max(1.0, extent / BLUR_RADIUS_DIVISOR))
+            )
+
         masked.paste(patch, box)
 
     return masked

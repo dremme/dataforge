@@ -331,6 +331,18 @@ describe("VideoEditPanel", () => {
       expect(edit.setMaskMode).toHaveBeenCalledWith("pixelate");
     });
 
+    it("blacks a region out, and stops offering a strength that would do nothing", () => {
+      const edit = makeEdit({ maskMode: "blackout" });
+      openBlur(edit);
+
+      const styles = within(screen.getByRole("group", { name: "Blur style" }));
+      fireEvent.click(styles.getByRole("button", { name: "Blackout" }));
+      expect(edit.setMaskMode).toHaveBeenCalledWith("blackout");
+
+      const strengths = within(screen.getByRole("group", { name: "Strength" }));
+      expect(strengths.getByRole("button", { name: "Medium" })).toBeDisabled();
+    });
+
     it("sets the strength", () => {
       const edit = makeEdit();
       openBlur(edit);
@@ -366,7 +378,7 @@ describe("VideoEditPanel", () => {
         makeEdit({ draft: { ...emptyDraft(12), masks: [newMaskDraft("blur", 0.12, 0)] } }),
       );
 
-      expect(screen.getByText("1 blurred region")).toBeInTheDocument();
+      expect(screen.getByText("1 masked region")).toBeInTheDocument();
     });
   });
 

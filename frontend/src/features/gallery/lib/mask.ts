@@ -23,6 +23,12 @@ export const MASK_STRENGTHS: readonly MaskStrength[] = [
   { id: "max", label: "Max", value: 0.4 },
 ];
 
+export const MASK_MODES: readonly { id: MaskMode; label: string }[] = [
+  { id: "blur", label: "Blur" },
+  { id: "pixelate", label: "Pixelate" },
+  { id: "blackout", label: "Blackout" },
+];
+
 export const DEFAULT_MASK_MODE: MaskMode = "blur";
 export const DEFAULT_MASK_STRENGTH = 0.12;
 
@@ -115,9 +121,9 @@ export function pixelBlockPx(mask: MaskDraft, source: Size): number {
 }
 
 export function modeLabel(mode: MaskMode): string {
-  return mode === "pixelate" ? "Pixelate" : "Blur";
+  return MASK_MODES.find((entry) => entry.id === mode)?.label ?? "Blur";
 }
 
 export function describeMasks(count: number): string {
-  return count === 1 ? "1 blurred region" : `${count} blurred regions`;
+  return count === 1 ? "1 masked region" : `${count} masked regions`;
 }

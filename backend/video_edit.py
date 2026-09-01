@@ -162,6 +162,11 @@ def mask_branch(size: tuple[int, int], region: MaskRegion) -> str:
     left, top, right, bottom = box
     box_width = right - left
     box_height = bottom - top
+    cut = f"crop={box_width}:{box_height}:{left}:{top}"
+
+    if region.mode == "blackout":
+        return f"{cut},drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill"
+
     extent = region.strength * min(box_width, box_height)
 
     if region.mode == "pixelate":
@@ -169,9 +174,7 @@ def mask_branch(size: tuple[int, int], region: MaskRegion) -> str:
         columns = max(1, box_width // block)
         rows = max(1, box_height // block)
         return (
-            f"crop={box_width}:{box_height}:{left}:{top},"
-            f"scale={columns}:{rows}:flags=area,"
-            f"scale={box_width}:{box_height}:flags=neighbor"
+            f"{cut},scale={columns}:{rows}:flags=area,scale={box_width}:{box_height}:flags=neighbor"
         )
 
     # Blurred with real neighbours and trimmed back, or the patch edge shows as a seam.

@@ -259,6 +259,21 @@ class MaskFiltergraphTests(unittest.TestCase):
         # A quarter of 108 rounds to an even 26, which divides the region into 7 by 4 blocks.
         self.assertIn("crop=192:108:64:36,scale=7:4:flags=area,scale=192:108:flags=neighbor", graph)
 
+    def test_a_blackout_fills_its_cut_and_measures_no_strength(self) -> None:
+        graph = graph_for(VideoEditSpec(masks=[self.region(mode="blackout", strength=0.5)]))
+
+        self.assertIn("crop=192:108:64:36,drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill", graph)
+        self.assertNotIn("gblur", graph)
+        self.assertNotIn("flags=", graph)
+
+    def test_a_blackout_takes_its_turn_in_the_overlay_order(self) -> None:
+        graph = graph_for(
+            VideoEditSpec(masks=[self.region(mode="blur"), self.region(x=0.5, mode="blackout")])
+        )
+
+        self.assertIn("[base][mask0]overlay=", graph)
+        self.assertIn("[over0][mask1]overlay=", graph)
+
     def test_the_crop_and_scale_run_after_the_regions_are_laid_in(self) -> None:
         spec = VideoEditSpec(masks=[self.region()], crop=EditCropRect(width=0.5), scale=0.5)
 

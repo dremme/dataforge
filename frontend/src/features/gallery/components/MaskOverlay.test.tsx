@@ -36,6 +36,7 @@ function maskAt(rect: MaskDraft["rect"], overrides: Partial<MaskDraft> = {}): Ma
 
 const FIRST = maskAt({ x: 0.25, y: 0.25, width: 0.5, height: 0.5 });
 const SECOND = maskAt({ x: 0.05, y: 0.05, width: 0.1, height: 0.1 }, { mode: "pixelate" });
+const BLACKED = maskAt({ x: 0.6, y: 0.6, width: 0.2, height: 0.2 }, { mode: "blackout" });
 
 type Props = Parameters<typeof MaskOverlay>[0];
 
@@ -116,10 +117,11 @@ describe("MaskOverlay", () => {
   });
 
   it("names a region after the mode it is set to", () => {
-    renderOverlay({ masks: [FIRST, SECOND], selectedId: null });
+    renderOverlay({ masks: [FIRST, SECOND, BLACKED], selectedId: null });
 
     expect(screen.getByRole("button", { name: "Blur region 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pixelate region 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Blackout region 3" })).toBeInTheDocument();
   });
 
   it("sits over the painted frame, not over the box it is positioned in", () => {
@@ -385,6 +387,15 @@ describe("MaskOverlay", () => {
     fireEvent(mediaRef.current!, new Event("loadeddata"));
 
     expect(paintedSizes()[0]).not.toBe(300);
+  });
+
+  it("blacks a region out without waiting for the video to decode a frame", () => {
+    const mediaRef = mediaRefWithBox("video");
+    readyVideo(mediaRef, 0);
+
+    renderOverlay({ mediaRef, masks: [FIRST, BLACKED], selectedId: null });
+
+    expect(paintedSizes()).toEqual([300, Math.round(BLACKED.rect.width * BOX.width)]);
   });
 
   it("paints at mount when the video already had a frame", () => {

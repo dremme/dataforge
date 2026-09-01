@@ -804,7 +804,7 @@ def validated_crop(crop: EditCropRect | None) -> EditCropRect | None:
 class MaskRegion(EditCropRect):
     """One rectangle of the source frame to obscure, applied before the crop."""
 
-    mode: Literal["blur", "pixelate"] = "blur"
+    mode: Literal["blur", "pixelate", "blackout"] = "blur"
     #: Fraction of the region's shorter side, so one strength reads the same at any region size.
     strength: float = Field(0.12, ge=MIN_MASK_STRENGTH, le=MAX_MASK_STRENGTH)
 

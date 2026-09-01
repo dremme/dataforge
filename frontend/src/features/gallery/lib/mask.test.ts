@@ -4,6 +4,7 @@ import {
   DEFAULT_MASK_MODE,
   DEFAULT_MASK_STRENGTH,
   blurRadiusPx,
+  MASK_MODES,
   describeMasks,
   maskDraftsFromSpec,
   maskExtent,
@@ -161,10 +162,16 @@ describe("labels", () => {
   it("names each mode", () => {
     expect(modeLabel("blur")).toBe("Blur");
     expect(modeLabel("pixelate")).toBe("Pixelate");
+    expect(modeLabel("blackout")).toBe("Blackout");
+  });
+
+  it("offers every mode the wire accepts, so a panel cannot omit one", () => {
+    expect(MASK_MODES.map((entry) => entry.id)).toEqual(["blur", "pixelate", "blackout"]);
+    MASK_MODES.forEach((entry) => expect(entry.label).toBe(modeLabel(entry.id)));
   });
 
   it("counts regions in a sentence the panel can print", () => {
-    expect(describeMasks(1)).toBe("1 blurred region");
-    expect(describeMasks(3)).toBe("3 blurred regions");
+    expect(describeMasks(1)).toBe("1 masked region");
+    expect(describeMasks(3)).toBe("3 masked regions");
   });
 });

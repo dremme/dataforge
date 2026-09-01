@@ -8,7 +8,7 @@ import {
   scaleForTargetHeight,
   scaleForTargetWidth,
 } from "@/features/gallery/lib/videoEdit";
-import { MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
+import { MASK_MODES, MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import {
   iconCrop,
@@ -261,27 +261,24 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 </button>
               </div>
               <ToolPresets label="Blur style">
-                <PresetButton
-                  active={edit.maskMode === "blur"}
-                  disabled={locked}
-                  onClick={() => edit.setMaskMode("blur")}
-                >
-                  Blur
-                </PresetButton>
-                <PresetButton
-                  active={edit.maskMode === "pixelate"}
-                  disabled={locked}
-                  onClick={() => edit.setMaskMode("pixelate")}
-                >
-                  Pixelate
-                </PresetButton>
+                {MASK_MODES.map((mode) => (
+                  <PresetButton
+                    key={mode.id}
+                    active={edit.maskMode === mode.id}
+                    disabled={locked}
+                    onClick={() => edit.setMaskMode(mode.id)}
+                  >
+                    {mode.label}
+                  </PresetButton>
+                ))}
               </ToolPresets>
               <ToolPresets label="Strength">
                 {MASK_STRENGTHS.map((strength) => (
                   <PresetButton
                     key={strength.id}
                     active={edit.maskStrength === strength.value}
-                    disabled={locked}
+                    // A blackout has nothing to measure, so its strength would go nowhere.
+                    disabled={locked || edit.maskMode === "blackout"}
                     onClick={() => edit.setMaskStrength(strength.value)}
                   >
                     {strength.label}
