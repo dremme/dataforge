@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { fetchComfyPresets } from "@/features/automation/api/jobs";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { formatApiError } from "@/shared/api/http";
-import { iconLoader2 } from "@/shared/icons";
+import { iconLoader2, iconTriangleAlert } from "@/shared/icons";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
@@ -180,11 +180,14 @@ export function ComfyProcessDialog({
       )}
 
       {ready && !state.available && (
-        <p className="dialog__warning" role="alert">
-          ComfyUI is not answering at <strong>{state.baseUrl}</strong>. Start it before the job
-          reaches the first image, or point <strong>COMFY_BASE_URL</strong> at the port it is
-          listening on - otherwise every file will fail.
-        </p>
+        <div className="dialog__warning" role="alert">
+          <Icon icon={iconTriangleAlert} className="dialog__warning-icon" />
+          <span>
+            ComfyUI is not answering at <strong>{state.baseUrl}</strong>. Start it before the job
+            reaches the first image, or point <strong>COMFY_BASE_URL</strong> at the port it is
+            listening on - otherwise every file will fail.
+          </span>
+        </div>
       )}
 
       <div className="dialog__field comfy-process-dialog__row">
