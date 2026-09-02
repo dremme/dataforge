@@ -382,6 +382,133 @@ class IdentitySpecTests(unittest.TestCase):
                 self.assertFalse(image_edit.is_identity_spec(spec))
 
 
+def channel_means(image: Image.Image) -> tuple[float, float, float]:
+    pixels = list(image.convert("RGB").getdata())
+    count = len(pixels)
+    return tuple(sum(pixel[band] for pixel in pixels) / count for band in range(3))  # type: ignore[return-value]
+
+
+class RenderColorTests(unittest.TestCase):
+    def test_brightness_lifts_and_drops_the_mean(self) -> None:
+        source = graded()
+        base = channel_means(source)
+
+        lighter = channel_means(image_edit.render_image_edit(source, ImageEditSpec(brightness=1.4)))
+        darker = channel_means(image_edit.render_image_edit(source, ImageEditSpec(brightness=0.6)))
+
+        self.assertGreater(sum(lighter), sum(base))
+        self.assertLess(sum(darker), sum(base))
+
+    def test_identity_color_leaves_the_bytes_alone(self) -> None:
+        source = graded()
+
+        result = image_edit.render_image_edit(source, ImageEditSpec(brightness=1.0, hue=0.0))
+
+        self.assertEqual(result.convert("RGB").tobytes(), source.convert("RGB").tobytes())
+
+    def test_contrast_widens_and_narrows_the_spread(self) -> None:
+        source = graded()
+
+        def spread(image: Image.Image) -> int:
+            values = [pixel[0] for pixel in image.convert("RGB").getdata()]
+            return max(values) - min(values)
+
+        harder = spread(image_edit.render_image_edit(source, ImageEditSpec(contrast=1.6)))
+        softer = spread(image_edit.render_image_edit(source, ImageEditSpec(contrast=0.4)))
+
+        self.assertGreater(harder, spread(source))
+        self.assertLess(softer, spread(source))
+
+    def test_zero_saturation_flattens_the_channels_into_grey(self) -> None:
+        desaturated = image_edit.render_image_edit(graded(), ImageEditSpec(saturation=0.0))
+
+        for pixel in desaturated.convert("RGB").getdata():
+            self.assertEqual(pixel[0], pixel[1])
+            self.assertEqual(pixel[1], pixel[2])
+
+    def test_warmth_pushes_red_up_and_blue_down(self) -> None:
+        source = graded()
+
+        warm = channel_means(image_edit.render_image_edit(source, ImageEditSpec(warmth=1.0)))
+        cool = channel_means(image_edit.render_image_edit(source, ImageEditSpec(warmth=-1.0)))
+
+        self.assertGreater(warm[0], cool[0])
+        self.assertLess(warm[2], cool[2])
+
+    def test_a_hue_turn_moves_red_toward_green(self) -> None:
+        red = Image.new("RGB", (4, 4), (255, 0, 0))
+
+        turned = image_edit.render_image_edit(red, ImageEditSpec(hue=120.0)).convert("RGB")
+        pixel = turned.getpixel((0, 0))
+
+        self.assertGreater(pixel[1], pixel[0])
+        self.assertGreater(pixel[1], pixel[2])
+
+    def test_color_keeps_the_alpha_band(self) -> None:
+        source = graded().convert("RGBA")
+        source.putalpha(128)
+
+        result = image_edit.render_image_edit(source, ImageEditSpec(brightness=1.5, saturation=0.0))
+
+        self.assertEqual(result.mode, "RGBA")
+        self.assertEqual(set(result.getchannel("A").getdata()), {128})
+
+    def test_color_runs_last_and_changes_no_dimensions(self) -> None:
+        result = image_edit.render_image_edit(
+            corner_marked(),
+            ImageEditSpec(crop=EditCropRect(x=0.0, y=0.0, width=0.5, height=1.0), brightness=1.3),
+        )
+
+        self.assertEqual(result.size, (WIDTH // 2, HEIGHT))
+
+    def test_the_matrix_matches_the_shared_worked_example(self) -> None:
+        """Fixed params -> a vector the frontend asserts too, so the two cannot drift apart."""
+        spec = ImageEditSpec(brightness=1.2, contrast=0.9, saturation=1.3, warmth=0.5, hue=45.0)
+
+        matrix = image_edit.color_matrix(spec)
+
+        expected = (
+            0.887188238,
+            -0.646119437,
+            0.832623555,
+            12.675535,
+            0.181137464,
+            1.186195672,
+            -0.250340389,
+            13.18672,
+            -0.823323811,
+            0.801695265,
+            0.964121481,
+            11.126653,
+        )
+        for got, want in zip(matrix, expected, strict=True):
+            self.assertAlmostEqual(got, want, places=5)
+
+
+class ColorSpecTests(unittest.TestCase):
+    def test_each_color_field_on_its_own_is_a_real_edit(self) -> None:
+        for spec in (
+            ImageEditSpec(brightness=1.2),
+            ImageEditSpec(contrast=0.8),
+            ImageEditSpec(saturation=1.5),
+            ImageEditSpec(warmth=0.4),
+            ImageEditSpec(hue=30.0),
+        ):
+            with self.subTest(spec=spec):
+                self.assertFalse(image_edit.is_identity_spec(spec))
+
+    def test_a_value_outside_its_range_is_refused(self) -> None:
+        for kwargs in (
+            {"brightness": 2.5},
+            {"contrast": -0.1},
+            {"saturation": 3.0},
+            {"warmth": 1.5},
+            {"hue": 360.0},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValidationError):
+                ImageEditSpec(**kwargs)
+
+
 class ApplyImageEditTests(unittest.TestCase):
     def test_the_first_edit_stores_the_original_and_writes_the_result(self) -> None:
         with TempMediaFolder() as root:

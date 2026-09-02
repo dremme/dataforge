@@ -101,6 +101,7 @@ describe("useVideoEdit", () => {
         crop: null,
         speed: 1,
         scale: 1,
+        volume: 1,
       },
     });
     const { result } = renderEdit();
@@ -114,11 +115,31 @@ describe("useVideoEdit", () => {
     expect(result.current.dirty).toBe(false);
   });
 
+  it("moves the draft volume, and re-opens on a stored one", async () => {
+    fetchStateMock.mockResolvedValue({
+      path: CLIP,
+      has_backup: true,
+      spec: { masks: [], trim_start: 0, trim_end: null, crop: null, speed: 1, scale: 1, volume: 0 },
+    });
+    const { result } = renderEdit();
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(12));
+    });
+
+    await waitFor(() => expect(result.current.draft.volume).toBe(0));
+    expect(result.current.dirty).toBe(false);
+
+    act(() => result.current.setVolume(1.5));
+    expect(result.current.draft.volume).toBe(1.5);
+    expect(result.current.dirty).toBe(true);
+  });
+
   it("still seeds once Infinity becomes a real duration", async () => {
     fetchStateMock.mockResolvedValue({
       path: CLIP,
       has_backup: true,
-      spec: { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 1, scale: 1 },
+      spec: { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 1, scale: 1, volume: 1 },
     });
     const { result } = renderEdit();
 

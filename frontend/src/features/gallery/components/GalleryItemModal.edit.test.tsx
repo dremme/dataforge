@@ -171,7 +171,15 @@ describe("GalleryItemModal", () => {
       fetchStateMock.mockResolvedValue({
         path: `${HOME_PATH}\\clip.mp4`,
         has_backup: true,
-        spec: { masks: [], trim_start: 2, trim_end: 8, crop: null, speed: 2, scale: 0.5 },
+        spec: {
+          masks: [],
+          trim_start: 2,
+          trim_end: 8,
+          crop: null,
+          speed: 2,
+          scale: 0.5,
+          volume: 1,
+        },
       });
       renderModal(videoItem({ has_backup: true }));
 
@@ -259,7 +267,7 @@ describe("GalleryItemModal", () => {
         path: mediaPath,
         has_backup: mediaPath.endsWith("second.mp4"),
         spec: mediaPath.endsWith("second.mp4")
-          ? { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 2, scale: 1 }
+          ? { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 2, scale: 1, volume: 1 }
           : null,
       }));
 
@@ -300,6 +308,7 @@ describe("GalleryItemModal", () => {
           crop: { x: 0.21875, y: 0, width: 0.5625, height: 1 },
           speed: 1,
           scale: 1,
+          volume: 1,
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -357,7 +366,15 @@ describe("GalleryItemModal", () => {
       fetchStateMock.mockResolvedValue({
         path: `${HOME_PATH}\\clip.mp4`,
         has_backup: true,
-        spec: { masks: [], trim_start: 0, trim_end: null, crop: null, speed: 2, scale: 1 },
+        spec: {
+          masks: [],
+          trim_start: 0,
+          trim_end: null,
+          crop: null,
+          speed: 2,
+          scale: 1,
+          volume: 1,
+        },
       });
       renderModal(videoItem({ has_backup: true }));
       const dialog = await openEditMode(user);
@@ -456,6 +473,7 @@ describe("GalleryItemModal", () => {
         crop: null,
         speed: 0.5,
         scale: 1,
+        volume: 1,
       });
       await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
       // Nothing about the surface changes: the editor was already playing the original,

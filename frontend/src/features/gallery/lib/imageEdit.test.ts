@@ -33,6 +33,11 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
     mirror_v: false,
     rotate: 0,
     scale: 1,
+    brightness: 1,
+    contrast: 1,
+    saturation: 1,
+    warmth: 0,
+    hue: 0,
     ...overrides,
   };
 }
@@ -181,6 +186,11 @@ describe("edit identity", () => {
     ["a half turn", draft({ rotate: 180 })],
     ["a scale", draft({ scale: 0.5 })],
     ["a blur region", draft({ masks: [newMaskDraft("blur", 0.12, 0)] })],
+    ["a brightness change", draft({ brightness: 1.2 })],
+    ["a contrast change", draft({ contrast: 0.8 })],
+    ["a saturation change", draft({ saturation: 1.4 })],
+    ["a warmth change", draft({ warmth: 0.3 })],
+    ["a hue turn", draft({ hue: 30 })],
   ])("%s is a real edit on its own", (_label, value) => {
     expect(isIdentityEdit(value)).toBe(false);
   });
@@ -229,6 +239,11 @@ describe("wire conversion", () => {
       mirror_h: true,
       rotate: 180,
       scale: 0.75,
+      brightness: 1.2,
+      contrast: 0.9,
+      saturation: 1.3,
+      warmth: 0.4,
+      hue: 45,
     });
 
     expect(toImageEditSpec(draftFromSpec(original))).toEqual(original);
@@ -265,6 +280,10 @@ describe("specsEqual", () => {
       spec({ crop: { x: 0, y: 0, width: 0.6, height: 0.5 } }),
     ],
     ["a crop against none", spec({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } }), spec()],
+    ["brightness", spec({ brightness: 1.2 }), spec()],
+    ["saturation", spec({ saturation: 1.2 }), spec()],
+    ["warmth", spec({ warmth: 0.3 }), spec()],
+    ["hue", spec({ hue: 30 }), spec()],
     ["a blur region against none", spec({ masks: [REGION] }), spec()],
     [
       "the style of a region",

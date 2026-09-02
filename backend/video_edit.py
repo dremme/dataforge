@@ -54,6 +54,7 @@ def is_identity_spec(spec: VideoEditSpec) -> bool:
         and spec.crop is None
         and abs(spec.speed - 1.0) < IDENTITY_EPSILON
         and abs(spec.scale - 1.0) < IDENTITY_EPSILON
+        and abs(spec.volume - 1.0) < IDENTITY_EPSILON
         and spec.trim_start < IDENTITY_EPSILON
         and spec.trim_end is None
     )
@@ -217,6 +218,16 @@ def build_mask_filtergraph(spec: VideoEditSpec, size: tuple[int, int], tail: str
     return ";".join(chain)
 
 
+def build_audio_filters(spec: VideoEditSpec) -> str:
+    """atempo for the retime, volume for the gain; muting drops the stream instead of filtering."""
+    links: list[str] = []
+    if abs(spec.speed - 1.0) > IDENTITY_EPSILON:
+        links.append(atempo_chain(spec.speed))
+    if spec.volume > IDENTITY_EPSILON and abs(spec.volume - 1.0) > IDENTITY_EPSILON:
+        links.append(f"volume={_fraction(spec.volume)}")
+    return ",".join(link for link in links if link)
+
+
 def build_video_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> str:
     """Crop, then scale, then retime. Dimensions are even because ``yuv420p`` cannot express an odd one."""
     filters: list[str] = []
@@ -281,25 +292,35 @@ def build_video_edit_command(
         # Rendering the rest would hand back a file that looks edited but hides nothing.
         raise RuntimeError("The video's frame size could not be read, so its blur cannot be placed")
 
+    muted = spec.volume <= IDENTITY_EPSILON
+
     # Regions need `split` and `overlay`, which a linear `-vf` chain cannot express.
     if spec.masks:
         command += ["-filter_complex", build_mask_filtergraph(spec, source_size, video_filters)]
-        # Trailing `?`: no ffprobe, and an unmatched optional stream is not an error.
-        command += ["-map", "[v]", "-map", "0:a:0?"]
+        command += ["-map", "[v]"]
     else:
-        command += ["-map", "0:v:0", "-map", "0:a:0?"]
+        command += ["-map", "0:v:0"]
         if video_filters:
             command += ["-vf", video_filters]
 
+    # Trailing `?`: no ffprobe, and an unmatched optional stream is not an error.
+    if not muted:
+        command += ["-map", "0:a:0?"]
+
     retimed = abs(spec.speed - 1.0) > IDENTITY_EPSILON
     trimmed = spec.trim_start > 0 or spec.trim_end is not None
-    if retimed:
-        command += ["-af", atempo_chain(spec.speed)]
+    revoiced = not muted and abs(spec.volume - 1.0) > IDENTITY_EPSILON
+
+    audio_filters = build_audio_filters(spec)
+    if not muted and audio_filters:
+        command += ["-af", audio_filters]
 
     command += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
 
-    # Stream copy lands on a packet boundary; only an edit that neither trims nor retimes copies audio.
-    if retimed or trimmed:
+    # Stream copy lands on a packet boundary; only an edit that leaves the audio alone copies it.
+    if muted:
+        command += ["-an"]
+    elif retimed or trimmed or revoiced:
         command += ["-c:a", "aac", "-b:a", "192k"]
     else:
         command += ["-c:a", "copy"]

@@ -26,6 +26,8 @@ $handle-size: 0.75rem;
     display: block;
     width: 100%;
     height: 100%;
+    // Matches the image so a masked region tones with the rest; unset (none) in the video editor.
+    filter: var(--edit-color-filter, none);
   }
 
   &--interactive &__region {

@@ -10,6 +10,7 @@ import {
   evenTrunc,
   formatScale,
   formatSpeed,
+  formatVolume,
   isIdentityEdit,
   outputDimensions,
   outputDuration,
@@ -115,6 +116,8 @@ describe("edit identity", () => {
     ["a trim out", { trimEnd: 8 }],
     ["a speed change", { speed: 2 }],
     ["a rescale", { scale: 0.5 }],
+    ["a volume change", { volume: 0.5 }],
+    ["a mute", { volume: 0 }],
     ["a crop", { crop: { x: 0, y: 0, width: 0.5, height: 1 } }],
     ["a blur region", { masks: [newMaskDraft("blur", 0.12, 0)] }],
   ])("counts %s as an edit", (_label, overrides) => {
@@ -140,6 +143,7 @@ describe("wire conversion", () => {
       trimEnd: 8,
       speed: 2,
       scale: 0.5,
+      volume: 0.5,
       crop: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
     });
 
@@ -173,7 +177,8 @@ describe("wire conversion", () => {
 });
 
 describe("specsEqual", () => {
-  const base = () => toVideoEditSpec(draft({ trimStart: 1, trimEnd: 8, speed: 2, scale: 0.5 }), 12);
+  const base = () =>
+    toVideoEditSpec(draft({ trimStart: 1, trimEnd: 8, speed: 2, scale: 0.5, volume: 0.5 }), 12);
 
   it("reports a difference in the regions", () => {
     expect(specsEqual({ ...base(), masks: [REGION] }, base())).toBe(false);
@@ -204,6 +209,7 @@ describe("specsEqual", () => {
     ["a trim out", { trim_end: 9 }],
     ["a speed", { speed: 4 }],
     ["a scale", { scale: 0.25 }],
+    ["a volume", { volume: 1 }],
   ])("sees a change of %s", (_label, overrides) => {
     expect(specsEqual(base(), { ...base(), ...overrides })).toBe(false);
   });
@@ -269,5 +275,11 @@ describe("readouts", () => {
     expect(formatSpeed(2)).toBe("2x");
     expect(formatSpeed(0.5)).toBe("0.5x");
     expect(formatScale(0.75)).toBe("75%");
+  });
+
+  it("labels the volume, and calls a zero gain a mute", () => {
+    expect(formatVolume(1.5)).toBe("150%");
+    expect(formatVolume(0.5)).toBe("50%");
+    expect(formatVolume(0)).toBe("Mute");
   });
 });

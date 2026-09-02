@@ -77,6 +77,7 @@ export interface VideoEdit extends MaskRegionControls {
   toggleMuted: () => void;
   setSpeed: (speed: number) => void;
   setScale: (scale: number) => void;
+  setVolume: (volume: number) => void;
   seekTo: (seconds: number) => void;
   togglePlay: () => void;
   resetDraft: () => void;
@@ -292,6 +293,13 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     video.muted = muted;
   }, [editMode, muted, videoRef]);
 
+  // Previews the edit's gain. Clamped to 1: the element cannot amplify, so a boost shows as 100%.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !editMode) return;
+    video.volume = Math.min(1, Math.max(0, draft.volume));
+  }, [draft.volume, editMode, videoRef]);
+
   const toggleMuted = useCallback(() => {
     setMuted((current) => !current);
   }, []);
@@ -362,6 +370,10 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   const setScale = useCallback((scale: number) => {
     setDraft((current) => ({ ...current, scale }));
+  }, []);
+
+  const setVolume = useCallback((volume: number) => {
+    setDraft((current) => ({ ...current, volume }));
   }, []);
 
   const resetDraft = useCallback(() => {
@@ -521,6 +533,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     toggleMuted,
     setSpeed,
     setScale,
+    setVolume,
     seekTo,
     togglePlay,
     resetDraft,

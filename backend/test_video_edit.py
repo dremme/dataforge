@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
 import edit_sidecars
 import video_edit
 from constants import EDIT_STALE_SUFFIX, EDIT_TEMP_SUFFIX, VIDEO_EDIT_MUXERS
@@ -196,9 +198,39 @@ class BuildVideoEditCommandTests(unittest.TestCase):
     def test_audio_is_copied_only_when_nothing_disturbs_it(self) -> None:
         cropped = command_for(VideoEditSpec(crop=EditCropRect(width=0.5)))
         trimmed = command_for(VideoEditSpec(trim_end=2.0))
+        unchanged_volume = command_for(VideoEditSpec(volume=1.0))
 
         self.assertEqual(cropped[cropped.index("-c:a") + 1], "copy")
         self.assertEqual(trimmed[trimmed.index("-c:a") + 1], "aac")
+        self.assertEqual(unchanged_volume[unchanged_volume.index("-c:a") + 1], "copy")
+
+    def test_a_volume_change_filters_the_audio_and_re_encodes(self) -> None:
+        command = command_for(VideoEditSpec(volume=0.5))
+
+        self.assertEqual(command[command.index("-af") + 1], "volume=0.500000")
+        self.assertEqual(command[command.index("-c:a") + 1], "aac")
+
+    def test_a_retime_and_a_volume_change_share_one_audio_chain(self) -> None:
+        command = command_for(VideoEditSpec(speed=2.0, volume=0.5))
+
+        self.assertEqual(command[command.index("-af") + 1], "atempo=2.000000,volume=0.500000")
+
+    def test_muting_drops_the_audio_stream_rather_than_filtering_it(self) -> None:
+        command = command_for(VideoEditSpec(volume=0.0))
+
+        self.assertIn("-an", command)
+        self.assertNotIn("0:a:0?", command)
+        self.assertNotIn("-af", command)
+        self.assertNotIn("-c:a", command)
+
+    def test_muting_still_drops_the_audio_when_regions_take_the_filtergraph(self) -> None:
+        command = command_for(
+            VideoEditSpec(volume=0.0, masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
+            source_size=(640, 360),
+        )
+
+        self.assertIn("-an", command)
+        self.assertNotIn("0:a:0?", command)
 
     def test_every_supported_container_is_named_and_gets_faststart(self) -> None:
         for extension, muxer in VIDEO_EDIT_MUXERS.items():
@@ -384,10 +416,17 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(scale=0.5),
             VideoEditSpec(crop=EditCropRect(width=0.5)),
             VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
+            VideoEditSpec(volume=0.5),
+            VideoEditSpec(volume=0.0),
         )
         for spec in changed:
             with self.subTest(spec=spec):
                 self.assertFalse(video_edit.is_identity_spec(spec))
+
+    def test_a_volume_outside_the_range_is_refused(self) -> None:
+        for volume in (-0.1, 2.5):
+            with self.subTest(volume=volume), self.assertRaises(ValidationError):
+                VideoEditSpec(volume=volume)
 
     def test_expected_output_length_divides_the_kept_span_by_the_speed(self) -> None:
         spec = VideoEditSpec(trim_start=2.0, trim_end=10.0, speed=2.0)

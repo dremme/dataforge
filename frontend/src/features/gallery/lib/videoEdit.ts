@@ -5,6 +5,8 @@ import type { EditCropRect, VideoEditSpec } from "@/shared/types";
 /** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
 export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
+/** 0 mutes; the rest are audio gain, capped at 2x to match backend/schemas.py. */
+export const VOLUME_PRESETS = [0, 0.25, 0.5, 1, 1.5, 2] as const;
 
 export const MIN_SCALE = 0.05;
 export const MIN_TRIM_SECONDS = 0.1;
@@ -20,6 +22,7 @@ export interface VideoEditDraft {
   crop: CropRect;
   speed: number;
   scale: number;
+  volume: number;
 }
 
 export function evenTrunc(value: number): number {
@@ -38,6 +41,7 @@ export function emptyDraft(duration: number): VideoEditDraft {
     crop: IDENTITY_CROP,
     speed: 1,
     scale: 1,
+    volume: 1,
   };
 }
 
@@ -48,7 +52,8 @@ export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean
     draft.masks.length === 0 &&
     isIdentityCrop(draft.crop) &&
     Math.abs(draft.speed - 1) < IDENTITY_EPSILON &&
-    Math.abs(draft.scale - 1) < IDENTITY_EPSILON
+    Math.abs(draft.scale - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.volume - 1) < IDENTITY_EPSILON
   );
 }
 
@@ -115,6 +120,7 @@ export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoE
     crop: isIdentityCrop(draft.crop) ? null : { ...draft.crop },
     speed: draft.speed,
     scale: draft.scale,
+    volume: draft.volume,
   };
 }
 
@@ -129,6 +135,7 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
     crop: spec.crop ? clampCrop(toCropRect(spec.crop)) : IDENTITY_CROP,
     speed: spec.speed,
     scale: spec.scale,
+    volume: spec.volume,
   };
 }
 
@@ -160,7 +167,8 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
     masksEqual(a.masks, b.masks) &&
     sameCrop(a.crop ?? null, b.crop ?? null) &&
     sameNumber(a.speed, b.speed) &&
-    sameNumber(a.scale, b.scale)
+    sameNumber(a.scale, b.scale) &&
+    sameNumber(a.volume, b.volume)
   );
 }
 
@@ -170,4 +178,8 @@ export function formatSpeed(speed: number): string {
 
 export function formatScale(scale: number): string {
   return `${Math.round(scale * 100)}%`;
+}
+
+export function formatVolume(volume: number): string {
+  return volume === 0 ? "Mute" : `${Math.round(volume * 100)}%`;
 }

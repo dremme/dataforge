@@ -51,6 +51,11 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
     mirror_v: false,
     rotate: 0,
     scale: 1,
+    brightness: 1,
+    contrast: 1,
+    saturation: 1,
+    warmth: 0,
+    hue: 0,
     ...overrides,
   };
 }
@@ -120,6 +125,11 @@ describe("useImageEdit", () => {
         mirrorV: false,
         rotate: 0,
         scale: 1,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        warmth: 0,
+        hue: 0,
       });
       expect(result.current.dirty).toBe(false);
     });
@@ -234,6 +244,51 @@ describe("useImageEdit", () => {
       expect(result.current.aspectId).toBe("free");
       expect(result.current.aspectRatio).toBeNull();
       expect(result.current.draft.crop).toEqual(shaped);
+    });
+  });
+
+  describe("color", () => {
+    it("moves each color control onto the draft", async () => {
+      const { result } = await renderReady();
+
+      act(() => result.current.setBrightness(1.3));
+      act(() => result.current.setWarmth(-0.4));
+      act(() => result.current.setSaturation(0));
+
+      expect(result.current.draft).toMatchObject({
+        brightness: 1.3,
+        warmth: -0.4,
+        saturation: 0,
+      });
+      expect(result.current.dirty).toBe(true);
+    });
+
+    it("resets every color control back to identity without touching the geometry", async () => {
+      const { result } = await renderReady();
+
+      act(() => result.current.rotateClockwise());
+      act(() => result.current.setContrast(1.5));
+      act(() => result.current.setHue(90));
+      act(() => result.current.resetColor());
+
+      expect(result.current.draft).toMatchObject({
+        contrast: 1,
+        hue: 0,
+        rotate: 90,
+      });
+    });
+
+    it("re-opens on the color stored beside the file", async () => {
+      fetchStateMock.mockResolvedValue({
+        path: PHOTO,
+        has_backup: true,
+        spec: spec({ saturation: 1.4, hue: 30 }),
+      });
+      const { result } = await renderReady();
+
+      await waitFor(() => expect(result.current.draft.saturation).toBe(1.4));
+      expect(result.current.draft.hue).toBe(30);
+      expect(result.current.dirty).toBe(false);
     });
   });
 

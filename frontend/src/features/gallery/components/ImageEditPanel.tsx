@@ -9,31 +9,46 @@ import {
 } from "@/features/gallery/lib/imageEdit";
 import { MASK_MODES, MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
 import {
+  COLOR_RANGES,
+  formatDegrees,
+  formatPercent,
+  formatWarmth,
+  isColorIdentity,
+} from "@/features/gallery/lib/color";
+import {
+  iconContrast,
   iconCrop,
+  iconDroplet,
   iconDroplets,
+  iconEclipse,
   iconFlipHorizontal,
   iconFlipVertical,
   iconLoader2,
   iconMaximize2,
+  iconPalette,
   iconPlus,
   iconRotateCcw,
   iconRotateCw,
+  iconSun,
+  iconThermometer,
   iconTrash2,
   iconUndo2,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import type { AppIcon } from "@/shared/icons";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
 import { SizeNumberField } from "./SizeNumberField";
 
-type ToolId = "crop" | "blur" | "rotate" | "size";
+type ToolId = "crop" | "blur" | "rotate" | "size" | "color";
 
 const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "crop", label: "Crop", icon: iconCrop },
   { id: "size", label: "Size", icon: iconMaximize2 },
   { id: "rotate", label: "Rotate", icon: iconRotateCw },
   { id: "blur", label: "Blur", icon: iconDroplets },
+  { id: "color", label: "Color", icon: iconPalette },
 ];
 
 interface ImageEditPanelProps {
@@ -55,6 +70,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
     blur: edit.draft.masks.length > 0,
     rotate: edit.draft.rotate !== 0 || edit.draft.mirrorH || edit.draft.mirrorV,
     size: edit.draft.scale !== 1,
+    color: !isColorIdentity(edit.draft),
   };
 
   const { setCropActive, setMaskActive } = edit;
@@ -110,6 +126,9 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   {edit.draft.mirrorH && " mirrored"}
                   {edit.draft.mirrorV && " flipped"}
                 </span>
+              )}
+              {modified.color && (
+                <span className="image-edit-panel__output-part">Color adjusted</span>
               )}
             </>
           ) : (
@@ -215,6 +234,69 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
             </>
           )}
 
+          {activeTool === "color" && (
+            <div className="image-edit-panel__sliders">
+              <Slider
+                label="Brightness"
+                hint="Brightness"
+                icon={iconSun}
+                range={COLOR_RANGES.brightness}
+                value={edit.draft.brightness}
+                format={formatPercent}
+                disabled={locked}
+                onChange={edit.setBrightness}
+              />
+              <Slider
+                label="Contrast"
+                hint="Contrast"
+                icon={iconContrast}
+                range={COLOR_RANGES.contrast}
+                value={edit.draft.contrast}
+                format={formatPercent}
+                disabled={locked}
+                onChange={edit.setContrast}
+              />
+              <Slider
+                label="Saturation"
+                hint="Saturation"
+                icon={iconDroplet}
+                range={COLOR_RANGES.saturation}
+                value={edit.draft.saturation}
+                format={formatPercent}
+                disabled={locked}
+                onChange={edit.setSaturation}
+              />
+              <Slider
+                label="Warmth"
+                hint="Warmth"
+                icon={iconThermometer}
+                range={COLOR_RANGES.warmth}
+                value={edit.draft.warmth}
+                format={formatWarmth}
+                disabled={locked}
+                onChange={edit.setWarmth}
+              />
+              <Slider
+                label="Hue"
+                hint="Hue"
+                icon={iconEclipse}
+                range={COLOR_RANGES.hue}
+                value={edit.draft.hue}
+                format={formatDegrees}
+                disabled={locked}
+                onChange={edit.setHue}
+              />
+              <button
+                type="button"
+                className="image-edit-panel__control"
+                disabled={locked || !modified.color}
+                onClick={edit.resetColor}
+              >
+                Reset colors
+              </button>
+            </div>
+          )}
+
           {activeTool === "blur" && (
             <>
               <div className="image-edit-panel__tool-actions">
@@ -306,6 +388,48 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
         )}
       </div>
     </div>
+  );
+}
+
+/** Icon-labelled so all five fit one row; the tooltip is what names and explains each one. */
+function Slider({
+  label,
+  hint,
+  icon,
+  range,
+  value,
+  format,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  icon: AppIcon;
+  range: { min: number; max: number; step: number };
+  value: number;
+  format: (value: number) => string;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Tooltip content={hint}>
+      <label className="image-edit-panel__slider">
+        <Icon icon={icon} />
+        <input
+          type="range"
+          className="image-edit-panel__slider-input"
+          // The wrapping label also holds the live value, so name the control on its own.
+          aria-label={label}
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        <span className="image-edit-panel__slider-value">{format(value)}</span>
+      </label>
+    </Tooltip>
   );
 }
 

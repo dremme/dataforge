@@ -20,6 +20,13 @@
     transform-origin: center;
   }
 
+  // A referenced SVG filter still needs a box in the tree; it must take up none of the layout.
+  &__filter {
+    position: absolute;
+    width: 0;
+    height: 0;
+  }
+
   // Fills the stage the way the viewer's own preview does; `contain` letterboxes what is left.
   &__img {
     display: block;
@@ -29,6 +36,8 @@
     object-fit: contain;
     pointer-events: none;
     user-select: none;
+    // Set on __canvas so the image and the mask fills tone together; chrome is left out.
+    filter: var(--edit-color-filter, none);
   }
 
   // On its side the constraints swap: layout width becomes painted height (the cap) and layout height becomes painted width (100cqi).

@@ -766,6 +766,14 @@ class MediaTransferResponse(BaseModel):
 MIN_EDIT_SPEED = 0.25
 MAX_EDIT_SPEED = 4.0
 MIN_EDIT_SCALE = 0.05
+#: 0 mutes by dropping the track; 2 is a safe boost before clipping gets ugly.
+MIN_EDIT_VOLUME = 0.0
+MAX_EDIT_VOLUME = 2.0
+#: Brightness, contrast and saturation are multipliers: 1 unchanged, 0 blank, 2 doubled.
+MIN_EDIT_COLOR = 0.0
+MAX_EDIT_COLOR = 2.0
+#: Warmth is a symmetric push: negative cools, positive warms.
+MAX_EDIT_WARMTH = 1.0
 MIN_TRIM_SECONDS = 0.1
 
 #: Float noise from a normalized drag can push a full-width rect past 1.0.
@@ -830,6 +838,8 @@ class VideoEditSpec(BaseModel):
     crop: EditCropRect | None = None
     speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
+    #: Audio gain: 1 unchanged, 0 mutes (the track is dropped), up to 2 for a boost.
+    volume: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
 
     @model_validator(mode="after")
     def _check(self) -> "VideoEditSpec":
@@ -861,7 +871,7 @@ class VideoEditResponse(BaseModel):
 
 
 class ImageEditSpec(BaseModel):
-    """Order is mask, crop, mirror, rotate, scale — shared with the frontend overlay."""
+    """Order is mask, crop, mirror, rotate, scale, color — shared with the frontend overlay."""
 
     masks: list[MaskRegion] = Field(default_factory=list, max_length=MAX_MASK_REGIONS)
     crop: EditCropRect | None = None
@@ -871,6 +881,12 @@ class ImageEditSpec(BaseModel):
     rotate: Literal[0, 90, 180, 270] = 0
     #: Capped at 1: upscaling invents detail a caption would then describe.
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
+    #: Color adjustments, applied last as one matrix. Each defaults to leaving the pixel alone.
+    brightness: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
+    contrast: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
+    saturation: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
+    warmth: float = Field(0.0, ge=-MAX_EDIT_WARMTH, le=MAX_EDIT_WARMTH)
+    hue: float = Field(0.0, ge=0.0, lt=360.0)
 
     @model_validator(mode="after")
     def _check(self) -> "ImageEditSpec":

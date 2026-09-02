@@ -295,6 +295,11 @@ describe("GalleryItemModal", () => {
           mirror_v: false,
           rotate: 90,
           scale: 1,
+          brightness: 1,
+          contrast: 1,
+          saturation: 1,
+          warmth: 0,
+          hue: 0,
         });
         await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
         // Nothing about the surface changes: the editor was already showing the original,
@@ -350,7 +355,19 @@ describe("GalleryItemModal", () => {
         fetchStateMock.mockResolvedValue({
           path: PHOTO,
           has_backup: true,
-          spec: { masks: [], crop: null, mirror_h: false, mirror_v: false, rotate: 90, scale: 1 },
+          spec: {
+            masks: [],
+            crop: null,
+            mirror_h: false,
+            mirror_v: false,
+            rotate: 90,
+            scale: 1,
+            brightness: 1,
+            contrast: 1,
+            saturation: 1,
+            warmth: 0,
+            hue: 0,
+          },
         });
         renderModal(imageItem({ has_backup: true }));
         const dialog = await openEditMode(user);

@@ -3,8 +3,10 @@ import { CROP_ASPECTS, isIdentityCrop } from "@/features/gallery/lib/crop";
 import {
   SCALE_PRESETS,
   SPEED_PRESETS,
+  VOLUME_PRESETS,
   formatScale,
   formatSpeed,
+  formatVolume,
   scaleForTargetHeight,
   scaleForTargetWidth,
 } from "@/features/gallery/lib/videoEdit";
@@ -20,6 +22,7 @@ import {
   iconScissors,
   iconTrash2,
   iconUndo2,
+  iconVolume2,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
@@ -28,11 +31,12 @@ import { SizeNumberField } from "./SizeNumberField";
 import type { AppIcon } from "@/shared/icons";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 
-type ToolId = "trim" | "crop" | "blur" | "speed" | "size";
+type ToolId = "trim" | "crop" | "blur" | "speed" | "size" | "volume";
 
 const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "trim", label: "Trim", icon: iconScissors },
   { id: "speed", label: "Speed", icon: iconGauge },
+  { id: "volume", label: "Volume", icon: iconVolume2 },
   { id: "crop", label: "Crop", icon: iconCrop },
   { id: "size", label: "Size", icon: iconMaximize2 },
   { id: "blur", label: "Blur", icon: iconDroplets },
@@ -58,6 +62,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
     blur: edit.draft.masks.length > 0,
     speed: edit.draft.speed !== 1,
     size: edit.draft.scale !== 1,
+    volume: edit.draft.volume !== 1,
   };
 
   const { setCropActive, setMaskActive } = edit;
@@ -124,6 +129,11 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                   {describeMasks(edit.draft.masks.length)}
                 </span>
               )}
+              {modified.volume && (
+                <span className="video-edit-panel__output-part">
+                  {edit.draft.volume === 0 ? "Muted" : `Volume ${formatVolume(edit.draft.volume)}`}
+                </span>
+              )}
               <span className="video-edit-panel__output-part">
                 {formatFrameTime(edit.duration)}
                 <span className="video-edit-panel__output-arrow"> to </span>
@@ -179,6 +189,23 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 </PresetButton>
               ))}
             </ToolPresets>
+          )}
+
+          {activeTool === "volume" && (
+            <>
+              <ToolPresets label="Volume">
+                {VOLUME_PRESETS.map((volume) => (
+                  <PresetButton
+                    key={volume}
+                    active={edit.draft.volume === volume}
+                    disabled={locked}
+                    onClick={() => edit.setVolume(volume)}
+                  >
+                    {formatVolume(volume)}
+                  </PresetButton>
+                ))}
+              </ToolPresets>
+            </>
           )}
 
           {activeTool === "crop" && (

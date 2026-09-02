@@ -58,6 +58,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     toggleMuted: vi.fn(),
     setSpeed: vi.fn(),
     setScale: vi.fn(),
+    setVolume: vi.fn(),
     seekTo: vi.fn(),
     togglePlay: vi.fn(),
     resetDraft: vi.fn(),
@@ -296,6 +297,28 @@ describe("VideoEditPanel", () => {
         .getAllByRole("button")
         .map((b) => b.textContent?.trim());
       expect(speeds).toEqual(["0.25x", "0.5x", "0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"]);
+    });
+
+    it("changes the volume from a preset, mute included", () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      fireEvent.click(tool("Volume"));
+      const volumes = within(screen.getByRole("group", { name: "Volume" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent?.trim());
+      expect(volumes).toEqual(["Mute", "25%", "50%", "100%", "150%", "200%"]);
+
+      fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+      expect(edit.setVolume).toHaveBeenCalledWith(0);
+    });
+
+    it("marks the active volume preset", () => {
+      renderPanel(makeEdit({ draft: { ...emptyDraft(12), volume: 1.5 } }));
+
+      fireEvent.click(tool("Volume"));
+      expect(screen.getByRole("button", { name: "150%" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "100%" })).toHaveAttribute("aria-pressed", "false");
     });
   });
 

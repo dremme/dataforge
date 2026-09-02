@@ -26,6 +26,7 @@ const SPEC: VideoEditSpec = {
   crop: null,
   speed: 2,
   scale: 0.5,
+  volume: 1,
 };
 
 beforeEach(() => {

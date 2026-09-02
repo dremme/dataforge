@@ -10,7 +10,7 @@ import {
 import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
 import type { EditCropRect, ImageEditSpec } from "@/shared/types";
 
-/** Order matches backend/image_edit.py: mask, crop, mirror, rotate, scale. Sizes round. */
+/** Order matches backend/image_edit.py: mask, crop, mirror, rotate, scale, color. Sizes round. */
 export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
 
 export const MIN_SCALE = 0.05;
@@ -26,6 +26,11 @@ export interface ImageEditDraft {
   mirrorV: boolean;
   rotate: RotationDegrees;
   scale: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
+  hue: number;
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -33,7 +38,19 @@ function clamp(value: number, low: number, high: number): number {
 }
 
 export function emptyDraft(): ImageEditDraft {
-  return { masks: [], crop: IDENTITY_CROP, mirrorH: false, mirrorV: false, rotate: 0, scale: 1 };
+  return {
+    masks: [],
+    crop: IDENTITY_CROP,
+    mirrorH: false,
+    mirrorV: false,
+    rotate: 0,
+    scale: 1,
+    brightness: 1,
+    contrast: 1,
+    saturation: 1,
+    warmth: 0,
+    hue: 0,
+  };
 }
 
 export function isIdentityEdit(draft: ImageEditDraft): boolean {
@@ -43,7 +60,12 @@ export function isIdentityEdit(draft: ImageEditDraft): boolean {
     !draft.mirrorH &&
     !draft.mirrorV &&
     draft.rotate === 0 &&
-    Math.abs(draft.scale - 1) < IDENTITY_EPSILON
+    Math.abs(draft.scale - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.brightness - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.contrast - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.saturation - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.warmth) < IDENTITY_EPSILON &&
+    Math.abs(draft.hue) < IDENTITY_EPSILON
   );
 }
 
@@ -119,6 +141,11 @@ export function toImageEditSpec(draft: ImageEditDraft): ImageEditSpec {
     mirror_v: draft.mirrorV,
     rotate: draft.rotate,
     scale: draft.scale,
+    brightness: draft.brightness,
+    contrast: draft.contrast,
+    saturation: draft.saturation,
+    warmth: draft.warmth,
+    hue: draft.hue,
   };
 }
 
@@ -133,6 +160,11 @@ export function draftFromSpec(spec: ImageEditSpec | null): ImageEditDraft {
     mirrorV: spec.mirror_v,
     rotate: spec.rotate,
     scale: spec.scale,
+    brightness: spec.brightness,
+    contrast: spec.contrast,
+    saturation: spec.saturation,
+    warmth: spec.warmth,
+    hue: spec.hue,
   };
 }
 
@@ -162,7 +194,12 @@ export function specsEqual(a: ImageEditSpec, b: ImageEditSpec): boolean {
     a.mirror_h === b.mirror_h &&
     a.mirror_v === b.mirror_v &&
     a.rotate === b.rotate &&
-    sameNumber(a.scale, b.scale)
+    sameNumber(a.scale, b.scale) &&
+    sameNumber(a.brightness, b.brightness) &&
+    sameNumber(a.contrast, b.contrast) &&
+    sameNumber(a.saturation, b.saturation) &&
+    sameNumber(a.warmth, b.warmth) &&
+    sameNumber(a.hue, b.hue)
   );
 }
 

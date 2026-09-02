@@ -24,6 +24,11 @@ const SPEC: ImageEditSpec = {
   mirror_v: false,
   rotate: 90,
   scale: 0.5,
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  warmth: 0,
+  hue: 0,
 };
 
 beforeEach(() => {

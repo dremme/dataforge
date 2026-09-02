@@ -61,6 +61,12 @@ export interface ImageEdit extends MaskRegionControls {
   toggleMirrorH: () => void;
   toggleMirrorV: () => void;
   setScale: (scale: number) => void;
+  setBrightness: (value: number) => void;
+  setContrast: (value: number) => void;
+  setSaturation: (value: number) => void;
+  setWarmth: (value: number) => void;
+  setHue: (value: number) => void;
+  resetColor: () => void;
   resetDraft: () => void;
   apply: () => void;
   revert: () => void;
@@ -207,6 +213,37 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setDraft((current) => ({ ...current, scale }));
   }, []);
 
+  const setBrightness = useCallback((brightness: number) => {
+    setDraft((current) => ({ ...current, brightness }));
+  }, []);
+
+  const setContrast = useCallback((contrast: number) => {
+    setDraft((current) => ({ ...current, contrast }));
+  }, []);
+
+  const setSaturation = useCallback((saturation: number) => {
+    setDraft((current) => ({ ...current, saturation }));
+  }, []);
+
+  const setWarmth = useCallback((warmth: number) => {
+    setDraft((current) => ({ ...current, warmth }));
+  }, []);
+
+  const setHue = useCallback((hue: number) => {
+    setDraft((current) => ({ ...current, hue }));
+  }, []);
+
+  const resetColor = useCallback(() => {
+    setDraft((current) => ({
+      ...current,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      warmth: 0,
+      hue: 0,
+    }));
+  }, []);
+
   const resetDraft = useCallback(() => {
     seedDraft(savedSpecRef.current);
   }, [seedDraft]);
@@ -341,6 +378,12 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     toggleMirrorH,
     toggleMirrorV,
     setScale,
+    setBrightness,
+    setContrast,
+    setSaturation,
+    setWarmth,
+    setHue,
+    resetColor,
     resetDraft,
     apply,
     revert,
