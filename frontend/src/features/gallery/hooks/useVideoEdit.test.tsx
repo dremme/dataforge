@@ -102,6 +102,11 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        warmth: 0,
+        hue: 0,
       },
     });
     const { result } = renderEdit();
@@ -119,7 +124,20 @@ describe("useVideoEdit", () => {
     fetchStateMock.mockResolvedValue({
       path: CLIP,
       has_backup: true,
-      spec: { masks: [], trim_start: 0, trim_end: null, crop: null, speed: 1, scale: 1, volume: 0 },
+      spec: {
+        masks: [],
+        trim_start: 0,
+        trim_end: null,
+        crop: null,
+        speed: 1,
+        scale: 1,
+        volume: 0,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        warmth: 0,
+        hue: 0,
+      },
     });
     const { result } = renderEdit();
 
@@ -135,11 +153,77 @@ describe("useVideoEdit", () => {
     expect(result.current.dirty).toBe(true);
   });
 
+  it("moves and restores the draft colors", async () => {
+    fetchStateMock.mockResolvedValue({
+      path: CLIP,
+      has_backup: true,
+      spec: {
+        masks: [],
+        trim_start: 0,
+        trim_end: null,
+        crop: null,
+        speed: 1,
+        scale: 1,
+        volume: 1,
+        brightness: 1.2,
+        contrast: 0.8,
+        saturation: 1.5,
+        warmth: 0.4,
+        hue: 30,
+      },
+    });
+    const { result } = renderEdit();
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(12));
+    });
+
+    await waitFor(() => expect(result.current.draft.brightness).toBe(1.2));
+    expect(result.current.draft.hue).toBe(30);
+
+    act(() => {
+      result.current.setBrightness(1.4);
+      result.current.setContrast(0.9);
+      result.current.setSaturation(1.2);
+      result.current.setWarmth(-0.2);
+      result.current.setHue(45);
+    });
+    expect(result.current.draft).toMatchObject({
+      brightness: 1.4,
+      contrast: 0.9,
+      saturation: 1.2,
+      warmth: -0.2,
+      hue: 45,
+    });
+
+    act(() => result.current.resetColor());
+    expect(result.current.draft).toMatchObject({
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      warmth: 0,
+      hue: 0,
+    });
+  });
+
   it("still seeds once Infinity becomes a real duration", async () => {
     fetchStateMock.mockResolvedValue({
       path: CLIP,
       has_backup: true,
-      spec: { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 1, scale: 1, volume: 1 },
+      spec: {
+        masks: [],
+        trim_start: 3,
+        trim_end: 9,
+        crop: null,
+        speed: 1,
+        scale: 1,
+        volume: 1,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        warmth: 0,
+        hue: 0,
+      },
     });
     const { result } = renderEdit();
 

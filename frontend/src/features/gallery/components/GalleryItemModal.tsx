@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
@@ -74,6 +74,7 @@ import { VideoEditPanel } from "./VideoEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
 import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
+import { feColorMatrixValues, isColorIdentity } from "@/features/gallery/lib/color";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 
 const noop = () => {};
@@ -183,6 +184,8 @@ export function GalleryItemModal({
     editMode,
     setEditMode,
   });
+  const videoColorFilterId = useId().replace(/:/g, "");
+  const videoColorAdjusted = editMode && !isColorIdentity(videoEdit.draft);
 
   const imageEdit = useImageEdit({
     item,
@@ -533,29 +536,39 @@ export function GalleryItemModal({
 
           {itemIsVideo ? (
             <>
-              <video
-                // Editing plays the original, so source and key change with the mode, not just the bytes.
-                key={editMode ? `${item.path}#original` : item.path}
-                ref={videoCapture.videoRef}
-                className="gallery-item-modal__video"
-                src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
-                // Native timeline would seek behind the capture slider or trim handles.
-                controls={!frameCapture.frameMode && !editMode}
-                autoPlay={!editMode}
-                muted
-                playsInline
-                onLoadedMetadata={(event) => {
-                  const video = event.currentTarget;
-                  recordResolution(video.videoWidth, video.videoHeight, item.path);
-                  videoCapture.handleLoadedMetadata(video);
-                  videoEdit.handleLoadedMetadata(video);
-                }}
-                // Streamed MP4s report Infinity at loadedmetadata and settle later, stranding the slider.
-                onDurationChange={(event) => {
-                  videoCapture.handleLoadedMetadata(event.currentTarget);
-                  videoEdit.handleLoadedMetadata(event.currentTarget);
-                }}
-              />
+              {videoColorAdjusted && (
+                <svg className="gallery-item-modal__filter" aria-hidden="true" focusable="false">
+                  <filter id={videoColorFilterId} colorInterpolationFilters="sRGB">
+                    <feColorMatrix type="matrix" values={feColorMatrixValues(videoEdit.draft)} />
+                  </filter>
+                </svg>
+              )}
+              <div className="gallery-item-modal__video-backdrop">
+                <video
+                  // Editing plays the original, so source and key change with the mode, not just the bytes.
+                  key={editMode ? `${item.path}#original` : item.path}
+                  ref={videoCapture.videoRef}
+                  className="gallery-item-modal__video"
+                  src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
+                  style={videoColorAdjusted ? { filter: `url(#${videoColorFilterId})` } : undefined}
+                  // Native timeline would seek behind the capture slider or trim handles.
+                  controls={!frameCapture.frameMode && !editMode}
+                  autoPlay={!editMode}
+                  muted
+                  playsInline
+                  onLoadedMetadata={(event) => {
+                    const video = event.currentTarget;
+                    recordResolution(video.videoWidth, video.videoHeight, item.path);
+                    videoCapture.handleLoadedMetadata(video);
+                    videoEdit.handleLoadedMetadata(video);
+                  }}
+                  // Streamed MP4s report Infinity at loadedmetadata and settle later, stranding the slider.
+                  onDurationChange={(event) => {
+                    videoCapture.handleLoadedMetadata(event.currentTarget);
+                    videoEdit.handleLoadedMetadata(event.currentTarget);
+                  }}
+                />
+              </div>
               {editMode && videoEdit.draft.masks.length > 0 && (
                 <MaskOverlay
                   mediaRef={videoCapture.videoRef}

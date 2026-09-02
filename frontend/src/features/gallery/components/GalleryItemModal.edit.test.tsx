@@ -179,6 +179,11 @@ describe("GalleryItemModal", () => {
           speed: 2,
           scale: 0.5,
           volume: 1,
+          brightness: 1,
+          contrast: 1,
+          saturation: 1,
+          warmth: 0,
+          hue: 0,
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -267,7 +272,20 @@ describe("GalleryItemModal", () => {
         path: mediaPath,
         has_backup: mediaPath.endsWith("second.mp4"),
         spec: mediaPath.endsWith("second.mp4")
-          ? { masks: [], trim_start: 3, trim_end: 9, crop: null, speed: 2, scale: 1, volume: 1 }
+          ? {
+              masks: [],
+              trim_start: 3,
+              trim_end: 9,
+              crop: null,
+              speed: 2,
+              scale: 1,
+              volume: 1,
+              brightness: 1,
+              contrast: 1,
+              saturation: 1,
+              warmth: 0,
+              hue: 0,
+            }
           : null,
       }));
 
@@ -309,6 +327,11 @@ describe("GalleryItemModal", () => {
           speed: 1,
           scale: 1,
           volume: 1,
+          brightness: 1,
+          contrast: 1,
+          saturation: 1,
+          warmth: 0,
+          hue: 0,
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -374,6 +397,11 @@ describe("GalleryItemModal", () => {
           speed: 2,
           scale: 1,
           volume: 1,
+          brightness: 1,
+          contrast: 1,
+          saturation: 1,
+          warmth: 0,
+          hue: 0,
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -474,12 +502,57 @@ describe("GalleryItemModal", () => {
         speed: 0.5,
         scale: 1,
         volume: 1,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        warmth: 0,
+        hue: 0,
       });
       await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
       // Nothing about the surface changes: the editor was already playing the original,
       // which the spec is expressed against, so there is nothing to swap back to.
       expect(within(dialog).getByRole("group", { name: "Video editing" })).toBeInTheDocument();
       expect(dialog.querySelector("video")?.getAttribute("src")).toContain("original=1");
+    });
+
+    it("previews and posts color adjustments", async () => {
+      const user = userEvent.setup();
+      renderModal(videoItem());
+      const dialog = await openEditMode(user);
+
+      await user.click(within(dialog).getByRole("button", { name: /^Color/ }));
+      fireEvent.change(within(dialog).getByRole("slider", { name: "Brightness" }), {
+        target: { value: "1.3" },
+      });
+
+      expect(dialog.querySelector("video")?.style.filter).toMatch(/^url\(#/);
+
+      await user.click(within(dialog).getByRole("button", { name: "Apply" }));
+
+      await waitFor(() => expect(applyMock).toHaveBeenCalled());
+      expect(applyMock.mock.calls[0][1]).toMatchObject({
+        brightness: 1.3,
+        contrast: 1,
+        saturation: 1,
+        warmth: 0,
+        hue: 0,
+      });
+    });
+
+    it("keeps the black video backdrop outside the color filter", async () => {
+      const user = userEvent.setup();
+      renderModal(videoItem());
+      const dialog = await openEditMode(user);
+
+      await user.click(within(dialog).getByRole("button", { name: /^Color/ }));
+      fireEvent.change(within(dialog).getByRole("slider", { name: "Brightness" }), {
+        target: { value: "1.3" },
+      });
+
+      const video = dialog.querySelector("video")!;
+      expect(video.style.filter).toMatch(/^url\(#/);
+      expect(video.parentElement).toHaveClass("gallery-item-modal__video-backdrop");
+      expect(video.parentElement).not.toHaveStyle({ filter: video.style.filter });
     });
 
     it("goes quiet once the draft matches what it just wrote", async () => {

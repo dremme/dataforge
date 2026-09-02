@@ -840,6 +840,11 @@ class VideoEditSpec(BaseModel):
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
     #: Audio gain: 1 unchanged, 0 mutes (the track is dropped), up to 2 for a boost.
     volume: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
+    brightness: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
+    contrast: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
+    saturation: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
+    warmth: float = Field(0.0, ge=-MAX_EDIT_WARMTH, le=MAX_EDIT_WARMTH)
+    hue: float = Field(0.0, ge=0.0, lt=360.0)
 
     @model_validator(mode="after")
     def _check(self) -> "VideoEditSpec":

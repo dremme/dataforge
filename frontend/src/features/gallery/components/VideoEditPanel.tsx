@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CROP_ASPECTS, isIdentityCrop } from "@/features/gallery/lib/crop";
 import {
+  COLOR_RANGES,
+  formatDegrees,
+  formatPercent,
+  formatWarmth,
+  isColorIdentity,
+} from "@/features/gallery/lib/color";
+import {
   SCALE_PRESETS,
   SPEED_PRESETS,
   VOLUME_PRESETS,
@@ -13,25 +20,32 @@ import {
 import { MASK_MODES, MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import {
+  iconContrast,
   iconCrop,
+  iconDroplet,
   iconDroplets,
+  iconEclipse,
   iconGauge,
   iconLoader2,
   iconMaximize2,
+  iconPalette,
   iconPlus,
   iconScissors,
+  iconSun,
+  iconThermometer,
   iconTrash2,
   iconUndo2,
   iconVolume2,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import { VideoEditTimeline } from "./VideoEditTimeline";
 import { SizeNumberField } from "./SizeNumberField";
 import type { AppIcon } from "@/shared/icons";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 
-type ToolId = "trim" | "crop" | "blur" | "speed" | "size" | "volume";
+type ToolId = "trim" | "crop" | "blur" | "speed" | "size" | "volume" | "color";
 
 const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "trim", label: "Trim", icon: iconScissors },
@@ -39,6 +53,7 @@ const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "volume", label: "Volume", icon: iconVolume2 },
   { id: "crop", label: "Crop", icon: iconCrop },
   { id: "size", label: "Size", icon: iconMaximize2 },
+  { id: "color", label: "Color", icon: iconPalette },
   { id: "blur", label: "Blur", icon: iconDroplets },
 ];
 
@@ -63,6 +78,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
     speed: edit.draft.speed !== 1,
     size: edit.draft.scale !== 1,
     volume: edit.draft.volume !== 1,
+    color: !isColorIdentity(edit.draft),
   };
 
   const { setCropActive, setMaskActive } = edit;
@@ -133,6 +149,9 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 <span className="video-edit-panel__output-part">
                   {edit.draft.volume === 0 ? "Muted" : `Volume ${formatVolume(edit.draft.volume)}`}
                 </span>
+              )}
+              {modified.color && (
+                <span className="video-edit-panel__output-part">Color adjusted</span>
               )}
               <span className="video-edit-panel__output-part">
                 {formatFrameTime(edit.duration)}
@@ -206,6 +225,69 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 ))}
               </ToolPresets>
             </>
+          )}
+
+          {activeTool === "color" && (
+            <div className="video-edit-panel__sliders">
+              <Slider
+                label="Brightness"
+                hint="Brightness"
+                icon={iconSun}
+                range={COLOR_RANGES.brightness}
+                value={edit.draft.brightness}
+                format={formatPercent}
+                disabled={locked}
+                onChange={edit.setBrightness}
+              />
+              <Slider
+                label="Contrast"
+                hint="Contrast"
+                icon={iconContrast}
+                range={COLOR_RANGES.contrast}
+                value={edit.draft.contrast}
+                format={formatPercent}
+                disabled={locked}
+                onChange={edit.setContrast}
+              />
+              <Slider
+                label="Saturation"
+                hint="Saturation"
+                icon={iconDroplet}
+                range={COLOR_RANGES.saturation}
+                value={edit.draft.saturation}
+                format={formatPercent}
+                disabled={locked}
+                onChange={edit.setSaturation}
+              />
+              <Slider
+                label="Warmth"
+                hint="Warmth"
+                icon={iconThermometer}
+                range={COLOR_RANGES.warmth}
+                value={edit.draft.warmth}
+                format={formatWarmth}
+                disabled={locked}
+                onChange={edit.setWarmth}
+              />
+              <Slider
+                label="Hue"
+                hint="Hue"
+                icon={iconEclipse}
+                range={COLOR_RANGES.hue}
+                value={edit.draft.hue}
+                format={formatDegrees}
+                disabled={locked}
+                onChange={edit.setHue}
+              />
+              <button
+                type="button"
+                className="video-edit-panel__control"
+                disabled={locked || !modified.color}
+                onClick={edit.resetColor}
+              >
+                Reset colors
+              </button>
+            </div>
           )}
 
           {activeTool === "crop" && (
@@ -367,6 +449,46 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
         )}
       </div>
     </div>
+  );
+}
+
+function Slider({
+  label,
+  hint,
+  icon,
+  range,
+  value,
+  format,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  icon: AppIcon;
+  range: { min: number; max: number; step: number };
+  value: number;
+  format: (value: number) => string;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Tooltip content={hint}>
+      <label className="video-edit-panel__slider">
+        <Icon icon={icon} />
+        <input
+          type="range"
+          className="video-edit-panel__slider-input"
+          aria-label={label}
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        <span className="video-edit-panel__slider-value">{format(value)}</span>
+      </label>
+    </Tooltip>
   );
 }
 

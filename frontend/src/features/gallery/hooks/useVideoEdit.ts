@@ -78,6 +78,12 @@ export interface VideoEdit extends MaskRegionControls {
   setSpeed: (speed: number) => void;
   setScale: (scale: number) => void;
   setVolume: (volume: number) => void;
+  setBrightness: (value: number) => void;
+  setContrast: (value: number) => void;
+  setSaturation: (value: number) => void;
+  setWarmth: (value: number) => void;
+  setHue: (value: number) => void;
+  resetColor: () => void;
   seekTo: (seconds: number) => void;
   togglePlay: () => void;
   resetDraft: () => void;
@@ -376,6 +382,37 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setDraft((current) => ({ ...current, volume }));
   }, []);
 
+  const setBrightness = useCallback((brightness: number) => {
+    setDraft((current) => ({ ...current, brightness }));
+  }, []);
+
+  const setContrast = useCallback((contrast: number) => {
+    setDraft((current) => ({ ...current, contrast }));
+  }, []);
+
+  const setSaturation = useCallback((saturation: number) => {
+    setDraft((current) => ({ ...current, saturation }));
+  }, []);
+
+  const setWarmth = useCallback((warmth: number) => {
+    setDraft((current) => ({ ...current, warmth }));
+  }, []);
+
+  const setHue = useCallback((hue: number) => {
+    setDraft((current) => ({ ...current, hue }));
+  }, []);
+
+  const resetColor = useCallback(() => {
+    setDraft((current) => ({
+      ...current,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      warmth: 0,
+      hue: 0,
+    }));
+  }, []);
+
   const resetDraft = useCallback(() => {
     seedDraft(savedSpecRef.current, durationRef.current);
   }, [seedDraft]);
@@ -534,6 +571,12 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setSpeed,
     setScale,
     setVolume,
+    setBrightness,
+    setContrast,
+    setSaturation,
+    setWarmth,
+    setHue,
+    resetColor,
     seekTo,
     togglePlay,
     resetDraft,

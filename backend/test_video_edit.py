@@ -151,6 +151,20 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertEqual([name.split("=")[0] for name in filters], ["crop", "scale", "setpts"])
         self.assertEqual(filters[-1], "setpts=PTS/2.000000")
 
+    def test_color_uses_the_shared_rgb_matrix_after_the_geometry_and_timing_filters(self) -> None:
+        spec = VideoEditSpec(scale=0.5, speed=2.0, brightness=1.2, hue=45.0)
+
+        filters = command_for(spec, frame_rate=24.0)
+        chain = filters[filters.index("-vf") + 1]
+
+        self.assertLess(chain.index("scale="), chain.index("setpts=PTS/2.000000"))
+        self.assertLess(chain.index("setpts=PTS/2.000000"), chain.index("fps=24.000000"))
+        self.assertLess(chain.index("fps=24.000000"), chain.index("format=rgb24,geq="))
+        self.assertIn("r='clip(", chain)
+        self.assertIn("r(X,Y)", chain)
+        self.assertIn("g(X,Y)", chain)
+        self.assertIn("b(X,Y)", chain)
+
     def test_an_identity_spec_carries_no_filters(self) -> None:
         self.assertNotIn("-vf", command_for(VideoEditSpec()))
         self.assertNotIn("-af", command_for(VideoEditSpec()))
@@ -418,6 +432,11 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
             VideoEditSpec(volume=0.5),
             VideoEditSpec(volume=0.0),
+            VideoEditSpec(brightness=1.2),
+            VideoEditSpec(contrast=0.8),
+            VideoEditSpec(saturation=1.5),
+            VideoEditSpec(warmth=0.4),
+            VideoEditSpec(hue=30.0),
         )
         for spec in changed:
             with self.subTest(spec=spec):
@@ -427,6 +446,17 @@ class SpecHelperTests(unittest.TestCase):
         for volume in (-0.1, 2.5):
             with self.subTest(volume=volume), self.assertRaises(ValidationError):
                 VideoEditSpec(volume=volume)
+
+    def test_color_outside_the_range_is_refused(self) -> None:
+        for kwargs in (
+            {"brightness": 2.5},
+            {"contrast": -0.1},
+            {"saturation": 3.0},
+            {"warmth": 1.5},
+            {"hue": 360.0},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValidationError):
+                VideoEditSpec(**kwargs)
 
     def test_expected_output_length_divides_the_kept_span_by_the_speed(self) -> None:
         spec = VideoEditSpec(trim_start=2.0, trim_end=10.0, speed=2.0)

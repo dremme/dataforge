@@ -27,6 +27,11 @@ const SPEC: VideoEditSpec = {
   speed: 2,
   scale: 0.5,
   volume: 1,
+  brightness: 1,
+  contrast: 1,
+  saturation: 1,
+  warmth: 0,
+  hue: 0,
 };
 
 beforeEach(() => {

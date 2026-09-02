@@ -127,8 +127,18 @@ $meta-badge-color: #fcd34d;
     max-height: none;
   }
 
-  &__video {
+  &__video-backdrop {
+    width: 100%;
+    max-height: $modal-media-max-height;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
     background: $color-video-bg;
+  }
+
+  &__filter {
+    position: absolute;
+    width: 0;
+    height: 0;
   }
 
   &__footer {

@@ -47,8 +47,8 @@ const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
   { id: "crop", label: "Crop", icon: iconCrop },
   { id: "size", label: "Size", icon: iconMaximize2 },
   { id: "rotate", label: "Rotate", icon: iconRotateCw },
-  { id: "blur", label: "Blur", icon: iconDroplets },
   { id: "color", label: "Color", icon: iconPalette },
+  { id: "blur", label: "Blur", icon: iconDroplets },
 ];
 
 interface ImageEditPanelProps {

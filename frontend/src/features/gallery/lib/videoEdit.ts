@@ -23,6 +23,11 @@ export interface VideoEditDraft {
   speed: number;
   scale: number;
   volume: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
+  hue: number;
 }
 
 export function evenTrunc(value: number): number {
@@ -42,6 +47,11 @@ export function emptyDraft(duration: number): VideoEditDraft {
     speed: 1,
     scale: 1,
     volume: 1,
+    brightness: 1,
+    contrast: 1,
+    saturation: 1,
+    warmth: 0,
+    hue: 0,
   };
 }
 
@@ -53,7 +63,12 @@ export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean
     isIdentityCrop(draft.crop) &&
     Math.abs(draft.speed - 1) < IDENTITY_EPSILON &&
     Math.abs(draft.scale - 1) < IDENTITY_EPSILON &&
-    Math.abs(draft.volume - 1) < IDENTITY_EPSILON
+    Math.abs(draft.volume - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.brightness - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.contrast - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.saturation - 1) < IDENTITY_EPSILON &&
+    Math.abs(draft.warmth) < IDENTITY_EPSILON &&
+    Math.abs(draft.hue) < IDENTITY_EPSILON
   );
 }
 
@@ -121,6 +136,11 @@ export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoE
     speed: draft.speed,
     scale: draft.scale,
     volume: draft.volume,
+    brightness: draft.brightness,
+    contrast: draft.contrast,
+    saturation: draft.saturation,
+    warmth: draft.warmth,
+    hue: draft.hue,
   };
 }
 
@@ -136,6 +156,11 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
     speed: spec.speed,
     scale: spec.scale,
     volume: spec.volume,
+    brightness: spec.brightness,
+    contrast: spec.contrast,
+    saturation: spec.saturation,
+    warmth: spec.warmth,
+    hue: spec.hue,
   };
 }
 
@@ -168,7 +193,12 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
     sameCrop(a.crop ?? null, b.crop ?? null) &&
     sameNumber(a.speed, b.speed) &&
     sameNumber(a.scale, b.scale) &&
-    sameNumber(a.volume, b.volume)
+    sameNumber(a.volume, b.volume) &&
+    sameNumber(a.brightness, b.brightness) &&
+    sameNumber(a.contrast, b.contrast) &&
+    sameNumber(a.saturation, b.saturation) &&
+    sameNumber(a.warmth, b.warmth) &&
+    sameNumber(a.hue, b.hue)
   );
 }
 

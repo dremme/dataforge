@@ -6,6 +6,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from math import ceil, cos, radians, sin
 from pathlib import Path
+from typing import Protocol
 
 from PIL import Image, ImageFilter
 
@@ -143,6 +144,14 @@ WARMTH_GAIN = 0.2
 Affine = tuple[float, ...]
 
 
+class ColorEditSpec(Protocol):
+    brightness: float
+    contrast: float
+    saturation: float
+    warmth: float
+    hue: float
+
+
 def _multiply(a: Affine, b: Affine) -> Affine:
     """Two 3x4 colour affines, composed so ``a`` runs after ``b`` on a pixel."""
     out: list[float] = []
@@ -191,7 +200,7 @@ def _hue_affine(degrees: float) -> Affine:
     )
 
 
-def color_matrix(spec: ImageEditSpec) -> Affine:
+def color_matrix(spec: ColorEditSpec) -> Affine:
     """The colour controls composed into one 3x4 matrix, offsets in 0-255 for Pillow."""
     offset = (1.0 - spec.contrast) / 2.0
 
@@ -251,7 +260,7 @@ def color_matrix(spec: ImageEditSpec) -> Affine:
     )
 
 
-def is_color_identity(spec: ImageEditSpec) -> bool:
+def is_color_identity(spec: ColorEditSpec) -> bool:
     return (
         abs(spec.brightness - 1.0) < IDENTITY_EPSILON
         and abs(spec.contrast - 1.0) < IDENTITY_EPSILON
@@ -261,7 +270,7 @@ def is_color_identity(spec: ImageEditSpec) -> bool:
     )
 
 
-def recolored(image: Image.Image, spec: ImageEditSpec) -> Image.Image:
+def recolored(image: Image.Image, spec: ColorEditSpec) -> Image.Image:
     """Matrix on the colour channels only, so a transparent pixel keeps its alpha."""
     if image.mode == "RGBA":
         red, green, blue, alpha = image.split()

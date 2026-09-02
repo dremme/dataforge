@@ -59,6 +59,12 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     setSpeed: vi.fn(),
     setScale: vi.fn(),
     setVolume: vi.fn(),
+    setBrightness: vi.fn(),
+    setContrast: vi.fn(),
+    setSaturation: vi.fn(),
+    setWarmth: vi.fn(),
+    setHue: vi.fn(),
+    resetColor: vi.fn(),
     seekTo: vi.fn(),
     togglePlay: vi.fn(),
     resetDraft: vi.fn(),
@@ -156,6 +162,7 @@ describe("VideoEditPanel", () => {
       ["Speed", { speed: 2 }],
       ["Size", { scale: 0.5 }],
       ["Blur", { masks: [newMaskDraft("blur", 0.12, 0)] }],
+      ["Color", { brightness: 1.3 }],
     ])("marks %s when it holds a value", (label, overrides) => {
       renderPanel(makeEdit({ draft: { ...emptyDraft(12), ...overrides } }));
 
@@ -319,6 +326,35 @@ describe("VideoEditPanel", () => {
       fireEvent.click(tool("Volume"));
       expect(screen.getByRole("button", { name: "150%" })).toHaveAttribute("aria-pressed", "true");
       expect(screen.getByRole("button", { name: "100%" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("changes and resets colors", () => {
+      const edit = makeEdit({ draft: { ...emptyDraft(12), hue: 90 } });
+      renderPanel(edit);
+
+      fireEvent.click(tool("Color"));
+      fireEvent.change(screen.getByRole("slider", { name: "Brightness" }), {
+        target: { value: "1.3" },
+      });
+      fireEvent.change(screen.getByRole("slider", { name: "Warmth" }), {
+        target: { value: "-0.5" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Reset colors" }));
+
+      expect(edit.setBrightness).toHaveBeenCalledWith(1.3);
+      expect(edit.setWarmth).toHaveBeenCalledWith(-0.5);
+      expect(edit.resetColor).toHaveBeenCalled();
+    });
+
+    it("offers every color control", () => {
+      renderPanel(makeEdit());
+
+      fireEvent.click(tool("Color"));
+
+      for (const name of ["Brightness", "Contrast", "Saturation", "Warmth", "Hue"]) {
+        expect(screen.getByRole("slider", { name })).toBeInTheDocument();
+      }
+      expect(screen.getByRole("button", { name: "Reset colors" })).toBeDisabled();
     });
   });
 

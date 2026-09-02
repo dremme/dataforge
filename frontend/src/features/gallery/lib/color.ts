@@ -1,4 +1,10 @@
-import type { ImageEditDraft } from "./imageEdit";
+interface ColorDraft {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
+  hue: number;
+}
 
 /** Mirrors backend/image_edit.py: Rec. 601 luma and the warmth channel push. */
 const LUMA: readonly [number, number, number] = [0.213, 0.715, 0.072];
@@ -80,7 +86,7 @@ function hueAffine(degrees: number): Affine {
 }
 
 /** The five controls composed into one 3x4 matrix, offsets in 0-255 to match Pillow. */
-export function colorMatrix(draft: ImageEditDraft): number[] {
+export function colorMatrix(draft: ColorDraft): number[] {
   const offset = (1 - draft.contrast) / 2;
   const b = draft.brightness;
 
@@ -98,7 +104,7 @@ export function colorMatrix(draft: ImageEditDraft): number[] {
 }
 
 /** The 4x5 feColorMatrix form: RGB rows with offsets back in 0-1, then an identity alpha row. */
-export function feColorMatrixValues(draft: ImageEditDraft): string {
+export function feColorMatrixValues(draft: ColorDraft): string {
   const matrix = colorMatrix(draft);
   const rows: number[][] = [];
   for (let row = 0; row < 3; row += 1) {
@@ -109,7 +115,7 @@ export function feColorMatrixValues(draft: ImageEditDraft): string {
   return rows.flat().join(" ");
 }
 
-export function isColorIdentity(draft: ImageEditDraft): boolean {
+export function isColorIdentity(draft: ColorDraft): boolean {
   return (
     Math.abs(draft.brightness - 1) < IDENTITY_EPSILON &&
     Math.abs(draft.contrast - 1) < IDENTITY_EPSILON &&

@@ -22,6 +22,7 @@ from edit_sidecars import (
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
+from image_edit import color_matrix, is_color_identity
 from media_dimensions import media_dimensions
 from schemas import MaskRegion, VideoEditResponse, VideoEditSpec
 
@@ -55,6 +56,7 @@ def is_identity_spec(spec: VideoEditSpec) -> bool:
         and abs(spec.speed - 1.0) < IDENTITY_EPSILON
         and abs(spec.scale - 1.0) < IDENTITY_EPSILON
         and abs(spec.volume - 1.0) < IDENTITY_EPSILON
+        and is_color_identity(spec)
         and spec.trim_start < IDENTITY_EPSILON
         and spec.trim_end is None
     )
@@ -228,8 +230,26 @@ def build_audio_filters(spec: VideoEditSpec) -> str:
     return ",".join(link for link in links if link)
 
 
+def _color_expression(matrix: tuple[float, ...], row: int) -> str:
+    offset = row * 4
+    terms = [
+        f"{matrix[offset + column]:.9f}*{channel}(X,Y)" for column, channel in enumerate("rgb")
+    ]
+    terms.append(f"{matrix[offset + 3]:.9f}")
+    return "+".join(terms).replace("+-", "-")
+
+
+def build_color_filter(spec: VideoEditSpec) -> str:
+    matrix = color_matrix(spec)
+    expressions = ":".join(
+        f"{channel}='clip({_color_expression(matrix, row)},0,255)'"
+        for row, channel in enumerate("rgb")
+    )
+    return f"format=rgb24,geq={expressions}"
+
+
 def build_video_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> str:
-    """Crop, then scale, then retime. Dimensions are even because ``yuv420p`` cannot express an odd one."""
+    """Crop, scale and retime, then color. Dimensions are even because ``yuv420p`` cannot express an odd one."""
     filters: list[str] = []
 
     crop = spec.crop
@@ -253,6 +273,9 @@ def build_video_filters(spec: VideoEditSpec, frame_rate: float | None = None) ->
         # setpts compresses timestamps and keeps every frame; pin fps so a 2x 24fps clip stays 24fps.
         if frame_rate is not None:
             filters.append(f"fps={_fraction(frame_rate)}")
+
+    if not is_color_identity(spec):
+        filters.append(build_color_filter(spec))
 
     return ",".join(filters)
 
