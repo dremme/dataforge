@@ -105,6 +105,7 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
       size: DEFAULT_WATERMARK_SIZE,
       opacity: DEFAULT_WATERMARK_OPACITY,
       position: DEFAULT_WATERMARK_POSITION,
+      strip_metadata: false,
     },
     comfy_process: { preset: "", seed: null, prompt_text: "", overwrite_candidates: false },
   };
@@ -194,6 +195,7 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
       size: oneOf(WATERMARK_SIZES, watermark.size, DEFAULT_WATERMARK_SIZE),
       opacity: oneOf(WATERMARK_OPACITIES, watermark.opacity, DEFAULT_WATERMARK_OPACITY),
       position: oneOf(WATERMARK_POSITIONS, watermark.position, DEFAULT_WATERMARK_POSITION),
+      strip_metadata: flag(watermark.strip_metadata, false),
     },
     comfy_process: {
       preset: text(comfyProcess.preset),

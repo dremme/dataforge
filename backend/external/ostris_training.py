@@ -28,6 +28,7 @@ DEFAULT_TRAINING_MODEL = "krea2_turbo"
 TRAINING_TEMPLATES: dict[str, str] = {
     "krea2_turbo": "krea2-turbo.yml",
     "h3_fl2va": "h3-fl2va.yml",
+    "h3_ref2va": "h3-ref2va.yml",
 }
 
 SAMPLES_DIR_NAME = "samples"

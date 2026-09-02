@@ -114,8 +114,8 @@ class JobManagerExecutionTests(unittest.TestCase):
             write_mp4_video(root, "clip.mp4", metadata={"comment": "secret"})
 
             with patch(
-                "automation.strip_metadata.strip_mp4_metadata",
-                side_effect=RuntimeError("ffmpeg failed to strip MP4 metadata"),
+                "automation.strip_metadata.strip_isobmff_metadata",
+                side_effect=RuntimeError("ffmpeg failed to strip video metadata"),
             ):
                 job = job_manager.queue_job("strip_metadata", root)
                 finished = wait_for_job(job.id)

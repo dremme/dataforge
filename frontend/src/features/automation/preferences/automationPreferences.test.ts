@@ -66,7 +66,13 @@ describe("loadAutomationSettings", () => {
       batch_rename: { stem: "shot", start_number: 7 },
       find_duplicates: { threshold: "loose" },
       train_lora: { trigger_word: "mtnstyle", prompts: ["a lake"], model: "h3_fl2va" },
-      watermark: { text: "Sample Studio", size: "large", opacity: 75, position: "top" },
+      watermark: {
+        text: "Sample Studio",
+        size: "large",
+        opacity: 75,
+        position: "top",
+        strip_metadata: true,
+      },
     });
 
     const settings = await loadAutomationSettings(FOLDER);
@@ -98,6 +104,7 @@ describe("loadAutomationSettings", () => {
       size: "large",
       opacity: 75,
       position: "top",
+      strip_metadata: true,
     });
   });
 
@@ -126,6 +133,7 @@ describe("loadAutomationSettings", () => {
       size: "medium",
       opacity: 50,
       position: "bottom",
+      strip_metadata: false,
     });
   });
 

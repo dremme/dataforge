@@ -26,6 +26,7 @@ vi.mock("@/features/automation/preferences/automationPreferences", async (import
         size: "large" as const,
         opacity: 75 as const,
         position: "top" as const,
+        strip_metadata: false,
       },
       find_duplicates: { threshold: "loose" as const },
     })),
@@ -196,17 +197,24 @@ describe("useAutomationDialogOverlays", () => {
       size: "large",
       opacity: 75,
       position: "top",
+      strip_metadata: false,
     });
 
     await act(async () => {
-      result.current.dialogs.watermark.onConfirm("Sample Studio", "large", 75, "center");
+      result.current.dialogs.watermark.onConfirm("Sample Studio", "large", 75, "center", true);
     });
 
     expect(result.current.dialogs.watermark.open).toBe(false);
     expect(startJob).toHaveBeenCalledWith(
       "watermark",
       "C:\\Photos",
-      { text: "Sample Studio", size: "large", opacity: 75, position: "center" },
+      {
+        text: "Sample Studio",
+        size: "large",
+        opacity: 75,
+        position: "center",
+        strip_metadata: true,
+      },
       undefined,
     );
   });

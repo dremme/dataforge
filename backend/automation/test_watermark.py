@@ -498,6 +498,71 @@ class WatermarkVideoTests(unittest.TestCase):
             self.assertEqual(leftovers, [])
 
 
+def write_jpeg_with_exif(root: Path, name: str = "photo.jpg") -> Path:
+    """Software and Artist, not Orientation: ``exif_transpose`` drops Orientation on every read."""
+    media = root / name
+    exif = Image.Exif()
+    exif[0x0131] = "DataForge Test"
+    exif[0x013B] = "Someone"
+    Image.new("RGB", (200, 150), (40, 80, 120)).save(media, format="JPEG", exif=exif)
+    return media
+
+
+class WatermarkStripMetadataTests(unittest.TestCase):
+    def test_the_copy_carries_the_original_exif_by_default(self) -> None:
+        with TempMediaFolder() as root:
+            write_jpeg_with_exif(root)
+
+            run_watermark_job(root, text="Sample Studio")
+
+            with Image.open(watermarked(root, "photo.jpg")) as copy:
+                self.assertEqual(copy.getexif().get(0x0131), "DataForge Test")
+
+    def test_stripping_removes_the_exif_from_the_copy_only(self) -> None:
+        with TempMediaFolder() as root:
+            original = write_jpeg_with_exif(root)
+
+            run_watermark_job(root, text="Sample Studio", strip_metadata=True)
+
+            with Image.open(watermarked(root, "photo.jpg")) as copy:
+                self.assertEqual(dict(copy.getexif()), {})
+            with Image.open(original) as source:
+                self.assertEqual(source.getexif().get(0x0131), "DataForge Test")
+
+    def test_strips_the_temp_before_it_is_published(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with patch.object(watermark_module, "strip_file_metadata") as strip:
+                run_watermark_job(root, text="Sample Studio", strip_metadata=True)
+
+            stripped = Path(strip.call_args.args[0])
+            # Stripping the published copy would leave a marked file carrying metadata if it failed.
+            self.assertIn(WATERMARK_TEMP_MARKER, stripped.name)
+            self.assertFalse(stripped.exists())
+
+    def test_a_failed_strip_leaves_the_previous_copy_untouched(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            run_watermark_job(root, text="Sample Studio")
+            published = watermarked(root, "photo.png").read_bytes()
+
+            with patch.object(
+                watermark_module, "strip_file_metadata", side_effect=OSError("disk full")
+            ):
+                result = run_watermark_job(root, text="Other Studio", strip_metadata=True)
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["write_error"], 1)
+            self.assertEqual(stats["success"], 0)
+            self.assertEqual(watermarked(root, "photo.png").read_bytes(), published)
+            self.assertEqual(
+                sorted(path.name for path in (root / WATERMARK_DIR_NAME).iterdir()),
+                ["photo.png"],
+            )
+
+
 class WatermarkOutputFolderTests(unittest.TestCase):
     def test_rerunning_replaces_the_previous_output(self) -> None:
         with TempMediaFolder() as root:

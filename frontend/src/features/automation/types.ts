@@ -85,6 +85,7 @@ export type AutomationDialogsState = {
       size: WatermarkSizeName,
       opacity: WatermarkOpacity,
       position: WatermarkPosition,
+      stripMetadata: boolean,
     ) => void,
     JobSettingsByType["watermark"]
   >;

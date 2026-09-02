@@ -73,10 +73,10 @@ describe("TrainLoraDialog", () => {
     });
   });
 
-  it("defaults to Krea 2 Turbo and names it in the description", () => {
+  it("defaults the model dropdown to Krea 2 Turbo and names it in the description", () => {
     renderDialog();
 
-    expect(screen.getByRole("radio", { name: /Krea 2 Turbo/ })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveValue("krea2_turbo");
     expect(screen.getByText(/Trains a Krea 2 Turbo LoRA on them/)).toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe("TrainLoraDialog", () => {
     const user = userEvent.setup();
     const onConfirm = renderDialog();
 
-    await user.click(screen.getByRole("radio", { name: /MiniMax H3/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "h3_fl2va");
     expect(screen.getByText(/Trains a MiniMax H3 LoRA on them/)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("LoRA name"), "sample_train_v1");
@@ -100,7 +100,7 @@ describe("TrainLoraDialog", () => {
     const [firstPrompt] = screen.getAllByRole("textbox", { name: /Sample prompt/ });
     await user.clear(firstPrompt);
     await user.type(firstPrompt, "a kite lifting off a beach");
-    await user.click(screen.getByRole("radio", { name: /MiniMax H3/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "h3_fl2va");
 
     await user.type(screen.getByLabelText("LoRA name"), "sample_train_v1");
     await user.click(screen.getByRole("button", { name: "Start training" }));
@@ -170,7 +170,7 @@ describe("TrainLoraDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await user.click(screen.getByRole("radio", { name: /MiniMax H3/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "h3_fl2va");
     await user.click(screen.getByRole("button", { name: /Edit template/ }));
 
     expect(await screen.findByRole("heading", { name: "MiniMax H3 template" })).toBeInTheDocument();
@@ -195,7 +195,7 @@ describe("TrainLoraDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ template: "steps: 250" }));
   });
 
-  /** Each model keeps its own draft, so switching tiles cannot silently discard an edit. */
+  /** Each model keeps its own draft, so switching models cannot silently discard an edit. */
   it("keeps a separate template draft per model", async () => {
     const user = userEvent.setup();
     const onConfirm = renderDialog();
@@ -208,13 +208,13 @@ describe("TrainLoraDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /template/ })).toBeNull());
 
     // H3 was never edited, so it still runs its shipped template.
-    await user.click(screen.getByRole("radio", { name: /MiniMax H3/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "h3_fl2va");
     await user.type(screen.getByLabelText("LoRA name"), "sample_train_v1");
     await user.click(screen.getByRole("button", { name: "Start training" }));
     expect(onConfirm).toHaveBeenLastCalledWith(expect.objectContaining({ template: null }));
 
     // Switching back finds the Krea draft intact.
-    await user.click(screen.getByRole("radio", { name: /Krea 2 Turbo/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "krea2_turbo");
     await user.click(screen.getByRole("button", { name: "Start training" }));
     expect(onConfirm).toHaveBeenLastCalledWith(expect.objectContaining({ template: "steps: 250" }));
   });

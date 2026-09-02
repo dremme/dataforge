@@ -9,6 +9,7 @@ const DEFAULTS: JobSettingsByType["watermark"] = {
   size: "medium",
   opacity: 50,
   position: "bottom",
+  strip_metadata: false,
 };
 
 function renderDialog(
@@ -59,7 +60,24 @@ describe("WatermarkDialog", () => {
     await user.click(screen.getByRole("radio", { name: /Center/ }));
     await confirm(user);
 
-    expect(onConfirm).toHaveBeenCalledWith("Sample Studio", "large", 25, "center");
+    expect(onConfirm).toHaveBeenCalledWith("Sample Studio", "large", 25, "center", false);
+  });
+
+  it("submits the metadata strip when it is ticked", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+
+    await user.type(screen.getByLabelText("Watermark text"), "Sample Studio");
+    await user.click(screen.getByRole("checkbox", { name: "Strip metadata from the copies" }));
+    await confirm(user);
+
+    expect(onConfirm).toHaveBeenCalledWith("Sample Studio", "medium", 50, "bottom", true);
+  });
+
+  it("starts from the stored metadata strip", () => {
+    renderDialog({ strip_metadata: true });
+
+    expect(screen.getByRole("checkbox", { name: "Strip metadata from the copies" })).toBeChecked();
   });
 
   it("keeps the tile groups independent", async () => {
@@ -81,7 +99,7 @@ describe("WatermarkDialog", () => {
     await user.type(screen.getByLabelText("Watermark text"), "a:b's 100%");
     await confirm(user);
 
-    expect(onConfirm).toHaveBeenCalledWith("a:b's 100%", "medium", 50, "bottom");
+    expect(onConfirm).toHaveBeenCalledWith("a:b's 100%", "medium", 50, "bottom", false);
   });
 
   it("requires watermark text", async () => {
@@ -103,7 +121,7 @@ describe("WatermarkDialog", () => {
     await user.paste("first\nsecond");
     await confirm(user);
 
-    expect(onConfirm).toHaveBeenCalledWith("firstsecond", "medium", 50, "bottom");
+    expect(onConfirm).toHaveBeenCalledWith("firstsecond", "medium", 50, "bottom", false);
   });
 
   it("caps the text at the length the backend accepts", () => {
@@ -129,6 +147,7 @@ describe("WatermarkDialog", () => {
     expect(screen.getByLabelText("Watermark text")).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Large" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: /Top/ })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Strip metadata from the copies" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Starting..." })).toBeDisabled();
   });
 });

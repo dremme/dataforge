@@ -34,6 +34,7 @@ interface WatermarkDialogProps {
     size: WatermarkSizeName,
     opacity: WatermarkOpacity,
     position: WatermarkPosition,
+    stripMetadata: boolean,
   ) => void;
   onCancel: () => void;
 }
@@ -49,10 +50,12 @@ export function WatermarkDialog({
   const [size, setSize] = useState<WatermarkSizeName>(initialSettings.size);
   const [opacity, setOpacity] = useState<WatermarkOpacity>(initialSettings.opacity);
   const [position, setPosition] = useState<WatermarkPosition>(initialSettings.position);
+  const [stripMetadata, setStripMetadata] = useState(initialSettings.strip_metadata);
   const [error, setError] = useState<string | null>(null);
   const textId = useId();
   const errorId = useId();
   const groupId = useId();
+  const stripId = useId();
 
   const handleConfirm = useCallback(() => {
     if (busy) return;
@@ -68,8 +71,8 @@ export function WatermarkDialog({
     }
 
     setError(null);
-    onConfirm(trimmed, size, opacity, position);
-  }, [busy, onConfirm, opacity, position, size, text]);
+    onConfirm(trimmed, size, opacity, position, stripMetadata);
+  }, [busy, onConfirm, opacity, position, size, stripMetadata, text]);
 
   return (
     <Dialog
@@ -152,6 +155,22 @@ export function WatermarkDialog({
         disabled={busy}
         onChange={setPosition}
       />
+
+      <div className="dialog__field">
+        <label className="dialog__checkbox" htmlFor={stripId}>
+          <input
+            id={stripId}
+            type="checkbox"
+            className="dialog__checkbox-input"
+            checked={stripMetadata}
+            onChange={(event) => setStripMetadata(event.target.checked)}
+            disabled={busy}
+          />
+          <span className="dialog__checkbox-box" aria-hidden="true" />
+          <span className="dialog__checkbox-label">Strip metadata from the copies</span>
+        </label>
+        <p className="dialog__hint">Remove embedded metadata from media files.</p>
+      </div>
     </Dialog>
   );
 }

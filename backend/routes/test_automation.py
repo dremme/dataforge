@@ -194,7 +194,7 @@ class StripMetadataAutomationEndpointTests(unittest.TestCase):
         with TempMediaFolder() as root:
             response = client.post(f"/api/automation/strip-metadata?path={quote(str(root))}")
             self.assertEqual(response.status_code, 400)
-            self.assertIn("No PNG or MP4", response.json()["detail"])
+            self.assertIn("No JPG, PNG, WebP, BMP, MP4, MOV or M4V", response.json()["detail"])
 
     def test_starts_job_and_returns_payload(self) -> None:
         with TempMediaFolder() as root:
@@ -513,7 +513,9 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
             write_media(root, "photo.png")
 
             with _patched_job_runner("watermark", run):
-                response = self._start(root, size="large", opacity=75, position="top")
+                response = self._start(
+                    root, size="large", opacity=75, position="top", strip_metadata=True
+                )
 
                 self.assertEqual(response.status_code, 200)
                 payload = response.json()
@@ -524,6 +526,7 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
         self.assertEqual(received["size"], "large")
         self.assertEqual(received["opacity"], 75)
         self.assertEqual(received["position"], "top")
+        self.assertEqual(received["strip_metadata"], True)
 
     def test_starting_a_job_stores_the_settings_for_next_time(self) -> None:
         with TempMediaFolder() as root:
@@ -538,6 +541,7 @@ class WatermarkAutomationEndpointTests(unittest.TestCase):
                     "size": "large",
                     "opacity": 25,
                     "position": "center",
+                    "strip_metadata": False,
                 },
             )
 
@@ -853,7 +857,13 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
     ),
     "watermark": (
         "watermark",
-        {"text": "Sample Studio", "size": "large", "opacity": 75, "position": "top"},
+        {
+            "text": "Sample Studio",
+            "size": "large",
+            "opacity": 75,
+            "position": "top",
+            "strip_metadata": True,
+        },
     ),
     # Queue-time validation parses the preset; the shipped example doubles as the fixture.
     "comfy_process": (

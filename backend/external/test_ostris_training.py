@@ -60,6 +60,17 @@ class LoadTrainingTemplateTests(unittest.TestCase):
         # AI-Toolkit keeps the AdaLN projections out of the trained network for this arch.
         self.assertEqual(process["network"]["network_kwargs"]["ignore_if_contains"], ["adaln_proj"])
 
+    def test_loads_the_shipped_h3_ref2va_template(self) -> None:
+        template = load_training_template("h3_ref2va")
+
+        process = template["config"]["process"][0]
+        self.assertEqual(process["model"]["arch"], "minimax_h3_ref2va")
+        self.assertTrue(process["model"]["model_kwargs"]["image_refs_as_video"])
+        self.assertEqual(
+            process["model"]["assistant_lora_path"],
+            "ostris/minimax_h3_training_adapter/minimax_h3_ref2va_training_adapter_v1.safetensors",
+        )
+
     def test_h3_frame_counts_are_aligned_to_the_vae(self) -> None:
         """MiniMax-H3 snaps frame counts down to 17n+5, so unaligned values waste decode."""
         process = load_training_template("h3_fl2va")["config"]["process"][0]

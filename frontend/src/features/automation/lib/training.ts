@@ -12,6 +12,11 @@ export const TRAINING_MODEL_OPTIONS: ReadonlyArray<RadioTileOption<TrainingModel
     title: "MiniMax H3",
     description: "Video model. 1.6s sample clips.",
   },
+  {
+    value: "h3_ref2va",
+    title: "MiniMax H3 Ref2VA",
+    description: "Video model. 1.6s sample clips.",
+  },
 ];
 
 export const DEFAULT_TRAINING_MODEL: TrainingModel = "krea2_turbo";

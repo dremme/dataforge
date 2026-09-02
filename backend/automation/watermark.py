@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from automation.job_runner import CANCELLED, FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
+from automation.strip_metadata import strip_file_metadata
 from constants import VIDEO_EXTENSIONS, WATERMARK_DIR_NAME, WATERMARK_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
@@ -359,6 +360,7 @@ def _watermark_file(
     position: WatermarkPosition,
     ffmpeg: str | None,
     should_cancel: ShouldCancel | None,
+    strip_metadata: bool,
 ) -> str:
     """Write one watermarked copy and return whether it was an ``image`` or a ``video``."""
     temp_path = output_dir / f"{media_path.stem}{WATERMARK_TEMP_MARKER}{media_path.suffix}"
@@ -389,6 +391,11 @@ def _watermark_file(
             )
             kind = "image"
 
+        if strip_metadata:
+            # On the temp, not the published copy: a failed strip must not leave a marked
+            # file behind that still carries the metadata the user asked to remove.
+            strip_file_metadata(temp_path, ffmpeg=ffmpeg)
+
         final_path = output_dir / media_path.name
         publish_replacing(temp_path, final_path, _stale_path(final_path))
     finally:
@@ -407,6 +414,7 @@ def run_watermark_job(
     size: str = DEFAULT_WATERMARK_SIZE,
     opacity: int = DEFAULT_WATERMARK_OPACITY,
     position: str = DEFAULT_WATERMARK_POSITION,
+    strip_metadata: bool = False,
     ffmpeg: str | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
@@ -447,6 +455,7 @@ def run_watermark_job(
                 position=watermark_position,
                 ffmpeg=resolved_ffmpeg,
                 should_cancel=should_cancel,
+                strip_metadata=strip_metadata,
             )
             return FileOutcome(status="success", stats={"success": 1, f"{kind}_success": 1})
         except WatermarkCancelled:
@@ -517,6 +526,11 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_WATERMARK_POSITION,
         help="Watermark position: top-left, center, or bottom-right",
     )
+    parser.add_argument(
+        "--strip-metadata",
+        action="store_true",
+        help="Remove EXIF and container metadata from the watermarked copies",
+    )
     args = parser.parse_args(argv)
 
     folder = args.folder.expanduser().resolve()
@@ -527,6 +541,7 @@ def main(argv: list[str] | None = None) -> int:
             size=args.size,
             opacity=args.opacity,
             position=args.position,
+            strip_metadata=args.strip_metadata,
         )
     except ValueError as exc:
         logger.error("%s", exc)

@@ -190,6 +190,7 @@ class AutomationPreferencesEndpointTests(unittest.TestCase):
                 "size": "medium",
                 "opacity": 50,
                 "position": "bottom",
+                "strip_metadata": False,
             },
         )
 

@@ -356,7 +356,13 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         batch_rename: { stem: "", start_number: 1 },
         find_duplicates: { threshold: "near" },
         train_lora: { trigger_word: "", prompts: [], model: "krea2_turbo" },
-        watermark: { text: "", size: "medium", opacity: 50, position: "bottom" },
+        watermark: {
+          text: "",
+          size: "medium",
+          opacity: 50,
+          position: "bottom",
+          strip_metadata: false,
+        },
       });
     }
 

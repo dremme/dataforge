@@ -23,8 +23,8 @@ type AutomationMode = Literal["thinking", "instruct"]
 #: Which sampler input a workflow's text reached; anything not named negative counts as positive.
 type ComfyPromptRole = Literal["positive", "negative"]
 
-#: Keys of ``TRAINING_TEMPLATES``; ``h3_fl2va`` is video, ``krea2_turbo`` is image.
-type TrainingModel = Literal["krea2_turbo", "h3_fl2va"]
+#: Keys of ``TRAINING_TEMPLATES``; ``h3_*`` are video, ``krea2_turbo`` is image.
+type TrainingModel = Literal["krea2_turbo", "h3_fl2va", "h3_ref2va"]
 
 #: Chat template set; there is no ``high``. Template default ``xhigh``, ours ``medium``.
 type ReasoningEffort = Literal["low", "medium", "xhigh"]
@@ -388,6 +388,11 @@ class WatermarkJobSettings(BaseModel):
     size: WatermarkSizeName = "medium"
     opacity: WatermarkOpacity = 50
     position: WatermarkPosition = "bottom"
+    #: Off by default: the marked copy keeps the original's metadata unless asked otherwise.
+    strip_metadata: bool = Field(
+        default=False,
+        description="Remove EXIF and container metadata from the watermarked copies.",
+    )
 
 
 class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):

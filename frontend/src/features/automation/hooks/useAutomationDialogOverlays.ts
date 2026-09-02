@@ -191,7 +191,15 @@ export function useAutomationDialogOverlays({
           size: WatermarkSizeName,
           opacity: WatermarkOpacity,
           position: WatermarkPosition,
-        ) => startJobFromDialog("watermark", { text, size, opacity, position }),
+          stripMetadata: boolean,
+        ) =>
+          startJobFromDialog("watermark", {
+            text,
+            size,
+            opacity,
+            position,
+            strip_metadata: stripMetadata,
+          }),
       },
       comfyProcess: {
         ...shared("comfy_process"),

@@ -906,6 +906,13 @@
 }
 
 .watermark-dialog {
+  // 0.875rem, not the shared 1.125rem: four fields plus the metadata checkbox only clear a
+  // 720px viewport at the tighter rhythm, and this panel must never scroll.
+  .dialog__field,
+  .confirm-dialog__actions {
+    margin-top: 0.875rem;
+  }
+
   .dialog__option {
     align-items: center;
 

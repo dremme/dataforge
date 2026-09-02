@@ -248,6 +248,7 @@ def start_watermark_job(
         size=body.size,
         opacity=body.opacity,
         position=body.position,
+        strip_metadata=body.strip_metadata,
     )
 
 
