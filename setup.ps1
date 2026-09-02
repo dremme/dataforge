@@ -220,11 +220,18 @@ try {
     Set-Content -LiteralPath (Join-Path $VenvDir '.dataforge-deps-stamp') -Value ((Get-Date).ToString('o')) -Encoding ASCII
 
     Write-Host ''
-    Write-Host 'Installing frontend dependencies (npm install)...'
-    Push-Location -LiteralPath (Join-Path $Root 'frontend')
+    $FrontendDir = Join-Path $Root 'frontend'
+    Push-Location -LiteralPath $FrontendDir
     try {
-        & $NpmCmd install | Out-Host
-        if ($LASTEXITCODE -ne 0) { throw 'Frontend npm install failed.' }
+        if (Test-Path (Join-Path $FrontendDir 'package-lock.json')) {
+            Write-Host 'Installing frontend dependencies (npm ci)...'
+            & $NpmCmd ci | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend npm ci failed.' }
+        } else {
+            Write-Host 'Installing frontend dependencies (npm install)...'
+            & $NpmCmd install | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend npm install failed.' }
+        }
     } finally {
         Pop-Location
     }

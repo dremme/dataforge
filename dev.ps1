@@ -108,7 +108,8 @@ if ($startFrontend) { Update-DevGeneratedSources | Out-Null }
 if (-not (Test-DevPrerequisites -SkipBackend:(-not $startBackend) -SkipFrontend:(-not $startFrontend))) {
     Exit-Launcher
 }
-Test-DependencyDrift -SkipBackend:(-not $startBackend) -SkipFrontend:(-not $startFrontend) | Out-Null
+if ($startFrontend -and -not (Sync-FrontendDependencies)) { Exit-Launcher }
+if ($startBackend) { Test-BackendDependencyDrift | Out-Null }
 
 # Clear stale listeners before launching. Vite runs with strictPort, so a
 # leftover node.exe on the UI port kills the frontend window the moment it starts.

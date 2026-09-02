@@ -22,7 +22,7 @@ MIN_PY_MAJOR=3
 MIN_PY_MINOR=12
 
 # Keep in step with the engines range in frontend/package.json. Both come from what
-# the lockfile actually resolves: eslint 10 and sass 1.101.
+# the lockfile actually resolves: eslint 10 and sass 1.103.
 NODE_RANGE="^20.19.0 || ^22.13.0 || >=24"
 
 fail() {
@@ -115,7 +115,7 @@ NODE_VERSION="$(node --version)"
 if ! node_version_ok "$NODE_VERSION"; then
     err "Node $NODE_VERSION is outside the supported range $NODE_RANGE."
     say "        This is what the lockfile resolves to, not a preference: eslint 10"
-    say "        and sass 1.101 both refuse anything older, and npm will now stop"
+    say "        and sass 1.103 both refuse anything older, and npm will now stop"
     say "        the install rather than fail later inside vite."
     say ""
     say "        Note that 21.x, 22.0-22.12 and 23.x are excluded too - a recent"
@@ -160,7 +160,7 @@ say "Upgrading pip and installing backend dependencies..."
     -r "$DEV_BACKEND/requirements.txt" \
     -r "$DEV_BACKEND/requirements-dev.txt" || fail "Backend dependency installation failed."
 
-# Dates the install, so check_dependency_drift can warn when a later git pull brings
+# Dates the install, so check_backend_dependency_drift can warn when a later git pull brings
 # in requirements the venv never saw. Same filename the PowerShell side reads.
 date +%Y-%m-%dT%H:%M:%S%z > "$DEV_DEPS_STAMP"
 say ""

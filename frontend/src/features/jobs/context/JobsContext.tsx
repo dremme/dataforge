@@ -129,9 +129,11 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
           const [internal, external] = await Promise.all([
             fetchJobs(),
-            fetchOstrisJobs().catch(
-              (): ExternalJobsSnapshot => ({ jobs: [], active_count: 0, available: false }),
-            ),
+            fetchOstrisJobs().catch((): ExternalJobsSnapshot => ({
+              jobs: [],
+              active_count: 0,
+              available: false,
+            })),
           ]);
 
           last = { internal, external };

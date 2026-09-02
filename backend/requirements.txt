@@ -4,8 +4,8 @@ fastapi==0.115.6
 # test_media_file_response.StarletteApiGuardTests fails loudly if they move.
 starlette==0.41.3
 uvicorn[standard]==0.34.0
-python-multipart==0.0.20
-python-dotenv==1.1.0
+python-multipart==0.0.32
+python-dotenv==1.2.3
 httpx==0.28.1
 openai==1.59.6
 Pillow==11.1.0

@@ -242,23 +242,29 @@ check_prerequisites() {
     return "$status"
 }
 
-check_dependency_drift() {
-    # Warns when a git pull brought in dependencies that were never installed.
-    # Advisory only - it never blocks startup.
-    local check_backend="$1" check_frontend="$2"
-    local lock installed name req
+sync_frontend_dependencies() {
+    local lock="$DEV_FRONTEND/package-lock.json" installed="$DEV_FRONTEND/node_modules/.package-lock.json"
 
-    if [ "$check_frontend" = "1" ]; then
-        lock="$DEV_FRONTEND/package-lock.json"
-        # npm rewrites this copy on every install, so it dates the install itself.
-        installed="$DEV_FRONTEND/node_modules/.package-lock.json"
-        if [ -f "$lock" ] && [ -f "$installed" ] && [ "$lock" -nt "$installed" ]; then
-            warn "frontend/package-lock.json is newer than the installed node_modules."
-            say "       Run ./setup.sh if the UI fails to build."
-        fi
+    [ -f "$lock" ] || return 0
+    if [ -f "$installed" ] && [ ! "$lock" -nt "$installed" ]; then
+        return 0
     fi
 
-    if [ "$check_backend" = "1" ] && [ -f "$DEV_DEPS_STAMP" ]; then
+    say "Syncing frontend dependencies from package-lock.json (npm ci)..."
+    (cd "$DEV_FRONTEND" && npm ci)
+}
+
+check_backend_dependency_drift() {
+    # Warns when a git pull brought in backend dependencies that were never
+    # installed. Advisory only - it never blocks startup.
+    #
+    # There is no frontend arm. sync_frontend_dependencies reads the same lockfile
+    # mtimes and reinstalls from them, so by the time a launcher gets here the
+    # frontend has either been resynced or the launcher has already exited. Only
+    # pip has no equivalent, since nothing reinstalls it automatically.
+    local name req
+
+    if [ -f "$DEV_DEPS_STAMP" ]; then
         for name in requirements.txt requirements-dev.txt; do
             req="$DEV_BACKEND/$name"
             if [ -f "$req" ] && [ "$req" -nt "$DEV_DEPS_STAMP" ]; then

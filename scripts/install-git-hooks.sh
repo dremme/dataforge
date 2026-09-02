@@ -11,4 +11,4 @@ echo "Pre-commit will auto-fix lint/format issues, then run backend Ruff, fronte
 echo
 echo "Dev dependencies required (from project root):"
 echo "  backend: backend/.venv/bin/pip install -r backend/requirements.txt -r backend/requirements-dev.txt"
-echo "  frontend: cd frontend && npm install"
+echo "  frontend: cd frontend && npm ci"

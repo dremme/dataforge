@@ -95,7 +95,8 @@ say ""
 update_generated_sources || true
 
 check_prerequisites 1 1 || exit 1
-check_dependency_drift 1 1
+sync_frontend_dependencies || exit 1
+check_backend_dependency_drift
 
 if [ "$NO_BUILD" = "1" ]; then
     if [ ! -f "$DEV_DIST/index.html" ]; then

@@ -82,7 +82,8 @@ Write-Host ''
 Update-DevGeneratedSources | Out-Null
 
 if (-not (Test-DevPrerequisites)) { Exit-Launcher }
-Test-DependencyDrift | Out-Null
+if (-not (Sync-FrontendDependencies)) { Exit-Launcher }
+Test-BackendDependencyDrift | Out-Null
 
 if ($NoBuild) {
     if (-not (Test-Path -LiteralPath (Join-Path $paths.Dist 'index.html') -PathType Leaf)) {

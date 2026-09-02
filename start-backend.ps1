@@ -22,7 +22,7 @@ if (-not (Test-DevPrerequisites -SkipFrontend)) {
     Read-Host 'Press Enter to exit' | Out-Null
     exit 1
 }
-Test-DependencyDrift -SkipFrontend | Out-Null
+Test-BackendDependencyDrift | Out-Null
 
 if (-not (Clear-DevPort -Port $DevApiPort -Label 'backend')) {
     Read-Host 'Press Enter to exit' | Out-Null

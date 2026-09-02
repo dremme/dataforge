@@ -216,7 +216,7 @@ function Test-DevPrerequisites {
         Write-Host '[ERROR] Frontend dependencies not installed.' -ForegroundColor Red
         Write-Host '        Run setup.bat from the project root, or:'
         Write-Host '          cd frontend'
-        Write-Host '          npm install'
+        Write-Host '          npm ci'
         $ok = $false
     }
 
@@ -235,46 +235,55 @@ function Test-DevPrerequisites {
     return $ok
 }
 
-function Test-DependencyDrift {
+function Sync-FrontendDependencies {
+    $paths = Get-DevPaths
+    $lock = Join-Path $paths.Frontend 'package-lock.json'
+    $installed = Join-Path $paths.Frontend 'node_modules\.package-lock.json'
+    if (-not (Test-Path $lock)) { return $true }
+    if ((Test-Path $installed) -and ((Get-Item $lock).LastWriteTimeUtc -le (Get-Item $installed).LastWriteTimeUtc)) {
+        return $true
+    }
+
+    Write-Host 'Syncing frontend dependencies from package-lock.json (npm ci)...'
+    $previous = Get-Location
+    try {
+        Set-Location -LiteralPath $paths.Frontend
+        & (Get-NpmCommand) ci | Out-Host
+        return $LASTEXITCODE -eq 0
+    } catch {
+        Write-Host ('[ERROR] Could not run npm ci: {0}' -f $_.Exception.Message) -ForegroundColor Red
+        return $false
+    } finally {
+        Set-Location -LiteralPath $previous
+    }
+}
+
+function Test-BackendDependencyDrift {
     <#
     .SYNOPSIS
-      Warns when a git pull brought in dependencies that were never installed.
-      Advisory only - it never blocks startup.
-    #>
-    param(
-        [switch]$SkipBackend,
-        [switch]$SkipFrontend
-    )
+      Warns when a git pull brought in backend dependencies that were never
+      installed. Advisory only - it never blocks startup.
 
+    .DESCRIPTION
+      There is no frontend arm. Sync-FrontendDependencies reads the same lockfile
+      mtimes and reinstalls from them, so by the time a launcher gets here the
+      frontend has either been resynced or the launcher has already exited. Only
+      pip has no equivalent, since nothing reinstalls it automatically.
+    #>
     $paths = Get-DevPaths
     $stale = $false
 
-    if (-not $SkipFrontend) {
-        $lock = Join-Path $paths.Frontend 'package-lock.json'
-        # npm rewrites this copy on every install, so it dates the install itself.
-        $installed = Join-Path $paths.Frontend 'node_modules\.package-lock.json'
-        if ((Test-Path $lock) -and (Test-Path $installed)) {
-            if ((Get-Item $lock).LastWriteTimeUtc -gt (Get-Item $installed).LastWriteTimeUtc) {
-                Write-Host '[WARN] frontend/package-lock.json is newer than the installed node_modules.' -ForegroundColor Yellow
-                Write-Host '       Run setup.bat if the UI fails to build.'
+    # Written by setup.bat after a successful pip install. Absent on installs
+    # that predate it, in which case there is nothing to compare against.
+    $stamp = Join-Path $paths.Backend '.venv\.dataforge-deps-stamp'
+    if (Test-Path $stamp) {
+        $stampTime = (Get-Item $stamp).LastWriteTimeUtc
+        foreach ($name in @('requirements.txt', 'requirements-dev.txt')) {
+            $req = Join-Path $paths.Backend $name
+            if ((Test-Path $req) -and ((Get-Item $req).LastWriteTimeUtc -gt $stampTime)) {
+                Write-Host ('[WARN] backend/{0} is newer than the last dependency install.' -f $name) -ForegroundColor Yellow
+                Write-Host '       Run setup.bat if the API fails to import something.'
                 $stale = $true
-            }
-        }
-    }
-
-    if (-not $SkipBackend) {
-        # Written by setup.bat after a successful pip install. Absent on installs
-        # that predate it, in which case there is nothing to compare against.
-        $stamp = Join-Path $paths.Backend '.venv\.dataforge-deps-stamp'
-        if (Test-Path $stamp) {
-            $stampTime = (Get-Item $stamp).LastWriteTimeUtc
-            foreach ($name in @('requirements.txt', 'requirements-dev.txt')) {
-                $req = Join-Path $paths.Backend $name
-                if ((Test-Path $req) -and ((Get-Item $req).LastWriteTimeUtc -gt $stampTime)) {
-                    Write-Host ('[WARN] backend/{0} is newer than the last dependency install.' -f $name) -ForegroundColor Yellow
-                    Write-Host '       Run setup.bat if the API fails to import something.'
-                    $stale = $true
-                }
             }
         }
     }

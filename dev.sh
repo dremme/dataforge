@@ -108,7 +108,10 @@ if [ "$START_FRONTEND" = "1" ]; then
 fi
 
 check_prerequisites "$START_BACKEND" "$START_FRONTEND" || exit 1
-check_dependency_drift "$START_BACKEND" "$START_FRONTEND"
+if [ "$START_FRONTEND" = "1" ]; then
+    sync_frontend_dependencies || exit 1
+fi
+if [ "$START_BACKEND" = "1" ]; then check_backend_dependency_drift; fi
 
 # Clear stale listeners before launching. Vite runs with strictPort, so a leftover
 # node on the UI port kills the frontend the moment it starts.

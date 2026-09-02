@@ -12,6 +12,14 @@ SETUP_PS1 = ROOT / "setup.ps1"
 START_BAT = ROOT / "start.bat"
 START_PS1 = ROOT / "start.ps1"
 DEV_COMMON = ROOT / "scripts" / "dev-common.ps1"
+DEV_COMMON_SH = ROOT / "scripts" / "dev-common.sh"
+DEV_PS1 = ROOT / "dev.ps1"
+DEV_SH = ROOT / "dev.sh"
+SETUP_SH = ROOT / "setup.sh"
+START_FRONTEND_PS1 = ROOT / "start-frontend.ps1"
+START_SH = ROOT / "start.sh"
+INSTALL_HOOKS_PS1 = ROOT / "scripts" / "install-git-hooks.ps1"
+INSTALL_HOOKS_SH = ROOT / "scripts" / "install-git-hooks.sh"
 
 
 def _read(path: Path) -> str:
@@ -87,7 +95,7 @@ class SetupPs1BootstrapTests(unittest.TestCase):
         text = _read(SETUP_PS1)
         gen_at = text.index("generate_types.py")
         pip_at = text.index("requirements.txt")
-        npm_at = text.index("npm install")
+        npm_at = text.index("npm ci")
         self.assertLess(pip_at, gen_at)
         self.assertLess(npm_at, gen_at)
 
@@ -133,6 +141,55 @@ class StartLauncherBootstrapTests(unittest.TestCase):
         text = _read(START_PS1)
         self.assertIn("VenvPy", text)
         self.assertNotRegex(text, r"(^|[|&;])\s*python(\s|$)")
+
+
+class FrontendLockfileTests(unittest.TestCase):
+    def test_setup_scripts_install_the_locked_frontend_dependency_tree(self) -> None:
+        self.assertIn("& $NpmCmd ci", _read(SETUP_PS1))
+        self.assertIn("npm ci", _read(SETUP_SH))
+
+    def test_shared_launch_helpers_resync_changed_lockfiles_with_npm_ci(self) -> None:
+        for path, function_name in (
+            (DEV_COMMON, "Sync-FrontendDependencies"),
+            (DEV_COMMON_SH, "sync_frontend_dependencies"),
+        ):
+            text = _read(path)
+            self.assertIn(function_name, text)
+            self.assertIn("package-lock.json", text)
+            self.assertIn("npm ci", text)
+
+    def test_frontend_launchers_sync_dependencies_before_starting(self) -> None:
+        for path, function_name in (
+            (START_PS1, "Sync-FrontendDependencies"),
+            (DEV_PS1, "Sync-FrontendDependencies"),
+            (START_FRONTEND_PS1, "Sync-FrontendDependencies"),
+            (START_SH, "sync_frontend_dependencies"),
+            (DEV_SH, "sync_frontend_dependencies"),
+        ):
+            self.assertIn(function_name, _read(path))
+
+    def test_setup_scripts_fall_back_to_npm_install_without_a_lockfile(self) -> None:
+        # npm ci refuses to run at all when there is no lockfile, which would turn a
+        # missing file into an unreadable npm error partway through setup.
+        for path in (SETUP_PS1, SETUP_SH):
+            text = _read(path)
+            self.assertIn("package-lock.json", text)
+            self.assertIn("npm install", text)
+
+    def test_only_the_setup_fallback_may_run_npm_install(self) -> None:
+        # Everywhere else - launch helpers and the hook installer's instructions -
+        # names npm ci, so nobody is told to install a tree the lockfile never pinned.
+        for path in (DEV_COMMON, DEV_COMMON_SH, INSTALL_HOOKS_PS1, INSTALL_HOOKS_SH):
+            self.assertNotIn("npm install", _read(path))
+            self.assertIn("npm ci", _read(path))
+
+    def test_dependency_drift_no_longer_duplicates_the_frontend_sync(self) -> None:
+        # Both read the same two lockfile mtimes, and the sync runs first in every
+        # launcher, so a frontend arm here could only ever report what it just fixed.
+        for path in (DEV_COMMON, DEV_COMMON_SH):
+            self.assertNotIn(
+                "package-lock.json is newer than the installed node_modules", _read(path)
+            )
 
 
 if __name__ == "__main__":

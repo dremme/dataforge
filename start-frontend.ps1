@@ -18,7 +18,10 @@ if (-not (Test-DevPrerequisites -SkipBackend)) {
     Read-Host 'Press Enter to exit' | Out-Null
     exit 1
 }
-Test-DependencyDrift -SkipBackend | Out-Null
+if (-not (Sync-FrontendDependencies)) {
+    Read-Host 'Press Enter to exit' | Out-Null
+    exit 1
+}
 
 # Vite runs with strictPort, so a leftover node.exe here is fatal rather than
 # something it can route around.

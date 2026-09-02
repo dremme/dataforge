@@ -11,4 +11,4 @@ Write-Host "Pre-commit will auto-fix lint/format issues, then run backend Ruff, 
 Write-Host ""
 Write-Host "Dependencies required (from project root):"
 Write-Host "  backend: backend\.venv\Scripts\pip install -r backend\requirements.txt -r backend\requirements-dev.txt"
-Write-Host "  frontend: cd frontend; npm install"
+Write-Host "  frontend: cd frontend; npm ci"

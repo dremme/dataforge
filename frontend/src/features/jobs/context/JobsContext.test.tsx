@@ -270,8 +270,7 @@ describe("JobsProvider", () => {
     listExternalJobs.mockResolvedValue({ jobs: [], active_count: 0, available: false });
 
     let releaseFirst:
-      | ((value: { jobs: (typeof runningJob)[]; active_count: number }) => void)
-      | null = null;
+      ((value: { jobs: (typeof runningJob)[]; active_count: number }) => void) | null = null;
     listJobs
       .mockImplementationOnce(
         () =>
