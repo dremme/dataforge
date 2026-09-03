@@ -364,7 +364,7 @@ def _caption_outcome(
             return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
         try:
-            save_caption(media_path, clean_text)
+            save_caption(media_path, clean_text, trailing_newline=False)
         except (OSError, ValueError) as exc:
             return FileOutcome(
                 status="write_error",

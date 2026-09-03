@@ -885,7 +885,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             self.assertIsNone(caption)
             mock_complete.assert_not_called()
 
-    def test_run_job_writes_completed_caption(self) -> None:
+    def test_run_job_trims_surrounding_whitespace_from_completed_caption(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")
             media = write_media(root, "photo.png")
@@ -899,13 +899,15 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             )
             self.assertGreater(len(polished), 250)
 
-            with patch("automation.auto_caption.complete_caption", return_value=polished):
+            with patch(
+                "automation.auto_caption.complete_caption",
+                return_value=f" \n{polished}\n\n ",
+            ):
                 result = run_auto_caption_job(root)
 
             self.assertEqual(result["stats"]["success"], 1)
-            self.assertEqual(
-                media.with_suffix(".txt").read_text(encoding="utf-8").strip(), polished
-            )
+            self.assertEqual(result["results"][0]["description"], polished)
+            self.assertEqual(media.with_suffix(".txt").read_text(encoding="utf-8"), polished)
 
     def test_run_job_writes_txt_and_leaves_leftover_json_alone(self) -> None:
         with TempMediaFolder() as root:

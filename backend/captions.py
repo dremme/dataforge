@@ -153,10 +153,14 @@ def save_caption(
     text: str,
     *,
     resolve_issue: bool = False,
+    trailing_newline: bool = True,
 ) -> dict[str, object]:
     caption_path = caption_path_for(media_path)
     normalized = text.strip()
-    caption_path.write_text(normalized + ("\n" if normalized else ""), encoding="utf-8")
+    caption_path.write_text(
+        normalized + ("\n" if normalized and trailing_newline else ""),
+        encoding="utf-8",
+    )
 
     return _complete_save_response(
         media_path,
