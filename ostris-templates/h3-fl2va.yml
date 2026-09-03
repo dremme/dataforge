@@ -64,7 +64,7 @@ config:
         qtype_te: "nvfp4"
         arch: "minimax_h3"
         low_vram: true
-        assistant_lora_path: "ostris/minimax_h3_training_adapter/minimax_h3_training_adapter_v1.safetensors"
+        assistant_lora_path: "ostris/minimax_h3_training_adapter/minimax_h3_training_adapter_v2.safetensors"
       sample:
         sampler: "flowmatch"
         sample_every: 200

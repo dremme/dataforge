@@ -316,6 +316,12 @@ def watermark_video(
         "-y",
         "-i",
         str(source),
+        # The first video and every audio track: default selection keeps only one audio stream,
+        # but `-map 0` would pull in cover art (undrawable) and untyped subtitle/data streams.
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
         # No -noautorotate: ffmpeg applies the display matrix ahead of the filter.
         "-vf",
         build_drawtext_filter(
@@ -394,7 +400,7 @@ def _watermark_file(
         if strip_metadata:
             # On the temp, not the published copy: a failed strip must not leave a marked
             # file behind that still carries the metadata the user asked to remove.
-            strip_file_metadata(temp_path, ffmpeg=ffmpeg)
+            strip_file_metadata(temp_path, ffmpeg=ffmpeg, should_cancel=should_cancel)
 
         final_path = output_dir / media_path.name
         publish_replacing(temp_path, final_path, _stale_path(final_path))

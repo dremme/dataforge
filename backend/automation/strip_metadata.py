@@ -4,23 +4,22 @@ from __future__ import annotations
 
 import argparse
 import logging
-import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+from PIL import UnidentifiedImageError
 
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import CANCELLED, FileOutcome, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import IMAGE_EXTENSIONS, ISOBMFF_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
+from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
 from image_io import JPEG_SUFFIXES
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 STRIP_PNG_SUFFIX = ".png"
 STRIP_WEBP_SUFFIX = ".webp"
@@ -50,6 +49,12 @@ _WEBP_VP8X_CHUNK = b"VP8X"
 # Feature flags in the first payload byte of VP8X; ICC (0x20) is kept for the reason above.
 _WEBP_VP8X_METADATA_FLAGS = 0x08 | 0x04
 
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_PNG_IEND = b"IEND"
+# Text, EXIF and modification time identify the source; iCCP/gAMA/cHRM/sRGB/pHYs/tRNS and the
+# animation chunks all change how the image renders, so only the provenance chunks are dropped.
+_PNG_DROPPED_CHUNKS = frozenset({b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME"})
+
 
 def list_strip_metadata_files(folder: Path) -> list[Path]:
     return list_folder_media(folder, STRIP_METADATA_EXTENSIONS, order="mtime")
@@ -74,16 +79,38 @@ def _replace_with_bytes(path: Path, data: bytes) -> None:
         raise
 
 
+def strip_png_chunks(data: bytes) -> bytes:
+    """Drop the text, EXIF and time chunks. Re-saving through Pillow would re-compress the pixels
+    and discard iCCP/gAMA and any APNG frames along with the metadata."""
+    if not data.startswith(_PNG_SIGNATURE):
+        raise UnidentifiedImageError("Not a PNG file")
+
+    kept = [_PNG_SIGNATURE]
+    index = len(_PNG_SIGNATURE)
+    while index + 8 <= len(data):
+        length = int.from_bytes(data[index : index + 4], "big")
+        chunk_type = data[index + 4 : index + 8]
+        # Length, type, payload and the 4-byte CRC; copying whole chunks keeps their CRC valid.
+        end = index + 12 + length
+        if end > len(data):
+            raise UnidentifiedImageError("Truncated PNG chunk")
+
+        if chunk_type not in _PNG_DROPPED_CHUNKS:
+            kept.append(data[index:end])
+        index = end
+
+        if chunk_type == _PNG_IEND:
+            return b"".join(kept)
+
+    raise UnidentifiedImageError("PNG ended before the IEND chunk")
+
+
 def strip_png_metadata(path: Path) -> None:
-    """Rewrite a PNG using only its pixel data, removing all ancillary chunks."""
-    with Image.open(path) as image:
-        image.load()
-        clean = Image.frombytes(image.mode, image.size, image.tobytes())
-        if image.mode == "P":
-            palette = image.getpalette()
-            if palette is not None:
-                clean.putpalette(palette)
-        clean.save(path, format="PNG")
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise UnidentifiedImageError(str(exc)) from exc
+    _replace_with_bytes(path, strip_png_chunks(data))
 
 
 def strip_jpeg_segments(data: bytes) -> bytes:
@@ -175,7 +202,9 @@ def strip_webp_metadata(path: Path) -> None:
     _replace_with_bytes(path, strip_webp_chunks(data))
 
 
-def strip_isobmff_metadata(path: Path, *, ffmpeg: str | None = None) -> None:
+def strip_isobmff_metadata(
+    path: Path, *, ffmpeg: str | None = None, should_cancel: ShouldCancel | None = None
+) -> None:
     """Remove MP4/MOV/M4V metadata (comments, titles, etc.) without re-encoding any stream."""
     executable = ffmpeg or ffmpeg_path()
     if not executable:
@@ -184,10 +213,12 @@ def strip_isobmff_metadata(path: Path, *, ffmpeg: str | None = None) -> None:
     temp_path = path.with_name(f"{path.stem}{STRIP_TEMP_MARKER}{path.suffix}")
     command = [
         executable,
-        "-y",
+        "-nostdin",
         "-hide_banner",
+        "-nostats",
         "-loglevel",
         "error",
+        "-y",
         "-i",
         str(path),
         "-map",
@@ -198,41 +229,33 @@ def strip_isobmff_metadata(path: Path, *, ffmpeg: str | None = None) -> None:
         "-1",
         "-c",
         "copy",
-        "-movflags",
-        "use_metadata_tags",
         # Without this the muxer stamps its own `encoder` tag on the way out, so a stripped
         # file still names the software that wrote it.
         "-fflags",
         "+bitexact",
+        # A plain, front-loaded container: a stripped copy is still a standard streamable MP4.
+        "-movflags",
+        "+faststart",
         str(temp_path),
     ]
 
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            check=False,
-        )
-    except OSError as exc:
-        if temp_path.exists():
-            temp_path.unlink(missing_ok=True)
-        raise RuntimeError(f"Failed to run ffmpeg: {exc}") from exc
-
-    if completed.returncode != 0:
-        stderr = completed.stderr.decode("utf-8", errors="replace").strip()
-        if temp_path.exists():
-            temp_path.unlink(missing_ok=True)
-        raise RuntimeError(stderr or "ffmpeg failed to strip video metadata")
+        run_ffmpeg(command, should_cancel=should_cancel)
+    except (RuntimeError, FfmpegCancelled):
+        temp_path.unlink(missing_ok=True)
+        raise
 
     temp_path.replace(path)
 
 
-def strip_file_metadata(path: Path, *, ffmpeg: str | None = None) -> str:
+def strip_file_metadata(
+    path: Path, *, ffmpeg: str | None = None, should_cancel: ShouldCancel | None = None
+) -> str:
     """Strip one file in place and return whether it was an ``image`` or a ``video``."""
     suffix = path.suffix.lower()
 
     if suffix in STRIP_VIDEO_EXTENSIONS:
-        strip_isobmff_metadata(path, ffmpeg=ffmpeg)
+        strip_isobmff_metadata(path, ffmpeg=ffmpeg, should_cancel=should_cancel)
         return "video"
 
     if suffix in JPEG_SUFFIXES:
@@ -263,8 +286,12 @@ def run_strip_metadata_job(
 
     def process(media_path: Path) -> FileOutcome:
         try:
-            kind = strip_file_metadata(media_path, ffmpeg=resolved_ffmpeg)
+            kind = strip_file_metadata(
+                media_path, ffmpeg=resolved_ffmpeg, should_cancel=should_cancel
+            )
             return FileOutcome(status="success", stats={"success": 1, f"{kind}_success": 1})
+        except FfmpegCancelled:
+            return FileOutcome(status=CANCELLED, stats={"cancelled": 1}, stop=True)
         except UnidentifiedImageError as exc:
             return FileOutcome(
                 status="read_error",

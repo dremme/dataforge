@@ -114,7 +114,7 @@ A new job of the same type for a folder replaces the previous local job record f
 | **Rename**               | Renames media in sequence                                                                 | Carries related sidecars. This has no automatic undo.                                                                                                     |
 | **Watermark**            | Burns text into image/video copies                                                        | Writes copies to `watermarked/`, without caption sidecars. Optionally strips their metadata.                                                              |
 | **Process with ComfyUI** | Runs still images through a ComfyUI preset                                                | Stages PNG candidates in `staging/`; **Review candidates** decides whether to publish each one. See [ComfyUI](comfyui.md).                                |
-| **Strip metadata**       | Removes supported embedded metadata                                                       | Rewrites supported media in place without altering caption sidecars.                                                                                      |
+| **Strip metadata**       | Removes embedded provenance metadata                                                       | Rewrites supported media in place without altering caption sidecars. Removes provenance only (EXIF, text/workflow chunks, container tags); the colour profile, colour and density chunks, and every stream are kept. |
 | **Backup captions**      | Copies `.txt` captions to `.backup/`                                                      | Existing backup files are kept unless overwrite is selected.                                                                                              |
 | **Restore captions**     | Restores `.txt` captions from `.backup/`                                                  | Overwrites current captions for media that still exists; never restores issue findings.                                                                   |
 
@@ -137,6 +137,8 @@ All listed formats appear in the gallery, receive thumbnails, support `.txt` cap
 | AVI / MKV / WMV / FLV | Listed and captioned; browser playback is not supported by the app | No                | No                                   | No        | No                                | No                   |
 
 **Process with ComfyUI** accepts still-image formats only: JPG/JPEG, PNG, WebP, and BMP. Watermarking, video editing, metadata stripping, and embedded workflow inspection use MP4/MOV/M4V for video because those containers can be read and remuxed safely here.
+
+**Strip metadata** removes provenance only. For images it deletes EXIF, XMP, and text chunks (including any embedded ComfyUI workflow) but preserves the ICC colour profile and the colour and density chunks, so the picture renders identically. For video it drops container tags and chapters and remuxes without re-encoding, keeping every audio and video stream. The same guarantees apply to the optional strip step in the **Watermark** job.
 
 ## Files DataForge creates
 

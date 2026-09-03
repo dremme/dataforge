@@ -42,6 +42,13 @@ def save_image_preserving_format(
     """Write as the format ``suffix`` names. Paletted sources come back truecolor unless they carried transparency."""
     suffix = suffix.lower()
 
+    # convert()/alpha_composite() carry info forward, but Pillow's JPEG and WebP savers read the
+    # colour profile and density from encoderinfo only, so both are lost unless passed explicitly.
+    icc_profile = image.info.get("icc_profile")
+    dpi = image.info.get("dpi")
+    icc = {"icc_profile": icc_profile} if icc_profile else {}
+    density = {"dpi": dpi} if dpi else {}
+
     if suffix in JPEG_SUFFIXES:
         # 4:4:4: default 4:2:0 halves the resolution of thin strokes a crop magnifies.
         image.convert("RGB").save(
@@ -51,11 +58,13 @@ def save_image_preserving_format(
             subsampling=0,
             optimize=True,
             **({"exif": exif.tobytes()} if exif else {}),
+            **icc,
+            **density,
         )
         return
 
     if suffix == ".bmp":
-        # BMP has no alpha a viewer can be relied on to read.
+        # BMP has no slot for a colour profile or density a viewer can be relied on to read.
         image.convert("RGB").save(destination, format="BMP")
         return
 
@@ -65,7 +74,7 @@ def save_image_preserving_format(
     prepared = image if keeps_alpha else image.convert("RGB")
 
     if suffix == ".webp":
-        prepared.save(destination, format="WEBP", quality=WEBP_QUALITY, method=6)
+        prepared.save(destination, format="WEBP", quality=WEBP_QUALITY, method=6, **icc)
         return
 
-    prepared.save(destination, format="PNG", optimize=True)
+    prepared.save(destination, format="PNG", optimize=True, **icc, **density)

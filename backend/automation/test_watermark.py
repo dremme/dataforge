@@ -497,6 +497,30 @@ class WatermarkVideoTests(unittest.TestCase):
             leftovers = list((root / WATERMARK_DIR_NAME).glob(f"*{WATERMARK_TEMP_MARKER}.*"))
             self.assertEqual(leftovers, [])
 
+    def test_the_command_maps_the_first_video_and_every_audio_track(self) -> None:
+        commands: list[list[str]] = []
+
+        with patch(
+            "automation.watermark.run_ffmpeg",
+            side_effect=lambda command, **_: commands.append(command),
+        ):
+            watermark_module.watermark_video(
+                Path("in.mp4"),
+                Path("out.mp4"),
+                text="Sample Studio",
+                font_path=SAMPLE_FONT,
+                size=WATERMARK_SIZES["medium"],
+                alpha=0.5,
+                position="bottom",
+                ffmpeg="ffmpeg",
+            )
+
+        command = commands[0]
+        mapped = [command[i + 1] for i, token in enumerate(command) if token == "-map"]
+        # The first video and every audio track: not `-map 0`, which would pull in cover art
+        # (drawtext cannot filter two video streams) and untyped subtitle/data streams.
+        self.assertEqual(mapped, ["0:v:0", "0:a?"])
+
 
 def write_jpeg_with_exif(root: Path, name: str = "photo.jpg") -> Path:
     """Software and Artist, not Orientation: ``exif_transpose`` drops Orientation on every read."""
@@ -517,6 +541,40 @@ class WatermarkStripMetadataTests(unittest.TestCase):
 
             with Image.open(watermarked(root, "photo.jpg")) as copy:
                 self.assertEqual(copy.getexif().get(0x0131), "DataForge Test")
+
+    def test_the_copy_keeps_the_colour_profile(self) -> None:
+        from PIL import ImageCms
+
+        with TempMediaFolder() as root:
+            profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+            for name, fmt in (("photo.jpg", "JPEG"), ("photo.webp", "WEBP")):
+                Image.new("RGB", (200, 150), (40, 80, 120)).save(
+                    root / name, format=fmt, icc_profile=profile
+                )
+
+            run_watermark_job(root, text="Sample Studio")
+
+            # save_image_preserving_format passes icc_profile from encoderinfo; without it Pillow's
+            # JPEG and WebP savers drop the profile silently.
+            for name in ("photo.jpg", "photo.webp"):
+                with Image.open(watermarked(root, name)) as copy:
+                    self.assertIsNotNone(copy.info.get("icc_profile"))
+
+    def test_a_cancel_during_the_strip_is_reported_as_cancelled(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            with patch.object(
+                watermark_module, "strip_file_metadata", side_effect=WatermarkCancelled
+            ):
+                result = run_watermark_job(root, text="Sample Studio", strip_metadata=True)
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["cancelled"], 1)
+            self.assertEqual(stats["success"], 0)
+            leftovers = list((root / WATERMARK_DIR_NAME).glob(f"*{WATERMARK_TEMP_MARKER}.*"))
+            self.assertEqual(leftovers, [])
 
     def test_stripping_removes_the_exif_from_the_copy_only(self) -> None:
         with TempMediaFolder() as root:
