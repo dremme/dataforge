@@ -1,75 +1,132 @@
-# Process with ComfyUI
+# Process images with ComfyUI
 
-Upscale, restore, or otherwise run a folder of stills through a [ComfyUI](https://github.com/comfyanonymous/ComfyUI) graph, then review each result before it replaces anything.
+[DataForge documentation](README.md)
 
-The job never writes into the dataset. Each result lands in `<folder>/staging/` as `<stem>.png` (ComfyUI only saves PNG), beside a `.comfy.json` recording what produced it. **Review candidates** is what makes a result real — accept publishes that PNG in place of the source; reject discards it. A cancelled run, a crashed run, or a preset that turned out to be wrong all cost nothing.
+Run a folder of still images through a ComfyUI workflow, then inspect every result before it changes the dataset.
 
-Stills only: a ComfyUI image graph has nothing to say about a video.
+## How the safe review workflow works
 
-## Connecting ComfyUI
+**Process with ComfyUI** never writes directly over source media. Each successful result is staged as a PNG under `<folder>/staging/`, paired with a `.comfy.json` record of the run. **Review candidates** is the point where a result becomes part of the dataset.
 
-The defaults assume [ComfyUI Desktop](https://www.comfy.org/download), which serves its API on `http://127.0.0.1:9000`. Point DataForge somewhere else with `COMFY_BASE_URL` in `.env`. Presets live in [`comfy-workflows/`](../comfy-workflows/) at the repo root, or wherever `COMFY_WORKFLOWS_DIR` says.
+- **Accept** publishes the candidate in place of its source. A JPEG, WebP, or BMP source becomes a PNG with the same stem; captions keep working because the caption sidecar stem stays the same. Related issue and duplicate findings are renamed to follow the published PNG.
+- **Reject** deletes the staged PNG and its `.comfy.json`; the source is never opened or modified.
+- **Skip** and **Back** move through the queue without deciding.
 
-The job is listed whenever any preset exists. ComfyUI itself is started and stopped all day, so the menu entry stays visible when it happens to be closed — the dialog says so instead of hiding the feature. See [Configuration](configuration.md#paths-integrations-and-logging) for the variables.
+Accepting is final. DataForge does not retain a copy of the source that was replaced. It also refuses acceptance while the source has an unreverted edit, because the image editor’s `.bak` would otherwise point at pre-ComfyUI pixels.
 
-Uploads accumulate in ComfyUI's `input/dataforge/` folder. DataForge cannot clean them up (ComfyUI has no endpoint for it), so empty that folder by hand now and then.
+## Prerequisites and connection
 
-## Running the job
+Processing accepts JPG/JPEG, PNG, WebP, and BMP source images. ComfyUI image graphs do not process videos or GIFs.
 
-**Process with ComfyUI** is under the automation panel's Files menu. Pick a preset (the filename stem of a `.json` in the workflows folder), optionally a seed, and whether to overwrite candidates that are already staged. Existing candidates are skipped unless that overwrite is on, so a second run on the same folder does not throw away a review queue you have not finished.
+The default expects ComfyUI Desktop at `http://127.0.0.1:9000`. Set another origin in the project-root `.env` when needed:
 
-The **Review candidates** button appears on the automation panel once any image in the folder has a staged result. The gallery's **Candidates** file filter and a **Candidate** badge on cards and list rows mark the same files.
+```dotenv
+COMFY_BASE_URL=http://127.0.0.1:9000
+COMFY_WORKFLOWS_DIR=
+COMFY_IMAGE_TIMEOUT=900
+```
 
-For each image the job uploads it to ComfyUI, points the input node at the upload, runs the graph, and writes ComfyUI's PNG into `staging/` under the source's stem.
+`COMFY_WORKFLOWS_DIR` defaults to the repository’s `comfy-workflows/` directory. `COMFY_IMAGE_TIMEOUT` is the per-image wait limit in seconds; values below 30 seconds fall back to the default. Restart DataForge after changing `.env`.
+
+The menu item appears whenever a preset exists, even when ComfyUI is stopped. Its dialog reports whether the configured endpoint is currently available. DataForge uploads sources into ComfyUI’s `input/dataforge/` directory. ComfyUI provides no cleanup endpoint, so remove old uploads from that folder periodically.
+
+See [configuration](configuration.md#integrations) for every integration setting and [data sent to integrations](configuration.md#data-sent-to-integrations) before pointing ComfyUI at another machine.
+
+## Try the included preset
+
+`comfy-workflows/example-lanczos-2x.json` is a plain Lanczos 2× resize using only core ComfyUI nodes. It needs no model downloads, so it is useful for testing the path before trying a restoration, upscale, or generation graph.
+
+`sample-images/` includes one result staged from this preset. Open that folder and choose **Review candidates** to inspect the workflow without running ComfyUI first.
+
+## Run a folder
+
+1. Put an API-format workflow preset in `comfy-workflows/`, or configure `COMFY_WORKFLOWS_DIR`.
+2. Open the source dataset folder, not its `staging/` child.
+3. Open **Process with ComfyUI** from the automation menu.
+4. Choose the preset. Optionally set a seed and prompt, if the workflow provides the matching titled nodes.
+5. Choose whether to overwrite candidates already staged for the same source, then start the job.
+
+DataForge uploads one image at a time, points the workflow input at that upload, waits for the result, and writes the returned PNG to `staging/<stem>.png`. Existing candidates are skipped by default, so a later run does not silently replace a review queue. Enable overwrite only when you intend to replace those staged outputs.
+
+Cancellation removes DataForge’s queued prompt when possible and interrupts it only when it is the running prompt. A cancelled, failed, or unsuitable run leaves source images untouched.
 
 ## Review candidates
 
-The review modal walks the queue side by side: the dataset file on the left, ComfyUI's result on the right, with a bar beneath reading each measurement as a change — dimensions, megapixels, file size, the resolution gain, and a difference score.
+The candidate review modal compares source and result side by side. It shows dimension, megapixel, file-size, resolution-gain, and perceptual difference changes.
 
-**Difference** is the share of perceptual-hash bits that disagree. Sharpening and added detail barely move it; content that moves, vanishes, or is reframed does. Expect low single digits from a clean upscale, more from de-watermarking, and 15%+ where the picture has genuinely been rearranged; two unrelated images sit near 50%.
+Difference is the percentage of perceptual-hash bits that differ. It helps triage broad changes: a clean upscale usually scores low, while reframed or rearranged content scores higher. It cannot catch every small local defect, so inspect the images before accepting.
 
-It is a triage aid, not a verdict. The hash is a 16×16 grid, so a small local defect — a mangled hand, a botched eye — barely registers. It tells you which images deserve a longer look; decide from the two panes.
+A candidate whose source was moved, renamed, or deleted stays in the queue because it is still a real file. It is an orphan and can only be rejected. Use left/right arrows to move through the queue and `Ctrl+Enter`/`⌘Enter` to accept when focus is not in an editable control.
 
-The score is stored in the candidate's `.comfy.json` during the run. Candidates staged before a score existed are scored when you open them.
+## Candidate files and lifecycle
 
-| Action              | What it does |
-| ------------------- | ------------ |
-| **Accept**          | Publishes the candidate as PNG, replacing the dataset file. A JPEG, WebP, or BMP becomes a PNG of the same stem; a PNG is overwritten in place. The caption stays (`photo.txt` already matches `photo.png`); issue and duplicate sidecars are renamed onto the new file. |
-| **Reject**          | Discards the candidate and its `.comfy.json`. The dataset file is never opened. |
-| **Skip** / **Back** | Move through the queue without settling. |
+Candidates pair with sources by stem: `photo.jpg` uses `staging/photo.png`. A staged candidate already named exactly like the source’s old PNG form still matches, preserving queues made by earlier versions.
 
-A candidate whose source has been renamed, moved, or deleted since the run stays in the queue — it is a real file taking up real space. Discard it from here.
+If `photo.jpg` and `photo.png` are siblings, `staging/photo.png` belongs to the PNG source. A candidate does not travel when its source is copied, moved, renamed, or deleted. Reject it from the review queue when it is no longer useful.
 
-Accept is refused while the image has an unreverted edit. The image editor always re-renders from `.bak`, so publishing a candidate on top would leave the next crop silently rendering from pre-ComfyUI pixels. Revert the edit, then accept.
+The `.comfy.json` sidecar records the workflow/run details and stored difference score. Candidates staged before difference scores existed are scored when opened for review.
 
-**Accepting is final.** No copy of the replaced file is kept; reject first if you might want it back. There is deliberately no "accept the rest" action: one irreversible replacement per look at the image is the whole safeguard.
+The [artifact table](user-guide.md#files-dataforge-creates) describes candidate locations alongside backups, edit originals, and other DataForge files.
 
-A candidate does not travel with its source. Move, copy, rename, and delete leave it in `staging/`.
+## Add a workflow preset
 
-Pairing is by stem: `photo.jpg` claims `staging/photo.png`. A candidate already staged under the source's exact filename still matches, so a queue from before this change keeps working. If a sibling already uses that PNG name (`photo.jpg` next to `photo.png`), the staged file belongs to the PNG alone.
+Each `.json` file in the workflow directory is one preset. Its filename stem is the name shown in DataForge; `upscale-2x.json` appears as `upscale-2x`.
 
-## Adding a preset
+1. Build and test the graph on one image in ComfyUI.
+2. Export it with **Save (API Format)**, not regular Save.
+3. Add the exported JSON to the workflow directory.
+4. Give disambiguating nodes the titles in the tables below when the graph contains more than one possible input or output node.
+5. Open the dialog again to refresh the preset list.
 
-Each `.json` file in the workflows folder is one preset the job can run. The filename stem is the name shown in the dialog, so `upscale-2x.json` appears as `upscale-2x`.
+Extra workflow JSON files are gitignored. Only `example-lanczos-2x.json` is tracked by this repository.
 
-1. Build the workflow in ComfyUI and get it working on a single image.
-2. Title the node that loads the image **`DataForge Input`**, and the node that saves the result **`DataForge Output`**. Right-click a node → _Title_.
-3. Export with **Save (API Format)** — not the regular Save, which writes the editor's own format and cannot be run through the API.
-4. Drop the file in the workflows folder. It shows up the next time the dialog is opened. Extra `.json` files there are gitignored; only [`example-lanczos-2x.json`](../comfy-workflows/example-lanczos-2x.json) is tracked.
+### Required input and output nodes
 
-The two titles are only needed to break a tie: a graph with exactly one `LoadImage` and one `SaveImage` is understood without them. Title the nodes as soon as there is a second of either, or the job refuses to start rather than guessing.
+DataForge can infer a graph with exactly one `LoadImage` and one `SaveImage`. When a graph has multiple candidates, title the intended nodes to avoid ambiguity.
 
-## Optional titles
+| Node title         | Purpose                                                   |
+| ------------------ | --------------------------------------------------------- |
+| `DataForge Input`  | Image-load node to receive the uploaded source            |
+| `DataForge Output` | Image-save node whose output becomes the staged candidate |
 
-- **`DataForge Seed`** — a node whose `seed` (or `noise_seed`) the job overwrites when a seed is set in the dialog. Left alone otherwise, so a seed you baked into the graph stays put.
-- **`DataForge Prompt`** — a text node whose `text` the job overwrites with the prompt typed in the dialog, the same text for every image in the run. Left alone when the box is empty. The node has to hold its own text: a `text` input wired in from another node cannot be written to, and the preset is refused rather than quietly running the graph's own prompt. Typing a prompt for a preset that has no such node is refused for the same reason — the alternative is a run that looks like the model ignored you.
+DataForge refuses an ambiguous graph rather than guessing which node to modify.
 
-## Viewing an embedded workflow
+### Optional seed and prompt nodes
 
-A PNG or MP4-family file that ComfyUI wrote carries the graph in its metadata. The detail view shows a **ComfyUI** badge when that is there; click it to read the prompts, LoRAs, and settings on the path that produced the file. A graph with several outputs lists each one, and flags the save node whose filename matches.
+| Node title         | Behavior                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DataForge Seed`   | DataForge overwrites a `seed` or `noise_seed` input when a seed is set in the dialog. Without a dialog seed, the graph’s own value stays in place. |
+| `DataForge Prompt` | DataForge overwrites that node’s own `text` input when the dialog prompt is nonempty.                                                              |
 
-This is independent of Process with ComfyUI — it reads what is already in the file, including images made outside DataForge.
+A prompt field connected from another node cannot be written. DataForge refuses a typed prompt when the preset has no writable `DataForge Prompt` node rather than running the graph with an unexpected built-in prompt.
 
-## `example-lanczos-2x.json`
+## Inspect embedded workflows
 
-A plain Lanczos 2× resize. It uses only core nodes and loads no models, so it runs on any ComfyUI install — useful for checking the whole path works before pointing the job at a real restoration graph, and as a skeleton to copy. The file is [`comfy-workflows/example-lanczos-2x.json`](../comfy-workflows/example-lanczos-2x.json); [`sample-images/`](../sample-images/) already has one staged result from it, so **Review candidates** has something to open without a ComfyUI run.
+A PNG or MP4/MOV/M4V file written by ComfyUI can contain its graph in embedded metadata. In the item detail view, select the **ComfyUI** badge to inspect prompts, LoRAs, settings, and output paths from that graph.
+
+This is independent of **Process with ComfyUI**. It reads workflow metadata already present in compatible files, including files produced outside DataForge. The [format matrix](user-guide.md#supported-formats-and-capability-matrix) lists the supported containers.
+
+## Troubleshooting
+
+### The preset is missing
+
+Confirm that `COMFY_WORKFLOWS_DIR` exists and contains `.json` files exported in API format. Reopen the dialog after adding a preset.
+
+### The dialog says ComfyUI is unavailable
+
+Start ComfyUI and confirm `COMFY_BASE_URL` is its origin, not a browser page route. Restart DataForge after changing the URL. The menu stays visible while the service is off so you can see the configured failure instead of losing the feature.
+
+### The workflow rejects a prompt or is ambiguous
+
+Use `DataForge Prompt` only on a node that owns a writable `text` input. Add `DataForge Input` and `DataForge Output` titles whenever the graph has multiple load or save candidates, then export the graph again in API format.
+
+### Processing times out or leaves uploads behind
+
+Increase `COMFY_IMAGE_TIMEOUT` for workflows that legitimately take longer. Inspect ComfyUI’s queue/history for graph errors. Empty `input/dataforge/` manually when accumulated uploads are no longer needed.
+
+## Related guides
+
+- [User guide](user-guide.md)
+- [Configuration](configuration.md)
+- [Train LoRAs with AI-Toolkit](ai-toolkit.md)
+- [Development](development.md)
