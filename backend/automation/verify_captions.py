@@ -268,11 +268,11 @@ def build_verification_system_prompt(
             f"""
             # Rules
             - Set "correct" to true when the caption matches the {subject}, including when it omits
-              optional details that do not contradict {visible_ref}.
+              optional details that do **not** contradict {visible_ref}.
             - Set "correct" to false only for clear factual contradictions (wrong subject, wrong
               clothing, wrong pose, wrong setting, invented details, incorrect hand/leg positioning).
             - When you are unsure, set "correct" to true.
-            - Do not flag caption style, formatting, or harmless omissions.
+            - Do **not** flag caption style, formatting, or harmless omissions.
 
             # Output Format
             Respond exclusively with a valid JSON object (no markdown fences):
@@ -284,11 +284,13 @@ def build_verification_system_prompt(
             ```
 
             ## Important Output Rule
-            Each issue is a single sentence. Everything about one contradiction stays inside
-            that one sentence, the quoted caption phrase and what it should say instead joined
-            with a comma or a semicolon; a new sentence is read as a separate issue.
-            Quoted wording is copied character-for-character from the proposed caption, never
-            paraphrased and never invented; when {contradict_ref} shows something the caption
+            Each issue is a single sentence, and each distinct contradiction is a separate full
+            sentence. **Never** separate issues with a semicolon; do **not** use semicolons in "issues".
+            Everything about one contradiction stays inside its sentence, with the quoted caption
+            phrase followed by what it should say instead. The comma separating them goes after the
+            closing quote, as in `"wrong wording",`, **never** inside it as in `"wrong wording,"`.
+            Quoted wording is copied character-for-character from the proposed caption, **never**
+            paraphrased and **never** invented; when {contradict_ref} shows something the caption
             leaves out entirely, that sentence carries no quotes.
             """
         ).strip()

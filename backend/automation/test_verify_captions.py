@@ -371,6 +371,18 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         self.assertIn("Each issue is a single sentence", prompt)
         self.assertNotIn("single sentence", _rules_section(prompt))
 
+    def test_build_system_prompt_requires_separate_issues_to_be_full_sentences(self) -> None:
+        prompt = build_verification_system_prompt()
+
+        self.assertIn("**Never** separate issues with a semicolon", prompt)
+        self.assertNotIn("joined\n            with a comma or a semicolon", prompt)
+
+    def test_build_system_prompt_places_the_separator_after_the_closing_quote(self) -> None:
+        prompt = build_verification_system_prompt()
+
+        self.assertIn('closing quote, as in `"wrong wording",`', prompt)
+        self.assertIn('**never** inside it as in `"wrong wording,"`', prompt)
+
     def test_build_system_prompt_keeps_the_rules_about_judging(self) -> None:
         """Rules that teach fix-writing shift the prompt's weight from judging to producing."""
         rules = _rules_section(build_verification_system_prompt())
@@ -393,7 +405,7 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
 
         self.assertIn("no wrong wording to quote", prompt)
         self.assertIn("no quotation marks at all", prompt)
-        self.assertIn("never invented", prompt)
+        self.assertIn("**never** invented", prompt)
 
     def test_video_system_prompt_describes_keyframes(self) -> None:
         prompt = build_verification_system_prompt(media_kind="video")
