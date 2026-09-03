@@ -373,6 +373,58 @@ describe("IssueResolverModal", () => {
     expect(resolvedPaths).toHaveLength(4);
   });
 
+  it("skips forward with the right arrow without resolving", async () => {
+    const user = userEvent.setup();
+    const saveCaption = vi.spyOn(api, "saveCaption");
+    const items = [makeIssueItem("car.png"), makeIssueItem("boat.png")];
+
+    function Host() {
+      const [index, setIndex] = useState(0);
+      return (
+        <IssueResolverModal
+          items={items}
+          index={index}
+          onClose={vi.fn()}
+          onIndexChange={setIndex}
+          onCaptionSaved={vi.fn()}
+        />
+      );
+    }
+
+    render(<Host />);
+
+    await screen.findByLabelText("Caption for car.png");
+    await user.keyboard("{ArrowRight}");
+
+    expect(await screen.findByLabelText("Caption for boat.png")).toBeInTheDocument();
+    expect(saveCaption).not.toHaveBeenCalled();
+  });
+
+  it("steps back with the left arrow", async () => {
+    const user = userEvent.setup();
+    const items = [makeIssueItem("car.png"), makeIssueItem("boat.png")];
+
+    function Host() {
+      const [index, setIndex] = useState(1);
+      return (
+        <IssueResolverModal
+          items={items}
+          index={index}
+          onClose={vi.fn()}
+          onIndexChange={setIndex}
+          onCaptionSaved={vi.fn()}
+        />
+      );
+    }
+
+    render(<Host />);
+
+    await screen.findByLabelText("Caption for boat.png");
+    await user.keyboard("{ArrowLeft}");
+
+    expect(await screen.findByLabelText("Caption for car.png")).toBeInTheDocument();
+  });
+
   it("drops a caption selection when skipping to the next issue", async () => {
     const user = userEvent.setup();
     const items = [

@@ -144,12 +144,22 @@ export function IssueResolverModal({
       if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         void handleResolve();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handleNext();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handlePrevious();
       }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [handleResolve, saving]);
+  }, [handleNext, handlePrevious, handleResolve, saving]);
 
   if (!item) return null;
 

@@ -91,7 +91,7 @@ export function CandidateReviewModal({
 
   const settle = useCallback(
     async (action: "accept" | "reject") => {
-      if (!entry || busy || settled) return;
+      if (!entry || busy || settled || (action === "accept" && orphaned)) return;
 
       setPending(action);
       setError(null);
@@ -109,14 +109,19 @@ export function CandidateReviewModal({
         setPending(null);
       }
     },
-    [advance, busy, entry, settled],
+    [advance, busy, entry, orphaned, settled],
   );
 
-  // Navigation only; accept/reject is irreversible so it is never a keystroke.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
+
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        void settle("accept");
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       const key = event.key.toLowerCase();
       if (key === "arrowright") {
@@ -130,7 +135,7 @@ export function CandidateReviewModal({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [goTo, index]);
+  }, [goTo, index, settle]);
 
   if (!entry) return null;
 

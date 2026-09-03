@@ -234,7 +234,8 @@ describe("CandidateReviewModal", () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
-  it("cannot accept a candidate whose source is gone", () => {
+  it("cannot accept a candidate whose source is gone", async () => {
+    const user = userEvent.setup();
     const orphan = buildCandidateReviewQueue(HOME_PATH, [], [mediaItem("gone.png", STAGING_PATH)]);
 
     render(
@@ -253,6 +254,10 @@ describe("CandidateReviewModal", () => {
     // Discarding it is still offered: it is a real file taking up real space.
     expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent("no longer in the folder");
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(acceptOne).not.toHaveBeenCalled();
   });
 
   it("discards an orphaned candidate keyed by the staged name", async () => {
@@ -298,7 +303,17 @@ describe("CandidateReviewModal", () => {
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
 
-  // Accept/reject is never a keystroke.
+  it("accepts the candidate with Ctrl+Enter", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange, onResolved } = renderModal();
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`));
+    expect(onResolved).toHaveBeenCalled();
+    expect(onIndexChange).toHaveBeenCalledWith(1);
+  });
+
   it("does not settle anything from a bare keypress", async () => {
     const user = userEvent.setup();
     renderModal();
