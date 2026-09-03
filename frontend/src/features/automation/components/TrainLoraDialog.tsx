@@ -12,6 +12,7 @@ import type { TrainingModel } from "@/shared/types";
 import { iconFilePen, iconPlus, iconTrash2 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { TrainingTemplateEditorDialog } from "./TrainingTemplateEditorDialog";
@@ -53,7 +54,6 @@ export function TrainLoraDialog({
   const nextPromptId = useRef(initialSettings.prompts.length || DEFAULT_TRAINING_PROMPTS.length);
   const nameRef = useRef<HTMLInputElement>(null);
   const nameId = useId();
-  const modelId = useId();
   const triggerWordId = useId();
   const promptsId = useId();
   const errorId = useId();
@@ -122,26 +122,13 @@ export function TrainLoraDialog({
       }
     >
       <div className="train-lora-dialog__body" data-scroll-lock-allow>
-        <div className="dialog__field">
-          <label htmlFor={modelId} className="dialog__label">
-            Model
-          </label>
-          <div className="dialog__select-wrap">
-            <select
-              id={modelId}
-              className="dialog__select"
-              value={model}
-              disabled={busy}
-              onChange={(event) => setModel(event.target.value as TrainingModel)}
-            >
-              {TRAINING_MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <DialogSelect
+          label="Model"
+          value={model}
+          options={TRAINING_MODEL_OPTIONS}
+          disabled={busy}
+          onChange={setModel}
+        />
 
         <div className="train-lora-dialog__template">
           <button

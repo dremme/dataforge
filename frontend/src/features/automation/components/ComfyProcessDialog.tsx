@@ -4,6 +4,7 @@ import type { JobSettingsByType } from "@/features/automation/preferences/automa
 import { formatApiError } from "@/shared/api/http";
 import { iconLoader2, iconTriangleAlert } from "@/shared/icons";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
+import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
 import type { ComfyPresetSummary } from "@/shared/types";
@@ -49,7 +50,6 @@ export function ComfyProcessDialog({
   const seedId = useId();
   const overwriteId = useId();
   const errorId = useId();
-  const presetId = useId();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -154,29 +154,16 @@ export function ComfyProcessDialog({
       )}
 
       {ready && state.presets.length > 0 && (
-        <div className="dialog__field">
-          <label htmlFor={presetId} className="dialog__label">
-            Workflow
-          </label>
-          <div className="dialog__select-wrap">
-            <select
-              id={presetId}
-              className="dialog__select"
-              value={preset}
-              disabled={busy}
-              onChange={(event) => {
-                setPreset(event.target.value);
-                setError(null);
-              }}
-            >
-              {state.presets.map((entry) => (
-                <option key={entry.name} value={entry.name}>
-                  {entry.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <DialogSelect
+          label="Workflow"
+          value={preset}
+          options={state.presets.map((entry) => ({ value: entry.name, title: entry.name }))}
+          disabled={busy}
+          onChange={(value) => {
+            setPreset(value);
+            setError(null);
+          }}
+        />
       )}
 
       {ready && !state.available && (

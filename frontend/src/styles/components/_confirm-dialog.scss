@@ -169,6 +169,8 @@
     align-items: center;
     // Left matches `dialog__input`; right is wider for the arrow.
     padding: 0 0.75rem 0 0.625rem;
+    // The gutter is clickable too: `DialogSelect` forwards those clicks to the select.
+    cursor: pointer;
 
     // The mixin's :focus/:disabled cannot fire on a wrapper.
     &:focus-within {
