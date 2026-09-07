@@ -193,6 +193,28 @@ describe("StatsDrawer", () => {
     expect(within(chart).getByText("dog")).toBeInTheDocument();
   });
 
+  it("sends a frequent word to the gallery search", async () => {
+    const user = userEvent.setup();
+    const onSearchWord = vi.fn();
+    renderDrawer({ onSearchWord });
+
+    const chart = screen.getByRole("figure", {
+      name: "Distribution by how often each word appears",
+    });
+    await user.click(within(chart).getByRole("button", { name: "brown" }));
+
+    expect(onSearchWord).toHaveBeenCalledWith("brown");
+  });
+
+  it("leaves the word list read-only when nothing handles a search", () => {
+    renderDrawer();
+
+    const chart = screen.getByRole("figure", {
+      name: "Distribution by how often each word appears",
+    });
+    expect(within(chart).queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("charts aspect ratios from the files that have dimensions", () => {
     renderDrawer({
       items: [

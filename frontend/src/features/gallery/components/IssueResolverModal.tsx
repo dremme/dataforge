@@ -23,6 +23,7 @@ import {
   iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
+import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
@@ -83,6 +84,7 @@ export function IssueResolverModal({
     [item?.issue_fixes],
   );
   const flaggedPhrases = useMemo(() => flaggedCaptionPhrases(fixes), [fixes]);
+  const captionCompletions = useMemo(() => buildCaptionVocabulary(queue), [queue]);
 
   const closeModal = useCallback(() => {
     if (saving) return;
@@ -312,6 +314,7 @@ export function IssueResolverModal({
               // Fresh editor per item: CodeMirror maps selection through a document swap.
               key={item.path}
               id="issue-resolver-caption"
+              completions={captionCompletions}
               value={caption}
               placeholder={placeholder}
               highlightTerms={flaggedPhrases}

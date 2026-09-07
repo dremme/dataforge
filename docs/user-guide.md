@@ -44,6 +44,8 @@ Open a media item to edit its caption. DataForge saves trimmed text to the match
 
 ### Edit captions and `.sysprompt`
 
+Captions autosave and show failures with a **Retry** button. **Revert** restores the caption as it was when opened, and **Restore backup** loads its `.backup/` copy when one exists. The editor completes from the folder's caption vocabulary; type two characters or press `Ctrl+Space`/`⌘Space` to show suggestions.
+
 Use a `.sysprompt` to set the voice, required details, or output format for AI captioning in one folder. It is Markdown text stored alongside the dataset and can travel with it.
 
 **Set captions** writes one caption to many files. **Find & replace** changes literal or regex matches, or prepends/appends text; its dialog previews the affected count and before/after examples. **Edit captions** sends existing caption text and your instruction to the configured model, not the source media. Back up captions before a destructive rewrite when you may need to undo it.
@@ -97,6 +99,8 @@ For a playable video or GIF, **Save a frame as JPG** writes a new image beside t
 Jobs run in the background. The automation panel and jobs drawer show progress, warnings, cancellation, history, and, where available, samples from external training jobs.
 
 A selected set of files narrows most jobs. Without a selection, a job runs against the entire current folder. **Quick LoRA training** is the exception: AI-Toolkit trains from the whole folder even if you selected files. Filters help locate files but do not become job scope automatically.
+
+Finished jobs list each file's result. **Retry N failed** reopens the job scoped to failed files, while **Run again** opens it for the whole folder.
 
 A new job of the same type for a folder replaces the previous local job record for that type. Cancel only stops the current run; outputs already written by an operation remain on disk.
 
@@ -168,6 +172,8 @@ A move, copy, rename, or delete of source media leaves a staged candidate behind
 | `Ctrl+Enter` / `⌘Enter` | Issue resolver                                | Resolve the current issue                                       |
 | `Ctrl+Enter` / `⌘Enter` | Candidate review                              | Accept the current candidate when acceptance is available       |
 | Up / down arrow, Enter  | Quick action bar                              | Move through results and run the highlighted action             |
+| `Ctrl+Space` / `⌘Space` | Caption editor                                | Ask for caption completions from the folder’s vocabulary        |
+| `Escape`                | Caption editor with completions open          | Dismiss the completion list without closing the dialog          |
 
 Shortcuts do not override focused text inputs, active dialogs, busy operations, or media controls that need the same keys.
 

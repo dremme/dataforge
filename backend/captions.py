@@ -4,6 +4,7 @@ from pathlib import Path
 
 from caption_cache import cached_by_stat
 from constants import (
+    CAPTION_BACKUP_DIR_NAME,
     CAPTION_SIDECAR_EXTENSIONS,
     ISSUE_FIX_SENTINELS,
     ISSUE_SIDECAR_SUFFIX,
@@ -36,6 +37,23 @@ def resolve_caption_file(media_path: Path) -> Path | None:
     if name is None:
         return None
     return folder / name
+
+
+def load_backup_caption(media_path: Path) -> str | None:
+    """This file's caption as stored in the folder's backup, or ``None`` when it has none."""
+    backup_dir = media_path.parent / CAPTION_BACKUP_DIR_NAME
+    name = resolve_caption_file_name(
+        media_path.stem,
+        lambda candidate: (backup_dir / candidate).is_file(),
+    )
+    if name is None:
+        return None
+
+    raw = _read_caption_text(backup_dir / name)
+    if raw is None:
+        return None
+
+    return raw.strip()
 
 
 def caption_path_for(media_path: Path) -> Path:

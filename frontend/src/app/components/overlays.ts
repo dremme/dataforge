@@ -8,6 +8,7 @@ import type {
   CaptionSaveResponse,
   DuplicateGroup,
   GalleryItem,
+  JobType,
   SysPromptSaveResponse,
 } from "@/shared/types";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
@@ -23,6 +24,7 @@ type GalleryOverlayState = {
   modalItems: GalleryItem[];
   searchQuery: string;
   searchRegex: boolean;
+  hasCaptionBackup: boolean;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -30,6 +32,12 @@ type GalleryOverlayState = {
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
+};
+
+export type JobResultsHandlers = {
+  onOpenItem: (path: string) => void;
+  onRetryFailed: (jobType: JobType, paths: string[]) => void;
+  onRunAgain: (jobType: JobType) => void;
 };
 
 type IssueResolverOverlayState = {
@@ -69,6 +77,7 @@ type StatsOverlayState = {
   open: boolean;
   items: GalleryItem[];
   onClose: () => void;
+  onSearchWord: (word: string) => void;
 };
 
 type JobStartConfirmState = {
@@ -103,6 +112,7 @@ type FolderPickerOverlayState = {
 export type AppOverlaysProps = {
   currentFolder: string | undefined;
   onOpenFolder: (path?: string) => void;
+  jobResults: JobResultsHandlers;
   folderPicker: FolderPickerOverlayState;
   quickAction: QuickActionOverlayState;
   selectionActions: SelectionActionOverlaysProps;

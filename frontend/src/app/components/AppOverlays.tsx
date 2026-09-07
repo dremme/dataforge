@@ -25,6 +25,7 @@ const SysPromptModal = lazy(() =>
 export function AppOverlays({
   currentFolder,
   onOpenFolder,
+  jobResults,
   folderPicker,
   quickAction,
   selectionActions,
@@ -43,9 +44,20 @@ export function AppOverlays({
 }: AppOverlaysProps) {
   return (
     <>
-      <JobsDrawer currentFolder={currentFolder} onOpenFolder={onOpenFolder} />
+      <JobsDrawer
+        currentFolder={currentFolder}
+        onOpenFolder={onOpenFolder}
+        onOpenItem={jobResults.onOpenItem}
+        onRetryFailed={jobResults.onRetryFailed}
+        onRunAgain={jobResults.onRunAgain}
+      />
 
-      <StatsDrawer open={stats.open} items={stats.items} onClose={stats.onClose} />
+      <StatsDrawer
+        open={stats.open}
+        items={stats.items}
+        onClose={stats.onClose}
+        onSearchWord={stats.onSearchWord}
+      />
 
       <SelectionActionOverlays {...selectionActions} />
 
@@ -104,6 +116,7 @@ export function AppOverlays({
           index={gallery.selectedIndex}
           searchQuery={gallery.searchQuery}
           searchRegex={gallery.searchRegex}
+          hasCaptionBackup={gallery.hasCaptionBackup}
           currentFolder={currentFolder}
           onClose={gallery.onClose}
           onPrevious={gallery.onPrevious}

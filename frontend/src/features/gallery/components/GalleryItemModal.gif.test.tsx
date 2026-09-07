@@ -210,7 +210,10 @@ describe("GalleryItemModal", () => {
       await user.click(within(dialog).getByRole("button", { name: "Convert loop.gif to MP4" }));
 
       await waitFor(() => expect(convertGifToMp4Mock).toHaveBeenCalledWith(GIF_PATH, false));
-      expect(await screen.findByRole("status")).toHaveTextContent("Saved loop.mp4 at 24 fps.");
+      const notifications = await screen.findByLabelText("Notifications");
+      expect(within(notifications).getByRole("status")).toHaveTextContent(
+        "Saved loop.mp4 at 24 fps.",
+      );
       await waitFor(() => expect(onCopied).toHaveBeenCalledTimes(1));
     });
 

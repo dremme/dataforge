@@ -1,0 +1,49 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.caption-save-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  // Reserved even when idle, so switching states never nudges the editor above it.
+  min-height: 1.125rem;
+  margin: 0.4375rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+
+  &--saved {
+    color: $color-caption-saved;
+  }
+
+  &--error {
+    color: $color-caption-error;
+  }
+
+  &__icon {
+    @include icon-size(var(--icon-size-sm));
+    flex-shrink: 0;
+
+    &--spin {
+      @include spin;
+    }
+  }
+
+  &__text {
+    @include truncate;
+  }
+
+  &__retry {
+    @include pill-btn-compact(default);
+    flex-shrink: 0;
+    margin-left: 0.125rem;
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: $color-caption-error;
+    border-color: $color-caption-error;
+
+    &:hover:not(:disabled) {
+      background: rgba($color-caption-error, 0.12);
+    }
+  }
+}

@@ -121,6 +121,107 @@ describe("useDebouncedSave", () => {
     expect(customSave).toHaveBeenCalledTimes(2);
   });
 
+  it("reports pending, then saving, then saved across one edit", async () => {
+    let resolveSave: (() => void) | undefined;
+    const save = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const { result } = setupHook({ save });
+
+    act(() => {
+      result.current.setBaseline({ path: "a.png", text: "" });
+      result.current.scheduleSave({ path: "a.png", text: "A" });
+    });
+
+    expect(result.current.saveState).toBe("pending");
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(result.current.saveState).toBe("saving");
+
+    await act(async () => {
+      resolveSave?.();
+      await Promise.resolve();
+    });
+
+    expect(result.current.saveState).toBe("saved");
+  });
+
+  it("keeps a save error until the next edit instead of clearing it", async () => {
+    const save = vi.fn().mockRejectedValue(new Error("Disk is full"));
+    const { result } = setupHook({ save, feedbackClearMs: 100 });
+
+    act(() => {
+      result.current.setBaseline({ path: "a.png", text: "" });
+      result.current.scheduleSave({ path: "a.png", text: "A" });
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(result.current.saveState).toBe("error");
+    expect(result.current.saveError).toBe("Disk is full");
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      await Promise.resolve();
+    });
+
+    expect(result.current.saveState).toBe("error");
+
+    act(() => {
+      result.current.scheduleSave({ path: "a.png", text: "AB" });
+    });
+
+    expect(result.current.saveState).toBe("pending");
+    expect(result.current.saveError).toBeNull();
+  });
+
+  it("resends the failed payload on retry", async () => {
+    const save = vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined);
+    const { result } = setupHook({ save });
+
+    act(() => {
+      result.current.setBaseline({ path: "a.png", text: "" });
+      result.current.scheduleSave({ path: "a.png", text: "Retry me" });
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(result.current.saveState).toBe("error");
+
+    await act(async () => {
+      result.current.retrySave();
+      await Promise.resolve();
+    });
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith({ path: "a.png", text: "Retry me" });
+    expect(result.current.saveState).toBe("saved");
+  });
+
+  it("does not resend anything when no save has failed", async () => {
+    const { result, save } = setupHook();
+
+    await act(async () => {
+      result.current.retrySave();
+      await Promise.resolve();
+    });
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it("skips scheduling when the payload matches the baseline", () => {
     const { result, save } = setupHook();
 

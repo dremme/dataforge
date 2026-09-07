@@ -42,6 +42,8 @@ export function useGalleryItemCaption({
   autoSave = true,
 }: UseGalleryItemCaptionOptions) {
   const [caption, setCaption] = useState("");
+  // The text the editor was last loaded with, so Revert discards edits without undoing a sync.
+  const [openedCaption, setOpenedCaption] = useState("");
   const { next, isCurrent } = useStaleRequest();
   const captionRef = useRef(caption);
   const captionRevisionRef = useRef<string | null>(null);
@@ -81,6 +83,7 @@ export function useGalleryItemCaption({
     saveError,
     scheduleSave,
     flushPendingSave,
+    retrySave,
     setBaseline,
     invalidateInFlight,
     hasUnsavedChanges,
@@ -95,6 +98,7 @@ export function useGalleryItemCaption({
       const cachedCaption = source.description ?? "";
 
       setCaption(cachedCaption);
+      setOpenedCaption(cachedCaption);
       setBaseline({ path: source.path, text: cachedCaption });
       markRevision(itemCaptionRevision(source));
     },
@@ -124,6 +128,7 @@ export function useGalleryItemCaption({
 
           const caption = fresh.description ?? "";
           setCaption(caption);
+          setOpenedCaption(caption);
           setBaseline({ path: itemPath, text: caption });
           markRevision(revisionFromSaveResult(fresh));
           onCaptionSaved(itemPath, fresh);
@@ -184,11 +189,18 @@ export function useGalleryItemCaption({
     [autoSave, item, scheduleSave],
   );
 
+  const revertCaption = useCallback(() => {
+    handleCaptionChange(openedCaption);
+  }, [handleCaptionChange, openedCaption]);
+
   return {
     caption,
     saveState,
     saveError,
+    canRevert: caption.trim() !== openedCaption.trim(),
     handleCaptionChange,
+    revertCaption,
+    retrySave,
     flushPendingSave,
   };
 }

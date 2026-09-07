@@ -2,12 +2,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
-from captions import build_caption_response, save_caption
+from captions import build_caption_response, load_backup_caption, save_caption
 from comfy_metadata import media_has_comfy_workflow
 from comfy_prompts import PromptText, extract_workflow_prompts
 from constants import COMFY_WORKFLOW_EXTENSIONS
 from routes._helpers import resolve_media_file, resolve_sysprompt_target
 from schemas import (
+    CaptionBackupResponse,
     CaptionSaveResponse,
     CaptionUpdate,
     ComfyOutputBranch,
@@ -48,6 +49,15 @@ def read_caption(
 ) -> CaptionSaveResponse:
     file_path = resolve_media_file(path)
     return CaptionSaveResponse(**build_caption_response(file_path))
+
+
+@router.get("/caption/backup", response_model=CaptionBackupResponse)
+def read_caption_backup(
+    path: str = Query(..., description="Absolute path to image or video file"),
+) -> CaptionBackupResponse:
+    file_path = resolve_media_file(path)
+    description = load_backup_caption(file_path)
+    return CaptionBackupResponse(exists=description is not None, description=description)
 
 
 @router.get("/comfy-workflow", response_model=PngWorkflowResponse)

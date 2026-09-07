@@ -12,6 +12,7 @@ import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
+import { useCaptionBackup } from "@/features/gallery/hooks/useCaptionBackup";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useGifFrameCapture } from "@/features/gallery/hooks/useGifFrameCapture";
 import { useGifFrameCount } from "@/features/gallery/hooks/useGifFrameCount";
@@ -24,6 +25,7 @@ import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapt
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
+  iconArchiveRestore,
   iconArrowUpRight,
   iconCamera,
   iconChevronLeft,
@@ -32,6 +34,7 @@ import {
   iconFolderInput,
   iconLoader2,
   iconMessageCheck,
+  iconRotateCcw,
   iconSquarePen,
   iconTrash2,
   iconVideo,
@@ -57,9 +60,11 @@ import {
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
 import { GIF_MP4_FRAME_RATE } from "@/shared/constants";
 import { classNames } from "@/shared/lib/classNames";
+import { buildCaptionVocabulary } from "@/features/gallery/lib/captionVocabulary";
 import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
+import { CaptionSaveStatus } from "./CaptionSaveStatus";
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -84,6 +89,8 @@ interface GalleryItemModalProps {
   index: number;
   searchQuery?: string;
   searchRegex?: boolean;
+  /** Whether this folder has a caption backup at all; gates the per-file restore. */
+  hasCaptionBackup?: boolean;
   /** Transfer picker's origin; move/copy stay hidden without it. */
   currentFolder?: string;
   onClose: () => void;
@@ -101,6 +108,7 @@ export function GalleryItemModal({
   index,
   searchQuery = "",
   searchRegex = false,
+  hasCaptionBackup = false,
   currentFolder,
   onClose,
   onPrevious,
@@ -116,8 +124,18 @@ export function GalleryItemModal({
   const hasComfyWorkflow = useComfyWorkflowFlag(item?.path);
   const notify = useNotify();
 
-  const { caption, saveState, saveError, handleCaptionChange, flushPendingSave } =
-    useGalleryItemCaption({ item, onCaptionSaved });
+  const {
+    caption,
+    saveState,
+    saveError,
+    canRevert,
+    handleCaptionChange,
+    revertCaption,
+    retrySave,
+    flushPendingSave,
+  } = useGalleryItemCaption({ item, onCaptionSaved });
+  const backupCaption = useCaptionBackup(item?.path, hasCaptionBackup);
+  const captionCompletions = useMemo(() => buildCaptionVocabulary(items), [items]);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -343,6 +361,7 @@ export function GalleryItemModal({
   const captionCharacterCount = caption.length;
   const copyContent = caption;
   const canCopyCaption = copyContent.length > 0;
+  const canRestoreBackup = backupCaption !== null && backupCaption.trim() !== caption.trim();
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
   // Destination folder only; a missing onCopied costs the refresh, not the save.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
@@ -697,6 +716,36 @@ export function GalleryItemModal({
                   Caption
                 </label>
                 <div className="gallery-item-modal__caption-actions">
+                  {backupCaption !== null && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action"
+                      onClick={() => handleCaptionChange(backupCaption)}
+                      disabled={busy || !canRestoreBackup}
+                      aria-label={`Restore the backed up caption for ${item.name}`}
+                      title="Replace this caption with the copy in .backup"
+                    >
+                      <Icon
+                        icon={iconArchiveRestore}
+                        className="gallery-item-modal__caption-action-icon"
+                      />
+                      Restore backup
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="gallery-item-modal__caption-action"
+                    onClick={revertCaption}
+                    disabled={busy || !canRevert}
+                    aria-label={`Revert caption changes for ${item.name}`}
+                    title="Undo every change made since this file was opened"
+                  >
+                    <Icon
+                      icon={iconRotateCcw}
+                      className="gallery-item-modal__caption-action-icon"
+                    />
+                    Revert
+                  </button>
                   {canResolveIssue && (
                     <button
                       type="button"
@@ -734,6 +783,7 @@ export function GalleryItemModal({
                 // Fresh editor per item: CodeMirror maps selection through a document swap.
                 key={item.path}
                 id="gallery-item-caption"
+                completions={captionCompletions}
                 value={caption}
                 placeholder={placeholder}
                 variant={captionDisplay.variant}
@@ -742,9 +792,9 @@ export function GalleryItemModal({
                 searchRegex={searchRegex}
                 aria-label={`Caption for ${item.name}`}
                 aria-invalid={saveState === "error"}
-                title={saveState === "error" ? (saveError ?? "Save failed") : undefined}
                 onChange={handleCaptionChange}
               />
+              <CaptionSaveStatus state={saveState} error={saveError} onRetry={retrySave} />
             </div>
           </footer>
         )}

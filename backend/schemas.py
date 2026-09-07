@@ -266,6 +266,11 @@ class CaptionSaveResponse(BaseModel):
     has_issue_file: bool = False
 
 
+class CaptionBackupResponse(BaseModel):
+    exists: bool
+    description: str | None = None
+
+
 class SysPromptSaveResponse(BaseModel):
     description: str | None
     has_description: bool

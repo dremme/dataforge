@@ -5,6 +5,7 @@ import type {
   CaptionSaveResponse,
   FolderChangesResponse,
   Job,
+  JobFileResult,
   FolderResponse,
 } from "@/shared/types";
 import { emptyFolder, homeFolder, vacationFolder } from "./fixtures";
@@ -19,6 +20,12 @@ export interface MockBackendOptions {
   failFolder?: boolean;
   folderDelayMs?: number;
   folderByPath?: Record<string, FolderResponse | undefined>;
+  /** Backed-up caption text keyed by media path; anything absent has no backup. */
+  captionBackups?: Record<string, string>;
+  /** Job records the jobs endpoints serve; empty unless a test needs history. */
+  jobs?: Job[];
+  /** Per-file results keyed by job id. */
+  jobResults?: Record<string, JobFileResult[]>;
 }
 
 function normalizeFolderKey(path: string | null | undefined): string | undefined {
@@ -380,6 +387,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/caption/backup" && method === "GET") {
+      const path = url.searchParams.get("path") ?? "";
+      const backup = options.captionBackups?.[path];
+      return jsonResponse({ exists: backup !== undefined, description: backup ?? null });
+    }
+
     if (url.pathname === "/api/caption" && method === "GET") {
       const path = url.searchParams.get("path") ?? "";
       const folderData =
@@ -701,11 +714,24 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse({ deleted_count: 0 });
       }
 
-      return jsonResponse({ jobs: [], active_count: 0 });
+      const jobs = options.jobs ?? [];
+      const activeCount = jobs.filter(
+        (job) => job.status === "queued" || job.status === "running",
+      ).length;
+      return jsonResponse({ jobs, active_count: activeCount });
     }
 
     if (url.pathname === "/api/jobs/folder-latest") {
-      return jsonResponse(null);
+      const folderPath = normalizeFolderKey(url.searchParams.get("path"));
+      const latest = (options.jobs ?? []).find(
+        (job) => normalizeFolderKey(job.folder) === folderPath,
+      );
+      return jsonResponse(latest ?? null);
+    }
+
+    if (url.pathname.startsWith("/api/jobs/") && url.pathname.endsWith("/results")) {
+      const jobId = url.pathname.split("/").at(-2) ?? "";
+      return jsonResponse({ job_id: jobId, results: options.jobResults?.[jobId] ?? [] });
     }
 
     if (url.pathname.startsWith("/api/jobs/") && url.pathname.endsWith("/cancel")) {

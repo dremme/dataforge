@@ -12,6 +12,7 @@
 @use "components/anchored";
 @use "components/automation";
 @use "components/breadcrumbs";
+@use "components/caption-save-status";
 @use "components/code-editor";
 @use "components/comfy-workflow-dialog";
 @use "components/confirm-dialog";
@@ -27,6 +28,7 @@
 @use "components/image-edit-panel";
 @use "components/image-edit-stage";
 @use "components/issue-resolver-modal";
+@use "components/job-file-results";
 @use "components/jobs-drawer";
 @use "components/mask-overlay";
 @use "components/messages";

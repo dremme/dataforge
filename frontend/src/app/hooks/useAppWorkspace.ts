@@ -22,7 +22,7 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
-import type { FolderChangesResponse } from "@/shared/types";
+import type { FolderChangesResponse, JobType } from "@/shared/types";
 
 export function useAppWorkspace() {
   const mainRef = useRef<HTMLElement>(null);
@@ -141,6 +141,25 @@ export function useAppWorkspace() {
 
   const candidateReview = useCandidateReviewOverlay(refreshFolder);
 
+  // Set from useAutomationHost's return below, which in turn needs these handlers.
+  const requestJobStartRef = useRef<(jobType: JobType) => void>(() => {});
+
+  const retryFailedFiles = useCallback(
+    (jobType: JobType, paths: string[]) => {
+      gallery.selectOnlyPaths(paths);
+      requestJobStartRef.current(jobType);
+    },
+    [gallery],
+  );
+
+  const runJobAgain = useCallback(
+    (jobType: JobType) => {
+      gallery.exitSelectionMode();
+      requestJobStartRef.current(jobType);
+    },
+    [gallery],
+  );
+
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const openFolderPicker = useCallback(() => setFolderPickerOpen(true), []);
   const closeFolderPicker = useCallback(() => setFolderPickerOpen(false), []);
@@ -170,7 +189,12 @@ export function useAppWorkspace() {
       candidateCount > 0 && folder?.path
         ? () => void candidateReview.openCandidateReview(folder.path, items)
         : undefined,
+    onOpenItem: gallery.openGalleryItem,
+    onRetryFailed: retryFailedFiles,
+    onRunAgain: runJobAgain,
   });
+
+  requestJobStartRef.current = automation.requestStart;
 
   const quickAction = useQuickActionHost({
     folder,
@@ -211,6 +235,11 @@ export function useAppWorkspace() {
     selectionActions,
     sidecarSweep,
     automation,
+    jobResults: {
+      onOpenItem: gallery.openGalleryItem,
+      onRetryFailed: retryFailedFiles,
+      onRunAgain: runJobAgain,
+    },
     quickAction,
     statsDrawer,
     duplicateResolver,

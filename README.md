@@ -58,7 +58,7 @@ DataForge catalogs JPG/JPEG, PNG, WebP, BMP, GIF, MP4, AVI, MOV, MKV, WMV, M4V, 
 
 ### Write and inspect captions
 
-Edit `.txt` captions in place, see caption state in the gallery and detail view, and keep per-folder AI instructions in `.sysprompt`. Inspect embedded ComfyUI prompts, LoRAs, and settings where supported.
+Edit `.txt` captions in place, see caption state in the gallery and detail view, and keep per-folder AI instructions in `.sysprompt`. Captions autosave, can be reverted or restored from `.backup`, and complete from the folder's vocabulary. Inspect embedded ComfyUI prompts, LoRAs, and settings where supported.
 
 - **Auto-caption** completes short drafts from media with a configured vision model and can include video audio.
 - **Set captions** applies the same text to many files.
@@ -83,7 +83,7 @@ Crop, rotate, mirror, resize, and adjust brightness, contrast, saturation, warmt
 
 ### Automate in bulk
 
-Jobs run in the background with progress, cancellation, and history. A selection scopes most jobs to those paths; without a selection, they use the current folder. See the [job reference](docs/user-guide.md#job-reference) for outputs, prerequisites, and reversibility.
+Jobs run in the background with progress, cancellation, and history. A selection scopes most jobs to those paths; without a selection, they use the current folder. Jobs show per-file results and can retry failures. See the [job reference](docs/user-guide.md#job-reference) for outputs, prerequisites, and reversibility.
 
 ### Train and process with integrations
 

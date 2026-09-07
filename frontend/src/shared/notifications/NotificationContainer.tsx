@@ -34,7 +34,7 @@ export function NotificationContainer({
   }
 
   return createPortal(
-    <div className="notifications" aria-live="polite">
+    <div className="notifications" aria-live="polite" aria-label="Notifications">
       {notifications.map((notification) => (
         <div
           key={notification.id}

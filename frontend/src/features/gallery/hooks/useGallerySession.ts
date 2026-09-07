@@ -48,6 +48,7 @@ export function useGallerySession({
     exitSelectionMode,
     toggleSelectedPath,
     selectPathRange,
+    replaceSelectedPaths,
     selectAllPaths,
     invertSelectedPaths,
     removeSelectedPaths,
@@ -204,6 +205,15 @@ export function useGallerySession({
     selectAllPaths(query.filteredItems.map((item) => item.path));
   }, [enterSelectionMode, query.filteredItems, selectAllPaths]);
 
+  /** Scopes the next job to exactly these files. Filters still narrow what a job receives. */
+  const selectOnlyPaths = useCallback(
+    (paths: readonly string[]) => {
+      enterSelectionMode();
+      replaceSelectedPaths(paths);
+    },
+    [enterSelectionMode, replaceSelectedPaths],
+  );
+
   const handleInvertSelection = useCallback(() => {
     if (!selectionMode) return;
     invertSelectedPaths(query.filteredItems.map((item) => item.path));
@@ -222,6 +232,7 @@ export function useGallerySession({
     clearSelectedPaths,
     handleSelectAllPaths,
     handleInvertSelection,
+    selectOnlyPaths,
     query,
     displayMode,
     setDisplayMode,

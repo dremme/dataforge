@@ -1,5 +1,6 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import type {
+  CaptionBackupResponse,
   CaptionSaveResponse,
   CaptionUpdate,
   ComfyWorkflowPromptsResponse,
@@ -10,6 +11,11 @@ import type {
 export async function fetchCaption(mediaPath: string): Promise<CaptionSaveResponse> {
   const params = new URLSearchParams({ path: mediaPath });
   return requestJson<CaptionSaveResponse>(`/api/caption?${params}`);
+}
+
+export async function fetchCaptionBackup(mediaPath: string): Promise<CaptionBackupResponse> {
+  const params = new URLSearchParams({ path: mediaPath });
+  return requestJson<CaptionBackupResponse>(`/api/caption/backup?${params}`);
 }
 
 export async function fetchComfyWorkflow(mediaPath: string): Promise<PngWorkflowResponse> {

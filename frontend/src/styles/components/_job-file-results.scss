@@ -1,0 +1,138 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.job-file-results {
+  margin-top: 0.5rem;
+
+  &__toggle {
+    @include control-interactive;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    padding: 0.125rem 0;
+    background: none;
+    border: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    line-height: var(--leading-tight);
+
+    &:hover {
+      color: var(--text);
+    }
+  }
+
+  &__toggle-icon {
+    @include icon-size(var(--icon-size-sm));
+    transition: transform var(--transition);
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__summary--failed {
+    color: $color-caption-error;
+  }
+
+  &__panel {
+    margin-top: 0.4375rem;
+  }
+
+  &__note {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  &__note-icon {
+    @include icon-size(var(--icon-size-sm));
+
+    &--spin {
+      @include spin;
+    }
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    max-height: 13rem;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: var(--text-xs);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+
+    &--failed .job-file-results__status {
+      color: $color-caption-error;
+    }
+
+    &--skipped .job-file-results__status {
+      color: var(--text-muted);
+    }
+  }
+
+  &__name {
+    @include truncate;
+    min-width: 0;
+    color: var(--text);
+    text-align: left;
+  }
+
+  &__name--action {
+    @include control-interactive;
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__status {
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  &__message {
+    @include truncate;
+    grid-column: 1 / -1;
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+  }
+
+  &__action {
+    @include pill-btn-compact(default);
+  }
+
+  &__action-icon {
+    @include icon-size(var(--icon-size-sm));
+  }
+}

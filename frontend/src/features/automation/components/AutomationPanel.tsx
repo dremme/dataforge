@@ -41,6 +41,7 @@ import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { classNames } from "@/shared/lib/classNames";
 import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
 import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
+import { JobFileResults } from "@/features/jobs/components/JobFileResults";
 import { TrainingSamples } from "@/features/jobs/components/TrainingSamples";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -76,6 +77,9 @@ export interface AutomationPanelProps {
   jobAvailability: JobAvailability;
   onEditSysprompt: () => void;
   onRequestStart: (jobType: JobType) => void;
+  onOpenItem?: (path: string) => void;
+  onRetryFailed?: (jobType: JobType, paths: string[]) => void;
+  onRunAgain?: (jobType: JobType) => void;
   onCancelJob: () => void;
   cancellingJob?: boolean;
   issueCount?: number;
@@ -99,6 +103,9 @@ export function AutomationPanel({
   jobAvailability,
   onEditSysprompt,
   onRequestStart,
+  onOpenItem,
+  onRetryFailed,
+  onRunAgain,
   onCancelJob,
   cancellingJob = false,
   issueCount = 0,
@@ -368,6 +375,13 @@ export function AutomationPanel({
             </div>
 
             <TrainingSamples samples={trainingSamples} />
+
+            <JobFileResults
+              job={job}
+              onOpenItem={onOpenItem}
+              onRetryFailed={onRetryFailed && ((paths) => onRetryFailed(job.job_type, paths))}
+              onRunAgain={onRunAgain && (() => onRunAgain(job.job_type))}
+            />
 
             {errorMessage && (
               <div className="automation__message automation__message--error" role="alert">

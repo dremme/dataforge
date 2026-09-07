@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { HOME_PATH, homeFolder } from "@/test/fixtures";
@@ -404,5 +404,29 @@ describe("App: search and filters", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Automation")).toBeInTheDocument();
+  });
+
+  it("searches captions for a word picked from the statistics drawer", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Open dataset statistics" }));
+
+    const chart = await screen.findByRole("figure", {
+      name: "Distribution by how often each word appears",
+    });
+    await user.click(within(chart).getByRole("button", { name: "golden" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /statistics/i })).not.toBeInTheDocument();
+    });
+
+    const search = screen.getByRole("searchbox");
+    expect(search).toHaveValue("golden");
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
   });
 });

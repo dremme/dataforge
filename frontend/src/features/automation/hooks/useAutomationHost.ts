@@ -33,6 +33,9 @@ type UseAutomationHostOptions = {
   onResolveDuplicates?: () => void;
   candidateCount: number;
   onReviewCandidates?: () => void;
+  onOpenItem?: (path: string) => void;
+  onRetryFailed?: (jobType: JobType, paths: string[]) => void;
+  onRunAgain?: (jobType: JobType) => void;
 };
 
 export function useAutomationHost({
@@ -53,6 +56,9 @@ export function useAutomationHost({
   onResolveDuplicates,
   candidateCount,
   onReviewCandidates,
+  onOpenItem,
+  onRetryFailed,
+  onRunAgain,
 }: UseAutomationHostOptions) {
   const { startJob } = automation;
   const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
@@ -121,6 +127,9 @@ export function useAutomationHost({
       onResolveDuplicates,
       candidateCount,
       onReviewCandidates,
+      onOpenItem,
+      onRetryFailed,
+      onRunAgain,
     }),
     [
       automation.cancelFolderJob,
@@ -137,6 +146,9 @@ export function useAutomationHost({
       onResolveIssues,
       onResolveDuplicates,
       onReviewCandidates,
+      onOpenItem,
+      onRetryFailed,
+      onRunAgain,
       requestStart,
       sysprompt,
     ],
@@ -149,6 +161,7 @@ export function useAutomationHost({
 
   return {
     panelProps,
+    requestStart,
     dialogs: automationDialogs,
     jobStartConfirm: {
       pending: pendingJobStart,

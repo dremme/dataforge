@@ -458,4 +458,137 @@ describe("GalleryItemModal", () => {
     // A reused editor carries the old item's selection into the new caption.
     expect(nextCaption).not.toBe(caption);
   });
+
+  it("reports an autosave failure and resends the caption on retry", async () => {
+    const user = userEvent.setup();
+    const saveCaption = vi
+      .spyOn(captionsApi, "saveCaption")
+      .mockRejectedValueOnce(new Error("Disk is full"));
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(within(dialog).getByRole("textbox", { name: "Caption for sunset.png" }));
+    await user.keyboard(" at dusk");
+
+    await waitFor(() =>
+      expect(within(dialog).getByRole("status")).toHaveTextContent("Disk is full"),
+    );
+
+    saveCaption.mockResolvedValue({
+      description: "Golden hour over the lake at dusk",
+      has_description: true,
+      has_caption_file: true,
+      caption_status: "text",
+      caption_file: `${HOME_PATH}\\sunset.txt`,
+      issue_fixes: [],
+      has_issue_file: false,
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("Saved"));
+    expect(saveCaption).toHaveBeenCalledTimes(2);
+  });
+
+  it("reverts the caption to the text the file was opened with", async () => {
+    const user = userEvent.setup();
+    const saveCaption = vi.spyOn(captionsApi, "saveCaption");
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const revert = within(dialog).getByRole("button", {
+      name: "Revert caption changes for sunset.png",
+    });
+    expect(revert).toBeDisabled();
+
+    const editor = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+    await user.click(editor);
+    await user.keyboard(" at dusk");
+
+    await waitFor(() => expect(within(dialog).getByRole("status")).toHaveTextContent("Saved"));
+    expect(revert).toBeEnabled();
+
+    await user.click(revert);
+
+    await waitFor(() =>
+      expect(saveCaption).toHaveBeenLastCalledWith(
+        `${HOME_PATH}\\sunset.png`,
+        "Golden hour over the lake",
+      ),
+    );
+    expect(editor).toHaveValue("Golden hour over the lake");
+    await waitFor(() => expect(revert).toBeDisabled());
+  });
+
+  it("offers no backup restore when the folder has no caption backup", async () => {
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    expect(
+      within(dialog).queryByRole("button", { name: /Restore the backed up caption/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("restores this file's backed up caption", async () => {
+    const user = userEvent.setup();
+    installMockBackend({
+      captionBackups: { [`${HOME_PATH}\\sunset.png`]: "The caption as it was backed up" },
+    });
+    const saveCaption = vi.spyOn(captionsApi, "saveCaption");
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        hasCaptionBackup
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const restore = await within(dialog).findByRole("button", {
+      name: "Restore the backed up caption for sunset.png",
+    });
+
+    await user.click(restore);
+
+    await waitFor(() =>
+      expect(saveCaption).toHaveBeenLastCalledWith(
+        `${HOME_PATH}\\sunset.png`,
+        "The caption as it was backed up",
+      ),
+    );
+  });
 });

@@ -4,6 +4,8 @@ import json
 import unittest
 from urllib.parse import quote
 
+from automation.backup_captions import run_backup_captions_job
+from constants import CAPTION_BACKUP_DIR_NAME
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
@@ -273,6 +275,61 @@ class CaptionEndpointTests(unittest.TestCase):
                 media.with_suffix(".txt").read_text(encoding="utf-8"), "First caption.\n"
             )
             self.assertEqual(leftover.read_text(encoding="utf-8"), "{bad")
+
+
+class CaptionBackupEndpointTests(unittest.TestCase):
+    def test_reports_no_backup_when_the_folder_has_none(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "Current caption.")
+
+            response = client.get(f"/api/caption/backup?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertFalse(payload["exists"])
+            self.assertIsNone(payload["description"])
+
+    def test_returns_the_backed_up_caption(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "Current caption.")
+            run_backup_captions_job(root)
+            write_txt_caption(media, "Edited since the backup.")
+
+            response = client.get(f"/api/caption/backup?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload["exists"])
+            self.assertEqual(payload["description"], "Current caption.")
+
+    def test_ignores_a_backup_belonging_to_another_file(self) -> None:
+        with TempMediaFolder() as root:
+            backed_up = write_media(root, "sunset.png")
+            write_txt_caption(backed_up, "Sunset caption.")
+            run_backup_captions_job(root)
+
+            other = write_media(root, "harbour.png")
+
+            response = client.get(f"/api/caption/backup?path={quote(str(other))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json()["exists"])
+
+    def test_an_empty_backup_counts_as_a_backup(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_txt_caption(media, "Current caption.")
+            run_backup_captions_job(root)
+            (root / CAPTION_BACKUP_DIR_NAME / "sunset.txt").write_text("   ", encoding="utf-8")
+
+            response = client.get(f"/api/caption/backup?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload["exists"])
+            self.assertEqual(payload["description"], "")
 
 
 class SysPromptEndpointTests(unittest.TestCase):

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStaleRequest } from "./useStaleRequest";
 
-export type SaveState = "idle" | "saved" | "error";
+export type SaveState = "idle" | "pending" | "saving" | "saved" | "error";
 
 export const DEFAULT_DEBOUNCE_MS = 500;
 const DEFAULT_FEEDBACK_CLEAR_MS = 3000;
@@ -28,6 +28,7 @@ export function useDebouncedSave<T>({
   const { next, isCurrent, invalidate } = useStaleRequest();
   const lastSavedRef = useRef<T | null>(null);
   const pendingSaveRef = useRef<T | null>(null);
+  const failedSaveRef = useRef<T | null>(null);
   const saveRef = useRef(save);
   const isUnchangedRef = useRef(isUnchanged);
 
@@ -41,25 +42,31 @@ export function useDebouncedSave<T>({
     }
   }, []);
 
-  const showFeedback = useCallback(
-    (state: "saved" | "error", message?: string) => {
+  const showSaved = useCallback(() => {
+    clearFeedbackTimer();
+    setSaveState("saved");
+    setSaveError(null);
+    feedbackTimerRef.current = setTimeout(() => {
+      setSaveState("idle");
+      feedbackTimerRef.current = null;
+    }, feedbackClearMs);
+  }, [clearFeedbackTimer, feedbackClearMs]);
+
+  // An error stays until the next edit or retry: it outlives the save it belongs to.
+  const showError = useCallback(
+    (message?: string) => {
       clearFeedbackTimer();
-      setSaveState(state);
-      setSaveError(state === "error" ? (message ?? errorMessage) : null);
-      feedbackTimerRef.current = setTimeout(() => {
-        setSaveState("idle");
-        setSaveError(null);
-        feedbackTimerRef.current = null;
-      }, feedbackClearMs);
+      setSaveState("error");
+      setSaveError(message ?? errorMessage);
     },
-    [clearFeedbackTimer, errorMessage, feedbackClearMs],
+    [clearFeedbackTimer, errorMessage],
   );
 
   const persist = useCallback(
     async (payload: T) => {
       const requestId = next();
       clearFeedbackTimer();
-      setSaveState("idle");
+      setSaveState("saving");
       setSaveError(null);
 
       try {
@@ -67,14 +74,16 @@ export function useDebouncedSave<T>({
         if (!isCurrent(requestId)) return;
 
         lastSavedRef.current = payload;
-        showFeedback("saved");
+        failedSaveRef.current = null;
+        showSaved();
       } catch (err) {
         if (!isCurrent(requestId)) return;
 
-        showFeedback("error", err instanceof Error ? err.message : errorMessage);
+        failedSaveRef.current = payload;
+        showError(err instanceof Error ? err.message : errorMessage);
       }
     },
-    [clearFeedbackTimer, errorMessage, isCurrent, next, showFeedback],
+    [clearFeedbackTimer, errorMessage, isCurrent, next, showError, showSaved],
   );
 
   const flushPendingSave = useCallback(() => {
@@ -102,6 +111,7 @@ export function useDebouncedSave<T>({
       }
 
       pendingSaveRef.current = payload;
+      failedSaveRef.current = null;
       const baseline = lastSavedRef.current;
 
       if (baseline !== null && isUnchangedRef.current(payload, baseline)) {
@@ -113,7 +123,7 @@ export function useDebouncedSave<T>({
       }
 
       clearFeedbackTimer();
-      setSaveState("idle");
+      setSaveState("pending");
       setSaveError(null);
       saveTimerRef.current = setTimeout(() => {
         pendingSaveRef.current = null;
@@ -123,8 +133,16 @@ export function useDebouncedSave<T>({
     [clearFeedbackTimer, debounceMs, persist],
   );
 
+  /** Re-sends the payload whose save failed. No-op once anything else has been scheduled. */
+  const retrySave = useCallback(() => {
+    const failed = failedSaveRef.current;
+    if (!failed) return;
+    void persist(failed);
+  }, [persist]);
+
   const setBaseline = useCallback((baseline: T) => {
     lastSavedRef.current = baseline;
+    failedSaveRef.current = null;
     setSaveState("idle");
     setSaveError(null);
   }, []);
@@ -159,6 +177,7 @@ export function useDebouncedSave<T>({
     saveError,
     scheduleSave,
     flushPendingSave,
+    retrySave,
     setBaseline,
     invalidateInFlight,
     hasUnsavedChanges,

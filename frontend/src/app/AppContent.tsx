@@ -22,6 +22,7 @@ export function AppContent() {
     gallery,
     selectionActions,
     automation,
+    jobResults,
     quickAction,
     statsDrawer,
     duplicateResolver,
@@ -141,6 +142,7 @@ export function AppContent() {
         <AppOverlays
           currentFolder={folder?.path}
           onOpenFolder={navigateTo}
+          jobResults={jobResults}
           folderPicker={folderPicker}
           quickAction={quickAction}
           selectionActions={selectionActions.overlay}
@@ -152,6 +154,7 @@ export function AppContent() {
             modalItems: gallery.modalItems,
             searchQuery: query.searchQuery,
             searchRegex: query.searchRegex,
+            hasCaptionBackup: folder?.has_caption_backup ?? false,
             onClose: gallery.closeGalleryItem,
             onPrevious: gallery.goToPrevious,
             onNext: gallery.goToNext,
@@ -170,6 +173,11 @@ export function AppContent() {
             open: statsDrawer.statsOpen,
             items,
             onClose: statsDrawer.closeStats,
+            onSearchWord: (word) => {
+              query.setSearchNames(false);
+              query.setSearchQuery(word);
+              statsDrawer.closeStats();
+            },
           }}
           duplicateResolver={duplicateResolver.overlay}
           candidateReview={candidateReview.overlay}

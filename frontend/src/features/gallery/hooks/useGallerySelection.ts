@@ -58,6 +58,12 @@ export function useGallerySelection() {
     });
   }, []);
 
+  // The one replacing setter: retrying a job must scope to its failed files and nothing else.
+  const replaceSelectedPaths = useCallback((paths: readonly string[]) => {
+    selectionAnchorRef.current = null;
+    setSelectedPaths(new Set(paths));
+  }, []);
+
   // Union, not replace: select-all must not discard what a wider filter left selected out of view.
   const selectAllPaths = useCallback((paths: string[]) => {
     setSelectedPaths((current) => {
@@ -103,6 +109,7 @@ export function useGallerySelection() {
     exitSelectionMode,
     toggleSelectedPath,
     selectPathRange,
+    replaceSelectedPaths,
     selectAllPaths,
     invertSelectedPaths,
     removeSelectedPaths,

@@ -374,6 +374,26 @@
     color: var(--text-muted);
   }
 
+  &__bar-button {
+    @include control-interactive;
+    display: block;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--text);
+      text-decoration: underline;
+    }
+  }
+
   &__bar-value {
     display: grid;
     grid-template-columns: 1fr 2.25rem;

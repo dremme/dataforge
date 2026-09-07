@@ -1,3 +1,4 @@
+import { completionStatus } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { search } from "@codemirror/search";
@@ -75,6 +76,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     // Keep a stable onChange identity. @uiw/react-codemirror reconfigures the whole
     // EditorState when this prop changes, which closes the Ctrl+F search panel.
     const rootRef = useRef<HTMLDivElement>(null);
+    const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
     const handleChange = useCallback((next: string) => {
@@ -84,9 +86,16 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     const onBlurRef = useRef(onBlur);
     onBlurRef.current = onBlur;
 
-    // First Escape closes the find panel; do not let host dialogs see the key.
+    // First Escape dismisses a completion list or the find panel; host dialogs must not see it.
     const handleKeyDownCapture = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key !== "Escape") return;
+
+      const view = viewRef.current;
+      if (view && completionStatus(view.state) !== null) {
+        event.stopPropagation();
+        return;
+      }
+
       if (!closeCodeEditorSearchPanel(rootRef.current)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -149,7 +158,11 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
         onBlur={handleBlur}
       >
         <CodeMirror
-          ref={ref}
+          ref={(instance) => {
+            viewRef.current = instance?.view ?? null;
+            if (typeof ref === "function") ref(instance);
+            else if (ref) ref.current = instance;
+          }}
           id={id}
           className="code-editor__codemirror"
           value={value}

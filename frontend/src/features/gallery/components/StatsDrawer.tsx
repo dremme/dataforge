@@ -30,9 +30,11 @@ interface StatsDrawerProps {
   open: boolean;
   items: GalleryItem[];
   onClose: () => void;
+  /** Sends a frequent word to the gallery search. Omitted, the word list stays read-only. */
+  onSearchWord?: (word: string) => void;
 }
 
-export function StatsDrawer({ open, items, onClose }: StatsDrawerProps) {
+export function StatsDrawer({ open, items, onClose, onSearchWord }: StatsDrawerProps) {
   // Slides out rather than vanishing, so it outlives open by the animation length.
   const [closing, setClosing] = useState(false);
   const [renderedOpen, setRenderedOpen] = useState(open);
@@ -69,7 +71,7 @@ export function StatsDrawer({ open, items, onClose }: StatsDrawerProps) {
       </header>
 
       <div className="stats-drawer__content" data-scroll-lock-allow>
-        <StatsContent items={items} />
+        <StatsContent items={items} onSearchWord={onSearchWord} />
       </div>
     </ModalShell>
   );
@@ -81,7 +83,13 @@ function compactCount(value: number): string {
   return `${thousands < 10 ? thousands.toFixed(1) : Math.round(thousands)}K`;
 }
 
-function StatsContent({ items }: { items: GalleryItem[] }) {
+function StatsContent({
+  items,
+  onSearchWord,
+}: {
+  items: GalleryItem[];
+  onSearchWord?: (word: string) => void;
+}) {
   const stats = useMemo(() => computeDatasetStats(items), [items]);
 
   if (stats.total === 0) {
@@ -153,6 +161,7 @@ function StatsContent({ items }: { items: GalleryItem[] }) {
             buckets={stats.topWords.map((entry) => ({ label: entry.word, count: entry.count }))}
             unit="how often each word appears"
             labelWidth="wide"
+            onSelectLabel={onSearchWord}
           />
         </Section>
       )}
@@ -293,10 +302,12 @@ function BarChart({
   buckets,
   unit,
   labelWidth = "narrow",
+  onSelectLabel,
 }: {
   buckets: StatBucket[];
   unit: string;
   labelWidth?: "narrow" | "wide";
+  onSelectLabel?: (label: string) => void;
 }) {
   const visible = buckets.filter((bucket) => bucket.count > 0);
   if (visible.length === 0) return null;
@@ -308,7 +319,18 @@ function BarChart({
         {visible.map((bucket) => (
           <div key={bucket.label} className="stats-drawer__bar-row">
             <dt className="stats-drawer__bar-label" title={bucket.label}>
-              {bucket.label}
+              {onSelectLabel ? (
+                <button
+                  type="button"
+                  className="stats-drawer__bar-button"
+                  onClick={() => onSelectLabel(bucket.label)}
+                  title={`Search captions for "${bucket.label}"`}
+                >
+                  {bucket.label}
+                </button>
+              ) : (
+                bucket.label
+              )}
             </dt>
             <dd className="stats-drawer__bar-value">
               <span className="stats-drawer__bar-track">

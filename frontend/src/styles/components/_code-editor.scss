@@ -200,6 +200,42 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     opacity: 0.9;
   }
 
+  // Rendered in the editor's own stacking context, so it must clear the dialog it sits in.
+  .cm-tooltip.cm-tooltip-autocomplete {
+    z-index: $z-index-anchored;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+
+    > ul {
+      max-height: 12rem;
+      font-family: inherit;
+      font-size: var(--text-xs);
+
+      > li {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        color: var(--text);
+        line-height: var(--leading-tight);
+      }
+
+      > li[aria-selected] {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+    }
+
+    .cm-completionDetail {
+      color: var(--text-muted);
+      font-style: normal;
+      font-size: var(--text-2xs);
+    }
+  }
+
   .cm-panels {
     flex: 0 0 auto;
     background: transparent;

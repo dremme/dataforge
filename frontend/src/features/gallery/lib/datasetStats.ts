@@ -1,40 +1,7 @@
+import { tokenizeCaptionWords } from "@/features/gallery/lib/captionTokens";
 import { isGif, isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
-
-const STOP_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "are",
-  "as",
-  "at",
-  "be",
-  "by",
-  "for",
-  "from",
-  "has",
-  "he",
-  "her",
-  "him",
-  "his",
-  "in",
-  "is",
-  "it",
-  "its",
-  "of",
-  "on",
-  "or",
-  "she",
-  "that",
-  "the",
-  "there",
-  "this",
-  "to",
-  "was",
-  "were",
-  "with",
-]);
 
 const TOP_WORD_LIMIT = 15;
 
@@ -213,9 +180,7 @@ function countWords(captions: string[]): WordCount[] {
   const counts = new Map<string, number>();
 
   for (const caption of captions) {
-    for (const raw of caption.toLowerCase().split(/[^\p{L}\p{N}']+/u)) {
-      const word = raw.replace(/^'+|'+$/g, "");
-      if (word.length < 2 || STOP_WORDS.has(word)) continue;
+    for (const word of tokenizeCaptionWords(caption)) {
       counts.set(word, (counts.get(word) ?? 0) + 1);
     }
   }
