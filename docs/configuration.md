@@ -71,7 +71,7 @@ COMFY_BASE_URL=http://127.0.0.1:9000
 ```
 
 Restart DataForge. The **Process with ComfyUI** dialog should then report the endpoint as available.
-Workflow presets use the repository's `comfy-workflows/` directory unless you set
+Workflow presets use the repository's `comfy_workflows/` directory unless you set
 `COMFY_WORKFLOWS_DIR`. Follow [Process images with ComfyUI](comfyui.md) for setup, preset authoring,
 and candidate review.
 
@@ -194,7 +194,7 @@ values:
 
 DataForge sends the chosen effort both as top-level `reasoning_effort` for llama.cpp and in
 `chat_template_kwargs` for Unsloth/vLLM-style servers. A server or template that does not recognize
-it ignores it. The shipped `llm-templates/qwen38_template.jinja` reads it; the Qwen3.6 and Gemma 4
+it ignores it. The shipped `llm_templates/qwen38_template.jinja` reads it; the Qwen3.6 and Gemma 4
 templates do not.
 
 **Back up captions first** in **Edit captions** is on for every new run and is deliberately not
@@ -307,7 +307,7 @@ server or compatibility layer if it rejects or ignores `repeat_penalty`.
 | Variable              | Default                       | Used by                                                            | When to change it                                                                                                       |
 | --------------------- | ----------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `COMFY_BASE_URL`      | `http://127.0.0.1:9000`       | **Process with ComfyUI** and availability checks                   | ComfyUI listens at another origin                                                                                       |
-| `COMFY_WORKFLOWS_DIR` | repository `comfy-workflows/` | Preset listing and execution                                       | Store API-format workflow presets elsewhere                                                                             |
+| `COMFY_WORKFLOWS_DIR` | repository `comfy_workflows/` | Preset listing and execution                                       | Store API-format workflow presets elsewhere                                                                             |
 | `COMFY_IMAGE_TIMEOUT` | `900` seconds                 | Waiting for one processed image                                    | A workflow regularly needs more time, or a dead workflow should fail sooner; values below 30 seconds fall back to `900` |
 | `OSTRIS_TOOLKIT_ROOT` | unset                         | Resolving AI-Toolkit state paths, including a relative SQLite path | DataForge cannot locate state from the training folder returned by AI-Toolkit                                           |
 
@@ -384,7 +384,7 @@ and tuning consequences.
 | `VIDEO_FRAME_MIN_PIXELS`           | `262144`                      | Long-video keyframes and resize floor  | Change long-clip size/floor             |
 | `OSTRIS_TOOLKIT_ROOT`              | unset                         | AI-Toolkit state resolution            | Resolve toolkit-relative state files    |
 | `COMFY_BASE_URL`                   | `http://127.0.0.1:9000`       | ComfyUI integration                    | Point to another ComfyUI origin         |
-| `COMFY_WORKFLOWS_DIR`              | repository `comfy-workflows/` | ComfyUI presets                        | Use another preset directory            |
+| `COMFY_WORKFLOWS_DIR`              | repository `comfy_workflows/` | ComfyUI presets                        | Use another preset directory            |
 | `COMFY_IMAGE_TIMEOUT`              | `900` seconds                 | ComfyUI processing                     | Change per-image wait time              |
 | `DATAFORGE_DB_PATH`                | `backend/data/app.db`         | SQLite app state                       | Relocate app state                      |
 | `DATAFORGE_THUMBNAIL_CACHE`        | `backend/data/thumbnails/`    | Thumbnail cache                        | Relocate cached thumbnails              |

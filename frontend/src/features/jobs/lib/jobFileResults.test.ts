@@ -3,6 +3,7 @@ import type { JobFileResult } from "@/shared/types";
 import {
   countFailedResults,
   failedResultPaths,
+  groupResultsForDisplay,
   isFailedResult,
   isSkippedResult,
   resultStatusLabel,
@@ -55,6 +56,45 @@ describe("jobFileResults", () => {
     const results = [makeResult("sample.jpg", "sample"), makeResult("done.png", "success")];
 
     expect(sortResultsForDisplay(results).map((result) => result.name)).toEqual(["done.png"]);
+  });
+
+  it("groups outcomes with the ones needing attention first", () => {
+    const groups = groupResultsForDisplay(
+      sortResultsForDisplay([
+        makeResult("done.png", "success"),
+        makeResult("skipped.png", "skipped"),
+        makeResult("broken.png", "write_error"),
+      ]),
+    );
+
+    expect(groups.map((group) => group.label)).toEqual(["Failed", "Skipped", "Completed"]);
+    expect(groups.map((group) => group.tone)).toEqual(["failed", "skipped", "done"]);
+    expect(groups.map((group) => group.results.map((result) => result.name))).toEqual([
+      ["broken.png"],
+      ["skipped.png"],
+      ["done.png"],
+    ]);
+  });
+
+  it("leaves out an outcome the job never produced", () => {
+    const groups = groupResultsForDisplay([
+      makeResult("a.png", "success"),
+      makeResult("b.png", "success"),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ tone: "done", label: "Completed" });
+    expect(groups[0].results).toHaveLength(2);
+  });
+
+  it("files an unrecognised status under Completed rather than dropping it", () => {
+    const groups = groupResultsForDisplay([makeResult("a.png", "brand_new_status")]);
+
+    expect(groups.map((group) => group.tone)).toEqual(["done"]);
+  });
+
+  it("groups nothing when there are no results", () => {
+    expect(groupResultsForDisplay([])).toEqual([]);
   });
 
   it("collects the paths of failed files only", () => {

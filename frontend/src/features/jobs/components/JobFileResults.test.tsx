@@ -78,6 +78,72 @@ describe("JobFileResults", () => {
     expect(within(rows[0]).getByText("Permission denied")).toBeInTheDocument();
   });
 
+  it("groups the rows under the outcome each file reached", async () => {
+    const user = userEvent.setup();
+    render(<JobFileResults job={finishedJob} />);
+
+    await user.click(screen.getByRole("button", { name: /1 failed/ }));
+
+    expect(await screen.findByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Skipped", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+  });
+
+  it("names no group for an outcome the job never produced", async () => {
+    const user = userEvent.setup();
+    fetchResults.mockResolvedValue([results[0]]);
+    render(<JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />);
+
+    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
+
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+    expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Skipped", { selector: "p" })).not.toBeInTheDocument();
+  });
+
+  it("states the breakdown in words beside the proportion bar", async () => {
+    const user = userEvent.setup();
+    render(<JobFileResults job={finishedJob} />);
+
+    await user.click(screen.getByRole("button", { name: /1 failed/ }));
+
+    expect(await screen.findByText("1 done · 1 skipped · 1 failed")).toBeInTheDocument();
+    expect(screen.getByRole("figure")).toBeInTheDocument();
+  });
+
+  it("draws no proportion bar when every file succeeded", async () => {
+    const user = userEvent.setup();
+    fetchResults.mockResolvedValue([results[0]]);
+    render(<JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />);
+
+    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
+
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+    expect(screen.queryByRole("figure")).not.toBeInTheDocument();
+  });
+
+  it("still draws the bar when a run only skipped files", async () => {
+    const user = userEvent.setup();
+    fetchResults.mockResolvedValue([results[1]]);
+    render(<JobFileResults job={{ ...finishedJob, stats: { total: 1, skipped: 1 } }} />);
+
+    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
+
+    expect(await screen.findByText("1 skipped")).toBeInTheDocument();
+  });
+
+  it("still shows a file and its status when rows cannot be opened", async () => {
+    const user = userEvent.setup();
+    render(<JobFileResults job={finishedJob} />);
+
+    await user.click(screen.getByRole("button", { name: /1 failed/ }));
+
+    const rows = await screen.findAllByRole("listitem");
+    expect(within(rows[0]).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(rows[0]).getByTitle(/Photos/)).toHaveTextContent("broken.png");
+    expect(within(rows[0]).getByText("Write error")).toBeInTheDocument();
+  });
+
   it("retries only the files that failed", async () => {
     const user = userEvent.setup();
     const onRetryFailed = vi.fn();

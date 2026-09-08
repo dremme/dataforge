@@ -7,7 +7,7 @@ from pathlib import Path
 
 DEFAULT_COMFY_BASE_URL = "http://127.0.0.1:9000"
 
-DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / "comfy-workflows"
+DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / "comfy_workflows"
 
 # Generous: waiting too little discards a result ComfyUI has already paid for.
 DEFAULT_COMFY_IMAGE_TIMEOUT_SECONDS = 900.0

@@ -26,7 +26,7 @@ COMFY_WORKFLOWS_DIR=
 COMFY_IMAGE_TIMEOUT=900
 ```
 
-`COMFY_WORKFLOWS_DIR` defaults to the repository’s `comfy-workflows/` directory. `COMFY_IMAGE_TIMEOUT` is the per-image wait limit in seconds; values below 30 seconds fall back to the default. Restart DataForge after changing `.env`.
+`COMFY_WORKFLOWS_DIR` defaults to the repository’s `comfy_workflows/` directory. `COMFY_IMAGE_TIMEOUT` is the per-image wait limit in seconds; values below 30 seconds fall back to the default. Restart DataForge after changing `.env`.
 
 The menu item appears whenever a preset exists, even when ComfyUI is stopped. Its dialog reports whether the configured endpoint is currently available. DataForge uploads sources into ComfyUI’s `input/dataforge/` directory. ComfyUI provides no cleanup endpoint, so remove old uploads from that folder periodically.
 
@@ -34,13 +34,13 @@ See [configuration](configuration.md#integrations) for every integration setting
 
 ## Try the included preset
 
-`comfy-workflows/example-lanczos-2x.json` is a plain Lanczos 2× resize using only core ComfyUI nodes. It needs no model downloads, so it is useful for testing the path before trying a restoration, upscale, or generation graph.
+`comfy_workflows/example_lanczos_2x.json` is a plain Lanczos 2× resize using only core ComfyUI nodes. It needs no model downloads, so it is useful for testing the path before trying a restoration, upscale, or generation graph.
 
-`sample-images/` includes one result staged from this preset. Open that folder and choose **Review candidates** to inspect the workflow without running ComfyUI first.
+`sample_images/` includes one result staged from this preset. Open that folder and choose **Review candidates** to inspect the workflow without running ComfyUI first.
 
 ## Run a folder
 
-1. Put an API-format workflow preset in `comfy-workflows/`, or configure `COMFY_WORKFLOWS_DIR`.
+1. Put an API-format workflow preset in `comfy_workflows/`, or configure `COMFY_WORKFLOWS_DIR`.
 2. Open the source dataset folder, not its `staging/` child.
 3. Open **Process with ComfyUI** from the automation menu.
 4. Choose the preset. Optionally set a seed and prompt, if the workflow provides the matching titled nodes.
@@ -78,7 +78,7 @@ Each `.json` file in the workflow directory is one preset. Its filename stem is 
 4. Give disambiguating nodes the titles in the tables below when the graph contains more than one possible input or output node.
 5. Open the dialog again to refresh the preset list.
 
-Extra workflow JSON files are gitignored. Only `example-lanczos-2x.json` is tracked by this repository.
+Extra workflow JSON files are gitignored. Only `example_lanczos_2x.json` is tracked by this repository.
 
 ### Required input and output nodes
 

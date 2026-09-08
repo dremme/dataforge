@@ -317,7 +317,7 @@ class PresetDiscoveryTests(unittest.TestCase):
 class ShippedExampleTests(unittest.TestCase):
     def test_the_example_preset_parses(self) -> None:
         # The shipped example is the fixture; a broken one fails here first.
-        path = Path(__file__).resolve().parents[2] / "comfy-workflows" / "example-lanczos-2x.json"
+        path = Path(__file__).resolve().parents[2] / "comfy_workflows" / "example_lanczos_2x.json"
         workflow = parse_comfy_workflow(path.read_text(encoding="utf-8"), source=path.stem)
 
         self.assertEqual(workflow.input_node, "1")

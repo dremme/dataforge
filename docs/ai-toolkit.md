@@ -46,9 +46,9 @@ DataForge sends the folder path, chosen model, LoRA name, trigger word, sample p
 
 | DataForge choice      | Dataset type | Template                           |
 | --------------------- | ------------ | ---------------------------------- |
-| **Krea 2 Turbo**      | Images       | `ostris-templates/krea2-turbo.yml` |
-| **MiniMax H3**        | Videos       | `ostris-templates/h3-fl2va.yml`    |
-| **MiniMax H3 Ref2VA** | Videos       | `ostris-templates/h3-ref2va.yml`   |
+| **Krea 2 Turbo**      | Images       | `ostris_templates/krea2_turbo.yml` |
+| **MiniMax H3**        | Videos       | `ostris_templates/h3_fl2va.yml`    |
+| **MiniMax H3 Ref2VA** | Videos       | `ostris_templates/h3_ref2va.yml`   |
 
 The template determines its own resolution, steps, optimizer, sampling, frame count, and model architecture. Choose the template that matches your data and installed AI-Toolkit support rather than mixing image and video templates in the same run.
 
@@ -56,7 +56,7 @@ The template determines its own resolution, steps, optimizer, sampling, frame co
 
 **Edit template** opens the selected template as YAML for the run you are about to start. Use it to adjust settings such as steps, learning rate, resolution, or sample settings.
 
-DataForge validates the YAML before it queues the job. The edited text is sent only with that run; the tracked files under `ostris-templates/` are never overwritten. Switching models loads that model’s stock template for a new per-run draft.
+DataForge validates the YAML before it queues the job. The edited text is sent only with that run; the tracked files under `ostris_templates/` are never overwritten. Switching models loads that model’s stock template for a new per-run draft.
 
 Keep the required template shape intact: a `config.process` entry with a dataset and sample configuration. DataForge fills the job name, training folder, dataset folder, trigger word, and sample prompts; it leaves the rest of the template unchanged.
 
@@ -73,7 +73,7 @@ DataForge displays samples from AI-Toolkit’s training folder. It does not own 
 | Item                                                | Owner                                                                  |
 | --------------------------------------------------- | ---------------------------------------------------------------------- |
 | Dataset media and `.txt` captions                   | Your dataset folder                                                    |
-| Tracked stock templates                             | `ostris-templates/` in this repository                                 |
+| Tracked stock templates                             | `ostris_templates/` in this repository                                 |
 | Per-run edited YAML                                 | Sent with the AI-Toolkit job; not written back to the tracked template |
 | Job records, checkpoints, samples, training folders | AI-Toolkit configuration and storage                                   |
 | DataForge job history and UI state                  | DataForge app database under `backend/data/` by default                |

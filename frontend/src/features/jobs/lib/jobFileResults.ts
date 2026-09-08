@@ -54,6 +54,39 @@ export function isSkippedResult(result: JobFileResult): boolean {
   return SKIPPED_STATUSES.has(result.status);
 }
 
+export type ResultTone = "failed" | "skipped" | "done";
+
+/** Worklist order: what needs attention first. The proportion bar reads the other way round. */
+const TONE_ORDER: readonly ResultTone[] = ["failed", "skipped", "done"];
+
+const GROUP_LABELS: Record<ResultTone, string> = {
+  failed: "Failed",
+  skipped: "Skipped",
+  done: "Completed",
+};
+
+/** `done` is everything that is neither failed nor skipped, so its labels can differ per file. */
+export function resultToneOf(result: JobFileResult): ResultTone {
+  if (isFailedResult(result)) return "failed";
+  if (isSkippedResult(result)) return "skipped";
+  return "done";
+}
+
+export interface ResultGroup {
+  tone: ResultTone;
+  label: string;
+  results: JobFileResult[];
+}
+
+/** Buckets an already-sorted list, dropping outcomes the job never produced. */
+export function groupResultsForDisplay(results: JobFileResult[]): ResultGroup[] {
+  return TONE_ORDER.map((tone) => ({
+    tone,
+    label: GROUP_LABELS[tone],
+    results: results.filter((result) => resultToneOf(result) === tone),
+  })).filter((group) => group.results.length > 0);
+}
+
 export function resultStatusLabel(status: string): string {
   const known = STATUS_LABELS[status];
   if (known) return known;
@@ -64,9 +97,7 @@ export function resultStatusLabel(status: string): string {
 }
 
 function resultRank(result: JobFileResult): number {
-  if (isFailedResult(result)) return 0;
-  if (isSkippedResult(result)) return 1;
-  return 2;
+  return TONE_ORDER.indexOf(resultToneOf(result));
 }
 
 /** Failures first, then skips, then the rest; each group keeps the order the job ran in. */

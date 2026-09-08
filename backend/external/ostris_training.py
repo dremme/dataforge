@@ -21,14 +21,16 @@ from external.ostris_jobs import (
     start_ostris_queue,
 )
 
-TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "ostris-templates"
+TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "ostris_templates"
 
 DEFAULT_TRAINING_MODEL = "krea2_turbo"
 
+# An allowlist, not a naming convention: deriving the filename would let any requested
+# model string reach the filesystem.
 TRAINING_TEMPLATES: dict[str, str] = {
-    "krea2_turbo": "krea2-turbo.yml",
-    "h3_fl2va": "h3-fl2va.yml",
-    "h3_ref2va": "h3-ref2va.yml",
+    "krea2_turbo": "krea2_turbo.yml",
+    "h3_fl2va": "h3_fl2va.yml",
+    "h3_ref2va": "h3_ref2va.yml",
 }
 
 SAMPLES_DIR_NAME = "samples"

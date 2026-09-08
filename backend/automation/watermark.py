@@ -329,10 +329,12 @@ def watermark_video(
         ),
         "-c:v",
         "libx264",
+        # A batch job over copies, so it can afford slower and finer settings than the
+        # interactive video editor, which encodes while the user waits.
         "-preset",
-        "veryfast",
+        "medium",
         "-crf",
-        "20",
+        "16",
         "-pix_fmt",
         "yuv420p",
         "-c:a",

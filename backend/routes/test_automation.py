@@ -773,7 +773,7 @@ class ComfyPresetsEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertIn("example-lanczos-2x", [preset["name"] for preset in payload["presets"]])
+        self.assertIn("example_lanczos_2x", [preset["name"] for preset in payload["presets"]])
         self.assertTrue(payload["available"])
 
     def test_names_the_origin_it_probed(self) -> None:
@@ -869,7 +869,7 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
     "comfy_process": (
         "comfy-process",
         {
-            "preset": "example-lanczos-2x",
+            "preset": "example_lanczos_2x",
             "seed": 1234,
             # The example preset has no prompt node; a non-empty prompt would be a 400.
             "prompt_text": "",

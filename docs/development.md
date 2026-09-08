@@ -64,11 +64,11 @@ DataForge/
 │   └── src/shared/    # types.ts, constants.ts, wireGuards.ts are generated (gitignored)
 ├── scripts/           # Dev + prod servers, launcher helpers, lint, tests, git hooks
 ├── docs/              # Configuration, development, and integration guides
-├── comfy-workflows/   # ComfyUI API-format presets for Process with ComfyUI
-├── ostris-templates/  # Quick LoRA YAML templates
-├── llm-templates/     # Chat templates for local vision servers
+├── comfy_workflows/   # ComfyUI API-format presets for Process with ComfyUI
+├── ostris_templates/  # Quick LoRA YAML templates
+├── llm_templates/     # Chat templates for local vision servers
 ├── .github/workflows/ # CI (run_checks.py)
-├── sample-images/     # Tiny example dataset
+├── sample_images/     # Tiny example dataset
 ├── .env.example       # Sample env vars: ports, AI config (copy to .env)
 ├── .env               # Local secrets/config (gitignored; optional)
 ├── setup.bat/.ps1/.sh # One-time install: venv, dependencies, generated types

@@ -148,7 +148,7 @@ export function ComfyProcessDialog({
       {ready && state.presets.length === 0 && (
         <p className="dialog__hint">
           No workflow presets found. Export one from ComfyUI with <strong>Save (API Format)</strong>{" "}
-          into the <strong>comfy-workflows</strong> folder, titling its loader node{" "}
+          into the <strong>comfy_workflows</strong> folder, titling its loader node{" "}
           <strong>DataForge Input</strong>.
         </p>
       )}

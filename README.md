@@ -40,7 +40,7 @@ See [Getting started](docs/getting-started.md) for launcher options, stopping an
 
 AI is optional; you can browse, organize, and write captions by hand without configuring a model.
 
-1. Open a dataset folder or start with [`sample-images/`](sample-images/).
+1. Open a dataset folder or start with [`sample_images/`](sample_images/).
 2. Inspect the gallery, then search, sort, or filter to find the files that need work.
 3. If you use AI captioning, edit the folder's `.sysprompt` to describe the captions you want.
 4. Select files to scope a job, or leave the selection empty to work on the current folder.

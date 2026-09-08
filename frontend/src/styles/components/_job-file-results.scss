@@ -1,29 +1,36 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
+// Inner dividers run full bleed by cancelling this out, so it cannot drift from the padding.
+$results-gutter: 0.625rem;
+
+// Sits on a job card that may already carry a danger or warning gradient, and inside the
+// floating automation panel, so every surface here stays translucent.
 .job-file-results {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.4375rem $results-gutter;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 
   &__toggle {
     @include control-interactive;
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 0.3125rem;
-    padding: 0.125rem 0;
+    gap: 0.4375rem;
+    width: 100%;
+    padding: 0.25rem 0;
     background: none;
     border: 0;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    line-height: var(--leading-tight);
+    color: var(--text-subtle);
 
     &:hover {
-      color: var(--text);
+      color: var(--text-muted);
     }
   }
 
   &__toggle-icon {
     @include icon-size(var(--icon-size-sm));
+    flex-shrink: 0;
     transition: transform var(--transition);
 
     &--open {
@@ -31,12 +38,30 @@
     }
   }
 
-  &__summary--failed {
-    color: $color-caption-error;
+  &__label {
+    @include section-label;
+    color: inherit;
+  }
+
+  &__chip {
+    @include count-pill($accent: false);
+    margin-left: auto;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+
+    &--failed {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
   }
 
   &__panel {
-    margin-top: 0.4375rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin: 0.4375rem -#{$results-gutter} 0;
+    padding: 0.625rem $results-gutter 0;
+    border-top: 1px solid var(--border);
   }
 
   &__note {
@@ -50,86 +75,183 @@
 
   &__note-icon {
     @include icon-size(var(--icon-size-sm));
+    flex-shrink: 0;
+  }
 
-    &--spin {
-      @include spin;
+  &__alert {
+    @include inline-alert(danger);
+    margin: 0;
+  }
+
+  &__mix {
+    margin: 0;
+  }
+
+  &__mix-track {
+    display: flex;
+    gap: 0.125rem;
+    height: 0.375rem;
+  }
+
+  &__mix-segment {
+    flex-basis: 0;
+    min-width: 0.1875rem;
+    border-radius: var(--radius-pill);
+
+    &--done {
+      background: var(--success);
     }
+
+    &--skipped {
+      background: var(--text-subtle);
+    }
+
+    &--failed {
+      background: var(--danger);
+    }
+  }
+
+  &__mix-caption {
+    margin-top: 0.375rem;
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    @include tabular-nums;
+  }
+
+  &__groups {
+    @include app-scrollbar;
+    max-height: 15rem;
+    overflow-y: auto;
+    // Row buttons focus inside this scroller, which would otherwise clip their outline.
+    padding: $focus-ring-space;
+    margin: -#{$focus-ring-space};
+  }
+
+  &__group + &__group {
+    margin-top: 0.5rem;
+  }
+
+  &__group-label {
+    @include section-label;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    gap: 0.4375rem;
+    padding: 0.25rem 0.375rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    // The app's sticky treatment: translucent, so a tinted job card still reads through.
+    background: var(--bg-sticky);
+    backdrop-filter: blur(var(--modal-backdrop-blur));
+    -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
+
+    &--failed {
+      color: var(--danger);
+    }
+  }
+
+  &__group-count {
+    @include count-pill-muted;
+    min-height: 1rem;
+    padding: 0.0625rem 0.375rem;
   }
 
   &__list {
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
-    max-height: 13rem;
-    overflow-y: auto;
-    margin: 0;
+    gap: 0.0625rem;
+    margin: 0.125rem 0 0;
     padding: 0;
     list-style: none;
   }
 
-  &__row {
+  &__row-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
-    gap: 0.5rem;
-    padding: 0.25rem 0;
-    border-bottom: 1px solid var(--border);
-    font-size: var(--text-xs);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    width: 100%;
+    padding: 0.3125rem 0.375rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+  }
 
-    &:last-child {
-      border-bottom: 0;
+  &__row-body--action {
+    @include control-interactive;
+
+    &:hover {
+      background: var(--surface-hover);
     }
 
-    &--failed .job-file-results__status {
-      color: $color-caption-error;
+    &:hover .job-file-results__name {
+      text-decoration: underline;
     }
+  }
 
-    &--skipped .job-file-results__status {
-      color: var(--text-muted);
-    }
+  &__row-icon {
+    @include icon-size(var(--icon-size-sm));
+    flex-shrink: 0;
+    color: var(--text-subtle);
+  }
+
+  &__row--failed &__row-icon {
+    color: var(--danger);
+  }
+
+  &__row--done &__row-icon {
+    color: var(--success);
   }
 
   &__name {
     @include truncate;
     min-width: 0;
-    color: var(--text);
-    text-align: left;
-  }
-
-  &__name--action {
-    @include control-interactive;
-    background: none;
-    border: 0;
-    padding: 0;
-    font: inherit;
-
-    &:hover {
-      text-decoration: underline;
-    }
+    font-size: var(--text-xs);
   }
 
   &__status {
+    @include count-pill($accent: false);
+    flex-shrink: 0;
+    min-height: 1rem;
+    padding: 0.0625rem 0.375rem;
+    background: var(--surface-hover);
     color: var(--text-muted);
+    font-weight: var(--font-medium);
     white-space: nowrap;
   }
 
+  &__row--failed &__status {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+
   &__message {
-    @include truncate;
-    grid-column: 1 / -1;
+    @include line-clamp(2);
+    grid-column: 2 / -1;
     min-width: 0;
     color: var(--text-muted);
-    font-size: var(--text-2xs);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
   }
 
   &__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.375rem;
-    margin-top: 0.5rem;
+    gap: 0.4375rem;
+    margin: 0 -#{$results-gutter};
+    padding: 0.625rem $results-gutter 0;
+    border-top: 1px solid var(--border);
   }
 
   &__action {
     @include pill-btn-compact(default);
+
+    &--primary {
+      @include pill-btn-compact(accent);
+    }
   }
 
   &__action-icon {
