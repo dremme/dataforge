@@ -134,8 +134,18 @@ In the remaining commands, `<venv-python>` means the corresponding interpreter s
 | Backend lint           | `<venv-python> scripts/run_lint.py` — add `--fix` to auto-fix                                       |
 | Backend tests          | `<venv-python> scripts/run_tests.py`                                                                |
 | Frontend tests         | `cd frontend && npm test`                                                                           |
+| Frontend end-to-end    | `cd frontend && npm run test:e2e` — real backend + Chromium; needs `npx playwright install chromium` |
 | Frontend lint / format | `cd frontend && npm run lint` / `npm run format`                                                    |
 | Install git hooks      | `scripts/install-git-hooks.ps1` or `.sh`                                                            |
+
+## E2E test suite
+
+The end-to-end suite starts its own Vite server on port 18091 and isolated backend on port 18090,
+creates a temporary workspace, and uses a local stand-in vision model. It needs no model credentials
+or running development servers and currently covers auto-captioning an image and a video.
+
+Because it boots servers and a browser, the suite runs separately in CI and is not included in
+`scripts/run_checks.py`.
 
 ## Validate launcher changes
 

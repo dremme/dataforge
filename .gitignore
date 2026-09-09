@@ -21,6 +21,8 @@ node.zip
 # Node
 node_modules/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
 *.tsbuildinfo
 
 # Generated from backend/schemas.py and backend/constants.py by scripts/generate_types.py,
