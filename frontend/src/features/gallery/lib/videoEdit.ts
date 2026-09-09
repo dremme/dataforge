@@ -143,6 +143,13 @@ export function outputDuration(draft: VideoEditDraft): number {
   return Math.max(0, draft.trimEnd - draft.trimStart) / draft.speed;
 }
 
+/** Track position, shared so the playing and paused markers cannot drift apart by a pixel. */
+export function trackPercent(seconds: number, duration: number): string {
+  // An unusable duration spans a second: the handles sit at 0 and nothing divides by zero.
+  const span = Number.isFinite(duration) && duration > 0 ? duration : 1;
+  return `${(Math.min(seconds, span) / span) * 100}%`;
+}
+
 /** Where a source moment lands in the rendered file. Display only: trims stay in source seconds. */
 export function outputTime(seconds: number, speed: number): number {
   if (!Number.isFinite(speed) || speed <= 0) return seconds;

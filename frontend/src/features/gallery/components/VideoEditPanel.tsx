@@ -98,6 +98,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
         speed={edit.draft.speed}
         frameDuration={edit.frameDuration}
         playheadTime={edit.playheadTime}
+        playheadRef={edit.playheadRef}
         playing={edit.playing}
         muted={edit.muted}
         ready={edit.ready}

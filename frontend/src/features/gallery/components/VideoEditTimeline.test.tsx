@@ -95,6 +95,13 @@ describe("VideoEditTimeline", () => {
     expect(props.onTrimEndChange).toHaveBeenCalledWith(expect.closeTo(9.2, 2));
   });
 
+  it("hands the marker node to playback, which moves it between renders", () => {
+    const playheadRef = { current: null as HTMLDivElement | null };
+    renderTimeline({ playheadRef });
+
+    expect(playheadRef.current).toHaveClass("video-edit-timeline__playhead");
+  });
+
   it("steps one frame per arrow press", () => {
     const props = renderTimeline();
 

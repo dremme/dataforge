@@ -1,8 +1,8 @@
-import { useCallback, useRef, type CSSProperties, type PointerEvent } from "react";
+import { useCallback, useRef, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import { iconPause, iconPlay, iconVolume2, iconVolumeX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
-import { outputTime } from "@/features/gallery/lib/videoEdit";
+import { outputTime, trackPercent } from "@/features/gallery/lib/videoEdit";
 
 const COARSE_STEP_SECONDS = 1;
 
@@ -17,6 +17,8 @@ interface VideoEditTimelineProps {
   /** Seconds a source frame occupies; one arrow press moves a handle by exactly this. */
   frameDuration: number;
   playheadTime: number;
+  /** Playback drives the marker through this node, so a lap does not re-render the panel. */
+  playheadRef?: RefObject<HTMLDivElement | null>;
   playing: boolean;
   muted: boolean;
   ready: boolean;
@@ -35,6 +37,7 @@ export function VideoEditTimeline({
   speed,
   frameDuration,
   playheadTime,
+  playheadRef,
   playing,
   muted,
   ready,
@@ -119,7 +122,7 @@ export function VideoEditTimeline({
     [locked, onSeek, secondsAt],
   );
 
-  const percent = (seconds: number) => `${(Math.min(seconds, span) / span) * 100}%`;
+  const percent = (seconds: number) => trackPercent(seconds, span);
 
   return (
     <div className="video-edit-timeline">
@@ -159,7 +162,7 @@ export function VideoEditTimeline({
         <div className="video-edit-timeline__dropped video-edit-timeline__dropped--head" />
         <div className="video-edit-timeline__dropped video-edit-timeline__dropped--tail" />
         <div className="video-edit-timeline__selection" />
-        <div className="video-edit-timeline__playhead" />
+        <div ref={playheadRef} className="video-edit-timeline__playhead" />
         <button
           type="button"
           className="video-edit-timeline__handle video-edit-timeline__handle--start"

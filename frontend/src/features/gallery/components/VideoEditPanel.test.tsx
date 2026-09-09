@@ -36,6 +36,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     muted: true,
     playing: false,
     playheadTime: 0,
+    playheadRef: { current: null },
     outputWidth: 1920,
     outputHeight: 1080,
     outputSeconds: 12,

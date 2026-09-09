@@ -24,6 +24,7 @@ import {
   type VideoEditDraft,
 } from "@/features/gallery/lib/videoEdit";
 import { frameDurationFor, frameIndexAt } from "@/features/gallery/lib/frameGrid";
+import { useVideoPreviewPlayback } from "@/features/gallery/hooks/useVideoPreviewPlayback";
 import { useMaskRegions, type MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions";
 import type { MaskDraft } from "@/features/gallery/lib/mask";
 import { hasUsableDuration, formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
@@ -31,9 +32,6 @@ import { formatApiError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { GalleryItem, VideoEditSpec } from "@/shared/types";
-
-/** How close to the out point playback may drift before it loops back to the in point. */
-const LOOP_EPSILON = 0.03;
 
 export interface UseVideoEditOptions {
   item: GalleryItem | undefined;
@@ -65,6 +63,8 @@ export interface VideoEdit extends MaskRegionControls {
   muted: boolean;
   playing: boolean;
   playheadTime: number;
+  /** The timeline marker, which playback moves itself rather than through a render. */
+  playheadRef: RefObject<HTMLDivElement | null>;
   outputWidth: number;
   outputHeight: number;
   outputSeconds: number;
@@ -122,15 +122,14 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const [cropActive, setCropActive] = useState(false);
   // Sticky across items; remounts pick it up from the muted effect and handleLoadedMetadata.
   const [muted, setMuted] = useState(true);
-  const [playing, setPlaying] = useState(false);
-  const [playheadTime, setPlayheadTime] = useState(0);
 
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const durationRef = useRef(duration);
   durationRef.current = duration;
-  const frameSecondsRef = useRef(frameDurationFor(frameRate));
-  frameSecondsRef.current = frameDurationFor(frameRate);
+  const frameSeconds = frameDurationFor(frameRate);
+  const frameSecondsRef = useRef(frameSeconds);
+  frameSecondsRef.current = frameSeconds;
   const seededPathRef = useRef<string | null>(null);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
@@ -152,6 +151,22 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const path = item?.path;
   const ready = hasUsableDuration(duration) && sourceWidth > 0 && sourceHeight > 0;
 
+  // Read per frame rather than captured, so a handle dragged mid-playback lands on the next lap.
+  const getRange = useCallback(
+    () => ({ start: draftRef.current.trimStart, end: draftRef.current.trimEnd }),
+    [],
+  );
+
+  const { playing, playheadTime, playheadRef, seekTo, togglePlay, syncFrom } =
+    useVideoPreviewPlayback({
+      videoRef,
+      active: editMode,
+      itemPath: path,
+      duration,
+      frameDuration: frameSeconds,
+      getRange,
+    });
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -172,8 +187,6 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setFrameRate(null);
     setSavedSpec(null);
     setAspectId("free");
-    setPlaying(false);
-    setPlayheadTime(0);
     seededPathRef.current = null;
     clearMaskSelection();
   }, [path, editMode, clearMaskSelection]);
@@ -195,35 +208,27 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   });
 
   // Metadata only; the fetch below seeds the draft once this has a duration.
-  const handleLoadedMetadata = useCallback((video: HTMLVideoElement) => {
-    const previousDuration = durationRef.current;
-    setDuration(video.duration);
-    setSourceWidth(video.videoWidth);
-    setSourceHeight(video.videoHeight);
+  const handleLoadedMetadata = useCallback(
+    (video: HTMLVideoElement) => {
+      const previousDuration = durationRef.current;
+      setDuration(video.duration);
+      setSourceWidth(video.videoWidth);
+      setSourceHeight(video.videoHeight);
 
-    // A later durationchange is still this source. Wiping here throws away trim/crop/speed.
-    if (!hasUsableDuration(video.duration) || hasUsableDuration(previousDuration)) return;
+      // A later durationchange is still this source. Wiping here throws away trim/crop/speed.
+      if (!hasUsableDuration(video.duration) || hasUsableDuration(previousDuration)) return;
 
-    setDraft(emptyDraft(video.duration));
+      setDraft(emptyDraft(video.duration));
 
-    // Sticky mode remounts a fresh `<video autoPlay>`; pause so playback stays off the timeline.
-    if (optionsRef.current.editMode) {
-      video.pause();
-      video.currentTime = 0;
-      video.muted = mutedRef.current;
-      setPlaying(false);
-      setPlayheadTime(0);
-    }
-  }, []);
-
-  const seekTo = useCallback(
-    (seconds: number) => {
-      const video = videoRef.current;
-      if (!video) return;
-      video.currentTime = seconds;
-      setPlayheadTime(seconds);
+      // Sticky mode remounts a fresh `<video autoPlay>`; pause so playback stays off the timeline.
+      if (optionsRef.current.editMode) {
+        video.pause();
+        video.currentTime = 0;
+        video.muted = mutedRef.current;
+        syncFrom(video);
+      }
     },
-    [videoRef],
+    [syncFrom],
   );
 
   const seedDraft = useCallback(
@@ -268,47 +273,11 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     })();
   }, [editMode, path, duration, seedDraft]);
 
-  // Re-run on item path as well as mode: the video remounts on both, and a ref never re-runs,
-  // so sticky-mode navigation used to leave these listeners on a discarded element.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !editMode) return;
-
-    setPlaying(!video.paused);
-    setPlayheadTime(video.currentTime);
-
-    const handleTimeUpdate = () => {
-      const { trimStart, trimEnd } = draftRef.current;
-      // Playing only: a seek fires this too, and parking on the out point is not a lap.
-      const looped =
-        video.currentTime >= trimEnd - LOOP_EPSILON || video.currentTime < trimStart - 0.5;
-      if (!video.paused && looped) {
-        video.currentTime = trimStart;
-      }
-      setPlayheadTime(video.currentTime);
-    };
-    // The element snaps to a frame; without this the marker keeps the time we asked for.
-    const handleSeeked = () => setPlayheadTime(video.currentTime);
-    const handlePlay = () => setPlaying(true);
-    const handlePause = () => setPlaying(false);
-
-    video.addEventListener("timeupdate", handleTimeUpdate);
-    video.addEventListener("seeked", handleSeeked);
-    video.addEventListener("play", handlePlay);
-    video.addEventListener("pause", handlePause);
-    return () => {
-      video.removeEventListener("timeupdate", handleTimeUpdate);
-      video.removeEventListener("seeked", handleSeeked);
-      video.removeEventListener("play", handlePlay);
-      video.removeEventListener("pause", handlePause);
-    };
-  }, [editMode, item?.path, videoRef]);
-
   // Preview plays every source frame at the chosen rate; setpts drops frames instead.
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-    video.playbackRate = editMode ? draft.speed : 1;
+    if (!video || !editMode) return;
+    video.playbackRate = draft.speed;
   }, [draft.speed, editMode, videoRef]);
 
   // Editing only; elsewhere the muted attribute and native controls own volume.
@@ -328,19 +297,6 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const toggleMuted = useCallback(() => {
     setMuted((current) => !current);
   }, []);
-
-  const togglePlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      if (video.currentTime >= draftRef.current.trimEnd - LOOP_EPSILON) {
-        video.currentTime = draftRef.current.trimStart;
-      }
-      void video.play();
-      return;
-    }
-    video.pause();
-  }, [videoRef]);
 
   // Both setters park the playhead inside the frame the handle keeps, so what the panel
   // shows is what the render starts and ends on.
@@ -446,11 +402,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   }, [seedDraft]);
 
   const enterEditMode = useCallback(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.pause();
-      setPlaying(false);
-    }
+    // The element remounts on the mode, and the playback hook re-reads the fresh one.
+    videoRef.current?.pause();
     setEditMode(true);
   }, [setEditMode, videoRef]);
 
@@ -584,6 +537,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     muted,
     playing,
     playheadTime,
+    playheadRef,
     outputWidth: output.width,
     outputHeight: output.height,
     outputSeconds: outputDuration(draft),
