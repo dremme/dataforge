@@ -1,11 +1,19 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as foldersApi from "@/features/folder/api/folders";
+import { HOME_PATH, homeFolder, VACATION_PATH } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
 async function openQuickAction(user: ReturnType<typeof userEvent.setup>) {
   await user.keyboard("{Control>}{ }{/Control}");
+}
+
+async function selectHomeAction(user: ReturnType<typeof userEvent.setup>, palette: HTMLElement) {
+  const action = within(palette).getByRole("option", { name: "Home Go to your home folder" });
+  const index = within(palette).getAllByRole("option").indexOf(action);
+  await user.keyboard("{ArrowDown}".repeat(index) + "{Enter}");
 }
 
 async function waitForHomeFolder() {
@@ -19,6 +27,141 @@ afterEach(() => {
 });
 
 describe("App: quick action bar", () => {
+  it("navigates Home from a subfolder and retains the action in recent history", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    window.history.replaceState(null, "", `/?path=${encodeURIComponent(VACATION_PATH)}`);
+    await renderApp();
+    await screen.findByRole("button", { name: "View lake.png" });
+    const roots = vi.spyOn(foldersApi, "fetchFolderRoots");
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "home");
+    await selectHomeAction(user, palette);
+
+    await waitForHomeFolder();
+    expect(roots).not.toHaveBeenCalled();
+    expect(new URLSearchParams(window.location.search).get("path")).toBe(HOME_PATH);
+    expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
+
+    await openQuickAction(user);
+    const recent = await screen.findByRole("group", { name: "Recent" });
+    const homeAction = within(recent).getByRole("option", { name: "Home Go to your home folder" });
+    expect(homeAction).toHaveAttribute("aria-disabled", "true");
+    const historyLength = window.history.length;
+    await user.click(homeAction);
+    expect(screen.getByRole("dialog", { name: "Quick actions" })).toBeInTheDocument();
+    expect(roots).not.toHaveBeenCalled();
+    expect(window.history.length).toBe(historyLength);
+  });
+
+  it.each([undefined, "C:\\Missing"])(
+    "resolves Home through the roots API after initial folder failure at %s",
+    async (path) => {
+      const user = userEvent.setup();
+      const options = { failFolder: true };
+      installMockBackend(options);
+      if (path) {
+        window.history.replaceState(null, "", `/?path=${encodeURIComponent(path)}`);
+      }
+      await renderApp();
+      await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+      if (path) await screen.findByText("Folder not found");
+
+      const roots = vi.spyOn(foldersApi, "fetchFolderRoots");
+      await openQuickAction(user);
+      const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+      await user.type(within(palette).getByRole("combobox"), "home");
+      options.failFolder = false;
+      await selectHomeAction(user, palette);
+
+      await waitForHomeFolder();
+      expect(roots).toHaveBeenCalledOnce();
+      expect(new URLSearchParams(window.location.search).get("path")).toBe(HOME_PATH);
+    },
+  );
+
+  it("reports a roots failure without navigating away from a failed folder", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    const missingPath = "C:\\Missing";
+    window.history.replaceState(null, "", `/?path=${encodeURIComponent(missingPath)}`);
+    await renderApp();
+    await screen.findByText("Folder not found");
+    vi.spyOn(foldersApi, "fetchFolderRoots").mockRejectedValue(new Error("Home unavailable"));
+    const historyLength = window.history.length;
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "home");
+    await selectHomeAction(user, palette);
+
+    expect(await screen.findByText("Home unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Quick actions" })).not.toBeInTheDocument();
+    expect(window.history.length).toBe(historyLength);
+    expect(new URLSearchParams(window.location.search).get("path")).toBe(missingPath);
+  });
+
+  it("keeps Home searchable but disabled at home using equivalent folder paths", async () => {
+    const user = userEvent.setup();
+    installMockBackend({
+      folderByPath: { undefined: { ...homeFolder, home: "c:/photos/" } },
+    });
+    await renderApp();
+    await waitForHomeFolder();
+    const roots = vi.spyOn(foldersApi, "fetchFolderRoots");
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "go to your home folder");
+    const action = within(palette).getByRole("option", { name: "Home Go to your home folder" });
+
+    expect(action).toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Enter}");
+    await user.click(action);
+    expect(roots).not.toHaveBeenCalled();
+    expect(palette).toBeInTheDocument();
+  });
+
+  it.each(["root", "unloaded"])("keeps the parent action disabled for %s", async (state) => {
+    const user = userEvent.setup();
+    installMockBackend({
+      failFolder: state === "unloaded",
+      folderByPath: { undefined: { ...homeFolder, path: "C:\\", parent: null } },
+    });
+    await renderApp();
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "go to parent folder");
+    const action = within(palette).getByRole("option", { name: /Go to parent folder/ });
+    const historyLength = window.history.length;
+
+    expect(action).toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Enter}");
+    await user.click(action);
+    expect(palette).toBeInTheDocument();
+    expect(window.history.length).toBe(historyLength);
+  });
+
+  it("enables the parent action when a parent exists and navigates there", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    window.history.replaceState(null, "", `/?path=${encodeURIComponent(VACATION_PATH)}`);
+    await renderApp();
+    await screen.findByRole("button", { name: "View lake.png" });
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "go to parent folder");
+
+    expect(
+      within(palette).getByRole("option", { name: /Go to parent folder/ }),
+    ).not.toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Enter}");
+    await waitForHomeFolder();
+    expect(new URLSearchParams(window.location.search).get("path")).toBe(HOME_PATH);
+  });
+
   it("opens on Ctrl+Space and navigates into a subfolder on Enter", async () => {
     const user = userEvent.setup();
     installMockBackend();

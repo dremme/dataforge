@@ -4,11 +4,11 @@ import {
   getCachedFolderFavorites,
   refreshFolderFavoritesInBackground,
 } from "@/features/folder/lib/folderFavorites";
-import { folderPathsEqual } from "@/features/folder/lib/folderPath";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSweep";
 import { readRecentFolderPaths } from "@/features/folder/lib/folderPreferences";
-import { openFolderInExplorer } from "@/features/folder/api/folders";
+import { folderPathsEqual } from "@/features/folder/lib/folderPath";
+import { fetchFolderRoots, openFolderInExplorer } from "@/features/folder/api/folders";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { formatApiError } from "@/shared/api/http";
 import {
@@ -111,6 +111,19 @@ export function useQuickActionHost({
     [notify],
   );
 
+  const goHome = useCallback(() => {
+    if (folder && !folderNotFound) {
+      goTo(folder.home);
+      return;
+    }
+
+    void fetchFolderRoots()
+      .then(({ home }) => navigateTo(home))
+      .catch((error: unknown) => {
+        notify({ variant: "danger", message: formatApiError(error) });
+      });
+  }, [folder, folderNotFound, goTo, navigateTo, notify]);
+
   const revealInExplorer = useCallback(
     (path: string) => {
       void openFolderInExplorer(path).catch((error: unknown) => {
@@ -133,6 +146,7 @@ export function useQuickActionHost({
   );
 
   const commandItems = useMemo<QuickActionItem[]>(() => {
+    const parent = folder?.parent;
     const commands: QuickActionItem[] = [
       {
         id: "cmd:open-folder",
@@ -142,6 +156,28 @@ export function useQuickActionHost({
         icon: iconFolderOpen,
         keywords: "browse path picker",
         run: onOpenFolderPicker,
+      },
+      {
+        id: "cmd:home-folder",
+        section: "commands",
+        label: "Home",
+        detail: "Go to your home folder",
+        icon: iconHome,
+        keywords: "root start",
+        disabled: Boolean(folder && !folderNotFound && folderPathsEqual(folder.path, folder.home)),
+        run: goHome,
+      },
+      {
+        id: "cmd:parent-folder",
+        section: "commands",
+        label: "Go to parent folder",
+        detail: parent ?? "No parent folder",
+        icon: iconArrowUp,
+        keywords: "up back",
+        disabled: !parent,
+        run: () => {
+          if (parent) goTo(parent);
+        },
       },
     ];
 
@@ -156,32 +192,6 @@ export function useQuickActionHost({
         icon: iconFolderPlus,
         keywords: "create make directory",
         run: onCreateFolder,
-      });
-    }
-
-    if (folder.parent) {
-      const parent = folder.parent;
-      commands.push({
-        id: "cmd:parent-folder",
-        section: "commands",
-        label: "Go to parent folder",
-        detail: parent,
-        icon: iconArrowUp,
-        keywords: "up back",
-        run: () => goTo(parent),
-      });
-    }
-
-    if (!folderPathsEqual(folder.path, folder.home)) {
-      const home = folder.home;
-      commands.push({
-        id: "cmd:home-folder",
-        section: "commands",
-        label: "Go to home folder",
-        detail: home,
-        icon: iconHome,
-        keywords: "root start",
-        run: () => goTo(home),
       });
     }
 
@@ -292,6 +302,7 @@ export function useQuickActionHost({
     copyFolderPath,
     folder,
     folderNotFound,
+    goHome,
     goTo,
     onCreateFolder,
     onOpenFolderPicker,

@@ -168,10 +168,10 @@ A move, copy, rename, or delete of source media leaves a staged candidate behind
 | `Ctrl+Space` / `⌘Space` | App                                           | Open the quick action bar                                       |
 | `Ctrl+A` / `⌘A`         | Gallery, outside text inputs/dialogs          | Enter selection mode and select every visible file              |
 | `Escape`                | Selection mode                                | Clear selected files first; press again to leave selection mode |
-| Left / right arrow      | Item detail, candidate review, issue resolver | Previous or next item when focus is not editable                |
+| `←` / `→`      | Item detail, candidate review, issue resolver | Previous or next item when focus is not editable                |
 | `Ctrl+Enter` / `⌘Enter` | Issue resolver                                | Resolve the current issue                                       |
 | `Ctrl+Enter` / `⌘Enter` | Candidate review                              | Accept the current candidate when acceptance is available       |
-| Up / down arrow, Enter  | Quick action bar                              | Move through results and run the highlighted action             |
+| `↑` / `↓`, `Enter`  | Quick action bar                              | Move through results and run the highlighted action             |
 | `Ctrl+Space` / `⌘Space` | Caption editor                                | Ask for caption completions from the folder’s vocabulary        |
 | `Escape`                | Caption editor with completions open          | Dismiss the completion list without closing the dialog          |
 
