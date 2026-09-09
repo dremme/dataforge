@@ -108,6 +108,21 @@ def _make_fake_verify_client(
 
 
 class VerifyCaptionsParsingTests(unittest.TestCase):
+    def test_normalizes_decoded_quotes_before_splitting_sentences(self) -> None:
+        for escape in ("", "\\", "\\\\"):
+            with self.subTest(escape=escape):
+                quote = escape + '"'
+                issues = f"Remove {quote}blue lake. green trees,{quote}. Mention rain."
+                raw = json.dumps({"correct": False, "issues": issues})
+
+                parsed = parse_verification_response(raw)
+
+                assert parsed is not None
+                self.assertEqual(
+                    parsed.fixes,
+                    ('Remove "blue lake. green trees".', "Mention rain."),
+                )
+
     def test_parse_valid_json_response(self) -> None:
         parsed = parse_verification_response(_fixes_json(DEFAULT_FIX))
 

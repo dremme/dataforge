@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -199,6 +200,19 @@ def delete_issue_file(media_path: Path) -> None:
     issue_path.unlink()
 
 
+_TYPOGRAPHIC_QUOTES = str.maketrans({"“": '"', "”": '"', "„": '"', "‟": '"'})
+
+
+def normalize_issue_text(text: str) -> str:
+    text = text.translate(_TYPOGRAPHIC_QUOTES)
+    text = re.sub(r'\\+"', '"', text)
+    return re.sub(
+        r'"([^"]*)"',
+        lambda match: '"' + re.sub(r"(?:,\s*)+$", "", match[1]) + '"',
+        text,
+    ).strip()
+
+
 def normalize_issue_fixes(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -207,7 +221,7 @@ def normalize_issue_fixes(value: object) -> list[str]:
     for entry in value:
         if not isinstance(entry, str):
             continue
-        text = entry.strip()
+        text = normalize_issue_text(entry)
         if not text or text.lower() in ISSUE_FIX_SENTINELS:
             continue
         fixes.append(text)

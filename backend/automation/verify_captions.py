@@ -34,6 +34,7 @@ from captions import (
     NO_CAPTION_STATUS,
     load_reference_caption,
     normalize_issue_fixes,
+    normalize_issue_text,
     save_issue_fixes,
 )
 from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
@@ -108,14 +109,6 @@ def _coerce_bool(value: object) -> bool | None:
     return None
 
 
-# The splitter and the resolver's caption highlight both key off `"`; models drift to curly.
-_TYPOGRAPHIC_QUOTES = str.maketrans({"“": '"', "”": '"', "„": '"', "‟": '"'})
-
-
-def _normalize_quotes(text: str) -> str:
-    return text.translate(_TYPOGRAPHIC_QUOTES)
-
-
 def _has_substantive_issues(issues: str) -> bool:
     return issues.strip().lower() not in {"", "none", "n/a"}
 
@@ -167,7 +160,7 @@ def _parse_verification_payload(data: dict) -> VerificationResult | None:
         return VerificationResult(fixes=())
 
     return VerificationResult(
-        fixes=tuple(normalize_issue_fixes(split_fix_sentences(_normalize_quotes(issues))))
+        fixes=tuple(normalize_issue_fixes(split_fix_sentences(normalize_issue_text(issues))))
     )
 
 

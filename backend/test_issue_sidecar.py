@@ -11,13 +11,48 @@ from captions import (
     delete_issue_file,
     issue_file_path,
     load_issue_summary,
+    normalize_issue_fixes,
     save_issue_fixes,
 )
 from constants import MAX_ISSUE_FIXES
 from testing_fixtures import TempMediaFolder, write_issue_sidecar, write_media
 
 
+class NormalizeIssueFixesTests(unittest.TestCase):
+    def test_cleans_quotes_and_commas_idempotently(self) -> None:
+        cases = [
+            ('the caption claims "test test"', 'the caption claims "test test"'),
+            (r"the caption claims \"test test,\"", 'the caption claims "test test"'),
+            (r'the caption claims \\"test test,\\"', 'the caption claims "test test"'),
+            ("Replace “blue, green,” with „red,”.", 'Replace "blue, green" with "red".'),
+            ('Remove "lake,,," and "trees,  ".', 'Remove "lake" and "trees".'),
+            (r'Keep C:\Photos and \n; "blue, green!"', r'Keep C:\Photos and \n; "blue, green!"'),
+            ('An unmatched "lake,', 'An unmatched "lake,'),
+            ('Keep "lake", then "trees".', 'Keep "lake", then "trees".'),
+            ("  Plain text.  ", "Plain text."),
+        ]
+        for original, expected in cases:
+            with self.subTest(original=original):
+                normalized = normalize_issue_fixes([original])
+                self.assertEqual(normalized, [expected])
+                self.assertEqual(normalize_issue_fixes(normalized), normalized)
+        self.assertEqual(normalize_issue_fixes(["", "  "]), [])
+
+
 class LoadIssueSummaryTests(unittest.TestCase):
+    def test_cleans_existing_sidecar_without_rewriting_it(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            write_issue_sidecar(media, r"The caption claims \"a blue lake,\".")
+            path = issue_file_path(media)
+            original = path.read_bytes()
+
+            self.assertEqual(
+                load_issue_summary(media),
+                (['The caption claims "a blue lake".'], True),
+            )
+            self.assertEqual(path.read_bytes(), original)
+
     def test_reports_nothing_when_no_sidecar_exists(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
@@ -65,6 +100,16 @@ class LoadIssueSummaryTests(unittest.TestCase):
 
 class SaveIssueFixesTests(unittest.TestCase):
     """Verify-captions is the only writer; duplicates live in their own sidecar."""
+
+    def test_normalized_quotes_round_trip_as_valid_json(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            save_issue_fixes(media, [r'Replace \\"blue lake,\\" with \"river,\".'])
+
+            expected = ['Replace "blue lake" with "river".']
+            payload = json.loads(issue_file_path(media).read_text(encoding="utf-8"))
+            self.assertEqual(payload, {"fixes": expected})
+            self.assertEqual(load_issue_summary(media), (expected, True))
 
     def test_writes_the_fixes_it_is_given(self) -> None:
         with TempMediaFolder() as root:
