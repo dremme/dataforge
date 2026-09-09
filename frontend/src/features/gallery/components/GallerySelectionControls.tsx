@@ -107,6 +107,30 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [busy, selectAllPaths]);
 
+  // Delete opens the same confirm the trash button does; Backspace covers Mac keyboards,
+  // where the key labelled "delete" reports Backspace and there is no forward-delete.
+  useEffect(() => {
+    if (!selectionMode) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      // Cmd/Ctrl+Delete are OS-level idioms; leave them alone.
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (getScrollLockDepth() > 0) return;
+      // Load-bearing for Backspace: erasing in the search field must not arm a delete.
+      if (isEditableTarget(event.target)) return;
+
+      event.preventDefault();
+      // Refuses on its own while busy or with nothing selected.
+      openDeleteConfirm();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openDeleteConfirm, selectionMode]);
+
   if (!selectionMode) {
     return (
       <div className="gallery-controls">
@@ -182,6 +206,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
           disabled={visibleSelectedCount === 0 || busy}
           aria-busy={deleting || undefined}
           aria-label="Delete selected files"
+          aria-keyshortcuts="Delete"
         >
           <Icon
             icon={deleting ? iconLoader2 : iconTrash2}

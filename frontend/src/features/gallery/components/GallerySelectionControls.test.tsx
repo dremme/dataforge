@@ -61,6 +61,21 @@ function pressSelectAll(init: Partial<KeyboardEventInit> = {}): KeyboardEvent {
   return event;
 }
 
+function pressDelete(
+  key: "Delete" | "Backspace" = "Delete",
+  init: Partial<KeyboardEventInit> = {},
+  target: EventTarget = window,
+): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 describe("GallerySelectionControls", () => {
   beforeEach(() => {
     installMockBackend();
@@ -696,5 +711,109 @@ describe("GallerySelectionControls", () => {
     expect(
       await screen.findByText("Could not delete beach.jpg: Permission denied"),
     ).toBeInTheDocument();
+  });
+  it("opens the delete confirm on Delete", async () => {
+    renderControls();
+
+    const event = pressDelete();
+
+    expect(
+      await screen.findByRole("alertdialog", { name: "Delete selected files?" }),
+    ).toBeInTheDocument();
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.getByRole("button", { name: "Delete selected files" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Delete",
+    );
+  });
+
+  it("treats Backspace the same as Delete", async () => {
+    renderControls();
+
+    const event = pressDelete("Backspace");
+
+    expect(
+      await screen.findByRole("alertdialog", { name: "Delete selected files?" }),
+    ).toBeInTheDocument();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("leaves Delete alone outside selection mode", () => {
+    renderControls({ selectionMode: false, selectedPaths: new Set() });
+
+    const event = pressDelete();
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("ignores Delete entirely while scroll lock is active", () => {
+    const handle = acquireScrollLock("confirm-dialog-open");
+
+    renderControls();
+
+    try {
+      const event = pressDelete();
+
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      releaseScrollLock(handle);
+    }
+  });
+
+  it.each(["Delete", "Backspace"] as const)("leaves %s to an editable field", (key) => {
+    renderControls();
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+
+    try {
+      const event = pressDelete(key, {}, input);
+
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(event.defaultPrevented).toBe(false);
+    } finally {
+      input.remove();
+    }
+  });
+
+  it("leaves Ctrl+Delete to the operating system", () => {
+    renderControls();
+
+    const event = pressDelete("Delete", { ctrlKey: true });
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("does nothing on Delete when nothing is selected", () => {
+    renderControls({ selectedPaths: new Set() });
+
+    pressDelete();
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("deletes only the filter-visible selection when armed by the Delete key", async () => {
+    const user = userEvent.setup();
+    const onDeleted = vi.fn();
+    const visiblePath = `${HOME_PATH}\\sunset.png`;
+    const selectedPaths = new Set([visiblePath, `${HOME_PATH}\\beach.jpg`]);
+    const visibleSelectedPaths = new Set([visiblePath]);
+
+    deleteSelectedMediaMock.mockResolvedValue({ succeeded: [visiblePath], failed: [] });
+
+    renderControls({ selectedPaths, visibleSelectedPaths, onDeleted }, 1);
+
+    pressDelete();
+
+    const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
+    await user.click(within(confirmDialog).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(deleteSelectedMediaMock).toHaveBeenCalledWith([visiblePath]);
+      expect(onDeleted).toHaveBeenCalledWith([visiblePath]);
+    });
   });
 });

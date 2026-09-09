@@ -32,7 +32,7 @@ The gallery has large cards, small cards, and a list view. Sorting supports name
 
 Use **Select** or `Ctrl+A`/`⌘A` to enter selection mode and select every visible media item. Search and filters change what “visible” means; they do not implicitly narrow a job unless you select the resulting files.
 
-Selection mode can invert or clear the visible selection, then copy, move, or delete the selected files. **Rename** gives media a numbered name and moves related sidecars with it. Creating a subfolder and drag-and-drop import are available from the folder view.
+Selection mode can invert or clear the visible selection, then copy, move, or delete the selected files. `Delete` (or `Backspace`) opens the same delete confirmation the toolbar button does. **Rename** gives media a numbered name and moves related sidecars with it. Creating a subfolder and drag-and-drop import are available from the folder view.
 
 Move, copy, rename, and delete carry normal media sidecars, duplicate/issue findings, and stored edit originals/specifications with the source. ComfyUI candidates remain in `staging/` because they are paired with the source by stem and are not media sidecars.
 
@@ -162,20 +162,25 @@ A move, copy, rename, or delete of source media leaves a staged candidate behind
 
 ## Keyboard shortcuts
 
-| Shortcut                | Where it works                                | Action                                                          |
-| ----------------------- | --------------------------------------------- | --------------------------------------------------------------- |
-| `Ctrl+K` / `⌘K`         | Gallery                                       | Focus search                                                    |
-| `Ctrl+Space` / `⌘Space` | App                                           | Open the quick action bar                                       |
-| `Ctrl+A` / `⌘A`         | Gallery, outside text inputs/dialogs          | Enter selection mode and select every visible file              |
-| `Escape`                | Selection mode                                | Clear selected files first; press again to leave selection mode |
-| `←` / `→`      | Item detail, candidate review, issue resolver | Previous or next item when focus is not editable                |
-| `Ctrl+Enter` / `⌘Enter` | Issue resolver                                | Resolve the current issue                                       |
-| `Ctrl+Enter` / `⌘Enter` | Candidate review                              | Accept the current candidate when acceptance is available       |
-| `↑` / `↓`, `Enter`  | Quick action bar                              | Move through results and run the highlighted action             |
-| `Ctrl+Space` / `⌘Space` | Caption editor                                | Ask for caption completions from the folder’s vocabulary        |
-| `Escape`                | Caption editor with completions open          | Dismiss the completion list without closing the dialog          |
+| Shortcut                           | Where it works                                | Action                                                          |
+| ---------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+| `Ctrl+K` / `⌘K`                    | Gallery                                       | Focus search                                                    |
+| `Ctrl+Space` / `⌘Space`            | App                                           | Open the quick action bar                                       |
+| `Ctrl+A` / `⌘A`                    | Gallery, outside text inputs/dialogs          | Enter selection mode and select every visible file              |
+| `Delete` / `Backspace`             | Selection mode, outside text inputs/dialogs   | Open the delete confirmation for the selected files             |
+| `Escape`                           | Selection mode                                | Clear selected files first; press again to leave selection mode |
+| `←` / `→`                          | Item detail, candidate review, issue resolver | Previous or next item when focus is not editable                |
+| `Ctrl+Enter` / `⌘Enter`            | Issue resolver                                | Resolve the current issue                                       |
+| `Ctrl+Enter` / `⌘Enter`            | Candidate review                              | Accept the current candidate when acceptance is available       |
+| `Enter`                            | Any dialog with a confirm button              | Confirm the dialog; ignored in multi-line fields and while busy |
+| `Escape`                           | Any dialog or overlay                         | Close it, unless a job in that dialog is still running          |
+| `↑` / `↓`, `Home` / `End`, `Enter` | Quick action bar                              | Move through results and run the highlighted action             |
+| `←` / `→` / `↑` / `↓`              | Video timeline trim handle                    | Nudge the handle one frame; hold `Shift` for one-second steps   |
+| `Home` / `End`                     | Video timeline trim handle                    | Jump the handle to the start or the end of the clip             |
+| `Ctrl+Space` / `⌘Space`            | Caption editor                                | Ask for caption completions from the folder’s vocabulary        |
+| `Escape`                           | Caption editor with completions open          | Dismiss the completion list without closing the dialog          |
 
-Shortcuts do not override focused text inputs, active dialogs, busy operations, or media controls that need the same keys.
+Except where the table says otherwise, shortcuts do not override focused text inputs, an open dialog, a busy operation, or media controls that need the same keys.
 
 ## Related guides
 
