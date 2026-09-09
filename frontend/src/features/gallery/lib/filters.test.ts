@@ -102,6 +102,29 @@ describe("getFilterEmptyState", () => {
     expect(state.variant).toBe("muted");
   });
 
+  // Nothing to celebrate: an unedited folder is the normal state, not a job finished.
+  it("states a folder with no edited files plainly", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      fileFilter: "edited",
+    });
+
+    expect(state.title).toBe("No edited files");
+    expect(state.variant).toBe("muted");
+  });
+
+  it("blames the combination when edited files and a caption filter are both active", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      fileFilter: "edited",
+      filter: "uncaptioned",
+    });
+
+    expect(state.title).toBe("No matching edited files");
+    expect(state.description).toContain("caption filter");
+    expect(state.variant).toBe("muted");
+  });
+
   it("celebrates a folder with no candidates", () => {
     const state = getFilterEmptyState({
       ...baseOptions,

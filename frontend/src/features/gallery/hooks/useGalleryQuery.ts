@@ -12,6 +12,7 @@ import {
   applyItemFilter,
   applyMediaTypeFilter,
   countCaptioned,
+  countEdited,
   countIssues,
   countMediaType,
   filterBySearch,
@@ -174,6 +175,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     () =>
       ({
         all: fileFilterCountItems.length,
+        edited: countEdited(fileFilterCountItems),
         duplicates: countDuplicates(fileFilterCountItems),
         candidates: countCandidates(fileFilterCountItems),
       }) as const,

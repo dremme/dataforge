@@ -42,7 +42,7 @@ const defaultProps = {
     video: 1,
   },
   fileFilter: "all" as FileFilter,
-  fileFilterCounts: { all: 5, duplicates: 2, candidates: 1 },
+  fileFilterCounts: { all: 5, edited: 3, duplicates: 2, candidates: 1 },
   statsOpen: false,
   onToggleStats: vi.fn(),
   onSearchQueryChange: vi.fn(),
@@ -182,6 +182,7 @@ describe("Toolbar", () => {
       name: "Files",
     });
     const all = within(filesGroup).getByRole("menuitemradio", { name: "All files (5)" });
+    const edited = within(filesGroup).getByRole("menuitemradio", { name: "Edited files (3)" });
     const duplicates = within(filesGroup).getByRole("menuitemradio", { name: "Duplicates (2)" });
     const candidates = within(filesGroup).getByRole("menuitemradio", {
       name: "ComfyUI candidates (1)",
@@ -189,10 +190,21 @@ describe("Toolbar", () => {
 
     expect(all).toBeChecked();
     expect(duplicates).not.toBeChecked();
-    expect(all.compareDocumentPosition(duplicates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(
-      duplicates.compareDocumentPosition(candidates) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const inOrder = [all, edited, duplicates, candidates];
+    for (const [index, option] of inOrder.slice(0, -1).entries()) {
+      const next = inOrder[index + 1]!;
+      expect(option.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+
+  it("picks the edited filter", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.click(screen.getByRole("button", { name: "Filter media" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Edited files (3)" }));
+
+    expect(defaultProps.onFileFilterChange).toHaveBeenCalledWith("edited");
   });
 
   it("picks a file filter and reports the value", async () => {

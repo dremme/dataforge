@@ -137,6 +137,7 @@ describe("applyFileFilter", () => {
     { ...item("b.png", "image"), has_duplicate_file: true },
     { ...item("c.png", "image"), has_duplicate_file: true },
     { ...item("d.png", "image"), has_candidate: true },
+    { ...item("e.png", "image"), has_backup: true },
   ];
 
   it("passes everything through on all", () => {
@@ -150,6 +151,10 @@ describe("applyFileFilter", () => {
     ]);
   });
 
+  it("keeps only files an edit left a backup for", () => {
+    expect(applyFileFilter(items, "edited").map((entry) => entry.name)).toEqual(["e.png"]);
+  });
+
   it("keeps only files with a candidate", () => {
     expect(applyFileFilter(items, "candidates").map((entry) => entry.name)).toEqual(["d.png"]);
   });
@@ -161,6 +166,28 @@ describe("applyFileFilter", () => {
     ];
 
     expect(applyFileFilter(mixed, "candidates").map((entry) => entry.name)).toEqual(["b.png"]);
+  });
+});
+
+describe("processGalleryItems edited", () => {
+  it("narrows the caption filter by edited files instead of replacing it", () => {
+    const mixed = [
+      { ...item("kept.png", "image"), has_description: true, has_backup: true },
+      { ...item("captioned.png", "image"), has_description: true },
+      { ...item("edited.png", "image"), has_backup: true },
+    ];
+
+    const result = processGalleryItems(mixed, {
+      filter: "captioned",
+      mediaTypeFilter: "all",
+      fileFilter: "edited",
+      searchQuery: "",
+      searchRegex: false,
+      searchNames: true,
+      sort: "name-asc",
+    });
+
+    expect(result.map((entry) => entry.name)).toEqual(["kept.png"]);
   });
 });
 

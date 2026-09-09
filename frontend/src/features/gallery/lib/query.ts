@@ -12,13 +12,13 @@ export type ItemFilter = "all" | "captioned" | "issue" | "uncaptioned";
 /** video means has motion, so it covers GIFs as well as MP4s. */
 export type MediaTypeFilter = "all" | "image" | "video";
 
-export type FileFilter = "all" | "duplicates" | "candidates";
+export type FileFilter = "all" | "edited" | "duplicates" | "candidates";
 
 const ITEM_FILTER_VALUES = new Set<ItemFilter>(["all", "captioned", "issue", "uncaptioned"]);
 
 const MEDIA_TYPE_FILTER_VALUES = new Set<MediaTypeFilter>(["all", "image", "video"]);
 
-const FILE_FILTER_VALUES = new Set<FileFilter>(["all", "duplicates", "candidates"]);
+const FILE_FILTER_VALUES = new Set<FileFilter>(["all", "edited", "duplicates", "candidates"]);
 
 export function isItemFilter(value: string | null): value is ItemFilter {
   return value !== null && ITEM_FILTER_VALUES.has(value as ItemFilter);
@@ -182,6 +182,7 @@ export function applyItemFilter(items: GalleryItem[], filter: ItemFilter): Galle
 }
 
 export function applyFileFilter(items: GalleryItem[], fileFilter: FileFilter): GalleryItem[] {
+  if (fileFilter === "edited") return items.filter(isEditedItem);
   if (fileFilter === "duplicates") return items.filter(isDuplicateItem);
   if (fileFilter === "candidates") return items.filter(isCandidateItem);
   return items;
@@ -230,6 +231,15 @@ function countBy<T>(items: T[], predicate: (item: T) => boolean): number {
     if (predicate(item)) count += 1;
   }
   return count;
+}
+
+/** The backup an edit leaves behind is what marks a file as changed. */
+export function isEditedItem(item: GalleryItem): boolean {
+  return item.has_backup;
+}
+
+export function countEdited(items: GalleryItem[]): number {
+  return countBy(items, isEditedItem);
 }
 
 export function countCaptioned(items: GalleryItem[]): number {

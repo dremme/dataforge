@@ -5,6 +5,7 @@ import {
   iconMessageCheck,
   iconMessageDashed,
   iconMessageWarning,
+  iconPencil,
   iconScanSquare,
   iconSearch,
   iconImage,
@@ -43,6 +44,12 @@ export const FILTER_OPTIONS = [
 export const FILE_FILTER_OPTIONS = [
   { value: "all" as const, label: "All", ariaLabel: "All files", icon: iconImages },
   {
+    value: "edited" as const,
+    label: "Edited",
+    ariaLabel: "Edited files",
+    icon: iconPencil,
+  },
+  {
     value: "duplicates" as const,
     label: "Duplicates",
     ariaLabel: "Duplicates",
@@ -80,6 +87,41 @@ export interface FilterEmptyState {
   description: string;
   variant: FilterEmptyVariant;
 }
+
+/** An empty duplicates or candidates folder is good news; an unedited one is just a fact. */
+const FILE_FILTER_EMPTY: Record<
+  Exclude<FileFilter, "all">,
+  FilterEmptyState & { matchedTitle: string; matchedDescription: string }
+> = {
+  edited: {
+    icon: iconPencil,
+    variant: "muted",
+    title: "No edited files",
+    description: "Nothing in this folder has been edited. An edit keeps a backup of the original.",
+    matchedTitle: "No matching edited files",
+    matchedDescription:
+      "Nothing in this folder has been edited and is also kept by the caption filter.",
+  },
+  duplicates: {
+    icon: iconCircleCheck,
+    variant: "success",
+    title: "No duplicates",
+    description: "Nothing in this folder is flagged as a duplicate. Run find duplicates to check.",
+    matchedTitle: "No matching duplicates",
+    matchedDescription:
+      "Nothing in this folder is both flagged as a duplicate and matched by the caption filter.",
+  },
+  candidates: {
+    icon: iconCircleCheck,
+    variant: "success",
+    title: "No candidates",
+    description:
+      "Nothing in this folder has a candidate waiting. Run Process with ComfyUI to create some.",
+    matchedTitle: "No matching candidates",
+    matchedDescription:
+      "Nothing in this folder has a candidate waiting that the caption filter also keeps.",
+  },
+};
 
 export function getFilterEmptyState(options: {
   filter: ItemFilter;
@@ -122,27 +164,23 @@ export function getFilterEmptyState(options: {
 
   // Files axis first: "All files captioned" misdirects when nothing here is a duplicate.
   if (options.fileFilter !== "all") {
-    const duplicates = options.fileFilter === "duplicates";
+    const empty = FILE_FILTER_EMPTY[options.fileFilter];
 
     // Caption filter first, or this claims "No duplicates" when the caption filter hides them.
     if (options.filter !== "all") {
       return {
         icon: iconSearch,
-        title: duplicates ? "No matching duplicates" : "No matching candidates",
-        description: duplicates
-          ? "Nothing in this folder is both flagged as a duplicate and matched by the caption filter."
-          : "Nothing in this folder has a candidate waiting that the caption filter also keeps.",
+        title: empty.matchedTitle,
+        description: empty.matchedDescription,
         variant: "muted",
       };
     }
 
     return {
-      icon: iconCircleCheck,
-      title: duplicates ? "No duplicates" : "No candidates",
-      description: duplicates
-        ? "Nothing in this folder is flagged as a duplicate. Run find duplicates to check."
-        : "Nothing in this folder has a candidate waiting. Run Process with ComfyUI to create some.",
-      variant: "success",
+      icon: empty.icon,
+      title: empty.title,
+      description: empty.description,
+      variant: empty.variant,
     };
   }
 
