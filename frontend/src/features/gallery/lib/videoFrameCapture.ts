@@ -1,6 +1,7 @@
 import { frameTargetStem } from "@/features/gallery/lib/frameCapture";
+import { FALLBACK_FPS } from "@/features/gallery/lib/frameGrid";
 
-export const FRAME_STEP_SECONDS = 1 / 30;
+export const FRAME_STEP_SECONDS = 1 / FALLBACK_FPS;
 
 /** Seeking exactly to duration lands past the last frame and can leave seeked unfired. */
 export const END_EPSILON = 0.001;

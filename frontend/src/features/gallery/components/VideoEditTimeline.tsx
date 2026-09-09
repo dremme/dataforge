@@ -1,7 +1,7 @@
 import { useCallback, useRef, type CSSProperties, type PointerEvent } from "react";
 import { iconPause, iconPlay, iconVolume2, iconVolumeX } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
-import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
+import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import { outputTime } from "@/features/gallery/lib/videoEdit";
 
 const COARSE_STEP_SECONDS = 1;
@@ -14,6 +14,8 @@ interface VideoEditTimelineProps {
   trimEnd: number;
   /** Retime factor, for the readouts only — every trim value here stays in source seconds. */
   speed: number;
+  /** Seconds a source frame occupies; one arrow press moves a handle by exactly this. */
+  frameDuration: number;
   playheadTime: number;
   playing: boolean;
   muted: boolean;
@@ -31,6 +33,7 @@ export function VideoEditTimeline({
   trimStart,
   trimEnd,
   speed,
+  frameDuration,
   playheadTime,
   playing,
   muted,
@@ -43,6 +46,8 @@ export function VideoEditTimeline({
   onToggleMuted,
 }: VideoEditTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  // Where the handle was grabbed, so it slides with the pointer instead of centring on it.
+  const grabOffsetRef = useRef(0);
   const locked = !ready || disabled;
   const span = ready && duration > 0 ? duration : 1;
 
@@ -63,6 +68,8 @@ export function VideoEditTimeline({
       if (locked) return;
       // preventDefault kills drag-selection and focus; the handle must take it or arrows navigate.
       event.preventDefault();
+      const bounds = event.currentTarget.getBoundingClientRect();
+      grabOffsetRef.current = event.clientX - (bounds.left + bounds.width / 2);
       event.currentTarget.focus();
       event.currentTarget.setPointerCapture(event.pointerId);
     },
@@ -72,7 +79,7 @@ export function VideoEditTimeline({
   const handlePointerMove = useCallback(
     (handle: Handle) => (event: PointerEvent<HTMLButtonElement>) => {
       if (locked || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-      const seconds = secondsAt(event.clientX);
+      const seconds = secondsAt(event.clientX - grabOffsetRef.current);
       if (handle === "start") {
         onTrimStartChange(seconds);
       } else {
@@ -85,7 +92,7 @@ export function VideoEditTimeline({
   const handleKeyDown = useCallback(
     (handle: Handle, value: number) => (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (locked) return;
-      const step = event.shiftKey ? COARSE_STEP_SECONDS : FRAME_STEP_SECONDS;
+      const step = event.shiftKey ? COARSE_STEP_SECONDS : frameDuration;
       const change = handle === "start" ? onTrimStartChange : onTrimEndChange;
 
       if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
@@ -101,7 +108,7 @@ export function VideoEditTimeline({
       }
       event.preventDefault();
     },
-    [duration, locked, onTrimEndChange, onTrimStartChange],
+    [duration, frameDuration, locked, onTrimEndChange, onTrimStartChange],
   );
 
   const handleTrackPointerDown = useCallback(

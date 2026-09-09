@@ -426,9 +426,14 @@ def read_video_edit(
     """What the editor needs to re-open on a file it has already changed."""
     media = resolve_editable_video(path)
 
+    # The editor plays the original, so probe the file it shows: its rate is the grid the
+    # trim handles snap to.
+    backup = backup_path_for(media)
+
     return VideoEditStateResponse(
         path=str(media),
-        has_backup=backup_path_for(media).is_file(),
+        has_backup=backup.is_file(),
+        frame_rate=probe_source(backup if backup.is_file() else media).frame_rate,
         spec=read_edit_spec(media),
     )
 

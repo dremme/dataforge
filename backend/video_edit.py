@@ -84,9 +84,15 @@ def probe_source(media: Path) -> SourceProbe:
     """Rate and frame size in one capture. Decoded rather than read from the header: the backup is
     named ``<name>.mp4.bak``, and a header reader gates on the suffix. Always ``release()``: an
     unopened capture still locks the file on Windows."""
-    import cv2
+    try:
+        import cv2
 
-    cap = cv2.VideoCapture(str(media))
+        cap = cv2.VideoCapture(str(media))
+    except Exception:
+        # A read the editor opens on; without OpenCV it falls back rather than failing to open.
+        logger.debug("No probe for %s", media.name, exc_info=True)
+        return SourceProbe()
+
     try:
         if not cap.isOpened():
             return SourceProbe()
@@ -290,7 +296,14 @@ def build_video_edit_command(
     frame_rate: float | None = None,
     source_size: tuple[int, int] | None = None,
 ) -> list[str]:
-    """One pass. ``-ss``/``-t`` are input options so they are measured before ``setpts`` compresses time."""
+    """One pass. ``-ss``/``-t`` are input options so they are measured before ``setpts`` compresses time.
+
+    Trim points name frame boundaries. ``-ss`` sits half a frame early, which puts it between
+    two PTS values and leaves the first kept frame unambiguous. ``-t`` is then the take itself
+    less half a frame, not the span from ``-ss``: after an input seek ffmpeg measures the
+    duration from the first frame it decodes, so a span would hand that half frame to the tail
+    and let the frame after the out point in. ``-to`` is no help - it was measured keeping one
+    frame too many at several rates."""
     command = [
         executable,
         "-nostdin",
@@ -303,10 +316,12 @@ def build_video_edit_command(
         "-y",
     ]
 
-    if spec.trim_start > 0:
-        command += ["-ss", _seconds(spec.trim_start)]
+    half_frame = 0.5 / frame_rate if frame_rate else 0.0
+    start = max(0.0, spec.trim_start - half_frame)
+    if start > 0:
+        command += ["-ss", _seconds(start)]
     if spec.trim_end is not None:
-        command += ["-t", _seconds(spec.trim_end - spec.trim_start)]
+        command += ["-t", _seconds(spec.trim_end - spec.trim_start - half_frame)]
 
     command += ["-i", str(source)]
 

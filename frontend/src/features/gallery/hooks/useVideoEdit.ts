@@ -12,17 +12,18 @@ import {
   type CropRect,
 } from "@/features/gallery/lib/crop";
 import {
-  clampTrimEnd,
-  clampTrimStart,
   draftFromSpec,
   emptyDraft,
   isIdentityEdit,
   outputDimensions,
   outputDuration,
+  snapTrimEnd,
+  snapTrimStart,
   specsEqual,
   toVideoEditSpec,
   type VideoEditDraft,
 } from "@/features/gallery/lib/videoEdit";
+import { frameDurationFor, frameIndexAt } from "@/features/gallery/lib/frameGrid";
 import { useMaskRegions, type MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions";
 import type { MaskDraft } from "@/features/gallery/lib/mask";
 import { hasUsableDuration, formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
@@ -52,6 +53,8 @@ export interface VideoEdit extends MaskRegionControls {
   progress: number | null;
   draft: VideoEditDraft;
   duration: number;
+  /** Seconds a source frame occupies; an assumed rate when the probe reported none. */
+  frameDuration: number;
   sourceWidth: number;
   sourceHeight: number;
   hasBackup: boolean;
@@ -105,6 +108,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const applyingRef = useRef(false);
 
   const [duration, setDuration] = useState(Number.NaN);
+  // Probed server-side: no browser API reports it, and the trim grid is built on it.
+  const [frameRate, setFrameRate] = useState<number | null>(null);
   const [sourceWidth, setSourceWidth] = useState(0);
   const [sourceHeight, setSourceHeight] = useState(0);
   const [draft, setDraft] = useState<VideoEditDraft>(() => emptyDraft(Number.NaN));
@@ -124,6 +129,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   draftRef.current = draft;
   const durationRef = useRef(duration);
   durationRef.current = duration;
+  const frameSecondsRef = useRef(frameDurationFor(frameRate));
+  frameSecondsRef.current = frameDurationFor(frameRate);
   const seededPathRef = useRef<string | null>(null);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
@@ -162,6 +169,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setSourceWidth(0);
     setSourceHeight(0);
     setDraft(emptyDraft(Number.NaN));
+    setFrameRate(null);
     setSavedSpec(null);
     setAspectId("free");
     setPlaying(false);
@@ -224,7 +232,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       setDraft(seeded);
       setAspectId(aspectIdForCrop(seeded.crop, sourceRef.current));
       clearMaskSelection();
-      seekTo(seeded.trimStart);
+      // Half a frame in: a seek to a boundary can land on either of the frames it divides.
+      seekTo(seeded.trimStart + frameSecondsRef.current / 2);
     },
     [clearMaskSelection, seekTo],
   );
@@ -248,6 +257,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         if (!mountedRef.current) return;
         if (optionsRef.current.item?.path !== forPath) return;
         setHasBackup(state.has_backup);
+        // Through the ref too: seedDraft runs before this state update is visible.
+        frameSecondsRef.current = frameDurationFor(state.frame_rate);
+        setFrameRate(state.frame_rate ?? null);
         setSavedSpec(state.spec ?? null);
         seedDraft(state.spec ?? null, durationRef.current);
       } catch {
@@ -267,19 +279,26 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
     const handleTimeUpdate = () => {
       const { trimStart, trimEnd } = draftRef.current;
-      if (video.currentTime >= trimEnd - LOOP_EPSILON || video.currentTime < trimStart - 0.5) {
+      // Playing only: a seek fires this too, and parking on the out point is not a lap.
+      const looped =
+        video.currentTime >= trimEnd - LOOP_EPSILON || video.currentTime < trimStart - 0.5;
+      if (!video.paused && looped) {
         video.currentTime = trimStart;
       }
       setPlayheadTime(video.currentTime);
     };
+    // The element snaps to a frame; without this the marker keeps the time we asked for.
+    const handleSeeked = () => setPlayheadTime(video.currentTime);
     const handlePlay = () => setPlaying(true);
     const handlePause = () => setPlaying(false);
 
     video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("seeked", handleSeeked);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("seeked", handleSeeked);
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
     };
@@ -323,32 +342,41 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     video.pause();
   }, [videoRef]);
 
+  // Both setters park the playhead inside the frame the handle keeps, so what the panel
+  // shows is what the render starts and ends on.
   const setTrimStart = useCallback(
     (seconds: number) => {
-      const next = clampTrimStart(seconds, draftRef.current, durationRef.current);
+      const frame = frameSecondsRef.current;
+      const next = snapTrimStart(seconds, draftRef.current, durationRef.current, frame);
       setDraft((current) => ({ ...current, trimStart: next }));
-      seekTo(next);
+      seekTo(next + frame / 2);
     },
     [seekTo],
   );
 
   const setTrimEnd = useCallback(
     (seconds: number) => {
-      const next = clampTrimEnd(seconds, draftRef.current, durationRef.current);
+      const frame = frameSecondsRef.current;
+      const next = snapTrimEnd(seconds, draftRef.current, durationRef.current, frame);
       setDraft((current) => ({ ...current, trimEnd: next }));
-      seekTo(Math.max(draftRef.current.trimStart, next - LOOP_EPSILON));
+      seekTo(Math.max(draftRef.current.trimStart + frame / 2, next - frame / 2));
     },
     [seekTo],
   );
 
+  // The frame on screen becomes the first kept one, or the last: a boundary either side of it.
   const setTrimStartAtPlayhead = useCallback(() => {
     const video = videoRef.current;
-    if (video) setTrimStart(video.currentTime);
+    if (!video) return;
+    const frame = frameSecondsRef.current;
+    setTrimStart(frameIndexAt(video.currentTime, frame) * frame);
   }, [setTrimStart, videoRef]);
 
   const setTrimEndAtPlayhead = useCallback(() => {
     const video = videoRef.current;
-    if (video) setTrimEnd(video.currentTime);
+    if (!video) return;
+    const frame = frameSecondsRef.current;
+    setTrimEnd((frameIndexAt(video.currentTime, frame) + 1) * frame);
   }, [setTrimEnd, videoRef]);
 
   const setCrop = useCallback((crop: CropRect) => {
@@ -544,6 +572,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     progress,
     draft,
     duration,
+    frameDuration: frameDurationFor(frameRate),
     sourceWidth,
     sourceHeight,
     hasBackup,

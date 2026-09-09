@@ -873,6 +873,8 @@ class VideoEditSpec(BaseModel):
 class VideoEditStateResponse(BaseModel):
     path: str
     has_backup: bool
+    #: None when no rate could be read; the editor then falls back to an assumed frame grid.
+    frame_rate: float | None = None
     spec: VideoEditSpec | None
 
 

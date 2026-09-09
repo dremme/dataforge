@@ -51,6 +51,29 @@ class VideoEditStateTests(unittest.TestCase):
             self.assertEqual(payload["spec"]["trim_start"], 1.0)
             self.assertEqual(payload["spec"]["trim_end"], 4.0)
 
+    def test_the_probed_frame_rate_reaches_the_editor(self) -> None:
+        """No browser API reports one, and the trim handles snap to that grid."""
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+
+            with patch("routes.media.probe_source", return_value=SourceProbe(frame_rate=25.0)):
+                payload = client.get(edit_url(media)).json()
+
+            self.assertEqual(payload["frame_rate"], 25.0)
+
+    def test_an_edited_video_is_probed_through_its_original(self) -> None:
+        """The editor plays the untouched original, so its rate is the one the handles use."""
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            backup = edit_sidecars.backup_path_for(media)
+            backup.write_bytes(b"original")
+
+            with patch("routes.media.probe_source", return_value=SourceProbe()) as probe:
+                payload = client.get(edit_url(media)).json()
+
+            probe.assert_called_once_with(backup)
+            self.assertIsNone(payload["frame_rate"])
+
     def test_a_missing_file_is_a_404(self) -> None:
         with TempMediaFolder() as root:
             response = client.get(edit_url(root / "missing.mp4"))

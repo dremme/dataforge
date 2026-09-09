@@ -39,6 +39,25 @@ function videoMeta(duration: number): HTMLVideoElement {
   } as HTMLVideoElement;
 }
 
+/** Enough of an element for the seeks: the metadata stub has no listeners to attach to. */
+function fakeVideo() {
+  const listeners = new Map<string, () => void>();
+  const video = {
+    ...videoMeta(0),
+    paused: true,
+    volume: 1,
+    playbackRate: 1,
+    addEventListener(type: string, handler: () => void) {
+      listeners.set(type, handler);
+    },
+    removeEventListener(type: string) {
+      listeners.delete(type);
+    },
+  } as unknown as HTMLVideoElement;
+
+  return { video, fire: (type: string) => listeners.get(type)?.() };
+}
+
 function renderEdit(overrides: Partial<UseVideoEditOptions> = {}) {
   const setEditMode = vi.fn();
   const initial: UseVideoEditOptions = {
@@ -256,5 +275,76 @@ describe("useVideoEdit", () => {
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.duration).toBe(12);
     expect(result.current.draft.trimEnd).toBe(12);
+  });
+
+  describe("on the probed frame grid", () => {
+    // 25fps: a frame is 40ms, so every boundary misses the 30fps fallback.
+    const FRAME = 1 / 25;
+
+    async function renderOnGrid() {
+      fetchStateMock.mockResolvedValue({
+        path: CLIP,
+        has_backup: false,
+        frame_rate: 25,
+        spec: null,
+      } satisfies VideoEditStateResponse);
+      const { video, fire } = fakeVideo();
+      const view = renderEdit({ videoRef: { current: video } });
+
+      await act(async () => {
+        view.result.current.handleLoadedMetadata(videoMeta(12));
+      });
+      await waitFor(() => expect(view.result.current.frameDuration).toBeCloseTo(FRAME));
+
+      return { result: view.result, video, fire };
+    }
+
+    it("parks the playhead inside the frame each handle keeps", async () => {
+      const { result, video } = await renderOnGrid();
+
+      act(() => result.current.setTrimEnd(7.99));
+
+      // The handle marks the boundary past the last kept frame; the picture is that frame.
+      expect(result.current.draft.trimEnd).toBeCloseTo(8);
+      expect(video.currentTime).toBeCloseTo(8 - FRAME / 2);
+
+      act(() => result.current.setTrimStart(2.03));
+
+      expect(result.current.draft.trimStart).toBeCloseTo(2.04);
+      expect(video.currentTime).toBeCloseTo(2.04 + FRAME / 2);
+    });
+
+    it("does not read the parked out point as a finished lap", async () => {
+      const { result, video, fire } = await renderOnGrid();
+
+      act(() => result.current.setTrimEnd(8));
+      // Seeking fires timeupdate as well; looping here throws the preview back to the in point.
+      act(() => fire("timeupdate"));
+      act(() => fire("seeked"));
+
+      expect(video.currentTime).toBeCloseTo(8 - FRAME / 2);
+      expect(result.current.playheadTime).toBeCloseTo(8 - FRAME / 2);
+    });
+
+    it("makes the frame on screen the last one kept when the out point is set", async () => {
+      const { result, video } = await renderOnGrid();
+      // Inside frame 130, which runs 5.20 to 5.24.
+      video.currentTime = 5.21;
+
+      act(() => result.current.setTrimEndAtPlayhead());
+
+      expect(result.current.draft.trimEnd).toBeCloseTo(5.24);
+      expect(video.currentTime).toBeCloseTo(5.22);
+    });
+
+    it("makes the frame on screen the first one kept when the in point is set", async () => {
+      const { result, video } = await renderOnGrid();
+      video.currentTime = 5.21;
+
+      act(() => result.current.setTrimStartAtPlayhead());
+
+      expect(result.current.draft.trimStart).toBeCloseTo(5.2);
+      expect(video.currentTime).toBeCloseTo(5.22);
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { clampCrop, IDENTITY_CROP, isIdentityCrop, type CropRect, type Size } from "./crop";
+import { snapToFrame } from "./frameGrid";
 import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
 import type { EditCropRect, VideoEditSpec } from "@/shared/types";
 
@@ -78,6 +79,37 @@ export function clampTrimStart(value: number, draft: VideoEditDraft, duration: n
 
 export function clampTrimEnd(value: number, draft: VideoEditDraft, duration: number): number {
   return clamp(value, Math.min(draft.trimStart + MIN_TRIM_SECONDS, duration), duration);
+}
+
+/**
+ * Trim points name frame boundaries, so a handle keeps the frame it shows. A clamp lands
+ * between two, and its bound is hard, so a clamped value re-snaps inward: down here, up below.
+ */
+export function snapTrimStart(
+  value: number,
+  draft: VideoEditDraft,
+  duration: number,
+  frameDuration: number,
+): number {
+  const snapped = snapToFrame(value, frameDuration);
+  const clamped = clampTrimStart(snapped, draft, duration);
+  if (clamped === snapped) return snapped;
+  return Math.max(0, Math.floor(clamped / frameDuration) * frameDuration);
+}
+
+export function snapTrimEnd(
+  value: number,
+  draft: VideoEditDraft,
+  duration: number,
+  frameDuration: number,
+): number {
+  // Full length stays exact, or snapping short of the last frame would read as a trim.
+  if (value >= duration - frameDuration / 2) return duration;
+
+  const snapped = snapToFrame(value, frameDuration);
+  const clamped = clampTrimEnd(snapped, draft, duration);
+  if (clamped === snapped) return snapped;
+  return Math.min(duration, Math.ceil(clamped / frameDuration) * frameDuration);
 }
 
 export function croppedSize(source: Size, crop: CropRect): Size {

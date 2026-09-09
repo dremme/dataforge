@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VideoEditTimeline } from "./VideoEditTimeline";
-import { FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
+
+const FRAME = 1 / 25;
 
 type Props = Parameters<typeof VideoEditTimeline>[0];
 
@@ -11,6 +12,7 @@ function renderTimeline(overrides: Partial<Props> = {}) {
     trimStart: 2,
     trimEnd: 8,
     speed: 1,
+    frameDuration: FRAME,
     playheadTime: 3,
     playing: false,
     muted: true,
@@ -26,6 +28,32 @@ function renderTimeline(overrides: Partial<Props> = {}) {
 
   render(<VideoEditTimeline {...props} />);
   return props;
+}
+
+/** jsdom has neither PointerEvent nor pointer capture; without this a drag reads as NaN. */
+class PointerEventPolyfill extends MouseEvent {
+  readonly pointerId: number;
+
+  constructor(type: string, init: MouseEventInit & { pointerId?: number } = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+  }
+}
+
+beforeEach(() => {
+  vi.stubGlobal("PointerEvent", PointerEventPolyfill);
+  const captured = new Set<Element>();
+  Element.prototype.setPointerCapture = vi.fn(function (this: Element) {
+    captured.add(this);
+  });
+  Element.prototype.hasPointerCapture = vi.fn(function (this: Element) {
+    return captured.has(this);
+  });
+});
+
+function stubRect(element: Element, left: number, width: number) {
+  element.getBoundingClientRect = () =>
+    ({ left, width, right: left + width, top: 0, bottom: 0, height: 0, x: left, y: 0 }) as DOMRect;
 }
 
 const startHandle = () => screen.getByRole("slider", { name: "Trim start" });
@@ -52,12 +80,27 @@ describe("VideoEditTimeline", () => {
     expect(startHandle()).toHaveFocus();
   });
 
+  it("drags from where the handle was grabbed rather than centring on the pointer", () => {
+    // jsdom measures nothing, and secondsAt bails on a zero-width track.
+    const props = renderTimeline({ duration: 12, trimEnd: 8 });
+    stubRect(screen.getByRole("group", { name: "Trim range" }), 0, 100);
+    const handle = endHandle();
+    // 8s of 12 across 100px puts the 10px handle's centre on 66.67.
+    stubRect(handle, 61.67, 10);
+
+    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 70 });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 80 });
+
+    // The grab sat 3.33px right of centre, so 10px of travel stays 10px of travel.
+    expect(props.onTrimEndChange).toHaveBeenCalledWith(expect.closeTo(9.2, 2));
+  });
+
   it("steps one frame per arrow press", () => {
     const props = renderTimeline();
 
     fireEvent.keyDown(startHandle(), { key: "ArrowRight" });
 
-    expect(props.onTrimStartChange).toHaveBeenCalledWith(2 + FRAME_STEP_SECONDS);
+    expect(props.onTrimStartChange).toHaveBeenCalledWith(2 + FRAME);
   });
 
   it("steps a whole second with Shift held", () => {

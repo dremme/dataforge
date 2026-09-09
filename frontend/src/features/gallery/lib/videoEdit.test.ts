@@ -17,6 +17,8 @@ import {
   outputTime,
   scaleForTargetHeight,
   scaleForTargetWidth,
+  snapTrimEnd,
+  snapTrimStart,
   specsEqual,
   toVideoEditSpec,
   type VideoEditDraft,
@@ -95,6 +97,37 @@ describe("trim clamping", () => {
 
     expect(clampTrimStart(-4, current, 12)).toBe(0);
     expect(clampTrimEnd(99, current, 12)).toBe(12);
+  });
+});
+
+describe("trim snapping", () => {
+  // 25fps: a frame is 40ms, and none of the boundaries collide with a 30fps grid.
+  const FRAME = 1 / 25;
+
+  it("puts both handles on a frame boundary", () => {
+    const current = draft({ trimStart: 0, trimEnd: 12 });
+
+    expect(snapTrimStart(2.03, current, 12, FRAME)).toBeCloseTo(2.04);
+    expect(snapTrimEnd(7.99, current, 12, FRAME)).toBeCloseTo(8.0);
+  });
+
+  it("re-snaps inward when the minimum length clamps the value", () => {
+    const start = snapTrimStart(9, draft({ trimStart: 0, trimEnd: 5 }), 12, FRAME);
+    const end = snapTrimEnd(1, draft({ trimStart: 5, trimEnd: 12 }), 12, FRAME);
+
+    // The clamp bound is hard, so each lands on the boundary that keeps the take longer.
+    expect(start).toBeCloseTo(4.88);
+    expect(start).toBeLessThanOrEqual(5 - MIN_TRIM_SECONDS);
+    expect(end).toBeCloseTo(5.12);
+    expect(end).toBeGreaterThanOrEqual(5 + MIN_TRIM_SECONDS);
+  });
+
+  it("leaves a full-length end exactly on the duration", () => {
+    const current = draft({ trimStart: 0, trimEnd: 12 });
+
+    // A duration is not on the grid, and rounding it down would read as a trim.
+    expect(snapTrimEnd(12, current, 12.01, FRAME)).toBe(12.01);
+    expect(snapTrimEnd(99, current, 12.01, FRAME)).toBe(12.01);
   });
 });
 

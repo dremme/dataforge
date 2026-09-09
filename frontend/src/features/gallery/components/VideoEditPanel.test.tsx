@@ -19,6 +19,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     progress: null,
     draft,
     duration: 12,
+    frameDuration: 1 / 30,
     sourceWidth: 1920,
     sourceHeight: 1080,
     hasBackup: false,

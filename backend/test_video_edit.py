@@ -124,6 +124,38 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertNotIn("-ss", command)
         self.assertEqual(command[command.index("-t") + 1], "3.000")
 
+    def test_a_known_frame_rate_seeks_half_a_frame_before_the_in_point(self) -> None:
+        """Between two PTS values, so the first kept frame survives a rounded timestamp."""
+        command = command_for(VideoEditSpec(trim_start=1.0, trim_end=2.0), frame_rate=30.0)
+
+        self.assertEqual(command[command.index("-ss") + 1], "0.983")
+        self.assertEqual(command[command.index("-t") + 1], "0.983")
+
+    def test_the_duration_is_the_take_less_half_a_frame_not_the_seek_span(self) -> None:
+        """After an input seek ffmpeg measures `-t` from the first frame it decodes, not from
+        `-ss`. Spanning from `-ss` hands that half frame to the tail: at 23.976fps this trim
+        kept frame 111 as well, which is the scene change the editor showed as cut."""
+        frame = 1001 / 24000
+        spec = VideoEditSpec(trim_start=80 * frame, trim_end=111 * frame)
+
+        command = command_for(spec, frame_rate=24000 / 1001)
+
+        self.assertEqual(command[command.index("-ss") + 1], "3.316")
+        self.assertEqual(command[command.index("-t") + 1], "1.272")
+
+    def test_a_centred_trim_from_zero_keeps_the_seek_off(self) -> None:
+        """Nothing precedes frame 0, so only the out edge moves."""
+        command = command_for(VideoEditSpec(trim_end=3.0), frame_rate=30.0)
+
+        self.assertNotIn("-ss", command)
+        self.assertEqual(command[command.index("-t") + 1], "2.983")
+
+    def test_an_unprobed_rate_leaves_both_trim_options_exact(self) -> None:
+        command = command_for(VideoEditSpec(trim_start=1.5, trim_end=4.75))
+
+        self.assertEqual(command[command.index("-ss") + 1], "1.500")
+        self.assertEqual(command[command.index("-t") + 1], "3.250")
+
     def test_crop_is_expressed_against_the_frame_variables(self) -> None:
         spec = VideoEditSpec(crop=EditCropRect(x=0.1, y=0.2, width=0.5, height=0.6))
 
