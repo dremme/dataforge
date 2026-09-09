@@ -376,13 +376,6 @@ export function AutomationPanel({
 
             <TrainingSamples samples={trainingSamples} />
 
-            <JobFileResults
-              job={job}
-              onOpenItem={onOpenItem}
-              onRetryFailed={onRetryFailed && ((paths) => onRetryFailed(job.job_type, paths))}
-              onRunAgain={onRunAgain && (() => onRunAgain(job.job_type))}
-            />
-
             {errorMessage && (
               <div className="automation__message automation__message--error" role="alert">
                 <Icon icon={iconCircleAlert} className="automation__message-icon" />
@@ -396,6 +389,13 @@ export function AutomationPanel({
                 <span>{warningMessage}</span>
               </div>
             )}
+
+            <JobFileResults
+              job={job}
+              onOpenItem={onOpenItem}
+              onRetryFailed={onRetryFailed && ((paths) => onRetryFailed(job.job_type, paths))}
+              onRunAgain={onRunAgain && (() => onRunAgain(job.job_type))}
+            />
           </div>
         )}
       </section>
