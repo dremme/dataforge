@@ -47,6 +47,7 @@ export {
   FilePlus as iconFilePlus,
   Files as iconFiles,
   Filter as iconFilter,
+  FilterX as iconFilterX,
   FlipHorizontal2 as iconFlipHorizontal,
   FlipVertical2 as iconFlipVertical,
   Folder as iconFolder,

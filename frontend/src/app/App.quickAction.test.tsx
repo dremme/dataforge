@@ -451,4 +451,57 @@ describe("App: quick action bar", () => {
 
     expect(await screen.findByRole("dialog", { name: "Open folder" })).toBeInTheDocument();
   });
+
+  it("narrows the gallery to one media type from the palette", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "videos");
+    await user.click(within(palette).getByRole("option", { name: /Videos and GIFs/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "View waves.mp4" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument();
+  });
+
+  it("offers the reset only once a filter is on, then restores every file", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    // Nothing filtered yet, so the reset is present but inert.
+    await openQuickAction(user);
+    let palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "reset");
+    expect(within(palette).getByRole("option", { name: /Reset all filters/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await user.keyboard("{Escape}");
+
+    await openQuickAction(user);
+    palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "missing");
+    await user.click(within(palette).getByRole("option", { name: /Missing caption/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "View sunset.png" })).not.toBeInTheDocument();
+    });
+
+    await openQuickAction(user);
+    palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "reset");
+    await user.click(within(palette).getByRole("option", { name: /Reset all filters/ }));
+
+    await waitForHomeFolder();
+    expect(screen.getByRole("button", { name: "View beach.jpg" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View waves.mp4" })).toBeInTheDocument();
+  });
 });

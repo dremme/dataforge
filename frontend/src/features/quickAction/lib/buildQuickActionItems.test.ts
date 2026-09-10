@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { iconFilter, iconFilterX } from "@/shared/icons";
 import {
+  buildFilterItems,
   buildSelectionCommandItems,
   buildSidecarSweepItems,
+  type FilterCommandOptions,
   type SelectionCommandOptions,
   type SidecarSweepOptions,
 } from "./buildQuickActionItems";
@@ -190,5 +193,121 @@ describe("buildSelectionCommandItems", () => {
     expect(onMove).toHaveBeenCalledTimes(1);
     expect(onCopy).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+});
+
+function filterItems(overrides: Partial<FilterCommandOptions> = {}) {
+  return buildFilterItems({
+    hasFolder: true,
+    hasActiveFilters: false,
+    mediaType: "all",
+    caption: "all",
+    file: "all",
+    counts: {
+      mediaType: { all: 9, image: 6, video: 3 },
+      caption: { all: 9, captioned: 5, issue: 1, uncaptioned: 4 },
+      file: { all: 9, edited: 2, duplicates: 0, candidates: 1 },
+    },
+    onSelectMediaType: vi.fn(),
+    onSelectCaption: vi.fn(),
+    onSelectFile: vi.fn(),
+    onReset: vi.fn(),
+    ...overrides,
+  });
+}
+
+describe("buildFilterItems", () => {
+  it("offers nothing without a folder", () => {
+    expect(filterItems({ hasFolder: false })).toEqual([]);
+  });
+
+  it("covers every menu option except each axis's All, then the reset", () => {
+    expect(filterItems().map((item) => item.id)).toEqual([
+      "filter:mediaType:image",
+      "filter:mediaType:video",
+      "filter:caption:captioned",
+      "filter:caption:issue",
+      "filter:caption:uncaptioned",
+      "filter:file:edited",
+      "filter:file:duplicates",
+      "filter:file:candidates",
+      "filter:reset",
+    ]);
+  });
+
+  it("labels rows so they read without the menu's group heading", () => {
+    const labels = new Map(filterItems().map((item) => [item.id, item.label]));
+
+    expect(labels.get("filter:mediaType:video")).toBe("Videos and GIFs");
+    expect(labels.get("filter:caption:uncaptioned")).toBe("Missing caption");
+    expect(labels.get("filter:file:candidates")).toBe("ComfyUI candidates");
+  });
+
+  it("marks every row as a filter action, whatever the axis or subject", () => {
+    const rows = filterItems();
+    const [reset] = rows.slice(-1);
+
+    expect(rows.slice(0, -1).every((item) => item.icon === iconFilter)).toBe(true);
+    // The reset is the same glyph struck through, so the section still reads as one family.
+    expect(reset.icon).toBe(iconFilterX);
+  });
+
+  it("names the axis and what picking the row would leave", () => {
+    const details = new Map(filterItems().map((item) => [item.id, item.detail]));
+
+    expect(details.get("filter:mediaType:image")).toBe("Media type · 6 files");
+    expect(details.get("filter:caption:issue")).toBe("Caption status · 1 file");
+    expect(details.get("filter:file:duplicates")).toBe("Files · 0 files");
+  });
+
+  it("keeps a zero-count filter runnable, since the empty state explains itself", () => {
+    const duplicates = filterItems().find((item) => item.id === "filter:file:duplicates");
+
+    expect(duplicates?.disabled).toBe(false);
+  });
+
+  it("marks the filter already in force as inert rather than letting it no-op", () => {
+    const items = filterItems({ mediaType: "video", hasActiveFilters: true });
+    const active = items.find((item) => item.id === "filter:mediaType:video");
+    const other = items.find((item) => item.id === "filter:mediaType:image");
+
+    expect(active?.disabled).toBe(true);
+    expect(active?.detail).toBe("Media type · already active");
+    expect(other?.disabled).toBe(false);
+  });
+
+  it("finds a row by the terse label the menu shows", () => {
+    const missing = filterItems().find((item) => item.id === "filter:caption:uncaptioned");
+
+    expect(missing?.keywords).toContain("Missing");
+    expect(missing?.keywords).toContain("filter");
+  });
+
+  it("sets only its own axis", () => {
+    const onSelectMediaType = vi.fn();
+    const onSelectCaption = vi.fn();
+    const onSelectFile = vi.fn();
+    const items = filterItems({ onSelectMediaType, onSelectCaption, onSelectFile });
+
+    items.find((item) => item.id === "filter:mediaType:video")?.run();
+    items.find((item) => item.id === "filter:file:edited")?.run();
+
+    expect(onSelectMediaType).toHaveBeenCalledWith("video");
+    expect(onSelectFile).toHaveBeenCalledWith("edited");
+    expect(onSelectCaption).not.toHaveBeenCalled();
+  });
+
+  it("offers the reset only once something is filtered", () => {
+    const idle = filterItems().at(-1);
+    expect(idle?.disabled).toBe(true);
+    expect(idle?.detail).toBe("No filters active");
+
+    const onReset = vi.fn();
+    const active = filterItems({ hasActiveFilters: true, onReset }).at(-1);
+    expect(active?.disabled).toBe(false);
+    expect(active?.detail).toBe("Back to all media, captions and files");
+
+    active?.run();
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 });

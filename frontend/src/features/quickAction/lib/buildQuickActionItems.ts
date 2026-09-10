@@ -23,10 +23,19 @@ import {
   sidecarSweepDetail,
 } from "@/features/gallery/lib/sidecarSweep";
 import {
+  FILE_FILTER_OPTIONS,
+  FILTER_AXIS_LABELS,
+  FILTER_OPTIONS,
+  MEDIA_TYPE_FILTER_OPTIONS,
+} from "@/features/gallery/lib/filters";
+import type { FileFilter, ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
+import {
   iconArrowLeftRight,
   iconBrain,
   iconCopy,
   iconFolder,
+  iconFilter,
+  iconFilterX,
   iconFolderInput,
   iconListChecks,
   iconStar,
@@ -295,6 +304,103 @@ export function buildSelectionCommandItems({
       keywords: "selection remove trash",
       disabled: !canActOnSelection,
       run: onDelete,
+    },
+  ];
+}
+
+type FilterAxis = keyof typeof FILTER_AXIS_LABELS;
+
+interface FilterOption<T extends string> {
+  value: T;
+  label: string;
+  ariaLabel: string;
+}
+
+export interface FilterCommandOptions {
+  hasFolder: boolean;
+  hasActiveFilters: boolean;
+  mediaType: MediaTypeFilter;
+  caption: ItemFilter;
+  file: FileFilter;
+  counts: {
+    mediaType: Readonly<Record<MediaTypeFilter, number>>;
+    caption: Readonly<Record<ItemFilter, number>>;
+    file: Readonly<Record<FileFilter, number>>;
+  };
+  onSelectMediaType: (value: MediaTypeFilter) => void;
+  onSelectCaption: (value: ItemFilter) => void;
+  onSelectFile: (value: FileFilter) => void;
+  onReset: () => void;
+}
+
+/**
+ * One row per option the filter menu offers, minus each axis's "all" entry: picking "all"
+ * is what Reset does.
+ */
+function filterAxisItems<T extends string>(
+  axis: FilterAxis,
+  options: ReadonlyArray<FilterOption<T>>,
+  active: T,
+  counts: Readonly<Record<T, number>>,
+  onSelect: (value: T) => void,
+): QuickActionItem[] {
+  const axisLabel = FILTER_AXIS_LABELS[axis];
+
+  return options
+    .filter((option) => option.value !== "all")
+    .map((option) => {
+      const isActive = option.value === active;
+      const count = counts[option.value];
+
+      return {
+        id: `filter:${axis}:${option.value}`,
+        section: "filters",
+        label: option.ariaLabel,
+        detail: isActive
+          ? `${axisLabel} · already active`
+          : `${axisLabel} · ${count} file${count === 1 ? "" : "s"}`,
+        icon: iconFilter,
+        keywords: `filter show only ${option.label}`,
+        disabled: isActive,
+        run: () => onSelect(option.value),
+      };
+    });
+}
+
+export function buildFilterItems({
+  hasFolder,
+  hasActiveFilters,
+  mediaType,
+  caption,
+  file,
+  counts,
+  onSelectMediaType,
+  onSelectCaption,
+  onSelectFile,
+  onReset,
+}: FilterCommandOptions): QuickActionItem[] {
+  if (!hasFolder) return [];
+
+  return [
+    ...filterAxisItems(
+      "mediaType",
+      MEDIA_TYPE_FILTER_OPTIONS,
+      mediaType,
+      counts.mediaType,
+      onSelectMediaType,
+    ),
+    ...filterAxisItems("caption", FILTER_OPTIONS, caption, counts.caption, onSelectCaption),
+    ...filterAxisItems("file", FILE_FILTER_OPTIONS, file, counts.file, onSelectFile),
+    {
+      id: "filter:reset",
+      section: "filters",
+      label: "Reset all filters",
+      // Search is separate state with its own clear button, so it is not swept up here.
+      detail: hasActiveFilters ? "Back to all media, captions and files" : "No filters active",
+      icon: iconFilterX,
+      keywords: "clear remove show everything",
+      disabled: !hasActiveFilters,
+      run: onReset,
     },
   ];
 }

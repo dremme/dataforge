@@ -196,6 +196,38 @@ export function useAppWorkspace() {
 
   requestJobStartRef.current = automation.requestStart;
 
+  // Memoized: an inline bag would change identity every render and defeat the palette's memo.
+  const quickActionFilters = useMemo(
+    () => ({
+      hasActiveFilters: gallery.query.hasActiveFilters,
+      mediaType: gallery.query.mediaTypeFilter,
+      caption: gallery.query.filter,
+      file: gallery.query.fileFilter,
+      counts: {
+        mediaType: gallery.query.mediaTypeFilterCounts,
+        caption: gallery.query.filterCounts,
+        file: gallery.query.fileFilterCounts,
+      },
+      onSelectMediaType: gallery.query.setMediaTypeFilter,
+      onSelectCaption: gallery.query.setFilter,
+      onSelectFile: gallery.query.setFileFilter,
+      onReset: gallery.query.resetFilters,
+    }),
+    [
+      gallery.query.fileFilter,
+      gallery.query.fileFilterCounts,
+      gallery.query.filter,
+      gallery.query.filterCounts,
+      gallery.query.hasActiveFilters,
+      gallery.query.mediaTypeFilter,
+      gallery.query.mediaTypeFilterCounts,
+      gallery.query.resetFilters,
+      gallery.query.setFileFilter,
+      gallery.query.setFilter,
+      gallery.query.setMediaTypeFilter,
+    ],
+  );
+
   const quickAction = useQuickActionHost({
     folder,
     folderNotFound,
@@ -211,6 +243,7 @@ export function useAppWorkspace() {
     onSelectAll: gallery.handleSelectAllPaths,
     onInvertSelection: gallery.handleInvertSelection,
     sidecarSweep,
+    filters: quickActionFilters,
   });
 
   return {

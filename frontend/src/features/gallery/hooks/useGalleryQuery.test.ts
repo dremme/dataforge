@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { FILTER_OPTIONS } from "@/features/gallery/lib/filters";
+import { readGallerySessionQuery } from "@/features/gallery/lib/sessionPreferences";
 import { useGalleryQuery } from "./useGalleryQuery";
 import type { GalleryItem } from "@/shared/types";
 
@@ -210,6 +211,48 @@ describe("useGalleryQuery", () => {
     expect(result.current.filter).toBe("uncaptioned");
     expect(result.current.fileFilter).toBe("duplicates");
     expect(result.current.filteredItems.map((entry) => entry.name)).toEqual(["dup-uncap-shot.png"]);
+  });
+
+  it("clears all three filter axes at once but leaves the search alone", () => {
+    const { result } = renderHook(() => useGalleryQuery(crossItems));
+
+    act(() => {
+      result.current.setMediaTypeFilter("image");
+      result.current.setFilter("uncaptioned");
+      result.current.setFileFilter("duplicates");
+      result.current.setSearchQuery("shot");
+    });
+
+    expect(result.current.hasActiveFilters).toBe(true);
+
+    act(() => {
+      result.current.resetFilters();
+    });
+
+    expect(result.current.mediaTypeFilter).toBe("all");
+    expect(result.current.filter).toBe("all");
+    expect(result.current.fileFilter).toBe("all");
+    expect(result.current.hasActiveFilters).toBe(false);
+
+    // Search is its own control with its own clear button.
+    expect(result.current.searchQuery).toBe("shot");
+    expect(result.current.hasActiveSearch).toBe(true);
+  });
+
+  it("persists the reset so a reload does not restore the cleared filters", () => {
+    const { result } = renderHook(() => useGalleryQuery(crossItems));
+
+    act(() => {
+      result.current.setFileFilter("duplicates");
+    });
+    act(() => {
+      result.current.resetFilters();
+    });
+
+    const stored = readGallerySessionQuery();
+    expect(stored.fileFilter).toBe("all");
+    expect(stored.filter).toBe("all");
+    expect(stored.mediaTypeFilter).toBe("all");
   });
 
   it("treats duplicates as an active filter on its own", () => {

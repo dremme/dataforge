@@ -15,6 +15,7 @@ function sections(overrides: Partial<Record<QuickActionSection, QuickActionItem[
   return {
     run: [],
     commands: [],
+    filters: [],
     subfolders: [],
     recentFolders: [],
     favorites: [],
@@ -224,11 +225,40 @@ describe("resolveRecentActions", () => {
   });
 });
 
+describe("filter rows in the ranking", () => {
+  const resetItem = item("filter:reset", "Reset all filters", {
+    section: "filters",
+    keywords: "clear remove show everything",
+  });
+  const videoItem = item("filter:mediaType:video", "Videos and GIFs", {
+    section: "filters",
+    keywords: "filter show only Videos",
+  });
+
+  it("puts the reset ahead of the filters it undoes for a bare filter query", () => {
+    // "filters" starts with the needle, so the reset matches on label; the rows only on keywords.
+    const [group] = rankQuickActionItems([videoItem, resetItem], "filter");
+
+    expect(group.label).toBe("Filters");
+    expect(group.items.map((entry) => entry.id)).toEqual([
+      "filter:reset",
+      "filter:mediaType:video",
+    ]);
+  });
+
+  it("surfaces a filter row by what it shows, not by the word filter", () => {
+    const [group] = rankQuickActionItems([resetItem, videoItem], "video");
+
+    expect(group.items.map((entry) => entry.id)).toEqual(["filter:mediaType:video"]);
+  });
+});
+
 describe("orderQuickActionItems", () => {
   it("emits sections in their declared order, not the order they were passed", () => {
     const ordered = orderQuickActionItems(
       sections({
         jobs: [item("job:1", "A job", { section: "jobs" })],
+        filters: [item("filter:reset", "Reset all filters", { section: "filters" })],
         run: [item("run:watermark", "Watermark", { section: "run" })],
         subfolders: [item("folder:C:\\Shots", "Shots", { section: "subfolders" })],
       }),
@@ -236,6 +266,7 @@ describe("orderQuickActionItems", () => {
 
     expect(ordered.map((entry) => entry.id)).toEqual([
       "run:watermark",
+      "filter:reset",
       "folder:C:\\Shots",
       "job:1",
     ]);

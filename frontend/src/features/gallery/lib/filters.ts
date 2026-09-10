@@ -14,6 +14,13 @@ import {
 } from "@/shared/icons";
 import type { FileFilter, ItemFilter, MediaTypeFilter } from "./query";
 
+/** Group headings in the filter menu, reused as the axis name in quick action details. */
+export const FILTER_AXIS_LABELS = {
+  mediaType: "Media type",
+  caption: "Caption status",
+  file: "Files",
+} as const;
+
 export const FILTER_OPTIONS = [
   { value: "all" as const, label: "All", ariaLabel: "All media", icon: iconImages },
   {

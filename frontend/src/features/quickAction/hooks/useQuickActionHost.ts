@@ -30,6 +30,7 @@ import {
   buildFavoriteItems,
   buildJobItems,
   buildRecentFolderItems,
+  buildFilterItems,
   buildRunJobItems,
   buildSelectionCommandItems,
   buildSidecarSweepItems,
@@ -37,6 +38,7 @@ import {
   folderPathFromQuickActionId,
   folderQuickAction,
 } from "../lib/buildQuickActionItems";
+import type { FilterCommandOptions } from "../lib/buildQuickActionItems";
 import { readRecentActionIds } from "../lib/quickActionHistory";
 import { orderQuickActionItems, resolveRecentActions } from "../lib/quickActionResults";
 import type { QuickActionItem, QuickActionSection } from "../types";
@@ -59,6 +61,7 @@ interface UseQuickActionHostOptions {
   onSelectAll: () => void;
   onInvertSelection: () => void;
   sidecarSweep: SidecarSweepActions;
+  filters: Omit<FilterCommandOptions, "hasFolder">;
 }
 
 export function useQuickActionHost({
@@ -76,6 +79,7 @@ export function useQuickActionHost({
   onSelectAll,
   onInvertSelection,
   sidecarSweep,
+  filters,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
   const { jobs, externalJobs } = useJobs();
@@ -338,11 +342,16 @@ export function useQuickActionHost({
           onRequestStart: panel.onRequestStart,
         }),
         commands: commandItems,
+        filters: buildFilterItems({
+          ...filters,
+          hasFolder: Boolean(folder) && !folderNotFound,
+        }),
       }),
     [
       commandItems,
       externalJobs,
       favorites,
+      filters,
       folder,
       folderNotFound,
       goTo,

@@ -24,7 +24,9 @@ Use the filter menu to combine:
 
 - Media type: images, or videos and GIFs.
 - Caption status: captioned, missing, or with caption issues.
-- File state: duplicate findings or ComfyUI candidates.
+- File state: edited media, duplicate findings, or ComfyUI candidates.
+
+Every filter is also a quick action, so you can narrow the view without opening the menu. **Reset all filters** returns all three axes to *All*; it leaves the search box alone, which has its own clear button.
 
 The gallery has large cards, small cards, and a list view. Sorting supports name, modified date, caption length, megapixels, and video duration in either direction. The display mode is remembered for each folder; sort choice is a server-side preference.
 

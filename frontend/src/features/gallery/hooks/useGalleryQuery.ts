@@ -74,6 +74,14 @@ export function useGalleryQuery(items: GalleryItem[]) {
     cacheGallerySessionQuery({ fileFilter: value });
   }, []);
 
+  // Search is deliberately untouched: it has its own clear button and its own intent.
+  const resetFilters = useCallback(() => {
+    setFilterState("all");
+    setMediaTypeFilterState("all");
+    setFileFilterState("all");
+    cacheGallerySessionQuery({ filter: "all", mediaTypeFilter: "all", fileFilter: "all" });
+  }, []);
+
   const setSearchQuery = useCallback((value: string) => {
     setSearchQueryState(value);
     cacheGallerySessionQuery({ searchQuery: value });
@@ -213,6 +221,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
     setMediaTypeFilter,
     fileFilter,
     setFileFilter,
+    resetFilters,
     searchQuery,
     searchRegex,
     searchNames,

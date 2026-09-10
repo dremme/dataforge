@@ -3,6 +3,7 @@ import type { AppIcon } from "@/shared/icons";
 export const QUICK_ACTION_SECTIONS = [
   { id: "run", label: "Run a job" },
   { id: "commands", label: "Commands" },
+  { id: "filters", label: "Filters" },
   { id: "subfolders", label: "Subfolders" },
   { id: "recentFolders", label: "Recent folders" },
   { id: "favorites", label: "Favorites" },

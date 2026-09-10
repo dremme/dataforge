@@ -1,6 +1,7 @@
 import { useId } from "react";
 import {
   FILE_FILTER_OPTIONS,
+  FILTER_AXIS_LABELS,
   FILTER_OPTIONS,
   MEDIA_TYPE_FILTER_OPTIONS,
 } from "@/features/gallery/lib/filters";
@@ -154,7 +155,7 @@ export function ToolbarFilterMenu({
         label="Filters"
       >
         <FilterMenuGroup
-          label="Media type"
+          label={FILTER_AXIS_LABELS.mediaType}
           options={MEDIA_TYPE_FILTER_OPTIONS}
           counts={mediaTypeFilterCounts}
           value={mediaTypeFilter}
@@ -162,7 +163,7 @@ export function ToolbarFilterMenu({
           onChange={onMediaTypeFilterChange}
         />
         <FilterMenuGroup
-          label="Caption status"
+          label={FILTER_AXIS_LABELS.caption}
           options={FILTER_OPTIONS}
           counts={filterCounts}
           value={filter}
@@ -170,7 +171,7 @@ export function ToolbarFilterMenu({
           onChange={onFilterChange}
         />
         <FilterMenuGroup
-          label="Files"
+          label={FILTER_AXIS_LABELS.file}
           options={FILE_FILTER_OPTIONS}
           counts={fileFilterCounts}
           value={fileFilter}
