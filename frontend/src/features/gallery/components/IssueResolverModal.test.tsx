@@ -121,7 +121,7 @@ describe("IssueResolverModal", () => {
     expect(within(dialog).queryByRole("listitem")).not.toBeInTheDocument();
   });
 
-  it("shows resolution and live character count in the meta row", async () => {
+  it("shows resolution and live character and token counts in the meta row", async () => {
     const user = userEvent.setup();
     const caption = "Golden hour over the lake";
 
@@ -152,6 +152,8 @@ describe("IssueResolverModal", () => {
     expect(dialog).toHaveTextContent("2.1 MP");
     expect(dialog).toHaveTextContent("1920 × 1080");
     expect(dialog).toHaveTextContent(`${caption.length} characters`);
+    // Five words over 25 characters: the character rule wins here, so ~7.
+    expect(dialog).toHaveTextContent("~7 tokens");
 
     const captionInput = screen.getByLabelText("Caption for sunset.png");
     await user.clear(captionInput);
@@ -161,6 +163,10 @@ describe("IssueResolverModal", () => {
       expect(dialog).toHaveTextContent("5 characters");
     });
     expect(dialog).not.toHaveTextContent(`${caption.length} characters`);
+
+    // The estimate tracks the live editor text, not the saved sidecar.
+    expect(dialog).toHaveTextContent("~2 tokens");
+    expect(dialog).not.toHaveTextContent("~7 tokens");
   });
 
   it("opens images in the image preview", async () => {

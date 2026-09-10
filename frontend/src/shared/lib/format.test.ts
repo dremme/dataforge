@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countWords,
+  estimateTokens,
   formatBytes,
   formatBytesValue,
   formatDurationSeconds,
@@ -41,6 +42,33 @@ describe("countWords", () => {
   it("counts words separated by whitespace", () => {
     expect(countWords("one two three")).toBe(3);
     expect(countWords("  leading and trailing  ")).toBe(3);
+  });
+});
+
+describe("estimateTokens", () => {
+  it("returns zero for empty or whitespace-only text", () => {
+    expect(estimateTokens("")).toBe(0);
+    expect(estimateTokens("   ")).toBe(0);
+  });
+
+  it("never counts a word as less than one token", () => {
+    // Four characters per token would round "hi" and "a b" down past what they cost.
+    expect(estimateTokens("hi")).toBe(1);
+    expect(estimateTokens("a b c")).toBe(3);
+  });
+
+  it("keeps tag-style captions off the character rule's floor", () => {
+    // 21 characters would be ~6 tokens, but each short tag costs at least one.
+    expect(estimateTokens("1girl, solo, outdoors")).toBe(6);
+  });
+
+  it("follows four characters per token once words get long enough", () => {
+    expect(estimateTokens("A".repeat(400))).toBe(100);
+    expect(estimateTokens("Golden hour light across the quiet lake")).toBe(10);
+  });
+
+  it("ignores surrounding whitespace", () => {
+    expect(estimateTokens("  hello world  ")).toBe(estimateTokens("hello world"));
   });
 });
 

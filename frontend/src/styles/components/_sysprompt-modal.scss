@@ -46,34 +46,42 @@
     @include modal-close-btn;
   }
 
+  &__meta {
+    display: flex;
+    flex: 1;
+    gap: 0.5rem;
+    background: var(--bg-card);
+
+    &-value {
+      color: var(--text-muted);
+      font-size: var(--text-xs);
+      line-height: var(--leading-snug);
+      @include tabular-nums;
+    }
+
+    &-divider {
+      @include modal-meta-divider;
+      height: 1rem;
+    }
+  }
+
   &__body {
     @include modal-editor-body;
   }
 
+  &__error {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0.625rem 1.125rem;
+    border-top: 1px solid rgba($color-caption-error, 0.25);
+    background: rgba($color-caption-error, 0.08);
+    color: $color-caption-error;
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+  }
+
   &__footer {
-    @include modal-editor-footer;
-    justify-content: center;
-    gap: 0.5rem 1.5rem;
-    padding-inline: 1.5rem;
-  }
-
-  &__meta-item {
-    @include modal-meta-item;
-  }
-
-  &__meta-value {
-    @include modal-meta-value;
-  }
-
-  &__meta-unit {
-    @include modal-meta-unit;
-  }
-
-  &__meta-label {
-    @include modal-meta-label;
-  }
-
-  &__meta-divider {
-    @include modal-meta-divider;
+    @include modal-chrome-footer;
+    gap: 0.5625rem;
   }
 }

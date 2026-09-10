@@ -9,6 +9,7 @@ interface GalleryItemModalMetaProps {
   resolution: MediaResolution | undefined;
   hasComfyWorkflow: boolean;
   captionCharacterCount: number;
+  captionTokenCount: number;
   onInspectComfyWorkflow: () => void;
 }
 
@@ -22,6 +23,7 @@ export function GalleryItemModalMeta({
   resolution,
   hasComfyWorkflow,
   captionCharacterCount,
+  captionTokenCount,
   onInspectComfyWorkflow,
 }: GalleryItemModalMetaProps) {
   const modifiedLabel = item.modified_at ? formatModifiedAt(item.modified_at) : null;
@@ -85,6 +87,16 @@ export function GalleryItemModalMeta({
           {captionCharacterCount.toLocaleString()}
         </span>
         <span className="gallery-item-modal__meta-label">Characters</span>
+      </div>
+      <span className="gallery-item-modal__meta-divider" aria-hidden="true" />
+      <div
+        className="gallery-item-modal__meta-item"
+        title="Estimated from text length; the exact count depends on the model"
+      >
+        <span className="gallery-item-modal__meta-value">
+          ~{captionTokenCount.toLocaleString()}
+        </span>
+        <span className="gallery-item-modal__meta-label">Tokens</span>
       </div>
     </div>
   );

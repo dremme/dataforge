@@ -48,7 +48,9 @@ Open a media item to edit its caption. DataForge saves trimmed text to the match
 
 Captions autosave and show failures with a **Retry** button. **Revert** restores the caption as it was when opened, and **Restore backup** loads its `.backup/` copy when one exists. The editor completes from the folder's caption vocabulary; type two characters or press `Ctrl+Space`/`⌘Space` to show suggestions.
 
-Use a `.sysprompt` to set the voice, required details, or output format for AI captioning in one folder. It is Markdown text stored alongside the dataset and can travel with it.
+Use a `.sysprompt` to set the voice, required details, or output format for AI captioning in one folder. It is Markdown text stored alongside the dataset and can travel with it. Unlike captions, the system prompt does not autosave: edit it, then **Save**. **Reset** restores the text as it was when you opened it, and closing with unsaved edits asks before discarding them.
+
+The caption editor, the issue resolver, and the `.sysprompt` editor each report the estimated tokens. The token figure is prefixed with `~` because it is an approximation from text length, not a real tokenizer count.
 
 **Set captions** writes one caption to many files. **Find & replace** changes literal or regex matches, or prepends/appends text; its dialog previews the affected count and before/after examples. **Edit captions** sends existing caption text and your instruction to the configured model, not the source media. Back up captions before a destructive rewrite when you may need to undo it.
 

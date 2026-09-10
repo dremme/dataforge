@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
+import { estimateTokens } from "@/shared/lib/format";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import {
@@ -359,6 +360,7 @@ export function GalleryItemModal({
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
   const captionCharacterCount = caption.length;
+  const captionTokenCount = estimateTokens(caption);
   const copyContent = caption;
   const canCopyCaption = copyContent.length > 0;
   const canRestoreBackup = backupCaption !== null && backupCaption.trim() !== caption.trim();
@@ -707,6 +709,7 @@ export function GalleryItemModal({
               resolution={resolution}
               hasComfyWorkflow={hasComfyWorkflow}
               captionCharacterCount={captionCharacterCount}
+              captionTokenCount={captionTokenCount}
               onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
             />
 

@@ -28,7 +28,7 @@ The first production start can take a minute or two while Vite builds the fronte
 
 ## Open your first dataset
 
-Open a folder from the app, or point it at [`sample_images/`](../sample_images/). The sample folder has captioned and uncaptioned files, a caption issue, and a staged ComfyUI candidate under `staging/`.
+Open a folder from the app, or point it at [`sample_images/`](../sample_images/). The sample folder has captioned and uncaptioned files, a caption issue, an example `.sysprompt`, and a staged ComfyUI candidate under `staging/`.
 
 A typical first pass is:
 

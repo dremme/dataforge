@@ -132,6 +132,7 @@ export function AppOverlays({
       {sysprompt.open && sysprompt.item && (
         <Suspense fallback={null}>
           <SysPromptModal
+            key={sysprompt.item.path}
             item={sysprompt.item}
             onClose={sysprompt.onClose}
             onSaved={onCaptionSaved}

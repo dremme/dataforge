@@ -28,6 +28,15 @@ export function countWords(text: string): number {
   return trimmed.split(/\s+/).length;
 }
 
+/**
+ * Rough token count for the caption and prompt editors. Deliberately not a real tokenizer.
+ */
+export function estimateTokens(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return Math.max(countWords(trimmed), Math.ceil(trimmed.length / 4));
+}
+
 /** Finite positive seconds, or ``null`` when the listing had no length. */
 export function durationSeconds(seconds: number | null | undefined): number | null {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
