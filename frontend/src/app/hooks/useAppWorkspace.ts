@@ -268,11 +268,6 @@ export function useAppWorkspace() {
     selectionActions,
     sidecarSweep,
     automation,
-    jobResults: {
-      onOpenItem: gallery.openGalleryItem,
-      onRetryFailed: retryFailedFiles,
-      onRunAgain: runJobAgain,
-    },
     quickAction,
     statsDrawer,
     duplicateResolver,

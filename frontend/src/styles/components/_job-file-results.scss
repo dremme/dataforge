@@ -106,6 +106,12 @@ $results-gutter: 0.625rem;
       background: var(--text-subtle);
     }
 
+    // Most of a cancelled run's bar is this segment, so it stays grey but visibly fainter.
+    &--cancelled {
+      background: var(--text-subtle);
+      opacity: 0.45;
+    }
+
     &--failed {
       background: var(--danger);
     }
@@ -154,6 +160,14 @@ $results-gutter: 0.625rem;
     @include count-pill-muted;
     min-height: 1rem;
     padding: 0.0625rem 0.375rem;
+  }
+
+  // Stands in for the rows a cancelled run has no results for; aligns with the row gutter.
+  &__group-note {
+    margin: 0.25rem 0 0;
+    padding: 0 0.375rem;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
   }
 
   &__list {

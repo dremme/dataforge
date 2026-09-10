@@ -39,6 +39,18 @@ const results: JobFileResult[] = [
   },
 ];
 
+const cancelledJob: Job = {
+  ...finishedJob,
+  status: "cancelled",
+  total: 200,
+  processed: 11,
+  stats: { total: 200, success: 11, cancelled: 189 },
+};
+
+function makeResult(name: string, status: string): JobFileResult {
+  return { path: `C:\\Photos\\${name}`, name, status };
+}
+
 beforeEach(() => {
   fetchResults.mockResolvedValue(results);
 });
@@ -181,6 +193,34 @@ describe("JobFileResults", () => {
     await user.click(await screen.findByRole("button", { name: "broken.png" }));
 
     expect(onOpenItem).toHaveBeenCalledWith("C:\\Photos\\broken.png");
+  });
+
+  it("counts every file a cancel left unrun, not just the interrupted one", async () => {
+    const user = userEvent.setup();
+    const done = Array.from({ length: 11 }, (_, index) =>
+      makeResult(`done-${index}.png`, "success"),
+    );
+    fetchResults.mockResolvedValue([...done, makeResult("interrupted.png", "cancelled")]);
+    render(<JobFileResults job={cancelledJob} />);
+
+    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
+
+    expect(await screen.findByText("11 done · 189 not run")).toBeInTheDocument();
+    const group = screen.getByText("Not run", { selector: "p" });
+    expect(within(group).getByText("189")).toBeInTheDocument();
+    expect(screen.getByTitle(/interrupted.png/)).toBeInTheDocument();
+    expect(screen.getByText("188 more never started.")).toBeInTheDocument();
+  });
+
+  it("names the unrun files when the cancel landed between them", async () => {
+    const user = userEvent.setup();
+    fetchResults.mockResolvedValue([]);
+    render(<JobFileResults job={{ ...cancelledJob, stats: { total: 189, cancelled: 189 } }} />);
+
+    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
+
+    expect(await screen.findByText("189 files never started.")).toBeInTheDocument();
+    expect(screen.queryByText(/recorded no per-file results/)).not.toBeInTheDocument();
   });
 
   it("says so when a job's results are gone", async () => {

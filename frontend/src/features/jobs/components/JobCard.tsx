@@ -24,7 +24,6 @@ import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { useTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
-import { JobFileResults } from "./JobFileResults";
 import { TrainingSamples } from "./TrainingSamples";
 
 interface JobCardProps {
@@ -35,9 +34,6 @@ interface JobCardProps {
   onDelete?: (jobId: string) => void;
   cancelling?: boolean;
   onLightboxOpenChange?: (open: boolean) => void;
-  onOpenItem?: (path: string) => void;
-  onRetryFailed?: (jobType: Job["job_type"], paths: string[]) => void;
-  onRunAgain?: (jobType: Job["job_type"]) => void;
 }
 
 export function JobCard({
@@ -48,9 +44,6 @@ export function JobCard({
   onDelete,
   cancelling = false,
   onLightboxOpenChange,
-  onOpenItem,
-  onRetryFailed,
-  onRunAgain,
 }: JobCardProps) {
   const tone = jobStatusTone(job);
   const active = isActiveJobStatus(job.status);
@@ -164,13 +157,6 @@ export function JobCard({
       </div>
 
       <TrainingSamples samples={samples} compact onLightboxOpenChange={onLightboxOpenChange} />
-
-      <JobFileResults
-        job={job}
-        onOpenItem={onOpenItem}
-        onRetryFailed={onRetryFailed && ((paths) => onRetryFailed(job.job_type, paths))}
-        onRunAgain={onRunAgain && (() => onRunAgain(job.job_type))}
-      />
 
       {warningMessage && (
         <div className="job-card__warning" role="status">

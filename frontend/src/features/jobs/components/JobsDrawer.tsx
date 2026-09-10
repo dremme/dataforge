@@ -6,7 +6,6 @@ import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { isTrainLoraCoTrackedByExternal } from "@/features/jobs/lib/jobs";
-import type { JobType } from "@/shared/types";
 import { ExternalJobCard } from "./ExternalJobCard";
 import { Icon } from "@/shared/ui/Icon";
 import { JobCard } from "./JobCard";
@@ -14,18 +13,9 @@ import { JobCard } from "./JobCard";
 interface JobsDrawerProps {
   currentFolder?: string;
   onOpenFolder: (folderPath: string) => void;
-  onOpenItem?: (path: string) => void;
-  onRetryFailed?: (jobType: JobType, paths: string[]) => void;
-  onRunAgain?: (jobType: JobType) => void;
 }
 
-export function JobsDrawer({
-  currentFolder,
-  onOpenFolder,
-  onOpenItem,
-  onRetryFailed,
-  onRunAgain,
-}: JobsDrawerProps) {
+export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
   const {
     jobs,
     externalJobs,
@@ -161,53 +151,25 @@ export function JobsDrawer({
                 >
                   {hasExternalJobs && <h3 className="jobs-drawer__section-title">DataForge</h3>}
                   <div className="jobs-drawer__list">
-                    {localJobs.map((job) => {
-                      const inCurrentFolder = foldersMatch(currentFolder, job.folder);
-
-                      return (
-                        <JobCard
-                          key={job.id}
-                          job={job}
-                          isCurrentFolder={inCurrentFolder}
-                          onOpenFolder={(folderPath) => {
-                            onOpenFolder(folderPath);
-                            closeDrawer();
-                          }}
-                          cancelling={cancellingJobId === job.id}
-                          onCancel={(jobId) => {
-                            cancelJob(jobId).catch(() => {});
-                          }}
-                          onDelete={(jobId) => {
-                            deleteJob(jobId).catch(() => {});
-                          }}
-                          onLightboxOpenChange={setLightboxOpen}
-                          onOpenItem={
-                            inCurrentFolder && onOpenItem
-                              ? (path) => {
-                                  onOpenItem(path);
-                                  closeDrawer();
-                                }
-                              : undefined
-                          }
-                          onRetryFailed={
-                            inCurrentFolder && onRetryFailed
-                              ? (jobType, paths) => {
-                                  onRetryFailed(jobType, paths);
-                                  closeDrawer();
-                                }
-                              : undefined
-                          }
-                          onRunAgain={
-                            inCurrentFolder && onRunAgain
-                              ? (jobType) => {
-                                  onRunAgain(jobType);
-                                  closeDrawer();
-                                }
-                              : undefined
-                          }
-                        />
-                      );
-                    })}
+                    {localJobs.map((job) => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        isCurrentFolder={foldersMatch(currentFolder, job.folder)}
+                        onOpenFolder={(folderPath) => {
+                          onOpenFolder(folderPath);
+                          closeDrawer();
+                        }}
+                        cancelling={cancellingJobId === job.id}
+                        onCancel={(jobId) => {
+                          cancelJob(jobId).catch(() => {});
+                        }}
+                        onDelete={(jobId) => {
+                          deleteJob(jobId).catch(() => {});
+                        }}
+                        onLightboxOpenChange={setLightboxOpen}
+                      />
+                    ))}
                   </div>
                 </section>
               )}

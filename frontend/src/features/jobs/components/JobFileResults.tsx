@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useJobFileResults } from "@/features/jobs/hooks/useJobFileResults";
 import {
+  cancelledCountFromStats,
   countFailedResults,
   failedCountFromStats,
   failedResultPaths,
@@ -16,6 +17,7 @@ import {
   iconChevronDown,
   iconCircleAlert,
   iconCircleCheck,
+  iconCircleDashed,
   iconLoader2,
   iconRotateCcw,
   type AppIcon,
@@ -33,18 +35,28 @@ interface JobFileResultsProps {
 
 const TONE_ICONS: Record<ResultTone, AppIcon> = {
   failed: iconCircleAlert,
+  cancelled: iconCircleDashed,
   skipped: iconBan,
   done: iconCircleCheck,
 };
 
 const TONE_WORDS: Record<ResultTone, string> = {
   failed: "failed",
+  cancelled: "not run",
   skipped: "skipped",
   done: "done",
 };
 
 /** Good to bad, the conventional direction for a proportion. The groups below run the other way. */
-const MIX_ORDER: readonly ResultTone[] = ["done", "skipped", "failed"];
+const MIX_ORDER: readonly ResultTone[] = ["done", "skipped", "cancelled", "failed"];
+
+/** A cancelled run counts far more files than it has rows, so the remainder is stated in words. */
+function unlistedNote(group: ResultGroup): string | null {
+  const unlisted = group.count - group.results.length;
+  if (unlisted <= 0) return null;
+  if (group.results.length > 0) return `${unlisted} more never started.`;
+  return unlisted === 1 ? "1 file never started." : `${unlisted} files never started.`;
+}
 
 function ResultMix({ groups }: { groups: ResultGroup[] }) {
   const ordered = MIX_ORDER.map((tone) => groups.find((group) => group.tone === tone)).filter(
@@ -61,12 +73,12 @@ function ResultMix({ groups }: { groups: ResultGroup[] }) {
           <span
             key={group.tone}
             className={`job-file-results__mix-segment job-file-results__mix-segment--${group.tone}`}
-            style={{ flexGrow: group.results.length }}
+            style={{ flexGrow: group.count }}
           />
         ))}
       </div>
       <figcaption className="job-file-results__mix-caption">
-        {ordered.map((group) => `${group.results.length} ${TONE_WORDS[group.tone]}`).join(" · ")}
+        {ordered.map((group) => `${group.count} ${TONE_WORDS[group.tone]}`).join(" · ")}
       </figcaption>
     </figure>
   );
@@ -123,7 +135,7 @@ export function JobFileResults({
   if (isActiveJobStatus(job.status)) return null;
 
   const failedCount = failedCountFromStats(job.stats);
-  const groups = groupResultsForDisplay(results);
+  const groups = groupResultsForDisplay(results, cancelledCountFromStats(job.stats));
   const retryPaths = failedResultPaths(results);
   const loadedFailedCount = countFailedResults(results);
 
@@ -166,7 +178,7 @@ export function JobFileResults({
             </p>
           )}
 
-          {!loading && !failed && results.length === 0 && (
+          {!loading && !failed && groups.length === 0 && (
             <p className="job-file-results__note">This job recorded no per-file results.</p>
           )}
 
@@ -175,21 +187,28 @@ export function JobFileResults({
               <ResultMix groups={groups} />
 
               <div className="job-file-results__groups" data-scroll-lock-allow>
-                {groups.map((group) => (
-                  <section key={group.tone} className="job-file-results__group">
-                    <p
-                      className={`job-file-results__group-label job-file-results__group-label--${group.tone}`}
-                    >
-                      {group.label}
-                      <span className="job-file-results__group-count">{group.results.length}</span>
-                    </p>
-                    <ul className="job-file-results__list">
-                      {group.results.map((result) => (
-                        <ResultRow key={result.path} result={result} onOpenItem={onOpenItem} />
-                      ))}
-                    </ul>
-                  </section>
-                ))}
+                {groups.map((group) => {
+                  const unlisted = unlistedNote(group);
+
+                  return (
+                    <section key={group.tone} className="job-file-results__group">
+                      <p
+                        className={`job-file-results__group-label job-file-results__group-label--${group.tone}`}
+                      >
+                        {group.label}
+                        <span className="job-file-results__group-count">{group.count}</span>
+                      </p>
+                      {group.results.length > 0 && (
+                        <ul className="job-file-results__list">
+                          {group.results.map((result) => (
+                            <ResultRow key={result.path} result={result} onOpenItem={onOpenItem} />
+                          ))}
+                        </ul>
+                      )}
+                      {unlisted && <p className="job-file-results__group-note">{unlisted}</p>}
+                    </section>
+                  );
+                })}
               </div>
             </>
           )}

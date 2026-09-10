@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { JobFileResult } from "@/shared/types";
 import {
+  cancelledCountFromStats,
   countFailedResults,
   failedResultPaths,
   groupResultsForDisplay,
@@ -83,7 +84,7 @@ describe("jobFileResults", () => {
     ]);
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({ tone: "done", label: "Completed" });
+    expect(groups[0]).toMatchObject({ tone: "done", label: "Completed", count: 2 });
     expect(groups[0].results).toHaveLength(2);
   });
 
@@ -95,6 +96,47 @@ describe("jobFileResults", () => {
 
   it("groups nothing when there are no results", () => {
     expect(groupResultsForDisplay([])).toEqual([]);
+  });
+
+  it("files an interrupted run under Not run rather than Skipped", () => {
+    const cancelled = makeResult("interrupted.png", "cancelled");
+
+    expect(isSkippedResult(cancelled)).toBe(false);
+    expect(groupResultsForDisplay([cancelled], 1)).toMatchObject([
+      { tone: "cancelled", label: "Not run", count: 1 },
+    ]);
+  });
+
+  it("counts the files a cancel left unrun from the job's counter, not the rows", () => {
+    const groups = groupResultsForDisplay(
+      sortResultsForDisplay([
+        makeResult("done.png", "success"),
+        makeResult("interrupted.png", "cancelled"),
+      ]),
+      189,
+    );
+
+    expect(groups.map((group) => [group.tone, group.count])).toEqual([
+      ["cancelled", 189],
+      ["done", 1],
+    ]);
+    expect(groups[0].results.map((result) => result.name)).toEqual(["interrupted.png"]);
+  });
+
+  it("names the Not run group even when the cancel landed between files", () => {
+    const groups = groupResultsForDisplay([makeResult("done.png", "success")], 189);
+
+    expect(groups.map((group) => [group.tone, group.count])).toEqual([
+      ["cancelled", 189],
+      ["done", 1],
+    ]);
+    expect(groups[0].results).toEqual([]);
+  });
+
+  it("reads the unrun count off the job's stats", () => {
+    expect(cancelledCountFromStats({ total: 200, success: 11, cancelled: 189 })).toBe(189);
+    expect(cancelledCountFromStats({ total: 3, success: 3 })).toBe(0);
+    expect(cancelledCountFromStats(undefined)).toBe(0);
   });
 
   it("collects the paths of failed files only", () => {

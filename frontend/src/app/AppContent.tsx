@@ -22,7 +22,6 @@ export function AppContent() {
     gallery,
     selectionActions,
     automation,
-    jobResults,
     quickAction,
     statsDrawer,
     duplicateResolver,
@@ -142,7 +141,6 @@ export function AppContent() {
         <AppOverlays
           currentFolder={folder?.path}
           onOpenFolder={navigateTo}
-          jobResults={jobResults}
           folderPicker={folderPicker}
           quickAction={quickAction}
           selectionActions={selectionActions.overlay}

@@ -29,6 +29,7 @@ export {
   ChevronUp as iconChevronUp,
   CircleAlert as iconCircleAlert,
   CircleCheck as iconCircleCheck,
+  CircleDashed as iconCircleDashed,
   CircleQuestionMark as iconCircleQuestionMark,
   Code as iconCode,
   Contrast as iconContrast,
