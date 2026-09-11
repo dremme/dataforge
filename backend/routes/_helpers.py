@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from constants import (
+    CANDIDATE_SOURCE_EXTENSIONS,
     GIF_EXTENSION,
     IMAGE_EDIT_EXTENSIONS,
     IMAGE_EXTENSIONS,
@@ -15,6 +16,7 @@ from schemas import JobResponse
 
 __all__ = [
     "job_response",
+    "resolve_candidate_media",
     "resolve_candidate_source",
     "resolve_editable_image",
     "resolve_editable_video",
@@ -75,13 +77,18 @@ def resolve_editable_image(path: str) -> Path:
 def resolve_candidate_source(path: str) -> Path:
     """Source path a candidate is keyed by. The file may already be gone."""
     file_path = normalize_user_path(path)
-    suffix = file_path.suffix.lower()
-    if suffix not in MEDIA_EXTENSIONS:
+    if file_path.suffix.lower() not in CANDIDATE_SOURCE_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Not a supported media file")
-    if suffix not in IMAGE_EDIT_EXTENSIONS:
+    return file_path
+
+
+def resolve_candidate_media(path: str) -> Path:
+    """Like `resolve_candidate_source`, for the endpoints that read the file itself."""
+    file_path = resolve_media_file(path)
+    if file_path.suffix.lower() not in CANDIDATE_SOURCE_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"{file_path.suffix} images cannot be edited",
+            detail=f"{file_path.suffix} files cannot hold a candidate",
         )
     return file_path
 

@@ -3,6 +3,7 @@ import {
   buildCandidateReviewQueue,
   candidateStageAspect,
   differenceLabel,
+  isVideoEntry,
 } from "./candidateReview";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 
@@ -83,5 +84,42 @@ describe("differenceLabel", () => {
   it("calls anything above the top threshold reframed", () => {
     expect(differenceLabel(12)).toBe("reframed");
     expect(differenceLabel(55)).toBe("reframed");
+  });
+});
+
+describe("isVideoEntry", () => {
+  function pair(source: string, candidate: string) {
+    const [item] = buildCandidateReviewQueue(
+      HOME_PATH,
+      [
+        mediaItem(source, HOME_PATH, {
+          has_candidate: true,
+          candidate_name: candidate,
+          media_type: source.endsWith(".mp4") ? "video" : "image",
+        }),
+      ],
+      [
+        mediaItem(candidate, STAGING_PATH, {
+          media_type: candidate.endsWith(".mp4") ? "video" : "image",
+        }),
+      ],
+    );
+    return item;
+  }
+
+  it("plays a clip staged for a clip", () => {
+    expect(isVideoEntry(pair("clip.mov", "clip.mp4"))).toBe(true);
+  });
+
+  it("plays a clip staged for a still", () => {
+    expect(isVideoEntry(pair("frame.png", "frame.mp4"))).toBe(true);
+  });
+
+  it("plays a still staged for a clip, so the original is still watchable", () => {
+    expect(isVideoEntry(pair("clip.mp4", "clip.png"))).toBe(true);
+  });
+
+  it("leaves two stills as images", () => {
+    expect(isVideoEntry(pair("a.jpg", "a.png"))).toBe(false);
   });
 });

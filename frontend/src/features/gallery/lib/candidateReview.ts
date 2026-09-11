@@ -1,4 +1,4 @@
-import { isSysPrompt } from "@/features/gallery/lib/itemKind";
+import { isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 
 /** Paired by the source's `candidate_name`. A gone source stays null, or staging fills silently. */
@@ -11,6 +11,11 @@ export interface CandidateReviewEntry {
 
 export function isOrphanedCandidate(entry: CandidateReviewEntry): boolean {
   return entry.source === null;
+}
+
+/** Either side being a clip. Each pane still picks its own element: a GIF needs an <img>. */
+export function isVideoEntry(entry: CandidateReviewEntry): boolean {
+  return isVideo(entry.candidate) || (entry.source !== null && isVideo(entry.source));
 }
 
 /** Not a sysprompt, so a media type added later cannot fall out of the count. */

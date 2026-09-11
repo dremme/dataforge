@@ -937,6 +937,17 @@ class ComfyCandidateSidecar(BaseModel):
     prompt_text: str | None = None
     #: Written at job time, the one moment both images are already decoded.
     difference_percent: float | None = None
+    #: Both sides, so review can show 24 -> 48 rather than a bare number.
+    frame_rate: float | None = None
+    source_frame_rate: float | None = None
+    frame_count: int | None = None
+    source_frame_count: int | None = None
+    duration_seconds: float | None = None
+    source_duration_seconds: float | None = None
+    #: True only when both lengths are known and disagree; an unmeasured clip never flags.
+    length_mismatch: bool = False
+    #: True only when the source carried an audio track and the candidate does not.
+    dropped_audio: bool = False
     created_at: str
 
 
@@ -949,6 +960,17 @@ class ComfyCandidateStateResponse(BaseModel):
     seed: int | None = None
     #: Null when neither the record nor a fresh read could produce one.
     difference_percent: float | None = None
+    #: Both sides, so review can show 24 -> 48 rather than a bare number.
+    frame_rate: float | None = None
+    source_frame_rate: float | None = None
+    frame_count: int | None = None
+    source_frame_count: int | None = None
+    duration_seconds: float | None = None
+    source_duration_seconds: float | None = None
+    #: True only when both lengths are known and disagree; an unmeasured clip never flags.
+    length_mismatch: bool = False
+    #: True only when the source carried an audio track and the candidate does not.
+    dropped_audio: bool = False
     created_at: str | None = None
 
 
@@ -959,6 +981,7 @@ class ComfyCandidateResponse(BaseModel):
     modified_at: str
     width: int | None = None
     height: int | None = None
+    duration: float | None = None
 
 
 class ComfyCandidateBatchRequest(BaseModel):

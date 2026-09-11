@@ -79,8 +79,11 @@ WATERMARK_DIR_NAME = "watermarked"
 # Same as WATERMARK_DIR_NAME: the review queue pairs candidates with sources by name.
 STAGING_DIR_NAME = "staging"
 
-# ComfyUI only saves PNG, so a candidate pairs by stem and is re-encoded on accept, not on arrival.
+# ComfyUI saves PNG for stills; a candidate pairs by stem and keeps its own format on accept.
 COMFY_CANDIDATE_SUFFIX = ".png"
+
+# Order decides which staged file a source claims; every entry must be listable media.
+COMFY_CANDIDATE_SUFFIXES = (COMFY_CANDIDATE_SUFFIX, ".mp4", ".mov", GIF_EXTENSION)
 
 # Two suffixes deep, like issue and duplicate findings.
 COMFY_CANDIDATE_SIDECAR_SUFFIX = ".comfy.json"
@@ -89,8 +92,11 @@ COMFY_CANDIDATE_SIDECAR_SUFFIX = ".comfy.json"
 COMFY_TEMP_SUFFIX = ".comfy-tmp"
 COMFY_STALE_SUFFIX = ".comfy-stale"
 
-# Image graphs only; history "gifs"/"videos" outputs are a separate contract.
-COMFY_PROCESS_EXTENSIONS = IMAGE_EXTENSIONS
+# The workflow decides what it can read; a file its loader refuses fails with ComfyUI's own error.
+COMFY_PROCESS_EXTENSIONS = MEDIA_EXTENSIONS
+
+# Any media file can hold a candidate, so the settle endpoints gate on this, not on editability.
+CANDIDATE_SOURCE_EXTENSIONS = MEDIA_EXTENSIONS
 
 SKIP_DIR_NAMES = {
     CAPTION_BACKUP_DIR_NAME,

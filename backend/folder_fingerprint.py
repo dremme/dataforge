@@ -9,6 +9,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
+from candidate_pairing import candidate_name_for
 from constants import (
     CAPTION_SIDECAR_EXTENSIONS,
     DUPLICATE_SIDECAR_SUFFIX,
@@ -16,7 +17,7 @@ from constants import (
     ISSUE_SIDECAR_SUFFIX,
     STAGING_DIR_NAME,
 )
-from folder_scan import FolderScan, candidate_name_for, folder_entries_in_order, scan_folder
+from folder_scan import FolderScan, folder_entries_in_order, scan_folder
 
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]

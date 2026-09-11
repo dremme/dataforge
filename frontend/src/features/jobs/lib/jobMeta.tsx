@@ -174,7 +174,8 @@ export const JOB_TYPE_META = {
     icon: iconComfyUi,
     startUi: "dialog" as const,
     menuLabel: "Process with ComfyUI",
-    menuDescription: "Upscale or repair images through a ComfyUI workflow, for review.",
+    menuDescription:
+      "Upscale, interpolate or repair images and video through a ComfyUI workflow, for review.",
     isAvailable: ({ comfyPresetsAvailable }: JobAvailability) => comfyPresetsAvailable,
   },
 } satisfies Record<JobType, JobTypeMeta>;

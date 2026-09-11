@@ -88,7 +88,7 @@ Jobs run in the background with progress, cancellation, and history. A selection
 ### Train and process with integrations
 
 - **Quick LoRA training** starts a whole-folder AI-Toolkit run with Krea 2 Turbo, MiniMax H3, or MiniMax H3 Ref2VA templates.
-- **Process with ComfyUI** sends still images through a preset and places PNG candidates in `staging/` for review before publication.
+- **Process with ComfyUI** sends images, GIFs, or video through a preset and places candidates in `staging/` for review before publication.
 
 ## Optional integrations
 

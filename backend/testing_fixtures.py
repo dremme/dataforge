@@ -4,10 +4,38 @@ import atexit
 import json
 import os
 import struct
+import subprocess
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 _test_database_dir: tempfile.TemporaryDirectory[str] | None = None
+
+
+@lru_cache(maxsize=16)
+def playable_video_bytes(*, suffix: str = ".mp4", audio: bool = False) -> bytes:
+    from ffmpeg_bin import ffmpeg_path
+
+    executable = ffmpeg_path()
+    if executable is None:
+        raise RuntimeError("FFmpeg is required for video fixtures")
+    with tempfile.TemporaryDirectory() as raw:
+        output = Path(raw) / f"clip{suffix}"
+        command = [
+            executable,
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=64x48:rate=10:duration=1",
+        ]
+        if audio:
+            command.extend(["-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "aac"])
+        command.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", str(output)])
+        subprocess.run(command, check=True, capture_output=True, timeout=30)
+        return output.read_bytes()
 
 
 def _cleanup_test_database() -> None:
@@ -271,6 +299,7 @@ def make_minimal_mp4_bytes(
     height: int = 480,
     tkhd_version: int = 0,
     trailing_moov: bool = False,
+    audio: bool = False,
 ) -> bytes:
     """Header-only MP4. ``trailing_moov`` puts sample data in front of the header."""
 
@@ -300,6 +329,13 @@ def make_minimal_mp4_bytes(
     )
     trak = _mp4_box("trak", _mp4_tkhd(width, height, version=tkhd_version) + mdia)
     moov_children = [trak]
+    if audio:
+        # A sound track is 0x0, which is how the reader tells it from the picture track.
+        sound_mdia = _mp4_box(
+            "mdia",
+            make_hdlr("soun") + make_mdhd(timescale, sample_count * sample_delta) + minf,
+        )
+        moov_children.append(_mp4_box("trak", _mp4_tkhd(0, 0, version=tkhd_version) + sound_mdia))
     if metadata:
         if metadata_format == "classic":
             moov_children.append(_mp4_udta_meta_classic(metadata))
@@ -325,6 +361,7 @@ def write_mp4_video(
     height: int = 480,
     tkhd_version: int = 0,
     trailing_moov: bool = False,
+    audio: bool = False,
 ) -> Path:
     media = root / name
     media.write_bytes(
@@ -338,6 +375,7 @@ def write_mp4_video(
             height=height,
             tkhd_version=tkhd_version,
             trailing_moov=trailing_moov,
+            audio=audio,
         ),
     )
     return media

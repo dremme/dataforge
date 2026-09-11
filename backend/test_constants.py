@@ -76,5 +76,18 @@ class SharedConstantsTests(unittest.TestCase):
                 self.assertEqual(value, sorted(value))
 
 
+class CandidateFactsParityTests(unittest.TestCase):
+    def test_every_measured_fact_has_a_sidecar_field(self) -> None:
+        """The sidecar is built by splatting the facts; a field only on one side is dropped in silence."""
+        from dataclasses import fields
+
+        from automation.comfy_process import CandidateFacts
+        from schemas import ComfyCandidateSidecar
+
+        measured = {field.name for field in fields(CandidateFacts)}
+
+        self.assertLessEqual(measured, set(ComfyCandidateSidecar.model_fields))
+
+
 if __name__ == "__main__":
     unittest.main()

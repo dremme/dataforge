@@ -14,19 +14,23 @@ import {
   candidateStageAspect,
   differenceLabel,
   isOrphanedCandidate,
+  isVideoEntry,
   resolutionGain,
   type CandidateReviewEntry,
 } from "@/features/gallery/lib/candidateReview";
 import { useCandidateDetails } from "@/features/gallery/hooks/useCandidateDetails";
 import { formatApiError } from "@/shared/api/http";
 import { classNames } from "@/shared/lib/classNames";
-import { formatFileSize, formatMegapixels } from "@/shared/lib/format";
+import { formatDurationSeconds, formatFileSize, formatMegapixels } from "@/shared/lib/format";
 import { iconArrowRight, iconTriangleAlert, iconX } from "@/shared/icons";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
-import type { GalleryItem } from "@/shared/types";
+import { isVideo } from "@/features/gallery/lib/itemKind";
+import type { ComfyCandidateStateResponse, GalleryItem } from "@/shared/types";
+
+type CandidateDetails = ComfyCandidateStateResponse;
 
 type PendingAction = "accept" | "reject" | null;
 
@@ -53,6 +57,7 @@ export function CandidateReviewModal({
   const [error, setError] = useState<string | null>(null);
   const [settledPaths, setSettledPaths] = useState<ReadonlySet<string>>(() => new Set());
 
+  const details = useCandidateDetails(entry);
   const busy = pending !== null;
   const settled = entry ? settledPaths.has(entry.path) : false;
   const orphaned = entry ? isOrphanedCandidate(entry) : false;
@@ -115,6 +120,8 @@ export function CandidateReviewModal({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
+      // A focused player owns the arrows, or seeking a clip walks the queue out from under it.
+      if (event.target instanceof Element && event.target.closest("video")) return;
 
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
@@ -169,15 +176,17 @@ export function CandidateReviewModal({
       <div className="candidate-review-modal__body" data-scroll-lock-allow>
         <CompareStage entry={entry} />
 
-        <CompareMeta entry={entry} />
+        <CompareMeta entry={entry} details={details} />
 
         {orphaned && (
           <p className="candidate-review-modal__warning" role="status">
             <Icon icon={iconTriangleAlert} className="candidate-review-modal__warning-icon" />
-            The image this candidate was made from is no longer in the folder. It can only be
+            The file this candidate was made from is no longer in the folder. It can only be
             discarded from here.
           </p>
         )}
+
+        <CandidateWarnings details={details} />
 
         {error && (
           <p className="candidate-review-modal__error" role="alert">
@@ -223,9 +232,58 @@ export function CandidateReviewModal({
   );
 }
 
-function CompareMeta({ entry }: { entry: CandidateReviewEntry }) {
-  const details = useCandidateDetails(entry);
+/** Length and dropped audio, which accepting would destroy with no copy kept. */
+function CandidateWarnings({ details }: { details: CandidateDetails | null }) {
+  if (!details) return null;
+
+  const lengths =
+    details.duration_seconds != null && details.source_duration_seconds != null
+      ? `This candidate runs ${formatDurationSeconds(details.duration_seconds)}; the original runs ${formatDurationSeconds(details.source_duration_seconds)}.`
+      : null;
+
+  return (
+    <>
+      {details.length_mismatch && lengths && (
+        <p className="candidate-review-modal__warning" role="status">
+          <Icon icon={iconTriangleAlert} className="candidate-review-modal__warning-icon" />
+          {lengths} Check the output node's frame rate.
+        </p>
+      )}
+      {details.dropped_audio && (
+        <p className="candidate-review-modal__warning" role="status">
+          <Icon icon={iconTriangleAlert} className="candidate-review-modal__warning-icon" />
+          The original has an audio track and this candidate does not. Accepting keeps no copy of
+          the original.
+        </p>
+      )}
+    </>
+  );
+}
+
+function beforeAfter(before: ReactNode, after: ReactNode, unit?: string): ReactNode {
+  return (
+    <>
+      {before != null && (
+        <>
+          {before}
+          <Icon icon={iconArrowRight} className="candidate-review-modal__meta-arrow" />
+        </>
+      )}
+      {after}
+      {unit && <span className="candidate-review-modal__meta-unit">{unit}</span>}
+    </>
+  );
+}
+
+function CompareMeta({
+  entry,
+  details,
+}: {
+  entry: CandidateReviewEntry;
+  details: CandidateDetails | null;
+}) {
   const { source, candidate } = entry;
+  const motion = isVideoEntry(entry);
   const gain = resolutionGain(entry);
   const difference = details?.difference_percent ?? null;
 
@@ -244,6 +302,38 @@ function CompareMeta({ entry }: { entry: CandidateReviewEntry }) {
     item.width && item.height ? formatMegapixels(item.width, item.height).replace(" MP", "") : null;
 
   const items: { key: string; label: string; value: ReactNode }[] = [];
+
+  if (motion && details?.frame_rate != null) {
+    items.push({
+      key: "frame-rate",
+      label: "Frame rate",
+      value: beforeAfter(details.source_frame_rate ?? null, details.frame_rate, "fps"),
+    });
+  }
+
+  if (motion && details?.frame_count != null) {
+    items.push({
+      key: "frames",
+      label: "Frames",
+      value: beforeAfter(
+        details.source_frame_count?.toLocaleString() ?? null,
+        details.frame_count.toLocaleString(),
+      ),
+    });
+  }
+
+  if (motion && details?.duration_seconds != null) {
+    items.push({
+      key: "duration",
+      label: "Duration",
+      value: beforeAfter(
+        details.source_duration_seconds != null
+          ? formatDurationSeconds(details.source_duration_seconds)
+          : null,
+        formatDurationSeconds(details.duration_seconds),
+      ),
+    });
+  }
 
   if (gain !== null) {
     items.push({
@@ -368,8 +458,45 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
   const beforeSrc = entry.source ? galleryItemMediaUrl(entry.source) : null;
   const aspect = candidateStageAspect(entry, loadedSize);
 
+  const missing = <span className="candidate-review-modal__missing">No original left</span>;
+
+  const videoPane = (side: "before" | "after", src: string | null) => (
+    <div className="candidate-review-modal__pane">
+      <span className="candidate-review-modal__pane-label">
+        {side === "after" ? "After" : "Before"}
+      </span>
+      {/* Outside useImageZoom: its click handler would swallow every press on the transport. */}
+      <div className="candidate-review-modal__stage">
+        {src === null ? (
+          missing
+        ) : (
+          <video
+            // Remount on src: React would otherwise reuse the element and keep the old frame.
+            key={src}
+            className="candidate-review-modal__stage-video"
+            src={src}
+            controls
+            muted
+            playsInline
+            loop
+            preload="metadata"
+            aria-label={`${side === "after" ? "Processed" : "Original"} ${entry.name}`}
+            onLoadedMetadata={(event) => {
+              if (side !== "after") return;
+              const video = event.currentTarget;
+              setLoadedSize({ width: video.videoWidth, height: video.videoHeight });
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+
   const pane = (side: "before" | "after") => {
     const src = side === "after" ? afterSrc : beforeSrc;
+    // Per side, not per entry: a GIF in a <video> renders nothing, so it keeps the <img>.
+    const item = side === "after" ? entry.candidate : entry.source;
+    if (item && isVideo(item)) return videoPane(side, src);
 
     return (
       <div className="candidate-review-modal__pane">
@@ -397,7 +524,7 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
         >
           <div className="zoomable-image__canvas" style={canvasStyle}>
             {src === null ? (
-              <span className="candidate-review-modal__missing">No original left</span>
+              missing
             ) : (
               <img
                 className="zoomable-image__img"

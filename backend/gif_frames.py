@@ -289,6 +289,30 @@ def keyframe_indices(total_frames: int, count: int) -> list[int]:
     return sorted({round(index * (total_frames - 1) / (count - 1)) for index in range(count)})
 
 
+#: Browsers clamp a 0 or 10ms delay to this; GIFs written with no delay play at roughly this rate.
+GIF_DEFAULT_FRAME_DELAY_MS = 100.0
+
+
+def gif_frame_rate(path: Path) -> float | None:
+    """Mean rate across the animation, or None. GIF delays are per-frame, so a single value is an average."""
+    try:
+        data = _read_gif_bytes(path)
+        with _open_gif(data) as image:
+            delays = [
+                float(frame.info.get("duration") or 0.0) for frame in ImageSequence.Iterator(image)
+            ]
+    except (OSError, UnidentifiedImageError, GifFrameError) as exc:
+        logger.debug("GIF rate read failed for %s", path.name, exc_info=exc)
+        return None
+
+    if not delays:
+        return None
+
+    usable = [delay if delay > 0 else GIF_DEFAULT_FRAME_DELAY_MS for delay in delays]
+    mean_ms = sum(usable) / len(usable)
+    return round(1000.0 / mean_ms, 3) if mean_ms > 0 else None
+
+
 def extract_gif_first_frame(path: Path) -> Image.Image | None:
     """Opening frame as opaque RGB. Flatten rather than convert("RGB"), which would emit the transparent palette entry."""
     try:

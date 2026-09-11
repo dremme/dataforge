@@ -31,6 +31,17 @@ class MediaInfo:
     width: int | None = None
     height: int | None = None
     duration: float | None = None
+    #: None outside the MP4 family, where no track table is read. Never guess from the extension.
+    has_audio: bool | None = None
+
+
+@dataclass(frozen=True)
+class TrackInfo:
+    """One ``trak``, as read from its header boxes."""
+
+    dimensions: Dimensions = None
+    duration: float | None = None
+    is_audio: bool = False
 
 
 def _checked(width: int, height: int) -> Dimensions:
@@ -147,9 +158,18 @@ def _timescale_duration(data: bytes, start: int, end: int) -> float | None:
     return duration / timescale
 
 
-def _track_info(data: bytes, start: int, end: int) -> tuple[Dimensions, float | None]:
+def _handler_type(data: bytes, start: int, end: int) -> bytes | None:
+    """An ``hdlr`` full box: 4 version/flags then 4 pre_defined, and only then the handler type."""
+    offset = start + 8
+    if offset + 4 > end:
+        return None
+    return data[offset : offset + 4]
+
+
+def _track_info(data: bytes, start: int, end: int) -> TrackInfo:
     dimensions: Dimensions = None
     duration: float | None = None
+    sound = False
     for kind, payload, box_end in _iter_boxes(data, start, end):
         if kind == b"tkhd":
             dimensions = _track_dimensions(data, payload, box_end)
@@ -157,7 +177,10 @@ def _track_info(data: bytes, start: int, end: int) -> tuple[Dimensions, float | 
             header = _find_box(data, payload, box_end, b"mdhd")
             if header is not None:
                 duration = _timescale_duration(data, *header)
-    return dimensions, duration
+            handler = _find_box(data, payload, box_end, b"hdlr")
+            if handler is not None and _handler_type(data, *handler) == b"soun":
+                sound = True
+    return TrackInfo(dimensions=dimensions, duration=duration, is_audio=sound)
 
 
 def _video_info(path: Path, file_size: int) -> MediaInfo:
@@ -179,22 +202,26 @@ def _video_info(path: Path, file_size: int) -> MediaInfo:
     largest: Dimensions = None
     track_duration: float | None = None
     movie_duration: float | None = None
+    has_audio = False
     for kind, payload, box_end in _iter_boxes(moov, 0, len(moov)):
         if kind == b"mvhd":
             movie_duration = _timescale_duration(moov, payload, box_end)
         elif kind == b"trak":
-            track, duration = _track_info(moov, payload, box_end)
+            info = _track_info(moov, payload, box_end)
+            has_audio = has_audio or info.is_audio
+            track = info.dimensions
             if track is not None and (
                 largest is None or track[0] * track[1] > largest[0] * largest[1]
             ):
                 largest = track
-                track_duration = duration
+                track_duration = info.duration
 
     width, height = largest or (None, None)
     return MediaInfo(
         width=width,
         height=height,
         duration=track_duration if track_duration is not None else movie_duration,
+        has_audio=has_audio,
     )
 
 

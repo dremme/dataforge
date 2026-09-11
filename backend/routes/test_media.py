@@ -552,6 +552,39 @@ class GifFrameEndpointTests(unittest.TestCase):
 
 
 class ComfyCandidateEndpointTests(unittest.TestCase):
+    def test_every_candidate_endpoint_answers_for_a_clip(self) -> None:
+        """All four used to 400 on .mp4, because they gated on what the image editor can open."""
+        from constants import STAGING_DIR_NAME
+        from testing_fixtures import playable_video_bytes
+
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            (root / STAGING_DIR_NAME).mkdir()
+            (root / STAGING_DIR_NAME / "clip.mp4").write_bytes(playable_video_bytes())
+            encoded = quote(str(media))
+
+            state = client.get(f"/api/media/comfy-candidate?path={encoded}")
+            self.assertEqual(state.status_code, 200)
+            self.assertTrue(state.json()["has_candidate"])
+
+            accepted = client.post(f"/api/media/comfy-candidate/accept?path={encoded}")
+            self.assertEqual(accepted.status_code, 200)
+            self.assertEqual(accepted.json()["width"], 64)
+
+    def test_rejecting_a_clips_candidate_leaves_the_clip(self) -> None:
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            (root / STAGING_DIR_NAME).mkdir()
+            candidate = write_mp4_video(root / STAGING_DIR_NAME, "clip.mp4")
+
+            response = client.post(f"/api/media/comfy-candidate/reject?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(candidate.exists())
+            self.assertTrue(media.is_file())
+
     def test_reject_discards_a_candidate_whose_source_is_gone(self) -> None:
         from constants import STAGING_DIR_NAME
 

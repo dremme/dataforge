@@ -14,6 +14,11 @@ DEFAULT_COMFY_IMAGE_TIMEOUT_SECONDS = 900.0
 
 _MIN_IMAGE_TIMEOUT_SECONDS = 30.0
 
+# A clip through an upscaler and an interpolator is minutes per file, not seconds.
+DEFAULT_COMFY_VIDEO_TIMEOUT_SECONDS = 7200.0
+
+_MIN_VIDEO_TIMEOUT_SECONDS = 60.0
+
 
 def _env_str(name: str) -> str:
     return os.environ.get(name, "").strip()
@@ -46,3 +51,18 @@ def get_comfy_image_timeout() -> float:
         DEFAULT_COMFY_IMAGE_TIMEOUT_SECONDS,
         _MIN_IMAGE_TIMEOUT_SECONDS,
     )
+
+
+def get_comfy_video_timeout() -> float:
+    return _env_seconds(
+        "COMFY_VIDEO_TIMEOUT",
+        DEFAULT_COMFY_VIDEO_TIMEOUT_SECONDS,
+        _MIN_VIDEO_TIMEOUT_SECONDS,
+    )
+
+
+def get_comfy_media_timeout(media_type: str | None) -> float:
+    """How long one file may take. Keyed on the source, which is known before the graph runs."""
+    if media_type in {"video", "gif"}:
+        return get_comfy_video_timeout()
+    return get_comfy_image_timeout()

@@ -109,6 +109,13 @@
     object-fit: contain;
   }
 
+  &__stage-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
   &__missing {
     display: grid;
     place-items: center;

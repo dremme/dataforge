@@ -96,22 +96,22 @@ def comfy_process_error_message(stats: dict[str, int]) -> str | None:
     if comfy_errors == error_count:
         if comfy_errors == 1:
             return (
-                "ComfyUI could not process 1 image. Check that it is running and that the "
-                "preset's nodes are installed."
+                "ComfyUI could not process 1 file. Check that it is running and that the "
+                "preset's nodes can read it."
             )
         return (
-            f"ComfyUI could not process {comfy_errors} images. Check that it is running and "
-            "that the preset's nodes are installed."
+            f"ComfyUI could not process {comfy_errors} files. Check that it is running and "
+            "that the preset's nodes can read them."
         )
 
     if read_errors == error_count:
         if read_errors == 1:
-            return "1 image could not be read, so it was never sent to ComfyUI."
-        return f"{read_errors} images could not be read, so they were never sent to ComfyUI."
+            return "1 file could not be read, so it was never sent to ComfyUI."
+        return f"{read_errors} files could not be read, so they were never sent to ComfyUI."
 
     if error_count == 1:
-        return "Failed to stage 1 image. The original was not changed."
-    return f"Failed to stage {error_count} images. The originals were not changed."
+        return "Failed to stage 1 file. The original was not changed."
+    return f"Failed to stage {error_count} files. The originals were not changed."
 
 
 def set_captions_error_message(stats: dict[str, int]) -> str | None:

@@ -1,22 +1,26 @@
-# Process images with ComfyUI
+# Process media with ComfyUI
 
 [DataForge documentation](README.md)
 
-Run a folder of still images through a ComfyUI workflow, then inspect every result before it changes the dataset.
+Run a folder of images, GIFs, or video through a ComfyUI workflow, then inspect every result before it changes the dataset.
 
 ## How the safe review workflow works
 
-**Process with ComfyUI** never writes directly over source media. Each successful result is staged as a PNG under `<folder>/staging/`, paired with a `.comfy.json` record of the run. **Review candidates** is the point where a result becomes part of the dataset.
+**Process with ComfyUI** never writes directly over source media. Each successful result is staged under `<folder>/staging/` in whatever format ComfyUI produced — a PNG from a still graph, an MP4 or GIF from a video graph — paired with a `.comfy.json` record of the run. **Review candidates** is the point where a result becomes part of the dataset.
 
-- **Accept** publishes the candidate in place of its source. A JPEG, WebP, or BMP source becomes a PNG with the same stem; captions keep working because the caption sidecar stem stays the same. Related issue and duplicate findings are renamed to follow the published PNG.
-- **Reject** deletes the staged PNG and its `.comfy.json`; the source is never opened or modified.
+- **Accept** publishes the candidate in place of its source, keeping the candidate's own format. A JPEG, WebP, or BMP source becomes a PNG with the same stem, and a MOV or MKV source becomes an MP4; captions keep working because the caption sidecar stem stays the same. Related issue and duplicate findings are renamed to follow the published file.
+- **Reject** deletes the staged file and its `.comfy.json`; the source is never opened or modified.
 - **Skip** and **Back** move through the queue without deciding.
 
-Accepting is final. DataForge does not retain a copy of the source that was replaced. It also refuses acceptance while the source has an unreverted edit, because the image editor’s `.bak` would otherwise point at pre-ComfyUI pixels.
+Accepting is final. DataForge does not retain a copy of the source that was replaced. It also refuses acceptance while the source has an unreverted edit, because the editor’s `.bak` would otherwise point at pre-ComfyUI pixels.
+
+Candidates must decode before they enter the review queue, and are checked again on acceptance. An invalid result leaves an existing candidate and the original untouched. Video validation requires FFmpeg.
+
+For a clip, review also reports the frame rate, frame count, and duration on both sides, warns when the candidate does not run as long as its source, and warns when the source had an audio track the graph dropped. Neither warning blocks **Accept** — they are there so an irreversible replacement is a decision rather than a surprise.
 
 ## Prerequisites and connection
 
-Processing accepts JPG/JPEG, PNG, WebP, and BMP source images. ComfyUI image graphs do not process videos or GIFs.
+Processing sends every image, GIF, and video in the folder. DataForge does not check a file against the graph first: if the workflow's loader cannot read it, that file fails with ComfyUI's own error and the rest of the run continues. Point an image graph at a folder of images, and a video graph at a folder of clips.
 
 The default expects ComfyUI Desktop at `http://127.0.0.1:9000`. Set another origin in the project-root `.env` when needed:
 
@@ -24,9 +28,10 @@ The default expects ComfyUI Desktop at `http://127.0.0.1:9000`. Set another orig
 COMFY_BASE_URL=http://127.0.0.1:9000
 COMFY_WORKFLOWS_DIR=
 COMFY_IMAGE_TIMEOUT=900
+COMFY_VIDEO_TIMEOUT=7200
 ```
 
-`COMFY_WORKFLOWS_DIR` defaults to the repository’s `comfy_workflows/` directory. `COMFY_IMAGE_TIMEOUT` is the per-image wait limit in seconds; values below 30 seconds fall back to the default. Restart DataForge after changing `.env`.
+`COMFY_WORKFLOWS_DIR` defaults to the repository’s `comfy_workflows/` directory. `COMFY_IMAGE_TIMEOUT` is the per-image wait limit in seconds; values below 30 seconds fall back to the default. `COMFY_VIDEO_TIMEOUT` is the same limit for a GIF or video source, where an upscale plus an interpolation runs for minutes; values below 60 seconds fall back to its default. Restart DataForge after changing `.env`.
 
 The menu item appears whenever a preset exists, even when ComfyUI is stopped. Its dialog reports whether the configured endpoint is currently available. DataForge uploads sources into ComfyUI’s `input/dataforge/` directory. ComfyUI provides no cleanup endpoint, so remove old uploads from that folder periodically.
 
@@ -46,15 +51,15 @@ See [configuration](configuration.md#integrations) for every integration setting
 4. Choose the preset. Optionally set a seed and prompt, if the workflow provides the matching titled nodes.
 5. Choose whether to overwrite candidates already staged for the same source, then start the job.
 
-DataForge uploads one image at a time, points the workflow input at that upload, waits for the result, and writes the returned PNG to `staging/<stem>.png`. Existing candidates are skipped by default, so a later run does not silently replace a review queue. Enable overwrite only when you intend to replace those staged outputs.
+DataForge uploads one file at a time, points the workflow input at that upload, and stages the designated output in its returned format. Existing candidates are skipped by default. Enable overwrite only when you intend to replace those staged outputs. A result whose name would belong to another source is refused even with overwrite enabled; rename files with conflicting stems before processing.
 
-Cancellation removes DataForge’s queued prompt when possible and interrupts it only when it is the running prompt. A cancelled, failed, or unsuitable run leaves source images untouched.
+Cancellation removes DataForge’s queued prompt when possible and interrupts it only when it is the running prompt. A cancelled, failed, or unsuitable run leaves source media untouched.
 
 ## Review candidates
 
-The candidate review modal compares source and result side by side. It shows dimension, megapixel, file-size, resolution-gain, and perceptual difference changes.
+The candidate review modal compares source and result side by side. It shows dimension, megapixel, file-size, resolution-gain, and perceptual difference changes. Video and GIF panes play in place; a GIF keeps an image pane even when the other side is a video, because a `<video>` element cannot decode one. While a player has focus the arrow keys seek it rather than walking the queue.
 
-Difference is the percentage of perceptual-hash bits that differ. It helps triage broad changes: a clean upscale usually scores low, while reframed or rearranged content scores higher. It cannot catch every small local defect, so inspect the images before accepting.
+Difference is the percentage of perceptual-hash bits that differ. Video scores compare the opening frame only. It cannot measure temporal consistency or interpolation quality, so inspect playback before accepting.
 
 A candidate whose source was moved, renamed, or deleted stays in the queue because it is still a real file. It is an orphan and can only be rejected. Use left/right arrows to move through the queue and `Ctrl+Enter`/`⌘Enter` to accept when focus is not in an editable control.
 
@@ -82,14 +87,16 @@ Extra workflow JSON files are gitignored. Only `example_lanczos_2x.json` is trac
 
 ### Required input and output nodes
 
-DataForge can infer a graph with exactly one `LoadImage` and one `SaveImage`. When a graph has multiple candidates, title the intended nodes to avoid ambiguity.
+DataForge can infer a graph with exactly one loader and one saver — `LoadImage`/`SaveImage` for stills, `VHS_LoadVideo`/`VHS_VideoCombine` for video. When a graph has multiple candidates, title the intended nodes to avoid ambiguity. A real video graph usually does, because an extra preview node counts as a second saver.
 
 | Node title         | Purpose                                                   |
 | ------------------ | --------------------------------------------------------- |
-| `DataForge Input`  | Image-load node to receive the uploaded source            |
-| `DataForge Output` | Image-save node whose output becomes the staged candidate |
+| `DataForge Input`  | Load node to receive the uploaded source; its `image` or `video` widget is filled in |
+| `DataForge Output` | Save node whose output becomes the staged candidate                                  |
 
 DataForge refuses an ambiguous graph rather than guessing which node to modify.
+
+Filesystem-path loaders such as `VHS_LoadVideoPath` are refused: DataForge has only an uploaded name to give them, which is relative to ComfyUI's input directory. `VHS_BatchManager` workflows are refused too, because their continuation prompts cannot be tracked or cancelled as one DataForge run — use a shorter clip, or a workflow that chunks frames within one prompt. If the node titled `DataForge Output` returns no file the run fails; another node's preview is never substituted.
 
 ### Optional seed and prompt nodes
 
@@ -97,8 +104,15 @@ DataForge refuses an ambiguous graph rather than guessing which node to modify.
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DataForge Seed`   | DataForge overwrites a `seed` or `noise_seed` input when a seed is set in the dialog. Without a dialog seed, the graph’s own value stays in place. |
 | `DataForge Prompt` | DataForge overwrites that node’s own `text` input when the dialog prompt is nonempty.                                                              |
+| `DataForge FPS`    | DataForge overwrites that node’s own number with the source’s measured frame rate, per file. Without the node, the graph runs on whatever constant it was saved with. |
 
-A prompt field connected from another node cannot be written. DataForge refuses a typed prompt when the preset has no writable `DataForge Prompt` node rather than running the graph with an unexpected built-in prompt.
+A prompt field connected from another node cannot be written. DataForge refuses a typed prompt when the preset has no writable `DataForge Prompt` node rather than running the graph with an unexpected built-in prompt. The same rule applies to `DataForge FPS`: title a node that owns its own number, such as `FloatConstant`.
+
+### Interpolating frames
+
+A frame-interpolation graph has to be told what rate to write, and getting it wrong is the most common way a result comes back wrong rather than failing. **The output frame rate must be the source rate multiplied by the interpolation factor.** A `multiplier` of 2 against 24 fps footage must write 48 fps, or the clip comes back twice as long, in slow motion.
+
+DataForge flags a candidate that does not run as long as its source, so a rate mistake shows up in review rather than in the dataset. It is a warning, not a refusal — a render that already cost GPU time is worth a look before it is thrown away.
 
 ## Inspect embedded workflows
 
@@ -118,11 +132,11 @@ Start ComfyUI and confirm `COMFY_BASE_URL` is its origin, not a browser page rou
 
 ### The workflow rejects a prompt or is ambiguous
 
-Use `DataForge Prompt` only on a node that owns a writable `text` input. Add `DataForge Input` and `DataForge Output` titles whenever the graph has multiple load or save candidates, then export the graph again in API format.
+Use `DataForge Prompt` only on a node that owns a writable `text` input, and `DataForge FPS` only on a node that owns its own number. Add `DataForge Input` and `DataForge Output` titles whenever the graph has multiple load or save candidates, then export the graph again in API format.
 
 ### Processing times out or leaves uploads behind
 
-Increase `COMFY_IMAGE_TIMEOUT` for workflows that legitimately take longer. Inspect ComfyUI’s queue/history for graph errors. Empty `input/dataforge/` manually when accumulated uploads are no longer needed.
+Increase `COMFY_IMAGE_TIMEOUT`, or `COMFY_VIDEO_TIMEOUT` for a GIF or video source, for workflows that legitimately take longer. Inspect ComfyUI’s queue/history for graph errors. Empty `input/dataforge/` manually when accumulated uploads are no longer needed.
 
 ## Related guides
 

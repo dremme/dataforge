@@ -37,6 +37,7 @@ from media_delete import delete_media_with_sidecars
 from media_file_response import MediaFileResponse
 from media_transfer import TransferMode, preview_media_transfer, transfer_media_batch
 from routes._helpers import (
+    resolve_candidate_media,
     resolve_candidate_source,
     resolve_editable_image,
     resolve_editable_video,
@@ -552,18 +553,18 @@ def _candidate_failure(exc: Exception) -> HTTPException:
 
 
 # Keyed by the source path, never the staging path.
-_CANDIDATE_PATH = Query(..., description="Absolute path to the dataset image, not its candidate")
+_CANDIDATE_PATH = Query(..., description="Absolute path to the dataset file, not its candidate")
 
 
 @router.get("/media/comfy-candidate", response_model=ComfyCandidateStateResponse)
 def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResponse:
-    """Whether a candidate is waiting for this image, and what produced it."""
-    return describe_candidate_state(resolve_editable_image(path))
+    """Whether a candidate is waiting for this file, and what produced it."""
+    return describe_candidate_state(resolve_candidate_media(path))
 
 
 @router.post("/media/comfy-candidate/accept", response_model=ComfyCandidateResponse)
 def accept_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateResponse:
-    media = resolve_editable_image(path)
+    media = resolve_candidate_media(path)
 
     try:
         return accept_candidate(media)

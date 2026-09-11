@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -45,6 +45,44 @@ function metaItem(label: string): HTMLElement {
   const found = screen.getByText(label).closest(".candidate-review-modal__meta-item");
   if (!found) throw new Error(`No meta item labelled ${label}`);
   return found as HTMLElement;
+}
+
+function videoEntries(names: string[] = ["clip.mp4"]) {
+  const sources = names.map((name) =>
+    mediaItem(name, HOME_PATH, {
+      width: 960,
+      height: 540,
+      size: 1000,
+      media_type: "video",
+      has_candidate: true,
+      candidate_name: name,
+    }),
+  );
+  const candidates = names.map((name) =>
+    mediaItem(name, STAGING_PATH, {
+      width: 1920,
+      height: 1080,
+      size: 8000,
+      media_type: "video",
+    }),
+  );
+  return buildCandidateReviewQueue(HOME_PATH, sources, candidates);
+}
+
+function renderEntries(queue: ReturnType<typeof entries>) {
+  const onIndexChange = vi.fn();
+  render(
+    <NotificationsProvider>
+      <CandidateReviewModal
+        entries={queue}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={onIndexChange}
+        onResolved={vi.fn()}
+      />
+    </NotificationsProvider>,
+  );
+  return { onIndexChange };
 }
 
 function renderModal(names = ["a.png", "b.png"], overrides: Partial<{ index: number }> = {}) {
@@ -337,5 +375,97 @@ describe("CandidateReviewModal", () => {
 
     expect(rejectOne).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+  });
+
+  describe("a video candidate", () => {
+    const details = {
+      difference_percent: 1.1,
+      frame_rate: 48,
+      source_frame_rate: 24,
+      frame_count: 480,
+      source_frame_count: 240,
+      duration_seconds: 10,
+      source_duration_seconds: 10,
+      length_mismatch: false,
+      dropped_audio: false,
+    };
+
+    it("plays both versions instead of showing stills", async () => {
+      readState.mockResolvedValue(details as never);
+      renderEntries(videoEntries());
+
+      await waitFor(() => expect(readState).toHaveBeenCalled());
+      expect(document.querySelectorAll("video")).toHaveLength(2);
+      expect(document.querySelector("img")).toBeNull();
+    });
+
+    it("reports the frame rate, frames and duration", async () => {
+      readState.mockResolvedValue(details as never);
+      renderEntries(videoEntries());
+
+      await waitFor(() => expect(metaItem("Frame rate")).toHaveTextContent("24"));
+      expect(metaItem("Frame rate")).toHaveTextContent("48");
+      expect(metaItem("Frames")).toHaveTextContent("480");
+      expect(metaItem("Duration")).toBeInTheDocument();
+    });
+
+    it("shows the resolution gain for a video upscale", async () => {
+      readState.mockResolvedValue(details as never);
+      renderEntries(videoEntries());
+
+      await waitFor(() => expect(readState).toHaveBeenCalled());
+      expect(metaItem("Resolution")).toHaveTextContent("4.0");
+      expect(metaItem("Megapixels")).toBeInTheDocument();
+    });
+
+    it.each(["gif", "image"] as const)("renders a %s source beside a video", (type) => {
+      const queue = videoEntries();
+      queue[0].source = { ...queue[0].source!, media_type: type };
+      renderEntries(queue);
+      expect(document.querySelectorAll("video")).toHaveLength(1);
+      expect(screen.getByRole("img", { name: /Original/ })).toBeInTheDocument();
+    });
+
+    it("renders a GIF result beside its video source", () => {
+      const queue = videoEntries();
+      queue[0].candidate.media_type = "gif";
+      renderEntries(queue);
+      expect(document.querySelectorAll("video")).toHaveLength(1);
+      expect(screen.getByRole("img", { name: /Processed/ })).toBeInTheDocument();
+    });
+
+    it("leaves the arrow keys to a focused player instead of the queue", async () => {
+      // Otherwise seeking a clip walks the review queue out from under it.
+      readState.mockResolvedValue(details as never);
+      const { onIndexChange } = renderEntries(videoEntries(["a.mp4", "b.mp4"]));
+      const player = document.querySelector("video") as HTMLVideoElement;
+
+      fireEvent.keyDown(player, { key: "ArrowRight", bubbles: true });
+      expect(onIndexChange).not.toHaveBeenCalled();
+
+      // The same key outside a player still walks the queue.
+      fireEvent.keyDown(document.body, { key: "ArrowRight", bubbles: true });
+      expect(onIndexChange).toHaveBeenCalledWith(1);
+    });
+
+    it("warns about a length mismatch without blocking accept", async () => {
+      readState.mockResolvedValue({
+        ...details,
+        duration_seconds: 12.5,
+        length_mismatch: true,
+      } as never);
+      renderEntries(videoEntries());
+
+      expect(await screen.findByText(/Check the output node/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /accept/i })).toBeEnabled();
+    });
+
+    it("warns about dropped audio without blocking accept", async () => {
+      readState.mockResolvedValue({ ...details, dropped_audio: true } as never);
+      renderEntries(videoEntries());
+
+      expect(await screen.findByText(/audio track/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /accept/i })).toBeEnabled();
+    });
   });
 });

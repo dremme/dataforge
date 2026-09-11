@@ -309,6 +309,7 @@ server or compatibility layer if it rejects or ignores `repeat_penalty`.
 | `COMFY_BASE_URL`      | `http://127.0.0.1:9000`       | **Process with ComfyUI** and availability checks                   | ComfyUI listens at another origin                                                                                       |
 | `COMFY_WORKFLOWS_DIR` | repository `comfy_workflows/` | Preset listing and execution                                       | Store API-format workflow presets elsewhere                                                                             |
 | `COMFY_IMAGE_TIMEOUT` | `900` seconds                 | Waiting for one processed image                                    | A workflow regularly needs more time, or a dead workflow should fail sooner; values below 30 seconds fall back to `900` |
+| `COMFY_VIDEO_TIMEOUT` | `7200` seconds                | Waiting for one processed GIF or video                             | An upscale plus an interpolation runs for minutes per clip; values below 60 seconds fall back to `7200`                 |
 | `OSTRIS_TOOLKIT_ROOT` | unset                         | Resolving AI-Toolkit state paths, including a relative SQLite path | DataForge cannot locate state from the training folder returned by AI-Toolkit                                           |
 
 `COMFY_BASE_URL` accepts an origin with or without a trailing slash. Uploaded sources accumulate in
@@ -386,6 +387,7 @@ and tuning consequences.
 | `COMFY_BASE_URL`                   | `http://127.0.0.1:9000`       | ComfyUI integration                    | Point to another ComfyUI origin         |
 | `COMFY_WORKFLOWS_DIR`              | repository `comfy_workflows/` | ComfyUI presets                        | Use another preset directory            |
 | `COMFY_IMAGE_TIMEOUT`              | `900` seconds                 | ComfyUI processing                     | Change per-image wait time              |
+| `COMFY_VIDEO_TIMEOUT`              | `7200` seconds                | ComfyUI processing                     | Change per-clip wait time               |
 | `DATAFORGE_DB_PATH`                | `backend/data/app.db`         | SQLite app state                       | Relocate app state                      |
 | `DATAFORGE_THUMBNAIL_CACHE`        | `backend/data/thumbnails/`    | Thumbnail cache                        | Relocate cached thumbnails              |
 | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | `2048`                        | Thumbnail pruning                      | Change or disable the cache ceiling     |

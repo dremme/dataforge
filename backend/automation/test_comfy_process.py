@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import httpx
 from PIL import Image
 
+from automation import comfy_process
 from automation.comfy_process import (
     ComfyProcessCancelled,
     _await_output,
@@ -22,6 +24,8 @@ from automation.comfy_process import (
 from comfy_candidates import candidate_write_path, read_candidate_sidecar
 from constants import STAGING_DIR_NAME
 from external.comfy_client import ComfyError
+from testing_fixtures import playable_video_bytes, write_gif
+from video_edit import SourceProbe
 
 WORKFLOW = {
     "1": {"class_type": "LoadImage", "inputs": {"image": "example.png"}},
@@ -134,6 +138,97 @@ def comfy_handler(*, fail_on: set[str] | None = None):
     return handler
 
 
+VIDEO_WORKFLOW = {
+    "8": {
+        "class_type": "VHS_LoadVideo",
+        "inputs": {"video": "example.mp4", "force_rate": ["13", 0]},
+        "_meta": {"title": "DataForge Input"},
+    },
+    "11": {
+        "class_type": "VHS_VideoCombine",
+        "inputs": {"frame_rate": ["16", 0], "filename_prefix": "out", "images": ["8", 0]},
+        "_meta": {"title": "DataForge Output"},
+    },
+    "13": {
+        "class_type": "FloatConstant",
+        "inputs": {"value": 24},
+        "_meta": {"title": "DataForge FPS"},
+    },
+    "16": {
+        "class_type": "ComfyMathExpression",
+        "inputs": {"expression": "round(a * b)", "values.a": ["13", 0]},
+    },
+}
+
+
+class VideoWorkspace(Workspace):
+    """A folder of clips plus a video preset, with an extra preview output the job must not stage."""
+
+    def __init__(self, names: tuple[str, ...] = ("clip.mp4",), **kwargs: object) -> None:
+        super().__init__(names=())
+        (self.presets / "vfi.json").write_text(json.dumps(VIDEO_WORKFLOW), encoding="utf-8")
+        for name in names:
+            (self.folder / name).write_bytes(
+                playable_video_bytes(audio=bool(kwargs.get("audio", False)))
+            )
+
+
+def video_handler(*, filename: str = "out.mp4", content: bytes | None = None):
+    """A ComfyUI whose graph writes a clip from node 11 and a preview still from node 9."""
+    state = {"count": 0}
+    body = playable_video_bytes() if content is None else content
+    if content is None and filename.endswith(".gif"):
+        with tempfile.TemporaryDirectory() as raw:
+            body = write_gif(Path(raw)).read_bytes()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+
+        if path == "/upload/image":
+            return httpx.Response(200, json={"name": "in.mp4", "subfolder": "dataforge"})
+
+        if path == "/prompt":
+            state["count"] += 1
+            return httpx.Response(200, json={"prompt_id": f"p-{state['count']}", "node_errors": {}})
+
+        if path.startswith("/history/"):
+            prompt_id = path.rsplit("/", 1)[-1]
+            return httpx.Response(
+                200,
+                json={
+                    prompt_id: {
+                        "status": {"completed": True},
+                        "outputs": {
+                            "9": {
+                                "images": [
+                                    {"filename": "preview.png", "subfolder": "", "type": "temp"}
+                                ]
+                            },
+                            "11": {
+                                "gifs": [{"filename": filename, "subfolder": "", "type": "output"}]
+                            },
+                        },
+                    }
+                },
+            )
+
+        if path == "/view":
+            return httpx.Response(200, content=body)
+
+        return httpx.Response(200, json={})
+
+    return handler
+
+
+def probes(produced: SourceProbe, original: SourceProbe):
+    """probe_source for the candidate, then the source. The fixture MP4 has no decodable frames."""
+
+    def probe(media: Path) -> SourceProbe:
+        return produced if media.parent.name == STAGING_DIR_NAME else original
+
+    return probe
+
+
 def run_with(handler, folder: Path, *, preset: str = "upscale", **kwargs: object) -> dict:
     """Run the job against a mocked ComfyUI."""
 
@@ -179,7 +274,7 @@ class ValidateTests(unittest.TestCase):
         with Workspace(names=()) as workspace, self.assertRaises(ValueError) as caught:
             validate_comfy_process_folder(workspace.folder, preset="upscale")
 
-        self.assertIn("No images", str(caught.exception))
+        self.assertIn("No media", str(caught.exception))
 
     def test_a_prompt_is_refused_when_the_preset_has_nowhere_to_put_it(self) -> None:
         # build_comfy_prompt has no node to write to and would drop the text in silence.
@@ -383,7 +478,9 @@ class AwaitOutputTests(unittest.TestCase):
 
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             with self.assertRaises(ComfyProcessCancelled):
-                _await_output(client, "p-1", should_cancel=lambda: True)
+                _await_output(
+                    client, "p-1", output_node="3", timeout=30.0, should_cancel=lambda: True
+                )
 
     def test_a_finished_run_returns_its_last_output(self) -> None:
         entry = {
@@ -397,7 +494,7 @@ class AwaitOutputTests(unittest.TestCase):
         with httpx.Client(
             transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={"p-1": entry}))
         ) as client:
-            ref = _await_output(client, "p-1", should_cancel=None)
+            ref = _await_output(client, "p-1", output_node="3", timeout=30.0, should_cancel=None)
 
         # Last wins: preview then save lists them in execution order.
         self.assertEqual(ref["filename"], "final.png")
@@ -409,7 +506,7 @@ class AwaitOutputTests(unittest.TestCase):
             transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={"p-1": entry}))
         ) as client:
             with self.assertRaises(ComfyError):
-                _await_output(client, "p-1", should_cancel=None)
+                _await_output(client, "p-1", output_node="3", timeout=30.0, should_cancel=None)
 
 
 class RequestStopTests(unittest.TestCase):
@@ -460,6 +557,196 @@ class RequestStopTests(unittest.TestCase):
 
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             _request_stop(client, "p-1")
+
+
+class VideoJobTests(unittest.TestCase):
+    def run_video(self, workspace, handler=None, *, produced=None, original=None, **kwargs):
+        produced = produced or SourceProbe(frame_rate=48.0, size=(1920, 1080), seconds=10.0)
+        original = original or SourceProbe(frame_rate=24.0, size=(960, 540), seconds=10.0)
+
+        with patch("automation.comfy_process.probe_source", probes(produced, original)):
+            return run_with(handler or video_handler(), workspace.folder, preset="vfi", **kwargs)
+
+    def test_a_clip_is_staged_under_the_container_comfyui_produced(self) -> None:
+        with VideoWorkspace() as workspace:
+            result = self.run_video(workspace)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            candidate = workspace.folder / STAGING_DIR_NAME / "clip.mp4"
+            self.assertEqual(candidate.read_bytes(), playable_video_bytes())
+
+    def test_the_output_node_wins_over_a_preview_the_graph_also_wrote(self) -> None:
+        """Scanning every node would stage preview.png, which is not what the graph is for."""
+        with VideoWorkspace() as workspace:
+            self.run_video(workspace)
+
+            staging = workspace.folder / STAGING_DIR_NAME
+            self.assertTrue((staging / "clip.mp4").is_file())
+            self.assertFalse((staging / "clip.png").exists())
+
+    def test_the_record_carries_both_sides_of_the_interpolation(self) -> None:
+        with VideoWorkspace() as workspace:
+            self.run_video(workspace)
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertEqual((stored.source_frame_rate, stored.frame_rate), (24.0, 48.0))
+            self.assertEqual((stored.source_frame_count, stored.frame_count), (240, 480))
+            self.assertEqual(
+                (stored.source_duration_seconds, stored.duration_seconds), (10.0, 10.0)
+            )
+            self.assertFalse(stored.length_mismatch)
+
+    def test_the_measured_rate_reaches_the_graphs_rate_node(self) -> None:
+        submitted: list[dict] = []
+
+        def capturing(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/prompt":
+                submitted.append(json.loads(request.content)["prompt"])
+            return video_handler()(request)
+
+        with VideoWorkspace() as workspace:
+            with patch("automation.comfy_process.source_frame_rate", return_value=30.0):
+                self.run_video(workspace, capturing)
+
+            self.assertEqual(submitted[0]["13"]["inputs"]["value"], 30.0)
+
+    def test_an_unmeasurable_source_leaves_the_presets_own_rate(self) -> None:
+        submitted: list[dict] = []
+
+        def capturing(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/prompt":
+                submitted.append(json.loads(request.content)["prompt"])
+            return video_handler()(request)
+
+        with VideoWorkspace() as workspace:
+            with patch("automation.comfy_process.source_frame_rate", return_value=None):
+                self.run_video(workspace, capturing)
+
+            self.assertEqual(submitted[0]["13"]["inputs"]["value"], 24)
+
+    def test_a_short_clip_is_staged_but_flagged(self) -> None:
+        """A truncated render is still worth looking at; refusing throws away paid-for GPU time."""
+        with VideoWorkspace() as workspace:
+            self.run_video(
+                workspace,
+                produced=SourceProbe(frame_rate=48.0, size=(1920, 1080), seconds=4.0),
+            )
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertTrue(stored.length_mismatch)
+
+    def test_a_slow_motion_clip_is_flagged(self) -> None:
+        # Twice the frames at the source rate: the output frame rate was never doubled.
+        with VideoWorkspace() as workspace:
+            self.run_video(
+                workspace,
+                produced=SourceProbe(frame_rate=24.0, size=(1920, 1080), seconds=20.0),
+            )
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertTrue(stored.length_mismatch)
+
+    def test_rounding_alone_is_not_a_mismatch(self) -> None:
+        with VideoWorkspace() as workspace:
+            self.run_video(
+                workspace,
+                produced=SourceProbe(frame_rate=48.0, size=(1920, 1080), seconds=10.1),
+            )
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertFalse(stored.length_mismatch)
+
+    def test_an_unmeasurable_clip_is_staged_without_a_flag(self) -> None:
+        """Flagging what could not be measured would cry wolf on every container we cannot read."""
+        with VideoWorkspace() as workspace:
+            self.run_video(workspace, produced=SourceProbe(), original=SourceProbe())
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertIsNone(stored.duration_seconds)
+            self.assertFalse(stored.length_mismatch)
+
+    def test_a_dropped_audio_track_is_recorded(self) -> None:
+        with VideoWorkspace(audio=True) as workspace:
+            self.run_video(workspace)
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertTrue(stored.dropped_audio)
+
+    def test_an_unreadable_candidate_is_not_staged(self) -> None:
+        with VideoWorkspace(audio=True) as workspace:
+            result = self.run_video(workspace, video_handler(content=b"not really an mp4"))
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            self.assertIsNone(stored)
+            self.assertEqual(result["stats"]["comfy_error"], 1)
+
+    def test_a_silent_source_never_reports_dropped_audio(self) -> None:
+        with VideoWorkspace() as workspace:
+            self.run_video(workspace)
+
+            stored = read_candidate_sidecar(workspace.folder / STAGING_DIR_NAME / "clip.mp4")
+            assert stored is not None
+            self.assertFalse(stored.dropped_audio)
+
+    def test_a_container_the_gallery_cannot_list_is_refused_by_name(self) -> None:
+        with VideoWorkspace() as workspace:
+            result = self.run_video(workspace, video_handler(filename="out.webm"))
+
+            self.assertEqual(result["stats"]["comfy_error"], 1)
+            self.assertIn("webm", result["results"][0]["message"])
+            self.assertFalse((workspace.folder / STAGING_DIR_NAME / "clip.webm").exists())
+
+    def test_a_re_run_into_a_new_container_leaves_one_candidate(self) -> None:
+        with VideoWorkspace() as workspace:
+            self.run_video(workspace)
+            self.run_video(workspace, video_handler(filename="out.gif"), overwrite_candidates=True)
+
+            staged = sorted(
+                path.name
+                for path in (workspace.folder / STAGING_DIR_NAME).iterdir()
+                if path.suffix in {".mp4", ".gif"}
+            )
+            self.assertEqual(staged, ["clip.gif"])
+
+    def test_a_cancel_does_not_wait_out_the_file_ahead_of_it(self) -> None:
+        """The lock is held for a whole file, which for video is minutes; blocking on it ignores cancel."""
+        calls = {"n": 0}
+
+        def should_cancel() -> bool:
+            # False once, so run_media_job's own pre-check lets the file start.
+            calls["n"] += 1
+            return calls["n"] > 1
+
+        with VideoWorkspace() as workspace:
+            outcome: dict[str, object] = {}
+
+            def run() -> None:
+                outcome["result"] = self.run_video(workspace, should_cancel=should_cancel)
+
+            comfy_process._gpu_lock.acquire()
+            try:
+                worker = threading.Thread(target=run, daemon=True)
+                worker.start()
+                worker.join(timeout=10)
+                self.assertFalse(worker.is_alive(), "cancel blocked behind the GPU lock")
+            finally:
+                comfy_process._gpu_lock.release()
+
+            self.assertEqual(outcome["result"]["stats"].get("cancelled"), 1)
+
+    def test_stills_and_clips_in_one_folder_are_all_sent(self) -> None:
+        with VideoWorkspace(names=("clip.mp4",)) as workspace:
+            Image.new("RGB", (16, 16), "red").save(workspace.folder / "photo.png")
+
+            result = self.run_video(workspace)
+
+            self.assertEqual(result["total"], 2)
 
 
 if __name__ == "__main__":

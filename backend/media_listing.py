@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
+from candidate_pairing import candidate_name_for
 from captions import (
     caption_summary_from_sidecar,
     issue_summary_from_sidecar,
@@ -19,7 +20,6 @@ from duplicates import duplicate_finding_from_sidecar
 from folder_scan import (
     FolderScan,
     ScannedEntry,
-    candidate_name_for,
     get_media_type,
     scan_folder,
 )

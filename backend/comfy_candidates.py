@@ -15,27 +15,32 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from automation.find_duplicates import difference_hash, hamming_distance
+from candidate_pairing import candidate_name_for, candidate_path_for
 from captions import issue_file_path
 from constants import (
     COMFY_CANDIDATE_SIDECAR_SUFFIX,
     COMFY_CANDIDATE_SUFFIX,
+    COMFY_CANDIDATE_SUFFIXES,
     COMFY_STALE_SUFFIX,
     COMFY_TEMP_SUFFIX,
+    MEDIA_EXTENSIONS,
     STAGING_DIR_NAME,
 )
 from duplicates import duplicate_file_path
 from edit_sidecars import backup_path_for
 from file_publish import publish_replacing
+from folder_scan import get_media_type
 from media_delete import delete_path
-from media_dimensions import media_dimensions
+from media_dimensions import media_info
 from schemas import ComfyCandidateResponse, ComfyCandidateSidecar, ComfyCandidateStateResponse
+from video_frames import media_first_frame, validate_candidate_media
 
 logger = logging.getLogger(__name__)
 
-NO_CANDIDATE_MESSAGE = "There is no candidate for this image"
+NO_CANDIDATE_MESSAGE = "There is no candidate for this file"
 BUSY_MESSAGE = "This candidate is already being settled"
 EDITED_MESSAGE = (
-    "This image has an unreverted edit. Revert it in the image editor, then accept the candidate."
+    "This file has an unreverted edit. Revert it in the editor, then accept the candidate."
 )
 
 
@@ -87,42 +92,71 @@ def difference_percent(before: Image.Image, after: Image.Image) -> float:
 
 
 def candidate_difference(source: Path, candidate: Path) -> float | None:
-    """:func:`difference_percent` for two files, or None when either cannot be read. Never raises."""
+    """:func:`difference_percent` for two files, or None when either cannot be read. Never raises.
+
+    A clip is scored on frame zero, which is what makes an upscale comparable to a still.
+    """
     try:
-        with Image.open(source) as before, Image.open(candidate) as after:
-            before.load()
-            after.load()
-            return difference_percent(before, after)
+        before = media_first_frame(source)
+        after = media_first_frame(candidate)
     except (OSError, UnidentifiedImageError) as error:
         # No traceback: a missing or undecodable file is ordinary here.
         logger.warning("Could not score %s against its candidate: %s", source.name, error)
         return None
+
+    if before is None or after is None:
+        return None
+
+    return difference_percent(before, after)
 
 
 def staging_dir(folder: Path) -> Path:
     return folder / STAGING_DIR_NAME
 
 
-def candidate_write_path(media: Path) -> Path:
-    """Where a new candidate is staged: ComfyUI writes PNG, so the stem pairs it, not the suffix."""
-    return staging_dir(media.parent) / f"{media.stem}{COMFY_CANDIDATE_SUFFIX}"
+def candidate_write_path(media: Path, suffix: str = COMFY_CANDIDATE_SUFFIX) -> Path:
+    """Where a new candidate is staged: the stem pairs it, and it keeps the format ComfyUI produced."""
+    name = media.name if media.suffix.lower() == suffix else f"{media.stem}{suffix}"
+    return staging_dir(media.parent) / name
 
 
 def resolve_candidate(media: Path) -> Path | None:
+    return candidate_path_for(media)
+
+
+def validate_candidate_destination(media: Path, destination: Path) -> None:
+    names = {path.name for path in media.parent.iterdir()}
+    staged = {destination.name}
+    owners = {
+        name
+        for name in names
+        if Path(name).suffix.lower() in MEDIA_EXTENSIONS
+        and candidate_name_for(name, staged, names) == destination.name
+    }
+    if owners != {media.name}:
+        raise ValueError(
+            f"The candidate name {destination.name} conflicts with another source. "
+            "Rename files with the same stem before processing."
+        )
+    sidecar = read_candidate_sidecar(destination)
+    if sidecar is not None and sidecar.source_name != media.name:
+        raise ValueError(
+            "This staged candidate belongs to another source. Reject it before processing."
+        )
+
+
+def discard_stale_candidate(media: Path, keeping: Path) -> None:
+    """Drop candidates this source could also claim; a re-run into a new container would leave two."""
     staging = staging_dir(media.parent)
 
-    exact = staging / media.name
-    if exact.is_file():
-        return exact
-
-    if media.suffix.lower() == COMFY_CANDIDATE_SUFFIX:
-        return None
-
-    staged = staging / f"{media.stem}{COMFY_CANDIDATE_SUFFIX}"
-    if staged.is_file() and not (media.parent / staged.name).exists():
-        return staged
-
-    return None
+    for suffix in COMFY_CANDIDATE_SUFFIXES:
+        stale = staging / f"{media.stem}{suffix}"
+        if stale == keeping or not stale.is_file():
+            continue
+        # The sibling guard never applies to our own name: that candidate is this file's by exact match.
+        if stale.name != media.name and (media.parent / stale.name).exists():
+            continue
+        _discard_candidate(stale)
 
 
 def candidate_sidecar_path(candidate: Path) -> Path:
@@ -170,14 +204,15 @@ def read_candidate_sidecar(candidate: Path) -> ComfyCandidateSidecar | None:
 
 def _describe(media: Path, *, accepted: bool, path: Path | None = None) -> ComfyCandidateResponse:
     stat = media.stat()
-    dimensions = media_dimensions(media, "image", stat.st_mtime_ns, stat.st_size)
+    info = media_info(media, get_media_type(media) or "image", stat.st_mtime_ns, stat.st_size)
     return ComfyCandidateResponse(
         path=str(path if path is not None else media),
         accepted=accepted,
         size=stat.st_size,
         modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
-        width=dimensions[0] if dimensions else None,
-        height=dimensions[1] if dimensions else None,
+        width=info.width,
+        height=info.height,
+        duration=info.duration,
     )
 
 
@@ -199,6 +234,14 @@ def describe_candidate_state(media: Path) -> ComfyCandidateStateResponse:
         prompt_id=sidecar.prompt_id if sidecar else None,
         seed=sidecar.seed if sidecar else None,
         difference_percent=difference,
+        frame_rate=sidecar.frame_rate if sidecar else None,
+        source_frame_rate=sidecar.source_frame_rate if sidecar else None,
+        frame_count=sidecar.frame_count if sidecar else None,
+        source_frame_count=sidecar.source_frame_count if sidecar else None,
+        duration_seconds=sidecar.duration_seconds if sidecar else None,
+        source_duration_seconds=sidecar.source_duration_seconds if sidecar else None,
+        length_mismatch=sidecar.length_mismatch if sidecar else False,
+        dropped_audio=sidecar.dropped_audio if sidecar else False,
         created_at=sidecar.created_at if sidecar else None,
     )
 
@@ -243,6 +286,8 @@ def accept_candidate(media: Path) -> ComfyCandidateResponse:
     target = media.with_suffix(candidate.suffix)
 
     with settle_slot(media):
+        validate_candidate_destination(media, candidate)
+        validate_candidate_media(candidate)
         sweep_comfy_temp_files(media.parent)
 
         temp_path = temp_path_for(target)

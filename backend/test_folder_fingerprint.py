@@ -10,7 +10,12 @@ from captions import save_issue_fixes
 from constants import STAGING_DIR_NAME
 from duplicates import DuplicateFinding, save_duplicate_finding
 from folder_fingerprint import compute_folder_fingerprint
-from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
+from testing_fixtures import (
+    TempMediaFolder,
+    write_media,
+    write_mp4_video,
+    write_txt_caption,
+)
 
 
 class FolderFingerprintTests(unittest.TestCase):
@@ -69,6 +74,19 @@ class FolderFingerprintTests(unittest.TestCase):
             (root / STAGING_DIR_NAME).mkdir()
             first = compute_folder_fingerprint(root)
             write_media(root / STAGING_DIR_NAME, "alpha.png")
+            second = compute_folder_fingerprint(root)
+
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            self.assertNotEqual(first, second)
+
+    def test_fingerprint_changes_when_a_clip_gets_an_mp4_candidate(self) -> None:
+        """The pairing rule must agree here or a staged clip leaves its source stale until a reload."""
+        with TempMediaFolder() as root:
+            write_mp4_video(root, "clip.mov")
+            (root / STAGING_DIR_NAME).mkdir()
+            first = compute_folder_fingerprint(root)
+            write_mp4_video(root / STAGING_DIR_NAME, "clip.mp4")
             second = compute_folder_fingerprint(root)
 
             self.assertIsNotNone(first)

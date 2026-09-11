@@ -12,8 +12,11 @@ import httpx
 from comfy_settings import get_comfy_base_url
 
 COMFY_REQUEST_TIMEOUT_SECONDS = 10.0
+# Per read/write, not per transfer, so a chunked download of a long clip is covered by it.
 COMFY_TRANSFER_TIMEOUT_SECONDS = 120.0
 COMFY_POLL_INTERVAL_SECONDS = 1.0
+
+DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
 # Uploads land in this subfolder; ComfyUI has no delete-input endpoint.
 COMFY_INPUT_SUBFOLDER = "dataforge"
@@ -37,7 +40,7 @@ def comfy_url(path: str) -> str:
     return f"{get_comfy_base_url()}/{path.lstrip('/')}"
 
 
-def _image_media_type(source: Path) -> str:
+def _media_type(source: Path) -> str:
     guessed, _ = mimetypes.guess_type(source.name)
     return guessed or "application/octet-stream"
 
@@ -66,26 +69,33 @@ def _node_error_text(payload: dict[str, Any]) -> str:
     return "ComfyUI rejected the workflow"
 
 
-def upload_image(
+def upload_media(
     client: httpx.Client,
     source: Path,
     *,
     name: str,
     subfolder: str = COMFY_INPUT_SUBFOLDER,
 ) -> str:
-    """Put ``source`` in ComfyUI's input folder; ``name`` must be unique per image."""
-    files = {"image": (name, source.read_bytes(), _image_media_type(source))}
+    """Put ``source`` in ComfyUI's input folder; ``name`` must be unique per file.
+
+    Streamed from a handle rather than read whole: a clip does not fit the way a PNG does.
+    """
     data = {"type": "input", "subfolder": subfolder, "overwrite": "true"}
 
     try:
-        response = client.post(
-            comfy_url("/upload/image"),
-            files=files,
-            data=data,
-            timeout=COMFY_TRANSFER_TIMEOUT_SECONDS,
-        )
+        with source.open("rb") as handle:
+            # The field is "image" for video too; VHS uploads through this same endpoint.
+            files = {"image": (name, handle, _media_type(source))}
+            response = client.post(
+                comfy_url("/upload/image"),
+                files=files,
+                data=data,
+                timeout=COMFY_TRANSFER_TIMEOUT_SECONDS,
+            )
         response.raise_for_status()
         payload = response.json()
+    except OSError as error:
+        raise ComfyError(f"Could not read {source.name}: {error}") from error
     except httpx.HTTPError as error:
         raise ComfyUnavailableError(str(error)) from error
     except json.JSONDecodeError as error:
@@ -187,46 +197,73 @@ def history_error_text(entry: dict[str, Any]) -> str | None:
     return "ComfyUI reported an execution error"
 
 
-def history_outputs(entry: dict[str, Any]) -> list[dict[str, str]]:
-    """Every image the run wrote, as ``{filename, subfolder, type}`` refs; video keys are ignored."""
-    outputs = entry.get("outputs")
-    if not isinstance(outputs, dict):
+def _node_refs(node_output: object) -> list[dict[str, str]]:
+    """Every file one node wrote. Matched by shape, not by key: SaveImage files under "images",
+    VHS_VideoCombine under "gifs" and SaveVideo under "videos", and a guessed key reads as
+    "produced no output" on a run that succeeded."""
+    if not isinstance(node_output, dict):
         return []
 
     refs: list[dict[str, str]] = []
-    for node_output in outputs.values():
-        images = node_output.get("images") if isinstance(node_output, dict) else None
-        if not isinstance(images, list):
+    for value in node_output.values():
+        if not isinstance(value, list):
             continue
-        for image in images:
-            if not isinstance(image, dict):
+        for item in value:
+            if not isinstance(item, dict):
                 continue
-            filename = image.get("filename")
+            filename = item.get("filename")
             if not isinstance(filename, str) or not filename:
                 continue
             refs.append(
                 {
                     "filename": filename,
-                    "subfolder": str(image.get("subfolder") or ""),
-                    "type": str(image.get("type") or "output"),
+                    "subfolder": str(item.get("subfolder") or ""),
+                    "type": str(item.get("type") or "output"),
                 }
             )
     return refs
 
 
-def download_view(client: httpx.Client, ref: dict[str, str]) -> bytes:
-    """The bytes behind one output ref."""
-    try:
-        response = client.get(
-            comfy_url("/view"),
-            params=ref,
-            timeout=COMFY_TRANSFER_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-    except httpx.HTTPError as error:
-        raise ComfyUnavailableError(str(error)) from error
+def history_outputs(entry: dict[str, Any], *, node_id: str | None = None) -> list[dict[str, str]]:
+    """Every file the run wrote, as ``{filename, subfolder, type}`` refs ``/view`` takes verbatim.
 
-    return response.content
+    ``node_id`` narrows it to one node, which is the only way to tell a graph's real output from
+    a preview it also emitted.
+    """
+    outputs = entry.get("outputs")
+    if not isinstance(outputs, dict):
+        return []
+
+    if node_id is not None:
+        return _node_refs(outputs.get(node_id))
+
+    refs: list[dict[str, str]] = []
+    for node_output in outputs.values():
+        refs.extend(_node_refs(node_output))
+    return refs
+
+
+def download_view_to(client: httpx.Client, ref: dict[str, str], destination: Path) -> None:
+    """The bytes behind one output ref, streamed to a file. A rendered clip does not belong in memory."""
+    try:
+        with (
+            client.stream(
+                "GET",
+                comfy_url("/view"),
+                params=ref,
+                timeout=COMFY_TRANSFER_TIMEOUT_SECONDS,
+            ) as response,
+            destination.open("wb") as handle,
+        ):
+            response.raise_for_status()
+            for chunk in response.iter_bytes(DOWNLOAD_CHUNK_BYTES):
+                handle.write(chunk)
+    except httpx.HTTPError as error:
+        destination.unlink(missing_ok=True)
+        raise ComfyUnavailableError(str(error)) from error
+    except OSError as error:
+        destination.unlink(missing_ok=True)
+        raise ComfyError(f"Could not write {destination.name}: {error}") from error
 
 
 def fetch_queue(client: httpx.Client) -> tuple[list[str], list[str]]:

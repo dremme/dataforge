@@ -13,7 +13,7 @@ from external.comfy_client import (
     ComfyUnavailableError,
     comfy_url,
     delete_queued,
-    download_view,
+    download_view_to,
     fetch_history,
     fetch_queue,
     history_error_text,
@@ -21,7 +21,7 @@ from external.comfy_client import (
     history_outputs,
     interrupt,
     submit_prompt,
-    upload_image,
+    upload_media,
 )
 
 
@@ -137,11 +137,34 @@ class HistoryTests(unittest.TestCase):
             [{"filename": "out_00001_.png", "subfolder": "DataForge", "type": "output"}],
         )
 
-    def test_a_video_only_output_reports_nothing(self) -> None:
-        # "gifs"/"videos" are a separate contract; a still workflow reports no output.
+    def test_a_video_output_is_reported(self) -> None:
         entry = {"outputs": {"3": {"gifs": [{"filename": "out.mp4"}]}}}
 
-        self.assertEqual(history_outputs(entry), [])
+        self.assertEqual(
+            history_outputs(entry), [{"filename": "out.mp4", "subfolder": "", "type": "output"}]
+        )
+
+    def test_an_output_under_an_unexpected_key_is_still_found(self) -> None:
+        # Matched by shape, so a save node filing under a key we have never seen still reports.
+        entry = {"outputs": {"3": {"clips": [{"filename": "out.mp4"}]}}}
+
+        self.assertEqual(
+            history_outputs(entry), [{"filename": "out.mp4", "subfolder": "", "type": "output"}]
+        )
+
+    def test_a_node_id_narrows_the_scan_to_that_node(self) -> None:
+        entry = {
+            "outputs": {
+                "2": {"images": [{"filename": "preview.png", "type": "temp"}]},
+                "3": {"gifs": [{"filename": "out.mp4"}]},
+            }
+        }
+
+        self.assertEqual(
+            history_outputs(entry, node_id="3"),
+            [{"filename": "out.mp4", "subfolder": "", "type": "output"}],
+        )
+        self.assertEqual(history_outputs(entry, node_id="9"), [])
 
     def test_a_missing_subfolder_defaults_to_empty(self) -> None:
         entry = {"outputs": {"3": {"images": [{"filename": "a.png"}]}}}
@@ -162,7 +185,7 @@ class TransferTests(unittest.TestCase):
 
             with client_for(handler) as client:
                 self.assertEqual(
-                    upload_image(client, source, name="job_00001.png"),
+                    upload_media(client, source, name="job_00001.png"),
                     "dataforge/job_00001.png",
                 )
 
@@ -175,7 +198,40 @@ class TransferTests(unittest.TestCase):
             source.write_bytes(b"pixels")
 
             with client_for(handler) as client:
-                self.assertEqual(upload_image(client, source, name="photo.png"), "photo.png")
+                self.assertEqual(upload_media(client, source, name="photo.png"), "photo.png")
+
+    def test_a_video_uploads_under_the_same_multipart_field(self) -> None:
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = request.content
+            return httpx.Response(200, json={"name": "clip.mp4", "subfolder": "dataforge"})
+
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "clip.mp4"
+            source.write_bytes(b"moov")
+
+            with client_for(handler) as client:
+                self.assertEqual(
+                    upload_media(client, source, name="clip.mp4"), "dataforge/clip.mp4"
+                )
+
+        self.assertIn(b'name="image"', captured["body"])
+        self.assertIn(b"video/mp4", captured["body"])
+
+    def test_a_streamed_download_writes_the_body_to_the_destination(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"clip-bytes")
+
+        with tempfile.TemporaryDirectory() as temp:
+            destination = Path(temp) / "out.mp4"
+
+            with client_for(handler) as client:
+                download_view_to(
+                    client, {"filename": "out.mp4", "subfolder": "", "type": "output"}, destination
+                )
+
+            self.assertEqual(destination.read_bytes(), b"clip-bytes")
 
     def test_the_view_params_are_passed_straight_through(self) -> None:
         captured: dict = {}
@@ -185,8 +241,8 @@ class TransferTests(unittest.TestCase):
             return httpx.Response(200, content=b"image-bytes")
 
         ref = {"filename": "a.png", "subfolder": "DataForge", "type": "temp"}
-        with client_for(handler) as client:
-            self.assertEqual(download_view(client, ref), b"image-bytes")
+        with tempfile.TemporaryDirectory() as temp, client_for(handler) as client:
+            download_view_to(client, ref, Path(temp) / "a.png")
 
         self.assertEqual(captured["params"], ref)
 

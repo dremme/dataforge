@@ -35,6 +35,7 @@ from constants import (
 )
 from edit_sidecars import backup_path_for
 from schemas import ComfyCandidateSidecar
+from testing_fixtures import playable_video_bytes, write_mp4_video
 
 
 def write_image(path: Path, size: tuple[int, int], colour: str) -> Path:
@@ -181,6 +182,76 @@ class CandidatePathTests(unittest.TestCase):
                 self.assertNotIn(Path(f"photo.png{marker}").suffix, MEDIA_EXTENSIONS)
 
 
+class VideoCandidateTests(unittest.TestCase):
+    def test_a_clip_pairs_with_an_mp4_candidate_of_another_container(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            source = write_mp4_video(folder, "clip.mov")
+            staging = staging_dir(folder)
+            staging.mkdir()
+            candidate = write_mp4_video(staging, "clip.mp4")
+
+            self.assertEqual(resolve_candidate(source), candidate)
+            self.assertTrue(has_candidate(source))
+
+    def test_accepting_a_clip_publishes_it_under_the_candidates_container(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            source = write_mp4_video(folder, "clip.mov")
+            staging = staging_dir(folder)
+            staging.mkdir()
+            candidate = staging / "clip.mp4"
+            candidate.write_bytes(playable_video_bytes())
+            write_candidate_sidecar(candidate, sidecar(source_name="clip.mov"))
+
+            response = accept_candidate(source)
+
+            self.assertTrue(response.accepted)
+            self.assertFalse(source.exists())
+            published = folder / "clip.mp4"
+            self.assertTrue(published.is_file())
+            self.assertEqual((response.width, response.height), (64, 48))
+            self.assertEqual(response.duration, 1.0)
+
+    def test_accepting_replaces_the_original_whatever_its_container(self) -> None:
+        """Accept follows the candidate's format, so the source's own extension never decides."""
+        for source_name, published_name in (
+            ("clip.gif", "clip.mp4"),
+            ("clip.mkv", "clip.mp4"),
+            ("clip.avi", "clip.mp4"),
+        ):
+            with self.subTest(source=source_name), tempfile.TemporaryDirectory() as temp:
+                folder = Path(temp)
+                source = folder / source_name
+                source.write_bytes(playable_video_bytes(suffix=".mp4"))
+                staging = staging_dir(folder)
+                staging.mkdir()
+                candidate = staging / "clip.mp4"
+                candidate.write_bytes(playable_video_bytes())
+                write_candidate_sidecar(candidate, sidecar(source_name=source_name))
+
+                accept_candidate(source)
+
+                self.assertFalse(source.exists())
+                self.assertTrue((folder / published_name).is_file())
+                self.assertFalse(candidate.exists())
+
+    def test_accepting_a_clip_is_refused_while_an_editor_backup_exists(self) -> None:
+        """video_edit renders from the .bak, so publishing over it would throw this pass away."""
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            source = write_mp4_video(folder, "clip.mp4")
+            (folder / "clip.mp4.bak").write_bytes(b"original")
+            staging = staging_dir(folder)
+            staging.mkdir()
+            write_mp4_video(staging, "clip.mp4")
+
+            with self.assertRaises(ValueError) as caught:
+                accept_candidate(source)
+
+            self.assertIn("unreverted edit", str(caught.exception))
+
+
 class AcceptCandidateTests(unittest.TestCase):
     def test_accepting_publishes_the_candidate_over_the_original(self) -> None:
         with CandidateFolder() as fixture:
@@ -227,7 +298,7 @@ class AcceptCandidateTests(unittest.TestCase):
             with self.assertRaises(ValueError) as caught:
                 accept_candidate(fixture.media)
 
-            self.assertIn("image editor", str(caught.exception))
+            self.assertIn("in the editor", str(caught.exception))
             # Nothing moved.
             self.assertTrue(fixture.candidate.is_file())
             with Image.open(fixture.media) as opened:

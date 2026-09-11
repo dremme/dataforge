@@ -39,6 +39,132 @@ def parse(payload: dict, source: str = "upscale-2x"):
     return parse_comfy_workflow(json.dumps(payload), source=source)
 
 
+def video_graph(**overrides: dict) -> dict:
+    """Shaped like the shipped video preset: every role titled, and the rate behind a math node."""
+    base = {
+        "8": node(
+            "VHS_LoadVideo",
+            {"video": "example.mp4", "force_rate": ["13", 0], "frame_load_cap": 0},
+            "DataForge Input",
+        ),
+        "5": node("RIFE VFI", {"multiplier": ["15", 0], "frames": ["8", 0]}),
+        "11": node(
+            "VHS_VideoCombine",
+            {
+                "frame_rate": ["16", 0],
+                "filename_prefix": "video/ComfyUI",
+                "format": "video/h264-mp4",
+                "images": ["5", 0],
+            },
+            "DataForge Output",
+        ),
+        "10": node("SeedNode", {"seed": 42}, "DataForge Seed"),
+        "13": node("FloatConstant", {"value": 24}, "DataForge FPS"),
+        "15": node("INTConstant", {"value": 2}, "DataForge Multiplier"),
+        "16": node("ComfyMathExpression", {"expression": "round(a * b)", "values.a": ["13", 0]}),
+    }
+    base.update(overrides)
+    return base
+
+
+class VideoGraphTests(unittest.TestCase):
+    def test_every_role_resolves_from_its_title(self) -> None:
+        workflow = parse(video_graph())
+
+        self.assertEqual(workflow.input_node, "8")
+        self.assertEqual(workflow.input_key, "video")
+        self.assertEqual(workflow.output_node, "11")
+        self.assertEqual(workflow.seed_nodes, ("10",))
+        self.assertEqual((workflow.fps_node, workflow.fps_key), ("13", "value"))
+
+    def test_a_still_loader_still_names_its_own_widget(self) -> None:
+        self.assertEqual(parse(graph()).input_key, "image")
+
+    def test_an_untitled_video_graph_resolves_by_class(self) -> None:
+        payload = {
+            "8": node("VHS_LoadVideo", {"video": "example.mp4"}),
+            "11": node("VHS_VideoCombine", {"frame_rate": 24, "filename_prefix": "out"}),
+        }
+
+        workflow = parse(payload)
+
+        self.assertEqual((workflow.input_node, workflow.output_node), ("8", "11"))
+
+    def test_an_untitled_preview_beside_the_combine_names_the_fix(self) -> None:
+        payload = {
+            "8": node("VHS_LoadVideo", {"video": "example.mp4"}),
+            "9": node("PreviewImage", {"images": ["8", 0]}),
+            "11": node("VHS_VideoCombine", {"frame_rate": 24, "filename_prefix": "out"}),
+        }
+
+        with self.assertRaises(ComfyWorkflowError) as caught:
+            parse(payload)
+
+        self.assertIn("2 output nodes", str(caught.exception))
+
+    def test_an_unwritable_multiplier_title_is_ignored(self) -> None:
+        """DataForge writes no multiplier, so an unknown DataForge title must not refuse."""
+        parse(video_graph())
+
+    def test_a_linked_rate_input_is_refused(self) -> None:
+        # Writing over a link would be dropped without a word, exactly like the prompt node.
+        payload = video_graph(**{"13": node("FloatConstant", {"value": ["9", 0]}, "DataForge FPS")})
+
+        with self.assertRaises(ComfyWorkflowError) as caught:
+            parse(payload)
+
+        self.assertIn("DataForge FPS", str(caught.exception))
+
+    def test_a_loader_with_neither_widget_names_both(self) -> None:
+        payload = video_graph(
+            **{"8": node("VHS_LoadVideo", {"frame_load_cap": 0}, "DataForge Input")}
+        )
+
+        with self.assertRaises(ComfyWorkflowError) as caught:
+            parse(payload)
+
+        self.assertIn("'image' or 'video'", str(caught.exception))
+
+
+class VideoPromptTests(unittest.TestCase):
+    def test_the_measured_rate_overwrites_the_presets_constant(self) -> None:
+        workflow = parse(video_graph())
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="dataforge/clip.mp4", filename_prefix="out", frame_rate=30.0
+        )
+
+        self.assertEqual(prompt["13"]["inputs"]["value"], 30.0)
+        self.assertEqual(prompt["8"]["inputs"]["video"], "dataforge/clip.mp4")
+
+    def test_an_unmeasured_rate_leaves_the_presets_constant_alone(self) -> None:
+        workflow = parse(video_graph())
+
+        prompt = build_comfy_prompt(workflow, media_ref="a.mp4", filename_prefix="out")
+
+        self.assertEqual(prompt["13"]["inputs"]["value"], 24)
+
+    def test_the_multiplier_is_never_written(self) -> None:
+        workflow = parse(video_graph())
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.mp4", filename_prefix="out", frame_rate=60.0
+        )
+
+        self.assertEqual(prompt["15"]["inputs"]["value"], 2)
+
+    def test_a_rate_for_a_graph_without_the_node_changes_nothing(self) -> None:
+        workflow = parse(graph())
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.png", filename_prefix="out", frame_rate=30.0
+        )
+
+        self.assertEqual(
+            prompt, build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out")
+        )
+
+
 class ResolveRolesTests(unittest.TestCase):
     def test_a_single_loader_and_saver_need_no_titles(self) -> None:
         workflow = parse(graph())
@@ -63,7 +189,7 @@ class ResolveRolesTests(unittest.TestCase):
             parse(payload)
 
         message = str(caught.exception)
-        self.assertIn("2 image input nodes", message)
+        self.assertIn("has 2 input nodes", message)
         self.assertIn("DataForge Input", message)
 
     def test_two_nodes_sharing_the_marker_are_refused(self) -> None:
@@ -77,7 +203,7 @@ class ResolveRolesTests(unittest.TestCase):
         with self.assertRaises(ComfyWorkflowError) as caught:
             parse(payload)
 
-        self.assertIn("Only one node can be the image input", str(caught.exception))
+        self.assertIn("Only one node can be the input", str(caught.exception))
 
     def test_a_graph_with_no_loader_names_the_fix(self) -> None:
         payload = {"3": node("SaveImage", {"filename_prefix": "out"})}
@@ -85,7 +211,7 @@ class ResolveRolesTests(unittest.TestCase):
         with self.assertRaises(ComfyWorkflowError) as caught:
             parse(payload)
 
-        self.assertIn("no image input node", str(caught.exception))
+        self.assertIn("has no input node", str(caught.exception))
 
     def test_a_preview_node_counts_as_the_output(self) -> None:
         payload = {
@@ -142,7 +268,7 @@ class ParseFailureTests(unittest.TestCase):
         with self.assertRaises(ComfyWorkflowError) as caught:
             parse(payload)
 
-        self.assertIn("no image filename", str(caught.exception))
+        self.assertIn("takes no filename under", str(caught.exception))
 
     def test_the_preset_name_appears_in_every_message(self) -> None:
         with self.assertRaises(ComfyWorkflowError) as caught:
@@ -183,7 +309,7 @@ class BuildPromptTests(unittest.TestCase):
 
         prompt = build_comfy_prompt(
             workflow,
-            image_ref="dataforge/ab12_00001.png",
+            media_ref="dataforge/ab12_00001.png",
             filename_prefix="DataForge/ab12/photo",
         )
 
@@ -194,7 +320,7 @@ class BuildPromptTests(unittest.TestCase):
         payload = graph()
         workflow = parse(payload)
 
-        build_comfy_prompt(workflow, image_ref="new.png", filename_prefix="out")
+        build_comfy_prompt(workflow, media_ref="new.png", filename_prefix="out")
 
         # The parsed workflow is reused; a leaked patch would have image two inherit image one's values.
         self.assertEqual(workflow.prompt["1"]["inputs"]["image"], "example.png")
@@ -202,21 +328,21 @@ class BuildPromptTests(unittest.TestCase):
     def test_the_presets_own_seed_is_left_alone_by_default(self) -> None:
         workflow = parse(graph(**{"5": node("KSampler", {"seed": 99}, "DataForge Seed")}))
 
-        prompt = build_comfy_prompt(workflow, image_ref="a.png", filename_prefix="out")
+        prompt = build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out")
 
         self.assertEqual(prompt["5"]["inputs"]["seed"], 99)
 
     def test_a_supplied_seed_overwrites_the_titled_node(self) -> None:
         workflow = parse(graph(**{"5": node("KSampler", {"seed": 99}, "DataForge Seed")}))
 
-        prompt = build_comfy_prompt(workflow, image_ref="a.png", filename_prefix="out", seed=1234)
+        prompt = build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out", seed=1234)
 
         self.assertEqual(prompt["5"]["inputs"]["seed"], 1234)
 
     def test_a_noise_seed_input_is_patched_too(self) -> None:
         workflow = parse(graph(**{"5": node("SamplerCustom", {"noise_seed": 5}, "DataForge Seed")}))
 
-        prompt = build_comfy_prompt(workflow, image_ref="a.png", filename_prefix="out", seed=77)
+        prompt = build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out", seed=77)
 
         self.assertEqual(prompt["5"]["inputs"]["noise_seed"], 77)
 
@@ -225,7 +351,7 @@ class BuildPromptTests(unittest.TestCase):
             graph(**{"7": node("CLIPTextEncode", {"text": "as saved"}, "DataForge Prompt")})
         )
 
-        prompt = build_comfy_prompt(workflow, image_ref="a.png", filename_prefix="out")
+        prompt = build_comfy_prompt(workflow, media_ref="a.png", filename_prefix="out")
 
         self.assertEqual(prompt["7"]["inputs"]["text"], "as saved")
 
@@ -235,7 +361,7 @@ class BuildPromptTests(unittest.TestCase):
         )
 
         prompt = build_comfy_prompt(
-            workflow, image_ref="a.png", filename_prefix="out", prompt_text="sharp photograph"
+            workflow, media_ref="a.png", filename_prefix="out", prompt_text="sharp photograph"
         )
 
         self.assertEqual(prompt["7"]["inputs"]["text"], "sharp photograph")
@@ -248,7 +374,7 @@ class BuildPromptTests(unittest.TestCase):
             }
         )
 
-        prompt = build_comfy_prompt(workflow, image_ref="b.png", filename_prefix="out")
+        prompt = build_comfy_prompt(workflow, media_ref="b.png", filename_prefix="out")
 
         self.assertNotIn("filename_prefix", prompt["3"]["inputs"])
 

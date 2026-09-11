@@ -154,6 +154,36 @@ class VideoDurationTests(unittest.TestCase):
             self.assertIsNone(_info(disguised, "video").duration)
 
 
+class AudioTrackTests(unittest.TestCase):
+    def setUp(self) -> None:
+        clear_caption_cache_for_tests()
+
+    def test_a_sound_track_is_found_beside_the_picture_track(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "loud.mp4", audio=True)
+
+            self.assertTrue(_info(video, "video").has_audio)
+
+    def test_a_picture_only_clip_reports_no_audio(self) -> None:
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "silent.mp4")
+
+            self.assertIs(_info(video, "video").has_audio, False)
+
+    def test_audio_is_unknown_outside_the_mp4_family(self) -> None:
+        """None, not False: no track table was read, so "no audio" would be a guess."""
+        with TempMediaFolder() as root:
+            disguised = write_mp4_video(root, "clip.mkv", audio=True)
+
+            self.assertIsNone(_info(disguised, "video").has_audio)
+
+    def test_audio_is_unknown_for_a_still(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.png")
+
+            self.assertIsNone(_info(photo, "image").has_audio)
+
+
 class DimensionCacheTests(unittest.TestCase):
     def setUp(self) -> None:
         clear_caption_cache_for_tests()
