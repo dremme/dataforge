@@ -120,6 +120,13 @@ export function buildFavoriteItems(
   );
 }
 
+/**
+ * A job row navigates to its folder, so it shares the folder id: `orderQuickActionItems` then
+ * collapses a folder's job history to its newest run and yields to a plainer row for that folder.
+ *
+ * No keywords: the row shows the folder's leaf name, so matching it on the full path (or on an
+ * external run's name) put rows on screen with nothing to highlight and no reason to be there.
+ */
 export function buildJobItems(
   jobs: Job[],
   externalJobs: ExternalOstrisJob[],
@@ -130,24 +137,22 @@ export function buildJobItems(
       Boolean(job.dataset_folder),
     )
     .map<QuickActionItem>((job) => ({
-      id: `job:ostris-${job.id}`,
+      id: quickActionFolderId(job.dataset_folder),
       section: "jobs",
       label: job.dataset_folder_name || folderLeafName(job.dataset_folder),
       detail: `${JOB_TYPE_META.train_lora.label} · ${job.status}`,
       icon: iconBrain,
-      keywords: `${job.dataset_folder} ${job.name}`,
       run: () => onNavigate(job.dataset_folder),
     }));
 
   const localItems = jobs
     .filter((job) => !isTrainLoraCoTrackedByExternal(job, externalJobs))
     .map<QuickActionItem>((job) => ({
-      id: `job:${job.id}`,
+      id: quickActionFolderId(job.folder),
       section: "jobs",
       label: job.folder_name || folderLeafName(job.folder),
       detail: `${jobTypeLabel(job)} · ${statusLabel(job)}`,
       icon: jobIcon(job),
-      keywords: job.folder,
       run: () => onNavigate(job.folder),
     }));
 

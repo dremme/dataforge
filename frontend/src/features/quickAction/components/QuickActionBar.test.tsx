@@ -270,4 +270,28 @@ describe("QuickActionBar", () => {
 
     expect(activeOptionName()).toBe("Alpha");
   });
+
+  it("marks what the query matched in the row's name", async () => {
+    const user = userEvent.setup();
+    renderBar({ items: [makeItem("cmd:alpha", "Alphabet")] });
+
+    await user.type(screen.getByRole("combobox"), "pha");
+
+    const marks = screen.getAllByRole("option")[0].querySelectorAll("mark");
+    expect(Array.from(marks).map((mark) => mark.textContent)).toEqual(["pha"]);
+  });
+
+  it("marks it on the second line too, so a detail-only match shows why the row is there", async () => {
+    const user = userEvent.setup();
+    renderBar({
+      items: [makeItem("cmd:copy", "Copy folder path", { detail: "D:\\ml\\renders" })],
+    });
+
+    await user.type(screen.getByRole("combobox"), "renders");
+
+    const detail = screen
+      .getAllByRole("option")[0]
+      .querySelector(".quick-action__option-detail mark");
+    expect(detail).toHaveTextContent("renders");
+  });
 });

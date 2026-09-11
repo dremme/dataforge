@@ -1,13 +1,33 @@
 import { describe, expect, it, vi } from "vitest";
+import { folderLeafName } from "@/features/folder/lib/folderPath";
 import { iconFilter, iconFilterX } from "@/shared/icons";
+import type { ExternalOstrisJob, Job } from "@/shared/types";
+import type { QuickActionItem, QuickActionSection } from "../types";
 import {
   buildFilterItems,
+  buildJobItems,
   buildSelectionCommandItems,
   buildSidecarSweepItems,
+  buildSubfolderItems,
+  quickActionFolderId,
   type FilterCommandOptions,
   type SelectionCommandOptions,
   type SidecarSweepOptions,
 } from "./buildQuickActionItems";
+import { flattenGroups, orderQuickActionItems, rankQuickActionItems } from "./quickActionResults";
+
+function sections(overrides: Partial<Record<QuickActionSection, QuickActionItem[]>> = {}) {
+  return {
+    run: [],
+    commands: [],
+    filters: [],
+    subfolders: [],
+    recentFolders: [],
+    favorites: [],
+    jobs: [],
+    ...overrides,
+  };
+}
 
 function sweepItems(overrides: Partial<SidecarSweepOptions> = {}) {
   return buildSidecarSweepItems({
@@ -309,5 +329,96 @@ describe("buildFilterItems", () => {
 
     active?.run();
     expect(onReset).toHaveBeenCalledTimes(1);
+  });
+});
+
+function job(id: string, folder: string, overrides: Partial<Job> = {}): Job {
+  return {
+    id,
+    folder,
+    folder_name: folderLeafName(folder),
+    job_type: "auto_caption",
+    status: "completed",
+    total: 3,
+    processed: 3,
+    stats: { total: 3, success: 3 },
+    created_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function externalJob(id: string, folder: string): ExternalOstrisJob {
+  return {
+    id,
+    name: `run-${id}`,
+    status: "running",
+    step: 100,
+    dataset_folder: folder,
+    dataset_folder_name: folderLeafName(folder),
+    save_now: false,
+    stop_requested: false,
+  };
+}
+
+describe("buildJobItems", () => {
+  const folder = "C:\\Data\\gts_dataset";
+
+  it("shares the folder's id so a history of runs collapses to its newest", () => {
+    const items = buildJobItems(
+      [job("j1", folder, { job_type: "watermark" }), job("j2", folder)],
+      [],
+      vi.fn(),
+    );
+
+    expect(items.map((item) => item.id)).toEqual([
+      quickActionFolderId(folder),
+      quickActionFolderId(folder),
+    ]);
+    expect(orderQuickActionItems(sections({ jobs: items }))).toHaveLength(1);
+  });
+
+  it("keeps the newest run's outcome on the row that survives", () => {
+    const items = buildJobItems([job("j1", folder), job("j2", folder)], [], vi.fn());
+    const [surviving] = orderQuickActionItems(sections({ jobs: items }));
+
+    expect(surviving.label).toBe("gts_dataset");
+    expect(surviving.detail).toBe("Auto-caption · Completed");
+  });
+
+  it("yields to a plainer row for the same folder", () => {
+    const onNavigate = vi.fn();
+    const subfolders = buildSubfolderItems([{ name: "gts_dataset", path: folder }], onNavigate);
+    const jobs = buildJobItems([job("j1", folder)], [], onNavigate);
+
+    const ordered = orderQuickActionItems(sections({ subfolders, jobs }));
+
+    expect(ordered).toHaveLength(1);
+    expect(ordered[0].section).toBe("subfolders");
+  });
+
+  it("lets a live training run stand for the folder over a finished local job", () => {
+    const items = buildJobItems([job("j1", folder)], [externalJob("ostris-1", folder)], vi.fn());
+    const [surviving] = orderQuickActionItems(sections({ jobs: items }));
+
+    expect(surviving.detail).toBe("LoRA training · running");
+  });
+
+  it("matches its folder name, and nothing the row does not show", () => {
+    const nested = "C:\\Data\\ml\\gts_dataset";
+    const items = buildJobItems([job("j1", nested)], [externalJob("ostris-1", nested)], vi.fn());
+    const rows = orderQuickActionItems(sections({ jobs: items }));
+
+    expect(items.every((item) => item.keywords === undefined)).toBe(true);
+    // "ml" and the ostris run name sit in the path and the job record, never on the row.
+    expect(rankQuickActionItems(rows, "ml")).toEqual([]);
+    expect(rankQuickActionItems(rows, "run-ostris-1")).toEqual([]);
+    expect(flattenGroups(rankQuickActionItems(rows, "gts"))).toHaveLength(1);
+  });
+
+  it("navigates to the job's folder", () => {
+    const onNavigate = vi.fn();
+    buildJobItems([job("j1", folder)], [], onNavigate)[0].run();
+
+    expect(onNavigate).toHaveBeenCalledWith(folder);
   });
 });

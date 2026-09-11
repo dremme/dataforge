@@ -28,7 +28,7 @@ interface QuickActionBarProps {
   onClose: () => void;
 }
 
-function HighlightedLabel({ text, query }: { text: string; query: string }) {
+function HighlightedMatch({ text, query }: { text: string; query: string }) {
   const ranges = findSearchMatchRanges(text, query, false);
   if (ranges.length === 0) return <>{text}</>;
 
@@ -211,10 +211,12 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
                   <Icon icon={item.icon} className="quick-action__option-icon" />
                   <span className="quick-action__option-text">
                     <span className="quick-action__option-label">
-                      <HighlightedLabel text={item.label} query={query} />
+                      <HighlightedMatch text={item.label} query={query} />
                     </span>
                     {item.detail && (
-                      <span className="quick-action__option-detail">{item.detail}</span>
+                      <span className="quick-action__option-detail">
+                        <HighlightedMatch text={item.detail} query={query} />
+                      </span>
                     )}
                   </span>
                 </div>

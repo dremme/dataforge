@@ -4,6 +4,7 @@ import type { QuickActionItem, QuickActionSection } from "../types";
 import { MAX_RECENT_ACTIONS } from "./quickActionHistory";
 import {
   MAX_RESULT_ROWS,
+  MAX_ROWS_PER_SECTION,
   flattenGroups,
   orderQuickActionItems,
   rankQuickActionItems,
@@ -137,6 +138,50 @@ describe("rankQuickActionItems", () => {
 
     expect(rows).toHaveLength(MAX_RESULT_ROWS);
     expect(rows[0].id).toBe("run:watermark");
+  });
+
+  it("hands other sections a turn instead of letting one fill the list", () => {
+    // The real case: a folder's job history matched the query eight times over and took every row.
+    const items = [
+      ...Array.from({ length: 8 }, (_, index) =>
+        item(`job-${index}`, "gts_dataset", { section: "jobs" }),
+      ),
+      ...Array.from({ length: 3 }, (_, index) =>
+        item(`sub-${index}`, `gts_v${index}`, { section: "subfolders" }),
+      ),
+      item("cmd", "gts sweep", { section: "commands" }),
+    ];
+
+    const groups = rankQuickActionItems(items, "gts");
+
+    expect(groups.map((group) => group.id)).toEqual(["commands", "subfolders", "jobs"]);
+    expect(groups.find((group) => group.id === "subfolders")?.items).toHaveLength(3);
+    expect(flattenGroups(groups)).toHaveLength(MAX_RESULT_ROWS);
+  });
+
+  it("holds a section to its quota while another still has matches waiting", () => {
+    const items = [
+      ...Array.from({ length: 8 }, (_, index) =>
+        item(`job-${index}`, `alpha ${index}`, { section: "jobs" }),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        item(`sub-${index}`, `alpha ${index}`, { section: "subfolders" }),
+      ),
+    ];
+
+    const groups = rankQuickActionItems(items, "alpha");
+
+    // The leftover rows go to the earlier-declared section, not to the one already at its quota.
+    expect(groups.find((group) => group.id === "jobs")?.items).toHaveLength(MAX_ROWS_PER_SECTION);
+    expect(groups.find((group) => group.id === "subfolders")?.items).toHaveLength(5);
+  });
+
+  it("spends the leftover rows on one section when nothing else matches", () => {
+    const items = Array.from({ length: MAX_RESULT_ROWS + 4 }, (_, index) =>
+      item(`job-${index}`, `alpha ${index}`, { section: "jobs" }),
+    );
+
+    expect(flattenGroups(rankQuickActionItems(items, "alpha"))).toHaveLength(MAX_RESULT_ROWS);
   });
 
   it("is case-insensitive", () => {

@@ -9,6 +9,9 @@ import { MAX_RECENT_ACTIONS } from "./quickActionHistory";
 /** Global cap so six sections cannot stack into a scrolling list. */
 export const MAX_RESULT_ROWS = 8;
 
+/** Slots one section claims before others get a turn; leftovers still backfill a short list. */
+export const MAX_ROWS_PER_SECTION = 3;
+
 /**
  * Substring, not fuzzy: other search is substring and short fuzzy queries are noise.
  * Exact beats prefix so "watermark" ranks the job over a "watermarked" folder.
@@ -20,6 +23,12 @@ const RANK_LABEL_SUBSTRING = 3;
 const RANK_SECONDARY = 4;
 
 const WORD_SEPARATORS = /[\s\-_\\/.]+/;
+
+interface RankedItem {
+  item: QuickActionItem;
+  rank: number;
+  buildIndex: number;
+}
 
 function rankOf(item: QuickActionItem, needle: string): number | null {
   const label = item.label.toLowerCase();
@@ -42,20 +51,37 @@ export function rankQuickActionItems(items: QuickActionItem[], query: string): Q
   const declaredIndex = new Map(QUICK_ACTION_SECTIONS.map((section, index) => [section.id, index]));
   const sectionRank = (section: QuickActionSection) => declaredIndex.get(section) ?? 0;
 
+  const compare = (a: RankedItem, b: RankedItem) =>
+    a.rank - b.rank ||
+    sectionRank(a.item.section) - sectionRank(b.item.section) ||
+    a.buildIndex - b.buildIndex;
+
   // Rank flat before grouping so a weak early match cannot crowd out a stronger later one.
-  const best = items
+  const ranked = items
     .map((item, buildIndex) => ({ item, rank: rankOf(item, needle), buildIndex }))
-    .filter(
-      (entry): entry is { item: QuickActionItem; rank: number; buildIndex: number } =>
-        entry.rank !== null,
-    )
-    .sort(
-      (a, b) =>
-        a.rank - b.rank ||
-        sectionRank(a.item.section) - sectionRank(b.item.section) ||
-        a.buildIndex - b.buildIndex,
-    )
-    .slice(0, MAX_RESULT_ROWS);
+    .filter((entry): entry is RankedItem => entry.rank !== null)
+    .sort(compare);
+
+  // One pass hands every section its quota, a second spends what is left on the best of the rest,
+  // so no section monopolises the list and a query few sections match still fills it.
+  const taken: RankedItem[] = [];
+  const spill: RankedItem[] = [];
+  const used = new Map<QuickActionSection, number>();
+
+  for (const entry of ranked) {
+    const count = used.get(entry.item.section) ?? 0;
+
+    if (taken.length < MAX_RESULT_ROWS && count < MAX_ROWS_PER_SECTION) {
+      used.set(entry.item.section, count + 1);
+      taken.push(entry);
+    } else {
+      spill.push(entry);
+    }
+  }
+
+  const best = taken
+    .concat(spill.slice(0, Math.max(0, MAX_RESULT_ROWS - taken.length)))
+    .sort(compare);
 
   const groups: QuickActionGroup[] = [];
   const bySection = new Map<QuickActionSection, QuickActionGroup>();
