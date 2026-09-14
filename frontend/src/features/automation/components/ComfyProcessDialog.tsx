@@ -80,6 +80,11 @@ export function ComfyProcessDialog({
     return () => controller.abort();
   }, []);
 
+  const selected = state.status === "ready" ? state.presets.find((e) => e.name === preset) : null;
+  // Only false blocks: a preset that could not be parsed reports null and keeps both fields live.
+  const promptBlocked = selected?.accepts_prompt === false;
+  const seedBlocked = selected?.accepts_seed === false;
+
   const handleConfirm = useCallback(() => {
     if (busy) return;
 
@@ -97,11 +102,11 @@ export function ComfyProcessDialog({
     setError(null);
     onConfirm({
       preset,
-      seed: trimmed ? Number(trimmed) : null,
-      promptText: promptText.trim(),
+      seed: seedBlocked || !trimmed ? null : Number(trimmed),
+      promptText: promptBlocked ? "" : promptText.trim(),
       overwriteCandidates: overwrite,
     });
-  }, [busy, onConfirm, overwrite, preset, promptText, seedText]);
+  }, [busy, onConfirm, overwrite, preset, promptBlocked, promptText, seedBlocked, seedText]);
 
   const ready = state.status === "ready";
   const disabled = busy || !ready;
@@ -186,13 +191,17 @@ export function ComfyProcessDialog({
             id={promptId}
             type="text"
             className="dialog__input"
-            value={promptText}
+            value={promptBlocked ? "" : promptText}
             onChange={(event) => {
               setPromptText(event.target.value);
               setError(null);
             }}
-            placeholder="e.g. sharp studio photograph, no watermark"
-            disabled={busy}
+            placeholder={
+              promptBlocked
+                ? "This preset has no prompt node"
+                : "e.g. sharp studio photograph, no watermark"
+            }
+            disabled={busy || promptBlocked}
           />
         </div>
 
@@ -204,22 +213,41 @@ export function ComfyProcessDialog({
             id={seedId}
             type="number"
             className="dialog__input"
-            value={seedText}
+            value={seedBlocked ? "" : seedText}
             onChange={(event) => {
               setSeedText(event.target.value);
               setError(null);
             }}
-            placeholder="e.g. 424242"
+            placeholder={seedBlocked ? "This preset has no seed node" : "e.g. 424242"}
             spellCheck={false}
             autoComplete="off"
-            disabled={busy}
+            disabled={busy || seedBlocked}
           />
         </div>
       </div>
 
       <p className="dialog__hint">
-        Both optional; written into the preset's <strong>DataForge Prompt</strong> and{" "}
-        <strong>DataForge Seed</strong> nodes.
+        {promptBlocked && seedBlocked ? (
+          <>
+            This preset has neither a <strong>DataForge Prompt</strong> nor a{" "}
+            <strong>DataForge Seed</strong> node, so it runs exactly as saved.
+          </>
+        ) : promptBlocked ? (
+          <>
+            This preset has no <strong>DataForge Prompt</strong> node. The seed is optional and is
+            written into its <strong>DataForge Seed</strong> node.
+          </>
+        ) : seedBlocked ? (
+          <>
+            This preset has no <strong>DataForge Seed</strong> node. The prompt is optional and is
+            written into its <strong>DataForge Prompt</strong> node.
+          </>
+        ) : (
+          <>
+            Both optional; written into the preset's <strong>DataForge Prompt</strong> and{" "}
+            <strong>DataForge Seed</strong> nodes.
+          </>
+        )}
       </p>
 
       {error && (

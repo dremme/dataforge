@@ -26,11 +26,15 @@ export async function fetchCandidateState(
   );
 }
 
-export async function acceptCandidate(mediaPath: string): Promise<ComfyCandidateResponse> {
-  return postJson<ComfyCandidateResponse>(
-    `/api/media/comfy-candidate/accept?${candidateParams(mediaPath)}`,
-    undefined,
-  );
+export async function acceptCandidate(
+  mediaPath: string,
+  /** Recycles the file's edit backup and spec, making the candidate the new base. */
+  discardEdit = false,
+): Promise<ComfyCandidateResponse> {
+  const params = candidateParams(mediaPath);
+  if (discardEdit) params.set("discard_edit", "true");
+
+  return postJson<ComfyCandidateResponse>(`/api/media/comfy-candidate/accept?${params}`, undefined);
 }
 
 export async function rejectCandidate(mediaPath: string): Promise<ComfyCandidateResponse> {

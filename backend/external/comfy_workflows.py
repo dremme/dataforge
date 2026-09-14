@@ -57,11 +57,14 @@ class ComfyWorkflowError(Exception):
 
 @dataclass(frozen=True)
 class ComfyPreset:
-    """One preset file, as listed for the dialog. Not parsed."""
+    """One preset file, as listed for the dialog. Only its optional roles are read."""
 
     name: str
     path: Path
     modified_at: float
+    #: None when the preset cannot be parsed: it still lists, and fails at queue time by name.
+    accepts_prompt: bool | None = None
+    accepts_seed: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -265,8 +268,23 @@ def _preset_path(name: str) -> Path:
     return get_comfy_workflows_dir() / f"{name}{WORKFLOW_EXTENSION}"
 
 
+def preset_roles(path: Path) -> tuple[bool | None, bool | None]:
+    """Whether this preset has a writable prompt and seed node, or ``(None, None)`` if unparseable.
+
+    Never raises: the dialog lists a broken preset so queueing it can name the fix.
+    """
+    try:
+        if path.stat().st_size > MAX_WORKFLOW_BYTES:
+            return None, None
+        workflow = parse_comfy_workflow(path.read_text(encoding="utf-8"), source=path.stem)
+    except (ComfyWorkflowError, OSError, UnicodeDecodeError, ValueError):
+        return None, None
+
+    return workflow.prompt_node is not None, bool(workflow.seed_nodes)
+
+
 def list_comfy_presets() -> list[ComfyPreset]:
-    """Every preset file, by name. Listing does not parse them."""
+    """Every preset file, by name, with the optional roles each one can take."""
     folder = get_comfy_workflows_dir()
     presets: list[ComfyPreset] = []
 
@@ -282,7 +300,16 @@ def list_comfy_presets() -> list[ComfyPreset]:
             continue
         if not path.is_file():
             continue
-        presets.append(ComfyPreset(name=path.stem, path=path, modified_at=stat.st_mtime))
+        accepts_prompt, accepts_seed = preset_roles(path)
+        presets.append(
+            ComfyPreset(
+                name=path.stem,
+                path=path,
+                modified_at=stat.st_mtime,
+                accepts_prompt=accepts_prompt,
+                accepts_seed=accepts_seed,
+            )
+        )
 
     presets.sort(key=lambda preset: preset.name.lower())
     return presets

@@ -21,8 +21,9 @@ import {
 import { useCandidateDetails } from "@/features/gallery/hooks/useCandidateDetails";
 import { formatApiError } from "@/shared/api/http";
 import { classNames } from "@/shared/lib/classNames";
-import { formatDurationSeconds, formatFileSize, formatMegapixels } from "@/shared/lib/format";
+import { formatDurationPrecise, formatFileSize, formatMegapixels } from "@/shared/lib/format";
 import { iconArrowRight, iconTriangleAlert, iconX } from "@/shared/icons";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
@@ -31,6 +32,9 @@ import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { ComfyCandidateStateResponse, GalleryItem } from "@/shared/types";
 
 type CandidateDetails = ComfyCandidateStateResponse;
+
+/** Below this the two players read as the same moment, and correcting would fight the browser. */
+const PLAYBACK_DRIFT_SECONDS = 0.1;
 
 type PendingAction = "accept" | "reject" | null;
 
@@ -61,6 +65,9 @@ export function CandidateReviewModal({
   const busy = pending !== null;
   const settled = entry ? settledPaths.has(entry.path) : false;
   const orphaned = entry ? isOrphanedCandidate(entry) : false;
+  //. bak present means an unreverted edit; the editors render every change from that file.
+  const edited = entry?.source?.has_backup === true;
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   useEffect(() => {
     setError(null);
@@ -95,15 +102,16 @@ export function CandidateReviewModal({
   );
 
   const settle = useCallback(
-    async (action: "accept" | "reject") => {
+    async (action: "accept" | "reject", discardEdit = false) => {
       if (!entry || busy || settled || (action === "accept" && orphaned)) return;
 
+      setConfirmingDiscard(false);
       setPending(action);
       setError(null);
 
       try {
         if (action === "accept") {
-          await acceptCandidate(entry.path);
+          await acceptCandidate(entry.path, discardEdit);
         } else {
           await rejectCandidate(entry.path);
         }
@@ -117,15 +125,26 @@ export function CandidateReviewModal({
     [advance, busy, entry, orphaned, settled],
   );
 
+  const requestAccept = useCallback(() => {
+    if (!entry || busy || settled || orphaned) return;
+    if (edited) {
+      setConfirmingDiscard(true);
+      return;
+    }
+    void settle("accept");
+  }, [busy, edited, entry, orphaned, settle, settled]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      // The shell is inert while the question stands, but this listener is on the window.
+      if (confirmingDiscard) return;
       if (isEditableTarget(event.target)) return;
       // A focused player owns the arrows, or seeking a clip walks the queue out from under it.
       if (event.target instanceof Element && event.target.closest("video")) return;
 
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
-        void settle("accept");
+        requestAccept();
         return;
       }
       if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -142,93 +161,118 @@ export function CandidateReviewModal({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [goTo, index, settle]);
+  }, [confirmingDiscard, goTo, index, requestAccept]);
 
   if (!entry) return null;
 
   return (
-    <ModalShell
-      block="candidate-review-modal"
-      label={`Review candidate ${index + 1} of ${queue.length}`}
-      onClose={closeModal}
-      busy={busy}
-      scrollLock="candidate-review-modal-open"
-    >
-      <header className="candidate-review-modal__header">
-        <div className="candidate-review-modal__header-text">
-          <h2 className="candidate-review-modal__title">{entry.name}</h2>
-          <span className="candidate-review-modal__counter">
-            {index + 1} / {queue.length}
-          </span>
+    <>
+      <ModalShell
+        block="candidate-review-modal"
+        label={`Review candidate ${index + 1} of ${queue.length}`}
+        onClose={closeModal}
+        busy={busy}
+        suspended={confirmingDiscard}
+        scrollLock="candidate-review-modal-open"
+      >
+        <header className="candidate-review-modal__header">
+          <div className="candidate-review-modal__header-text">
+            <h2 className="candidate-review-modal__title">{entry.name}</h2>
+            <span className="candidate-review-modal__counter">
+              {index + 1} / {queue.length}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="candidate-review-modal__close"
+            onClick={closeModal}
+            disabled={busy}
+            aria-label="Close"
+          >
+            <Icon icon={iconX} />
+          </button>
+        </header>
+
+        <div className="candidate-review-modal__body" data-scroll-lock-allow>
+          <CompareStage entry={entry} />
+
+          <CompareMeta entry={entry} details={details} />
+
+          {orphaned && (
+            <p className="candidate-review-modal__warning" role="status">
+              <Icon icon={iconTriangleAlert} className="candidate-review-modal__warning-icon" />
+              The file this candidate was made from is no longer in the folder. It can only be
+              discarded from here.
+            </p>
+          )}
+
+          <CandidateWarnings details={details} />
+
+          {error && (
+            <p className="candidate-review-modal__error" role="alert">
+              <Icon icon={iconTriangleAlert} className="candidate-review-modal__error-icon" />
+              {error}
+            </p>
+          )}
         </div>
 
-        <button
-          type="button"
-          className="candidate-review-modal__close"
-          onClick={closeModal}
-          disabled={busy}
-          aria-label="Close"
-        >
-          <Icon icon={iconX} />
-        </button>
-      </header>
+        <footer className="candidate-review-modal__footer">
+          <DialogButton
+            label="Back"
+            variant="secondary"
+            disabled={busy || index === 0}
+            onClick={() => goTo(index - 1)}
+          />
+          <DialogButton
+            label="Skip"
+            variant="secondary"
+            disabled={busy || index === queue.length - 1}
+            onClick={() => goTo(index + 1)}
+          />
+          <DialogButton
+            label={pending === "reject" ? "Discarding..." : "Reject"}
+            variant="warning"
+            busy={pending === "reject"}
+            disabled={busy || settled}
+            onClick={() => {
+              void settle("reject");
+            }}
+          />
+          <DialogButton
+            label={pending === "accept" ? "Accepting..." : "Accept"}
+            variant="primary"
+            busy={pending === "accept"}
+            disabled={busy || settled || orphaned}
+            onClick={requestAccept}
+          />
+        </footer>
+      </ModalShell>
 
-      <div className="candidate-review-modal__body" data-scroll-lock-allow>
-        <CompareStage entry={entry} />
-
-        <CompareMeta entry={entry} details={details} />
-
-        {orphaned && (
-          <p className="candidate-review-modal__warning" role="status">
-            <Icon icon={iconTriangleAlert} className="candidate-review-modal__warning-icon" />
-            The file this candidate was made from is no longer in the folder. It can only be
-            discarded from here.
-          </p>
-        )}
-
-        <CandidateWarnings details={details} />
-
-        {error && (
-          <p className="candidate-review-modal__error" role="alert">
-            <Icon icon={iconTriangleAlert} className="candidate-review-modal__error-icon" />
-            {error}
-          </p>
-        )}
-      </div>
-
-      <footer className="candidate-review-modal__footer">
-        <DialogButton
-          label="Back"
-          variant="secondary"
-          disabled={busy || index === 0}
-          onClick={() => goTo(index - 1)}
-        />
-        <DialogButton
-          label="Skip"
-          variant="secondary"
-          disabled={busy || index === queue.length - 1}
-          onClick={() => goTo(index + 1)}
-        />
-        <DialogButton
-          label={pending === "reject" ? "Discarding..." : "Reject"}
-          variant="warning"
-          busy={pending === "reject"}
-          disabled={busy || settled}
-          onClick={() => {
-            void settle("reject");
-          }}
-        />
-        <DialogButton
-          label={pending === "accept" ? "Accepting..." : "Accept"}
-          variant="primary"
+      {confirmingDiscard && entry && (
+        <ConfirmDialog
+          title="Discard the edit and accept?"
+          description={
+            <>
+              <strong>{entry.name}</strong> has an edit that has not been reverted. The editors
+              render every change from the file kept beside it, so accepting would have your next
+              edit start from the pixels this candidate replaced.
+              <br />
+              <br />
+              Accepting discards that record and makes the candidate the new original. The edit
+              itself cannot be re-applied afterwards.
+            </>
+          }
+          confirmLabel="Discard edit and accept"
+          confirmVariant="danger"
           busy={pending === "accept"}
-          disabled={busy || settled || orphaned}
-          onClick={() => {
-            void settle("accept");
+          onConfirm={() => {
+            void settle("accept", true);
           }}
+          onCancel={() => setConfirmingDiscard(false)}
         />
-      </footer>
-    </ModalShell>
+      )}
+    </>
   );
 }
 
@@ -238,7 +282,7 @@ function CandidateWarnings({ details }: { details: CandidateDetails | null }) {
 
   const lengths =
     details.duration_seconds != null && details.source_duration_seconds != null
-      ? `This candidate runs ${formatDurationSeconds(details.duration_seconds)}; the original runs ${formatDurationSeconds(details.source_duration_seconds)}.`
+      ? `This candidate runs ${formatDurationPrecise(details.duration_seconds)}; the original runs ${formatDurationPrecise(details.source_duration_seconds)}.`
       : null;
 
   return (
@@ -311,26 +355,15 @@ function CompareMeta({
     });
   }
 
-  if (motion && details?.frame_count != null) {
-    items.push({
-      key: "frames",
-      label: "Frames",
-      value: beforeAfter(
-        details.source_frame_count?.toLocaleString() ?? null,
-        details.frame_count.toLocaleString(),
-      ),
-    });
-  }
-
   if (motion && details?.duration_seconds != null) {
     items.push({
       key: "duration",
       label: "Duration",
       value: beforeAfter(
         details.source_duration_seconds != null
-          ? formatDurationSeconds(details.source_duration_seconds)
+          ? formatDurationPrecise(details.source_duration_seconds)
           : null,
-        formatDurationSeconds(details.duration_seconds),
+        formatDurationPrecise(details.duration_seconds),
       ),
     });
   }
@@ -438,6 +471,10 @@ function CompareMeta({
 
 function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const players = useRef<Record<"before" | "after", HTMLVideoElement | null>>({
+    before: null,
+    after: null,
+  });
   const [loadedSize, setLoadedSize] = useState<{ width: number; height: number } | null>(null);
   const {
     zoomed,
@@ -458,6 +495,34 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
   const beforeSrc = entry.source ? galleryItemMediaUrl(entry.source) : null;
   const aspect = candidateStageAspect(entry, loadedSize);
 
+  // Either player drives the other, with no suppression flag: play() and pause() on an element
+  // already in that state fire no event, and the drift guard swallows a mirrored seek's echo.
+  const peerOf = (side: "before" | "after") =>
+    players.current[side === "after" ? "before" : "after"];
+
+  const alignPeer = (side: "before" | "after") => {
+    const self = players.current[side];
+    const peer = peerOf(side);
+    if (!self || !peer) return;
+
+    const target = Number.isFinite(peer.duration)
+      ? Math.min(self.currentTime, peer.duration)
+      : self.currentTime;
+    if (Math.abs(peer.currentTime - target) > PLAYBACK_DRIFT_SECONDS) peer.currentTime = target;
+  };
+
+  const playPeer = (side: "before" | "after") => {
+    const peer = peerOf(side);
+    if (!peer) return;
+    alignPeer(side);
+    // Muted, so autoplay is allowed; a rejection still must not surface as an unhandled promise.
+    void peer.play().catch(() => {});
+  };
+
+  const pausePeer = (side: "before" | "after") => {
+    peerOf(side)?.pause();
+  };
+
   const missing = <span className="candidate-review-modal__missing">No original left</span>;
 
   const videoPane = (side: "before" | "after", src: string | null) => (
@@ -473,6 +538,9 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
           <video
             // Remount on src: React would otherwise reuse the element and keep the old frame.
             key={src}
+            ref={(node) => {
+              players.current[side] = node;
+            }}
             className="candidate-review-modal__stage-video"
             src={src}
             controls
@@ -481,6 +549,9 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
             loop
             preload="metadata"
             aria-label={`${side === "after" ? "Processed" : "Original"} ${entry.name}`}
+            onPlay={() => playPeer(side)}
+            onPause={() => pausePeer(side)}
+            onSeeked={() => alignPeer(side)}
             onLoadedMetadata={(event) => {
               if (side !== "after") return;
               const video = event.currentTarget;

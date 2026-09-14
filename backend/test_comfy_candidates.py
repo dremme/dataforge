@@ -33,7 +33,7 @@ from constants import (
     MEDIA_EXTENSIONS,
     STAGING_DIR_NAME,
 )
-from edit_sidecars import backup_path_for
+from edit_sidecars import backup_path_for, edit_spec_path
 from schemas import ComfyCandidateSidecar
 from testing_fixtures import playable_video_bytes, write_mp4_video
 
@@ -250,6 +250,51 @@ class VideoCandidateTests(unittest.TestCase):
                 accept_candidate(source)
 
             self.assertIn("unreverted edit", str(caught.exception))
+
+
+class DiscardEditOnAcceptTests(unittest.TestCase):
+    """Accepting over an edit is offered, not silent: the edit record goes, the candidate stays."""
+
+    def test_the_refusal_still_stands_without_the_flag(self) -> None:
+        with CandidateFolder() as fixture:
+            backup_path_for(fixture.media).write_bytes(b"pre-edit original")
+
+            with self.assertRaises(ValueError) as caught:
+                accept_candidate(fixture.media)
+
+            self.assertIn("unreverted edit", str(caught.exception))
+            self.assertTrue(fixture.candidate.is_file())
+
+    def test_discarding_publishes_the_candidate_and_clears_the_edit(self) -> None:
+        with CandidateFolder() as fixture:
+            backup_path_for(fixture.media).write_bytes(b"pre-edit original")
+            edit_spec_path(fixture.media).write_text("{}", encoding="utf-8")
+
+            response = accept_candidate(fixture.media, discard_edit=True)
+
+            self.assertTrue(response.accepted)
+            self.assertFalse(backup_path_for(fixture.media).exists())
+            self.assertFalse(edit_spec_path(fixture.media).exists())
+            with Image.open(fixture.media) as opened:
+                self.assertEqual(opened.size, (64, 64))
+
+    def test_discarding_is_harmless_when_there_is_no_edit(self) -> None:
+        with CandidateFolder() as fixture:
+            response = accept_candidate(fixture.media, discard_edit=True)
+
+            self.assertTrue(response.accepted)
+
+    def test_an_undecodable_candidate_is_still_refused_before_the_edit_goes(self) -> None:
+        """Order matters: a failure here must leave the file and its edit record intact."""
+        with CandidateFolder() as fixture:
+            fixture.candidate.write_bytes(b"not an image")
+            backup = backup_path_for(fixture.media)
+            backup.write_bytes(b"pre-edit original")
+
+            with self.assertRaises(ValueError):
+                accept_candidate(fixture.media, discard_edit=True)
+
+            self.assertTrue(backup.is_file())
 
 
 class AcceptCandidateTests(unittest.TestCase):

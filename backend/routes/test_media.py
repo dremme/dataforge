@@ -571,6 +571,26 @@ class ComfyCandidateEndpointTests(unittest.TestCase):
             self.assertEqual(accepted.status_code, 200)
             self.assertEqual(accepted.json()["width"], 64)
 
+    def test_accept_refuses_an_edited_source_until_the_caller_says_to_discard(self) -> None:
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            (root / f"{media.name}.bak").write_bytes(b"pre-edit original")
+            (root / STAGING_DIR_NAME).mkdir()
+            write_media(root / STAGING_DIR_NAME, "photo.png", width=64, height=48)
+            encoded = quote(str(media))
+
+            refused = client.post(f"/api/media/comfy-candidate/accept?path={encoded}")
+            self.assertEqual(refused.status_code, 409)
+            self.assertIn("unreverted edit", refused.json()["detail"])
+
+            accepted = client.post(
+                f"/api/media/comfy-candidate/accept?path={encoded}&discard_edit=true"
+            )
+            self.assertEqual(accepted.status_code, 200)
+            self.assertFalse((root / f"{media.name}.bak").exists())
+
     def test_rejecting_a_clips_candidate_leaves_the_clip(self) -> None:
         from constants import STAGING_DIR_NAME
 

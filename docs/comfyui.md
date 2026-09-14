@@ -12,11 +12,11 @@ Run a folder of images, GIFs, or video through a ComfyUI workflow, then inspect 
 - **Reject** deletes the staged file and its `.comfy.json`; the source is never opened or modified.
 - **Skip** and **Back** move through the queue without deciding.
 
-Accepting is final. DataForge does not retain a copy of the source that was replaced. It also refuses acceptance while the source has an unreverted edit, because the editor’s `.bak` would otherwise point at pre-ComfyUI pixels.
+Accepting permanently replaces the source; DataForge does not keep a copy. If the source has an unreverted edit, **Accept** asks you to confirm first. Confirming discards the edit backup and settings, then makes the candidate the new original. The previous edit cannot be re-applied. Canceling leaves both the source and candidate unchanged.
 
 Candidates must decode before they enter the review queue, and are checked again on acceptance. An invalid result leaves an existing candidate and the original untouched. Video validation requires FFmpeg.
 
-For a clip, review also reports the frame rate, frame count, and duration on both sides, warns when the candidate does not run as long as its source, and warns when the source had an audio track the graph dropped. Neither warning blocks **Accept** — they are there so an irreversible replacement is a decision rather than a surprise.
+For a video, review shows the source and candidate frame rates and durations. It warns if their running times differ significantly or if the candidate has dropped the source's audio track. You can still accept the candidate, so check these warnings before replacing the source.
 
 ## Prerequisites and connection
 
@@ -48,7 +48,7 @@ See [configuration](configuration.md#integrations) for every integration setting
 1. Put an API-format workflow preset in `comfy_workflows/`, or configure `COMFY_WORKFLOWS_DIR`.
 2. Open the source dataset folder, not its `staging/` child.
 3. Open **Process with ComfyUI** from the automation menu.
-4. Choose the preset. Optionally set a seed and prompt, if the workflow provides the matching titled nodes.
+4. Choose the preset. Set a prompt or seed if its field is enabled; each field needs a matching titled node in the workflow.
 5. Choose whether to overwrite candidates already staged for the same source, then start the job.
 
 DataForge uploads one file at a time, points the workflow input at that upload, and stages the designated output in its returned format. Existing candidates are skipped by default. Enable overwrite only when you intend to replace those staged outputs. A result whose name would belong to another source is refused even with overwrite enabled; rename files with conflicting stems before processing.
@@ -57,7 +57,7 @@ Cancellation removes DataForge’s queued prompt when possible and interrupts it
 
 ## Review candidates
 
-The candidate review modal compares source and result side by side. It shows dimension, megapixel, file-size, resolution-gain, and perceptual difference changes. Video and GIF panes play in place; a GIF keeps an image pane even when the other side is a video, because a `<video>` element cannot decode one. While a player has focus the arrow keys seek it rather than walking the queue.
+The candidate review modal compares the source and result side by side. It shows their dimensions, megapixels, and file sizes, plus resolution gain and perceptual difference. Video panes have playback controls; when both sides are videos, playing, pausing, or seeking either one also moves the other. Both players are muted. GIFs play in image panes, including when the other side is a video. While a video player has focus, arrow keys seek within it instead of moving through the queue.
 
 Difference is the percentage of perceptual-hash bits that differ. Video scores compare the opening frame only. It cannot measure temporal consistency or interpolation quality, so inspect playback before accepting.
 
@@ -106,7 +106,7 @@ Filesystem-path loaders such as `VHS_LoadVideoPath` are refused: DataForge has o
 | `DataForge Prompt` | DataForge overwrites that node’s own `text` input when the dialog prompt is nonempty.                                                              |
 | `DataForge FPS`    | DataForge overwrites that node’s own number with the source’s measured frame rate, per file. Without the node, the graph runs on whatever constant it was saved with. |
 
-A prompt field connected from another node cannot be written. DataForge refuses a typed prompt when the preset has no writable `DataForge Prompt` node rather than running the graph with an unexpected built-in prompt. The same rule applies to `DataForge FPS`: title a node that owns its own number, such as `FloatConstant`.
+The dialog disables **Prompt** or **Seed** when the selected preset lacks the corresponding titled node. A preset with neither runs with its saved values. A prompt field connected from another node cannot be written; if you submit a prompt without a writable `DataForge Prompt` node, DataForge refuses the run.
 
 ### Interpolating frames
 

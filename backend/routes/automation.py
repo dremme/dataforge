@@ -276,6 +276,8 @@ def list_comfy_process_presets() -> ComfyPresetsResponse:
             ComfyPresetSummary(
                 name=preset.name,
                 modified_at=datetime.fromtimestamp(preset.modified_at, tz=UTC).isoformat(),
+                accepts_prompt=preset.accepts_prompt,
+                accepts_seed=preset.accepts_seed,
             )
             for preset in list_comfy_presets()
         ],

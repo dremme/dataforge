@@ -49,6 +49,12 @@ export function formatDurationSeconds(seconds: number | null | undefined): strin
   return value == null ? "" : `${value.toFixed(0)} s`;
 }
 
+/** Length where a small difference is the point, e.g. ``10.4 s``. The list column rounds. */
+export function formatDurationPrecise(seconds: number | null | undefined): string {
+  const value = durationSeconds(seconds);
+  return value == null ? "" : `${value.toFixed(1)} s`;
+}
+
 export function formatBytes(bytes: number): string {
   return `${formatBytesValue(bytes)} GB`;
 }

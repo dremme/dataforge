@@ -555,6 +555,10 @@ def _candidate_failure(exc: Exception) -> HTTPException:
 # Keyed by the source path, never the staging path.
 _CANDIDATE_PATH = Query(..., description="Absolute path to the dataset file, not its candidate")
 
+_DISCARD_EDIT = Query(
+    False, description="Recycle the file's edit backup and spec so the candidate becomes the base"
+)
+
 
 @router.get("/media/comfy-candidate", response_model=ComfyCandidateStateResponse)
 def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResponse:
@@ -563,11 +567,14 @@ def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResp
 
 
 @router.post("/media/comfy-candidate/accept", response_model=ComfyCandidateResponse)
-def accept_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateResponse:
+def accept_comfy_candidate(
+    path: str = _CANDIDATE_PATH,
+    discard_edit: bool = _DISCARD_EDIT,
+) -> ComfyCandidateResponse:
     media = resolve_candidate_media(path)
 
     try:
-        return accept_candidate(media)
+        return accept_candidate(media, discard_edit=discard_edit)
     except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
         raise _candidate_failure(exc) from exc
 

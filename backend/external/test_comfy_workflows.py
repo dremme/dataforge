@@ -12,6 +12,7 @@ from external.comfy_workflows import (
     list_comfy_presets,
     load_comfy_workflow,
     parse_comfy_workflow,
+    preset_roles,
     read_comfy_preset_text,
 )
 
@@ -452,3 +453,45 @@ class ShippedExampleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PresetRoleTests(unittest.TestCase):
+    """The dialog greys out a field the preset cannot take, so listing has to report both roles."""
+
+    def write(self, folder: Path, name: str, payload: object) -> Path:
+        path = folder / f"{name}.json"
+        path.write_text(
+            payload if isinstance(payload, str) else json.dumps(payload), encoding="utf-8"
+        )
+        return path
+
+    def test_a_preset_reports_the_roles_it_carries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            both = self.write(
+                Path(temp),
+                "both",
+                graph(
+                    **{
+                        "5": node("KSampler", {"seed": 1}, "DataForge Seed"),
+                        "7": node("CLIPTextEncode", {"text": "as saved"}, "DataForge Prompt"),
+                    }
+                ),
+            )
+
+            self.assertEqual(preset_roles(both), (True, True))
+
+    def test_a_preset_without_either_node_reports_false(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            plain = self.write(Path(temp), "plain", graph())
+
+            self.assertEqual(preset_roles(plain), (False, False))
+
+    def test_an_unparseable_preset_reports_unknown_rather_than_no(self) -> None:
+        # None leaves the fields live, so the queue-time message is what names the fix.
+        with tempfile.TemporaryDirectory() as temp:
+            broken = self.write(Path(temp), "broken", "{not json")
+
+            self.assertEqual(preset_roles(broken), (None, None))
+
+    def test_a_missing_preset_reports_unknown(self) -> None:
+        self.assertEqual(preset_roles(Path("no-such-preset.json")), (None, None))

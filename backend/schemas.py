@@ -422,6 +422,9 @@ class ComfyProcessStartRequest(JobSelectionRequest, ComfyProcessJobSettings):
 class ComfyPresetSummary(BaseModel):
     name: str
     modified_at: str | None = None
+    #: Null when the preset could not be parsed, so the dialog leaves both fields enabled.
+    accepts_prompt: bool | None = None
+    accepts_seed: bool | None = None
 
 
 class ComfyPresetTextResponse(BaseModel):

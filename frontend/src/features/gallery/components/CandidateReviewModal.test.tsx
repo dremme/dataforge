@@ -107,6 +107,11 @@ function renderModal(names = ["a.png", "b.png"], overrides: Partial<{ index: num
 
 describe("CandidateReviewModal", () => {
   beforeEach(() => {
+    // jsdom implements no playback, so duration is NaN and the clamp would blank every seek.
+    Object.defineProperty(HTMLMediaElement.prototype, "duration", {
+      configurable: true,
+      get: () => 10,
+    });
     acceptOne.mockReset().mockResolvedValue({} as never);
     rejectOne.mockReset().mockResolvedValue({} as never);
     readState.mockReset().mockResolvedValue({ difference_percent: 3.2 } as never);
@@ -236,7 +241,7 @@ describe("CandidateReviewModal", () => {
 
     await user.click(screen.getByRole("button", { name: "Accept" }));
 
-    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`));
+    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false));
     expect(onResolved).toHaveBeenCalled();
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
@@ -347,7 +352,7 @@ describe("CandidateReviewModal", () => {
 
     await user.keyboard("{Control>}{Enter}{/Control}");
 
-    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`));
+    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false));
     expect(onResolved).toHaveBeenCalled();
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
@@ -399,14 +404,62 @@ describe("CandidateReviewModal", () => {
       expect(document.querySelector("img")).toBeNull();
     });
 
-    it("reports the frame rate, frames and duration", async () => {
+    it("reports the frame rate and the duration to a tenth", async () => {
       readState.mockResolvedValue(details as never);
       renderEntries(videoEntries());
 
       await waitFor(() => expect(metaItem("Frame rate")).toHaveTextContent("24"));
       expect(metaItem("Frame rate")).toHaveTextContent("48");
-      expect(metaItem("Frames")).toHaveTextContent("480");
-      expect(metaItem("Duration")).toBeInTheDocument();
+      expect(metaItem("Duration")).toHaveTextContent("10.0 s");
+    });
+
+    it("leaves out the frame count, which the rate and the length already say", async () => {
+      readState.mockResolvedValue(details as never);
+      renderEntries(videoEntries());
+
+      await waitFor(() => expect(readState).toHaveBeenCalled());
+      expect(screen.queryByText("Frames")).toBeNull();
+    });
+
+    it("plays and pauses both panes together, from either one", () => {
+      renderEntries(videoEntries());
+      const [before, after] = Array.from(document.querySelectorAll("video"));
+      const playBefore = vi.spyOn(before, "play").mockResolvedValue();
+      const pauseBefore = vi.spyOn(before, "pause").mockImplementation(() => {});
+      const playAfter = vi.spyOn(after, "play").mockResolvedValue();
+      const pauseAfter = vi.spyOn(after, "pause").mockImplementation(() => {});
+
+      fireEvent.play(after);
+      expect(playBefore).toHaveBeenCalled();
+      fireEvent.pause(after);
+      expect(pauseBefore).toHaveBeenCalled();
+
+      fireEvent.play(before);
+      expect(playAfter).toHaveBeenCalled();
+      fireEvent.pause(before);
+      expect(pauseAfter).toHaveBeenCalled();
+    });
+
+    it("moves the other pane to the same moment on a seek", () => {
+      renderEntries(videoEntries());
+      const [before, after] = Array.from(document.querySelectorAll("video"));
+
+      after.currentTime = 4.2;
+      fireEvent.seeked(after);
+
+      expect(before.currentTime).toBeCloseTo(4.2);
+    });
+
+    it("does not fight a peer that is already where it should be", () => {
+      // The mirrored seek fires its own seeked event; without the drift guard it echoes back.
+      renderEntries(videoEntries());
+      const [before, after] = Array.from(document.querySelectorAll("video"));
+      after.currentTime = 4.2;
+      before.currentTime = 4.24;
+
+      fireEvent.seeked(after);
+
+      expect(before.currentTime).toBeCloseTo(4.24);
     });
 
     it("shows the resolution gain for a video upscale", async () => {
@@ -466,6 +519,109 @@ describe("CandidateReviewModal", () => {
 
       expect(await screen.findByText(/audio track/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /accept/i })).toBeEnabled();
+    });
+  });
+
+  describe("a source with an unreverted edit", () => {
+    function editedEntries() {
+      const queue = entries(["a.png"]);
+      queue[0].source = { ...queue[0].source!, has_backup: true };
+      return queue;
+    }
+
+    function editedEntries2() {
+      const queue = entries(["a.png", "b.png"]);
+      queue[0].source = { ...queue[0].source!, has_backup: true };
+      return queue;
+    }
+
+    function renderEntriesWithClose(queue: ReturnType<typeof entries>) {
+      const onClose = vi.fn();
+      render(
+        <NotificationsProvider>
+          <CandidateReviewModal
+            entries={queue}
+            index={0}
+            onClose={onClose}
+            onIndexChange={vi.fn()}
+            onResolved={vi.fn()}
+          />
+        </NotificationsProvider>,
+      );
+      return { onClose };
+    }
+
+    it("asks before accepting instead of letting the backend refuse", async () => {
+      const user = userEvent.setup();
+      renderEntries(editedEntries());
+
+      await user.click(screen.getByRole("button", { name: "Accept" }));
+
+      expect(screen.getByRole("heading", { name: /Discard the edit/ })).toBeInTheDocument();
+      expect(acceptOne).not.toHaveBeenCalled();
+    });
+
+    it("discards the edit only once the question is answered", async () => {
+      const user = userEvent.setup();
+      renderEntries(editedEntries());
+
+      await user.click(screen.getByRole("button", { name: "Accept" }));
+      await user.click(screen.getByRole("button", { name: "Discard edit and accept" }));
+
+      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, true);
+    });
+
+    it("leaves the file alone when the question is declined", async () => {
+      const user = userEvent.setup();
+      renderEntries(editedEntries());
+
+      await user.click(screen.getByRole("button", { name: "Accept" }));
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(acceptOne).not.toHaveBeenCalled();
+      expect(screen.queryByRole("heading", { name: /Discard the edit/ })).toBeNull();
+    });
+
+    it("dismisses only the question on Escape, not the review it sits over", async () => {
+      // The shell suspends while the question stands; without that, one Escape closed both.
+      const user = userEvent.setup();
+      const { onClose } = renderEntriesWithClose(editedEntries());
+
+      await user.click(screen.getByRole("button", { name: "Accept" }));
+      await user.keyboard("{Escape}");
+
+      expect(screen.queryByRole("heading", { name: /Discard the edit/ })).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(acceptOne).not.toHaveBeenCalled();
+    });
+
+    it("leaves the queue keys alone while the question stands", async () => {
+      const user = userEvent.setup();
+      const { onIndexChange } = renderEntries(editedEntries2());
+
+      await user.click(screen.getByRole("button", { name: "Accept" }));
+      await user.keyboard("{ArrowRight}");
+
+      expect(onIndexChange).not.toHaveBeenCalled();
+    });
+
+    it("routes the accept shortcut through the same question", async () => {
+      const user = userEvent.setup();
+      renderEntries(editedEntries());
+
+      await user.keyboard("{Control>}{Enter}{/Control}");
+
+      expect(screen.getByRole("heading", { name: /Discard the edit/ })).toBeInTheDocument();
+      expect(acceptOne).not.toHaveBeenCalled();
+    });
+
+    it("accepts an unedited source with no question at all", async () => {
+      const user = userEvent.setup();
+      renderEntries(entries(["a.png"]));
+
+      await user.click(screen.getByRole("button", { name: "Accept" }));
+
+      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false);
     });
   });
 });

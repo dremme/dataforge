@@ -27,7 +27,7 @@ from constants import (
     STAGING_DIR_NAME,
 )
 from duplicates import duplicate_file_path
-from edit_sidecars import backup_path_for
+from edit_sidecars import backup_path_for, edit_spec_path
 from file_publish import publish_replacing
 from folder_scan import get_media_type
 from media_delete import delete_path
@@ -270,16 +270,29 @@ def _discard_candidate(candidate: Path) -> None:
             logger.warning("Failed to discard %s: %s", path.name, error)
 
 
-def accept_candidate(media: Path) -> ComfyCandidateResponse:
+def _discard_edit(media: Path) -> None:
+    """Drop the edit record so the candidate becomes the new base. Recycled, never hard-deleted."""
+    for path in (backup_path_for(media), edit_spec_path(media)):
+        if not path.is_file():
+            continue
+        try:
+            delete_path(path)
+        except OSError as error:
+            raise ValueError(f"Could not discard the edit of {media.name}: {error}") from error
+
+
+def accept_candidate(media: Path, *, discard_edit: bool = False) -> ComfyCandidateResponse:
     """Publish the candidate in its own format, replacing the source whatever the source's extension.
 
-    Refused while a ``.bak`` exists: image_edit renders from that file.
+    Refused while a ``.bak`` exists unless ``discard_edit``: the editors render every change from
+    that file, so publishing over it would have the next edit silently render from pre-ComfyUI
+    pixels and throw the accepted pass away.
     """
     candidate = resolve_candidate(media)
     if candidate is None:
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
 
-    if backup_path_for(media).is_file():
+    if backup_path_for(media).is_file() and not discard_edit:
         raise ValueError(EDITED_MESSAGE)
 
     # The published file keeps the candidate's format (ComfyUI writes PNG), not the source's.
@@ -288,6 +301,9 @@ def accept_candidate(media: Path) -> ComfyCandidateResponse:
     with settle_slot(media):
         validate_candidate_destination(media, candidate)
         validate_candidate_media(candidate)
+        # Before publishing: a failure here must leave the file and its edit record intact.
+        if discard_edit:
+            _discard_edit(media)
         sweep_comfy_temp_files(media.parent)
 
         temp_path = temp_path_for(target)

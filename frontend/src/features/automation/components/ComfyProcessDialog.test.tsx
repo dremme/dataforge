@@ -24,9 +24,17 @@ function presets(
   names: string[],
   available = true,
   baseUrl = "http://127.0.0.1:9000",
+  roles: Partial<
+    Record<string, { accepts_prompt: boolean | null; accepts_seed: boolean | null }>
+  > = {},
 ): ComfyPresetsResponse {
   return {
-    presets: names.map((name) => ({ name, modified_at: null })),
+    presets: names.map((name) => ({
+      name,
+      modified_at: null,
+      accepts_prompt: roles[name]?.accepts_prompt ?? true,
+      accepts_seed: roles[name]?.accepts_seed ?? true,
+    })),
     available,
     base_url: baseUrl,
   };
@@ -235,5 +243,71 @@ describe("ComfyProcessDialog", () => {
     renderDialog();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Backend is down");
+  });
+
+  describe("a preset without the optional nodes", () => {
+    const withoutPrompt = () =>
+      presets(["video-upscale"], true, "http://127.0.0.1:9000", {
+        "video-upscale": { accepts_prompt: false, accepts_seed: true },
+      });
+
+    it("does not send a prompt the preset has nowhere to put", async () => {
+      // The box is remembered per folder, so a prompt typed for another preset used to
+      // reach the backend and be refused.
+      fetchPresets.mockResolvedValue(withoutPrompt());
+      const user = userEvent.setup();
+      const { onConfirm } = renderDialog(settings({ prompt_text: "sharp studio photograph" }));
+
+      await screen.findByLabelText("Workflow");
+      await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+      expect(onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ preset: "video-upscale", promptText: "" }),
+      );
+    });
+
+    it("disables the prompt and names the missing node", async () => {
+      fetchPresets.mockResolvedValue(withoutPrompt());
+      renderDialog(settings({ prompt_text: "sharp studio photograph" }));
+
+      const prompt = await screen.findByLabelText("Prompt");
+      expect(prompt).toBeDisabled();
+      expect(prompt).toHaveValue("");
+      expect(screen.getByText(/has no/)).toHaveTextContent("DataForge Prompt");
+      expect(screen.getByLabelText("Seed")).toBeEnabled();
+    });
+
+    it("drops a seed the preset has nowhere to put", async () => {
+      // Unlike the prompt this was never refused: build_comfy_prompt just wrote nothing.
+      fetchPresets.mockResolvedValue(
+        presets(["lanczos"], true, "http://127.0.0.1:9000", {
+          lanczos: { accepts_prompt: false, accepts_seed: false },
+        }),
+      );
+      const user = userEvent.setup();
+      const { onConfirm } = renderDialog(settings({ seed: 4321, prompt_text: "anything" }));
+
+      await screen.findByLabelText("Workflow");
+      expect(await screen.findByLabelText("Seed")).toBeDisabled();
+      await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+      expect(onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ seed: null, promptText: "" }),
+      );
+    });
+
+    it("leaves both fields live when the preset could not be parsed", async () => {
+      // Null is "unknown", not "no": the queue-time message names the fix better than a
+      // greyed-out box does.
+      fetchPresets.mockResolvedValue(
+        presets(["broken"], true, "http://127.0.0.1:9000", {
+          broken: { accepts_prompt: null, accepts_seed: null },
+        }),
+      );
+      renderDialog();
+
+      expect(await screen.findByLabelText("Prompt")).toBeEnabled();
+      expect(screen.getByLabelText("Seed")).toBeEnabled();
+    });
   });
 });
