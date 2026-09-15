@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from comfy_settings import get_comfy_base_url
+from external.comfy_logs import LOG_TAIL_LINES, assemble_log_lines
 
 COMFY_REQUEST_TIMEOUT_SECONDS = 10.0
 # Per read/write, not per transfer, so a chunked download of a long clip is covered by it.
@@ -20,6 +21,9 @@ DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
 # Uploads land in this subfolder; ComfyUI has no delete-input endpoint.
 COMFY_INPUT_SUBFOLDER = "dataforge"
+
+# Internal and unversioned: an older ComfyUI simply 404s here.
+COMFY_LOGS_PATH = "/internal/logs/raw"
 
 _TERMINAL_STATUS_STRINGS = frozenset({"success", "error"})
 
@@ -313,6 +317,38 @@ def delete_queued(client: httpx.Client, prompt_id: str) -> None:
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise ComfyUnavailableError(str(error)) from error
+
+
+def fetch_raw_log_entries(client: httpx.Client) -> list[dict[str, Any]]:
+    """ComfyUI's recent console writes, oldest first. The window is bounded by ComfyUI, not us."""
+    try:
+        response = client.get(comfy_url(COMFY_LOGS_PATH), timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPError as error:
+        raise ComfyUnavailableError(str(error)) from error
+    except json.JSONDecodeError as error:
+        raise ComfyError("ComfyUI returned an unreadable log response") from error
+
+    entries = payload.get("entries") if isinstance(payload, dict) else None
+    if not isinstance(entries, list):
+        return []
+
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def read_log_lines(*, limit: int = LOG_TAIL_LINES) -> list[str] | None:
+    """The tail of ComfyUI's console, or None when it cannot be read at all.
+
+    None and an empty list are different answers: nothing to read versus nothing written.
+    """
+    try:
+        with httpx.Client(timeout=COMFY_REQUEST_TIMEOUT_SECONDS) as client:
+            entries = fetch_raw_log_entries(client)
+    except ComfyError:
+        return None
+
+    return assemble_log_lines(entries, limit=limit)
 
 
 def probe_available() -> bool:

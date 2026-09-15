@@ -68,35 +68,41 @@ export function TrainingSamples({
 
   return (
     <div className={classNames("training-samples", compact && "training-samples--compact")}>
-      <p className="training-samples__label">Samples at step {step}</p>
-      <ul className="training-samples__list" data-scroll-lock-allow>
-        {availableSamples.map((sample, index) => (
-          <li key={sample.path} className="training-samples__item">
-            <Tooltip content={sample.prompt}>
-              <button
-                type="button"
-                className="training-samples__button"
-                onClick={() => setOpen(index)}
-                aria-label={`View training sample ${index + 1} of ${availableSamples.length}`}
-              >
-                <img
-                  className={classNames(
-                    "training-samples__image",
-                    loadedPaths.has(sample.path) && "training-samples__image--ready",
-                  )}
-                  src={optionalThumbnailUrl(sample.path, SAMPLE_THUMBNAIL_WIDTH, sample.name)}
-                  alt={sample.prompt}
-                  loading="lazy"
-                  decoding="async"
-                  draggable={false}
-                  onLoad={() => setLoadedPaths((paths) => withPath(paths, sample.path))}
-                  onError={() => setMissingPaths((paths) => withPath(paths, sample.path))}
-                />
-              </button>
-            </Tooltip>
-          </li>
-        ))}
-      </ul>
+      <div className="training-samples__header">
+        <p className="training-samples__label">Samples at step {step}</p>
+        <span className="training-samples__count">{availableSamples.length}</span>
+      </div>
+
+      <div className="training-samples__panel">
+        <ul className="training-samples__list" data-scroll-lock-allow>
+          {availableSamples.map((sample, index) => (
+            <li key={sample.path} className="training-samples__item">
+              <Tooltip content={sample.prompt}>
+                <button
+                  type="button"
+                  className="training-samples__button"
+                  onClick={() => setOpen(index)}
+                  aria-label={`View training sample ${index + 1} of ${availableSamples.length}`}
+                >
+                  <img
+                    className={classNames(
+                      "training-samples__image",
+                      loadedPaths.has(sample.path) && "training-samples__image--ready",
+                    )}
+                    src={optionalThumbnailUrl(sample.path, SAMPLE_THUMBNAIL_WIDTH, sample.name)}
+                    alt={sample.prompt}
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                    onLoad={() => setLoadedPaths((paths) => withPath(paths, sample.path))}
+                    onError={() => setMissingPaths((paths) => withPath(paths, sample.path))}
+                  />
+                </button>
+              </Tooltip>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {openIndex !== null && (
         <TrainingSampleModal

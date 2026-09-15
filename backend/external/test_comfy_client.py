@@ -3,12 +3,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx
 
 from external.comfy_client import (
+    ComfyError,
     ComfyPromptError,
     ComfyUnavailableError,
     comfy_url,
@@ -16,10 +18,12 @@ from external.comfy_client import (
     download_view_to,
     fetch_history,
     fetch_queue,
+    fetch_raw_log_entries,
     history_error_text,
     history_is_finished,
     history_outputs,
     interrupt,
+    read_log_lines,
     submit_prompt,
     upload_media,
 )
@@ -290,3 +294,62 @@ class UrlTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LogWindowTests(unittest.TestCase):
+    def test_the_window_is_read_from_the_internal_path(self) -> None:
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["path"] = request.url.path
+            return httpx.Response(
+                200,
+                json={
+                    "entries": [{"t": "2026-09-14T18:56:48.651274", "m": "hello\n"}],
+                    "size": {"cols": 80, "rows": 24},
+                },
+            )
+
+        with client_for(handler) as client:
+            entries = fetch_raw_log_entries(client)
+
+        self.assertEqual(captured["path"], "/internal/logs/raw")
+        self.assertEqual(entries, [{"t": "2026-09-14T18:56:48.651274", "m": "hello\n"}])
+
+    def test_an_older_build_without_the_endpoint_is_unavailable(self) -> None:
+        # 404 and a refused connection are the same answer: nobody distinguishes them.
+        with client_for(lambda _r: httpx.Response(404)) as client:
+            with self.assertRaises(ComfyUnavailableError):
+                fetch_raw_log_entries(client)
+
+    def test_a_refused_connection_is_unavailable(self) -> None:
+        with refusing_client() as client:
+            with self.assertRaises(ComfyUnavailableError):
+                fetch_raw_log_entries(client)
+
+    def test_an_unreadable_body_is_not_an_availability_problem(self) -> None:
+        with client_for(lambda _r: httpx.Response(200, content=b"not json")) as client:
+            with self.assertRaises(ComfyError) as caught:
+                fetch_raw_log_entries(client)
+
+        self.assertNotIsInstance(caught.exception, ComfyUnavailableError)
+
+    def test_a_payload_without_entries_reads_as_empty(self) -> None:
+        with client_for(lambda _r: httpx.Response(200, json={"size": {}})) as client:
+            self.assertEqual(fetch_raw_log_entries(client), [])
+
+
+class ReadLogLinesTests(unittest.TestCase):
+    def test_an_unreachable_comfy_reads_as_none_rather_than_empty(self) -> None:
+        """None is "could not read"; [] is "read, nothing there". The panel says different things."""
+        with patch(
+            "external.comfy_client.fetch_raw_log_entries",
+            side_effect=ComfyUnavailableError("down"),
+        ):
+            self.assertIsNone(read_log_lines())
+
+    def test_the_window_comes_back_assembled(self) -> None:
+        entries = [{"m": "phase one"}, {"m": "\n"}]
+
+        with patch("external.comfy_client.fetch_raw_log_entries", return_value=entries):
+            self.assertEqual(read_log_lines(), ["phase one"])

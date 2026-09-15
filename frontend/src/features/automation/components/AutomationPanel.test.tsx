@@ -60,6 +60,11 @@ const defaultSystemSpecs: SystemSpecs = {
   gpu_available: true,
 };
 
+// This file mocks hooks, not fetch: without this the log poll would hit the network in jsdom.
+vi.mock("@/features/automation/hooks/useComfyProcessLogs", () => ({
+  useComfyProcessLogs: () => null,
+}));
+
 vi.mock("@/features/automation/hooks/useSystemSpecs", () => ({
   useSystemSpecs: () => defaultSystemSpecs,
 }));

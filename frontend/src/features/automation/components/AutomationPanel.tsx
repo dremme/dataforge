@@ -42,6 +42,7 @@ import { classNames } from "@/shared/lib/classNames";
 import { AutomationMoreJobsMenu } from "./AutomationMoreJobsMenu";
 import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
 import { JobFileResults } from "@/features/jobs/components/JobFileResults";
+import { ComfyProcessLog } from "@/features/automation/components/ComfyProcessLog";
 import { TrainingSamples } from "@/features/jobs/components/TrainingSamples";
 import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -373,6 +374,8 @@ export function AutomationPanel({
                 style={{ width: `${progressPercent(job)}%` }}
               />
             </div>
+
+            <ComfyProcessLog job={job} />
 
             <TrainingSamples samples={trainingSamples} />
 

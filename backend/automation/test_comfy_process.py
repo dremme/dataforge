@@ -173,7 +173,13 @@ class VideoWorkspace(Workspace):
             )
 
 
-def video_handler(*, filename: str = "out.mp4", content: bytes | None = None):
+def video_handler(
+    *,
+    filename: str = "out.mp4",
+    content: bytes | None = None,
+    output_key: str = "gifs",
+    subfolder: str = "",
+):
     """A ComfyUI whose graph writes a clip from node 11 and a preview still from node 9."""
     state = {"count": 0}
     body = playable_video_bytes() if content is None else content
@@ -205,7 +211,13 @@ def video_handler(*, filename: str = "out.mp4", content: bytes | None = None):
                                 ]
                             },
                             "11": {
-                                "gifs": [{"filename": filename, "subfolder": "", "type": "output"}]
+                                output_key: [
+                                    {
+                                        "filename": filename,
+                                        "subfolder": subfolder,
+                                        "type": "output",
+                                    }
+                                ]
                             },
                         },
                     }
@@ -739,6 +751,36 @@ class VideoJobTests(unittest.TestCase):
                 comfy_process._gpu_lock.release()
 
             self.assertEqual(outcome["result"]["stats"].get("cancelled"), 1)
+
+    def test_a_clip_filed_under_the_images_key_is_still_staged_as_a_clip(self) -> None:
+        """SwiftVR writes the file itself and reports it under "images"; the suffix decides."""
+        with VideoWorkspace() as workspace:
+            result = self.run_video(
+                workspace,
+                video_handler(
+                    filename="DataForge_ab12cd34_clip.mp4", output_key="images", subfolder="video"
+                ),
+            )
+
+            self.assertEqual(result["stats"]["success"], 1)
+            candidate = workspace.folder / STAGING_DIR_NAME / "clip.mp4"
+            self.assertEqual(candidate.read_bytes(), playable_video_bytes())
+
+    def test_the_subfolder_is_carried_back_to_the_view_request(self) -> None:
+        asked: dict = {}
+
+        def capturing(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/view":
+                asked["params"] = dict(request.url.params)
+            return video_handler(
+                filename="DataForge_ab12cd34_clip.mp4", output_key="images", subfolder="video"
+            )(request)
+
+        with VideoWorkspace() as workspace:
+            self.run_video(workspace, capturing)
+
+        self.assertEqual(asked["params"]["subfolder"], "video")
+        self.assertEqual(asked["params"]["filename"], "DataForge_ab12cd34_clip.mp4")
 
     def test_stills_and_clips_in_one_folder_are_all_sent(self) -> None:
         with VideoWorkspace(names=("clip.mp4",)) as workspace:

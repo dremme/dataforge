@@ -2,6 +2,7 @@ import { postJson, requestJson } from "@/shared/api/http";
 import { withJobPaths } from "@/features/jobs/api/jobPaths";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type {
+  ComfyLogsResponse,
   ComfyPresetsResponse,
   Job,
   JobType,
@@ -52,6 +53,10 @@ export async function previewCaptionReplacements(
 
 export async function fetchComfyPresets(signal?: AbortSignal): Promise<ComfyPresetsResponse> {
   return requestJson<ComfyPresetsResponse>("/api/automation/comfy-process/presets", { signal });
+}
+
+export async function fetchComfyLogs(signal?: AbortSignal): Promise<ComfyLogsResponse> {
+  return requestJson<ComfyLogsResponse>("/api/automation/comfy-process/logs", { signal });
 }
 
 export async function fetchTrainingTemplate(model: TrainingModel): Promise<string> {

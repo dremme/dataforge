@@ -130,7 +130,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   .cm-scroller {
     flex: 1 1 auto;
     min-height: 0;
-    font-family: Consolas, ui-monospace, monospace;
+    font-family: var(--font-mono);
     font-size: var(--text-sm);
     font-weight: var(--font-normal);
     line-height: var(--leading-relaxed);
@@ -145,7 +145,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     background-color: var(--bg-media);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     color: $code-editor-muted;
-    font-family: Consolas, ui-monospace, monospace;
+    font-family: var(--font-mono);
     font-size: var(--text-sm);
     font-weight: var(--font-normal);
     line-height: var(--leading-relaxed);

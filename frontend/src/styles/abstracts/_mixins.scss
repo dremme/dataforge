@@ -64,6 +64,46 @@
   font-variant-numeric: tabular-nums;
 }
 
+// Panels that hang under a running job: per-file results, ComfyUI output, training samples.
+// Sits on a job card that may already carry a danger or warning gradient, and inside the
+// floating automation panel, so the surface stays translucent.
+@mixin job-panel-card {
+  margin-top: 0.75rem;
+  padding: 0.4375rem $job-panel-gutter;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+// The body below a panel's header. Negative margins cancel the card padding so the rule runs
+// edge to edge; that is why the gutter is one variable and not a literal in three files.
+@mixin job-panel-body {
+  margin: 0.4375rem -#{$job-panel-gutter} 0;
+  padding: 0.625rem $job-panel-gutter 0;
+  border-top: 1px solid var(--border);
+}
+
+@mixin job-panel-toggle {
+  @include control-interactive;
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  width: 100%;
+  padding: 0.25rem 0;
+  background: none;
+  border: 0;
+  color: var(--text-subtle);
+
+  &:hover {
+    color: var(--text-muted);
+  }
+}
+
+@mixin job-panel-toggle-icon {
+  @include icon-size(var(--icon-size-sm));
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+
 @mixin section-label {
   margin: 0;
   display: inline-flex;

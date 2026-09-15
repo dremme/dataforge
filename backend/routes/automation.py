@@ -8,7 +8,7 @@ from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
 from automation_settings import remember_job_settings
 from comfy_settings import get_comfy_base_url
-from external.comfy_client import probe_available
+from external.comfy_client import probe_available, read_log_lines
 from external.comfy_workflows import (
     ComfyWorkflowError,
     list_comfy_presets,
@@ -24,6 +24,7 @@ from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    ComfyLogsResponse,
     ComfyPresetsResponse,
     ComfyPresetSummary,
     ComfyPresetTextResponse,
@@ -284,6 +285,19 @@ def list_comfy_process_presets() -> ComfyPresetsResponse:
         available=probe_available(),
         base_url=get_comfy_base_url(),
     )
+
+
+@router.get("/automation/comfy-process/logs", response_model=ComfyLogsResponse)
+def get_comfy_process_logs() -> ComfyLogsResponse:
+    """The tail of ComfyUI's own console, for the panel to show while a run works.
+
+    Always a 200: a stopped ComfyUI, and one too old to expose its log, are both just unavailable.
+    """
+    lines = read_log_lines()
+    if lines is None:
+        return ComfyLogsResponse(available=False)
+
+    return ComfyLogsResponse(lines=lines, available=True)
 
 
 @router.get("/automation/comfy-process/presets/{name}", response_model=ComfyPresetTextResponse)

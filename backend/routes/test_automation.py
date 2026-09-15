@@ -798,6 +798,36 @@ class ComfyPresetsEndpointTests(unittest.TestCase):
         self.assertEqual(response.json()["base_url"], "http://gpu-box:8188")
 
 
+class ComfyLogsEndpointTests(unittest.TestCase):
+    """What the panel reads while a run works, and what it reads when it cannot."""
+
+    def test_serves_the_tail_of_comfy_output(self) -> None:
+        with patch("routes.automation.read_log_lines", return_value=["Phase 3", "done"]):
+            response = client.get("/api/automation/comfy-process/logs")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"lines": ["Phase 3", "done"], "available": True})
+
+    def test_a_comfy_that_cannot_be_read_is_not_an_error(self) -> None:
+        """A stopped or older ComfyUI must leave the panel quiet, not raise a red alert."""
+        with patch("routes.automation.read_log_lines", return_value=None):
+            response = client.get("/api/automation/comfy-process/logs")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["available"])
+        self.assertEqual(payload["lines"], [])
+
+    def test_a_running_comfy_with_nothing_written_is_still_available(self) -> None:
+        # Empty is not the same answer as unreadable, and the panel says different things.
+        with patch("routes.automation.read_log_lines", return_value=[]):
+            response = client.get("/api/automation/comfy-process/logs")
+
+        payload = response.json()
+        self.assertTrue(payload["available"])
+        self.assertEqual(payload["lines"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
 

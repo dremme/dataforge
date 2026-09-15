@@ -1,37 +1,15 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// Inner dividers run full bleed by cancelling this out, so it cannot drift from the padding.
-$results-gutter: 0.625rem;
-
-// Sits on a job card that may already carry a danger or warning gradient, and inside the
-// floating automation panel, so every surface here stays translucent.
 .job-file-results {
-  margin-top: 0.75rem;
-  padding: 0.4375rem $results-gutter;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  @include job-panel-card;
 
   &__toggle {
-    @include control-interactive;
-    display: flex;
-    align-items: center;
-    gap: 0.4375rem;
-    width: 100%;
-    padding: 0.25rem 0;
-    background: none;
-    border: 0;
-    color: var(--text-subtle);
-
-    &:hover {
-      color: var(--text-muted);
-    }
+    @include job-panel-toggle;
   }
 
   &__toggle-icon {
-    @include icon-size(var(--icon-size-sm));
-    flex-shrink: 0;
-    transition: transform var(--transition);
+    @include job-panel-toggle-icon;
 
     &--open {
       transform: rotate(180deg);
@@ -56,12 +34,10 @@ $results-gutter: 0.625rem;
   }
 
   &__panel {
+    @include job-panel-body;
     display: flex;
     flex-direction: column;
     gap: 0.625rem;
-    margin: 0.4375rem -#{$results-gutter} 0;
-    padding: 0.625rem $results-gutter 0;
-    border-top: 1px solid var(--border);
   }
 
   &__note {
@@ -252,12 +228,11 @@ $results-gutter: 0.625rem;
   }
 
   &__actions {
+    @include job-panel-body;
     display: flex;
     flex-wrap: wrap;
     gap: 0.4375rem;
-    margin: 0 -#{$results-gutter};
-    padding: 0.625rem $results-gutter 0;
-    border-top: 1px solid var(--border);
+    margin-top: 0;
   }
 
   &__action {

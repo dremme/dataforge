@@ -127,6 +127,67 @@ class VideoGraphTests(unittest.TestCase):
         self.assertIn("'image' or 'video'", str(caught.exception))
 
 
+class SelfNamingOutputTests(unittest.TestCase):
+    """Nodes that write the file themselves take a whole filename, not a prefix ComfyUI completes."""
+
+    def graph(self, **inputs: object) -> dict:
+        return {
+            "10": node("VHS_LoadVideo", {"video": "example.mp4"}, "DataForge Input"),
+            "2": node(
+                "SwiftVRRestoreVideo",
+                {"output_dir": "output/video", "video": ["10", 0], **inputs},
+                "DataForge Output",
+            ),
+        }
+
+    def test_a_whole_filename_resolves_as_the_output_name(self) -> None:
+        workflow = parse(self.graph(filename="ComfyUI.mp4"))
+
+        self.assertEqual(workflow.output_node, "2")
+        self.assertEqual(workflow.output_key, "filename")
+
+    def test_the_run_is_scoped_into_the_name_and_the_container_kept(self) -> None:
+        """Left alone, every file in a job lands on the one name the preset was exported with."""
+        workflow = parse(self.graph(filename="ComfyUI.mp4"))
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.mp4", filename_prefix="DataForge/ab12cd34/clip"
+        )
+
+        self.assertEqual(prompt["2"]["inputs"]["filename"], "DataForge_ab12cd34_clip.mp4")
+
+    def test_a_name_without_a_container_is_left_without_one(self) -> None:
+        workflow = parse(self.graph(filename="ComfyUI"))
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.mp4", filename_prefix="DataForge/ab12cd34/clip"
+        )
+
+        self.assertEqual(prompt["2"]["inputs"]["filename"], "DataForge_ab12cd34_clip")
+
+    def test_a_prefix_node_still_takes_the_path_shaped_value(self) -> None:
+        workflow = parse(graph())
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.png", filename_prefix="DataForge/ab12cd34/photo"
+        )
+
+        self.assertEqual(prompt["3"]["inputs"]["filename_prefix"], "DataForge/ab12cd34/photo")
+
+    def test_an_output_naming_nothing_names_both_widgets(self) -> None:
+        payload = self.graph(output_name="ComfyUI.mp4")
+
+        with self.assertRaises(ComfyWorkflowError) as caught:
+            parse(payload)
+
+        self.assertIn("'filename_prefix' or 'filename'", str(caught.exception))
+
+    def test_a_linked_name_is_not_a_writable_widget(self) -> None:
+        # A link is a list; writing over it would be dropped without a word.
+        with self.assertRaises(ComfyWorkflowError):
+            parse(self.graph(filename=["9", 0]))
+
+
 class VideoPromptTests(unittest.TestCase):
     def test_the_measured_rate_overwrites_the_presets_constant(self) -> None:
         workflow = parse(video_graph())

@@ -427,6 +427,14 @@ class ComfyPresetSummary(BaseModel):
     accepts_seed: bool | None = None
 
 
+class ComfyLogsResponse(BaseModel):
+    """ComfyUI's recent console output. A stopped ComfyUI and one too old to expose its log are
+    the same answer here, because neither is an error the panel should shout about."""
+
+    lines: list[str] = Field(default_factory=list)
+    available: bool = False
+
+
 class ComfyPresetTextResponse(BaseModel):
     name: str
     #: Not named ``json``: that shadows pydantic's BaseModel.

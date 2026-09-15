@@ -53,6 +53,8 @@ See [configuration](configuration.md#integrations) for every integration setting
 
 DataForge uploads one file at a time, points the workflow input at that upload, and stages the designated output in its returned format. Existing candidates are skipped by default. Enable overwrite only when you intend to replace those staged outputs. A result whose name would belong to another source is refused even with overwrite enabled; rename files with conflicting stems before processing.
 
+While a run is active the panel shows ComfyUI’s own console below the progress bar, which for a long render is the only sign of life. It is the whole ComfyUI console rather than DataForge’s prompt, so anything else running there appears too.
+
 Cancellation removes DataForge’s queued prompt when possible and interrupts it only when it is the running prompt. A cancelled, failed, or unsuitable run leaves source media untouched.
 
 ## Review candidates
@@ -92,7 +94,7 @@ DataForge can infer a graph with exactly one loader and one saver — `LoadImage
 | Node title         | Purpose                                                   |
 | ------------------ | --------------------------------------------------------- |
 | `DataForge Input`  | Load node to receive the uploaded source; its `image` or `video` widget is filled in |
-| `DataForge Output` | Save node whose output becomes the staged candidate                                  |
+| `DataForge Output` | Save node whose output becomes the staged candidate; DataForge fills its `filename_prefix`, or its `filename` for a node that writes the file itself |
 
 DataForge refuses an ambiguous graph rather than guessing which node to modify.
 

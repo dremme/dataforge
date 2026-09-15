@@ -55,6 +55,9 @@ $control-height-xs: 1.5rem;
 $panel-padding: 1.125rem;
 // 2px outline at 2px offset plus a pixel of slack for fractional widths; scroll containers clip outlines.
 $focus-ring-space: 0.3125rem;
+
+// Panels under a running job share this so their full-bleed dividers cannot drift.
+$job-panel-gutter: 0.625rem;
 // Gap between a docked sticky header and the panel above it; padding is the bar's own inset.
 $sticky-dock-gap: 0.625rem;
 $sticky-dock-padding: 0.5rem;
@@ -94,6 +97,7 @@ $font-sans:
   system-ui,
   -apple-system,
   sans-serif;
+$font-mono: Consolas, ui-monospace, monospace;
 $font-features:
   "cv11" 1,
   "ss01" 1;

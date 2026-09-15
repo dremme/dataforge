@@ -1,0 +1,55 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.comfy-process-log {
+  @include job-panel-card;
+
+  &__toggle {
+    @include job-panel-toggle;
+  }
+
+  &__toggle-icon {
+    @include job-panel-toggle-icon;
+
+    &--open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__label {
+    @include section-label;
+    color: inherit;
+  }
+
+  &__panel {
+    @include job-panel-body;
+  }
+
+  &__note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  &__output {
+    @include app-scrollbar;
+    max-height: 15rem;
+    overflow-y: auto;
+    // Scroll anchoring would hold position as output grows, fighting the follow-the-bottom pin.
+    overflow-anchor: none;
+    // The region takes focus so it can be read on demand; padding keeps the ring off the text.
+    padding: $focus-ring-space;
+    margin: -#{$focus-ring-space};
+  }
+
+  &__text {
+    margin: 0;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    line-height: var(--leading-normal);
+    tab-size: 4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}

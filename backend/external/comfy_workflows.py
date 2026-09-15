@@ -44,6 +44,10 @@ _NO_PREFIX_CLASSES = frozenset({"PreviewImage", "SaveImageWebsocket"})
 
 INPUT_WIDGET_KEYS = ("image", "video")
 
+#: How a save node names what it writes. SaveImage and VHS_VideoCombine take a prefix ComfyUI
+#: completes; nodes that write the file themselves, like SwiftVRRestoreVideo, take a whole name.
+OUTPUT_WIDGET_KEYS = ("filename_prefix", "filename")
+
 _SEED_INPUT_KEYS = ("seed", "noise_seed")
 
 _FPS_INPUT_KEYS = ("value", "fps", "frame_rate")
@@ -76,6 +80,8 @@ class ComfyWorkflow:
     input_node: str
     input_key: str
     output_node: str
+    #: None for a node that names nothing, such as PreviewImage.
+    output_key: str | None
     seed_nodes: tuple[str, ...]
     prompt_node: str | None
     fps_node: str | None = None
@@ -168,6 +174,14 @@ def _input_widget_key(node: dict[str, Any]) -> str | None:
     return None
 
 
+def _output_widget_key(node: dict[str, Any]) -> str | None:
+    inputs = _node_inputs(node)
+    for key in OUTPUT_WIDGET_KEYS:
+        if isinstance(inputs.get(key), str):
+            return key
+    return None
+
+
 def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
     """Parse a preset and resolve its roles, or explain what is wrong with it."""
     if len(raw.encode("utf-8")) > MAX_WORKFLOW_BYTES:
@@ -215,11 +229,11 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
         )
 
     output_class = payload[output_node]["class_type"]
-    if output_class not in _NO_PREFIX_CLASSES and "filename_prefix" not in _node_inputs(
-        payload[output_node]
-    ):
+    output_key = _output_widget_key(payload[output_node])
+    if output_class not in _NO_PREFIX_CLASSES and output_key is None:
+        keys = " or ".join(repr(key) for key in OUTPUT_WIDGET_KEYS)
         raise ComfyWorkflowError(
-            f'The output node of preset "{source}" takes no filename prefix. '
+            f'The output node of preset "{source}" names what it writes under neither {keys}. '
             f"Title a saving node {OUTPUT_NODE_TITLE!r} instead."
         )
 
@@ -254,6 +268,7 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
         input_node=input_node,
         input_key=input_key,
         output_node=output_node,
+        output_key=output_key,
         seed_nodes=(seed_node,) if seed_node else (),
         prompt_node=prompt_node,
         fps_node=fps_node,
@@ -328,6 +343,20 @@ def load_comfy_workflow(name: str) -> ComfyWorkflow:
     return parse_comfy_workflow(read_comfy_preset_text(name), source=name)
 
 
+def _output_name(key: str, saved: object, filename_prefix: str) -> str:
+    """What to write into the save node's name widget for this file.
+
+    A prefix node takes the path-shaped value ComfyUI completes itself. A node that writes the
+    file takes a whole name, so the run is scoped into it and the saved extension is kept: left
+    alone, every file in a job would land on the one name the preset was exported with.
+    """
+    if key == "filename_prefix":
+        return filename_prefix
+
+    suffix = Path(saved).suffix if isinstance(saved, str) else ""
+    return f"{filename_prefix.replace('/', '_')}{suffix}"
+
+
 def build_comfy_prompt(
     workflow: ComfyWorkflow,
     *,
@@ -343,8 +372,10 @@ def build_comfy_prompt(
     prompt[workflow.input_node]["inputs"][workflow.input_key] = media_ref
 
     output_inputs = prompt[workflow.output_node].get("inputs")
-    if isinstance(output_inputs, dict) and "filename_prefix" in output_inputs:
-        output_inputs["filename_prefix"] = filename_prefix
+    if isinstance(output_inputs, dict) and workflow.output_key is not None:
+        output_inputs[workflow.output_key] = _output_name(
+            workflow.output_key, output_inputs.get(workflow.output_key), filename_prefix
+        )
 
     if seed is not None:
         for node_id in workflow.seed_nodes:
