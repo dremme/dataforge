@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from typing import BinaryIO
 
 import anyio
+import anyio.to_thread
 from starlette.responses import FileResponse
 from starlette.types import Receive, Scope, Send
 
@@ -118,7 +119,7 @@ class MediaFileResponse(FileResponse):
                 raise group.exceptions[0] from None
             raise
 
-    async def _handle_simple(self, send: Send, send_header_only: bool) -> None:
+    async def _handle_simple(self, send: Send, send_header_only: bool, send_pathsend: bool) -> None:
         await send(
             {
                 "type": "http.response.start",

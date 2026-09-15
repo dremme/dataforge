@@ -90,8 +90,8 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
 
             event = await subscriber.next_event(2.0)
             self.assertIsNotNone(event)
-            self.assertEqual(event["type"], "folder")  # type: ignore[index]
-            self.assertEqual(event["fingerprint"], "fp-1")  # type: ignore[index]
+            self.assertEqual(event["type"], "folder")
+            self.assertEqual(event["fingerprint"], "fp-1")
 
             # The fingerprint has not moved, so there is nothing more to say.
             self.assertIsNone(await subscriber.next_event(0.2))
@@ -117,7 +117,7 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
 
             event = await subscriber.next_event(2.0)
             self.assertIsNotNone(event)
-            self.assertEqual(event["fingerprint"], folder_watch.UNREADABLE_FINGERPRINT)  # type: ignore[index]
+            self.assertEqual(event["fingerprint"], folder_watch.UNREADABLE_FINGERPRINT)
 
             self.assertIsNone(await subscriber.next_event(0.2))
 
@@ -141,7 +141,7 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
 
             event = await subscriber.next_event(2.0)
             self.assertIsNotNone(event)
-            self.assertEqual(event["fingerprint"], "fp-1")  # type: ignore[index]
+            self.assertEqual(event["fingerprint"], "fp-1")
 
     async def test_two_tabs_on_different_folders_each_get_only_their_own(self) -> None:
         def scan(folder):
@@ -163,8 +163,8 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(first_event)
             self.assertIsNotNone(second_event)
             # Paths are published in the folded form the watcher keys on.
-            self.assertTrue(first_event["path"].endswith("photos"))  # type: ignore[index]
-            self.assertTrue(second_event["path"].endswith("videos"))  # type: ignore[index]
+            self.assertTrue(first_event["path"].endswith("photos"))
+            self.assertTrue(second_event["path"].endswith("videos"))
 
             # Neither tab is told about the other's folder.
             self.assertIsNone(await first.next_event(0.2))

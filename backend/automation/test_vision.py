@@ -35,6 +35,8 @@ from automation.vision import (
     VIDEO_FRAME_SCALE_END_SECONDS,
     VIDEO_FRAME_SCALE_START_SECONDS,
     VIDEO_KEYFRAME_COUNT,
+    MediaFrames,
+    MediaLoadError,
     get_image_max_pixels,
     get_keyframes_per_second,
     get_max_video_keyframes,
@@ -483,10 +485,8 @@ class LoadMediaImagesTests(unittest.TestCase):
 
     def test_a_still_loads_as_one_frame(self) -> None:
         with TempMediaFolder() as root:
-            frames, error = load_media_images(write_media(root, "photo.png"))
-
-            self.assertIsNone(error)
-            assert frames is not None
+            frames = load_media_images(write_media(root, "photo.png"))
+            assert isinstance(frames, MediaFrames)
             self.assertEqual(len(frames.images), 1)
             # One frame has no timeline to place it on, so the request stays unlabelled.
             self.assertIsNone(frames.timestamps)
@@ -497,19 +497,15 @@ class LoadMediaImagesTests(unittest.TestCase):
             broken = root / "broken.png"
             broken.write_bytes(b"not an image")
 
-            images, error = load_media_images(broken)
-
-            self.assertIsNone(images)
-            assert error is not None
+            error = load_media_images(broken)
+            assert isinstance(error, MediaLoadError)
             self.assertEqual(error.status, READ_ERROR)
             self.assertTrue(error.message)
 
     def test_a_gif_loads_as_its_opening_frame_alone(self) -> None:
         with TempMediaFolder() as root:
-            frames, error = load_media_images(write_gif(root, "loop.gif", frames=8))
-
-            self.assertIsNone(error)
-            assert frames is not None
+            frames = load_media_images(write_gif(root, "loop.gif", frames=8))
+            assert isinstance(frames, MediaFrames)
             self.assertEqual(len(frames.images), 1)
             # One frame is a still, and a still has no timeline to label it against.
             self.assertIsNone(frames.timestamps)
@@ -525,10 +521,8 @@ class LoadMediaImagesTests(unittest.TestCase):
             media = write_gif(root, "loop.gif", frames=8)
 
             with patch.dict("sys.modules", {"cv2": fake_cv2}):
-                frames, error = load_media_images(media)
-
-        self.assertIsNone(error)
-        assert frames is not None
+                frames = load_media_images(media)
+        assert isinstance(frames, MediaFrames)
         self.assertEqual(len(frames.images), 1)
 
     def test_an_unreadable_gif_reports_read_error(self) -> None:
@@ -537,10 +531,8 @@ class LoadMediaImagesTests(unittest.TestCase):
             broken = root / "broken.gif"
             broken.write_bytes(b"not a gif")
 
-            frames, error = load_media_images(broken)
-
-            self.assertIsNone(frames)
-            assert error is not None
+            error = load_media_images(broken)
+            assert isinstance(error, MediaLoadError)
             self.assertEqual(error.status, READ_ERROR)
             self.assertTrue(error.message)
 
@@ -550,10 +542,8 @@ class LoadMediaImagesTests(unittest.TestCase):
             broken = root / "broken.mp4"
             broken.write_bytes(b"not a video")
 
-            images, error = load_media_images(broken)
-
-            self.assertIsNone(images)
-            assert error is not None
+            error = load_media_images(broken)
+            assert isinstance(error, MediaLoadError)
             self.assertEqual(error.status, FRAME_ERROR)
             self.assertIsNone(error.message)
 

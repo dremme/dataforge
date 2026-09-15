@@ -6,6 +6,7 @@ import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 MAX_CACHE_ENTRIES = 20_000
 
@@ -35,7 +36,7 @@ def cached_by_stat[T](
         hit = _cache.get(key, _MISS)
         if hit is not _MISS:
             _cache.move_to_end(key)
-            return hit  # type: ignore[return-value]
+            return cast(T, hit)
 
     value = load()
 

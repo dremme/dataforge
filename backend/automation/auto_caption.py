@@ -22,6 +22,7 @@ from automation.llm import (
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import (
     MediaKind,
+    MediaLoadError,
     keyframe_sentence,
     load_media_images,
     media_kind_for,
@@ -267,9 +268,9 @@ def process_media(
         return media_path, None, status, None, False
 
     media_kind = media_kind_for(media_path)
-    frames, load_error = load_media_images(media_path)
-    if load_error is not None:
-        return media_path, None, load_error.status, load_error.message, False
+    frames = load_media_images(media_path)
+    if isinstance(frames, MediaLoadError):
+        return media_path, None, frames.status, frames.message, False
 
     # Extracted once so retries re-send the same bytes instead of decoding the clip three times.
     audio_wav = extract_audio_wav(media_path) if caption_audio and media_kind == "video" else None

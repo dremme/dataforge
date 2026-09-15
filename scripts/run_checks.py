@@ -130,6 +130,8 @@ def _run_check_steps(
     """``None`` for either tool means that side of the stack is out of scope."""
     if python is not None:
         _run_step("Backend format + lint", [str(python), str(SCRIPTS / "run_lint.py")], cwd=ROOT)
+        # Grouped with static checks for the same reason as the frontend typecheck below.
+        _run_step("Backend typecheck", [str(python), str(SCRIPTS / "run_typecheck.py")], cwd=ROOT)
     if npm is not None:
         _run_step("Frontend ESLint", [npm, "run", "lint"], cwd=FRONTEND)
         _run_step("Frontend Prettier", [npm, "run", "format:check"], cwd=FRONTEND)

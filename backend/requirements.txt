@@ -1,16 +1,16 @@
-fastapi==0.115.6
+fastapi==0.141.1
 # Pinned deliberately: media_file_response.MediaFileResponse overrides FileResponse's
 # private _handle_* methods, so a starlette bump must be a considered change.
 # test_media_file_response.StarletteApiGuardTests fails loudly if they move.
-starlette==0.41.3
-uvicorn[standard]==0.34.0
+starlette==0.52.1
+uvicorn[standard]==0.53.0
 python-multipart==0.0.32
 python-dotenv==1.2.3
 httpx==0.28.1
-openai==1.59.6
-Pillow==11.1.0
+openai==1.109.1
+Pillow==11.3.0
 imageio-ffmpeg==0.6.0
-PyYAML==6.0.2
+PyYAML==6.0.3
 # torch is optional: it is only a fallback for GPU name/VRAM in the automation
 # panel (see system_specs.py), and nvidia-smi is tried first. No CUDA build needed.
-opencv-python-headless>=4.8.0
+opencv-python-headless>=4.14.0.94,<5

@@ -42,3 +42,26 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+
+[tool.ty.environment]
+# Pinned, not inferred: CI checks the backend under both 3.12 and 3.13 and the two must agree.
+python-version = "3.12"
+
+[tool.ty.src]
+exclude = ["data", "__pycache__"]
+
+[tool.ty.rules]
+# FastAPI's Query()/Depends() defaults are the documented way to declare a parameter, and ruff
+# already exempts them through B008.
+invalid-parameter-default = "ignore"
+
+[[tool.ty.overrides]]
+include = ["**/test_*.py"]
+
+# Tests assert into the `dict[str, object]` a job returns, so these fire on nearly every
+# assertion rather than on anything wrong. Narrowing that return type is what would let them back.
+[tool.ty.overrides.rules]
+invalid-argument-type = "ignore"
+not-iterable = "ignore"
+not-subscriptable = "ignore"
+unresolved-attribute = "ignore"

@@ -2,6 +2,7 @@ import json
 import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 from caption_cache import cached_by_stat
 from constants import (
@@ -84,7 +85,13 @@ def caption_summary_from_sidecar(
     return cached_by_stat("caption", sidecar_path, mtime_ns, size, load)
 
 
-def _load_caption_bundle(media_path: Path) -> dict[str, object]:
+class CaptionBundle(NamedTuple):
+    description: str | None
+    caption_status: str
+    caption_path: Path | None
+
+
+def _load_caption_bundle(media_path: Path) -> CaptionBundle:
     description: str | None = None
     caption_status = "none"
 
@@ -93,19 +100,12 @@ def _load_caption_bundle(media_path: Path) -> dict[str, object]:
     if caption_path is not None:
         description, caption_status = _caption_summary_from_raw(_read_caption_text(caption_path))
 
-    return {
-        "description": description,
-        "caption_status": caption_status,
-        "caption_path": caption_path,
-    }
+    return CaptionBundle(description, caption_status, caption_path)
 
 
 def load_caption_summary(media_path: Path) -> tuple[str | None, str]:
     bundle = _load_caption_bundle(media_path)
-    return (
-        bundle["description"],  # type: ignore[return-value]
-        bundle["caption_status"],  # type: ignore[return-value]
-    )
+    return (bundle.description, bundle.caption_status)
 
 
 def media_has_caption_text(media_path: Path) -> bool:
@@ -135,9 +135,9 @@ def load_reference_caption(media_path: Path) -> tuple[str | None, str]:
 
 def build_caption_response(media_path: Path) -> dict[str, object]:
     bundle = _load_caption_bundle(media_path)
-    description = bundle["description"]
-    caption_status = bundle["caption_status"]
-    caption_path = bundle["caption_path"]
+    description = bundle.description
+    caption_status = bundle.caption_status
+    caption_path = bundle.caption_path
 
     issue_fixes, has_issue_file = load_issue_summary(media_path)
 

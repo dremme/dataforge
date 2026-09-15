@@ -251,7 +251,7 @@ def run_with(handler, folder: Path, *, preset: str = "upscale", **kwargs: object
         return real_client(transport=httpx.MockTransport(handler))
 
     with patch("automation.comfy_process.httpx.Client", make_client):
-        return run_comfy_process_job(folder, preset=preset, **kwargs)  # type: ignore[arg-type]
+        return run_comfy_process_job(folder, preset=preset, **kwargs)
 
 
 class ValidateTests(unittest.TestCase):

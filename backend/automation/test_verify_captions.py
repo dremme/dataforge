@@ -893,7 +893,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             # Fixture MP4s are often not seekable; a successful load is enough to reach verify_caption.
             def fake_load(path):
-                return MediaFrames(images=frames), None
+                return MediaFrames(images=frames)
 
             with (
                 patch("automation.verify_captions.load_media_images", side_effect=fake_load),
@@ -923,7 +923,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             with (
                 patch(
                     "automation.verify_captions.load_media_images",
-                    side_effect=lambda _path: (MediaFrames(images=frames), None),
+                    side_effect=lambda _path: MediaFrames(images=frames),
                 ),
                 patch(
                     "automation.verify_captions.verify_caption",
@@ -947,7 +947,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             with patch(
                 "automation.verify_captions.load_media_images",
-                return_value=(None, MediaLoadError(FRAME_ERROR)),
+                return_value=MediaLoadError(FRAME_ERROR),
             ):
                 result = run_verify_captions_job(root)
 
@@ -958,9 +958,8 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
     def test_verify_caption_sends_a_gif_as_a_single_still(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif", frames=8)
-            frames, error = load_media_images(media)
-            self.assertIsNone(error)
-            assert frames is not None
+            frames = load_media_images(media)
+            assert isinstance(frames, MediaFrames)
             self.assertEqual(len(frames.images), 1)
             self.assertEqual(media_kind_for(media), "image")
 
@@ -988,8 +987,8 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
         """Auto-caption's audio option must not leak into the job that shares its plumbing."""
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif", frames=8)
-            frames, _error = load_media_images(media)
-            assert frames is not None
+            frames = load_media_images(media)
+            assert isinstance(frames, MediaFrames)
 
             for mode in ("thinking", "instruct"):
                 with self.subTest(mode=mode):

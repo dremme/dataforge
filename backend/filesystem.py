@@ -236,7 +236,7 @@ def _open_with_os_handler(
 
     try:
         if sys.platform == "win32":
-            os.startfile(path)  # type: ignore[attr-defined]
+            os.startfile(path)
             return
         if sys.platform == "darwin":
             subprocess.run(["open", path], check=True)

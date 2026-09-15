@@ -106,8 +106,8 @@ def describe_exception(exc: BaseException) -> str:
 
 def describe_empty_completion(response: object) -> str:
     """Why a 200 response carried no usable assistant text."""
-    choices = _field(response, "choices") or []
-    if not choices:
+    choices = _field(response, "choices")
+    if not isinstance(choices, list) or not choices:
         return "the response carried no choices"
 
     choice = choices[0]
@@ -161,7 +161,8 @@ def run_chat_completion(
         logger.error("Model request to %s failed: %s", resolved_model, describe_exception(exc))
         return None
 
-    choices = _field(response, "choices") or []
+    choices = _field(response, "choices")
+    choices = choices if isinstance(choices, list) else []
     raw = (
         assistant_message_text(
             _field(choices[0], "message"),

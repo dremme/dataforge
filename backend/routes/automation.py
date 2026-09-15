@@ -144,7 +144,8 @@ def preview_replace_captions_job(
         # An unusable edit is the normal state while typing, so it is a body field, not a 400.
         return ReplaceCaptionsPreviewResponse(folder=str(folder), error=str(exc))
 
-    return ReplaceCaptionsPreviewResponse(**preview)
+    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
+    return ReplaceCaptionsPreviewResponse(**preview)  # ty: ignore[invalid-argument-type]
 
 
 @router.post("/automation/find-duplicates", response_model=JobResponse)

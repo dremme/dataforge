@@ -45,20 +45,27 @@ def graded(width: int = WIDTH, height: int = HEIGHT) -> Image.Image:
     return image
 
 
-def columns(image: Image.Image, row: int = 0) -> list[tuple[int, int, int]]:
+def _rgb(pixels: Image.Image, xy: tuple[int, int]) -> tuple[int, ...]:
+    """getpixel's width follows the mode, which the stub cannot read off the convert() above."""
+    value = pixels.getpixel(xy)
+    assert isinstance(value, tuple)
+    return value
+
+
+def columns(image: Image.Image, row: int = 0) -> list[tuple[int, ...]]:
     pixels = image.convert("RGB")
-    return [pixels.getpixel((x, row)) for x in range(image.width)]
+    return [_rgb(pixels, (x, row)) for x in range(image.width)]
 
 
-def corners(image: Image.Image) -> tuple[tuple[int, int, int], ...]:
+def corners(image: Image.Image) -> tuple[tuple[int, ...], ...]:
     """Top-left, top-right, bottom-right, bottom-left - clockwise from the top-left."""
     width, height = image.size
     pixels = image.convert("RGB")
     return (
-        pixels.getpixel((0, 0)),
-        pixels.getpixel((width - 1, 0)),
-        pixels.getpixel((width - 1, height - 1)),
-        pixels.getpixel((0, height - 1)),
+        _rgb(pixels, (0, 0)),
+        _rgb(pixels, (width - 1, 0)),
+        _rgb(pixels, (width - 1, height - 1)),
+        _rgb(pixels, (0, height - 1)),
     )
 
 
@@ -385,7 +392,7 @@ class IdentitySpecTests(unittest.TestCase):
 def channel_means(image: Image.Image) -> tuple[float, float, float]:
     pixels = list(image.convert("RGB").getdata())
     count = len(pixels)
-    return tuple(sum(pixel[band] for pixel in pixels) / count for band in range(3))  # type: ignore[return-value]
+    return tuple(sum(pixel[band] for pixel in pixels) / count for band in range(3))
 
 
 class RenderColorTests(unittest.TestCase):

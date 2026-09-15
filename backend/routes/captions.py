@@ -48,7 +48,8 @@ def read_caption(
     path: str = Query(..., description="Absolute path to image or video file"),
 ) -> CaptionSaveResponse:
     file_path = resolve_media_file(path)
-    return CaptionSaveResponse(**build_caption_response(file_path))
+    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
+    return CaptionSaveResponse(**build_caption_response(file_path))  # ty: ignore[invalid-argument-type]
 
 
 @router.get("/caption/backup", response_model=CaptionBackupResponse)
@@ -116,7 +117,8 @@ def update_caption(
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Failed to write caption file") from exc
 
-    return CaptionSaveResponse(**result)
+    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
+    return CaptionSaveResponse(**result)  # ty: ignore[invalid-argument-type]
 
 
 @router.put("/sysprompt", response_model=SysPromptSaveResponse)

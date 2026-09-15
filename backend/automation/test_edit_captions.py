@@ -74,7 +74,7 @@ def _caption_text(media: Path) -> str:
 
 def _run(root: Path, **kwargs: object) -> dict:
     kwargs.setdefault("instruction", INSTRUCTION)
-    return run_edit_captions_job(root, **kwargs)  # type: ignore[arg-type]
+    return run_edit_captions_job(root, **kwargs)
 
 
 class EditCaptionsPromptTests(unittest.TestCase):

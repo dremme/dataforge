@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
+from typing import get_args
 
 import events
 from automation import jobs_store
@@ -72,6 +73,10 @@ from schemas import JobEvent, JobResponse, JobStatus, JobType
 
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
+# Derived from the aliases rather than restated, so a new status cannot be valid in one place only.
+JOB_STATUSES: tuple[JobStatus, ...] = get_args(JobStatus.__value__)
+JOB_TYPES: tuple[JobType, ...] = get_args(JobType.__value__)
+
 # Mid-run frames are thinned to this cadence; a status change always goes out immediately.
 JOB_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
@@ -115,6 +120,29 @@ def _resolve_stats_errors(message: Callable[[dict[str, int]], str | None]) -> St
     return resolve
 
 
+def _stored_text(data: dict[str, object], key: str) -> str | None:
+    value = data.get(key)
+    return value if isinstance(value, str) else None
+
+
+def _stored_int(data: dict[str, object], key: str) -> int:
+    value = data.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _stored_literal[T: str](
+    data: dict[str, object], key: str, allowed: tuple[T, ...], fallback: T
+) -> T:
+    """One of ``allowed``, or the fallback. A retired value in an old row must not become a status
+    nothing downstream can render."""
+    value = data.get(key)
+    # Returns the member itself: a comparison narrows nothing, so `value` stays a plain str.
+    for option in allowed:
+        if value == option:
+            return option
+    return fallback
+
+
 @dataclass
 class Job:
     id: str
@@ -136,25 +164,27 @@ class Job:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Job:
+        """Rebuild a job from its stored row. A column of the wrong shape falls back rather than
+        propagating into a field the rest of the app trusts."""
         stats = data.get("stats") or {}
         results = data.get("results") or []
         return cls(
             id=str(data["id"]),
             folder=str(data["folder"]),
-            status=data["status"],  # type: ignore[arg-type]
-            total=int(data.get("total") or 0),
-            processed=int(data.get("processed") or 0),
-            current_file=data.get("current_file"),  # type: ignore[arg-type]
-            current_name=data.get("current_name"),  # type: ignore[arg-type]
+            status=_stored_literal(data, "status", JOB_STATUSES, "queued"),
+            total=_stored_int(data, "total"),
+            processed=_stored_int(data, "processed"),
+            current_file=_stored_text(data, "current_file"),
+            current_name=_stored_text(data, "current_name"),
             stats=dict(stats) if isinstance(stats, dict) else {},
             results=list(results) if isinstance(results, list) else [],
-            error=data.get("error"),  # type: ignore[arg-type]
+            error=_stored_text(data, "error"),
             created_at=str(data["created_at"]),
-            started_at=data.get("started_at"),  # type: ignore[arg-type]
-            finished_at=data.get("finished_at"),  # type: ignore[arg-type]
-            job_type=data.get("job_type", "auto_caption"),  # type: ignore[arg-type]
-            auto_caption_mode=data.get("auto_caption_mode"),  # type: ignore[arg-type]
-            external_ref=data.get("external_ref"),  # type: ignore[arg-type]
+            started_at=_stored_text(data, "started_at"),
+            finished_at=_stored_text(data, "finished_at"),
+            job_type=_stored_literal(data, "job_type", JOB_TYPES, "auto_caption"),
+            auto_caption_mode=_stored_text(data, "auto_caption_mode"),
+            external_ref=_stored_text(data, "external_ref"),
         )
 
     def to_summary_dict(self) -> dict[str, object]:
@@ -237,7 +267,7 @@ def _validate_watermark(folder: Path, **params: object) -> None:
         folder,
         text=str(params.get("text", "")),
         size=str(params.get("size", DEFAULT_WATERMARK_SIZE)),
-        opacity=int(params.get("opacity", DEFAULT_WATERMARK_OPACITY)),  # type: ignore[arg-type]
+        opacity=_stored_int(params, "opacity") or DEFAULT_WATERMARK_OPACITY,
         position=str(params.get("position", DEFAULT_WATERMARK_POSITION)),
         selected_paths=_selected_paths(params),
     )
@@ -714,10 +744,12 @@ class JobManager:
             if job is None:
                 return
 
-            job.total = int(result["total"])
-            job.processed = int(result["processed"])
-            job.stats = dict(result["stats"])
-            job.results = list(result["results"])
+            job.total = _stored_int(result, "total")
+            job.processed = _stored_int(result, "processed")
+            stats = result.get("stats")
+            job.stats = dict(stats) if isinstance(stats, dict) else {}
+            results = result.get("results")
+            job.results = list(results) if isinstance(results, list) else []
             job.current_file = None
             job.current_name = None
             job.finished_at = _utc_now()

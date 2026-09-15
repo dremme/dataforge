@@ -135,17 +135,21 @@ def _normalize_folder(folder: str) -> str:
 
 
 def _decode_json_object(raw: object) -> dict:
+    if not isinstance(raw, str | bytes | bytearray):
+        return {}
     try:
-        decoded = json.loads(raw) if raw else {}  # type: ignore[arg-type]
-    except (json.JSONDecodeError, TypeError):
+        decoded = json.loads(raw)
+    except json.JSONDecodeError:
         return {}
     return decoded if isinstance(decoded, dict) else {}
 
 
 def _decode_json_array(raw: object) -> list:
+    if not isinstance(raw, str | bytes | bytearray):
+        return []
     try:
-        decoded = json.loads(raw) if raw else []  # type: ignore[arg-type]
-    except (json.JSONDecodeError, TypeError):
+        decoded = json.loads(raw)
+    except json.JSONDecodeError:
         return []
     return decoded if isinstance(decoded, list) else []
 
@@ -190,7 +194,8 @@ def _job_column_value(job: dict[str, object], column: str) -> object:
     if column == "job_type":
         return job.get("job_type") or "auto_caption"
     if column in {"total", "processed"}:
-        return int(job.get(column) or 0)
+        value = job.get(column)
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
     if column == "stats_json":
         return json.dumps(job.get("stats") or {})
     if column == "results_json":

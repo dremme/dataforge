@@ -124,6 +124,15 @@ backend/.venv/bin/python scripts/run_checks.py --fix
 
 In the remaining commands, `<venv-python>` means the corresponding interpreter shown above.
 
+Backend checks use **Ruff** for Python linting, import sorting, and formatting, and **ty** for
+static type checking. Both are pinned in `backend/requirements-dev.txt`; install or update them with
+`<venv-python> -m pip install -r backend/requirements-dev.txt`. Their settings live in
+`backend/pyproject.toml` under `[tool.ruff]` and `[tool.ty]`, including ty's test-specific exceptions.
+
+`run_checks.py` runs both tools automatically. Use `--scope backend` for backend-only checks or
+`--lint-only` to skip tests while still running lint, formatting, and type checks. `--fix` applies
+lint and formatting fixes; type errors need to be resolved in the code.
+
 | Task                   | Command                                                                                             |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
 | API with hot reload    | `<venv-python> scripts/dev_server.py` — accepts `--no-reload`, `--port`, `--host`                   |
@@ -132,6 +141,7 @@ In the remaining commands, `<venv-python>` means the corresponding interpreter s
 | Full checks            | `<venv-python> scripts/run_checks.py --fix` — the same suite CI runs                                |
 | Regenerate API types   | `<venv-python> scripts/generate_types.py` — see [Generated frontend code](#generated-frontend-code) |
 | Backend lint           | `<venv-python> scripts/run_lint.py` — add `--fix` to auto-fix                                       |
+| Backend typecheck      | `<venv-python> scripts/run_typecheck.py` — ty; settings live in `backend/pyproject.toml`            |
 | Backend tests          | `<venv-python> scripts/run_tests.py`                                                                |
 | Frontend tests         | `cd frontend && npm test`                                                                           |
 | Frontend end-to-end    | `cd frontend && npm run test:e2e` — real backend + Chromium; needs `npx playwright install chromium` |

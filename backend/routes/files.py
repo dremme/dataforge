@@ -1,4 +1,5 @@
 import asyncio
+from typing import BinaryIO
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
@@ -30,7 +31,7 @@ async def import_files(
     if not files:
         raise HTTPException(status_code=400, detail="No files were provided")
 
-    uploads: list[tuple[str, object]] = []
+    uploads: list[tuple[str, BinaryIO]] = []
     for upload in files:
         if not upload.filename:
             continue

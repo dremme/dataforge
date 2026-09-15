@@ -39,7 +39,7 @@ class EventFanOutTests(unittest.IsolatedAsyncioTestCase):
             event = await subscriber.next_event(1.0)
             self.assertIsNotNone(event)
             # The oldest were dropped, so the queue starts at the overflow point.
-            self.assertEqual(event["index"], overflow)  # type: ignore[index]
+            self.assertEqual(event["index"], overflow)
 
     async def test_next_event_gives_up_so_the_stream_can_send_a_heartbeat(self) -> None:
         with events.subscribe() as subscriber:
@@ -76,8 +76,8 @@ class ExternalJobsFeedTests(unittest.IsolatedAsyncioTestCase):
 
             event = await subscriber.next_event(2.0)
             self.assertIsNotNone(event)
-            self.assertEqual(event["type"], "external_jobs")  # type: ignore[index]
-            self.assertEqual(event["available"], True)  # type: ignore[index]
+            self.assertEqual(event["type"], "external_jobs")
+            self.assertEqual(event["available"], True)
 
             # Nothing changed, so the feed has nothing more to say.
             self.assertIsNone(await subscriber.next_event(0.2))

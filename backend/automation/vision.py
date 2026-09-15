@@ -314,26 +314,24 @@ class MediaLoadError:
     message: str | None = None
 
 
-def load_media_images(
-    media_path: Path,
-) -> tuple[MediaFrames | None, MediaLoadError | None]:
+def load_media_images(media_path: Path) -> MediaFrames | MediaLoadError:
     """Load a video's keyframes or a single still; GIFs skip ``load_image_rgb`` (uncomposited RGB)."""
     if media_kind_for(media_path) == "video":
         keyframes = extract_video_keyframes(media_path)
         if keyframes is None or not keyframes.images:
-            return None, MediaLoadError(FRAME_ERROR)
-        return keyframes, None
+            return MediaLoadError(FRAME_ERROR)
+        return keyframes
 
     if media_path.suffix.lower() == GIF_EXTENSION:
         frame = extract_gif_first_frame(media_path)
         if frame is None:
-            return None, MediaLoadError(READ_ERROR, "Failed to read GIF")
-        return MediaFrames(images=[frame]), None
+            return MediaLoadError(READ_ERROR, "Failed to read GIF")
+        return MediaFrames(images=[frame])
 
     images, error = load_image_rgb(media_path)
     if images is None:
-        return None, MediaLoadError(READ_ERROR, error)
-    return MediaFrames(images=images), None
+        return MediaLoadError(READ_ERROR, error)
+    return MediaFrames(images=images)
 
 
 def audio_part(audio_wav: bytes) -> dict:

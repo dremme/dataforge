@@ -31,7 +31,7 @@ HASH_SIZE = 8
 def difference_hash(image: Image.Image, size: int = HASH_SIZE) -> int:
     """A 64-bit perceptual hash; Pillow only, so numpy stays out of ``requirements.txt``."""
     small = image.convert("L").resize((size + 1, size), Image.Resampling.LANCZOS)
-    pixels = list(small.getdata())
+    pixels = list(small.getdata())  # ty: ignore[invalid-argument-type]
 
     bits = 0
     for row in range(size):

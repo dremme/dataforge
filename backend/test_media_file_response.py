@@ -150,6 +150,17 @@ class OpenSharedReadTests(unittest.TestCase):
 
 
 class MediaFileResponseTests(unittest.TestCase):
+    def test_streams_body_when_server_supports_pathsend(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "sunset.png")
+            scope = _asgi_scope()
+            scope["extensions"] = {"http.response.pathsend": {}}
+
+            recorder = _serve(MediaFileResponse(media), scope)
+
+            self.assertEqual(recorder.status, 200)
+            self.assertEqual(recorder.body, media.read_bytes())
+
     def test_serves_full_body(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
@@ -344,7 +355,7 @@ class StarletteApiGuardTests(unittest.TestCase):
 
     def test_overridden_methods_keep_their_signatures(self) -> None:
         expected = {
-            "_handle_simple": ["self", "send", "send_header_only"],
+            "_handle_simple": ["self", "send", "send_header_only", "send_pathsend"],
             "_handle_single_range": [
                 "self",
                 "send",

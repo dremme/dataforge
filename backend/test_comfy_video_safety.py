@@ -89,7 +89,9 @@ class VideoSafetyTests(unittest.TestCase):
             )
             self.assertEqual(result["stats"]["success"], 1)
             state = read_candidate_sidecar(workspace.folder / "staging" / "clip.mp4")
+            assert state is not None
             self.assertEqual(state.frame_count, 10)
+            assert state.duration_seconds is not None
             self.assertAlmostEqual(state.duration_seconds, 1)
             self.assertTrue(state.dropped_audio)
 

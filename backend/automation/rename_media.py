@@ -34,9 +34,12 @@ def normalize_name_stem(stem: str) -> str:
 
 
 def normalize_start_number(start_number: object) -> int:
+    # Arrives as JSON from a job's stored settings, so anything at all can turn up here.
+    if isinstance(start_number, bool) or not isinstance(start_number, int | float | str):
+        raise ValueError("Start number must be a whole number")
     try:
-        value = int(start_number)  # type: ignore[arg-type]
-    except (TypeError, ValueError) as exc:
+        value = int(start_number)
+    except ValueError as exc:
         raise ValueError("Start number must be a whole number") from exc
     if value < 0:
         raise ValueError("Start number cannot be negative")

@@ -326,14 +326,17 @@ def build_video_edit_command(
     command += ["-i", str(source)]
 
     video_filters = build_video_filters(spec, frame_rate)
-    if spec.masks and source_size is None:
-        # Rendering the rest would hand back a file that looks edited but hides nothing.
-        raise RuntimeError("The video's frame size could not be read, so its blur cannot be placed")
 
     muted = spec.volume <= IDENTITY_EPSILON
 
     # Regions need `split` and `overlay`, which a linear `-vf` chain cannot express.
     if spec.masks:
+        if source_size is None:
+            # Rendering the rest would hand back a file that looks edited but hides nothing.
+            raise RuntimeError(
+                "The video's frame size could not be read, so its blur cannot be placed"
+            )
+
         command += ["-filter_complex", build_mask_filtergraph(spec, source_size, video_filters)]
         command += ["-map", "[v]"]
     else:

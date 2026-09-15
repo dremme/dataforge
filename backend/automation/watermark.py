@@ -137,7 +137,7 @@ def resolve_watermark_position(position: str) -> WatermarkPosition:
     if position not in WATERMARK_POSITIONS:
         options = ", ".join(WATERMARK_POSITIONS)
         raise ValueError(f"Watermark position must be one of: {options}")
-    return position  # type: ignore[return-value]
+    return position
 
 
 def _pillow_anchor_and_xy(

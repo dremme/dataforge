@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from comfy_metadata import read_media_metadata_values
+from schemas import ComfyPromptRole
 
 _MAX_STRING_HOPS = 12
 _MAX_PROMPT_CHARS = 20000
@@ -49,7 +50,7 @@ _PARAMETER_LABELS: dict[str, str] = {
 
 @dataclass(frozen=True)
 class PromptText:
-    role: str
+    role: ComfyPromptRole
     text: str
     node_id: str
     node_title: str | None
@@ -165,7 +166,9 @@ def _collect_prompts(graph: dict[str, dict], node_ids: list[str]) -> list[Prompt
     claimed: set[str] = set()
     distance = {node_id: index for index, node_id in enumerate(node_ids)}
 
-    def add(reached_at: str, origin: str, text: str, role: str, input_name: str) -> None:
+    def add(
+        reached_at: str, origin: str, text: str, role: ComfyPromptRole, input_name: str
+    ) -> None:
         if text.strip() in seen:
             return
         seen.add(text.strip())

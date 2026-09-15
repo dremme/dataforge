@@ -97,7 +97,7 @@ class DrawtextFilterTests(unittest.TestCase):
             font_path=SAMPLE_FONT,
             size=WATERMARK_SIZES[size],
             alpha=alpha,
-            position=position,  # type: ignore[arg-type]
+            position=position,
         )
 
     def test_builds_the_expected_filter(self) -> None:
@@ -663,7 +663,7 @@ class WatermarkOutputFolderTests(unittest.TestCase):
             def save(merged: Image.Image, destination: Path, **kwargs: object) -> None:
                 if destination.name.startswith("b_photo"):
                     raise OSError("disk full")
-                real_save(merged, destination, **kwargs)  # type: ignore[arg-type]
+                real_save(merged, destination, **kwargs)
 
             with patch.object(watermark_module, "save_image_preserving_format", side_effect=save):
                 result = run_watermark_job(root, text="Sample Studio")

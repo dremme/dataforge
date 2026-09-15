@@ -6,6 +6,7 @@ import errno
 import logging
 import os
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -178,7 +179,7 @@ def transfer_media_batch(
     *,
     mode: TransferMode,
     overwrite: bool = False,
-) -> dict[str, list[object]]:
+) -> dict[str, Sequence[object]]:
     preview = preview_media_transfer(destination_folder, source_paths)
     allowed_names = set(preview["eligible"])
     if overwrite:

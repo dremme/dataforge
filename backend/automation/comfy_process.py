@@ -548,7 +548,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("%s", exc)
         return 1
 
-    log_job_summary(logger, result)
+    log_job_summary(logger, result, stat_keys=PROCESSED_STAT_KEYS)
     return 0
 
 

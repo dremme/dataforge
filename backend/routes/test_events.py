@@ -64,10 +64,10 @@ class JobEventTests(unittest.IsolatedAsyncioTestCase):
                 job = await _await_terminal_job_event(subscriber, job_id)
 
             self.assertIsNotNone(job)
-            self.assertEqual(job["status"], "completed")  # type: ignore[index]
-            self.assertEqual(job["processed"], 1)  # type: ignore[index]
+            self.assertEqual(job["status"], "completed")
+            self.assertEqual(job["processed"], 1)
             # Results ride their own endpoint; they must never be pushed.
-            self.assertNotIn("results", job)  # type: ignore[operator]
+            self.assertNotIn("results", job)
 
 
 class EventStreamTests(unittest.IsolatedAsyncioTestCase):

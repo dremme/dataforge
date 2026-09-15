@@ -28,7 +28,7 @@ from testing_fixtures import (
 @contextmanager
 def _patched_job_runner(job_type: str, run: Callable[..., object]) -> Iterator[None]:
     """Swap a job type's runner. JOB_SPECS holds the function, so patching the module cannot."""
-    patched = replace(JOB_SPECS[job_type], run=run)  # type: ignore[index]
+    patched = replace(JOB_SPECS[job_type], run=run)
     with patch.dict(JOB_SPECS, {job_type: patched}):
         yield
 

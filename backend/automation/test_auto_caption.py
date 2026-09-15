@@ -687,17 +687,15 @@ class AutoCaptionGifTests(unittest.TestCase):
 
     def test_a_long_gif_still_sends_one_frame(self) -> None:
         with TempMediaFolder() as root:
-            frames, error = load_media_images(write_gif(root, "loop.gif", frames=120))
-
-            self.assertIsNone(error)
-            assert frames is not None
+            frames = load_media_images(write_gif(root, "loop.gif", frames=120))
+            assert isinstance(frames, MediaFrames)
             self.assertEqual(len(frames.images), 1)
 
     def test_the_user_text_is_the_image_prompt_with_no_frame_count(self) -> None:
         with TempMediaFolder() as root:
             media = write_gif(root, "short.gif", frames=5)
-            frames, _error = load_media_images(media)
-            assert frames is not None
+            frames = load_media_images(media)
+            assert isinstance(frames, MediaFrames)
 
             fake_client, captured = _make_fake_caption_client("A polished GIF caption.")
             complete_caption(fake_client, media, "System prompt", "Draft", images=frames.images)
@@ -1133,7 +1131,7 @@ class AutoCaptionAudioJobTests(unittest.TestCase):
 
     def _patched_frames(self):
         frames = MediaFrames(images=[Image.new("RGB", (64, 64), color="blue")])
-        return patch("automation.auto_caption.load_media_images", return_value=(frames, None))
+        return patch("automation.auto_caption.load_media_images", return_value=frames)
 
     def test_audio_is_extracted_once_and_resent_on_every_retry(self) -> None:
         with TempMediaFolder() as root:

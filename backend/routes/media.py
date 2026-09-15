@@ -166,7 +166,8 @@ def delete_media(
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return MediaDeleteResponse(**result)
+    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
+    return MediaDeleteResponse(**result)  # ty: ignore[invalid-argument-type]
 
 
 def _resolve_transfer_sources(paths: list[str]) -> tuple[list[Path], list[dict[str, str]]]:
@@ -205,7 +206,8 @@ def _transfer(
     source_paths, missing = _resolve_transfer_sources(paths)
     result = transfer_media_batch(folder, source_paths, mode=mode, overwrite=overwrite)
     result["failed"] = [*result["failed"], *missing]
-    return MediaTransferResponse(**result)
+    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
+    return MediaTransferResponse(**result)  # ty: ignore[invalid-argument-type]
 
 
 @router.post("/media/move/preview", response_model=MediaTransferPreviewResponse)
