@@ -54,21 +54,14 @@ export function selectFolderJob(
   }, null);
 }
 
+/** Earlier runs for the same folder and type stay: the server keeps them as history too. */
 export function upsertJob(jobs: Job[], job: Job): Job[] {
   const index = jobs.findIndex((entry) => entry.id === job.id);
-  if (index !== -1) {
-    const merged = [...jobs];
-    merged[index] = job;
-    return merged;
-  }
+  if (index === -1) return [job, ...jobs];
 
-  const jobType = jobTypeOf(job);
-  return [
-    job,
-    ...jobs.filter(
-      (entry) => !(foldersMatch(entry.folder, job.folder) && jobTypeOf(entry) === jobType),
-    ),
-  ];
+  const merged = [...jobs];
+  merged[index] = job;
+  return merged;
 }
 
 export function isTrainLoraCoTrackedByExternal(

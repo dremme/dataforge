@@ -1,8 +1,16 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from automation import jobs_store
 from automation.jobs import job_manager
 from routes._helpers import job_response, resolve_folder
-from schemas import JobDeleteResponse, JobResponse, JobResultsResponse, JobsResponse
+from schemas import (
+    JobDeleteResponse,
+    JobHistoryStatus,
+    JobResponse,
+    JobResultsResponse,
+    JobsResponse,
+    JobType,
+)
 
 router = APIRouter()
 
@@ -10,12 +18,17 @@ router = APIRouter()
 @router.get("/jobs", response_model=JobsResponse)
 def list_jobs(
     limit: int = Query(100, ge=1, le=100, description="Maximum number of jobs to return"),
+    offset: int = Query(0, ge=0, description="Matching jobs to skip, for paging"),
+    job_type: JobType | None = Query(None, description="Only jobs of this type"),
+    status: JobHistoryStatus | None = Query(None, description="Only jobs in this state"),
+    folder: str | None = Query(None, description="Only jobs that ran in this folder"),
 ) -> JobsResponse:
-    jobs = job_manager.list_jobs(limit=limit)
-    active_count = sum(1 for job in jobs if job.status in {"queued", "running"})
+    filters = {"job_type": job_type, "status": status, "folder": folder}
+    jobs = job_manager.list_jobs(limit=limit, offset=offset, **filters)
     return JobsResponse(
         jobs=[job_response(job) for job in jobs],
-        active_count=active_count,
+        active_count=jobs_store.count_jobs(status="active"),
+        total=jobs_store.count_jobs(**filters),
     )
 
 

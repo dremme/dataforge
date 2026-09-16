@@ -1,25 +1,10 @@
-import type { Job, JobType } from "@/shared/types";
+import type { JobType } from "@/shared/types";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
-import { jobTypeOf } from "./jobs";
 
 export type StartingJob = {
   folder: string;
   jobType: JobType;
 };
-
-export function upsertStartedJob(
-  jobs: Job[],
-  job: Job,
-  folderPath: string,
-  jobType: JobType,
-): Job[] {
-  return [
-    job,
-    ...jobs.filter(
-      (entry) => !(foldersMatch(entry.folder, folderPath) && jobTypeOf(entry) === jobType),
-    ),
-  ];
-}
 
 export function isStartingJobForFolder(
   startingJob: StartingJob | null,

@@ -24,19 +24,28 @@ describe("jobs API", () => {
   });
 
   it("fetches jobs with the default limit", async () => {
-    requestJsonMock.mockResolvedValue({ jobs: [], active_count: 0 });
+    requestJsonMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
 
     await fetchJobs();
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/jobs?limit=100");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/jobs?limit=100", { signal: undefined });
   });
 
-  it("fetches jobs with a custom limit", async () => {
-    requestJsonMock.mockResolvedValue({ jobs: [], active_count: 0 });
+  it("fetches a filtered page of history", async () => {
+    requestJsonMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
 
-    await fetchJobs(25);
+    await fetchJobs({
+      limit: 50,
+      offset: 50,
+      jobType: "watermark",
+      status: "stopped",
+      folder: "C:\\Photos",
+    });
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/jobs?limit=25");
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      "/api/jobs?limit=50&offset=50&job_type=watermark&status=stopped&folder=C%3A%5CPhotos",
+      { signal: undefined },
+    );
   });
 
   it("cancels a job", async () => {

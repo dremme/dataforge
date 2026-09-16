@@ -108,6 +108,54 @@
     @include modal-close-btn;
   }
 
+  &__filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.625rem var(--panel-padding) 0.75rem;
+    border-bottom: 1px solid var(--border);
+
+    .dialog__field {
+      margin-top: 0;
+    }
+
+    .dialog__select-wrap {
+      height: 2.25rem;
+    }
+
+    @media (max-width: 30rem) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  &__error {
+    @include inline-alert(danger);
+    margin: 0 0 0.75rem;
+  }
+
+  &__reset-filters,
+  &__load-more {
+    @include pill-btn-ghost(0.35rem);
+    align-self: center;
+    height: var(--control-height-sm);
+    padding: 0 0.75rem;
+    font-size: var(--text-xs);
+  }
+
+  &__more {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  &__more-count {
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+    @include tabular-nums;
+  }
+
   &__content {
     @include app-scrollbar;
     flex: 1;

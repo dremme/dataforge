@@ -46,6 +46,9 @@ type JobType = Literal[
     "comfy_process",
 ]
 
+#: The drawer's status filter; ``stopped`` covers both cancelled and interrupted.
+type JobHistoryStatus = Literal["active", "completed", "failed", "stopped"]
+
 #: ``prepend`` and ``append`` ignore the search term.
 type CaptionReplaceMode = Literal["replace", "prepend", "append"]
 
@@ -592,7 +595,10 @@ class JobResultsResponse(BaseModel):
 
 class JobsResponse(BaseModel):
     jobs: list[JobResponse] = Field(default_factory=list)
+    #: Every queued or running job, whatever the filter.
     active_count: int = 0
+    #: Jobs matching the filter, across all pages.
+    total: int = 0
 
 
 class JobDeleteResponse(BaseModel):

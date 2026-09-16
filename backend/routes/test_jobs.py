@@ -141,6 +141,108 @@ class JobsEndpointTests(unittest.TestCase):
             listed = client.get("/api/jobs")
             self.assertEqual(listed.json()["jobs"], [])
 
+    def test_delete_all_jobs_removes_more_than_one_page(self) -> None:
+        for index in range(120):
+            _stored(
+                f"bulk-{index:03}", created_at=f"2026-01-01T00:{index // 60:02}:{index % 60:02}"
+            )
+
+        self.assertEqual(client.delete("/api/jobs").json()["deleted_count"], 120)
+        self.assertEqual(client.get("/api/jobs").json()["total"], 0)
+
+
+def _stored(
+    job_id: str,
+    *,
+    folder: str = r"C:\datasets\sample",
+    job_type: str = "auto_caption",
+    status: str = "completed",
+    created_at: str = "2026-01-01T00:00:00+00:00",
+) -> None:
+    save_job(
+        {
+            "id": job_id,
+            "folder": folder,
+            "job_type": job_type,
+            "status": status,
+            "created_at": created_at,
+        }
+    )
+
+
+def _ids(query: str = "") -> list[str]:
+    return [job["id"] for job in client.get(f"/api/jobs{query}").json()["jobs"]]
+
+
+class JobHistoryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def tearDown(self) -> None:
+        reset_job_manager()
+
+    def test_a_second_run_for_the_same_folder_and_type_keeps_the_first(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            job_ids = []
+            with patch("automation.auto_caption.complete_caption", return_value=None):
+                for _ in range(2):
+                    started = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
+                    job_ids.append(started.json()["id"])
+                    wait_for_job(job_ids[-1])
+
+            self.assertEqual(set(_ids()), set(job_ids))
+            self.assertIsNotNone(get_job_from_store(job_ids[0]))
+
+    def test_restarting_the_manager_keeps_earlier_runs(self) -> None:
+        from automation.jobs import job_manager
+
+        _stored("older", created_at="2026-01-01T00:00:00+00:00")
+        _stored("newer", created_at="2026-01-02T00:00:00+00:00")
+
+        job_manager.initialize()
+
+        self.assertEqual(_ids(), ["newer", "older"])
+
+    def test_filters_by_type_status_and_folder(self) -> None:
+        _stored("caption", job_type="auto_caption", status="completed")
+        _stored("mark", job_type="watermark", status="failed", folder=r"C:\datasets\other")
+        _stored("halted", job_type="watermark", status="interrupted")
+        _stored("cancelled", job_type="auto_caption", status="cancelled")
+
+        self.assertEqual(set(_ids("?job_type=watermark")), {"mark", "halted"})
+        self.assertEqual(set(_ids("?status=stopped")), {"halted", "cancelled"})
+        self.assertEqual(_ids("?status=failed"), ["mark"])
+        self.assertEqual(
+            set(_ids(f"?folder={quote(r'C:\datasets\sample')}")), {"caption", "halted", "cancelled"}
+        )
+        self.assertEqual(_ids("?job_type=watermark&status=stopped"), ["halted"])
+
+    def test_pages_through_matching_jobs_with_a_total(self) -> None:
+        for index in range(5):
+            _stored(f"job-{index}", created_at=f"2026-01-0{index + 1}T00:00:00+00:00")
+
+        first = client.get("/api/jobs?limit=2").json()
+        second = client.get("/api/jobs?limit=2&offset=2").json()
+
+        self.assertEqual([job["id"] for job in first["jobs"]], ["job-4", "job-3"])
+        self.assertEqual([job["id"] for job in second["jobs"]], ["job-2", "job-1"])
+        self.assertEqual(first["total"], 5)
+
+    def test_the_active_count_ignores_the_filter(self) -> None:
+        _stored("running", job_type="watermark", status="running")
+        _stored("done", job_type="auto_caption", status="completed")
+
+        payload = client.get("/api/jobs?job_type=auto_caption").json()
+
+        self.assertEqual(payload["active_count"], 1)
+        self.assertEqual(payload["total"], 1)
+
+    def test_an_unknown_status_filter_is_rejected(self) -> None:
+        self.assertEqual(client.get("/api/jobs?status=cancelled").status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()

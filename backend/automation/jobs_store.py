@@ -7,6 +7,15 @@ import sqlite3
 
 from db import get_connection
 from filesystem import normalize_user_path, path_leaf_name
+from schemas import JobHistoryStatus
+
+#: The stored statuses each history filter covers.
+_HISTORY_STATUSES: dict[JobHistoryStatus, tuple[str, ...]] = {
+    "active": ("queued", "running"),
+    "completed": ("completed",),
+    "failed": ("failed",),
+    "stopped": ("cancelled", "interrupted"),
+}
 
 # CREATE, SELECT, INSERT, and the add-column migration are all derived from this.
 _JOB_SCHEMA: tuple[tuple[str, str], ...] = (
@@ -94,6 +103,12 @@ def init_jobs_table() -> None:
             """
             CREATE INDEX IF NOT EXISTS idx_jobs_status
             ON jobs(status, created_at DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_jobs_type
+            ON jobs(job_type, created_at DESC)
             """
         )
         _migrate_add_missing_columns(conn)
@@ -221,27 +236,72 @@ def get_job(job_id: str) -> dict[str, object] | None:
     return _row_to_dict(row) if row else None
 
 
-def list_jobs(*, limit: int = 100) -> list[dict[str, object]]:
-    """Job summaries, newest and most active first. Carries no per-file results."""
+def _history_where(
+    *,
+    job_type: str | None,
+    status: JobHistoryStatus | None,
+    folder: str | None,
+) -> tuple[str, list[object]]:
+    clauses: list[str] = []
+    params: list[object] = []
+    if job_type:
+        clauses.append("job_type = ?")
+        params.append(job_type)
+    if status:
+        statuses = _HISTORY_STATUSES[status]
+        clauses.append(f"status IN ({', '.join('?' for _ in statuses)})")
+        params.extend(statuses)
+    if folder:
+        clauses.append("folder = ?")
+        params.append(_normalize_folder(folder))
+    return (f"WHERE {' AND '.join(clauses)}" if clauses else ""), params
+
+
+def list_jobs(
+    *,
+    limit: int = 100,
+    offset: int = 0,
+    job_type: str | None = None,
+    status: JobHistoryStatus | None = None,
+    folder: str | None = None,
+) -> list[dict[str, object]]:
+    """Job summaries, most active then newest first. Carries no per-file results."""
     safe_limit = max(1, min(limit, 100))
+    where, params = _history_where(job_type=job_type, status=status, folder=folder)
 
     with get_connection() as conn:
         rows = conn.execute(
             f"""
             SELECT {_JOB_SUMMARY_COLUMNS} FROM jobs
+            {where}
             ORDER BY
                 CASE status
                     WHEN 'running' THEN 0
                     WHEN 'queued' THEN 1
                     ELSE 2
                 END,
-                created_at DESC
-            LIMIT ?
+                created_at DESC,
+                id
+            LIMIT ? OFFSET ?
             """,
-            (safe_limit,),
+            (*params, safe_limit, max(0, offset)),
         ).fetchall()
 
     return [_row_to_dict(row, _JOB_SUMMARY_COLUMN_NAMES) for row in rows]
+
+
+def count_jobs(
+    *,
+    job_type: str | None = None,
+    status: JobHistoryStatus | None = None,
+    folder: str | None = None,
+) -> int:
+    where, params = _history_where(job_type=job_type, status=status, folder=folder)
+
+    with get_connection() as conn:
+        row = conn.execute(f"SELECT COUNT(*) FROM jobs {where}", params).fetchone()
+
+    return int(row[0]) if row else 0
 
 
 def get_latest_job_for_folder(
@@ -305,49 +365,5 @@ def delete_job(job_id: str) -> bool:
 def delete_all_jobs() -> int:
     with get_connection() as conn:
         cursor = conn.execute("DELETE FROM jobs")
-        conn.commit()
-        return cursor.rowcount
-
-
-def delete_jobs_for_folder(
-    folder: str, *, job_type: str | None = None, keep_id: str | None = None
-) -> int:
-    """Delete job records for the given folder (and optionally job_type), except an optional keep_id."""
-    normalized = _normalize_folder(folder)
-
-    query = "DELETE FROM jobs WHERE folder = ?"
-    params: list[object] = [normalized]
-    if job_type:
-        query += " AND job_type = ?"
-        params.append(job_type)
-    if keep_id:
-        query += " AND id != ?"
-        params.append(keep_id)
-
-    with get_connection() as conn:
-        cursor = conn.execute(query, params)
-        conn.commit()
-        return cursor.rowcount
-
-
-def prune_duplicate_jobs() -> int:
-    """Keep only the most recent job record for each (folder, job_type)."""
-    with get_connection() as conn:
-        cursor = conn.execute(
-            """
-            DELETE FROM jobs
-            WHERE id NOT IN (
-                SELECT id FROM (
-                    SELECT id,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY folder, COALESCE(job_type, 'auto_caption')
-                               ORDER BY created_at DESC, id
-                           ) AS rn
-                    FROM jobs
-                ) sub
-                WHERE rn = 1
-            )
-            """
-        )
         conn.commit()
         return cursor.rowcount

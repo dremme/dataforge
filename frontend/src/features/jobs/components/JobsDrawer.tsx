@@ -1,5 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useJobs } from "@/features/jobs/context/JobsContext";
+import { useJobHistory } from "@/features/jobs/hooks/useJobHistory";
+import {
+  DEFAULT_JOB_FILTERS,
+  isDefaultJobFilters,
+  JOB_FOLDER_FILTER_OPTIONS,
+  JOB_STATUS_FILTER_OPTIONS,
+  JOB_TYPE_FILTER_OPTIONS,
+  jobHistoryStatusOf,
+  jobsQueryFor,
+  matchesJobFilters,
+  mergeJobLists,
+  type JobFilters,
+} from "@/features/jobs/lib/jobFilters";
+import { cacheJobFilters, readJobFilters } from "@/features/jobs/lib/jobFilterPreferences";
+import { DialogSelect } from "@/shared/ui/DialogSelect";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconBot, iconTrash2, iconX } from "@/shared/icons";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
@@ -31,6 +46,17 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [filters, setFilters] = useState<JobFilters>(readJobFilters);
+
+  // Starting, finishing or deleting a job changes which stored page is right; progress does not.
+  const refreshKey = useMemo(
+    () => jobs.map((job) => `${job.id}:${jobHistoryStatusOf(job.status)}`).join(","),
+    [jobs],
+  );
+  const history = useJobHistory(jobsQueryFor(filters, currentFolder), {
+    enabled: drawerOpen,
+    refreshKey,
+  });
 
   const [closing, setClosing] = useState(false);
   const [renderedOpen, setRenderedOpen] = useState(drawerOpen);
@@ -43,10 +69,22 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
 
   if (!drawerOpen && !closing) return null;
 
-  const localJobs = jobs.filter((job) => !isTrainLoraCoTrackedByExternal(job, externalJobs));
+  const filtering = !isDefaultJobFilters(filters);
+  const matches = (job: (typeof jobs)[number]) => matchesJobFilters(job, filters, currentFolder);
+  // The live copy wins so progress keeps moving; re-filtering drops a job whose status moved on.
+  const localJobs = mergeJobLists(jobs.filter(matches), history.jobs).filter(
+    (job) => matches(job) && !isTrainLoraCoTrackedByExternal(job, externalJobs),
+  );
   const hasLocalJobs = localJobs.length > 0;
   const hasExternalJobs = externalJobs.length > 0;
   const hasAnyJobs = hasLocalJobs || hasExternalJobs;
+  const hasHistory = jobs.length > 0 || history.total > 0 || filtering;
+  const recordCount = filtering ? null : Math.max(history.total, jobs.length);
+  const changeFilters = (next: JobFilters) => {
+    setFilters(next);
+    cacheJobFilters(next);
+  };
+  const updateFilter = (patch: Partial<JobFilters>) => changeFilters({ ...filters, ...patch });
 
   const runClearAll = async () => {
     setClearingAll(true);
@@ -84,7 +122,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
           </div>
 
           <div className="jobs-drawer__header-actions">
-            {hasLocalJobs && (
+            {(jobs.length > 0 || history.total > 0) && (
               <button
                 type="button"
                 className="jobs-drawer__clear-all"
@@ -108,13 +146,55 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
           </div>
         </header>
 
+        {hasHistory && (
+          <div className="jobs-drawer__filters" role="group" aria-label="Filter jobs">
+            <DialogSelect
+              label="Type"
+              value={filters.jobType}
+              options={JOB_TYPE_FILTER_OPTIONS}
+              onChange={(jobType) => updateFilter({ jobType })}
+            />
+            <DialogSelect
+              label="Status"
+              value={filters.status}
+              options={JOB_STATUS_FILTER_OPTIONS}
+              onChange={(status) => updateFilter({ status })}
+            />
+            <DialogSelect
+              label="Folder"
+              value={currentFolder ? filters.folder : "all"}
+              options={JOB_FOLDER_FILTER_OPTIONS}
+              disabled={!currentFolder}
+              onChange={(folder) => updateFilter({ folder })}
+            />
+          </div>
+        )}
+
         <div className="jobs-drawer__content" data-scroll-lock-allow>
-          {!hasAnyJobs ? (
+          {history.error && (
+            <p className="jobs-drawer__error" role="alert">
+              Could not load job history. {history.error}
+            </p>
+          )}
+          {!hasAnyJobs && filtering ? (
             <div className="jobs-drawer__empty">
-              <p>No automation jobs yet.</p>
-              <p className="jobs-drawer__empty-hint">
-                Start one from a folder with media files using the automation panel.
-              </p>
+              <p>{history.loading ? "Loading job history..." : "No jobs match these filters."}</p>
+              <button
+                type="button"
+                className="jobs-drawer__reset-filters"
+                onClick={() => changeFilters(DEFAULT_JOB_FILTERS)}
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : !hasAnyJobs ? (
+            <div className="jobs-drawer__empty">
+              <p>{history.loading ? "Loading job history..." : "No automation jobs yet."}</p>
+              {!history.loading && (
+                <p className="jobs-drawer__empty-hint">
+                  Start one from a folder with media files using the automation panel.
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -171,7 +251,25 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                       />
                     ))}
                   </div>
+                  {history.hasMore && (
+                    <div className="jobs-drawer__more">
+                      <span className="jobs-drawer__more-count">
+                        Showing {history.jobs.length} of {history.total}
+                      </span>
+                      <button
+                        type="button"
+                        className="jobs-drawer__load-more"
+                        onClick={history.loadMore}
+                        disabled={history.loading}
+                      >
+                        {history.loading ? "Loading..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
                 </section>
+              )}
+              {!hasLocalJobs && filtering && (
+                <p className="jobs-drawer__empty-hint">No DataForge jobs match these filters.</p>
               )}
             </>
           )}
@@ -181,7 +279,11 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
       {clearAllOpen && !closing && (
         <ConfirmDialog
           title="Delete all job records?"
-          description={`This permanently removes all ${jobs.length} job record${jobs.length === 1 ? "" : "s"} from history. Running jobs will be cancelled first.`}
+          description={
+            recordCount === null
+              ? "This permanently removes every job record from history, not just the filtered ones. Running jobs will be cancelled first."
+              : `This permanently removes all ${recordCount} job record${recordCount === 1 ? "" : "s"} from history. Running jobs will be cancelled first.`
+          }
           confirmLabel={clearingAll ? "Deleting..." : "Delete all"}
           confirmVariant="danger"
           busy={clearingAll}

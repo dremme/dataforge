@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
+import { fetchJobs } from "@/features/jobs/api/jobs";
+import type * as JobsApi from "@/features/jobs/api/jobs";
 import { resetScrollLockManagerForTests } from "@/shared/hooks/scrollLockManager";
 import type { ExternalOstrisJob, Job } from "@/shared/types";
 import { JobsDrawer } from "./JobsDrawer";
@@ -10,7 +12,13 @@ vi.mock("@/features/jobs/api/externalJobs", () => ({
   fetchOstrisTrainingSamples: vi.fn(),
 }));
 
+vi.mock("@/features/jobs/api/jobs", async (importOriginal) => ({
+  ...(await importOriginal<typeof JobsApi>()),
+  fetchJobs: vi.fn(),
+}));
+
 const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
+const fetchJobsMock = vi.mocked(fetchJobs);
 
 const trainingJob: Job = {
   id: "job-1",
@@ -79,6 +87,7 @@ function renderDrawer(jobs: Job[], externalJobs: ExternalOstrisJob[] = []) {
 beforeEach(() => {
   jobsContext.drawerOpen = true;
   fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
+  fetchJobsMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
 });
 
 afterEach(() => {
@@ -87,6 +96,87 @@ afterEach(() => {
 });
 
 describe("JobsDrawer", () => {
+  describe("history", () => {
+    const finishedCaption: Job = { ...captionJob, status: "completed", processed: 10 };
+    const olderWatermark: Job = {
+      ...captionJob,
+      id: "job-old",
+      job_type: "watermark",
+      status: "failed",
+      created_at: "2025-12-01T00:00:00.000Z",
+    };
+
+    it("lists stored runs the live list no longer carries", async () => {
+      fetchJobsMock.mockResolvedValue({ jobs: [olderWatermark], active_count: 0, total: 1 });
+
+      renderDrawer([finishedCaption]);
+
+      expect(await screen.findByLabelText("Watermark job for landscapes")).toBeInTheDocument();
+      expect(screen.getByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
+    });
+
+    it("sends the chosen filters and hides live jobs that do not match", async () => {
+      const user = userEvent.setup();
+      renderDrawer([finishedCaption]);
+
+      await user.selectOptions(screen.getByLabelText("Type"), "watermark");
+      await user.selectOptions(screen.getByLabelText("Status"), "failed");
+      await user.selectOptions(screen.getByLabelText("Folder"), "current");
+
+      await waitFor(() =>
+        expect(fetchJobsMock).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            offset: 0,
+            jobType: "watermark",
+            status: "failed",
+            // JSX attribute strings keep their backslashes, so this is what the drawer received.
+            folder: "C:\\\\datasets\\\\landscapes",
+          }),
+        ),
+      );
+      expect(screen.queryByLabelText("Auto-caption job for landscapes")).not.toBeInTheDocument();
+      expect(await screen.findByText("No jobs match these filters.")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(await screen.findByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
+    });
+
+    it("restores the filters chosen earlier in the session", async () => {
+      const user = userEvent.setup();
+      const first = renderDrawer([finishedCaption]);
+      await user.selectOptions(screen.getByLabelText("Status"), "failed");
+      first.unmount();
+      fetchJobsMock.mockClear();
+
+      renderDrawer([finishedCaption]);
+
+      expect(screen.getByLabelText("Status")).toHaveValue("failed");
+      await waitFor(() =>
+        expect(fetchJobsMock).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" })),
+      );
+    });
+
+    it("loads the next page on demand", async () => {
+      const user = userEvent.setup();
+      const firstPage = Array.from({ length: 50 }, (_, index) => ({
+        ...finishedCaption,
+        id: `page-1-${index}`,
+      }));
+      fetchJobsMock
+        .mockResolvedValueOnce({ jobs: firstPage, active_count: 0, total: 51 })
+        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 51 });
+
+      renderDrawer([finishedCaption]);
+
+      expect(await screen.findByText("Showing 50 of 51")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Load more" }));
+
+      expect(await screen.findByLabelText("Watermark job for landscapes")).toBeInTheDocument();
+      expect(fetchJobsMock).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 50 }));
+      expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    });
+  });
+
   it("slides out before leaving the DOM", () => {
     const { rerender } = renderDrawer([captionJob]);
     expect(screen.getByRole("dialog")).toBeInTheDocument();

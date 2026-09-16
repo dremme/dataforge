@@ -718,7 +718,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const activeCount = jobs.filter(
         (job) => job.status === "queued" || job.status === "running",
       ).length;
-      return jsonResponse({ jobs, active_count: activeCount });
+      return jsonResponse({ jobs, active_count: activeCount, total: jobs.length });
     }
 
     if (url.pathname === "/api/jobs/folder-latest") {

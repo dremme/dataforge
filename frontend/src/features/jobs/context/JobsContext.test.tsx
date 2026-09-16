@@ -80,7 +80,7 @@ function renderProvider() {
 }
 
 beforeEach(() => {
-  listJobs.mockResolvedValue({ jobs: [runningJob], active_count: 1 });
+  listJobs.mockResolvedValue({ jobs: [runningJob], active_count: 1, total: 1 });
   listExternalJobs.mockResolvedValue({ jobs: [], active_count: 0, available: false });
 });
 
@@ -200,7 +200,11 @@ describe("JobsProvider", () => {
     vi.stubGlobal("EventSource", FakeEventSource);
 
     // Hold the first request so the push lands in flight; hang later ones so they cannot answer 3.
-    let releaseJobs: (value: { jobs: (typeof runningJob)[]; active_count: number }) => void;
+    let releaseJobs: (value: {
+      jobs: (typeof runningJob)[];
+      active_count: number;
+      total: number;
+    }) => void;
     listJobs.mockReturnValueOnce(
       new Promise((resolve) => {
         releaseJobs = resolve;
@@ -224,7 +228,7 @@ describe("JobsProvider", () => {
     await waitFor(() => expect(latest.current?.jobs[0]?.processed).toBe(9));
 
     await act(async () => {
-      releaseJobs!({ jobs: [runningJob], active_count: 1 });
+      releaseJobs!({ jobs: [runningJob], active_count: 1, total: 1 });
       await Promise.resolve();
     });
 
@@ -270,7 +274,8 @@ describe("JobsProvider", () => {
     listExternalJobs.mockResolvedValue({ jobs: [], active_count: 0, available: false });
 
     let releaseFirst:
-      ((value: { jobs: (typeof runningJob)[]; active_count: number }) => void) | null = null;
+      | ((value: { jobs: (typeof runningJob)[]; active_count: number; total: number }) => void)
+      | null = null;
     listJobs
       .mockImplementationOnce(
         () =>
@@ -281,6 +286,7 @@ describe("JobsProvider", () => {
       .mockResolvedValue({
         jobs: [{ ...runningJob, id: "job-latest", processed: 9 }],
         active_count: 1,
+        total: 1,
       });
 
     const latest = renderProvider();
@@ -295,7 +301,11 @@ describe("JobsProvider", () => {
     });
     document.dispatchEvent(new Event("visibilitychange"));
 
-    releaseFirst!({ jobs: [{ ...runningJob, id: "job-stale", processed: 1 }], active_count: 1 });
+    releaseFirst!({
+      jobs: [{ ...runningJob, id: "job-stale", processed: 1 }],
+      active_count: 1,
+      total: 1,
+    });
 
     await waitFor(() => expect(latest.current?.jobs[0]?.id).toBe("job-latest"));
   });

@@ -69,7 +69,7 @@ from automation.watermark import (
     validate_watermark_folder,
 )
 from filesystem import normalize_user_path, path_leaf_name
-from schemas import JobEvent, JobResponse, JobStatus, JobType
+from schemas import JobEvent, JobHistoryStatus, JobResponse, JobStatus, JobType
 
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
@@ -420,8 +420,6 @@ class JobManager:
         resumable = self._resumable_jobs()
 
         jobs_store.recover_stale_jobs()
-        with suppress(Exception):
-            jobs_store.prune_duplicate_jobs()
 
         for job, params in resumable:
             self._resume_job(job, params)
@@ -447,8 +445,18 @@ class JobManager:
         results = stored.get("results")
         return list(results) if isinstance(results, list) else []
 
-    def list_jobs(self, *, limit: int = 100) -> list[Job]:
-        stored_jobs = jobs_store.list_jobs(limit=limit)
+    def list_jobs(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        job_type: str | None = None,
+        status: JobHistoryStatus | None = None,
+        folder: str | None = None,
+    ) -> list[Job]:
+        stored_jobs = jobs_store.list_jobs(
+            limit=limit, offset=offset, job_type=job_type, status=status, folder=folder
+        )
 
         with self._lock:
             memory_jobs = dict(self._jobs)
@@ -548,9 +556,6 @@ class JobManager:
         return deleted_store or had_memory
 
     def delete_all_jobs(self) -> int:
-        stored_jobs = jobs_store.list_jobs(limit=100)
-        stored_count = len(stored_jobs)
-
         with self._lock:
             for job_id, job in list(self._jobs.items()):
                 if job.status in ACTIVE_STATUSES:
@@ -558,8 +563,7 @@ class JobManager:
                     if cancel_event is not None:
                         cancel_event.set()
 
-            for stored in stored_jobs:
-                self._deleted_ids.add(str(stored["id"]))
+            # Only a live worker can write a row back, and every live worker is in memory.
             for job_id in self._jobs:
                 self._deleted_ids.add(job_id)
 
@@ -568,9 +572,7 @@ class JobManager:
             self._published.clear()
 
             # Hold the lock so a worker cannot re-insert a ``running`` row after we clear.
-            deleted_count = jobs_store.delete_all_jobs()
-
-        return max(deleted_count, stored_count)
+            return jobs_store.delete_all_jobs()
 
     def _resumable_jobs(self) -> list[tuple[Job, dict[str, object]]]:
         """Jobs left active by a previous process whose spec knows how to pick them back up."""
@@ -625,7 +627,8 @@ class JobManager:
         job_type: JobType,
         params: dict[str, object],
     ) -> tuple[Job, threading.Event]:
-        """Create the job, evict any earlier job for the same folder and type, persist it."""
+        """Create the job and persist it. Earlier runs stay in the store as history; only their
+        in-memory copies for the same folder and type are dropped, which keeps memory bounded."""
         spec = JOB_SPECS[job_type]
 
         with self._lock:
@@ -655,10 +658,6 @@ class JobManager:
                     self._published.pop(jid, None)
 
         self._persist(job)
-
-        with suppress(Exception):
-            jobs_store.delete_jobs_for_folder(str(folder), job_type=job_type, keep_id=job_id)
-
         return job, cancel_event
 
     def _run_managed_job(

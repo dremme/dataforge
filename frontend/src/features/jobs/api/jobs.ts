@@ -1,3 +1,4 @@
+import type { JobsQuery } from "@/features/jobs/lib/jobFilters";
 import { requestJson } from "@/shared/api/http";
 import type {
   Job,
@@ -12,9 +13,26 @@ export async function fetchLatestFolderJob(folderPath: string): Promise<Job | nu
   return requestJson<Job | null>(`/api/jobs/folder-latest?${params}`);
 }
 
-export async function fetchJobs(limit = 100): Promise<JobsResponse> {
+export interface FetchJobsOptions extends JobsQuery {
+  limit?: number;
+  offset?: number;
+  signal?: AbortSignal;
+}
+
+export async function fetchJobs({
+  limit = 100,
+  offset = 0,
+  jobType,
+  status,
+  folder,
+  signal,
+}: FetchJobsOptions = {}): Promise<JobsResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
-  return requestJson<JobsResponse>(`/api/jobs?${params}`);
+  if (offset) params.set("offset", String(offset));
+  if (jobType) params.set("job_type", jobType);
+  if (status) params.set("status", status);
+  if (folder) params.set("folder", folder);
+  return requestJson<JobsResponse>(`/api/jobs?${params}`, { signal });
 }
 
 /** A job's per-file results. Kept off the job list, which is polled while work runs. */

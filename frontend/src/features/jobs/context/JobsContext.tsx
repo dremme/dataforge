@@ -30,11 +30,7 @@ import {
   upsertJob,
 } from "@/features/jobs/lib/jobs";
 import { claimJobCompletionNotification } from "@/features/jobs/lib/jobCompletionNotifyClaim";
-import {
-  clearStartingJobIfMatch,
-  upsertStartedJob,
-  type StartingJob,
-} from "@/features/jobs/lib/jobStartHelpers";
+import { clearStartingJobIfMatch, type StartingJob } from "@/features/jobs/lib/jobStartHelpers";
 
 // Fast poll only when the push stream is down.
 export const DISCONNECTED_ACTIVE_POLL_MS = 1000;
@@ -104,7 +100,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   // Pushes that race an in-flight refresh must be reapplied; the response is older than the push.
   const pushedDuringRefreshRef = useRef<Map<string, Job>>(new Map());
   const refreshAllJobsRef = useRef<() => Promise<JobsRefreshResult>>(async () => ({
-    internal: { jobs: [], active_count: 0 },
+    internal: { jobs: [], active_count: 0, total: 0 },
     external: { jobs: [], active_count: 0, available: false },
   }));
 
@@ -117,7 +113,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
     const run = async (): Promise<JobsRefreshResult> => {
       let last: JobsRefreshResult = {
-        internal: { jobs: [], active_count: 0 },
+        internal: { jobs: [], active_count: 0, total: 0 },
         external: { jobs: [], active_count: 0, available: false },
       };
 
@@ -280,7 +276,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
 
       try {
         const createdJob = await startFn();
-        setJobs((current) => upsertStartedJob(current, createdJob, folderPath, jobType));
+        setJobs((current) => upsertJob(current, createdJob));
         await refreshAllJobs();
         return createdJob;
       } catch (error) {

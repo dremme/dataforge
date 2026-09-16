@@ -1,29 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Job } from "@/shared/types";
-import { job as makeJob } from "@/test/fixtures";
-import {
-  clearStartingJobIfMatch,
-  isStartingJobForFolder,
-  upsertStartedJob,
-} from "./jobStartHelpers";
-
-function job(id: string, folder: string, jobType: Job["job_type"]): Job {
-  return makeJob({ id, folder, job_type: jobType });
-}
-
-describe("upsertStartedJob", () => {
-  it("prepends the new job and removes prior jobs of the same type in the folder", () => {
-    const existing = [
-      job("old", "C:\\Photos", "verify_captions"),
-      job("other", "C:\\Photos\\Vacation", "verify_captions"),
-    ];
-
-    const next = job("new", "C:\\Photos", "verify_captions");
-    const result = upsertStartedJob(existing, next, "C:\\Photos", "verify_captions");
-
-    expect(result.map((entry) => entry.id)).toEqual(["new", "other"]);
-  });
-});
+import { clearStartingJobIfMatch, isStartingJobForFolder } from "./jobStartHelpers";
 
 describe("isStartingJobForFolder", () => {
   it("matches only the requested folder and job type", () => {

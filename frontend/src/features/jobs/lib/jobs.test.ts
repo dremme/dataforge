@@ -61,14 +61,14 @@ describe("upsertJob", () => {
     expect(upsertJob([existing], fresh).map((job) => job.id)).toEqual(["job-2", "job-1"]);
   });
 
-  it("evicts the previous job for the same folder and type, as the server does", () => {
+  it("keeps the previous run for the same folder and type, as the server does", () => {
     const previous = makeJob({ id: "job-1", job_type: "auto_caption", status: "completed" });
     const other = makeJob({ id: "job-2", job_type: "strip_metadata" });
-    const replacement = makeJob({ id: "job-3", job_type: "auto_caption" });
+    const rerun = makeJob({ id: "job-3", job_type: "auto_caption" });
 
-    const merged = upsertJob([previous, other], replacement);
+    const merged = upsertJob([previous, other], rerun);
 
-    expect(merged.map((job) => job.id)).toEqual(["job-3", "job-2"]);
+    expect(merged.map((job) => job.id)).toEqual(["job-3", "job-1", "job-2"]);
   });
 });
 
