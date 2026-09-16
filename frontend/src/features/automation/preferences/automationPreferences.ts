@@ -6,6 +6,7 @@ import type {
   AutomationMode,
   AutomationSettingsResponse,
   CaptionReplaceMode,
+  ComfyPresetSettings,
   DuplicateThreshold,
   ReasoningEffort,
   TrainingModel,
@@ -59,6 +60,24 @@ function flag(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function comfyPresetSettings(value: unknown): Record<string, ComfyPresetSettings> {
+  if (typeof value !== "object" || value === null) return {};
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([name, entry]) => {
+      const saved =
+        typeof entry === "object" && entry !== null ? (entry as Record<string, unknown>) : {};
+      return [
+        name,
+        {
+          seed: typeof saved.seed === "number" && Number.isFinite(saved.seed) ? saved.seed : null,
+          prompt_text: text(saved.prompt_text),
+        },
+      ];
+    }),
+  );
+}
+
 function block(
   settings: Partial<AutomationSettings>,
   key: JobSettingsType,
@@ -107,7 +126,7 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
       position: DEFAULT_WATERMARK_POSITION,
       strip_metadata: false,
     },
-    comfy_process: { preset: "", seed: null, prompt_text: "", overwrite_candidates: false },
+    comfy_process: { preset: "", overwrite_candidates: false, by_preset: {} },
   };
 }
 
@@ -199,12 +218,8 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
     },
     comfy_process: {
       preset: text(comfyProcess.preset),
-      seed:
-        typeof comfyProcess.seed === "number" && Number.isFinite(comfyProcess.seed)
-          ? comfyProcess.seed
-          : null,
-      prompt_text: text(comfyProcess.prompt_text),
       overwrite_candidates: flag(comfyProcess.overwrite_candidates, false),
+      by_preset: comfyPresetSettings(comfyProcess.by_preset),
     },
   };
 }

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from automation_settings import (
+    COMFY_PROCESS_JOB_TYPE,
     JOB_SETTINGS_MODELS,
     automation_settings_key,
     get_automation_settings,
@@ -14,6 +15,7 @@ from schemas import (
     AutomationSettingsResponse,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    ComfyProcessSettingsResponse,
     ComfyProcessStartRequest,
     EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
@@ -24,7 +26,7 @@ from schemas import (
     WatermarkStartRequest,
 )
 
-#: Every job whose dialog has settings, paired with the start request that carries them.
+#: Every job whose dialog has per-folder settings, paired with the start request carrying them.
 START_REQUESTS = {
     "auto_caption": AutoCaptionStartRequest,
     "set_captions": SetCaptionsStartRequest,
@@ -36,7 +38,6 @@ START_REQUESTS = {
     "find_duplicates": FindDuplicatesStartRequest,
     "train_lora": TrainLoraStartRequest,
     "watermark": WatermarkStartRequest,
-    "comfy_process": ComfyProcessStartRequest,
 }
 
 
@@ -50,7 +51,7 @@ class RegistryShapeTests(unittest.TestCase):
     def test_the_registry_and_the_response_name_the_same_jobs(self) -> None:
         response_jobs = set(AutomationSettingsResponse.model_fields) - {"folder_path"}
 
-        self.assertEqual(set(JOB_SETTINGS_MODELS), response_jobs)
+        self.assertEqual(set(JOB_SETTINGS_MODELS) | {COMFY_PROCESS_JOB_TYPE}, response_jobs)
 
     def test_every_response_field_holds_its_registered_model(self) -> None:
         for job_type, model in JOB_SETTINGS_MODELS.items():
@@ -147,6 +148,61 @@ class RememberJobSettingsTests(unittest.TestCase):
 
     def test_the_response_reports_the_canonical_folder_key(self) -> None:
         self.assertTrue(get_automation_settings(folder_path="C:/Photos").folder_path)
+
+
+class ComfyProcessSettingsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _clear()
+
+    def tearDown(self) -> None:
+        _clear()
+
+    def _remember(self, folder_path: str = r"C:\Photos", **settings: object) -> None:
+        remember_job_settings(
+            COMFY_PROCESS_JOB_TYPE,
+            ComfyProcessStartRequest.model_validate(settings),
+            folder_path=folder_path,
+        )
+
+    def test_it_reads_empty_before_any_run(self) -> None:
+        self.assertEqual(
+            get_automation_settings(folder_path=r"C:\Photos").comfy_process,
+            ComfyProcessSettingsResponse(),
+        )
+
+    def test_a_preset_without_a_prompt_keeps_the_other_presets_prompt(self) -> None:
+        self._remember(preset="txt2img", seed=42, prompt_text="a lake")
+        self._remember(preset="upscale", seed=None, prompt_text="")
+
+        stored = get_automation_settings(folder_path=r"C:\Photos").comfy_process
+        self.assertEqual(stored.preset, "upscale")
+        self.assertEqual(stored.by_preset["txt2img"].prompt_text, "a lake")
+        self.assertEqual(stored.by_preset["txt2img"].seed, 42)
+        self.assertEqual(stored.by_preset["upscale"].prompt_text, "")
+
+    def test_the_overwrite_checkbox_stays_per_folder(self) -> None:
+        self._remember(folder_path=r"C:\Photos", preset="txt2img", overwrite_candidates=True)
+        self._remember(folder_path=r"C:\Renders", preset="txt2img", overwrite_candidates=False)
+
+        photos = get_automation_settings(folder_path=r"C:\Photos").comfy_process
+        self.assertTrue(photos.overwrite_candidates)
+        self.assertNotIn("overwrite_candidates", photos.by_preset["txt2img"].model_dump())
+        self.assertFalse(
+            get_automation_settings(folder_path=r"C:\Renders").comfy_process.overwrite_candidates
+        )
+
+    def test_settings_follow_the_preset_across_folders(self) -> None:
+        self._remember(folder_path=r"C:\Photos", preset="txt2img", prompt_text="a lake")
+
+        stored = get_automation_settings(folder_path=r"C:\Renders").comfy_process
+        self.assertEqual(stored.preset, "txt2img")
+        self.assertEqual(stored.by_preset["txt2img"].prompt_text, "a lake")
+
+    def test_it_never_stores_the_selection(self) -> None:
+        self._remember(preset="txt2img", paths=[r"C:\Photos\one.png"])
+
+        stored = get_automation_settings(folder_path=r"C:\Photos").comfy_process
+        self.assertNotIn("paths", stored.by_preset["txt2img"].model_dump())
 
 
 if __name__ == "__main__":

@@ -404,19 +404,34 @@ class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):
     pass
 
 
-class ComfyProcessJobSettings(BaseModel):
-    #: A stem, not a Literal: unknown names are the job's own 400.
-    preset: str = ""
+class ComfyPresetSettings(BaseModel):
+    """What the dialog remembers for one workflow preset."""
+
     #: Empty runs the preset's own seeds.
     seed: int | None = None
     #: Named ``prompt_text`` because ``prompt`` is the whole graph elsewhere.
     prompt_text: str = ""
+
+
+class ComfyProcessJobSettings(ComfyPresetSettings):
+    #: A stem, not a Literal: unknown names are the job's own 400.
+    preset: str = ""
     #: Off by default so a re-run picks up where the last stopped.
     overwrite_candidates: bool = False
 
 
 class ComfyProcessStartRequest(JobSelectionRequest, ComfyProcessJobSettings):
     pass
+
+
+class ComfyProcessSettingsResponse(BaseModel):
+    """Prompt and seed are remembered per preset, so switching workflows keeps each one's even
+    when the other preset has no node for them. The checkbox stays per folder."""
+
+    #: The preset of the most recent run, in any folder.
+    preset: str = ""
+    overwrite_candidates: bool = False
+    by_preset: dict[str, ComfyPresetSettings] = Field(default_factory=dict)
 
 
 class ComfyPresetSummary(BaseModel):
@@ -515,7 +530,9 @@ class AutomationSettingsResponse(BaseModel):
     find_duplicates: FindDuplicatesJobSettings = Field(default_factory=FindDuplicatesJobSettings)
     train_lora: TrainLoraJobSettings = Field(default_factory=TrainLoraJobSettings)
     watermark: WatermarkJobSettings = Field(default_factory=WatermarkJobSettings)
-    comfy_process: ComfyProcessJobSettings = Field(default_factory=ComfyProcessJobSettings)
+    comfy_process: ComfyProcessSettingsResponse = Field(
+        default_factory=ComfyProcessSettingsResponse
+    )
 
 
 class TrainingTemplateResponse(BaseModel):

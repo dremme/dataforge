@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchComfyPresets } from "@/features/automation/api/jobs";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
-import type { ComfyPresetsResponse } from "@/shared/types";
+import type { ComfyPresetSettings, ComfyPresetsResponse } from "@/shared/types";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
 
 vi.mock("@/features/automation/api/jobs", () => ({
@@ -17,7 +17,11 @@ const SCOPE = { itemCount: 12, folderLabel: "Photos", fromSelection: false };
 function settings(
   overrides: Partial<JobSettingsByType["comfy_process"]> = {},
 ): JobSettingsByType["comfy_process"] {
-  return { preset: "", seed: null, prompt_text: "", overwrite_candidates: false, ...overrides };
+  return { preset: "", overwrite_candidates: false, by_preset: {}, ...overrides };
+}
+
+function saved(overrides: Partial<ComfyPresetSettings> = {}): ComfyPresetSettings {
+  return { seed: null, prompt_text: "", ...overrides };
 }
 
 function presets(
@@ -196,9 +200,52 @@ describe("ComfyProcessDialog", () => {
   });
 
   it("starts from the prompt the last run used", async () => {
-    renderDialog(settings({ prompt_text: "no watermark" }));
+    renderDialog(
+      settings({
+        preset: "fix-faces",
+        by_preset: { "fix-faces": saved({ prompt_text: "no watermark" }) },
+      }),
+    );
 
     expect(await screen.findByLabelText("Prompt")).toHaveValue("no watermark");
+  });
+
+  it("shows each preset's own remembered prompt and seed", async () => {
+    const user = userEvent.setup();
+    renderDialog(
+      settings({
+        preset: "fix-faces",
+        overwrite_candidates: true,
+        by_preset: {
+          "fix-faces": saved({ prompt_text: "no watermark", seed: 7 }),
+          "upscale-2x": saved({ prompt_text: "crisp" }),
+        },
+      }),
+    );
+
+    await user.selectOptions(await screen.findByLabelText("Workflow"), "upscale-2x");
+
+    expect(screen.getByLabelText("Prompt")).toHaveValue("crisp");
+    expect(screen.getByLabelText("Seed")).toHaveValue(null);
+    // The checkbox is not per preset, so switching leaves it as it was.
+    expect(screen.getByRole("checkbox")).toBeChecked();
+  });
+
+  it("keeps what was typed for a preset after switching away and back", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderDialog();
+
+    const workflow = await screen.findByLabelText("Workflow");
+    await user.type(screen.getByLabelText("Prompt"), "sharp");
+    await user.selectOptions(workflow, "upscale-2x");
+    expect(screen.getByLabelText("Prompt")).toHaveValue("");
+    await user.selectOptions(workflow, "fix-faces");
+
+    await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ preset: "fix-faces", promptText: "sharp" }),
+    );
   });
 
   // An all-whitespace box is the same request as an empty one - run the graph as saved -
@@ -252,11 +299,15 @@ describe("ComfyProcessDialog", () => {
       });
 
     it("does not send a prompt the preset has nowhere to put", async () => {
-      // The box is remembered per folder, so a prompt typed for another preset used to
-      // reach the backend and be refused.
+      // A parse that later succeeds can leave a stored prompt behind for a promptless preset.
       fetchPresets.mockResolvedValue(withoutPrompt());
       const user = userEvent.setup();
-      const { onConfirm } = renderDialog(settings({ prompt_text: "sharp studio photograph" }));
+      const { onConfirm } = renderDialog(
+        settings({
+          preset: "video-upscale",
+          by_preset: { "video-upscale": saved({ prompt_text: "sharp studio photograph" }) },
+        }),
+      );
 
       await screen.findByLabelText("Workflow");
       await user.click(screen.getByRole("button", { name: "Start processing" }));
@@ -268,7 +319,12 @@ describe("ComfyProcessDialog", () => {
 
     it("disables the prompt and names the missing node", async () => {
       fetchPresets.mockResolvedValue(withoutPrompt());
-      renderDialog(settings({ prompt_text: "sharp studio photograph" }));
+      renderDialog(
+        settings({
+          preset: "video-upscale",
+          by_preset: { "video-upscale": saved({ prompt_text: "sharp studio photograph" }) },
+        }),
+      );
 
       const prompt = await screen.findByLabelText("Prompt");
       expect(prompt).toBeDisabled();
@@ -285,7 +341,12 @@ describe("ComfyProcessDialog", () => {
         }),
       );
       const user = userEvent.setup();
-      const { onConfirm } = renderDialog(settings({ seed: 4321, prompt_text: "anything" }));
+      const { onConfirm } = renderDialog(
+        settings({
+          preset: "lanczos",
+          by_preset: { lanczos: saved({ seed: 4321, prompt_text: "anything" }) },
+        }),
+      );
 
       await screen.findByLabelText("Workflow");
       expect(await screen.findByLabelText("Seed")).toBeDisabled();

@@ -7,7 +7,7 @@ import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import { Icon } from "@/shared/ui/Icon";
-import type { ComfyPresetSummary } from "@/shared/types";
+import type { ComfyPresetSettings, ComfyPresetSummary } from "@/shared/types";
 
 export interface ComfyProcessSettings {
   preset: string;
@@ -26,6 +26,20 @@ interface ComfyProcessDialogProps {
   onCancel: () => void;
 }
 
+interface PresetDraft {
+  seedText: string;
+  promptText: string;
+}
+
+const EMPTY_DRAFT: PresetDraft = { seedText: "", promptText: "" };
+
+function toDraft(settings: ComfyPresetSettings): PresetDraft {
+  return {
+    seedText: settings.seed == null ? "" : String(settings.seed),
+    promptText: settings.prompt_text,
+  };
+}
+
 type PresetsState =
   | { status: "loading" }
   | { status: "ready"; presets: ComfyPresetSummary[]; available: boolean; baseUrl: string }
@@ -40,14 +54,22 @@ export function ComfyProcessDialog({
 }: ComfyProcessDialogProps) {
   const [state, setState] = useState<PresetsState>({ status: "loading" });
   const [preset, setPreset] = useState(initialSettings.preset);
-  const [seedText, setSeedText] = useState(
-    initialSettings.seed === null ? "" : String(initialSettings.seed),
+  // One draft per preset, so switching workflows never loses what was typed for another.
+  const [drafts, setDrafts] = useState<Record<string, PresetDraft>>(() =>
+    Object.fromEntries(
+      Object.entries(initialSettings.by_preset).map(([name, saved]) => [name, toDraft(saved)]),
+    ),
   );
-  const [promptText, setPromptText] = useState(initialSettings.prompt_text);
-  const [overwrite, setOverwrite] = useState(initialSettings.overwrite_candidates);
+  const { seedText, promptText } = drafts[preset] ?? EMPTY_DRAFT;
+  const updateDraft = (patch: Partial<PresetDraft>) =>
+    setDrafts((current) => ({
+      ...current,
+      [preset]: { ...(current[preset] ?? EMPTY_DRAFT), ...patch },
+    }));
   const [error, setError] = useState<string | null>(null);
   const promptId = useId();
   const seedId = useId();
+  const [overwrite, setOverwrite] = useState(initialSettings.overwrite_candidates);
   const overwriteId = useId();
   const errorId = useId();
 
@@ -193,7 +215,7 @@ export function ComfyProcessDialog({
             className="dialog__input"
             value={promptBlocked ? "" : promptText}
             onChange={(event) => {
-              setPromptText(event.target.value);
+              updateDraft({ promptText: event.target.value });
               setError(null);
             }}
             placeholder={
@@ -215,7 +237,7 @@ export function ComfyProcessDialog({
             className="dialog__input"
             value={seedBlocked ? "" : seedText}
             onChange={(event) => {
-              setSeedText(event.target.value);
+              updateDraft({ seedText: event.target.value });
               setError(null);
             }}
             placeholder={seedBlocked ? "This preset has no seed node" : "e.g. 424242"}

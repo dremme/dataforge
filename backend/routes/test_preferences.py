@@ -174,7 +174,7 @@ class AutomationPreferencesEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(set(body) - {"folder_path"}, set(JOB_SETTINGS_MODELS))
+        self.assertEqual(set(body) - {"folder_path"}, set(JOB_SETTINGS_MODELS) | {"comfy_process"})
         self.assertTrue(body["folder_path"])
 
     def test_read_returns_the_documented_defaults(self) -> None:

@@ -928,7 +928,7 @@ class JobSettingsPersistenceTests(unittest.TestCase):
             conn.commit()
 
     def test_the_table_covers_every_job_that_registers_settings(self) -> None:
-        self.assertEqual(set(_NON_DEFAULT_STARTS), set(JOB_SETTINGS_MODELS))
+        self.assertEqual(set(_NON_DEFAULT_STARTS), set(JOB_SETTINGS_MODELS) | {"comfy_process"})
 
     def _run(self, job_type: str, folder: Path) -> dict:
         endpoint, body = _NON_DEFAULT_STARTS[job_type]
@@ -970,6 +970,21 @@ class JobSettingsPersistenceTests(unittest.TestCase):
                     stored,
                     {name: value for name, value in body.items() if name in model.model_fields},
                 )
+
+    def test_comfy_process_remembers_its_settings_under_the_preset(self) -> None:
+        with TempMediaFolder() as root:
+            body = self._run("comfy_process", root)
+
+            self.assertEqual(
+                _stored_settings(root)["comfy_process"],
+                {
+                    "preset": body["preset"],
+                    "overwrite_candidates": body["overwrite_candidates"],
+                    "by_preset": {
+                        body["preset"]: {"seed": body["seed"], "prompt_text": body["prompt_text"]}
+                    },
+                },
+            )
 
     def test_the_destructive_fields_are_never_remembered(self) -> None:
         # Overwrite toggles, LoRA name, and per-run template override must be re-chosen every run.
