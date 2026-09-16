@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+import tempfile
 import unittest
+import venv
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from system_specs import _gpu_from_nvidia_smi, _gpu_from_torch, get_system_specs
@@ -37,6 +42,33 @@ class NvidiaSmiGpuTests(unittest.TestCase):
 
 
 class TorchGpuTests(unittest.TestCase):
+    def test_typechecks_without_optional_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            venv.EnvBuilder(with_pip=False).create(directory)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "ty",
+                    "check",
+                    "system_specs.py",
+                    "--python",
+                    directory,
+                    "--python-platform",
+                    "linux",
+                ],
+                cwd=Path(__file__).resolve().parent,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_returns_none_when_torch_is_not_installed(self) -> None:
+        with patch.dict("sys.modules", {"torch": None}):
+            self.assertIsNone(_gpu_from_torch())
+
     def test_returns_none_when_cuda_unavailable(self) -> None:
         torch_mock = MagicMock()
         torch_mock.cuda.is_available.return_value = False

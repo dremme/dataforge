@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 import platform
 import re
@@ -172,7 +173,7 @@ def _gpu_from_nvidia_smi() -> _GpuInfo | None:
 
 def _gpu_from_torch() -> _GpuInfo | None:
     try:
-        import torch
+        torch = importlib.import_module("torch")
     except ImportError:
         return None
 
@@ -185,7 +186,6 @@ def _gpu_from_torch() -> _GpuInfo | None:
     try:
         free, total = torch.cuda.mem_get_info(0)
         total_bytes = int(total)
-        # torch reports free; the panel shows used.
         used_bytes = total_bytes - int(free)
     except Exception:
         pass
