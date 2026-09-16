@@ -105,7 +105,7 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
     },
     backup_captions: {},
     verify_captions: {
-      mode: "instruct",
+      mode: "thinking",
       reasoning_effort: DEFAULT_REASONING_EFFORT,
       preserve_thinking: DEFAULT_PRESERVE_THINKING,
       context: "",

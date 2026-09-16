@@ -65,7 +65,7 @@ describe("VerifyCaptionsDialog", () => {
     await user.type(screen.getByLabelText("Additional context"), "Outdoor portraits.");
     await confirm(user);
 
-    expect(onConfirm).toHaveBeenCalledWith("instruct", "Outdoor portraits.", "medium", true);
+    expect(onConfirm).toHaveBeenCalledWith("thinking", "Outdoor portraits.", "medium", true);
   });
 
   it("confirms without writing preferences of its own", async () => {

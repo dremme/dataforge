@@ -181,7 +181,7 @@ class AutomationPreferencesEndpointTests(unittest.TestCase):
         body = client.get(f"/api/preferences/automation?path={quote(r'C:\Photos')}").json()
 
         self.assertEqual(body["auto_caption"]["mode"], "thinking")
-        self.assertEqual(body["verify_captions"]["mode"], "instruct")
+        self.assertEqual(body["verify_captions"]["mode"], "thinking")
         self.assertEqual(body["find_duplicates"]["threshold"], "near")
         self.assertEqual(
             body["watermark"],

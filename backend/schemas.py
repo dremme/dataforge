@@ -468,7 +468,7 @@ class ComfyPresetsResponse(BaseModel):
 
 
 class VerifyCaptionsJobSettings(BaseModel):
-    mode: AutomationMode = "instruct"
+    mode: AutomationMode = "thinking"
     reasoning_effort: ReasoningEffort = "medium"
     preserve_thinking: bool = Field(
         default=True,

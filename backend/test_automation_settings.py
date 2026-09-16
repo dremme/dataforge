@@ -108,6 +108,29 @@ class RememberJobSettingsTests(unittest.TestCase):
         self.assertNotIn("lora_name", stored.model_dump())
         self.assertNotIn("template", stored.model_dump())
 
+    def test_verify_defaults_match_auto_caption_and_saved_instruct_is_preserved(self) -> None:
+        defaults = get_automation_settings(folder_path=r"C:\Photos")
+        self.assertEqual(defaults.verify_captions.mode, defaults.auto_caption.mode)
+        self.assertEqual(
+            defaults.verify_captions.reasoning_effort,
+            defaults.auto_caption.reasoning_effort,
+        )
+        self.assertEqual(
+            defaults.verify_captions.preserve_thinking,
+            defaults.auto_caption.preserve_thinking,
+        )
+
+        remember_job_settings(
+            "verify_captions",
+            VerifyCaptionsStartRequest(mode="instruct"),
+            folder_path=r"C:\Photos",
+        )
+
+        self.assertEqual(
+            get_automation_settings(folder_path=r"C:\Photos").verify_captions.mode,
+            "instruct",
+        )
+
     def test_an_unregistered_job_type_is_a_no_op(self) -> None:
         for job_type in ("strip_metadata", "restore_captions", "not_a_job"):
             with self.subTest(job_type=job_type):

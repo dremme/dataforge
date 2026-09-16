@@ -123,6 +123,9 @@ describe("loadAutomationSettings", () => {
 
     expect(settings.auto_caption.mode).toBe("thinking");
     expect(settings.auto_caption.reasoning_effort).toBe("medium");
+    expect(settings.verify_captions.mode).toBe("thinking");
+    expect(settings.verify_captions.reasoning_effort).toBe("medium");
+    expect(settings.verify_captions.preserve_thinking).toBe(true);
     expect(settings.replace_captions.mode).toBe("replace");
     expect(settings.edit_captions.mode).toBe("instruct");
     expect(settings.edit_captions.reasoning_effort).toBe("medium");

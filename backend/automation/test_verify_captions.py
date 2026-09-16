@@ -13,6 +13,7 @@ isolate_test_database()
 
 from PIL import Image
 
+from automation.auto_caption import complete_caption
 from automation.llm import (
     INSTRUCT_THINK_PREFILL,
     MAX_MODEL_ATTEMPTS,
@@ -91,6 +92,7 @@ def _make_fake_verify_client(
                     "temperature": kwargs.get("temperature"),
                     "top_p": kwargs.get("top_p"),
                     "presence_penalty": kwargs.get("presence_penalty"),
+                    "max_tokens": kwargs.get("max_tokens"),
                     "messages": kwargs.get("messages"),
                     "extra_body": kwargs.get("extra_body"),
                 }
@@ -461,6 +463,41 @@ def _sent_image_pixels(captured: dict) -> int:
 
 
 class VerifyCaptionsApiTests(unittest.TestCase):
+    def test_default_quality_matches_auto_caption(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "img.png")
+            frames = [Image.new("RGB", (160, 96), color="blue")]
+            auto_client, auto = _make_fake_verify_client()
+            verify_client, verify = _make_fake_verify_client()
+
+            complete_caption(
+                auto_client,
+                media,
+                "Caption accurately.",
+                "A blue landscape.",
+                images=frames,
+            )
+            verify_caption(
+                verify_client,
+                media,
+                build_verification_system_prompt(),
+                "A blue landscape.",
+                images=frames,
+            )
+
+            quality_fields = (
+                "temperature",
+                "top_p",
+                "presence_penalty",
+                "max_tokens",
+                "extra_body",
+            )
+            self.assertEqual(
+                {field: auto[field] for field in quality_fields},
+                {field: verify[field] for field in quality_fields},
+            )
+            self.assertEqual(_image_payloads(auto["messages"]), _image_payloads(verify["messages"]))
+
     def test_a_configured_still_budget_reaches_the_request(self) -> None:
         # Shared still budget is read per call; bound at import, the frame goes out at the default size.
         with TempMediaFolder() as root:
