@@ -9,9 +9,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 from automation.selection import filter_media_list, list_folder_media
+from candidate_pairing import candidate_path_for
+from comfy_candidates import is_settling, read_candidate_sidecar, write_candidate_sidecar
 from constants import MEDIA_EXTENSIONS
+from edit_sidecars import is_rendering
 from logging_config import configure_logging, log_job_summary
-from media_transfer import related_media_paths, sidecar_suffix
+from media_group import group_target, media_group_paths
 
 logger = logging.getLogger(__name__)
 
@@ -60,16 +63,19 @@ def list_rename_media(folder: Path) -> list[Path]:
     return list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
 
 
-def _target_for(source_media: Path, target_media: Path, related: Path) -> Path:
-    """Where ``related`` (the media file or one of its sidecars) lands after the rename."""
-    if related == source_media:
-        return target_media
-    return target_media.with_name(target_media.stem + sidecar_suffix(source_media, related))
+def _repoint_candidate_record(source_media: Path, target_media: Path) -> None:
+    """The record names its source, and processing refuses a candidate whose name disagrees."""
+    candidate = candidate_path_for(target_media)
+    record = read_candidate_sidecar(candidate) if candidate is not None else None
+    if candidate is None or record is None or record.source_name != source_media.name:
+        return
+    write_candidate_sidecar(candidate, record.model_copy(update={"source_name": target_media.name}))
 
 
 def _rename_media_group(source_media: Path, target_media: Path) -> None:
-    for path in related_media_paths(source_media):
-        path.rename(_target_for(source_media, target_media, path))
+    for path in media_group_paths(source_media):
+        path.rename(group_target(source_media, target_media, path))
+    _repoint_candidate_record(source_media, target_media)
 
 
 def _check_target_conflict(target_path: Path, moving_sources: set[Path]) -> None:
@@ -89,17 +95,30 @@ def _validate_target_names(
 
     moving_sources: set[Path] = set()
     for media_path in media_files:
-        for related in related_media_paths(media_path):
+        # A render or accept still running would write back under the old name afterwards.
+        if is_rendering(media_path) or is_settling(media_path):
+            raise ValueError(
+                f'Cannot rename files: "{media_path.name}" is being edited or reviewed. '
+                "Try again when it finishes."
+            )
+        for related in media_group_paths(media_path):
             moving_sources.add(related.resolve())
 
     for index, media_path in enumerate(media_files, start=start_number):
         target_media = folder / build_target_name(stem, index, padding, media_path.suffix.lower())
         _check_target_conflict(target_media, moving_sources)
 
-        for related in related_media_paths(media_path):
+        for related in media_group_paths(media_path):
             if related == media_path:
                 continue
-            _check_target_conflict(_target_for(media_path, target_media, related), moving_sources)
+            _check_target_conflict(group_target(media_path, target_media, related), moving_sources)
+
+        candidate = candidate_path_for(media_path)
+        if candidate is not None:
+            renamed = group_target(media_path, target_media, candidate)
+            # A folder file of that exact name would own the candidate, and pairing would move.
+            if renamed.name != target_media.name:
+                _check_target_conflict(folder / renamed.name, moving_sources)
 
 
 def validate_rename_media_folder(

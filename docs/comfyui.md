@@ -63,13 +63,13 @@ The candidate review modal compares the source and result side by side. It shows
 
 Difference is the percentage of perceptual-hash bits that differ. Video scores compare the opening frame only. It cannot measure temporal consistency or interpolation quality, so inspect playback before accepting.
 
-A candidate whose source was moved, renamed, or deleted stays in the queue because it is still a real file. It is an orphan and can only be rejected. Use left/right arrows to move through the queue and `Ctrl+Enter`/`⌘Enter` to accept when focus is not in an editable control.
+A candidate whose source was moved, renamed, or deleted outside DataForge stays in the queue because it is still a real file. It is an orphan and can only be rejected. Use left/right arrows to move through the queue and `Ctrl+Enter`/`⌘Enter` to accept when focus is not in an editable control.
 
 ## Candidate files and lifecycle
 
 Candidates pair with sources by stem: `photo.jpg` uses `staging/photo.png`. A staged candidate already named exactly like the source’s old PNG form still matches, preserving queues made by earlier versions.
 
-If `photo.jpg` and `photo.png` are siblings, `staging/photo.png` belongs to the PNG source. A candidate does not travel when its source is copied, moved, renamed, or deleted. Reject it from the review queue when it is no longer useful.
+If `photo.jpg` and `photo.png` are siblings, `staging/photo.png` belongs to the PNG source. Copying, moving, renaming, or deleting the source in DataForge takes its candidate along.
 
 The `.comfy.json` sidecar records the workflow/run details and stored difference score. Candidates staged before difference scores existed are scored when opened for review.
 

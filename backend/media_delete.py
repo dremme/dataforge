@@ -4,10 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from captions import issue_file_path
-from constants import SIDECAR_EXTENSIONS
-from duplicates import duplicate_file_path
-from edit_sidecars import backup_path_for, edit_spec_path
+from media_group import media_group_paths
 
 logger = logging.getLogger(__name__)
 
@@ -71,38 +68,22 @@ def deletes_to_trash() -> bool:
 
 def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
     deleted: list[str] = []
+    # Listed before the media goes: the candidate is found by pairing against the file itself.
+    media, *related = media_group_paths(file_path)
 
     try:
-        delete_path(file_path)
+        delete_path(media)
     except OSError as exc:
         raise OSError(f"Failed to delete {file_path.name}: {exc}") from exc
 
     deleted.append(file_path.name)
 
-    for extension in SIDECAR_EXTENSIONS:
-        sidecar = file_path.with_suffix(extension)
-        if not sidecar.is_file():
-            continue
+    for sidecar in related:
         try:
             delete_path(sidecar)
             deleted.append(sidecar.name)
         except OSError as exc:
             logger.warning("Failed to delete sidecar %s: %s", sidecar.name, exc)
-
-    # Not SIDECAR_EXTENSIONS: these are two suffixes deep or keep the whole filename.
-    for extra in (
-        issue_file_path(file_path),
-        duplicate_file_path(file_path),
-        backup_path_for(file_path),
-        edit_spec_path(file_path),
-    ):
-        if not extra.is_file():
-            continue
-        try:
-            delete_path(extra)
-            deleted.append(extra.name)
-        except OSError as exc:
-            logger.warning("Failed to delete sidecar %s: %s", extra.name, exc)
 
     return {
         "path": str(file_path),

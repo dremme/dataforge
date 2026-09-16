@@ -8,7 +8,9 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
+from candidate_pairing import candidate_path_for, candidate_sidecar_path
 from captions import issue_file_path
+from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
 from media_transfer import preview_media_transfer, transfer_media_with_sidecars
 from testing_fixtures import (
     TempMediaFolder,
@@ -315,6 +317,89 @@ class TransferVideoEditSidecarTests(unittest.TestCase):
             self.assertEqual(set(result["files"]), {"clip.mp4", "clip.mp4.bak", "clip.edit.json"})
             self.assertEqual((destination / "clip.mp4.bak").read_bytes(), b"pristine-original")
             self.assertEqual(list(source_folder.glob("*")), [])
+
+
+def _with_backup_and_candidate(folder: Path) -> Path:
+    """``photo.jpg`` with a backed-up caption and a staged PNG candidate plus its record."""
+    media = write_media(folder, "photo.jpg")
+    (folder / CAPTION_BACKUP_DIR_NAME).mkdir()
+    (folder / CAPTION_BACKUP_DIR_NAME / "photo.txt").write_text("Original.", encoding="utf-8")
+    (folder / STAGING_DIR_NAME).mkdir()
+    candidate = write_media(folder / STAGING_DIR_NAME, "photo.png")
+    candidate_sidecar_path(candidate).write_text("{}", encoding="utf-8")
+    return media
+
+
+class TransferNameLinkedFilesTests(unittest.TestCase):
+    """Backups and candidates pair by name, so one left behind would pass to a later namesake."""
+
+    def test_move_takes_the_backup_caption_and_candidate_along(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = _with_backup_and_candidate(source_dir)
+
+            transfer_media_with_sidecars(media, destination_dir, mode="move")
+
+            moved = destination_dir / "photo.jpg"
+            self.assertEqual(
+                (destination_dir / CAPTION_BACKUP_DIR_NAME / "photo.txt").read_text(
+                    encoding="utf-8"
+                ),
+                "Original.",
+            )
+            self.assertEqual(
+                candidate_path_for(moved), destination_dir / STAGING_DIR_NAME / "photo.png"
+            )
+            self.assertTrue(
+                candidate_sidecar_path(destination_dir / STAGING_DIR_NAME / "photo.png").is_file()
+            )
+            self.assertFalse((source_dir / CAPTION_BACKUP_DIR_NAME / "photo.txt").exists())
+            self.assertFalse((source_dir / STAGING_DIR_NAME / "photo.png").exists())
+
+    def test_copy_leaves_the_source_group_intact(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = _with_backup_and_candidate(source_dir)
+
+            transfer_media_with_sidecars(media, destination_dir, mode="copy")
+
+            self.assertTrue((source_dir / STAGING_DIR_NAME / "photo.png").is_file())
+            self.assertTrue((destination_dir / STAGING_DIR_NAME / "photo.png").is_file())
+            self.assertTrue((destination_dir / CAPTION_BACKUP_DIR_NAME / "photo.txt").is_file())
+
+    def test_refuses_when_a_destination_file_would_claim_the_candidate(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = _with_backup_and_candidate(source_dir)
+            write_media(destination_dir, "photo.png")
+
+            with self.assertRaises(HTTPException) as caught:
+                transfer_media_with_sidecars(media, destination_dir, mode="move")
+
+            self.assertEqual(caught.exception.status_code, 409)
+            self.assertTrue(media.is_file())
+
+    def test_a_failed_move_removes_the_subfolders_it_created(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = _with_backup_and_candidate(source_dir)
+
+            with patch("media_transfer.os.replace", _blocking_replace("photo.png")):
+                with self.assertRaises(HTTPException):
+                    transfer_media_with_sidecars(media, destination_dir, mode="move")
+
+            self.assertTrue(media.is_file())
+            self.assertTrue((source_dir / CAPTION_BACKUP_DIR_NAME / "photo.txt").is_file())
+            self.assertFalse((destination_dir / STAGING_DIR_NAME).exists())
+            self.assertFalse((destination_dir / CAPTION_BACKUP_DIR_NAME).exists())
 
 
 if __name__ == "__main__":

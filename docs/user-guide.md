@@ -36,7 +36,7 @@ Use **Select** or `Ctrl+A`/`⌘A` to enter selection mode and select every visib
 
 Selection mode can invert or clear the visible selection, then copy, move, or delete the selected files. `Delete` (or `Backspace`) opens the same delete confirmation the toolbar button does. **Rename** gives media a numbered name and moves related sidecars with it. Creating a subfolder and drag-and-drop import are available from the folder view.
 
-Move, copy, rename, and delete carry normal media sidecars, duplicate/issue findings, and stored edit originals/specifications with the source. ComfyUI candidates remain in `staging/` because they are paired with the source by stem and are not media sidecars.
+Move, copy, rename, and delete carry normal media sidecars, duplicate/issue findings, stored edit originals/specifications, the `.backup/` caption, and any staged ComfyUI candidate with the source. Rename is refused while a file is still rendering an edit or being accepted.
 
 On Windows, media deletion uses the Recycle Bin. On other platforms, DataForge shows the names before deletion; confirm only when the list is correct.
 
@@ -162,7 +162,7 @@ All listed formats appear in the gallery, receive thumbnails, support `.txt` cap
 | ComfyUI candidate               | `staging/<stem>.png` plus `.comfy.json`; stays staged until accepted or rejected                                              |
 | App state and thumbnails        | `backend/data/` by default; gitignored SQLite state and cache                                                                 |
 
-A move, copy, rename, or delete of source media leaves a staged candidate behind. The candidate review queue can discard such orphaned candidates. Accepting a candidate is final and is refused while the source has an unreverted media edit.
+A move, copy, rename, or delete in DataForge takes a staged candidate along. Changes made outside DataForge leave it orphaned; the review queue can discard it. Accepting a candidate is final and is refused while the source has an unreverted media edit.
 
 ## Keyboard shortcuts
 

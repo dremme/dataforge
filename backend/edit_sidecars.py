@@ -57,6 +57,11 @@ def render_slot(media: Path) -> Iterator[Callable[[], bool]]:
             _renders.pop(key, None)
 
 
+def is_rendering(media: Path) -> bool:
+    with _renders_lock:
+        return _render_key(media) in _renders
+
+
 def cancel_render(media: Path) -> bool:
     """False if there is none."""
     with _renders_lock:

@@ -5,7 +5,11 @@ from __future__ import annotations
 from collections.abc import Container
 from pathlib import Path
 
-from constants import COMFY_CANDIDATE_SUFFIXES, STAGING_DIR_NAME
+from constants import COMFY_CANDIDATE_SIDECAR_SUFFIX, COMFY_CANDIDATE_SUFFIXES, STAGING_DIR_NAME
+
+
+def candidate_sidecar_path(candidate: Path) -> Path:
+    return candidate.with_name(f"{candidate.name}{COMFY_CANDIDATE_SIDECAR_SUFFIX}")
 
 
 def candidate_name_for(

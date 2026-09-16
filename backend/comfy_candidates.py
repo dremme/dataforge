@@ -15,10 +15,9 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from automation.find_duplicates import difference_hash, hamming_distance
-from candidate_pairing import candidate_name_for, candidate_path_for
+from candidate_pairing import candidate_name_for, candidate_path_for, candidate_sidecar_path
 from captions import issue_file_path
 from constants import (
-    COMFY_CANDIDATE_SIDECAR_SUFFIX,
     COMFY_CANDIDATE_SUFFIX,
     COMFY_CANDIDATE_SUFFIXES,
     COMFY_STALE_SUFFIX,
@@ -62,6 +61,11 @@ _settling_lock = threading.Lock()
 
 def _settle_key(media: Path) -> str:
     return os.path.normcase(str(media))
+
+
+def is_settling(media: Path) -> bool:
+    with _settling_lock:
+        return _settle_key(media) in _settling
 
 
 @contextmanager
@@ -157,10 +161,6 @@ def discard_stale_candidate(media: Path, keeping: Path) -> None:
         if stale.name != media.name and (media.parent / stale.name).exists():
             continue
         _discard_candidate(stale)
-
-
-def candidate_sidecar_path(candidate: Path) -> Path:
-    return candidate.with_name(f"{candidate.name}{COMFY_CANDIDATE_SIDECAR_SUFFIX}")
 
 
 def temp_path_for(media: Path) -> Path:

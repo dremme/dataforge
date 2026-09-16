@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import unittest
+from pathlib import Path
 
 from testing_fixtures import isolate_test_database
 
@@ -17,7 +18,18 @@ from automation.rename_media import (
     sequence_padding,
     validate_rename_media_folder,
 )
+from candidate_pairing import candidate_path_for
 from captions import issue_file_path
+from comfy_candidates import (
+    candidate_sidecar_path,
+    read_candidate_sidecar,
+    settle_slot,
+    validate_candidate_destination,
+    write_candidate_sidecar,
+)
+from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
+from edit_sidecars import render_slot
+from schemas import ComfyCandidateSidecar
 from testing_fixtures import (
     TempMediaFolder,
     write_issue_sidecar,
@@ -205,6 +217,152 @@ class RenameMediaJobTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "already exists"):
                 validate_rename_media_folder(root, stem="portugal", selected_paths=[selected])
+
+    def test_renames_the_backed_up_caption_with_its_media(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.png")
+            write_txt_caption(photo, "Edited caption.")
+            backup_dir = root / CAPTION_BACKUP_DIR_NAME
+            backup_dir.mkdir()
+            (backup_dir / "photo.txt").write_text("Original caption.", encoding="utf-8")
+            (backup_dir / "unrelated.txt").write_text("Someone else's.", encoding="utf-8")
+
+            result = run_rename_media_job(root, stem="portugal")
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(
+                (backup_dir / "portugal_001.txt").read_text(encoding="utf-8"), "Original caption."
+            )
+            self.assertEqual(
+                (root / "portugal_001.txt").read_text(encoding="utf-8").strip(), "Edited caption."
+            )
+            self.assertFalse((backup_dir / "photo.txt").exists())
+            self.assertTrue((backup_dir / "unrelated.txt").is_file())
+
+    def test_rejects_a_backed_up_caption_target_conflict(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            backup_dir = root / CAPTION_BACKUP_DIR_NAME
+            backup_dir.mkdir()
+            (backup_dir / "photo.txt").write_text("Original caption.", encoding="utf-8")
+            (backup_dir / "portugal_001.txt").write_text("A stale backup.", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                validate_rename_media_folder(root, stem="portugal")
+
+    def test_cancel_restores_the_backed_up_caption_name(self) -> None:
+        with TempMediaFolder() as root:
+            files = [write_media(root, name) for name in ("a.png", "b.png")]
+            backup_dir = root / CAPTION_BACKUP_DIR_NAME
+            backup_dir.mkdir()
+            (backup_dir / "a.txt").write_text("Original caption.", encoding="utf-8")
+            now = time.time()
+            for index, path in enumerate(files):
+                os.utime(path, (now - 30 + index, now - 30 + index))
+
+            cancel = {"armed": False}
+
+            def on_progress(*_args: object) -> None:
+                cancel["armed"] = True
+
+            result = run_rename_media_job(
+                root, stem="sample", on_progress=on_progress, should_cancel=lambda: cancel["armed"]
+            )
+
+            self.assertGreater(result["stats"]["cancelled"], 0)
+            self.assertEqual([path.name for path in backup_dir.iterdir()], ["a.txt"])
+
+    def _stage_candidate(self, media: Path, name: str) -> Path:
+        staging = media.parent / STAGING_DIR_NAME
+        staging.mkdir(exist_ok=True)
+        candidate = write_media(staging, name)
+        write_candidate_sidecar(
+            candidate,
+            ComfyCandidateSidecar(source_name=media.name, preset="upscale", created_at="now"),
+        )
+        return candidate
+
+    def test_renames_the_staged_candidate_so_it_still_pairs(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.jpg")
+            self._stage_candidate(photo, "photo.png")
+
+            result = run_rename_media_job(root, stem="portugal")
+
+            self.assertEqual(result["stats"]["success"], 1)
+            renamed = root / "portugal_001.jpg"
+            candidate = root / STAGING_DIR_NAME / "portugal_001.png"
+            self.assertEqual(candidate_path_for(renamed), candidate)
+            self.assertFalse((root / STAGING_DIR_NAME / "photo.png").exists())
+            self.assertFalse(candidate_sidecar_path(root / STAGING_DIR_NAME / "photo.png").exists())
+            record = read_candidate_sidecar(candidate)
+            assert record is not None
+            self.assertEqual(record.source_name, "portugal_001.jpg")
+            # Processing the renamed file again must not take its own candidate for a stranger's.
+            validate_candidate_destination(renamed, candidate)
+
+    def test_renames_a_same_name_candidate(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.png")
+            self._stage_candidate(photo, "photo.png")
+
+            run_rename_media_job(root, stem="portugal")
+
+            self.assertEqual(
+                candidate_path_for(root / "portugal_001.png"),
+                root / STAGING_DIR_NAME / "portugal_001.png",
+            )
+
+    def test_rejects_a_staged_candidate_target_conflict(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.jpg")
+            self._stage_candidate(photo, "photo.png")
+            write_media(root / STAGING_DIR_NAME, "portugal_001.png")
+
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                validate_rename_media_folder(root, stem="portugal")
+
+    def test_rejects_a_sibling_that_would_claim_the_renamed_candidate(self) -> None:
+        with TempMediaFolder() as root:
+            photo = write_media(root, "photo.jpg")
+            self._stage_candidate(photo, "photo.png")
+            write_media(root, "portugal_001.png")
+
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                validate_rename_media_folder(root, stem="portugal", selected_paths=[photo])
+
+    def test_cancel_restores_the_staged_candidate(self) -> None:
+        with TempMediaFolder() as root:
+            files = [write_media(root, name) for name in ("a.jpg", "b.jpg")]
+            self._stage_candidate(files[0], "a.png")
+            now = time.time()
+            for index, path in enumerate(files):
+                os.utime(path, (now - 30 + index, now - 30 + index))
+
+            cancel = {"armed": False}
+
+            def on_progress(*_args: object) -> None:
+                cancel["armed"] = True
+
+            run_rename_media_job(
+                root, stem="sample", on_progress=on_progress, should_cancel=lambda: cancel["armed"]
+            )
+
+            candidate = candidate_path_for(root / "a.jpg")
+            self.assertEqual(candidate, root / STAGING_DIR_NAME / "a.png")
+            assert candidate is not None
+            record = read_candidate_sidecar(candidate)
+            assert record is not None
+            self.assertEqual(record.source_name, "a.jpg")
+
+    def test_refuses_while_a_file_is_rendering_or_being_accepted(self) -> None:
+        # Either would write back under the old name once it finished.
+        for slot in (render_slot, settle_slot):
+            with self.subTest(slot=slot.__name__), TempMediaFolder() as root:
+                media = write_media(root, "photo.png")
+
+                with slot(media), self.assertRaisesRegex(ValueError, "being edited or reviewed"):
+                    validate_rename_media_folder(root, stem="portugal")
 
     def test_progress_counts_files_not_rename_passes(self) -> None:
         with TempMediaFolder() as root:

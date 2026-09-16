@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from candidate_pairing import candidate_sidecar_path
 from captions import issue_file_path
+from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
 from media_delete import delete_media_with_sidecars, delete_path
 from testing_fixtures import TempMediaFolder, write_media, write_mp4_video, write_txt_caption
 
@@ -117,6 +119,29 @@ class DeleteVideoEditSidecarTests(unittest.TestCase):
             self.assertEqual(set(result["deleted"]), {"clip.mp4", "clip.mp4.bak", "clip.edit.json"})
             self.assertFalse(backup.exists())
             self.assertFalse(spec.exists())
+
+
+class DeleteNameLinkedFilesTests(unittest.TestCase):
+    def test_deletes_the_backup_caption_and_staged_candidate(self) -> None:
+        # Left behind, a later file of the same name would inherit both.
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.jpg")
+            backup = root / CAPTION_BACKUP_DIR_NAME / "photo.txt"
+            backup.parent.mkdir()
+            backup.write_text("Original.", encoding="utf-8")
+            (root / STAGING_DIR_NAME).mkdir()
+            candidate = write_media(root / STAGING_DIR_NAME, "photo.png")
+            record = candidate_sidecar_path(candidate)
+            record.write_text("{}", encoding="utf-8")
+            unrelated = write_media(root / STAGING_DIR_NAME, "other.png")
+
+            with patch("media_delete.sys.platform", "linux"):
+                delete_media_with_sidecars(media)
+
+            self.assertFalse(backup.exists())
+            self.assertFalse(candidate.exists())
+            self.assertFalse(record.exists())
+            self.assertTrue(unrelated.is_file())
 
 
 if __name__ == "__main__":
