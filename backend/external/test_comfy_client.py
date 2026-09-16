@@ -280,9 +280,20 @@ class QueueTests(unittest.TestCase):
 
         self.assertEqual(captured["body"], {"delete": ["p-1"]})
 
-    def test_interrupt_posts_and_survives_an_empty_body(self) -> None:
-        with client_for(lambda _r: httpx.Response(200, content=b"")) as client:
-            interrupt(client)
+    def test_interrupt_targets_the_prompt_and_accepts_an_empty_response(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, content=b"")
+
+        with client_for(handler) as client:
+            interrupt(client, "p-1")
+
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].method, "POST")
+        self.assertEqual(requests[0].url.path, "/interrupt")
+        self.assertEqual(json.loads(requests[0].content), {"prompt_id": "p-1"})
 
 
 class UrlTests(unittest.TestCase):

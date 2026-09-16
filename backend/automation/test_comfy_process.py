@@ -522,8 +522,6 @@ class AwaitOutputTests(unittest.TestCase):
 
 
 class RequestStopTests(unittest.TestCase):
-    """`/interrupt` has no prompt argument, so the queue decides whether it is ours."""
-
     def _client(self, payload: dict, calls: list[str]) -> httpx.Client:
         def handler(request: httpx.Request) -> httpx.Response:
             calls.append(request.url.path)
@@ -541,6 +539,24 @@ class RequestStopTests(unittest.TestCase):
             _request_stop(client, "p-1")
 
         self.assertIn("/interrupt", calls)
+
+    def test_running_prompt_id_is_forwarded_to_interrupt(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/queue":
+                return httpx.Response(
+                    200, json={"queue_running": [[0, "p-1", {}]], "queue_pending": []}
+                )
+            requests.append(request)
+            return httpx.Response(200)
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            _request_stop(client, "p-1")
+
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].url.path, "/interrupt")
+        self.assertEqual(json.loads(requests[0].content), {"prompt_id": "p-1"})
 
     def test_someone_elses_prompt_is_never_interrupted(self) -> None:
         # Interrupting here would kill another job's image, or work in the ComfyUI tab.

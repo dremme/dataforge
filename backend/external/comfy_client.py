@@ -297,10 +297,13 @@ def fetch_queue(client: httpx.Client) -> tuple[list[str], list[str]]:
     return (_ids("queue_running"), _ids("queue_pending"))
 
 
-def interrupt(client: httpx.Client) -> None:
-    """Stop whatever ComfyUI is executing right now; there is no per-prompt interrupt."""
+def interrupt(client: httpx.Client, prompt_id: str) -> None:
     try:
-        response = client.post(comfy_url("/interrupt"), timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
+        response = client.post(
+            comfy_url("/interrupt"),
+            json={"prompt_id": prompt_id},
+            timeout=COMFY_REQUEST_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
     except httpx.HTTPError as error:
         raise ComfyUnavailableError(str(error)) from error

@@ -188,7 +188,6 @@ def validate_comfy_process_folder(
 
 
 def _request_stop(client: httpx.Client, prompt_id: str) -> None:
-    """Take our prompt out of ComfyUI; ``/interrupt`` only after the queue confirms it is ours."""
     try:
         running, pending = fetch_queue(client)
     except ComfyError:
@@ -196,7 +195,7 @@ def _request_stop(client: httpx.Client, prompt_id: str) -> None:
 
     if prompt_id in running:
         with suppress(ComfyError):
-            interrupt(client)
+            interrupt(client, prompt_id)
         return
 
     if prompt_id in pending:
