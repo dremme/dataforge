@@ -2,11 +2,16 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as systemApi from "@/features/automation/api/system";
 import type { SystemSpecs } from "@/shared/types";
-import { resetSystemSpecsCacheForTests, useSystemSpecs } from "./useSystemSpecs";
+import {
+  ACTIVE_REFRESH_INTERVAL_MS,
+  resetSystemSpecsCacheForTests,
+  useSystemSpecs,
+} from "./useSystemSpecs";
 
 const sampleSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7",
   cpu_cores: 8,
+  cpu_usage_percent: 12.5,
   memory_total_bytes: 32 * 1024 ** 3,
   memory_used_bytes: 16 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",
@@ -62,5 +67,32 @@ describe("useSystemSpecs", () => {
     });
     expect(second.result.current).toEqual(sampleSpecs);
     second.unmount();
+  });
+
+  it("polls at the fast cadence only while live", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.spyOn(systemApi, "fetchSystemSpecs").mockResolvedValue(sampleSpecs);
+
+      const { rerender, unmount } = renderHook(({ live }) => useSystemSpecs(live), {
+        initialProps: { live: false },
+      });
+      await vi.advanceTimersByTimeAsync(ACTIVE_REFRESH_INTERVAL_MS * 3);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Going live refreshes immediately, then keeps up with the job.
+      rerender({ live: true });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(ACTIVE_REFRESH_INTERVAL_MS * 3);
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+
+      rerender({ live: false });
+      const callsWhenIdle = fetchMock.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(ACTIVE_REFRESH_INTERVAL_MS * 3);
+      expect(fetchMock).toHaveBeenCalledTimes(callsWhenIdle);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -8,6 +8,7 @@ import venv
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import system_specs
 from system_specs import _gpu_from_nvidia_smi, _gpu_from_torch, get_system_specs
 
 
@@ -16,7 +17,7 @@ class NvidiaSmiGpuTests(unittest.TestCase):
     def test_parses_name_total_and_used(self, run_mock: MagicMock) -> None:
         run_mock.return_value = MagicMock(
             returncode=0,
-            stdout="NVIDIA GeForce RTX 4090, 24564, 8192\n",
+            stdout="NVIDIA GeForce RTX 4090, 24564, 8192, 87\n",
         )
 
         info = _gpu_from_nvidia_smi()
@@ -26,15 +27,26 @@ class NvidiaSmiGpuTests(unittest.TestCase):
         self.assertEqual(info.name, "NVIDIA GeForce RTX 4090")
         self.assertEqual(info.memory_total_bytes, (24564 * 1024 * 1024))
         self.assertEqual(info.memory_used_bytes, (8192 * 1024 * 1024))
+        self.assertEqual(info.load_percent, 87.0)
 
     @patch("system_specs.subprocess.run")
     def test_queries_only_the_fields_the_panel_shows(self, run_mock: MagicMock) -> None:
-        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40\n")
+        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40, 5\n")
 
         _gpu_from_nvidia_smi()
 
         query = next(arg for arg in run_mock.call_args.args[0] if arg.startswith("--query-gpu"))
-        self.assertEqual(query, "--query-gpu=name,memory.total,memory.used")
+        self.assertEqual(query, "--query-gpu=name,memory.total,memory.used,utilization.gpu")
+
+    @patch("system_specs.subprocess.run")
+    def test_leaves_load_unknown_when_the_card_reports_na(self, run_mock: MagicMock) -> None:
+        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40, [N/A]\n")
+
+        info = _gpu_from_nvidia_smi()
+
+        assert info is not None
+        self.assertIsNone(info.load_percent)
+        self.assertEqual(info.memory_used_bytes, 40 * 1024 * 1024)
 
     @patch("system_specs.subprocess.run", side_effect=FileNotFoundError)
     def test_returns_none_when_smi_missing(self, _run_mock: MagicMock) -> None:
@@ -95,8 +107,32 @@ class TorchGpuTests(unittest.TestCase):
         self.assertEqual(info.memory_used_bytes, 5 * 1024**3)
 
 
+class CpuUsageTests(unittest.TestCase):
+    def setUp(self) -> None:
+        patcher = patch.multiple(
+            system_specs, _previous_cpu_times=(100, 1000), _last_cpu_usage_percent=None
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_measures_busy_share_since_the_previous_sample(self) -> None:
+        # 400 of the 1000 ticks since the last sample were idle.
+        with patch("system_specs._cpu_times", return_value=(500, 2000)):
+            self.assertEqual(system_specs._cpu_usage_percent(), 60.0)
+
+    def test_repeats_the_last_reading_when_no_time_has_passed(self) -> None:
+        with patch("system_specs._cpu_times", return_value=(500, 2000)):
+            system_specs._cpu_usage_percent()
+            # A second request in the same tick must not blank the readout.
+            self.assertEqual(system_specs._cpu_usage_percent(), 60.0)
+
+    def test_is_none_without_a_counter(self) -> None:
+        with patch("system_specs._cpu_times", return_value=None):
+            self.assertIsNone(system_specs._cpu_usage_percent())
+
+
 class SystemMemoryTests(unittest.TestCase):
-    @patch("system_specs._gpu_info", return_value=(None, None, None, False))
+    @patch("system_specs._gpu_info", return_value=None)
     @patch("system_specs._memory_bytes", return_value=(32 * 1024**3, 24 * 1024**3))
     def test_reports_used_memory_rather_than_available(
         self,

@@ -36,18 +36,17 @@ interface JobFileResultsProps {
 const TONE_ICONS: Record<ResultTone, AppIcon> = {
   failed: iconCircleAlert,
   cancelled: iconCircleDashed,
-  skipped: iconBan,
   done: iconCircleCheck,
+  skipped: iconBan,
 };
 
 const TONE_WORDS: Record<ResultTone, string> = {
   failed: "failed",
   cancelled: "not run",
-  skipped: "skipped",
   done: "done",
+  skipped: "skipped",
 };
 
-/** Good to bad, the conventional direction for a proportion. The groups below run the other way. */
 const MIX_ORDER: readonly ResultTone[] = ["done", "skipped", "cancelled", "failed"];
 
 /** A cancelled run counts far more files than it has rows, so the remainder is stated in words. */

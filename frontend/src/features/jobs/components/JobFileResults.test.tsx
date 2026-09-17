@@ -83,22 +83,27 @@ describe("JobFileResults", () => {
     const rows = await screen.findAllByRole("listitem");
     expect(rows.map((row) => within(row).getByTitle(/Photos/).textContent)).toEqual([
       "broken.png",
-      "skipped.png",
       "done.png",
+      "skipped.png",
     ]);
     expect(within(rows[0]).getByText("Write error")).toBeInTheDocument();
     expect(within(rows[0]).getByText("Permission denied")).toBeInTheDocument();
   });
 
-  it("groups the rows under the outcome each file reached", async () => {
+  it("displays failed, cancelled, completed, then skipped files", async () => {
     const user = userEvent.setup();
-    render(<JobFileResults job={finishedJob} />);
+    fetchResults.mockResolvedValue([...results, makeResult("interrupted.png", "cancelled")]);
+    render(<JobFileResults job={cancelledJob} />);
 
-    await user.click(screen.getByRole("button", { name: /1 failed/ }));
+    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
-    expect(await screen.findByText("Failed")).toBeInTheDocument();
-    expect(screen.getByText("Skipped", { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByText("Completed")).toBeInTheDocument();
+    const rows = await screen.findAllByRole("listitem");
+    expect(rows.map((row) => within(row).getByTitle(/Photos/).textContent)).toEqual([
+      "broken.png",
+      "interrupted.png",
+      "done.png",
+      "skipped.png",
+    ]);
   });
 
   it("names no group for an outcome the job never produced", async () => {

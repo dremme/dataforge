@@ -37,19 +37,21 @@ describe("jobFileResults", () => {
     expect(resultStatusLabel("brand_new_status")).toBe("Brand new status");
   });
 
-  it("orders failures first, then skips, then successes", () => {
+  it("orders failures, cancellations, successes, then skips and preserves order within groups", () => {
     const results = [
       makeResult("done.png", "success"),
       makeResult("skipped.png", "skipped"),
       makeResult("broken.png", "write_error"),
       makeResult("also-done.png", "success"),
+      makeResult("interrupted.png", "cancelled"),
     ];
 
     expect(sortResultsForDisplay(results).map((result) => result.name)).toEqual([
       "broken.png",
-      "skipped.png",
+      "interrupted.png",
       "done.png",
       "also-done.png",
+      "skipped.png",
     ]);
   });
 
@@ -65,15 +67,22 @@ describe("jobFileResults", () => {
         makeResult("done.png", "success"),
         makeResult("skipped.png", "skipped"),
         makeResult("broken.png", "write_error"),
+        makeResult("interrupted.png", "cancelled"),
       ]),
     );
 
-    expect(groups.map((group) => group.label)).toEqual(["Failed", "Skipped", "Completed"]);
-    expect(groups.map((group) => group.tone)).toEqual(["failed", "skipped", "done"]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "Failed",
+      "Not run",
+      "Completed",
+      "Skipped",
+    ]);
+    expect(groups.map((group) => group.tone)).toEqual(["failed", "cancelled", "done", "skipped"]);
     expect(groups.map((group) => group.results.map((result) => result.name))).toEqual([
       ["broken.png"],
-      ["skipped.png"],
+      ["interrupted.png"],
       ["done.png"],
+      ["skipped.png"],
     ]);
   });
 

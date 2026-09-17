@@ -204,11 +204,13 @@ class HealthResponse(BaseModel):
 class SystemSpecsResponse(BaseModel):
     cpu_name: str
     cpu_cores: int
+    cpu_usage_percent: float | None = None
     memory_total_bytes: int
     memory_used_bytes: int
     gpu_name: str | None = None
     gpu_memory_bytes: int | None = None
     gpu_memory_used_bytes: int | None = None
+    gpu_load_percent: float | None = None
     gpu_available: bool = False
 
 

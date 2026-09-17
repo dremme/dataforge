@@ -324,7 +324,7 @@ export function AutomationPanel({
           </div>
         </div>
 
-        <AutomationSystemSpecs id={specsPanelId} open={showSpecs} />
+        <AutomationSystemSpecs id={specsPanelId} open={showSpecs} jobActive={jobActive} />
 
         {job && (
           <div className="automation__body">

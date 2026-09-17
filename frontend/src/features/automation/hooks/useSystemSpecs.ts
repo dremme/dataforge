@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { fetchSystemSpecs } from "@/features/automation/api/system";
 import type { SystemSpecs } from "@/shared/types";
 
-const REFRESH_INTERVAL_MS = 30_000;
+const IDLE_REFRESH_INTERVAL_MS = 30_000;
+/** Fast enough to watch a job load the machine; each poll also shells out to nvidia-smi. */
+export const ACTIVE_REFRESH_INTERVAL_MS = 2_000;
 
 /** Survives AutomationPanel remounts when browsing folders. */
 let cachedSpecs: SystemSpecs | null = null;
@@ -12,8 +14,11 @@ export function resetSystemSpecsCacheForTests(): void {
   cachedSpecs = null;
 }
 
-export function useSystemSpecs(): SystemSpecs | null {
+/** `live` polls at the fast cadence, e.g. while a job is running. */
+export function useSystemSpecs(live = false): SystemSpecs | null {
   const [specs, setSpecs] = useState<SystemSpecs | null>(() => cachedSpecs);
+
+  const intervalMs = live ? ACTIVE_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS;
 
   useEffect(() => {
     let cancelled = false;
@@ -36,13 +41,13 @@ export function useSystemSpecs(): SystemSpecs | null {
     void load();
     const intervalId = window.setInterval(() => {
       void load();
-    }, REFRESH_INTERVAL_MS);
+    }, intervalMs);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [intervalMs]);
 
   return specs;
 }
