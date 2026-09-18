@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { iconCpu, iconDot, iconGpu, iconMemoryStick } from "@/shared/icons";
+import { iconChevronDown, iconCpu, iconGpu, iconMemoryStick } from "@/shared/icons";
 import { useSystemSpecs } from "@/features/automation/hooks/useSystemSpecs";
 import { classNames } from "@/shared/lib/classNames";
 import { formatBytes, formatBytesValue } from "@/shared/lib/format";
@@ -28,15 +28,19 @@ function levelClass(base: string, level: UsageLevel): string | undefined {
 }
 
 export interface AutomationSystemSpecsProps {
-  /** Matches the aria-controls of the toggle button in the automation header. */
   id: string;
   open: boolean;
   /** Refreshes quickly while a job runs so its load is visible. */
   jobActive?: boolean;
+  onToggle?: () => void;
 }
 
-/** Collapsible CPU / RAM / GPU readout under the automation header. */
-export function AutomationSystemSpecs({ id, open, jobActive = false }: AutomationSystemSpecsProps) {
+export function AutomationSystemSpecs({
+  id,
+  open,
+  jobActive = false,
+  onToggle,
+}: AutomationSystemSpecsProps) {
   // A collapsed panel shows nothing, so it has no reason to poll fast.
   const specs = useSystemSpecs(open && jobActive);
   if (!specs) return null;
@@ -45,14 +49,40 @@ export function AutomationSystemSpecs({ id, open, jobActive = false }: Automatio
   const hasGpu = specs.gpu_available && gpu_name !== null;
 
   return (
-    <div
-      id={id}
-      className={classNames("automation__specs-panel", open && "automation__specs-panel--open")}
-    >
-      <div className="automation__specs-panel-inner">
+    <div className="automation__system">
+      {onToggle && (
+        <button
+          type="button"
+          className="automation__specs-toggle"
+          onClick={onToggle}
+          aria-label="Toggle system specifications"
+          aria-expanded={open}
+          aria-controls={id}
+        >
+          <Icon
+            icon={iconChevronDown}
+            className={classNames(
+              "automation__disclosure-icon",
+              open && "automation__disclosure-icon--open",
+            )}
+          />
+          System specifications
+        </button>
+      )}
+      <div
+        id={id}
+        hidden={!open}
+        className={classNames("automation__specs-panel", open && "automation__specs-panel--open")}
+      >
         <div className="automation__specs" role="region" aria-label="System specifications">
           <Spec
             icon={iconCpu}
+            label="CPU"
+            detail={
+              <>
+                {specs.cpu_name} · {specs.cpu_cores} cores
+              </>
+            }
             meter={
               specs.cpu_usage_percent != null && {
                 label: "CPU load",
@@ -60,65 +90,62 @@ export function AutomationSystemSpecs({ id, open, jobActive = false }: Automatio
               }
             }
           >
-            {specs.cpu_name}
-            <span className="automation__spec-detail">
-              <Icon icon={iconDot} className="app-icon--dot" />
-              {specs.cpu_cores} cores
-            </span>
-            {specs.cpu_usage_percent != null && (
+            {specs.cpu_usage_percent != null ? (
               <LoadDetail percent={specs.cpu_usage_percent} title="CPU usage" />
+            ) : (
+              <span className="automation__spec-detail">Unavailable</span>
             )}
           </Spec>
-
-          <SpecDivider />
-
           <Spec
             icon={iconMemoryStick}
-            meter={
-              specs.memory_total_bytes > 0 && {
-                label: "RAM usage",
-                percent: memoryPercent(specs.memory_used_bytes, specs.memory_total_bytes),
-              }
-            }
+            label="RAM"
+            detail="Memory used / total"
+            meter={{
+              label: "RAM usage",
+              percent: memoryPercent(specs.memory_used_bytes, specs.memory_total_bytes),
+            }}
           >
-            RAM
             <MemoryDetail
               usedBytes={specs.memory_used_bytes}
               totalBytes={specs.memory_total_bytes}
               title="RAM used / total"
             />
           </Spec>
-
-          <SpecDivider />
-
           <Spec
             icon={iconGpu}
+            label="GPU"
+            detail={hasGpu ? gpu_name : "No GPU"}
             meter={
               hasGpu && gpu_load_percent != null && { label: "GPU load", percent: gpu_load_percent }
             }
           >
             {hasGpu ? (
               <>
-                {gpu_name}
-                {gpu_memory_bytes != null &&
-                  (gpu_memory_used_bytes != null ? (
-                    <MemoryDetail
-                      usedBytes={gpu_memory_used_bytes}
-                      totalBytes={gpu_memory_bytes}
-                      title="VRAM used / total"
-                    />
-                  ) : (
-                    <span className="automation__spec-detail" title="VRAM total">
-                      <Icon icon={iconDot} className="app-icon--dot" />
-                      {formatBytes(gpu_memory_bytes)}
-                    </span>
-                  ))}
                 {gpu_load_percent != null && (
                   <LoadDetail percent={gpu_load_percent} title="GPU load" />
                 )}
+                {gpu_memory_bytes != null && (
+                  <span className="automation__spec-vram">
+                    VRAM{" "}
+                    {gpu_memory_used_bytes != null ? (
+                      <MemoryDetail
+                        usedBytes={gpu_memory_used_bytes}
+                        totalBytes={gpu_memory_bytes}
+                        title="VRAM used / total"
+                      />
+                    ) : (
+                      <span className="automation__spec-detail" title="VRAM total">
+                        {formatBytes(gpu_memory_bytes)}
+                      </span>
+                    )}
+                  </span>
+                )}
+                {gpu_load_percent == null && gpu_memory_bytes == null && (
+                  <span className="automation__spec-detail">Unavailable</span>
+                )}
               </>
             ) : (
-              <span className="automation__spec-detail">No GPU</span>
+              <span className="automation__spec-detail">Unavailable</span>
             )}
           </Spec>
         </div>
@@ -134,18 +161,22 @@ interface SpecMeter {
 
 interface SpecProps {
   icon: LucideIcon;
+  label: string;
+  detail: ReactNode;
   /** Bar under the readout; `false` keeps an empty track so the row stays aligned. */
   meter: SpecMeter | false;
   children: ReactNode;
 }
 
-function Spec({ icon, meter, children }: SpecProps) {
+function Spec({ icon, label, detail, meter, children }: SpecProps) {
   return (
     <span className="automation__spec">
       <span className="automation__spec-row">
         <Icon icon={icon} className="automation__spec-icon" />
-        <span className="automation__spec-label">{children}</span>
+        <span className="automation__spec-label">{label}</span>
+        <span className="automation__spec-values">{children}</span>
       </span>
+      <span className="automation__spec-hardware">{detail}</span>
       {meter ? (
         <SpecMeterBar {...meter} />
       ) : (
@@ -182,16 +213,11 @@ function SpecMeterBar({ label, percent }: SpecMeter) {
 function LoadDetail({ percent, title }: { percent: number; title: string }) {
   return (
     <span className="automation__spec-detail" title={title}>
-      <Icon icon={iconDot} className="app-icon--dot" />
       <span className={levelClass("automation__spec-detail", usageLevel(Math.round(percent)))}>
         {Math.round(percent)}%
       </span>
     </span>
   );
-}
-
-function SpecDivider() {
-  return <span className="automation__spec-divider" aria-hidden="true" />;
 }
 
 interface MemoryDetailProps {
@@ -200,11 +226,9 @@ interface MemoryDetailProps {
   title: string;
 }
 
-/** Renders a separator dot then "used / total GB", writing the unit only once. */
 function MemoryDetail({ usedBytes, totalBytes, title }: MemoryDetailProps) {
   return (
     <span className="automation__spec-detail" title={title}>
-      <Icon icon={iconDot} className="app-icon--dot" />
       <span
         className={levelClass(
           "automation__spec-detail",

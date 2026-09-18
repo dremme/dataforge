@@ -43,6 +43,28 @@ afterEach(() => {
 });
 
 describe("JobCard", () => {
+  it.each(["queued", "running"] as const)("shows progress for a %s job", (status) => {
+    render(<JobCard job={{ ...runningJob, status }} />);
+
+    expect(screen.getByRole("progressbar", { name: "Progress for Photos" })).toHaveAttribute(
+      "aria-valuenow",
+      "30",
+    );
+  });
+
+  it.each(["completed", "failed", "cancelled", "interrupted"] as const)(
+    "hides progress when a running job becomes %s",
+    (status) => {
+      const { rerender } = render(<JobCard job={runningJob} />);
+      expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+      rerender(<JobCard job={{ ...runningJob, status }} />);
+
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(screen.getByText("3/10")).toBeInTheDocument();
+    },
+  );
+
   it("shows a spinner on the cancel button while cancellation is in flight", () => {
     const { container } = render(<JobCard job={runningJob} onCancel={vi.fn()} cancelling />);
 

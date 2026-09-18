@@ -9,7 +9,6 @@ import {
   iconFilePen,
   iconFilePlus,
   iconHammer,
-  iconInfo,
   iconLoader2,
   iconScanSquare,
   iconTriangleAlert,
@@ -154,7 +153,6 @@ export function AutomationPanel({
         : !hasSyspromptContent
           ? "Write instructions in .sysprompt before running auto-caption"
           : (primaryMeta.menuDescription ?? `Start ${primaryMeta.label.toLowerCase()}`);
-  const specsTooltip = showSpecs ? "Hide system specifications" : "Show system specifications";
   const syspromptTooltip = hasSyspromptFile
     ? "Edit the .sysprompt instructions for this folder"
     : "Create a .sysprompt file with captioning instructions";
@@ -164,34 +162,13 @@ export function AutomationPanel({
       <div ref={stickySentinelRef} className="sticky-sentinel" aria-hidden="true" />
       <section
         ref={panelRef}
-        className={classNames(
-          "automation",
-          isFloating && "automation--floating",
-          showJobError && "automation--error",
-          showJobWarning && "automation--warning",
-          showCancelled && "automation--cancelled",
-        )}
+        className={classNames("automation", isFloating && "automation--floating")}
         aria-label="Automation"
       >
         <div className="automation__header">
           <div className="automation__title">
             <Icon icon={iconHammer} className="automation__title-icon" />
-            <span>DataForge automation</span>
-            <Tooltip content={specsTooltip}>
-              <button
-                type="button"
-                className={classNames(
-                  "automation__specs-toggle",
-                  showSpecs && "automation__specs-toggle--active",
-                )}
-                onClick={toggleSpecs}
-                aria-label="Toggle system specifications"
-                aria-expanded={showSpecs}
-                aria-controls={specsPanelId}
-              >
-                <Icon icon={iconInfo} />
-              </button>
-            </Tooltip>
+            <span>Automation</span>
           </div>
 
           <div className="automation__actions">
@@ -241,53 +218,6 @@ export function AutomationPanel({
                   </Tooltip>
                 )}
 
-                {showResolveIssues && (
-                  <Tooltip content={`Review and fix ${issueLabel}`}>
-                    <button
-                      type="button"
-                      className="automation__resolve-issues"
-                      onClick={onResolveIssues}
-                      disabled={starting}
-                      aria-label={`Resolve ${issueLabel}`}
-                    >
-                      <Icon icon={iconMessageCheck} className="automation__btn-icon" />
-                      Resolve issues
-                    </button>
-                  </Tooltip>
-                )}
-
-                {showResolveDuplicates && (
-                  <Tooltip content={`Compare and clear ${duplicateLabel}`}>
-                    <button
-                      type="button"
-                      className="automation__resolve-duplicates"
-                      onClick={onResolveDuplicates}
-                      disabled={starting}
-                      aria-label={`Resolve ${duplicateLabel}`}
-                    >
-                      <Icon icon={iconFileCheck} className="automation__btn-icon" />
-                      Resolve duplicates
-                    </button>
-                  </Tooltip>
-                )}
-
-                {showReviewCandidates && (
-                  <Tooltip
-                    content={`Compare ${candidateLabel} against the original${candidateCount === 1 ? "" : "s"}`}
-                  >
-                    <button
-                      type="button"
-                      className="automation__review-candidates"
-                      onClick={onReviewCandidates}
-                      disabled={starting}
-                      aria-label={`Review ${candidateLabel}`}
-                    >
-                      <Icon icon={iconScanSquare} className="automation__btn-icon" />
-                      Review candidates
-                    </button>
-                  </Tooltip>
-                )}
-
                 {canStart && (
                   <AutomationMoreJobsMenu
                     disabled={starting || filteredItems.length === 0}
@@ -324,8 +254,6 @@ export function AutomationPanel({
           </div>
         </div>
 
-        <AutomationSystemSpecs id={specsPanelId} open={showSpecs} jobActive={jobActive} />
-
         {job && (
           <div className="automation__body">
             <div className="automation__status-row">
@@ -356,29 +284,84 @@ export function AutomationPanel({
               </p>
             )}
 
-            <div
-              className="automation__progress"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={progressPercent(job)}
-              aria-label={`${jobTypeLabel(job)} progress`}
-            >
+            {jobActive && (
               <div
-                className={classNames(
-                  "automation__progress-bar",
-                  showJobError && "automation__progress-bar--error",
-                  showJobWarning && "automation__progress-bar--warning",
-                  showCancelled && "automation__progress-bar--cancelled",
-                )}
-                style={{ width: `${progressPercent(job)}%` }}
-              />
-            </div>
+                className="automation__progress"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progressPercent(job)}
+                aria-label={`${jobTypeLabel(job)} progress`}
+              >
+                <div
+                  className={classNames(
+                    "automation__progress-bar",
+                    showJobError && "automation__progress-bar--error",
+                    showJobWarning && "automation__progress-bar--warning",
+                    showCancelled && "automation__progress-bar--cancelled",
+                  )}
+                  style={{ width: `${progressPercent(job)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
-            <ComfyProcessLog job={job} />
+      <section className="automation-details" aria-label="Automation details">
+        {!jobActive && (showResolveIssues || showResolveDuplicates || showReviewCandidates) && (
+          <div className="automation__review" role="group" aria-label="Ready to review">
+            <span className="automation__review-label">Ready to review</span>
+            {showResolveIssues && (
+              <Tooltip content={`Review and fix ${issueLabel}`}>
+                <button
+                  type="button"
+                  className="automation__resolve-issues"
+                  onClick={onResolveIssues}
+                  disabled={starting}
+                  aria-label={`Resolve ${issueLabel}`}
+                >
+                  <Icon icon={iconMessageCheck} className="automation__btn-icon" />
+                  {issueLabel}
+                </button>
+              </Tooltip>
+            )}
 
-            <TrainingSamples samples={trainingSamples} />
+            {showResolveDuplicates && (
+              <Tooltip content={`Compare and clear ${duplicateLabel}`}>
+                <button
+                  type="button"
+                  className="automation__resolve-duplicates"
+                  onClick={onResolveDuplicates}
+                  disabled={starting}
+                  aria-label={`Resolve ${duplicateLabel}`}
+                >
+                  <Icon icon={iconFileCheck} className="automation__btn-icon" />
+                  {duplicateLabel}
+                </button>
+              </Tooltip>
+            )}
 
+            {showReviewCandidates && (
+              <Tooltip
+                content={`Compare ${candidateLabel} against the original${candidateCount === 1 ? "" : "s"}`}
+              >
+                <button
+                  type="button"
+                  className="automation__review-candidates"
+                  onClick={onReviewCandidates}
+                  disabled={starting}
+                  aria-label={`Review ${candidateLabel}`}
+                >
+                  <Icon icon={iconScanSquare} className="automation__btn-icon" />
+                  {candidateLabel}
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
+        {job && (
+          <>
             {errorMessage && (
               <div className="automation__message automation__message--error" role="alert">
                 <Icon icon={iconCircleAlert} className="automation__message-icon" />
@@ -393,14 +376,23 @@ export function AutomationPanel({
               </div>
             )}
 
+            <TrainingSamples samples={trainingSamples} />
+            <ComfyProcessLog key={`log-${job.id}`} job={job} />
             <JobFileResults
+              key={`results-${job.id}`}
               job={job}
               onOpenItem={onOpenItem}
               onRetryFailed={onRetryFailed && ((paths) => onRetryFailed(job.job_type, paths))}
               onRunAgain={onRunAgain && (() => onRunAgain(job.job_type))}
             />
-          </div>
+          </>
         )}
+        <AutomationSystemSpecs
+          id={specsPanelId}
+          open={showSpecs}
+          jobActive={jobActive}
+          onToggle={toggleSpecs}
+        />
       </section>
     </>
   );

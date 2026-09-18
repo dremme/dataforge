@@ -100,9 +100,12 @@ describe("AutomationSystemSpecs", () => {
     const panel = container.querySelector("#specs-panel");
     expect(panel).toHaveClass("automation__specs-panel");
     expect(panel).not.toHaveClass("automation__specs-panel--open");
+    expect(panel).not.toBeVisible();
+    expect(screen.queryByRole("region", { name: "System specifications" })).not.toBeInTheDocument();
 
     rerender(<AutomationSystemSpecs id="specs-panel" open />);
     expect(container.querySelector("#specs-panel")).toHaveClass("automation__specs-panel--open");
+    expect(screen.getByRole("region", { name: "System specifications" })).toBeVisible();
   });
 
   it("colours figures and bars yellow from 75% and red from 90%", () => {

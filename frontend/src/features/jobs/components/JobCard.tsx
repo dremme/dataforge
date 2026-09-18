@@ -137,24 +137,26 @@ export function JobCard({
         {timeLabel && <span className="job-card__remaining">{timeLabel}</span>}
       </div>
 
-      <div
-        className="job-card__progress"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={progressPercent(job)}
-        aria-label={`Progress for ${folderLabel}`}
-      >
+      {active && (
         <div
-          className={classNames(
-            "job-card__progress-bar",
-            showError && "job-card__progress-bar--error",
-            showWarning && "job-card__progress-bar--warning",
-            showCancelled && "job-card__progress-bar--cancelled",
-          )}
-          style={{ width: `${progressPercent(job)}%` }}
-        />
-      </div>
+          className="job-card__progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progressPercent(job)}
+          aria-label={`Progress for ${folderLabel}`}
+        >
+          <div
+            className={classNames(
+              "job-card__progress-bar",
+              showError && "job-card__progress-bar--error",
+              showWarning && "job-card__progress-bar--warning",
+              showCancelled && "job-card__progress-bar--cancelled",
+            )}
+            style={{ width: `${progressPercent(job)}%` }}
+          />
+        </div>
+      )}
 
       <TrainingSamples samples={samples} compact onLightboxOpenChange={onLightboxOpenChange} />
 

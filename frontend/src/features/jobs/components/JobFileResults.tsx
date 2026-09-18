@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useJobFileResults } from "@/features/jobs/hooks/useJobFileResults";
 import {
   cancelledCountFromStats,
@@ -129,6 +129,7 @@ export function JobFileResults({
   onRunAgain,
 }: JobFileResultsProps) {
   const [expanded, setExpanded] = useState(false);
+  const panelId = useId();
   const { results, loading, failed } = useJobFileResults(job, expanded);
 
   if (isActiveJobStatus(job.status)) return null;
@@ -145,6 +146,7 @@ export function JobFileResults({
         className="job-file-results__toggle"
         onClick={() => setExpanded((current) => !current)}
         aria-expanded={expanded}
+        aria-controls={panelId}
       >
         <Icon
           icon={iconChevronDown}
@@ -161,78 +163,84 @@ export function JobFileResults({
         )}
       </button>
 
-      {expanded && (
-        <div className="job-file-results__panel">
-          {loading && (
-            <p className="job-file-results__note">
-              <Icon icon={iconLoader2} className="job-file-results__note-icon" spin />
-              Loading results...
-            </p>
-          )}
+      <div id={panelId} hidden={!expanded}>
+        {expanded && (
+          <div className="job-file-results__panel">
+            {loading && (
+              <p className="job-file-results__note">
+                <Icon icon={iconLoader2} className="job-file-results__note-icon" spin />
+                Loading results...
+              </p>
+            )}
 
-          {failed && !loading && (
-            <p className="job-file-results__alert" role="alert">
-              <Icon icon={iconCircleAlert} className="job-file-results__alert-icon" />
-              This job&apos;s results are no longer stored.
-            </p>
-          )}
+            {failed && !loading && (
+              <p className="job-file-results__alert" role="alert">
+                <Icon icon={iconCircleAlert} className="job-file-results__alert-icon" />
+                This job&apos;s results are no longer stored.
+              </p>
+            )}
 
-          {!loading && !failed && groups.length === 0 && (
-            <p className="job-file-results__note">This job recorded no per-file results.</p>
-          )}
+            {!loading && !failed && groups.length === 0 && (
+              <p className="job-file-results__note">This job recorded no per-file results.</p>
+            )}
 
-          {groups.length > 0 && (
-            <>
-              <ResultMix groups={groups} />
+            {groups.length > 0 && (
+              <>
+                <ResultMix groups={groups} />
 
-              <div className="job-file-results__groups" data-scroll-lock-allow>
-                {groups.map((group) => {
-                  const unlisted = unlistedNote(group);
+                <div className="job-file-results__groups" data-scroll-lock-allow>
+                  {groups.map((group) => {
+                    const unlisted = unlistedNote(group);
 
-                  return (
-                    <section key={group.tone} className="job-file-results__group">
-                      <p
-                        className={`job-file-results__group-label job-file-results__group-label--${group.tone}`}
-                      >
-                        {group.label}
-                        <span className="job-file-results__group-count">{group.count}</span>
-                      </p>
-                      {group.results.length > 0 && (
-                        <ul className="job-file-results__list">
-                          {group.results.map((result) => (
-                            <ResultRow key={result.path} result={result} onOpenItem={onOpenItem} />
-                          ))}
-                        </ul>
-                      )}
-                      {unlisted && <p className="job-file-results__group-note">{unlisted}</p>}
-                    </section>
-                  );
-                })}
+                    return (
+                      <section key={group.tone} className="job-file-results__group">
+                        <p
+                          className={`job-file-results__group-label job-file-results__group-label--${group.tone}`}
+                        >
+                          {group.label}
+                          <span className="job-file-results__group-count">{group.count}</span>
+                        </p>
+                        {group.results.length > 0 && (
+                          <ul className="job-file-results__list">
+                            {group.results.map((result) => (
+                              <ResultRow
+                                key={result.path}
+                                result={result}
+                                onOpenItem={onOpenItem}
+                              />
+                            ))}
+                          </ul>
+                        )}
+                        {unlisted && <p className="job-file-results__group-note">{unlisted}</p>}
+                      </section>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {(onRetryFailed || onRunAgain) && !loading && (
+              <div className="job-file-results__actions">
+                {onRetryFailed && loadedFailedCount > 0 && (
+                  <button
+                    type="button"
+                    className="job-file-results__action job-file-results__action--primary"
+                    onClick={() => onRetryFailed(retryPaths)}
+                  >
+                    <Icon icon={iconRotateCcw} className="job-file-results__action-icon" />
+                    Retry {loadedFailedCount} failed
+                  </button>
+                )}
+                {onRunAgain && (
+                  <button type="button" className="job-file-results__action" onClick={onRunAgain}>
+                    Run again
+                  </button>
+                )}
               </div>
-            </>
-          )}
-
-          {(onRetryFailed || onRunAgain) && !loading && (
-            <div className="job-file-results__actions">
-              {onRetryFailed && loadedFailedCount > 0 && (
-                <button
-                  type="button"
-                  className="job-file-results__action job-file-results__action--primary"
-                  onClick={() => onRetryFailed(retryPaths)}
-                >
-                  <Icon icon={iconRotateCcw} className="job-file-results__action-icon" />
-                  Retry {loadedFailedCount} failed
-                </button>
-              )}
-              {onRunAgain && (
-                <button type="button" className="job-file-results__action" onClick={onRunAgain}>
-                  Run again
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

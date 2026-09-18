@@ -102,6 +102,54 @@ const baseProps = {
 };
 
 describe("AutomationPanel", () => {
+  it("keeps review tasks and details outside the sticky controls", () => {
+    render(
+      <AutomationPanel
+        {...baseProps}
+        job={finishedJob}
+        issueCount={3}
+        onResolveIssues={vi.fn()}
+        duplicateGroupCount={2}
+        onResolveDuplicates={vi.fn()}
+        candidateCount={4}
+        onReviewCandidates={vi.fn()}
+      />,
+    );
+
+    const controls = screen.getByRole("region", { name: "Automation" });
+    const review = screen.getByRole("group", { name: "Ready to review" });
+    expect(controls).toHaveTextContent("Completed");
+    expect(controls).not.toContainElement(review);
+    expect(controls).not.toContainElement(screen.getByRole("button", { name: /Per-file results/ }));
+    expect(
+      within(review).getByRole("button", { name: "Resolve 3 caption issues" }),
+    ).toHaveTextContent("3 caption issues");
+    expect(
+      within(review).getByRole("button", { name: "Resolve 2 duplicate groups" }),
+    ).toHaveTextContent("2 duplicate groups");
+    expect(within(review).getByRole("button", { name: "Review 4 candidates" })).toHaveTextContent(
+      "4 candidates",
+    );
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("keeps progress and cancellation in the sticky controls while running", () => {
+    render(
+      <AutomationPanel
+        {...baseProps}
+        job={{ ...finishedJob, status: "running", processed: 4, current_name: "sunset.png" }}
+        issueCount={3}
+        onResolveIssues={vi.fn()}
+      />,
+    );
+
+    const controls = screen.getByRole("region", { name: "Automation" });
+    expect(within(controls).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40");
+    expect(within(controls).getByRole("button", { name: "Cancel running job" })).toBeEnabled();
+    expect(within(controls).getByText("sunset.png")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Ready to review" })).not.toBeInTheDocument();
+  });
+
   it("renders the panel even when no jobs can be started", () => {
     mockShowSpecs = false;
     render(<AutomationPanel {...baseProps} />);
@@ -110,7 +158,7 @@ describe("AutomationPanel", () => {
     expect(screen.getByRole("button", { name: "Create instructions" })).toBeInTheDocument();
   });
 
-  it("shows a yellow resolve button when the folder has issue files", async () => {
+  it("shows a counted review action when the folder has issue files", async () => {
     mockShowSpecs = false;
     const user = userEvent.setup();
     const onResolveIssues = vi.fn();
@@ -429,7 +477,7 @@ describe("AutomationPanel", () => {
     expect(onRequestStart).not.toHaveBeenCalled();
   });
 
-  it("shows the training samples under the progress bar", async () => {
+  it("shows training samples in the scrolling details below the job summary", async () => {
     mockShowSpecs = false;
     fetchResults.mockResolvedValue([
       {
@@ -452,12 +500,12 @@ describe("AutomationPanel", () => {
     const { container } = render(<AutomationPanel {...baseProps} job={trainingJob} />);
 
     expect(await screen.findByAltText("a mountain lake at sunrise")).toBeInTheDocument();
-    const samples = container.querySelector(".training-samples");
+    const samples = container.querySelector<HTMLElement>(".training-samples");
     expect(samples).toBeInTheDocument();
 
-    // The strip belongs below the progress bar, not above it.
-    const progress = container.querySelector(".automation__progress");
-    expect(progress?.compareDocumentPosition(samples!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const controls = screen.getByRole("region", { name: "Automation" });
+    expect(controls).not.toContainElement(samples);
+    expect(screen.getByRole("region", { name: "Automation details" })).toContainElement(samples);
   });
 
   it("shows no samples strip for other job types", () => {

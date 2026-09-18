@@ -68,7 +68,7 @@ export function AutomationMoreJobsMenu({
         {secondaryStarting ? (
           <Icon icon={iconLoader2} className="automation__btn-icon automation__btn-icon--spin" />
         ) : null}
-        More
+        More jobs
         {!secondaryStarting && (
           <Icon icon={iconChevronDown} className="automation__more-trigger-chevron" />
         )}

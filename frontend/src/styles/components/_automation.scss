@@ -5,11 +5,11 @@
   position: sticky;
   top: 0;
   z-index: $z-index-sticky-panel;
-  margin-bottom: 1.25rem;
-  padding: var(--panel-padding);
+  margin-bottom: 0;
+  padding: 0.875rem var(--panel-padding);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius) var(--radius) 0 0;
   transition:
     background 0.22s ease,
     box-shadow 0.22s ease,
@@ -17,15 +17,12 @@
 
   &--floating {
     @include floating-sticky-surface;
+    border-radius: var(--radius);
   }
 
-  &--cancelled,
-  &--warning {
-    @include status-panel-warning;
-  }
-
-  &--error {
-    @include status-panel-danger;
+  &:has(+ .automation-details:empty) {
+    margin-bottom: 1.25rem;
+    border-radius: var(--radius);
   }
 
   &__header {
@@ -58,75 +55,106 @@
   }
 
   &__specs-toggle {
-    @include icon-btn-sm;
-    background: transparent;
-    border-color: transparent;
+    @include control-interactive;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.75rem 0;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    text-align: left;
 
-    &--active {
-      color: var(--accent);
-
-      &:hover:not(:disabled) {
-        color: var(--accent);
-      }
+    &:hover {
+      color: var(--text);
     }
   }
 
-  &__specs-panel {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  &__disclosure-icon {
+    @include icon-size(var(--icon-size-sm));
+    transition: transform var(--transition);
+    transform: rotate(-90deg);
 
     &--open {
-      grid-template-rows: 1fr;
-    }
-
-    &-inner {
-      overflow: hidden;
-      min-height: 0;
+      transform: rotate(0deg);
     }
   }
 
   &__specs {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4375rem 0.625rem;
-    min-width: 0;
-    padding-top: 0.875rem;
-    opacity: 0;
-    transform: translateY(-0.85rem);
-    transition:
-      opacity 0.22s ease,
-      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-
-    .automation__specs-panel--open & {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+    padding: 0.25rem 0 1rem;
   }
 
   &__spec {
-    display: inline-flex;
+    display: flex;
     flex-direction: column;
-    gap: 0.3125rem;
+    gap: 0.5rem;
     min-width: 0;
-    max-width: 100%;
-    font-size: var(--text-xs);
     color: var(--text-muted);
-    // Not --leading-snug: 1.35 against 12px is a 16.2px line box, which puts icons on a half pixel.
-    line-height: 1;
+    font-size: var(--text-xs);
 
     &-row {
       display: flex;
-      align-items: center;
+      align-items: baseline;
+      flex-wrap: wrap;
       gap: 0.375rem;
       min-width: 0;
     }
 
+    &-icon {
+      align-self: center;
+      color: var(--text-subtle);
+    }
+
+    &-label {
+      font-weight: var(--font-medium);
+      color: var(--text);
+    }
+
+    &-values {
+      display: inline-flex;
+      align-items: baseline;
+      justify-content: flex-end;
+      flex: 1;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.5rem;
+      @include tabular-nums;
+    }
+
+    &-hardware {
+      @include truncate;
+      color: var(--text-subtle);
+      font-size: var(--text-2xs);
+    }
+
+    &-vram {
+      white-space: nowrap;
+      color: var(--text-subtle);
+      font-size: var(--text-2xs);
+    }
+
+    &-detail {
+      @include tabular-nums;
+      white-space: nowrap;
+
+      &--warning {
+        color: var(--warning);
+      }
+
+      &--danger {
+        color: var(--danger);
+      }
+    }
+
     &-meter {
       height: 0.1875rem;
+      margin-top: auto;
       overflow: hidden;
-      background: var(--bg-card);
+      background: var(--surface-hover);
       border-radius: var(--radius-pill);
 
       &--empty {
@@ -136,7 +164,7 @@
       &-fill {
         display: block;
         height: 100%;
-        background: var(--accent);
+        background: var(--text-subtle);
         border-radius: inherit;
         transition: width 0.35s ease;
 
@@ -149,63 +177,40 @@
         }
       }
     }
-
-    &-icon {
-      flex-shrink: 0;
-      color: var(--text-subtle);
-    }
-
-    &-label {
-      min-width: 0;
-      font-weight: var(--font-medium);
-      @include truncate;
-    }
-
-    &-detail {
-      @include tabular-nums;
-      color: var(--text-subtle);
-      font-weight: var(--font-normal);
-
-      &--warning {
-        color: var(--warning);
-      }
-
-      &--danger {
-        color: var(--danger);
-      }
-    }
   }
 
-  &__spec-divider {
-    @include modal-meta-divider;
-  }
-
-  &__sysprompt {
+  &__sysprompt,
+  &__cancel {
     @include pill-btn-ghost(0.4rem);
-    --bg-elevated: #{$color-bg-soft};
   }
 
   &__start {
     @include pill-btn-accent(0.4rem);
   }
 
-  &__resolve-issues {
-    @include pill-btn-warning(0.4rem);
+  &__review {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    padding: 0.625rem 0;
   }
 
-  &__resolve-duplicates {
-    @include pill-btn-ghost(0.4rem);
-    --bg-elevated: #{$color-bg-soft};
+  &__review-label {
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
   }
 
+  &__resolve-issues,
+  &__resolve-duplicates,
   &__review-candidates {
     @include pill-btn-ghost(0.4rem);
-    --bg-elevated: #{$color-bg-soft};
+    color: var(--text-muted);
+    font-size: var(--text-xs);
   }
 
-  &__cancel {
-    @include pill-btn-ghost(0.4rem);
-    --bg-elevated: #{$color-bg-soft};
+  &__resolve-issues .automation__btn-icon {
+    color: var(--warning);
   }
 
   &__btn-icon {
@@ -359,18 +364,15 @@
   }
 
   &__body {
-    margin-top: 0.875rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
   }
 
   &__job-type {
-    padding: 0.125rem 0.4375rem;
-    border-radius: var(--radius-pill);
-    background: var(--surface-hover);
-    color: var(--text-subtle);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-semibold);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-caps);
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
   }
 
   &__status-row {
@@ -380,7 +382,8 @@
     gap: 0.75rem;
     // Even so centering the 16px icon stays on whole pixels (the label's line box is 21px).
     min-height: 1.375rem;
-    margin-bottom: 0.5625rem;
+    flex-wrap: wrap;
+    margin-bottom: 0;
     font-size: var(--text-sm);
   }
 
@@ -392,7 +395,8 @@
   &__status {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.625rem;
+    flex-wrap: wrap;
     color: var(--text);
     font-weight: var(--font-medium);
     // 14px at inherited 1.5 leading is a 21px line box; centering a 16px icon in an odd box lands on a half pixel.
@@ -433,7 +437,7 @@
   }
 
   &__current-file {
-    margin: 0.375rem 0 0;
+    margin: 0.5rem 0 0;
     min-width: 0;
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
@@ -443,9 +447,138 @@
 
   &__progress {
     @include progress-track;
+    margin-top: 0.625rem;
 
     &-bar {
       @include progress-bar-fill;
     }
+  }
+}
+
+.automation-details {
+  margin: -1px 0 1.25rem;
+  padding: 0 var(--panel-padding);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+
+  &:empty {
+    display: none;
+  }
+
+  .automation__system,
+  .job-file-results,
+  .comfy-process-log,
+  .training-samples {
+    margin: 0;
+    padding: 0.625rem 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .automation__system {
+    padding: 0;
+  }
+
+  & > :not(:first-child) {
+    border-top: 1px solid var(--border);
+  }
+
+  .automation__message {
+    margin: 0.75rem 0;
+  }
+
+  .job-file-results__label,
+  .comfy-process-log__label,
+  .training-samples__label {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .job-file-results__panel,
+  .comfy-process-log__panel,
+  .training-samples__panel {
+    margin: 0.625rem 0 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .job-file-results__toggle,
+  .comfy-process-log__toggle {
+    min-height: 1.5rem;
+  }
+
+  .job-file-results__toggle-icon,
+  .comfy-process-log__toggle-icon {
+    transform: rotate(-90deg);
+
+    &--open {
+      transform: rotate(0deg);
+    }
+  }
+
+  .training-samples__button {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+
+  .job-file-results__group-label {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    backdrop-filter: none;
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .job-file-results__group-count {
+    padding: 0.0625rem 0.375rem;
+    border: 0;
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-medium);
+  }
+
+  .job-file-results__status {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-weight: var(--font-normal);
+  }
+
+  .job-file-results__row--failed .job-file-results__status {
+    background: none;
+  }
+
+  .job-file-results__row-body {
+    padding-block: 0.5rem;
+  }
+
+  .job-file-results__chip {
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .job-file-results__actions {
+    margin: 0;
+    padding: 0.25rem 0.375rem 0;
+    border: 0;
+  }
+
+  .comfy-process-log__output {
+    margin: 0;
+    padding: 0.75rem;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
   }
 }

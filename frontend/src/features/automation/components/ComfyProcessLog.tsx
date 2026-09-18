@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useComfyProcessLogs } from "@/features/automation/hooks/useComfyProcessLogs";
 import { shouldStickToBottom } from "@/features/automation/lib/comfyProcessLog";
 import { iconChevronDown } from "@/shared/icons";
@@ -13,7 +13,9 @@ interface ComfyProcessLogProps {
 /** ComfyUI's console while it renders, which is the only sign of life a long prompt gives. */
 export function ComfyProcessLog({ job }: ComfyProcessLogProps) {
   const logs = useComfyProcessLogs(job);
-  const [expanded, setExpanded] = useState(true);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const expanded = job != null && expandedJobId === job.id;
+  const panelId = useId();
   const outputRef = useRef<HTMLDivElement>(null);
   // Follows new output until the reader scrolls up, and again once they scroll back down.
   const pinnedRef = useRef(true);
@@ -34,8 +36,9 @@ export function ComfyProcessLog({ job }: ComfyProcessLogProps) {
       <button
         type="button"
         className="comfy-process-log__toggle"
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => setExpandedJobId(expanded ? null : (job?.id ?? null))}
         aria-expanded={expanded}
+        aria-controls={panelId}
       >
         <Icon
           icon={iconChevronDown}
@@ -47,43 +50,44 @@ export function ComfyProcessLog({ job }: ComfyProcessLogProps) {
         <span className="comfy-process-log__label">ComfyUI output</span>
       </button>
 
-      {expanded && (
-        <div className="comfy-process-log__panel">
-          {!logs.available && (
-            <p className="comfy-process-log__note">
-              ComfyUI is not reporting its output. The job is unaffected.
-            </p>
-          )}
+      <div id={panelId} hidden={!expanded}>
+        {expanded && (
+          <div className="comfy-process-log__panel">
+            {!logs.available && (
+              <p className="comfy-process-log__note">
+                ComfyUI is not reporting its output. The job is unaffected.
+              </p>
+            )}
 
-          {logs.available && lines.length === 0 && (
-            <p className="comfy-process-log__note">Waiting for ComfyUI output...</p>
-          )}
+            {logs.available && lines.length === 0 && (
+              <p className="comfy-process-log__note">Waiting for ComfyUI output...</p>
+            )}
 
-          {lines.length > 0 && (
-            // No aria-live and no role="log": this repaints every second, and a polite region
-            // queues rather than drops, so a screen reader would fall behind and never catch up.
-            <div
-              ref={outputRef}
-              className="comfy-process-log__output"
-              role="region"
-              aria-label="ComfyUI output"
-              tabIndex={0}
-              data-scroll-lock-allow
-              onScroll={(event) => {
-                const output = event.currentTarget;
-                pinnedRef.current = shouldStickToBottom(
-                  output.scrollTop,
-                  output.scrollHeight,
-                  output.clientHeight,
-                );
-              }}
-            >
-              {/* One text node, not a line each: 200 keyless elements every poll is pure churn. */}
-              <pre className="comfy-process-log__text">{lines.join("\n")}</pre>
-            </div>
-          )}
-        </div>
-      )}
+            {lines.length > 0 && (
+              // No aria-live and no role="log": this repaints every second, and a polite region
+              // queues rather than drops, so a screen reader would fall behind and never catch up.
+              <div
+                ref={outputRef}
+                className="comfy-process-log__output"
+                role="region"
+                aria-label="ComfyUI output"
+                tabIndex={0}
+                data-scroll-lock-allow
+                onScroll={(event) => {
+                  const output = event.currentTarget;
+                  pinnedRef.current = shouldStickToBottom(
+                    output.scrollTop,
+                    output.scrollHeight,
+                    output.clientHeight,
+                  );
+                }}
+              >
+                <pre className="comfy-process-log__text">{lines.join("\n")}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
