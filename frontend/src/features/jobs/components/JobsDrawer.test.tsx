@@ -141,6 +141,20 @@ describe("JobsDrawer", () => {
       expect(await screen.findByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
     });
 
+    it("offers to clear filters that hide every local job beside an external one", async () => {
+      const user = userEvent.setup();
+      renderDrawer([finishedCaption], [externalJob]);
+
+      await user.selectOptions(screen.getByLabelText("Status"), "failed");
+
+      const localSection = await screen.findByRole("region", { name: "DataForge jobs" });
+      expect(localSection).toHaveTextContent("No jobs match these filters.");
+      expect(localSection.querySelector(".jobs-drawer__empty")).not.toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Clear filters" }));
+      expect(await screen.findByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
+    });
+
     it("restores the filters chosen earlier in the session", async () => {
       const user = userEvent.setup();
       const first = renderDrawer([finishedCaption]);

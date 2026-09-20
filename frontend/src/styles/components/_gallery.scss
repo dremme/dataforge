@@ -180,7 +180,8 @@
     border-color: $color-card-hover-border;
     box-shadow: var(--shadow);
 
-    .card__img {
+    .card__img,
+    .card__video-preview {
       transform: scale(1.15);
     }
 
@@ -213,6 +214,10 @@
   &--skeleton {
     pointer-events: none;
     animation: folder-skeleton-enter 0.4s ease both;
+  }
+
+  &--previewing .card__media .card__overlay {
+    opacity: 0.25;
   }
 
   &--selected {
@@ -278,7 +283,8 @@
   }
 
   &__img,
-  &__video {
+  &__video,
+  &__video-preview {
     display: block;
     position: absolute;
     inset: 0;
@@ -298,7 +304,8 @@
     }
   }
 
-  &__video {
+  &__video,
+  &__video-preview {
     pointer-events: none;
   }
 

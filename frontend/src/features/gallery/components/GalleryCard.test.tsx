@@ -1,5 +1,7 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem } from "@/shared/types";
 import { GalleryCard } from "./GalleryCard";
@@ -69,5 +71,124 @@ describe("GalleryCard", () => {
     const badge = container.querySelector(".card__badge--candidate");
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent("Candidate");
+  });
+
+  describe("hover preview", () => {
+    let play: ReturnType<typeof vi.fn>;
+    let pause: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      play = vi.fn().mockResolvedValue(undefined);
+      pause = vi.fn();
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(play);
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(pause);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    // jsdom has no PointerEvent, so pointerType would be dropped from the init dict.
+    const hover = (card: HTMLElement, pointerType = "mouse") => {
+      const event = createEvent.pointerOver(card);
+      Object.defineProperty(event, "pointerType", { value: pointerType });
+      fireEvent(card, event);
+    };
+    const preview = (container: HTMLElement) =>
+      container.querySelector<HTMLVideoElement>("video.card__video-preview");
+
+    it("mounts a muted preview only after the pointer rests for 400 ms", () => {
+      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+
+      hover(screen.getByRole("button"));
+      act(() => vi.advanceTimersByTime(399));
+      expect(preview(container)).toBeNull();
+
+      act(() => vi.advanceTimersByTime(1));
+      const video = preview(container);
+      expect(video).not.toBeNull();
+      expect(video?.getAttribute("src")).toBe(galleryItemMediaUrl(uncaptionedItem));
+      expect(video?.muted).toBe(true);
+      expect(play).toHaveBeenCalled();
+    });
+
+    // StrictMode replays the effect; its cleanup strips src, which a JSX prop never restores.
+    it("keeps the preview source through an effect replay", () => {
+      const { container } = render(
+        <StrictMode>
+          <GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />
+        </StrictMode>,
+      );
+
+      hover(screen.getByRole("button"));
+      act(() => vi.advanceTimersByTime(400));
+
+      expect(preview(container)?.getAttribute("src")).toBe(galleryItemMediaUrl(uncaptionedItem));
+    });
+
+    it("never mounts when the pointer leaves before the delay", () => {
+      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const card = screen.getByRole("button");
+
+      hover(card);
+      act(() => vi.advanceTimersByTime(300));
+      fireEvent.pointerLeave(card);
+      act(() => vi.advanceTimersByTime(1000));
+
+      expect(preview(container)).toBeNull();
+    });
+
+    it("tears the preview down and aborts its download on leave", () => {
+      const load = vi.spyOn(HTMLMediaElement.prototype, "load");
+      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+      const card = screen.getByRole("button");
+
+      hover(card);
+      act(() => vi.advanceTimersByTime(400));
+      expect(preview(container)).not.toBeNull();
+
+      fireEvent.pointerLeave(card);
+      expect(preview(container)).toBeNull();
+      expect(pause).toHaveBeenCalled();
+      expect(load).toHaveBeenCalled();
+    });
+
+    it("hides the overlay once the preview is actually playing", () => {
+      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+
+      hover(screen.getByRole("button"));
+      act(() => vi.advanceTimersByTime(400));
+      expect(container.querySelector(".card--previewing")).toBeNull();
+
+      fireEvent.playing(preview(container)!);
+      expect(container.querySelector(".card--previewing")).not.toBeNull();
+    });
+
+    it.each([
+      [
+        "a matroska video",
+        { ...uncaptionedItem, name: "clip.mkv", path: `${HOME_PATH}\\clip.mkv` },
+      ],
+      ["an image", captionedItem],
+      ["a GIF", { ...captionedItem, name: "loop.gif", media_type: "gif" as const }],
+    ])("never previews %s", (_label, item) => {
+      const { container } = render(<GalleryCard item={item} onSelect={vi.fn()} />);
+
+      hover(screen.getByRole("button"));
+      act(() => vi.advanceTimersByTime(1000));
+
+      expect(container.querySelector("video")).toBeNull();
+    });
+
+    it("ignores touch so a tap never starts a download", () => {
+      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+
+      hover(screen.getByRole("button"), "touch");
+      act(() => vi.advanceTimersByTime(1000));
+
+      expect(preview(container)).toBeNull();
+    });
   });
 });

@@ -118,11 +118,18 @@ Object.defineProperty(navigator, "clipboard", {
 Object.defineProperty(window, "scrollY", { value: 0, writable: true });
 window.scrollTo = vi.fn();
 
-// jsdom logs "Not implemented" for HTMLMediaElement.load during video prefetch.
+// jsdom logs "Not implemented" for HTMLMediaElement.load during video prefetch, and for pause
+// when a card's hover preview unmounts.
 Object.defineProperty(HTMLMediaElement.prototype, "load", {
   configurable: true,
   writable: true,
   value: function load(this: HTMLMediaElement) {},
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+  configurable: true,
+  writable: true,
+  value: function pause(this: HTMLMediaElement) {},
 });
 
 // jsdom has no EventSource; tests that deliver frames remock via installFakeEventSource.

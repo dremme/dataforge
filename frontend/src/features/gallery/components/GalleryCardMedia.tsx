@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   galleryItemMediaUrl,
   galleryItemThumbnailPreviewUrl,
@@ -9,11 +9,20 @@ import type { GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
+type MediaItem = Pick<GalleryItem, "path" | "modified_at" | "size" | "media_type" | "name">;
+
 interface GalleryCardMediaProps {
-  item: Pick<GalleryItem, "path" | "modified_at" | "size" | "media_type" | "name">;
+  item: MediaItem;
+  /** Mount a muted looping <video> over the thumbnail; the caller gates this on hover. */
+  previewing?: boolean;
+  onPreviewPlaying?: (playing: boolean) => void;
 }
 
-export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
+export function GalleryCardMedia({
+  item,
+  previewing = false,
+  onPreviewPlaying,
+}: GalleryCardMediaProps) {
   const itemIsVideo = item.media_type === "video";
   const itemIsGif = item.media_type === "gif";
   const itemIsMotion = itemIsVideo || itemIsGif;
@@ -86,6 +95,55 @@ export function GalleryCardMedia({ item }: GalleryCardMediaProps) {
           onError={handlePreviewError}
         />
       )}
+      {previewing && itemIsVideo && <CardVideoPreview item={item} onPlaying={onPreviewPlaying} />}
     </div>
+  );
+}
+
+function CardVideoPreview({
+  item,
+  onPlaying,
+}: {
+  item: MediaItem;
+  onPlaying?: (playing: boolean) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const src = galleryItemMediaUrl(item);
+
+  // The effect owns src: the cleanup strips it, and a JSX prop would not put it back on replay.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // React does not reliably reflect `muted`, and autoplay is only allowed when it is set.
+    video.muted = true;
+    video.src = src;
+    video.play()?.catch(() => {});
+
+    return () => {
+      // Unmounting alone lets the in-flight range request finish in the background.
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      setPlaying(false);
+      onPlaying?.(false);
+    };
+  }, [onPlaying, src]);
+
+  return (
+    <video
+      ref={videoRef}
+      className={classNames("card__video-preview", playing && "card__video-preview--ready")}
+      muted
+      loop
+      playsInline
+      preload="auto"
+      disablePictureInPicture
+      onPlaying={() => {
+        setPlaying(true);
+        onPlaying?.(true);
+      }}
+    />
   );
 }

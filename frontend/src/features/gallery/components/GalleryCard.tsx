@@ -1,4 +1,4 @@
-import { memo, type MouseEvent } from "react";
+import { memo, useState, type MouseEvent } from "react";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
   iconCheck,
@@ -7,12 +7,12 @@ import {
   iconFiles,
   iconMessageDashed,
   iconMessageWarning,
-  iconPlay,
   iconScanSquare,
   iconTriangleAlert,
   iconVideo,
 } from "@/shared/icons";
-import { isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
+import { isEditableVideo, isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
+import { useHoverVideoPreview } from "@/features/gallery/hooks/useHoverVideoPreview";
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
@@ -45,6 +45,9 @@ export const GalleryCard = memo(function GalleryCard({
   const statusIcon = captionDisplay?.variant === "warning" ? iconTriangleAlert : iconMessageDashed;
   const itemIsVideo = isVideo(item);
   const itemIsGif = isGif(item);
+  // The editable set is exactly what a <video> element can decode.
+  const { previewing, hoverHandlers } = useHoverVideoPreview(isEditableVideo(item));
+  const [previewPlaying, setPreviewPlaying] = useState(false);
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     const intent = selectionIntentFor(event, selectionMode);
@@ -69,7 +72,9 @@ export const GalleryCard = memo(function GalleryCard({
         getCardModifierClass(item),
         isMotion(item) && "card--video",
         selected && "card--selected",
+        previewPlaying && "card--previewing",
       )}
+      {...hoverHandlers}
       onClick={handleClick}
       onDragStart={(event) => event.preventDefault()}
       aria-label={
@@ -78,7 +83,11 @@ export const GalleryCard = memo(function GalleryCard({
       aria-pressed={selectionMode ? selected : undefined}
     >
       <div className="card__media">
-        <GalleryCardMedia item={item} />
+        <GalleryCardMedia
+          item={item}
+          previewing={previewing}
+          onPreviewPlaying={setPreviewPlaying}
+        />
         {selectionMode && (
           <span className="card__selection-indicator" aria-hidden="true">
             {selected && <Icon icon={iconCheck} className="card__selection-indicator-icon" />}
@@ -89,8 +98,8 @@ export const GalleryCard = memo(function GalleryCard({
           aria-hidden="true"
         >
           <span className="card__view">
-            <Icon icon={itemIsVideo ? iconPlay : iconExpand} className="card__view-icon" />
-            {itemIsVideo ? "Play" : "View"}
+            <Icon icon={iconExpand} className="card__view-icon" />
+            Open
           </span>
         </span>
         {itemIsVideo && <CardBadge icon={iconVideo} label="Video" variant="video" />}

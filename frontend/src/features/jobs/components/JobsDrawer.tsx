@@ -86,6 +86,19 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
   };
   const updateFilter = (patch: Partial<JobFilters>) => changeFilters({ ...filters, ...patch });
 
+  const filteredEmpty = (
+    <div className="jobs-drawer__empty">
+      <p>{history.loading ? "Loading job history..." : "No jobs match these filters."}</p>
+      <button
+        type="button"
+        className="jobs-drawer__reset-filters"
+        onClick={() => changeFilters(DEFAULT_JOB_FILTERS)}
+      >
+        Clear filters
+      </button>
+    </div>
+  );
+
   const runClearAll = async () => {
     setClearingAll(true);
     try {
@@ -177,16 +190,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
             </p>
           )}
           {!hasAnyJobs && filtering ? (
-            <div className="jobs-drawer__empty">
-              <p>{history.loading ? "Loading job history..." : "No jobs match these filters."}</p>
-              <button
-                type="button"
-                className="jobs-drawer__reset-filters"
-                onClick={() => changeFilters(DEFAULT_JOB_FILTERS)}
-              >
-                Clear filters
-              </button>
-            </div>
+            filteredEmpty
           ) : !hasAnyJobs ? (
             <div className="jobs-drawer__empty">
               <p>{history.loading ? "Loading job history..." : "No automation jobs yet."}</p>
@@ -221,7 +225,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                   </div>
                 </section>
               )}
-              {hasLocalJobs && (
+              {(hasLocalJobs || filtering) && (
                 <section
                   className={classNames(
                     "jobs-drawer__section",
@@ -230,46 +234,49 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                   aria-label="DataForge jobs"
                 >
                   {hasExternalJobs && <h3 className="jobs-drawer__section-title">DataForge</h3>}
-                  <div className="jobs-drawer__list">
-                    {localJobs.map((job) => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        isCurrentFolder={foldersMatch(currentFolder, job.folder)}
-                        onOpenFolder={(folderPath) => {
-                          onOpenFolder(folderPath);
-                          closeDrawer();
-                        }}
-                        cancelling={cancellingJobId === job.id}
-                        onCancel={(jobId) => {
-                          cancelJob(jobId).catch(() => {});
-                        }}
-                        onDelete={(jobId) => {
-                          deleteJob(jobId).catch(() => {});
-                        }}
-                        onLightboxOpenChange={setLightboxOpen}
-                      />
-                    ))}
-                  </div>
-                  {history.hasMore && (
-                    <div className="jobs-drawer__more">
-                      <span className="jobs-drawer__more-count">
-                        Showing {history.jobs.length} of {history.total}
-                      </span>
-                      <button
-                        type="button"
-                        className="jobs-drawer__load-more"
-                        onClick={history.loadMore}
-                        disabled={history.loading}
-                      >
-                        {history.loading ? "Loading..." : "Load more"}
-                      </button>
-                    </div>
+                  {!hasLocalJobs ? (
+                    filteredEmpty
+                  ) : (
+                    <>
+                      <div className="jobs-drawer__list">
+                        {localJobs.map((job) => (
+                          <JobCard
+                            key={job.id}
+                            job={job}
+                            isCurrentFolder={foldersMatch(currentFolder, job.folder)}
+                            onOpenFolder={(folderPath) => {
+                              onOpenFolder(folderPath);
+                              closeDrawer();
+                            }}
+                            cancelling={cancellingJobId === job.id}
+                            onCancel={(jobId) => {
+                              cancelJob(jobId).catch(() => {});
+                            }}
+                            onDelete={(jobId) => {
+                              deleteJob(jobId).catch(() => {});
+                            }}
+                            onLightboxOpenChange={setLightboxOpen}
+                          />
+                        ))}
+                      </div>
+                      {history.hasMore && (
+                        <div className="jobs-drawer__more">
+                          <span className="jobs-drawer__more-count">
+                            Showing {history.jobs.length} of {history.total}
+                          </span>
+                          <button
+                            type="button"
+                            className="jobs-drawer__load-more"
+                            onClick={history.loadMore}
+                            disabled={history.loading}
+                          >
+                            {history.loading ? "Loading..." : "Load more"}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </section>
-              )}
-              {!hasLocalJobs && filtering && (
-                <p className="jobs-drawer__empty-hint">No DataForge jobs match these filters.</p>
               )}
             </>
           )}
