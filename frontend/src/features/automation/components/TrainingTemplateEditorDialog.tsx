@@ -1,3 +1,4 @@
+import { formatCount } from "@/shared/lib/format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkTrainingTemplate } from "@/features/automation/api/jobs";
 import { trainingModelLabel } from "@/features/automation/lib/training";
@@ -127,9 +128,7 @@ export function TrainingTemplateEditorDialog({
       <footer className="training-template-editor__footer">
         <div className="training-template-editor__footer-meta" aria-label="Template statistics">
           <div className="training-template-editor__meta-item">
-            <span className="training-template-editor__meta-value">
-              {lineCount.toLocaleString()}
-            </span>
+            <span className="training-template-editor__meta-value">{formatCount(lineCount)}</span>
             <span className="training-template-editor__meta-label">Lines</span>
           </div>
           <span className="training-template-editor__meta-divider" aria-hidden="true" />

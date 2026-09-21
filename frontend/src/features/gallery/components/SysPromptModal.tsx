@@ -6,7 +6,7 @@ import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconX } from "@/shared/icons";
 import type { GalleryItem, SysPromptSaveResponse } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
-import { estimateTokens } from "@/shared/lib/format";
+import { formatCount, estimateTokens } from "@/shared/lib/format";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
@@ -132,14 +132,14 @@ export function SysPromptModal({ item, onClose, onSaved }: SysPromptModalProps) 
       <footer className="sysprompt-modal__footer">
         <div className="sysprompt-modal__meta" aria-label="Prompt statistics">
           <div className="sysprompt-modal__meta-value">
-            {characterCount.toLocaleString()} characters
+            {formatCount(characterCount)} characters
           </div>
           <span className="sysprompt-modal__meta-divider" aria-hidden="true" />
           <div
             className="sysprompt-modal__meta-value"
             title="Estimated from text length; the exact count depends on the model"
           >
-            ~{tokenCount.toLocaleString()} tokens
+            ~{formatCount(tokenCount)} tokens
           </div>
         </div>
 

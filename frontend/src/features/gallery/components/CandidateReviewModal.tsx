@@ -21,7 +21,12 @@ import {
 import { useCandidateDetails } from "@/features/gallery/hooks/useCandidateDetails";
 import { formatApiError } from "@/shared/api/http";
 import { classNames } from "@/shared/lib/classNames";
-import { formatDurationPrecise, formatFileSize, formatMegapixels } from "@/shared/lib/format";
+import {
+  formatCount,
+  formatDurationPrecise,
+  formatFileSize,
+  formatMegapixels,
+} from "@/shared/lib/format";
 import { iconArrowRight, iconTriangleAlert, iconX } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { DialogButton } from "@/shared/ui/Dialog";
@@ -334,9 +339,9 @@ function CompareMeta({
   const dimensions = (item: GalleryItem) =>
     item.width && item.height ? (
       <>
-        {item.width.toLocaleString()}
+        {formatCount(item.width)}
         <span className="candidate-review-modal__meta-times">×</span>
-        {item.height.toLocaleString()}
+        {formatCount(item.height)}
       </>
     ) : null;
 

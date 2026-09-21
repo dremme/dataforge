@@ -190,7 +190,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       };
 
       parentFolder.subfolders = [...parentFolder.subfolders, createdSubfolder].sort((left, right) =>
-        left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+        left.name.localeCompare(right.name, "en", { sensitivity: "base" }),
       );
       parentFolder.subfolder_count = parentFolder.subfolders.length;
 

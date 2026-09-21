@@ -63,7 +63,7 @@ export function buildCaptionVocabulary(items: GalleryItem[]): VocabularyEntry[] 
       (a, b) =>
         b.count - a.count ||
         Number(b.kind === "tag") - Number(a.kind === "tag") ||
-        a.label.localeCompare(b.label),
+        a.label.localeCompare(b.label, "en"),
     )
     .slice(0, VOCABULARY_LIMIT);
 }

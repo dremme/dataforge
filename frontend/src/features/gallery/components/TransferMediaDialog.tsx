@@ -64,7 +64,7 @@ function isStrictDescendant(path: string, ancestor: string): boolean {
 
 function sortChildren(entries: FolderChild[]): FolderChild[] {
   return [...entries].sort((left, right) =>
-    left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+    left.name.localeCompare(right.name, "en", { sensitivity: "base" }),
   );
 }
 

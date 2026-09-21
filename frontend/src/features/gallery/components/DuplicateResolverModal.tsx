@@ -8,7 +8,12 @@ import {
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
-import { formatFileSize, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
+import {
+  formatCount,
+  formatFileSize,
+  formatMegapixels,
+  formatModifiedAt,
+} from "@/shared/lib/format";
 import { classNames } from "@/shared/lib/classNames";
 import { iconCheck, iconTrash2, iconTriangleAlert, iconX } from "@/shared/icons";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -352,7 +357,7 @@ function MemberCard({
           </span>
         )}
         <span className="duplicate-resolver-modal__meta-value">
-          {captionLength > 0 ? `${captionLength.toLocaleString()} char caption` : "No caption"}
+          {captionLength > 0 ? `${formatCount(captionLength)} char caption` : "No caption"}
         </span>
         {modified && <span className="duplicate-resolver-modal__meta-value">{modified}</span>}
       </span>

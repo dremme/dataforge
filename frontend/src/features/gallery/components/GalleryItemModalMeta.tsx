@@ -1,6 +1,6 @@
 import type { GalleryItem } from "@/shared/types";
 import type { MediaResolution } from "@/features/gallery/hooks/useMediaResolution";
-import { formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
+import { formatCount, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
 import { Icon } from "@/shared/ui/Icon";
 import { iconComfyUi } from "@/shared/brandIcons";
 
@@ -52,9 +52,9 @@ export function GalleryItemModalMeta({
           <span className="gallery-item-modal__meta-divider" aria-hidden="true" />
           <div className="gallery-item-modal__meta-item">
             <span className="gallery-item-modal__meta-value">
-              {resolution.width.toLocaleString()}
+              {formatCount(resolution.width)}
               <span className="gallery-item-modal__meta-times">×</span>
-              {resolution.height.toLocaleString()}
+              {formatCount(resolution.height)}
               <span className="gallery-item-modal__meta-unit">px</span>
             </span>
             <span className="gallery-item-modal__meta-label">Width × Height</span>
@@ -83,9 +83,7 @@ export function GalleryItemModalMeta({
       )}
       {hasMediaMeta && <span className="gallery-item-modal__meta-divider" aria-hidden="true" />}
       <div className="gallery-item-modal__meta-item">
-        <span className="gallery-item-modal__meta-value">
-          {captionCharacterCount.toLocaleString()}
-        </span>
+        <span className="gallery-item-modal__meta-value">{formatCount(captionCharacterCount)}</span>
         <span className="gallery-item-modal__meta-label">Characters</span>
       </div>
       <span className="gallery-item-modal__meta-divider" aria-hidden="true" />
@@ -93,9 +91,7 @@ export function GalleryItemModalMeta({
         className="gallery-item-modal__meta-item"
         title="Estimated from text length; the exact count depends on the model"
       >
-        <span className="gallery-item-modal__meta-value">
-          ~{captionTokenCount.toLocaleString()}
-        </span>
+        <span className="gallery-item-modal__meta-value">~{formatCount(captionTokenCount)}</span>
         <span className="gallery-item-modal__meta-label">Tokens</span>
       </div>
     </div>

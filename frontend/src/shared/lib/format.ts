@@ -5,33 +5,42 @@ export function formatMegapixels(width: number, height: number): string {
   return `${Math.round(mp)} MP`;
 }
 
-let modifiedAtFormat: Intl.DateTimeFormat | null = null;
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+export function formatCount(count: number): string {
+  return String(Math.round(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
 
 export function formatModifiedAt(isoDate: string): string | null {
   const timestamp = Date.parse(isoDate);
   if (Number.isNaN(timestamp)) return null;
 
-  modifiedAtFormat ??= new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  return modifiedAtFormat.format(timestamp);
+  const date = new Date(timestamp);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}, ${hours}:${minutes}`;
 }
 
-let relativeTimeFormat: Intl.RelativeTimeFormat | null = null;
-
-const RELATIVE_STEPS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
+const RELATIVE_STEPS: ReadonlyArray<[string, number]> = [
   ["second", 60],
   ["minute", 60],
   ["hour", 24],
   ["day", 7],
 ];
 
-/** "just now", "5 minutes ago", ..., falling back to an absolute date past a week. */
 export function formatRelativeTime(isoDate: string, nowMs = Date.now()): string | null {
   const timestamp = Date.parse(isoDate);
   if (Number.isNaN(timestamp)) return null;
@@ -39,11 +48,11 @@ export function formatRelativeTime(isoDate: string, nowMs = Date.now()): string 
   let elapsed = (nowMs - timestamp) / 1000;
   if (elapsed < 45) return "just now";
 
-  relativeTimeFormat ??= new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-
   for (const [unit, span] of RELATIVE_STEPS) {
     if (Math.abs(elapsed) < span) {
-      return relativeTimeFormat.format(-Math.round(elapsed), unit);
+      const count = Math.round(elapsed);
+      if (unit === "day" && count === 1) return "yesterday";
+      return `${count} ${unit}${count === 1 ? "" : "s"} ago`;
     }
     elapsed /= span;
   }

@@ -159,7 +159,6 @@ describe("CandidateReviewModal", () => {
   });
 
   it("reads both sides of every measurement into one bar", () => {
-    // Under a thousand: toLocaleString would otherwise assert this machine's group separator.
     const sources = [
       mediaItem("a.png", HOME_PATH, {
         width: 480,
@@ -169,7 +168,9 @@ describe("CandidateReviewModal", () => {
         candidate_name: "a.png",
       }),
     ];
-    const candidates = [mediaItem("a.png", STAGING_PATH, { width: 960, height: 540, size: 4000 })];
+    const candidates = [
+      mediaItem("a.png", STAGING_PATH, { width: 1920, height: 1080, size: 4000 }),
+    ];
 
     render(
       <NotificationsProvider>
@@ -184,8 +185,8 @@ describe("CandidateReviewModal", () => {
     );
 
     // The before/after arrow is an icon, so textContent would just concatenate the two numbers.
-    expect(metaItem("Dimensions")).toHaveTextContent("480×270960×540px");
-    expect(metaItem("Megapixels")).toHaveTextContent("0.130.52MP");
+    expect(metaItem("Dimensions")).toHaveTextContent("480×2701,920×1,080px");
+    expect(metaItem("Megapixels")).toHaveTextContent("0.132.1MP");
     expect(metaItem("File size")).toHaveTextContent("1000 B3.9 KB");
 
     for (const label of ["Dimensions", "Megapixels", "File size"]) {

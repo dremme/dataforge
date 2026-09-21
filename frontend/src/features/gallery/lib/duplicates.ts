@@ -53,7 +53,7 @@ export function chooseKeeper(members: GalleryItem[]): KeeperChoice | null {
     const byCaption = Number(right.has_description) - Number(left.has_description);
     if (byCaption !== 0) return byCaption;
 
-    return left.name.localeCompare(right.name);
+    return left.name.localeCompare(right.name, "en");
   });
 
   const [best, runnerUp] = ranked;

@@ -20,9 +20,7 @@ interface BreadcrumbCrumbMenuProps {
 }
 
 function sortChildren(children: FolderChild[]): FolderChild[] {
-  return [...children].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-  );
+  return [...children].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 }
 
 export function BreadcrumbCrumbMenu({

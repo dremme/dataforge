@@ -172,7 +172,7 @@ function rankedExtensionBuckets(...maps: Map<string, number>[]): StatBucket[] {
     }
   }
   return [...merged.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"))
     .map(([label, count]) => ({ label, count }));
 }
 
@@ -187,7 +187,7 @@ function countWords(captions: string[]): WordCount[] {
 
   return [...counts.entries()]
     .map(([word, count]) => ({ word, count }))
-    .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
+    .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, "en"))
     .slice(0, TOP_WORD_LIMIT);
 }
 

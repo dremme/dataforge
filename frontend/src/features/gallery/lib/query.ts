@@ -58,7 +58,7 @@ export function parseSortOption(value: string): SortOption {
 }
 
 function compareNames(a: GalleryItem, b: GalleryItem): number {
-  return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
 }
 
 function modifiedTimestamp(item: GalleryItem): number {

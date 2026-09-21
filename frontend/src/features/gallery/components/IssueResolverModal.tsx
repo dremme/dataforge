@@ -14,7 +14,7 @@ import {
   schedulePrefetchModalMedia,
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
-import { estimateTokens, formatMegapixels } from "@/shared/lib/format";
+import { formatCount, estimateTokens, formatMegapixels } from "@/shared/lib/format";
 import { classNames } from "@/shared/lib/classNames";
 import {
   iconArrowUpRight,
@@ -270,14 +270,14 @@ export function IssueResolverModal({
               </>
             )}
             <div className="issue-resolver-modal__meta-value">
-              {caption.length.toLocaleString()} characters
+              {formatCount(caption.length)} characters
             </div>
             <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
             <div
               className="issue-resolver-modal__meta-value"
               title="Estimated from text length; the exact count depends on the model"
             >
-              ~{estimateTokens(caption).toLocaleString()} tokens
+              ~{formatCount(estimateTokens(caption))} tokens
             </div>
           </div>
 

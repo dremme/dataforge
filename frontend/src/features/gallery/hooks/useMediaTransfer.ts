@@ -1,3 +1,4 @@
+import { formatCount } from "@/shared/lib/format";
 import { useCallback, useRef, useState } from "react";
 import {
   previewMediaTransfer,
@@ -29,7 +30,7 @@ function defaultEmptyPreviewMessage(mode: MediaTransferMode): string {
 }
 
 function defaultCopySuccessMessage(succeeded: string[], destinationLabel: string): string {
-  const count = succeeded.length === 1 ? "1 file" : `${succeeded.length.toLocaleString()} files`;
+  const count = succeeded.length === 1 ? "1 file" : `${formatCount(succeeded.length)} files`;
   return `Copied ${count} to ${destinationLabel}.`;
 }
 
