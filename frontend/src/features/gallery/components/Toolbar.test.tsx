@@ -18,6 +18,10 @@ vi.mock("@/features/jobs/components/JobsButton", () => ({
   JobsButton: () => null,
 }));
 
+vi.mock("@/shared/notifications/NotificationsButton", () => ({
+  NotificationsButton: () => null,
+}));
+
 const defaultProps = {
   subfolderCount: 1,
   fileCount: 3,

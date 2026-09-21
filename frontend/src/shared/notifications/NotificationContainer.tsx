@@ -1,81 +1,99 @@
+import { useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { iconCircleAlert, iconCircleCheck, iconTriangleAlert, iconX } from "@/shared/icons";
-import type { Notification, NotificationVariant } from "./notifications";
+import { iconX } from "@/shared/icons";
+import { variantIcons, type NotificationVariant, type Toast } from "./notifications";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
 interface NotificationContainerProps {
-  notifications: Notification[];
+  toasts: Toast[];
   onDismiss: (id: string) => void;
   onRemove: (id: string) => void;
   onPauseAutoDismiss: (id: string) => void;
   onResumeAutoDismiss: (id: string) => void;
 }
 
-const variantIcons: Record<NotificationVariant, typeof iconCircleAlert> = {
-  danger: iconCircleAlert,
-  warning: iconTriangleAlert,
-  success: iconCircleCheck,
-};
-
 function notificationRole(variant: NotificationVariant): "alert" | "status" {
   return variant === "danger" ? "alert" : "status";
 }
 
-export function NotificationContainer({
-  notifications,
+function NotificationToast({
+  toast,
   onDismiss,
   onRemove,
   onPauseAutoDismiss,
   onResumeAutoDismiss,
-}: NotificationContainerProps) {
-  if (notifications.length === 0) {
+}: { toast: Toast } & Omit<NotificationContainerProps, "toasts">) {
+  const [paused, setPaused] = useState(false);
+
+  const hold = () => {
+    if (toast.exiting) return;
+    setPaused(true);
+    onPauseAutoDismiss(toast.id);
+  };
+
+  const release = () => {
+    if (toast.exiting) return;
+    setPaused(false);
+    onResumeAutoDismiss(toast.id);
+  };
+
+  return (
+    <div
+      className={classNames(
+        "notifications__toast",
+        `notifications__toast--${toast.variant}`,
+        toast.exiting && "notifications__toast--exiting",
+        paused && "notifications__toast--paused",
+      )}
+      role={notificationRole(toast.variant)}
+      style={{ "--toast-duration": `${toast.durationMs}ms` } as CSSProperties}
+      onMouseEnter={hold}
+      onMouseLeave={release}
+      onFocus={hold}
+      onBlur={release}
+      onAnimationEnd={(event) => {
+        // The countdown bar finishes on a child and bubbles; only the toast's own exit unmounts it.
+        if (event.currentTarget !== event.target) return;
+        if (!toast.exiting) return;
+
+        onRemove(toast.id);
+      }}
+    >
+      <Icon icon={variantIcons[toast.variant]} className="notifications__icon" />
+      <span className="notifications__message">{toast.message}</span>
+      {toast.count > 1 && (
+        <span className="notifications__count" aria-label={`Repeated ${toast.count} times`}>
+          {`×${toast.count}`}
+        </span>
+      )}
+      <button
+        type="button"
+        className="notifications__dismiss"
+        onClick={() => onDismiss(toast.id)}
+        aria-label="Dismiss notification"
+        disabled={toast.exiting}
+      >
+        <Icon icon={iconX} />
+      </button>
+      {!toast.exiting && (
+        <span className="notifications__progress" aria-hidden="true">
+          <span key={toast.count} className="notifications__progress-fill" />
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function NotificationContainer({ toasts, ...handlers }: NotificationContainerProps) {
+  if (toasts.length === 0) {
     return null;
   }
 
   return createPortal(
     <div className="notifications" aria-live="polite" aria-label="Notifications">
-      {notifications.map((notification) => (
-        <div
-          key={notification.id}
-          className={classNames(
-            "notifications__toast",
-            `notifications__toast--${notification.variant}`,
-            notification.exiting && "notifications__toast--exiting",
-          )}
-          role={notificationRole(notification.variant)}
-          onMouseEnter={() => {
-            if (notification.exiting) return;
-            onPauseAutoDismiss(notification.id);
-          }}
-          onMouseLeave={() => {
-            if (notification.exiting) return;
-            onResumeAutoDismiss(notification.id);
-          }}
-          onAnimationEnd={(event) => {
-            if (event.currentTarget !== event.target) {
-              return;
-            }
-
-            if (!notification.exiting) {
-              return;
-            }
-
-            onRemove(notification.id);
-          }}
-        >
-          <Icon icon={variantIcons[notification.variant]} className="notifications__icon" />
-          <span className="notifications__message">{notification.message}</span>
-          <button
-            type="button"
-            className="notifications__dismiss"
-            onClick={() => onDismiss(notification.id)}
-            aria-label="Dismiss notification"
-            disabled={notification.exiting}
-          >
-            <Icon icon={iconX} />
-          </button>
-        </div>
+      {toasts.map((toast) => (
+        <NotificationToast key={toast.id} toast={toast} {...handlers} />
       ))}
     </div>,
     document.body,

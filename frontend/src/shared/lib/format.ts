@@ -22,6 +22,35 @@ export function formatModifiedAt(isoDate: string): string | null {
   return modifiedAtFormat.format(timestamp);
 }
 
+let relativeTimeFormat: Intl.RelativeTimeFormat | null = null;
+
+const RELATIVE_STEPS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
+  ["second", 60],
+  ["minute", 60],
+  ["hour", 24],
+  ["day", 7],
+];
+
+/** "just now", "5 minutes ago", ..., falling back to an absolute date past a week. */
+export function formatRelativeTime(isoDate: string, nowMs = Date.now()): string | null {
+  const timestamp = Date.parse(isoDate);
+  if (Number.isNaN(timestamp)) return null;
+
+  let elapsed = (nowMs - timestamp) / 1000;
+  if (elapsed < 45) return "just now";
+
+  relativeTimeFormat ??= new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+  for (const [unit, span] of RELATIVE_STEPS) {
+    if (Math.abs(elapsed) < span) {
+      return relativeTimeFormat.format(-Math.round(elapsed), unit);
+    }
+    elapsed /= span;
+  }
+
+  return formatModifiedAt(isoDate);
+}
+
 export function countWords(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;

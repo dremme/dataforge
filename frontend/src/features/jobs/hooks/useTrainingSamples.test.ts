@@ -30,6 +30,7 @@ function trainingJob(overrides: Partial<Job> = {}): Job {
     job_type: "train_lora",
     external_ref: "sample_train_v1",
     status: "running",
+    effective_status: "running",
     total: 1000,
     processed: 500,
     stats: { step: 500 },

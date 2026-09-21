@@ -10,6 +10,11 @@
     animation: none;
   }
 
+  // Nothing left to animate, and a frozen full bar would read as a stuck progress indicator.
+  .notifications__progress {
+    display: none;
+  }
+
   .stats-drawer__meter-fill {
     transition: none;
   }

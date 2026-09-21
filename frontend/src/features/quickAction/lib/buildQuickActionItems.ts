@@ -15,6 +15,7 @@ import {
   SECONDARY_JOB_TYPES,
   isJobAvailable,
   jobTypeIconFor,
+  jobTypeLabelFor,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import {
@@ -140,7 +141,7 @@ export function buildJobItems(
       id: quickActionFolderId(job.dataset_folder),
       section: "jobs",
       label: job.dataset_folder_name || folderLeafName(job.dataset_folder),
-      detail: `${JOB_TYPE_META.train_lora.label} · ${job.status}`,
+      detail: `${jobTypeLabelFor("train_lora")} · ${job.status}`,
       icon: iconBrain,
       run: () => onNavigate(job.dataset_folder),
     }));
@@ -174,7 +175,6 @@ export function buildRunJobItems({
 }: RunJobOptions): QuickActionItem[] {
   return ALL_JOB_TYPES.map((type) => {
     const meta = JOB_TYPE_META[type] as {
-      label: string;
       menuLabel?: string;
       menuDescription?: string;
     };
@@ -182,10 +182,10 @@ export function buildRunJobItems({
     return {
       id: quickActionRunJobId(type),
       section: "run",
-      label: meta.menuLabel ?? meta.label,
+      label: meta.menuLabel ?? jobTypeLabelFor(type),
       detail: meta.menuDescription,
       icon: jobTypeIconFor(type),
-      keywords: meta.label,
+      keywords: jobTypeLabelFor(type),
       disabled: !hasFolder || !canStart || !isJobAvailable(type, availability),
       run: () => onRequestStart(type),
     };

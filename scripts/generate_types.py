@@ -35,6 +35,7 @@ FIELD_TYPES = {
     # Backend keeps ``str``: narrowing would fail the whole list on one legacy row.
     ("JobResponse", "job_type"): "JobType",
     ("JobResponse", "status"): "JobStatus",
+    ("JobResponse", "effective_status"): "JobStatus",
     ("MediaTransferRequest", "paths"): "readonly string[]",
 }
 
@@ -371,6 +372,9 @@ def render_guards(spec: dict[str, Any], schemas: Any) -> str:
 
 
 def _ts_value(value: Any) -> str:
+    if isinstance(value, dict):
+        entries = ", ".join(f"{_literal(key)}: {_ts_value(item)}" for key, item in value.items())
+        return "{ " + entries + " } as const"
     if isinstance(value, (list, tuple)):
         return "[" + ", ".join(_literal(entry) for entry in value) + "] as const"
     return _literal(value)

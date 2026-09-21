@@ -16,6 +16,8 @@ export {
   Archive as iconArchive,
   ArchiveRestore as iconArchiveRestore,
   Ban as iconBan,
+  Bell as iconBell,
+  BellOff as iconBellOff,
   Bold as iconBold,
   BookOpen as iconBookOpen,
   Bot as iconBot,

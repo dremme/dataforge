@@ -8,6 +8,11 @@ from unittest.mock import patch
 from urllib.parse import quote
 
 import events
+from notifications_store import (
+    clear_notifications_for_tests,
+    init_notifications_table,
+    list_notifications,
+)
 from routes._test_client import client
 from routes.events import stream_events
 from testing_fixtures import (
@@ -42,6 +47,18 @@ async def _await_terminal_job_event(subscriber, job_id: str, timeout: float = 10
     return None
 
 
+async def _await_notification_event(subscriber, timeout: float = 10.0):
+    """The first pushed notification frame, ignoring the job snapshots around it."""
+    deadline = monotonic() + timeout
+
+    while monotonic() < deadline:
+        event = await subscriber.next_event(1.0)
+        if event is not None and event.get("type") == "notification":
+            return event["notification"]
+
+    return None
+
+
 class JobEventTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         reset_job_manager()
@@ -68,6 +85,36 @@ class JobEventTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(job["processed"], 1)
             # Results ride their own endpoint; they must never be pushed.
             self.assertNotIn("results", job)
+
+
+class JobNotificationEventTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        reset_job_manager()
+        events.clear_subscribers_for_tests()
+        init_notifications_table()
+        clear_notifications_for_tests()
+
+    async def test_a_finished_job_pushes_its_outcome_to_every_tab(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+            with (
+                events.subscribe() as subscriber,
+                patch("automation.auto_caption.complete_caption", return_value=CAPTION),
+            ):
+                await asyncio.to_thread(
+                    client.post, f"/api/automation/auto-caption?path={quote(str(root))}"
+                )
+
+                notification = await _await_notification_event(subscriber)
+
+        self.assertIsNotNone(notification)
+        assert notification is not None
+        self.assertEqual(notification["source"], "job")
+        self.assertEqual(notification["variant"], "success")
+        self.assertIn("Auto-caption completed in", notification["message"])
+        self.assertEqual(len(list_notifications()), 1)
 
 
 class EventStreamTests(unittest.IsolatedAsyncioTestCase):

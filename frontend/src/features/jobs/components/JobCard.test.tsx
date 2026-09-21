@@ -22,6 +22,7 @@ const runningJob: Job = {
   folder_name: "Photos",
   job_type: "auto_caption",
   status: "running",
+  effective_status: "running",
   total: 10,
   processed: 3,
   current_file: null,
@@ -77,6 +78,7 @@ describe("JobCard", () => {
     const cancelledJob: Job = {
       ...runningJob,
       status: "cancelled",
+      effective_status: "cancelled",
       started_at: "2026-01-01T00:00:00Z",
       finished_at: "2026-01-01T00:01:15Z",
     };
@@ -101,6 +103,7 @@ describe("JobCard", () => {
       job_type: "train_lora",
       external_ref: "sample_train_v1",
       status: "completed",
+      effective_status: "completed",
       total: 1000,
       processed: 1000,
     };

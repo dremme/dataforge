@@ -58,6 +58,7 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
     folder_name: folderLeafName(folderPath),
     job_type: jobType,
     status: "queued",
+    effective_status: "queued",
     total: 0,
     processed: 0,
     stats: {},

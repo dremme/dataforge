@@ -13,7 +13,8 @@ from time import monotonic
 from typing import get_args
 
 import events
-from automation import jobs_store
+import notifications
+from automation import job_outcome, jobs_store
 from automation.auto_caption import run_auto_caption_job, validate_auto_caption_folder
 from automation.backup_captions import (
     run_backup_captions_job,
@@ -69,7 +70,7 @@ from automation.watermark import (
     validate_watermark_folder,
 )
 from filesystem import normalize_user_path, path_leaf_name
-from schemas import JobEvent, JobHistoryStatus, JobResponse, JobStatus, JobType
+from schemas import JobEvent, JobHistoryStatus, JobStatus, JobType
 
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
@@ -810,8 +811,24 @@ class JobManager:
         ):
             return
 
+        previous_status = published[1] if published is not None else ""
         self._published[job_id] = (now, status)
-        events.publish(JobEvent(job=JobResponse.model_validate(snapshot)).model_dump())
+        events.publish(JobEvent(job=job_outcome.job_response(snapshot)).model_dump())
+
+        if previous_status and previous_status != status:
+            self._notify_outcome(snapshot)
+
+    def _notify_outcome(self, snapshot: dict[str, object]) -> None:
+        outcome = job_outcome.completion_notification(snapshot)
+        if outcome is None:
+            return
+
+        variant, message = outcome
+        # A job that already finished must not fail because its notification could not be stored.
+        with suppress(Exception):
+            notifications.record_notification(
+                message, variant, source="job", job_id=str(snapshot.get("id") or "")
+            )
 
 
 job_manager = JobManager()

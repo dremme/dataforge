@@ -25,11 +25,9 @@ import { foldersMatch } from "@/features/folder/lib/folderPath";
 import {
   isActiveJobStatus,
   isTerminalJobStatus,
-  jobCompletionNotification,
   selectFolderJob,
   upsertJob,
 } from "@/features/jobs/lib/jobs";
-import { claimJobCompletionNotification } from "@/features/jobs/lib/jobCompletionNotifyClaim";
 import { clearStartingJobIfMatch, type StartingJob } from "@/features/jobs/lib/jobStartHelpers";
 
 // Fast poll only when the push stream is down.
@@ -93,7 +91,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const [startingJob, setStartingJob] = useState<StartingJob | null>(null);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const [stoppingOstrisJobId, setStoppingOstrisJobId] = useState<string | null>(null);
-  const previousJobStatusesRef = useRef<Map<string, Job["status"]>>(new Map());
   const refreshGenerationRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<JobsRefreshResult> | null>(null);
   const refreshQueuedRef = useRef(false);
@@ -221,31 +218,6 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [refreshAllJobs]);
-
-  useEffect(() => {
-    const currentJobIds = new Set(jobs.map((job) => job.id));
-
-    for (const jobId of previousJobStatusesRef.current.keys()) {
-      if (!currentJobIds.has(jobId)) {
-        previousJobStatusesRef.current.delete(jobId);
-      }
-    }
-
-    for (const job of jobs) {
-      const previousStatus = previousJobStatusesRef.current.get(job.id);
-      const becameTerminal =
-        previousStatus && !isTerminalJobStatus(previousStatus) && isTerminalJobStatus(job.status);
-
-      if (becameTerminal) {
-        const notification = jobCompletionNotification(job);
-        if (notification && claimJobCompletionNotification(job.id, job.status)) {
-          notify(notification);
-        }
-      }
-
-      previousJobStatusesRef.current.set(job.id, job.status);
-    }
-  }, [jobs, notify]);
 
   // Keep "cancelling" until the job leaves queued/running; slow jobs finish the file first.
   useEffect(() => {

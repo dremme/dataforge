@@ -70,6 +70,16 @@
   }
 }
 
+@keyframes notification-countdown {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
 @keyframes modal-backdrop-enter {
   from {
     opacity: 0;

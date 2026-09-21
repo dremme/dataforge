@@ -22,6 +22,7 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { JobsButton } from "@/features/jobs/components/JobsButton";
+import { NotificationsButton } from "@/shared/notifications/NotificationsButton";
 import { StatsButton } from "./StatsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
@@ -323,6 +324,8 @@ export function Toolbar({
           onMediaTypeFilterChange={onMediaTypeFilterChange}
           onFileFilterChange={onFileFilterChange}
         />
+
+        <NotificationsButton />
 
         <StatsButton open={statsOpen} onToggle={onToggleStats} />
 

@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 # PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
 
@@ -45,6 +45,11 @@ type JobType = Literal[
     "watermark",
     "comfy_process",
 ]
+
+type NotificationVariant = Literal["danger", "warning", "success"]
+
+#: ``job`` rows are composed server-side; ``client`` rows are toasts the UI posted back.
+type NotificationSource = Literal["job", "client"]
 
 #: The drawer's status filter; ``stopped`` covers both cancelled and interrupted.
 type JobHistoryStatus = Literal["active", "completed", "failed", "stopped"]
@@ -580,6 +585,10 @@ class JobResponse(BaseModel):
     current_name: str | None = None
     stats: dict[str, int] = Field(default_factory=dict)
     error: str | None = None
+    #: ``status`` once stats are weighed: a completed job holding API errors reads as failed.
+    effective_status: str = "queued"
+    #: Set when the job finished cleanly but skipped work the user should know about.
+    warning: str | None = None
     created_at: str
     started_at: str | None = None
     finished_at: str | None = None
@@ -1078,8 +1087,42 @@ class VideoEditEvent(BaseModel):
     duration: float | None = None
 
 
+class NotificationRecord(BaseModel):
+    id: str
+    message: str
+    variant: NotificationVariant
+    source: NotificationSource = "client"
+    #: The job whose outcome this reports; null for toasts the UI raised.
+    job_id: str | None = None
+    #: Repeats of the newest identical message raise this instead of adding a row.
+    count: int = 1
+    created_at: str
+    read_at: str | None = None
+
+
+class NotificationsResponse(BaseModel):
+    notifications: list[NotificationRecord] = Field(default_factory=list)
+
+
+class NotificationCreateRequest(BaseModel):
+    message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+    variant: NotificationVariant
+
+
+class NotificationEvent(BaseModel):
+    """Job outcomes and client toasts alike; ``source`` decides which tabs raise a toast."""
+
+    type: Literal["notification"] = "notification"
+    notification: NotificationRecord
+
+
 type ServerEvent = Annotated[
-    JobEvent | ExternalJobsEvent | HeartbeatEvent | FolderEvent | VideoEditEvent,
+    JobEvent
+    | ExternalJobsEvent
+    | HeartbeatEvent
+    | FolderEvent
+    | VideoEditEvent
+    | NotificationEvent,
     Field(discriminator="type"),
 ]
 

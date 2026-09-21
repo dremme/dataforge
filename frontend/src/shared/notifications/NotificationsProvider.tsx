@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  clearNotifications,
+  fetchNotifications,
+  markNotificationsRead,
+  postNotification,
+} from "@/shared/api/notifications";
+import { useOptionalServerEvent } from "@/shared/events/serverEvents";
 import { NotificationContainer } from "./NotificationContainer";
 import {
-  NOTIFICATION_EXIT_MS,
+  MAX_VISIBLE_TOASTS,
+  NOTIFICATION_DURATION_MS,
   NotificationsContext,
-  type Notification,
+  upsertNotification,
+  type NotificationRecord,
+  type NotificationVariant,
   type NotifyOptions,
+  type Toast,
 } from "./notifications";
+import { useToastTimers } from "./useToastTimers";
 
-const DEFAULT_DURATION_MS = 5000;
-
-function createNotificationId(): string {
+function createToastId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
@@ -18,167 +28,156 @@ function createNotificationId(): string {
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const autoDismissTimeoutIdsRef = useRef(new Map<string, number>());
-  const exitTimeoutIdsRef = useRef(new Map<string, number>());
-  /** Remaining auto-dismiss time while a toast is paused (pointer hover). */
-  const remainingMsRef = useRef(new Map<string, number>());
-  /** Absolute deadline (`performance.now()`) for the active auto-dismiss timer. */
-  const deadlineMsRef = useRef(new Map<string, number>());
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [history, setHistory] = useState<NotificationRecord[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false);
 
-  const clearAutoDismiss = useCallback((id: string) => {
-    const autoDismissTimeoutId = autoDismissTimeoutIdsRef.current.get(id);
-    if (autoDismissTimeoutId !== undefined) {
-      window.clearTimeout(autoDismissTimeoutId);
-      autoDismissTimeoutIdsRef.current.delete(id);
-    }
-    deadlineMsRef.current.delete(id);
+  // Collapse and cap decisions read committed toasts, never the value inside a state updater.
+  const toastsRef = useRef<Toast[]>([]);
+  const panelOpenRef = useRef(false);
+  panelOpenRef.current = panelOpen;
+
+  const applyToasts = useCallback((next: Toast[]) => {
+    toastsRef.current = next;
+    setToasts(next);
   }, []);
 
-  const removeNotification = useCallback(
+  // The wrappers close over the bindings below, so the timers can own the whole lifecycle.
+  const timers = useToastTimers(
+    (id) => dismiss(id),
+    (id) => removeToast(id),
+  );
+
+  const removeToast = useCallback(
     (id: string) => {
-      clearAutoDismiss(id);
-      remainingMsRef.current.delete(id);
-
-      const exitTimeoutId = exitTimeoutIdsRef.current.get(id);
-      if (exitTimeoutId !== undefined) {
-        window.clearTimeout(exitTimeoutId);
-        exitTimeoutIdsRef.current.delete(id);
-      }
-
-      setNotifications((current) => current.filter((notification) => notification.id !== id));
+      timers.cancel(id);
+      applyToasts(toastsRef.current.filter((toast) => toast.id !== id));
     },
-    [clearAutoDismiss],
+    [applyToasts, timers],
   );
 
   const dismiss = useCallback(
     (id: string) => {
-      clearAutoDismiss(id);
-      remainingMsRef.current.delete(id);
+      const target = toastsRef.current.find((toast) => toast.id === id);
+      if (!target || target.exiting) return;
+      if (!timers.armExit(id)) return;
 
-      setNotifications((current) => {
-        const target = current.find((notification) => notification.id === id);
-        if (!target || target.exiting) {
-          return current;
-        }
+      applyToasts(
+        toastsRef.current.map((toast) => (toast.id === id ? { ...toast, exiting: true } : toast)),
+      );
+    },
+    [applyToasts, timers],
+  );
 
-        if (!exitTimeoutIdsRef.current.has(id)) {
-          const exitTimeoutId = window.setTimeout(() => {
-            removeNotification(id);
-          }, NOTIFICATION_EXIT_MS);
-          exitTimeoutIdsRef.current.set(id, exitTimeoutId);
-        }
+  const pushToast = useCallback(
+    (message: string, variant: NotificationVariant) => {
+      // An open panel already lists what arrives, so a toast would only cover the list.
+      if (panelOpenRef.current) return;
 
-        return current.map((notification) =>
-          notification.id === id ? { ...notification, exiting: true } : notification,
+      const durationMs = NOTIFICATION_DURATION_MS[variant];
+      const existing = toastsRef.current.find(
+        (toast) => !toast.exiting && toast.variant === variant && toast.message === message,
+      );
+
+      if (existing) {
+        applyToasts(
+          toastsRef.current.map((toast) =>
+            toast.id === existing.id ? { ...toast, count: toast.count + 1 } : toast,
+          ),
         );
-      });
-    },
-    [clearAutoDismiss, removeNotification],
-  );
-
-  const scheduleAutoDismiss = useCallback(
-    (id: string, durationMs: number) => {
-      clearAutoDismiss(id);
-
-      const remainingMs = Math.max(0, durationMs);
-      remainingMsRef.current.set(id, remainingMs);
-
-      if (remainingMs === 0) {
-        dismiss(id);
+        timers.schedule(existing.id, durationMs);
         return;
       }
 
-      deadlineMsRef.current.set(id, performance.now() + remainingMs);
-      const timeoutId = window.setTimeout(() => {
-        autoDismissTimeoutIdsRef.current.delete(id);
-        deadlineMsRef.current.delete(id);
-        remainingMsRef.current.delete(id);
-        dismiss(id);
-      }, remainingMs);
-      autoDismissTimeoutIdsRef.current.set(id, timeoutId);
-    },
-    [clearAutoDismiss, dismiss],
-  );
+      const id = createToastId();
+      const next = [...toastsRef.current, { id, message, variant, count: 1, durationMs }];
+      applyToasts(next);
+      timers.schedule(id, durationMs);
 
-  const pauseAutoDismiss = useCallback(
-    (id: string) => {
-      const autoDismissTimeoutId = autoDismissTimeoutIdsRef.current.get(id);
-      if (autoDismissTimeoutId === undefined) {
-        return;
+      const live = next.filter((toast) => !toast.exiting);
+      for (const stale of live.slice(0, Math.max(0, live.length - MAX_VISIBLE_TOASTS))) {
+        dismiss(stale.id);
       }
-
-      const deadlineMs = deadlineMsRef.current.get(id);
-      const remainingMs =
-        deadlineMs === undefined
-          ? (remainingMsRef.current.get(id) ?? 0)
-          : deadlineMs - performance.now();
-
-      clearAutoDismiss(id);
-      remainingMsRef.current.set(id, Math.max(0, remainingMs));
     },
-    [clearAutoDismiss],
-  );
-
-  const resumeAutoDismiss = useCallback(
-    (id: string) => {
-      if (autoDismissTimeoutIdsRef.current.has(id)) {
-        return;
-      }
-
-      if (!remainingMsRef.current.has(id)) {
-        return;
-      }
-
-      scheduleAutoDismiss(id, remainingMsRef.current.get(id) ?? 0);
-    },
-    [scheduleAutoDismiss],
+    [applyToasts, dismiss, timers],
   );
 
   const notify = useCallback(
-    ({ message, variant, duration = DEFAULT_DURATION_MS }: NotifyOptions) => {
+    ({ message, variant }: NotifyOptions) => {
       const trimmed = message.trim();
       if (!trimmed) return;
 
-      const id = createNotificationId();
-      setNotifications((current) => [...current, { id, message: trimmed, variant }]);
-      scheduleAutoDismiss(id, duration);
+      pushToast(trimmed, variant);
+
+      // The toast must outlive a failed POST: most danger toasts report the backend being down.
+      void postNotification(trimmed, variant)
+        .then((record) => setHistory((current) => upsertNotification(current, record)))
+        .catch(() => {});
     },
-    [scheduleAutoDismiss],
+    [pushToast],
   );
 
+  useOptionalServerEvent((event) => {
+    if (event.type !== "notification") return;
+
+    setHistory((current) => upsertNotification(current, event.notification));
+    // A client toast already showed in the tab that raised it, and is not this tab's business.
+    if (event.notification.source === "job") {
+      pushToast(event.notification.message, event.notification.variant);
+    }
+  });
+
   useEffect(() => {
-    const autoDismissTimeoutIds = autoDismissTimeoutIdsRef.current;
-    const exitTimeoutIds = exitTimeoutIdsRef.current;
-    const remainingMs = remainingMsRef.current;
-    const deadlineMs = deadlineMsRef.current;
-    return () => {
-      for (const timeoutId of autoDismissTimeoutIds.values()) {
-        window.clearTimeout(timeoutId);
-      }
-      autoDismissTimeoutIds.clear();
-
-      for (const timeoutId of exitTimeoutIds.values()) {
-        window.clearTimeout(timeoutId);
-      }
-      exitTimeoutIds.clear();
-
-      remainingMs.clear();
-      deadlineMs.clear();
-    };
+    const controller = new AbortController();
+    fetchNotifications(controller.signal)
+      .then(setHistory)
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
-  const value = useMemo(() => ({ notify, dismiss }), [notify, dismiss]);
+  const markAllRead = useCallback(() => {
+    setHistory((current) =>
+      current.map((entry) =>
+        entry.read_at ? entry : { ...entry, read_at: new Date().toISOString() },
+      ),
+    );
+    void markNotificationsRead()
+      .then(setHistory)
+      .catch(() => {});
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    void clearNotifications()
+      .then(setHistory)
+      .catch(() => {});
+  }, []);
+
+  const unreadCount = useMemo(() => history.filter((entry) => !entry.read_at).length, [history]);
+
+  const value = useMemo(
+    () => ({
+      notify,
+      dismiss,
+      history,
+      unreadCount,
+      panelOpen,
+      setPanelOpen,
+      markAllRead,
+      clearHistory,
+    }),
+    [notify, dismiss, history, unreadCount, panelOpen, markAllRead, clearHistory],
+  );
 
   return (
     <NotificationsContext.Provider value={value}>
       {children}
       <NotificationContainer
-        notifications={notifications}
+        toasts={toasts}
         onDismiss={dismiss}
-        onRemove={removeNotification}
-        onPauseAutoDismiss={pauseAutoDismiss}
-        onResumeAutoDismiss={resumeAutoDismiss}
+        onRemove={removeToast}
+        onPauseAutoDismiss={timers.pause}
+        onResumeAutoDismiss={timers.resume}
       />
     </NotificationsContext.Provider>
   );

@@ -339,6 +339,7 @@ function job(id: string, folder: string, overrides: Partial<Job> = {}): Job {
     folder_name: folderLeafName(folder),
     job_type: "auto_caption",
     status: "completed",
+    effective_status: "completed",
     total: 3,
     processed: 3,
     stats: { total: 3, success: 3 },

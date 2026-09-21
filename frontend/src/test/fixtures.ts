@@ -41,12 +41,16 @@ export function mediaItem(
 
 export function job(options: Partial<Job> = {}): Job {
   const folder = options.folder ?? HOME_PATH;
+  const status = options.status ?? "queued";
   return {
     id: "job-1",
     folder,
     folder_name: folder.slice(folder.lastIndexOf("\\") + 1),
     job_type: "auto_caption",
-    status: "queued",
+    status,
+    // The server derives these two from stats; a fixture that overrides neither agrees with status.
+    effective_status: status,
+    warning: null,
     total: 0,
     processed: 0,
     stats: {},

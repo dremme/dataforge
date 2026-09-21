@@ -6,7 +6,6 @@ import {
   formatDuration,
   formatElapsed,
   isTrainLoraCoTrackedByExternal,
-  jobCompletionNotification,
   jobElapsedSeconds,
   jobErrorMessage,
   jobIcon,
@@ -336,373 +335,46 @@ describe("selectFolderJob", () => {
   });
 });
 
-describe("missing caption warnings", () => {
-  it("flags completed jobs that skipped images without caption sidecars", () => {
+describe("job severity presentation", () => {
+  it("reads the warning the server composed rather than re-deriving one", () => {
     const job = makeJob({
       status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 2, no_caption: 1 },
+      effective_status: "completed",
+      warning: "1 file had no caption sidecar (.txt) and was skipped.",
     });
 
     expect(jobShowsWarningState(job)).toBe(true);
-    expect(statusLabel(job)).toBe("Warnings");
-    expect(jobStatusTone(job)).toBe("warning");
     expect(jobWarningMessage(job)).toBe("1 file had no caption sidecar (.txt) and was skipped.");
-  });
-
-  it("pluralizes the missing-caption warning", () => {
-    const job = makeJob({
-      status: "completed",
-      processed: 5,
-      total: 5,
-      stats: { success: 2, no_caption: 3 },
-    });
-
-    expect(jobWarningMessage(job)).toBe("3 files had no caption sidecar (.txt) and were skipped.");
-  });
-});
-
-describe("edit captions jobs", () => {
-  function editJob(stats: Record<string, number>) {
-    return makeJob({
-      job_type: "edit_captions",
-      status: "completed",
-      processed: 10,
-      total: 10,
-      stats,
-    });
-  }
-
-  it("warns rather than fails when captions came back unusable", () => {
-    // The captions on disk are untouched, so this is the safe path working.
-    const job = editJob({ success: 8, rejected: 2 });
-
     expect(statusLabel(job)).toBe("Warnings");
-    expect(jobShowsWarningState(job)).toBe(true);
     expect(jobStatusTone(job)).toBe("warning");
-    expect(jobWarningMessage(job)).toBe(
-      "2 captions came back in a form the job would not write, and were left unchanged.",
-    );
   });
 
-  it("reads a single rejection as one", () => {
-    expect(jobWarningMessage(editJob({ success: 9, rejected: 1 }))).toBe(
-      "1 caption came back in a form the job would not write, and was left unchanged.",
-    );
-  });
-
-  it("reports a missing caption and an unusable one side by side", () => {
-    const message = jobWarningMessage(editJob({ success: 7, rejected: 2, no_caption: 1 }));
-
-    expect(message).toContain("no caption sidecar");
-    expect(message).toContain("would not write");
-  });
-
-  it("stays quiet when every caption was edited or left alone", () => {
-    const job = editJob({ success: 7, unchanged: 3 });
+  it("reads a clean completion as a success", () => {
+    const job = makeJob({ status: "completed", effective_status: "completed" });
 
     expect(jobShowsWarningState(job)).toBe(false);
     expect(jobWarningMessage(job)).toBeNull();
+    expect(statusLabel(job)).toBe("Completed");
+    expect(jobStatusTone(job)).toBe("success");
   });
 
-  it("still fails on a model request error", () => {
-    // Only the model being unreachable is a failure; a rejected caption is not.
-    const job = editJob({ success: 9, api_error: 1 });
+  it("follows the effective status when stats demoted a completed job", () => {
+    const job = makeJob({
+      status: "completed",
+      effective_status: "failed",
+      error: "Model server unavailable",
+    });
 
+    expect(jobShowsErrorState(job)).toBe(true);
+    expect(jobErrorMessage(job)).toBe("Model server unavailable");
     expect(statusLabel(job)).toBe("Failed");
     expect(jobStatusTone(job)).toBe("danger");
   });
-});
 
-describe("caption backup and restore jobs", () => {
-  it("does not warn about media that had no caption to back up", () => {
-    const job = makeJob({
-      job_type: "backup_captions",
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 2, sidecars: 3, skipped: 1 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(false);
-    expect(jobWarningMessage(job)).toBeNull();
-  });
-
-  it("warns when a restored caption had no matching media file", () => {
-    const job = makeJob({
-      job_type: "restore_captions",
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 2, orphaned: 1 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(true);
-    expect(jobWarningMessage(job)).toBe(
-      "1 backed up caption had no matching media file and was skipped.",
-    );
-  });
-
-  it("pluralizes the orphaned-caption warning", () => {
-    const job = makeJob({
-      job_type: "restore_captions",
-      status: "completed",
-      processed: 5,
-      total: 5,
-      stats: { success: 2, orphaned: 3 },
-    });
-
-    expect(jobWarningMessage(job)).toBe(
-      "3 backed up captions had no matching media file and were skipped.",
-    );
-  });
-
-  it("does not warn when every backed up caption was restored", () => {
-    const job = makeJob({
-      job_type: "restore_captions",
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 3, orphaned: 0 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(false);
-  });
-
-  it("does not warn when every image was captioned", () => {
-    const job = makeJob({
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 2 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(false);
-    expect(statusLabel(job)).toBe("Completed");
-  });
-});
-
-describe("watermark jobs", () => {
-  it("does not inherit the missing-caption warning", () => {
-    const job = makeJob({
-      job_type: "watermark",
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 3, image_success: 3, no_caption: 2 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(false);
-    expect(jobWarningMessage(job)).toBeNull();
-  });
-
-  it("estimates from the videos, not the images", () => {
-    const startedAt = new Date("2026-01-01T12:00:00.000Z").toISOString();
-    const job = makeJob({
-      job_type: "watermark",
-      status: "running",
-      processed: 9,
-      total: 10,
-      started_at: startedAt,
-      // Eight images took no time; the one remaining file is another video.
-      stats: { success: 9, image_success: 8, video_success: 1 },
-    });
-
-    const nowMs = Date.parse("2026-01-01T12:01:02.000Z");
-    expect(jobRemainingSeconds(job, nowMs)).toBe(60);
-  });
-});
-
-describe("verify captions jobs", () => {
-  it("labels verify captions jobs and treats parse errors as failures", () => {
-    const job = makeJob({
-      job_type: "verify_captions",
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 1, parse_error: 1 },
-    });
-
-    expect(statusLabel(job)).toBe("Failed");
-    expect(jobShowsWarningState(job)).toBe(false);
-  });
-
-  it("displays backend-provided failure messages without reconstructing them", () => {
-    const backendError =
-      "26 files had model responses that were not valid JSON. The model server may be running, but the vision model did not follow the required JSON output format.";
-    const job = makeJob({
-      job_type: "verify_captions",
-      status: "failed",
-      processed: 84,
-      total: 84,
-      stats: { success: 58, parse_error: 26 },
-      error: backendError,
-    });
-
-    expect(jobErrorMessage(job)).toBe(backendError);
-  });
-
-  it("treats frame errors as failures for verify captions", () => {
-    const job = makeJob({
-      job_type: "verify_captions",
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 1, frame_error: 1 },
-    });
-
-    expect(statusLabel(job)).toBe("Failed");
-  });
-
-  it("treats media that never decoded as an auto-caption failure", () => {
-    const job = makeJob({
-      job_type: "auto_caption",
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 1, frame_error: 1 },
-    });
-
-    expect(statusLabel(job)).toBe("Failed");
-  });
-
-  it("warns when verify captions skipped files without txt sidecars", () => {
-    const job = makeJob({
-      job_type: "verify_captions",
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 1, no_caption: 1 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(true);
-    expect(jobWarningMessage(job)).toBe("1 file had no caption sidecar (.txt) and was skipped.");
-  });
-
-  it("warns when clips carried no audio but were captioned anyway", () => {
-    const job = makeJob({
-      job_type: "auto_caption",
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 3, audio_error: 3 },
-    });
-
-    expect(jobShowsErrorState(job)).toBe(false);
-    expect(statusLabel(job)).toBe("Warnings");
-    expect(jobWarningMessage(job)).toBe(
-      "3 videos had no audio track and were captioned without them.",
-    );
-  });
-
-  it("uses the singular for a lone silent clip", () => {
-    const job = makeJob({
-      job_type: "auto_caption",
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 2, audio_error: 1 },
-    });
-
-    expect(jobWarningMessage(job)).toBe("1 video had no audio track and was captioned without it.");
-  });
-
-  it("reports a missing sidecar and missing audio together", () => {
-    const job = makeJob({
-      job_type: "auto_caption",
-      status: "completed",
-      processed: 3,
-      total: 3,
-      stats: { success: 1, no_caption: 1, audio_error: 1 },
-    });
-
-    expect(jobWarningMessage(job)).toBe(
-      "1 file had no caption sidecar (.txt) and was skipped. " +
-        "1 video had no audio track and was captioned without it.",
-    );
-  });
-
-  it("keeps a real failure red even when clips were also silent", () => {
-    const job = makeJob({
-      job_type: "auto_caption",
-      status: "completed",
-      processed: 2,
-      total: 2,
-      stats: { success: 1, frame_error: 1, audio_error: 1 },
-    });
-
-    expect(statusLabel(job)).toBe("Failed");
-    expect(jobShowsWarningState(job)).toBe(false);
-  });
-
-  it("never warns about audio for verify captions", () => {
-    const job = makeJob({
-      job_type: "verify_captions",
-      status: "completed",
-      processed: 1,
-      total: 1,
-      stats: { success: 1, audio_error: 1 },
-    });
-
-    expect(jobShowsWarningState(job)).toBe(false);
-    expect(statusLabel(job)).toBe("Completed");
-  });
-});
-
-describe("jobCompletionNotification", () => {
-  it("returns null for active jobs", () => {
-    expect(jobCompletionNotification(makeJob({ status: "running" }))).toBeNull();
-  });
-
-  it("returns a success notification for a clean completion", () => {
+  it("treats an interrupted job as an error state", () => {
     expect(
-      jobCompletionNotification(makeJob({ status: "completed", processed: 5, total: 5 })),
-    ).toEqual({
-      variant: "success",
-      message: 'Auto-caption completed in "Photos".',
-    });
-  });
-
-  it("returns a warning notification when a job finishes with warnings", () => {
-    expect(
-      jobCompletionNotification(
-        makeJob({
-          job_type: "verify_captions",
-          status: "completed",
-          processed: 2,
-          total: 2,
-          stats: { success: 1, no_caption: 1 },
-        }),
-      ),
-    ).toEqual({
-      variant: "warning",
-      message:
-        'Verify captions finished with warnings in "Photos": 1 file had no caption sidecar (.txt) and was skipped.',
-    });
-  });
-
-  it("returns a danger notification when a job fails", () => {
-    expect(
-      jobCompletionNotification(
-        makeJob({
-          status: "failed",
-          error: "Model server unavailable",
-        }),
-      ),
-    ).toEqual({
-      variant: "danger",
-      message: 'Auto-caption failed in "Photos": Model server unavailable',
-    });
-  });
-
-  it("returns a warning notification when a job is cancelled", () => {
-    expect(
-      jobCompletionNotification(makeJob({ status: "cancelled", processed: 2, total: 10 })),
-    ).toEqual({
-      variant: "warning",
-      message: 'Auto-caption cancelled in "Photos".',
-    });
+      jobShowsErrorState(makeJob({ status: "interrupted", effective_status: "interrupted" })),
+    ).toBe(true);
   });
 });
 

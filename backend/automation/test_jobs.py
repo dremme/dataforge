@@ -9,6 +9,11 @@ isolate_test_database()
 
 from automation.jobs import Job, _resolve_verify_captions_status, job_manager
 from automation.jobs_store import get_job as get_job_from_store
+from notifications_store import (
+    clear_notifications_for_tests,
+    init_notifications_table,
+    list_notifications,
+)
 from testing_fixtures import (
     TempMediaFolder,
     reset_job_manager,
@@ -220,6 +225,72 @@ class JobManagerLifecycleTests(unittest.TestCase):
             deleted_count = job_manager.delete_all_jobs()
             self.assertGreaterEqual(deleted_count, 1)
             self.assertEqual(job_manager.list_jobs(), [])
+
+
+class JobOutcomeNotificationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+        init_notifications_table()
+        clear_notifications_for_tests()
+
+    @staticmethod
+    def _snapshot(status: str) -> dict[str, object]:
+        return {
+            "id": "job-1",
+            "folder": r"C:\Photos",
+            "folder_name": "Photos",
+            "job_type": "auto_caption",
+            "status": status,
+            "total": 3,
+            "processed": 3,
+            "stats": {"success": 3},
+            "created_at": "2026-01-01T00:00:00.000Z",
+        }
+
+    def _publish(self, status: str) -> None:
+        with job_manager._lock:
+            job_manager._publish_snapshot("job-1", self._snapshot(status))
+
+    def test_reaching_a_terminal_status_records_one_notification(self) -> None:
+        self._publish("running")
+        self._publish("completed")
+
+        stored = list_notifications()
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0]["message"], 'Auto-caption completed in "Photos".')
+        self.assertEqual(stored[0]["source"], "job")
+        self.assertEqual(stored[0]["job_id"], "job-1")
+
+    def test_republishing_the_same_terminal_status_records_nothing_further(self) -> None:
+        self._publish("running")
+        self._publish("completed")
+
+        with patch("automation.jobs.JOB_EVENT_MIN_INTERVAL_SECONDS", 0):
+            self._publish("completed")
+            self._publish("completed")
+
+        self.assertEqual(len(list_notifications()), 1)
+
+    def test_a_job_whose_first_snapshot_is_terminal_announces_nothing(self) -> None:
+        self._publish("completed")
+
+        self.assertEqual(list_notifications(), [])
+
+    def test_progress_transitions_announce_nothing(self) -> None:
+        self._publish("queued")
+        self._publish("running")
+
+        self.assertEqual(list_notifications(), [])
+
+    def test_a_finished_job_survives_the_feed_being_unwritable(self) -> None:
+        self._publish("running")
+
+        with patch(
+            "notifications.record_notification", side_effect=RuntimeError("database is locked")
+        ):
+            self._publish("completed")
+
+        self.assertEqual(list_notifications(), [])
 
 
 class VerifyCaptionsFailureMessageTests(unittest.TestCase):

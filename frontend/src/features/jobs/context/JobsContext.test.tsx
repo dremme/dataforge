@@ -48,6 +48,7 @@ const runningJob = {
   folder_name: "Photos",
   job_type: "auto_caption" as const,
   status: "running" as const,
+  effective_status: "running" as const,
   total: 10,
   processed: 3,
   stats: {},

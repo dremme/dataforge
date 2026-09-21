@@ -30,6 +30,7 @@ import {
   JOB_TYPE_META,
   PRIMARY_JOB_TYPE,
   jobTypeIconFor,
+  jobTypeLabelFor,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
@@ -123,6 +124,7 @@ export function AutomationPanel({
   const starting = startingJobType !== null;
   const startingPrimary = startingJobType === PRIMARY_JOB_TYPE;
   const primaryMeta = JOB_TYPE_META[PRIMARY_JOB_TYPE];
+  const primaryLabel = jobTypeLabelFor(PRIMARY_JOB_TYPE);
   const showResolveIssues = issueCount > 0 && Boolean(onResolveIssues);
   const showResolveDuplicates = duplicateGroupCount > 0 && Boolean(onResolveDuplicates);
   const showReviewCandidates = candidateCount > 0 && Boolean(onReviewCandidates);
@@ -145,14 +147,14 @@ export function AutomationPanel({
   const jobLabel = job ? jobTypeLabel(job).toLowerCase() : "";
 
   const startTooltip = startingPrimary
-    ? `Starting ${primaryMeta.label.toLowerCase()} job...`
+    ? `Starting ${primaryLabel.toLowerCase()} job...`
     : starting
       ? "Another job is starting..."
       : !hasSyspromptFile
         ? "Add a .sysprompt file to enable auto-captioning"
         : !hasSyspromptContent
           ? "Write instructions in .sysprompt before running auto-caption"
-          : (primaryMeta.menuDescription ?? `Start ${primaryMeta.label.toLowerCase()}`);
+          : (primaryMeta.menuDescription ?? `Start ${primaryLabel.toLowerCase()}`);
   const syspromptTooltip = hasSyspromptFile
     ? "Edit the .sysprompt instructions for this folder"
     : "Create a .sysprompt file with captioning instructions";
@@ -211,7 +213,7 @@ export function AutomationPanel({
                             icon={jobTypeIconFor(PRIMARY_JOB_TYPE)}
                             className="automation__btn-icon"
                           />
-                          {primaryMeta.label}
+                          {primaryLabel}
                         </>
                       )}
                     </button>

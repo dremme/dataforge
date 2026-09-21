@@ -17,6 +17,7 @@ const finishedJob: Job = {
   folder_name: "Photos",
   job_type: "auto_caption",
   status: "completed",
+  effective_status: "completed",
   total: 3,
   processed: 3,
   current_file: null,
@@ -42,6 +43,7 @@ const results: JobFileResult[] = [
 const cancelledJob: Job = {
   ...finishedJob,
   status: "cancelled",
+  effective_status: "cancelled",
   total: 200,
   processed: 11,
   stats: { total: 200, success: 11, cancelled: 189 },

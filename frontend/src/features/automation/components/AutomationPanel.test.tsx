@@ -21,6 +21,7 @@ const finishedJob: Job = {
   folder_name: "Photos",
   job_type: "auto_caption",
   status: "completed",
+  effective_status: "completed",
   total: 10,
   processed: 10,
   current_file: null,
@@ -216,6 +217,7 @@ describe("AutomationPanel", () => {
     const cancelledJob: Job = {
       ...finishedJob,
       status: "cancelled",
+      effective_status: "cancelled",
       processed: 4,
       stats: { success: 4 },
       finished_at: "2026-01-01T12:00:20.000Z",

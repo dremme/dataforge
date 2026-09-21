@@ -12,6 +12,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     folder_name: "Photos",
     job_type: "auto_caption",
     status: "running",
+    effective_status: "running",
     total: 10,
     processed: 2,
     current_file: null,

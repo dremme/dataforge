@@ -34,6 +34,13 @@ for (const width of [1024, 1440]) {
     test(`${scenario} automation layout at ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 });
       const active = ["running", "training", "comfy"].includes(scenario);
+      const status: Job["status"] = active
+        ? "running"
+        : scenario === "failed"
+          ? "failed"
+          : scenario === "cancelled"
+            ? "cancelled"
+            : "completed";
       const currentJob: Job | null =
         scenario === "idle"
           ? null
@@ -47,13 +54,9 @@ for (const width of [1024, 1440]) {
                   : scenario === "comfy"
                     ? "comfy_process"
                     : "auto_caption",
-              status: active
-                ? "running"
-                : scenario === "failed"
-                  ? "failed"
-                  : scenario === "cancelled"
-                    ? "cancelled"
-                    : "completed",
+              status,
+              effective_status: status,
+              warning: null,
               total: 48,
               processed: active ? 16 : scenario === "cancelled" ? 24 : 48,
               current_name: active ? "mountain-landscape.png" : null,

@@ -5,12 +5,12 @@ import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
 
 export default function App() {
   return (
-    <NotificationsProvider>
-      <ServerEventsProvider>
+    <ServerEventsProvider>
+      <NotificationsProvider>
         <JobsProvider>
           <AppContent />
         </JobsProvider>
-      </ServerEventsProvider>
-    </NotificationsProvider>
+      </NotificationsProvider>
+    </ServerEventsProvider>
   );
 }

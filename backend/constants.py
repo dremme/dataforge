@@ -118,6 +118,23 @@ LAST_FOLDER_KEY = "last_folder"
 
 SYSPROMPT_FILENAME = ".sysprompt"
 
+#: User-facing job names, shared so the UI and job notifications cannot drift apart.
+JOB_TYPE_LABELS: dict[str, str] = {
+    "auto_caption": "Auto-caption",
+    "set_captions": "Set captions",
+    "verify_captions": "Verify captions",
+    "edit_captions": "Edit captions",
+    "replace_captions": "Find & replace",
+    "train_lora": "LoRA training",
+    "batch_rename": "Rename",
+    "strip_metadata": "Strip metadata",
+    "find_duplicates": "Find duplicates",
+    "backup_captions": "Backup captions",
+    "restore_captions": "Restore captions",
+    "watermark": "Watermark",
+    "comfy_process": "Process with ComfyUI",
+}
+
 #: Emitted into ``frontend/src/shared/constants.ts``. Sets are sorted; sequences keep walk order.
 SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
@@ -130,4 +147,5 @@ SHARED_CONSTANTS: dict[str, object] = {
     "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,
     "COMFY_WORKFLOW_EXTENSIONS": sorted(COMFY_WORKFLOW_EXTENSIONS),
     "STAGING_DIR_NAME": STAGING_DIR_NAME,
+    "JOB_TYPE_LABELS": JOB_TYPE_LABELS,
 }

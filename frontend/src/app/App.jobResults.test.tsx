@@ -12,6 +12,7 @@ const failedJob: Job = {
   folder_name: "Photos",
   job_type: "auto_caption",
   status: "completed",
+  effective_status: "completed",
   total: 3,
   processed: 3,
   current_file: null,

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from automation import job_outcome
 from constants import (
     CANDIDATE_SOURCE_EXTENSIONS,
     GIF_EXTENSION,
@@ -143,4 +144,4 @@ def resolve_sysprompt_target(path: str) -> Path:
 
 
 def job_response(job) -> JobResponse:
-    return JobResponse(**job.to_summary_dict())
+    return job_outcome.job_response(job.to_summary_dict())

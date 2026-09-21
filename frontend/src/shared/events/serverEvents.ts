@@ -31,3 +31,15 @@ export function useServerEvent(handler: (event: ServerEvent) => void): void {
 
   useEffect(() => subscribe((event) => handlerRef.current(event)), [subscribe]);
 }
+
+/** Subscribes when a stream provider is mounted; a provider tree without one is not an error. */
+export function useOptionalServerEvent(handler: (event: ServerEvent) => void): void {
+  const context = useContext(ServerEventsContext);
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  useEffect(() => {
+    if (!context) return;
+    return context.subscribe((event) => handlerRef.current(event));
+  }, [context]);
+}

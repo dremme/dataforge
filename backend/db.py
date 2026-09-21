@@ -57,8 +57,10 @@ def init_db() -> None:
         conn.commit()
 
     from automation.jobs_store import init_jobs_table
+    from notifications_store import init_notifications_table
 
     init_jobs_table()
+    init_notifications_table()
 
 
 def get_preference(key: str) -> str | None:

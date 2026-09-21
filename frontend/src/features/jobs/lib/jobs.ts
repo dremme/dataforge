@@ -1,15 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import type { Job, JobStatus, JobType } from "@/shared/types";
-import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
-import { folderLeafName, foldersMatch } from "@/features/folder/lib/folderPath";
+import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { isKnownJobType, jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
-
-type JobCompletionNotificationVariant = "danger" | "warning" | "success";
-
-export interface JobCompletionNotification {
-  variant: JobCompletionNotificationVariant;
-  message: string;
-}
 
 export function jobTypeOf(job: Job): JobType {
   return isKnownJobType(job.job_type) ? job.job_type : PRIMARY_JOB_TYPE;
@@ -89,120 +81,12 @@ export function isTerminalJobStatus(status: JobStatus): boolean {
   );
 }
 
-function jobApiErrorCount(job: Job): number {
-  return job.stats?.api_error ?? 0;
-}
-
-function jobVerifyErrorCount(job: Job): number {
-  const stats = job.stats ?? {};
-  return (
-    (stats.api_error ?? 0) +
-    (stats.parse_error ?? 0) +
-    (stats.read_error ?? 0) +
-    (stats.frame_error ?? 0)
-  );
-}
-
-function jobCaptionErrorCount(job: Job): number {
-  const stats = job.stats ?? {};
-  return (stats.api_error ?? 0) + (stats.read_error ?? 0) + (stats.frame_error ?? 0);
-}
-
-function jobNoCaptionCount(job: Job): number {
-  return job.stats?.no_caption ?? 0;
-}
-
-function jobRejectedCount(job: Job): number {
-  return job.stats?.rejected ?? 0;
-}
-
-function jobNoAudioCount(job: Job): number {
-  return job.stats?.audio_error ?? 0;
-}
-
-function jobOrphanedCount(job: Job): number {
-  return job.stats?.orphaned ?? 0;
-}
-
-function effectiveJobStatus(job: Job): JobStatus {
-  if (job.status === "completed") {
-    if (jobTypeOf(job) === "verify_captions" && jobVerifyErrorCount(job) > 0) {
-      return "failed";
-    }
-    if (jobTypeOf(job) === "auto_caption" && jobCaptionErrorCount(job) > 0) {
-      return "failed";
-    }
-    if (jobApiErrorCount(job) > 0) {
-      return "failed";
-    }
-  }
-  return job.status;
-}
-
 export function jobShowsErrorState(job: Job): boolean {
-  const status = effectiveJobStatus(job);
-  return status === "failed" || status === "interrupted";
+  return job.effective_status === "failed" || job.effective_status === "interrupted";
 }
 
 export function jobShowsWarningState(job: Job): boolean {
-  if (jobShowsErrorState(job) || jobIsCancelled(job)) {
-    return false;
-  }
-
-  if (job.status !== "completed") {
-    return false;
-  }
-
-  const type = jobTypeOf(job);
-
-  if (type === "restore_captions") {
-    return jobOrphanedCount(job) > 0;
-  }
-
-  if (
-    type === "strip_metadata" ||
-    type === "set_captions" ||
-    type === "batch_rename" ||
-    type === "backup_captions" ||
-    type === "train_lora" ||
-    type === "watermark"
-  ) {
-    return false;
-  }
-
-  if (type === "auto_caption") {
-    return jobNoCaptionCount(job) + jobNoAudioCount(job) > 0;
-  }
-
-  if (type === "edit_captions") {
-    return jobNoCaptionCount(job) + jobRejectedCount(job) > 0;
-  }
-
-  return jobNoCaptionCount(job) > 0;
-}
-
-function noCaptionWarning(count: number): string | null {
-  if (count === 0) return null;
-  if (count === 1) {
-    return `1 file had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and was skipped.`;
-  }
-  return `${count} files had no caption sidecar (${CAPTION_SIDECAR_EXTENSION_LIST}) and were skipped.`;
-}
-
-function rejectedWarning(count: number): string | null {
-  if (count === 0) return null;
-  if (count === 1) {
-    return "1 caption came back in a form the job would not write, and was left unchanged.";
-  }
-  return `${count} captions came back in a form the job would not write, and were left unchanged.`;
-}
-
-function noAudioWarning(count: number): string | null {
-  if (count === 0) return null;
-  if (count === 1) {
-    return "1 video had no audio track and was captioned without it.";
-  }
-  return `${count} videos had no audio track and were captioned without them.`;
+  return jobWarningMessage(job) !== null;
 }
 
 export function jobErrorMessage(job: Job): string | null {
@@ -210,27 +94,7 @@ export function jobErrorMessage(job: Job): string | null {
 }
 
 export function jobWarningMessage(job: Job): string | null {
-  if (!jobShowsWarningState(job)) {
-    return null;
-  }
-
-  if (jobTypeOf(job) === "restore_captions") {
-    const orphaned = jobOrphanedCount(job);
-    if (orphaned === 1) {
-      return "1 backed up caption had no matching media file and was skipped.";
-    }
-    return `${orphaned} backed up captions had no matching media file and were skipped.`;
-  }
-
-  const parts = [noCaptionWarning(jobNoCaptionCount(job))];
-  if (jobTypeOf(job) === "auto_caption") {
-    parts.push(noAudioWarning(jobNoAudioCount(job)));
-  }
-  if (jobTypeOf(job) === "edit_captions") {
-    parts.push(rejectedWarning(jobRejectedCount(job)));
-  }
-
-  return parts.filter((part): part is string => part !== null).join(" ") || null;
+  return job.warning ?? null;
 }
 
 export function progressPercent(job: Job): number {
@@ -239,11 +103,11 @@ export function progressPercent(job: Job): number {
 }
 
 export function jobIsCancelled(job: Job): boolean {
-  return effectiveJobStatus(job) === "cancelled";
+  return job.effective_status === "cancelled";
 }
 
 export function statusLabel(job: Job): string {
-  const status = effectiveJobStatus(job);
+  const status = job.effective_status;
 
   switch (status) {
     case "queued":
@@ -278,7 +142,7 @@ export function jobStatusTone(job: Job): JobStatusTone {
     return "warning";
   }
 
-  return statusTone(effectiveJobStatus(job));
+  return statusTone(job.effective_status);
 }
 
 const FAST_ITEM_SECONDS = 0.25;
@@ -403,11 +267,11 @@ function jobTimingCounts(job: Job): { fast: number; slow: number } {
       (stats.frame_error ?? 0) +
       (stats.read_error ?? 0) +
       (stats.write_error ?? 0);
-    const fast = jobNoCaptionCount(job);
+    const fast = stats.no_caption ?? 0;
     return { fast, slow };
   }
 
-  const fast = jobNoCaptionCount(job) + (stats.skipped_long ?? 0);
+  const fast = (stats.no_caption ?? 0) + (stats.skipped_long ?? 0);
   const slow =
     (stats.success ?? 0) +
     (stats.api_error ?? 0) +
@@ -556,43 +420,6 @@ export function jobRemainingSeconds(
   const estimatedFastRemaining = remainingItems - estimatedSlowRemaining;
 
   return Math.ceil(estimatedFastRemaining * FAST_ITEM_SECONDS + estimatedSlowRemaining * slowRate);
-}
-
-export function jobCompletionNotification(job: Job): JobCompletionNotification | null {
-  if (!isTerminalJobStatus(job.status)) {
-    return null;
-  }
-
-  const folderLabel = job.folder_name || folderLeafName(job.folder);
-  const typeLabel = jobTypeLabel(job);
-
-  if (jobShowsErrorState(job)) {
-    const detail = jobErrorMessage(job);
-    const message = detail
-      ? `${typeLabel} failed in "${folderLabel}": ${detail}`
-      : `${typeLabel} failed in "${folderLabel}".`;
-    return { variant: "danger", message };
-  }
-
-  if (jobIsCancelled(job)) {
-    return {
-      variant: "warning",
-      message: `${typeLabel} cancelled in "${folderLabel}".`,
-    };
-  }
-
-  if (jobShowsWarningState(job)) {
-    const detail = jobWarningMessage(job);
-    const message = detail
-      ? `${typeLabel} finished with warnings in "${folderLabel}": ${detail}`
-      : `${typeLabel} finished with warnings in "${folderLabel}".`;
-    return { variant: "warning", message };
-  }
-
-  return {
-    variant: "success",
-    message: `${typeLabel} completed in "${folderLabel}".`,
-  };
 }
 
 export function jobRemainingTimeLabel(

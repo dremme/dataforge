@@ -5,6 +5,7 @@ import {
   SECONDARY_JOB_TYPES,
   isJobAvailable,
   jobTypeIconFor,
+  jobTypeLabelFor,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
 import type { JobType } from "@/shared/types";
@@ -39,13 +40,12 @@ export function AutomationMoreJobsMenu({
         ...group,
         jobs: group.types.map((type) => {
           const meta = JOB_TYPE_META[type] as {
-            label: string;
             menuLabel?: string;
             menuDescription?: string;
           };
           return {
             id: type,
-            label: meta.menuLabel ?? meta.label,
+            label: meta.menuLabel ?? jobTypeLabelFor(type),
             description: meta.menuDescription ?? "",
             icon: jobTypeIconFor(type),
             starting: startingJobType === type,

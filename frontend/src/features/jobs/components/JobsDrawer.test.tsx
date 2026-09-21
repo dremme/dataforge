@@ -27,6 +27,7 @@ const trainingJob: Job = {
   job_type: "train_lora",
   external_ref: "sample_train_v1",
   status: "running",
+  effective_status: "running",
   total: 1000,
   processed: 500,
   stats: { step: 500 },
@@ -97,12 +98,18 @@ afterEach(() => {
 
 describe("JobsDrawer", () => {
   describe("history", () => {
-    const finishedCaption: Job = { ...captionJob, status: "completed", processed: 10 };
+    const finishedCaption: Job = {
+      ...captionJob,
+      status: "completed",
+      effective_status: "completed",
+      processed: 10,
+    };
     const olderWatermark: Job = {
       ...captionJob,
       id: "job-old",
       job_type: "watermark",
       status: "failed",
+      effective_status: "failed",
       created_at: "2025-12-01T00:00:00.000Z",
     };
 
