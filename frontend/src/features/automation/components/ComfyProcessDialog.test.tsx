@@ -207,7 +207,9 @@ describe("ComfyProcessDialog", () => {
       }),
     );
 
-    expect(await screen.findByLabelText("Prompt")).toHaveValue("no watermark");
+    await screen.findByLabelText("Workflow");
+
+    expect(screen.getByLabelText("Prompt")).toHaveValue("no watermark");
   });
 
   it("shows each preset's own remembered prompt and seed", async () => {
@@ -326,7 +328,10 @@ describe("ComfyProcessDialog", () => {
         }),
       );
 
-      const prompt = await screen.findByLabelText("Prompt");
+      // Prompt renders before the presets land, so only Workflow marks the load as done.
+      await screen.findByLabelText("Workflow");
+
+      const prompt = screen.getByLabelText("Prompt");
       expect(prompt).toBeDisabled();
       expect(prompt).toHaveValue("");
       expect(screen.getByText(/has no/)).toHaveTextContent("DataForge Prompt");
@@ -367,7 +372,9 @@ describe("ComfyProcessDialog", () => {
       );
       renderDialog();
 
-      expect(await screen.findByLabelText("Prompt")).toBeEnabled();
+      await screen.findByLabelText("Workflow");
+
+      expect(screen.getByLabelText("Prompt")).toBeEnabled();
       expect(screen.getByLabelText("Seed")).toBeEnabled();
     });
   });
