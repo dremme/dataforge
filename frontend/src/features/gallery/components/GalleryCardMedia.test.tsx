@@ -56,7 +56,6 @@ function installCompletingPreviewImages(): () => void {
   };
 }
 
-/** Preview loads stay pending until the test settles them. */
 function installPendingPreviewImages() {
   const originalImage = globalThis.Image;
   const loads: { onload: (() => void) | null; onerror: (() => void) | null }[] = [];
@@ -69,7 +68,6 @@ function installPendingPreviewImages() {
 
     set src(value: string) {
       this._src = value;
-      // An abort clears the handlers and blanks src; only real loads count.
       if (value) loads.push(this);
     }
 
@@ -90,8 +88,158 @@ function installPendingPreviewImages() {
 describe("GalleryCardMedia", () => {
   afterEach(() => {
     resetGalleryPreviewLoaderForTests();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
+
+  it.each(["image", "gif", "video"] as const)(
+    "recovers a new %s after its first requests fail without a metadata update",
+    (mediaType) => {
+      vi.useFakeTimers();
+      const preview = installPendingPreviewImages();
+      vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+      try {
+        const { container } = render(
+          <GalleryCardMedia item={{ ...imageItem, media_type: mediaType }} />,
+        );
+        act(() => preview.loads[0].onerror?.());
+        const initialUrl = container.querySelector("img")!.getAttribute("src");
+        fireEvent.error(container.querySelector("img")!);
+        if (mediaType !== "video") fireEvent.error(container.querySelector("img")!);
+
+        expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
+        act(() => vi.advanceTimersByTime(999));
+        expect(container.querySelector("img")).toBeNull();
+        act(() => vi.advanceTimersByTime(1));
+
+        const retry = container.querySelector("img")!;
+        expect(retry).not.toBeNull();
+        expect(retry.getAttribute("src")).toContain("/api/thumbnail?");
+        expect(retry.getAttribute("src")).not.toBe(initialUrl);
+        fireEvent.load(retry);
+        expect(retry).toHaveClass("card__img--ready");
+        expect(container.querySelector(".card__media-placeholder")).toBeNull();
+        const successfulUrl = retry.getAttribute("src");
+        act(() => vi.advanceTimersByTime(60000));
+        expect(retry.getAttribute("src")).toBe(successfulUrl);
+      } finally {
+        preview.restore();
+      }
+    },
+  );
+
+  it("bounds retries for unreadable media and resets them for a newer revision", () => {
+    vi.useFakeTimers();
+    const preview = installPendingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    try {
+      const item = { ...imageItem, media_type: "video" as const, size: 100 };
+      const { container, rerender } = render(<GalleryCardMedia item={item} />);
+      act(() => preview.loads[0].onerror?.());
+
+      for (const delay of [1000, 2000, 4000, 8000]) {
+        fireEvent.error(container.querySelector("img")!);
+        act(() => vi.advanceTimersByTime(delay - 1));
+        expect(container.querySelector("img")).toBeNull();
+        act(() => vi.advanceTimersByTime(1));
+        expect(container.querySelector('img[src*="/api/thumbnail?"]')).not.toBeNull();
+      }
+
+      fireEvent.error(container.querySelector("img")!);
+      const loads = preview.loads.length;
+      act(() => vi.advanceTimersByTime(60000));
+      expect(preview.loads).toHaveLength(loads);
+      expect(container.querySelector("img")).toBeNull();
+
+      rerender(<GalleryCardMedia item={{ ...item, size: 200 }} />);
+      expect(container.querySelector("img")!.getAttribute("src")).toContain("v=200");
+      fireEvent.error(container.querySelector("img")!);
+      act(() => vi.advanceTimersByTime(1000));
+      expect(container.querySelector("img")!.getAttribute("src")).toContain("v=200&retry=1");
+    } finally {
+      preview.restore();
+    }
+  });
+
+  it("cancels the old revision's pending retry when the completed file arrives", () => {
+    vi.useFakeTimers();
+    const preview = installPendingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    try {
+      const item = { ...imageItem, media_type: "video" as const, size: 100 };
+      const { container, rerender } = render(<GalleryCardMedia item={item} />);
+      act(() => preview.loads[0].onerror?.());
+      fireEvent.error(container.querySelector("img")!);
+      act(() => vi.advanceTimersByTime(500));
+
+      rerender(<GalleryCardMedia item={{ ...item, size: 200 }} />);
+      const completedUrl = container.querySelector("img")!.getAttribute("src");
+      fireEvent.load(container.querySelector("img")!);
+      act(() => vi.advanceTimersByTime(60000));
+      expect(container.querySelector("img")!.getAttribute("src")).toBe(completedUrl);
+      expect(completedUrl).toContain("v=200");
+      expect(completedUrl).not.toContain("retry=");
+    } finally {
+      preview.restore();
+    }
+  });
+
+  it.each(["leaves the load zone", "unmounts"])(
+    "cancels pending retries when the card %s",
+    (action) => {
+      vi.useFakeTimers();
+      const preview = installPendingPreviewImages();
+      const zones = vi.spyOn(galleryScrollRoot, "getGalleryMediaZones");
+      zones.mockReturnValue(visibleZones);
+      let syncIntersection: () => void = () => {};
+      const Observer = window.IntersectionObserver;
+      window.IntersectionObserver = class extends Observer {
+        constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+          super(callback, options);
+          this.observe = (target: Element) => {
+            syncIntersection = () => callback([{ target } as IntersectionObserverEntry], this);
+            syncIntersection();
+          };
+        }
+      };
+
+      try {
+        const { container, unmount } = render(
+          <GalleryCardMedia item={{ ...imageItem, media_type: "video" }} />,
+        );
+        act(() => preview.loads[0].onerror?.());
+        fireEvent.error(container.querySelector("img")!);
+        act(() => vi.advanceTimersByTime(500));
+
+        if (action === "unmounts") {
+          unmount();
+        } else {
+          zones.mockReturnValue({ shouldLoad: false, shouldKeep: true, priority: "hidden" });
+          act(syncIntersection);
+        }
+
+        const loads = preview.loads.length;
+        act(() => vi.advanceTimersByTime(60000));
+        expect(preview.loads).toHaveLength(loads);
+        expect(container.querySelector("img")).toBeNull();
+
+        if (action === "leaves the load zone") {
+          zones.mockReturnValue(visibleZones);
+          act(syncIntersection);
+          act(() => vi.advanceTimersByTime(1000));
+        }
+        expect(container.querySelector('img[src*="/api/thumbnail?"]') !== null).toBe(
+          action === "leaves the load zone",
+        );
+      } finally {
+        window.IntersectionObserver = Observer;
+        preview.restore();
+      }
+    },
+  );
 
   it("marks already-complete PNGs as ready without waiting for onLoad", async () => {
     const restoreImage = installCompletingPreviewImages();
@@ -192,7 +340,6 @@ describe("GalleryCardMedia", () => {
       expect(container.querySelector('img[src*="/api/thumbnail"]')).not.toBeNull();
     });
 
-    // The thumbnail missed, as it can while the file is still being written.
     container.querySelector('img[src*="/api/thumbnail"]')?.dispatchEvent(new Event("error"));
 
     await waitFor(() => {
@@ -224,7 +371,6 @@ describe("GalleryCardMedia", () => {
 
     await waitFor(() => expect(preview.loads.length).toBe(1));
 
-    // The thumbnail 404s, as it can while a newly added file is still being written.
     act(() => preview.loads[0].onerror?.());
 
     await waitFor(() => {
@@ -246,11 +392,8 @@ describe("GalleryCardMedia", () => {
 
     await waitFor(() => expect(preview.loads.length).toBe(1));
 
-    // A row resync that does not list this path yet cancels its load — what happens
-    // when an image is added in the background and the virtualizer snapshot lags it.
     act(() => syncGalleryPreviewTargets([]));
 
-    // The card asks again rather than sitting on its placeholder forever.
     await waitFor(() => expect(preview.loads.length).toBe(2));
 
     act(() => preview.loads[1].onload?.());
@@ -278,7 +421,6 @@ describe("GalleryCardMedia", () => {
     await waitFor(() => expect(preview.loads.length).toBe(2));
     act(() => syncGalleryPreviewTargets([]));
 
-    // Rather than retrying forever, the card hands the URL to the <img> itself.
     await waitFor(() => {
       expect(container.querySelector("img[src]")).not.toBeNull();
     });
@@ -321,12 +463,8 @@ describe("GalleryCardMedia", () => {
         return found!;
       });
 
-      // The element's own load is what decides the fallback, and jsdom never fails
-      // it on its own.
       fireEvent.error(img);
 
-      // Unlike an MP4, a GIF does render in an `<img>`, so the miss falls back to
-      // the real file rather than surrendering to a placeholder icon.
       await waitFor(() => {
         expect(container.querySelector('img[src*="/api/media"]')).not.toBeNull();
       });
@@ -347,7 +485,6 @@ describe("GalleryCardMedia", () => {
       await waitFor(() => expect(preview.loads.length).toBe(1));
       act(() => preview.loads[0].onerror?.());
 
-      // An MP4 in an `<img>` would never decode, so there is nothing to fall back to.
       await waitFor(() => {
         expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
       });

@@ -11,9 +11,10 @@ import { Icon } from "@/shared/ui/Icon";
 
 type MediaItem = Pick<GalleryItem, "path" | "modified_at" | "size" | "media_type" | "name">;
 
+const THUMBNAIL_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+
 interface GalleryCardMediaProps {
   item: MediaItem;
-  /** Mount a muted looping <video> over the thumbnail; the caller gates this on hover. */
   previewing?: boolean;
   onPreviewPlaying?: (playing: boolean) => void;
 }
@@ -27,31 +28,37 @@ export function GalleryCardMedia({
   const itemIsGif = item.media_type === "gif";
   const itemIsMotion = itemIsVideo || itemIsGif;
   const [useFullMediaFallback, setUseFullMediaFallback] = useState(false);
-  const [thumbnailUnavailable, setThumbnailUnavailable] = useState(false);
+  const [mediaUnavailable, setMediaUnavailable] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const thumbnailPreviewUrl = useMemo(() => galleryItemThumbnailPreviewUrl(item), [item]);
 
-  const previewUrl = useFullMediaFallback ? galleryItemMediaUrl(item) : thumbnailPreviewUrl;
+  const retryUrl = retryAttempt
+    ? `${thumbnailPreviewUrl}&retry=${retryAttempt}`
+    : thumbnailPreviewUrl;
+  const previewUrl = useFullMediaFallback ? galleryItemMediaUrl(item) : retryUrl;
 
-  const { containerRef, imageRef, showImage, ready, srcReady, handleReady } = useGalleryCardMedia(
-    item.path,
-    previewUrl,
-  );
+  const { containerRef, imageRef, shouldLoad, showImage, ready, srcReady, handleReady } =
+    useGalleryCardMedia(item.path, previewUrl);
 
   useEffect(() => {
     setUseFullMediaFallback(false);
-    setThumbnailUnavailable(false);
+    setMediaUnavailable(false);
+    setRetryAttempt(0);
   }, [item.path, item.modified_at, item.size]);
 
-  if (itemIsVideo && thumbnailUnavailable) {
-    return (
-      <div ref={containerRef} className="card__media-surface" aria-hidden="true">
-        <div className="card__media-placeholder">
-          <Icon icon={iconVideo} className="card__media-placeholder-icon" />
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const delay = THUMBNAIL_RETRY_DELAYS_MS[retryAttempt];
+    if (!shouldLoad || !mediaUnavailable || delay === undefined) return;
+
+    const timer = window.setTimeout(() => {
+      setRetryAttempt((attempt) => attempt + 1);
+      setUseFullMediaFallback(false);
+      setMediaUnavailable(false);
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [mediaUnavailable, retryAttempt, shouldLoad, thumbnailPreviewUrl]);
 
   // A GIF can fall back to the full file in an <img>; an MP4 cannot.
   const handlePreviewError = () => {
@@ -60,16 +67,12 @@ export function GalleryCardMedia({
       return;
     }
 
-    if (itemIsVideo) {
-      setThumbnailUnavailable(true);
-    }
-
-    handleReady();
+    setMediaUnavailable(true);
   };
 
   return (
     <div ref={containerRef} className="card__media-surface" aria-hidden="true">
-      {(!showImage || !ready) && (
+      {(mediaUnavailable || !showImage || !ready) && (
         <div className="card__media-placeholder">
           <Icon
             icon={itemIsGif ? iconFileImage : itemIsVideo ? iconVideo : iconImage}
@@ -77,7 +80,7 @@ export function GalleryCardMedia({
           />
         </div>
       )}
-      {showImage && (
+      {showImage && !mediaUnavailable && (
         <img
           ref={imageRef}
           className={classNames(

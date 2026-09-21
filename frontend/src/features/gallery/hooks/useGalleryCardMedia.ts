@@ -120,6 +120,7 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
   return {
     containerRef,
     imageRef,
+    shouldLoad: zones.shouldLoad,
     showImage,
     ready,
     srcReady: ready || loadDirectly,
