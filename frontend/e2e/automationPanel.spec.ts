@@ -6,7 +6,7 @@ import { WORKSPACE } from "./workspace";
 const specs: SystemSpecs = {
   cpu_name: "Intel Core i7-12700K",
   cpu_cores: 16,
-  cpu_usage_percent: 38,
+  cpu_load_percent: 38,
   memory_total_bytes: 32 * 1024 ** 3,
   memory_used_bytes: 8 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",

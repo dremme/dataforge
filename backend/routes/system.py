@@ -13,13 +13,15 @@ def read_system_specs() -> SystemSpecsResponse:
     return SystemSpecsResponse(
         cpu_name=specs.cpu_name,
         cpu_cores=specs.cpu_cores,
-        cpu_usage_percent=specs.cpu_usage_percent,
+        cpu_load_percent=specs.cpu_load_percent,
+        cpu_temperature_celsius=specs.cpu_temperature_celsius,
         memory_total_bytes=specs.memory_total_bytes,
         memory_used_bytes=specs.memory_used_bytes,
         gpu_name=specs.gpu_name,
         gpu_memory_bytes=specs.gpu_memory_bytes,
         gpu_memory_used_bytes=specs.gpu_memory_used_bytes,
         gpu_load_percent=specs.gpu_load_percent,
+        gpu_temperature_celsius=specs.gpu_temperature_celsius,
         gpu_available=specs.gpu_available,
     )
 

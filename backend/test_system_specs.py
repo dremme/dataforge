@@ -17,7 +17,7 @@ class NvidiaSmiGpuTests(unittest.TestCase):
     def test_parses_name_total_and_used(self, run_mock: MagicMock) -> None:
         run_mock.return_value = MagicMock(
             returncode=0,
-            stdout="NVIDIA GeForce RTX 4090, 24564, 8192, 87\n",
+            stdout="NVIDIA GeForce RTX 4090, 24564, 8192, 87, 64\n",
         )
 
         info = _gpu_from_nvidia_smi()
@@ -28,24 +28,29 @@ class NvidiaSmiGpuTests(unittest.TestCase):
         self.assertEqual(info.memory_total_bytes, (24564 * 1024 * 1024))
         self.assertEqual(info.memory_used_bytes, (8192 * 1024 * 1024))
         self.assertEqual(info.load_percent, 87.0)
+        self.assertEqual(info.temperature_celsius, 64.0)
 
     @patch("system_specs.subprocess.run")
     def test_queries_only_the_fields_the_panel_shows(self, run_mock: MagicMock) -> None:
-        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40, 5\n")
+        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40, 5, 44\n")
 
         _gpu_from_nvidia_smi()
 
         query = next(arg for arg in run_mock.call_args.args[0] if arg.startswith("--query-gpu"))
-        self.assertEqual(query, "--query-gpu=name,memory.total,memory.used,utilization.gpu")
+        self.assertEqual(
+            query,
+            "--query-gpu=name,memory.total,memory.used,utilization.gpu,temperature.gpu",
+        )
 
     @patch("system_specs.subprocess.run")
     def test_leaves_load_unknown_when_the_card_reports_na(self, run_mock: MagicMock) -> None:
-        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40, [N/A]\n")
+        run_mock.return_value = MagicMock(returncode=0, stdout="GPU, 100, 40, [N/A], [N/A]\n")
 
         info = _gpu_from_nvidia_smi()
 
         assert info is not None
         self.assertIsNone(info.load_percent)
+        self.assertIsNone(info.temperature_celsius)
         self.assertEqual(info.memory_used_bytes, 40 * 1024 * 1024)
 
     @patch("system_specs.subprocess.run", side_effect=FileNotFoundError)
@@ -110,7 +115,7 @@ class TorchGpuTests(unittest.TestCase):
 class CpuUsageTests(unittest.TestCase):
     def setUp(self) -> None:
         patcher = patch.multiple(
-            system_specs, _previous_cpu_times=(100, 1000), _last_cpu_usage_percent=None
+            system_specs, _previous_cpu_times=(100, 1000), _last_cpu_load_percent=None
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -118,17 +123,59 @@ class CpuUsageTests(unittest.TestCase):
     def test_measures_busy_share_since_the_previous_sample(self) -> None:
         # 400 of the 1000 ticks since the last sample were idle.
         with patch("system_specs._cpu_times", return_value=(500, 2000)):
-            self.assertEqual(system_specs._cpu_usage_percent(), 60.0)
+            self.assertEqual(system_specs._cpu_load_percent(), 60.0)
 
     def test_repeats_the_last_reading_when_no_time_has_passed(self) -> None:
         with patch("system_specs._cpu_times", return_value=(500, 2000)):
-            system_specs._cpu_usage_percent()
+            system_specs._cpu_load_percent()
             # A second request in the same tick must not blank the readout.
-            self.assertEqual(system_specs._cpu_usage_percent(), 60.0)
+            self.assertEqual(system_specs._cpu_load_percent(), 60.0)
 
     def test_is_none_without_a_counter(self) -> None:
         with patch("system_specs._cpu_times", return_value=None):
-            self.assertIsNone(system_specs._cpu_usage_percent())
+            self.assertIsNone(system_specs._cpu_load_percent())
+
+
+class CpuTemperatureTests(unittest.TestCase):
+    """Windows and macOS have no sensor a normal process may read; only Linux is wired up."""
+
+    def test_reads_the_hwmon_package_sensor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            unrelated = Path(directory) / "hwmon0"
+            unrelated.mkdir()
+            (unrelated / "name").write_text("nvme", encoding="utf-8")
+            (unrelated / "temp1_input").write_text("39000", encoding="utf-8")
+            cpu = Path(directory) / "hwmon1"
+            cpu.mkdir()
+            (cpu / "name").write_text("k10temp", encoding="utf-8")
+            (cpu / "temp1_input").write_text("54321", encoding="utf-8")
+
+            with (
+                patch("system_specs.sys.platform", "linux"),
+                patch("system_specs.glob.glob", return_value=[str(unrelated), str(cpu)]),
+            ):
+                self.assertEqual(system_specs._cpu_temperature_celsius(), 54.321)
+
+    def test_is_none_when_no_hwmon_belongs_to_the_cpu(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            other = Path(directory) / "hwmon0"
+            other.mkdir()
+            (other / "name").write_text("nvme", encoding="utf-8")
+
+            with (
+                patch("system_specs.sys.platform", "linux"),
+                patch("system_specs.glob.glob", return_value=[str(other)]),
+            ):
+                self.assertIsNone(system_specs._cpu_temperature_celsius())
+
+    def test_reads_no_sensor_off_linux(self) -> None:
+        with (
+            patch("system_specs.sys.platform", "win32"),
+            patch("system_specs.glob.glob") as glob_mock,
+        ):
+            self.assertIsNone(system_specs._cpu_temperature_celsius())
+
+        glob_mock.assert_not_called()
 
 
 class SystemMemoryTests(unittest.TestCase):

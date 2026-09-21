@@ -6,13 +6,15 @@ import { AutomationSystemSpecs } from "./AutomationSystemSpecs";
 const defaultSystemSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7-12700K 12-Core Processor",
   cpu_cores: 16,
-  cpu_usage_percent: 37.6,
+  cpu_load_percent: 37.6,
+  cpu_temperature_celsius: 54.2,
   memory_total_bytes: 32 * 1024 ** 3,
   memory_used_bytes: 8 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",
   gpu_memory_bytes: 10 * 1024 ** 3,
   gpu_memory_used_bytes: 4 * 1024 ** 3,
   gpu_load_percent: 91,
+  gpu_temperature_celsius: 71.8,
   gpu_available: true,
 };
 
@@ -40,7 +42,7 @@ describe("AutomationSystemSpecs", () => {
     const specs = screen.getByLabelText("System specifications");
     expect(specs).toHaveTextContent("Intel Core i7-12700K");
     expect(specs).toHaveTextContent("16 cores");
-    expect(specs.querySelector('[title="CPU usage"]')).toHaveTextContent("38%");
+    expect(specs.querySelector('[title="CPU load"]')).toHaveTextContent("38%");
     expect(specs).toHaveTextContent("RAM");
     // Both readouts are used / total (matching Task Manager), never free / total,
     // and the unit is written once, after the total.
@@ -48,6 +50,8 @@ describe("AutomationSystemSpecs", () => {
     expect(specs).toHaveTextContent("NVIDIA GeForce RTX 3080");
     expect(specs).toHaveTextContent("4 / 10 GB");
     expect(specs.querySelector('[title="GPU load"]')).toHaveTextContent("91%");
+    expect(specs.querySelector('[title="CPU temperature"]')).toHaveTextContent("54°C");
+    expect(specs.querySelector('[title="GPU temperature"]')).toHaveTextContent("72°C");
   });
 
   it("draws a bar under each spec: CPU load, RAM used, GPU load", () => {
@@ -63,7 +67,7 @@ describe("AutomationSystemSpecs", () => {
   });
 
   it("keeps an empty track where a figure is unknown so the bars stay aligned", () => {
-    mockSystemSpecs = { ...defaultSystemSpecs, cpu_usage_percent: null, gpu_load_percent: null };
+    mockSystemSpecs = { ...defaultSystemSpecs, cpu_load_percent: null, gpu_load_percent: null };
 
     const { container } = renderSpecs();
 
@@ -73,13 +77,13 @@ describe("AutomationSystemSpecs", () => {
     expect(container.querySelectorAll(".automation__spec-meter")).toHaveLength(3);
   });
 
-  it("hides the CPU usage when the backend cannot read it", () => {
-    mockSystemSpecs = { ...defaultSystemSpecs, cpu_usage_percent: null };
+  it("hides the CPU load when the backend cannot read it", () => {
+    mockSystemSpecs = { ...defaultSystemSpecs, cpu_load_percent: null };
 
     renderSpecs();
 
     expect(
-      screen.getByLabelText("System specifications").querySelector('[title="CPU usage"]'),
+      screen.getByLabelText("System specifications").querySelector('[title="CPU load"]'),
     ).toBeNull();
   });
 
@@ -111,7 +115,7 @@ describe("AutomationSystemSpecs", () => {
   it("colours figures and bars yellow from 75% and red from 90%", () => {
     mockSystemSpecs = {
       ...defaultSystemSpecs,
-      cpu_usage_percent: 74.4, // just under: rounds to 74, stays normal
+      cpu_load_percent: 74.4, // just under: rounds to 74, stays normal
       memory_used_bytes: 24 * 1024 ** 3, // 24 of 32 GB = 75%
       gpu_memory_used_bytes: 9 * 1024 ** 3, // 9 of 10 GB = 90%
       gpu_load_percent: 80,
@@ -123,7 +127,7 @@ describe("AutomationSystemSpecs", () => {
       [...container.querySelectorAll(`.automation__spec-detail--${level}`)].map(
         (node) => node.textContent,
       );
-    // Only the used figures are coloured � the totals keep their unit and normal colour.
+    // Only the used figures are coloured ° the totals keep their unit and normal colour.
     expect(figures("warning")).toEqual(["24", "80%"]);
     expect(figures("danger")).toEqual(["9"]);
 
@@ -133,14 +137,40 @@ describe("AutomationSystemSpecs", () => {
     expect(fill("GPU load")).toHaveClass("automation__spec-meter-fill--warning");
   });
 
+  it("colours temperatures yellow from 80°C and red from 95°C", () => {
+    mockSystemSpecs = {
+      ...defaultSystemSpecs,
+      cpu_temperature_celsius: 80,
+      gpu_temperature_celsius: 95,
+    };
+
+    const { container } = renderSpecs();
+
+    const reading = (title: string) => container.querySelector(`[title="${title}"] span`);
+    expect(reading("CPU temperature")).toHaveClass("automation__spec-detail--warning");
+    expect(reading("GPU temperature")).toHaveClass("automation__spec-detail--danger");
+  });
+
+  it("hides a temperature the machine does not report", () => {
+    mockSystemSpecs = {
+      ...defaultSystemSpecs,
+      cpu_temperature_celsius: null,
+      gpu_temperature_celsius: null,
+    };
+
+    const { container } = renderSpecs();
+
+    expect(container.querySelector('[title$="temperature"]')).toBeNull();
+  });
+
   it("turns the load red at 90%", () => {
-    mockSystemSpecs = { ...defaultSystemSpecs, cpu_usage_percent: 90, gpu_load_percent: 100 };
+    mockSystemSpecs = { ...defaultSystemSpecs, cpu_load_percent: 90, gpu_load_percent: 100 };
 
     renderSpecs();
 
     const specs = screen.getByLabelText("System specifications");
     expect(
-      specs.querySelector('[title="CPU usage"] .automation__spec-detail--danger'),
+      specs.querySelector('[title="CPU load"] .automation__spec-detail--danger'),
     ).toHaveTextContent("90%");
     expect(
       specs.querySelector('[title="GPU load"] .automation__spec-detail--danger'),
@@ -154,7 +184,12 @@ describe("AutomationSystemSpecs", () => {
   });
 
   it("leaves figures and bars uncoloured below the warning threshold", () => {
-    mockSystemSpecs = { ...defaultSystemSpecs, gpu_load_percent: 12 };
+    mockSystemSpecs = {
+      ...defaultSystemSpecs,
+      gpu_load_percent: 12,
+      cpu_temperature_celsius: 54,
+      gpu_temperature_celsius: 61,
+    };
 
     const { container } = renderSpecs();
 

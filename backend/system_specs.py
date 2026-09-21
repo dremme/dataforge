@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import glob
 import importlib
 import os
 import platform
@@ -14,13 +15,15 @@ from dataclasses import dataclass
 class SystemSpecs:
     cpu_name: str
     cpu_cores: int
-    cpu_usage_percent: float | None
+    cpu_load_percent: float | None
+    cpu_temperature_celsius: float | None
     memory_total_bytes: int
     memory_used_bytes: int
     gpu_name: str | None
     gpu_memory_bytes: int | None
     gpu_memory_used_bytes: int | None
     gpu_load_percent: float | None
+    gpu_temperature_celsius: float | None
     gpu_available: bool
 
 
@@ -30,6 +33,7 @@ class _GpuInfo:
     memory_total_bytes: int
     memory_used_bytes: int | None
     load_percent: float | None
+    temperature_celsius: float | None
 
 
 def _windows_memory_bytes() -> tuple[int, int]:
@@ -174,12 +178,12 @@ def _cpu_times() -> tuple[int, int] | None:
 
 
 _previous_cpu_times = _cpu_times()
-_last_cpu_usage_percent: float | None = None
+_last_cpu_load_percent: float | None = None
 
 
-def _cpu_usage_percent() -> float | None:
+def _cpu_load_percent() -> float | None:
     """System-wide load since the previous call, so the panel's poll cadence sets the window."""
-    global _previous_cpu_times, _last_cpu_usage_percent
+    global _previous_cpu_times, _last_cpu_load_percent
     current = _cpu_times()
     if current is None or _previous_cpu_times is None:
         _previous_cpu_times = current
@@ -189,9 +193,30 @@ def _cpu_usage_percent() -> float | None:
     # Two requests inside one scheduler tick see no elapsed time; repeat the last reading.
     if total_delta > 0:
         busy = 100.0 * (1 - idle_delta / total_delta)
-        _last_cpu_usage_percent = round(max(0.0, min(100.0, busy)), 1)
+        _last_cpu_load_percent = round(max(0.0, min(100.0, busy)), 1)
         _previous_cpu_times = current
-    return _last_cpu_usage_percent
+    return _last_cpu_load_percent
+
+
+#: hwmon drivers that report a package/die temperature for the CPU.
+_LINUX_CPU_HWMON_NAMES = ("k10temp", "zenpower", "coretemp", "cpu_thermal", "cpu-thermal")
+
+
+def _cpu_temperature_celsius() -> float | None:
+    """Only Linux answers without a ring-0 driver: Windows boards expose no usable ACPI zone."""
+    if not sys.platform.startswith("linux"):
+        return None
+
+    for hwmon in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+        try:
+            with open(os.path.join(hwmon, "name"), encoding="utf-8") as handle:
+                if handle.read().strip() not in _LINUX_CPU_HWMON_NAMES:
+                    continue
+            with open(os.path.join(hwmon, "temp1_input"), encoding="utf-8") as handle:
+                return int(handle.read().strip()) / 1000
+        except (OSError, ValueError):
+            continue
+    return None
 
 
 def _sanitize_cpu_name(name: str) -> str:
@@ -216,7 +241,7 @@ def _gpu_from_nvidia_smi() -> _GpuInfo | None:
         result = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.total,memory.used,utilization.gpu",
+                "--query-gpu=name,memory.total,memory.used,utilization.gpu,temperature.gpu",
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
@@ -232,15 +257,16 @@ def _gpu_from_nvidia_smi() -> _GpuInfo | None:
 
     line = result.stdout.strip().splitlines()[0]
     parts = [part.strip() for part in line.split(",")]
-    if len(parts) < 4:
+    if len(parts) < 5:
         return None
 
-    name, total_mb, used_mb, load = parts[0], parts[1], parts[2], parts[3]
+    name, total_mb, used_mb, load, temperature = parts[:5]
     return _GpuInfo(
         name=name,
         memory_total_bytes=_mb_to_bytes(total_mb),
         memory_used_bytes=_mb_to_bytes(used_mb),
         load_percent=_optional_float(load),
+        temperature_celsius=_optional_float(temperature),
     )
 
 
@@ -273,6 +299,7 @@ def _gpu_from_torch() -> _GpuInfo | None:
         memory_total_bytes=total_bytes,
         memory_used_bytes=used_bytes,
         load_percent=load_percent,
+        temperature_celsius=None,
     )
 
 
@@ -291,12 +318,14 @@ def get_system_specs() -> SystemSpecs:
     return SystemSpecs(
         cpu_name=_sanitize_cpu_name(_cpu_name()),
         cpu_cores=os.cpu_count() or 1,
-        cpu_usage_percent=_cpu_usage_percent(),
+        cpu_load_percent=_cpu_load_percent(),
+        cpu_temperature_celsius=_cpu_temperature_celsius(),
         memory_total_bytes=total_bytes,
         memory_used_bytes=total_bytes - available_bytes,
         gpu_name=gpu.name if gpu else None,
         gpu_memory_bytes=gpu.memory_total_bytes if gpu else None,
         gpu_memory_used_bytes=gpu.memory_used_bytes if gpu else None,
         gpu_load_percent=gpu.load_percent if gpu else None,
+        gpu_temperature_celsius=gpu.temperature_celsius if gpu else None,
         gpu_available=gpu is not None,
     )

@@ -11,12 +11,15 @@ import {
 const sampleSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7",
   cpu_cores: 8,
-  cpu_usage_percent: 12.5,
+  cpu_load_percent: 12.5,
+  cpu_temperature_celsius: 48,
   memory_total_bytes: 32 * 1024 ** 3,
   memory_used_bytes: 16 * 1024 ** 3,
   gpu_name: "NVIDIA GeForce RTX 3080",
   gpu_memory_bytes: 10 * 1024 ** 3,
   gpu_memory_used_bytes: 4 * 1024 ** 3,
+  gpu_load_percent: 30,
+  gpu_temperature_celsius: 66,
   gpu_available: true,
 };
 

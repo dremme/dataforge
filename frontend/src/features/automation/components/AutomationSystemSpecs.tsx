@@ -10,11 +10,21 @@ import { Icon } from "@/shared/ui/Icon";
 const USAGE_WARNING_PERCENT = 75;
 const USAGE_DANGER_PERCENT = 90;
 
+/** Package temperature (°C) at or above which the reading turns yellow, then red. */
+const TEMPERATURE_WARNING_CELSIUS = 80;
+const TEMPERATURE_DANGER_CELSIUS = 95;
+
 type UsageLevel = "normal" | "warning" | "danger";
 
 function usageLevel(percent: number): UsageLevel {
   if (percent >= USAGE_DANGER_PERCENT) return "danger";
   if (percent >= USAGE_WARNING_PERCENT) return "warning";
+  return "normal";
+}
+
+function temperatureLevel(celsius: number): UsageLevel {
+  if (celsius >= TEMPERATURE_DANGER_CELSIUS) return "danger";
+  if (celsius >= TEMPERATURE_WARNING_CELSIUS) return "warning";
   return "normal";
 }
 
@@ -45,7 +55,15 @@ export function AutomationSystemSpecs({
   const specs = useSystemSpecs(open && jobActive);
   if (!specs) return null;
 
-  const { gpu_name, gpu_memory_bytes, gpu_memory_used_bytes, gpu_load_percent } = specs;
+  const {
+    gpu_name,
+    gpu_memory_bytes,
+    gpu_memory_used_bytes,
+    gpu_load_percent,
+    gpu_temperature_celsius,
+  } = specs;
+  const cpuLoad = specs.cpu_load_percent;
+  const cpuTemperature = specs.cpu_temperature_celsius;
   const hasGpu = specs.gpu_available && gpu_name !== null;
 
   return (
@@ -83,16 +101,13 @@ export function AutomationSystemSpecs({
                 {specs.cpu_name} · {specs.cpu_cores} cores
               </>
             }
-            meter={
-              specs.cpu_usage_percent != null && {
-                label: "CPU load",
-                percent: specs.cpu_usage_percent,
-              }
-            }
+            meter={cpuLoad != null && { label: "CPU load", percent: cpuLoad }}
           >
-            {specs.cpu_usage_percent != null ? (
-              <LoadDetail percent={specs.cpu_usage_percent} title="CPU usage" />
-            ) : (
+            {cpuLoad != null && <LoadDetail percent={cpuLoad} title="CPU load" />}
+            {cpuTemperature != null && (
+              <TemperatureDetail celsius={cpuTemperature} title="CPU temperature" />
+            )}
+            {cpuLoad == null && cpuTemperature == null && (
               <span className="automation__spec-detail">Unavailable</span>
             )}
           </Spec>
@@ -124,6 +139,9 @@ export function AutomationSystemSpecs({
                 {gpu_load_percent != null && (
                   <LoadDetail percent={gpu_load_percent} title="GPU load" />
                 )}
+                {gpu_temperature_celsius != null && (
+                  <TemperatureDetail celsius={gpu_temperature_celsius} title="GPU temperature" />
+                )}
                 {gpu_memory_bytes != null && (
                   <span className="automation__spec-vram">
                     VRAM{" "}
@@ -140,9 +158,11 @@ export function AutomationSystemSpecs({
                     )}
                   </span>
                 )}
-                {gpu_load_percent == null && gpu_memory_bytes == null && (
-                  <span className="automation__spec-detail">Unavailable</span>
-                )}
+                {gpu_load_percent == null &&
+                  gpu_temperature_celsius == null &&
+                  gpu_memory_bytes == null && (
+                    <span className="automation__spec-detail">Unavailable</span>
+                  )}
               </>
             ) : (
               <span className="automation__spec-detail">Unavailable</span>
@@ -206,6 +226,17 @@ function SpecMeterBar({ label, percent }: SpecMeter) {
         )}
         style={{ width: `${clamped}%` }}
       />
+    </span>
+  );
+}
+
+function TemperatureDetail({ celsius, title }: { celsius: number; title: string }) {
+  const rounded = Math.round(celsius);
+  return (
+    <span className="automation__spec-detail" title={title}>
+      <span className={levelClass("automation__spec-detail", temperatureLevel(rounded))}>
+        {rounded}°C
+      </span>
     </span>
   );
 }
