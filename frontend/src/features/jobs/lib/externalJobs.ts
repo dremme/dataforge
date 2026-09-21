@@ -14,6 +14,7 @@ const OSTRIS_MODEL_LABELS: Record<string, string> = {
   "Boogu/Boogu-Image-0.1-Base": "Boogu",
   "Boogu/Boogu-Image-0.1-Edit": "Boogu Edit",
   "Comfy-Org/MiniMax-H3": "MiniMax H3",
+  "Comfy-Org/Qwen-Image-2.1": "Qwen Image 2.1",
   "HiDream-ai/HiDream-E1-1": "HiDream E1",
   "HiDream-ai/HiDream-I1-Full": "HiDream",
   "HiDream-ai/HiDream-O1-Image": "HiDream-O1",
