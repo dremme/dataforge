@@ -9,7 +9,7 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { useNotificationHistory } from "./notifications";
 
 export function NotificationsButton() {
-  const { history, unreadCount, setPanelOpen, markAllRead, clearHistory } =
+  const { history, unreadCount, setPanelOpen, markAllRead, clearHistory, refreshHistory } =
     useNotificationHistory();
   const { open, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
 
@@ -17,8 +17,10 @@ export function NotificationsButton() {
   useEffect(() => {
     setPanelOpen(open);
     if (!open) return;
+
+    refreshHistory();
     return () => markAllRead();
-  }, [open, setPanelOpen, markAllRead]);
+  }, [open, setPanelOpen, markAllRead, refreshHistory]);
 
   const unread = unreadCount > 0;
   const urgent = history.some((entry) => !entry.read_at && entry.variant === "danger");

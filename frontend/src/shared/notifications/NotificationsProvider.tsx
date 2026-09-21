@@ -5,7 +5,7 @@ import {
   markNotificationsRead,
   postNotification,
 } from "@/shared/api/notifications";
-import { useOptionalServerEvent } from "@/shared/events/serverEvents";
+import { useOptionalServerEvent, useOptionalStreamConnected } from "@/shared/events/serverEvents";
 import { NotificationContainer } from "./NotificationContainer";
 import {
   MAX_VISIBLE_TOASTS,
@@ -31,11 +31,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [history, setHistory] = useState<NotificationRecord[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
+  const streamConnected = useOptionalStreamConnected();
 
   // Collapse and cap decisions read committed toasts, never the value inside a state updater.
   const toastsRef = useRef<Toast[]>([]);
   const panelOpenRef = useRef(false);
   panelOpenRef.current = panelOpen;
+  const mountedRef = useRef(false);
+  const refreshAbortRef = useRef<AbortController | null>(null);
 
   const applyToasts = useCallback((next: Toast[]) => {
     toastsRef.current = next;
@@ -127,13 +130,33 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  useEffect(() => {
+  const refreshHistory = useCallback(() => {
+    refreshAbortRef.current?.abort();
     const controller = new AbortController();
+    refreshAbortRef.current = controller;
+
     fetchNotifications(controller.signal)
       .then(setHistory)
       .catch(() => {});
-    return () => controller.abort();
   }, []);
+
+  useEffect(() => () => refreshAbortRef.current?.abort(), []);
+
+  // Nothing replays the frames a disconnected tab missed, so every way back in re-reads the feed.
+  useEffect(() => {
+    if (mountedRef.current && !streamConnected) return;
+    mountedRef.current = true;
+    refreshHistory();
+  }, [streamConnected, refreshHistory]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshHistory();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [refreshHistory]);
 
   const markAllRead = useCallback(() => {
     setHistory((current) =>
@@ -165,8 +188,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setPanelOpen,
       markAllRead,
       clearHistory,
+      refreshHistory,
     }),
-    [notify, dismiss, history, unreadCount, panelOpen, markAllRead, clearHistory],
+    [notify, dismiss, history, unreadCount, panelOpen, markAllRead, clearHistory, refreshHistory],
   );
 
   return (

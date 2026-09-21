@@ -43,3 +43,8 @@ export function useOptionalServerEvent(handler: (event: ServerEvent) => void): v
     return context.subscribe((event) => handlerRef.current(event));
   }, [context]);
 }
+
+/** ``false`` when no stream provider is mounted, so a standalone tree is not an error. */
+export function useOptionalStreamConnected(): boolean {
+  return useContext(ServerEventsContext)?.connected ?? false;
+}

@@ -75,6 +75,25 @@ function renderProvider(children: React.ReactNode) {
   );
 }
 
+function renderWithStream(connected: boolean) {
+  const handlers = new Set<(event: ServerEvent) => void>();
+  emit = (event) => {
+    for (const handler of handlers) handler(event);
+  };
+  const subscribe = (handler: (event: ServerEvent) => void) => {
+    handlers.add(handler);
+    return () => handlers.delete(handler);
+  };
+  const tree = (value: boolean) => (
+    <ServerEventsContext.Provider value={{ connected: value, subscribe }}>
+      <NotificationsProvider>{null}</NotificationsProvider>
+    </ServerEventsContext.Provider>
+  );
+
+  const view = render(tree(connected));
+  return { setConnected: (value: boolean) => view.rerender(tree(value)) };
+}
+
 describe("NotificationsProvider", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -272,6 +291,35 @@ describe("NotificationsProvider", () => {
     });
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("re-reads the feed when the stream reconnects", () => {
+    const { setConnected } = renderWithStream(false);
+    expect(fetchNotifications).toHaveBeenCalledTimes(1);
+
+    act(() => setConnected(true));
+
+    expect(fetchNotifications).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not re-read the feed when the stream merely drops", () => {
+    const { setConnected } = renderWithStream(true);
+    expect(fetchNotifications).toHaveBeenCalledTimes(1);
+
+    act(() => setConnected(false));
+
+    expect(fetchNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-reads the feed when the tab is looked at again", () => {
+    renderWithStream(true);
+    expect(fetchNotifications).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(fetchNotifications).toHaveBeenCalledTimes(2);
   });
 
   it("loads the retained feed when it mounts", () => {

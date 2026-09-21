@@ -84,6 +84,15 @@ describe("NotificationsButton", () => {
     expect(within(panel).getByText("Second.")).toBeVisible();
   });
 
+  it("re-reads the feed when the panel opens", async () => {
+    const user = userEvent.setup();
+    renderButton([record()]);
+
+    await openPanel(user, 1);
+
+    await waitFor(() => expect(fetchNotifications).toHaveBeenCalledTimes(2));
+  });
+
   it("keeps the unread marks visible while the panel is open", async () => {
     const user = userEvent.setup();
     renderButton([record()]);

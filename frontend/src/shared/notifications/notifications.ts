@@ -45,6 +45,7 @@ export interface NotificationsContextValue {
   setPanelOpen: (open: boolean) => void;
   markAllRead: () => void;
   clearHistory: () => void;
+  refreshHistory: () => void;
 }
 
 export const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -62,9 +63,24 @@ export function useNotify() {
 }
 
 export function useNotificationHistory() {
-  const { history, unreadCount, panelOpen, setPanelOpen, markAllRead, clearHistory } =
-    useNotifications();
-  return { history, unreadCount, panelOpen, setPanelOpen, markAllRead, clearHistory };
+  const {
+    history,
+    unreadCount,
+    panelOpen,
+    setPanelOpen,
+    markAllRead,
+    clearHistory,
+    refreshHistory,
+  } = useNotifications();
+  return {
+    history,
+    unreadCount,
+    panelOpen,
+    setPanelOpen,
+    markAllRead,
+    clearHistory,
+    refreshHistory,
+  };
 }
 
 export function upsertNotification(
