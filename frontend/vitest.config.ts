@@ -13,10 +13,25 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
     css: true,
-    // e2e/ belongs to Playwright, which needs a browser and two servers.
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "ui",
+          environment: "jsdom",
+          setupFiles: ["./src/test/setup.ts"],
+          include: ["src/**/*.{test,spec}.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "dev-server",
+          environment: "node",
+          include: ["vite.test.ts"],
+        },
+      },
+    ],
   },
 });

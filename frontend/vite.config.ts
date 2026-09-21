@@ -32,6 +32,12 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: uiPort,
       strictPort: true,
+      watch: {
+        awaitWriteFinish: {
+          stabilityThreshold: 200,
+          pollInterval: 25,
+        },
+      },
       proxy: {
         "/api": {
           target: `http://127.0.0.1:${apiPort}`,
