@@ -1,6 +1,6 @@
 import { getAppScrollElement } from "@/shared/lib/appScroll";
 
-const GALLERY_MEDIA_LOAD_MARGIN_PX = 400;
+export const GALLERY_MEDIA_LOAD_MARGIN_PX = 400;
 export const GALLERY_MEDIA_KEEP_MARGIN_PX = 1200;
 
 export type GalleryMediaZonePriority = "visible" | "prefetch" | "hidden";

@@ -92,6 +92,81 @@ describe("GalleryCardMedia", () => {
     vi.restoreAllMocks();
   });
 
+  it.each([false, true])(
+    "shows a card moved into view without scrolling when its preview is warmed: %s",
+    async (warmed) => {
+      const restoreImage = installCompletingPreviewImages();
+      let top = 1600;
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return this.classList.contains("card__media-surface")
+          ? new DOMRect(0, top, 200, 200)
+          : new DOMRect(0, 0, 800, 600);
+      });
+      const intersections = new Set<() => void>();
+      const Observer = window.IntersectionObserver;
+      window.IntersectionObserver = class extends Observer {
+        private sync: (() => void) | undefined;
+
+        constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+          super(callback, options);
+          this.observe = (target: Element) => {
+            let previous: boolean | undefined;
+            this.sync = () => {
+              const isIntersecting = galleryScrollRoot.isElementInGalleryLoadZone(
+                target,
+                options?.root instanceof Element ? options.root : null,
+                Number.parseFloat(options?.rootMargin ?? "0"),
+              );
+              if (isIntersecting === previous) return;
+              previous = isIntersecting;
+              callback([{ target, isIntersecting } as IntersectionObserverEntry], this);
+            };
+            intersections.add(this.sync);
+            this.sync();
+          };
+        }
+
+        disconnect() {
+          if (this.sync) intersections.delete(this.sync);
+        }
+      };
+
+      try {
+        const { container } = render(
+          <main>
+            <GalleryCardMedia item={imageItem} />
+          </main>,
+        );
+        await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+        if (warmed) {
+          act(() =>
+            syncGalleryPreviewTargets([
+              { path: imageItem.path, url: "/api/thumbnail?sample", priority: "prefetch" },
+            ]),
+          );
+        }
+        await waitFor(() => expect(container.querySelector("img[src]") !== null).toBe(warmed));
+        top = 100;
+        act(() => intersections.forEach((sync) => sync()));
+
+        await waitFor(() => expect(container.querySelector("img[src]")).not.toBeNull());
+        expect(container.querySelector(".card__media-placeholder")).toBeNull();
+
+        top = 1600;
+        act(() => intersections.forEach((sync) => sync()));
+        expect(container.querySelector("img[src]")).not.toBeNull();
+        top = 2000;
+        act(() => intersections.forEach((sync) => sync()));
+        expect(container.querySelector("img")).toBeNull();
+      } finally {
+        window.IntersectionObserver = Observer;
+        restoreImage();
+      }
+    },
+  );
+
   it.each(["image", "gif", "video"] as const)(
     "recovers a new %s after its first requests fail without a metadata update",
     (mediaType) => {

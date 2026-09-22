@@ -7,6 +7,7 @@ import {
 } from "@/features/gallery/lib/previewLoader";
 import {
   GALLERY_MEDIA_KEEP_MARGIN_PX,
+  GALLERY_MEDIA_LOAD_MARGIN_PX,
   getGalleryMediaZones,
   getGalleryScrollRoot,
   type GalleryMediaZones,
@@ -69,26 +70,36 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
 
     const root = getGalleryScrollRoot() ?? element.closest("main");
     const syncZones = (isIntersectingHint?: boolean) => {
-      setZones(getGalleryMediaZones(element, root, isIntersectingHint));
+      const next = getGalleryMediaZones(element, root, isIntersectingHint);
+      setZones((previous) =>
+        previous.shouldLoad === next.shouldLoad &&
+        previous.shouldKeep === next.shouldKeep &&
+        previous.priority === next.priority
+          ? previous
+          : next,
+      );
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.target === element) {
-            syncZones(entry.isIntersecting);
-          }
-        }
-      },
-      {
-        root,
-        rootMargin: `${GALLERY_MEDIA_KEEP_MARGIN_PX}px 0px`,
-        threshold: 0,
-      },
+    const observers = [0, GALLERY_MEDIA_LOAD_MARGIN_PX, GALLERY_MEDIA_KEEP_MARGIN_PX].map(
+      (margin) =>
+        new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.target === element) {
+                syncZones(entry.isIntersecting);
+              }
+            }
+          },
+          {
+            root,
+            rootMargin: `${margin}px 0px`,
+            threshold: 0,
+          },
+        ),
     );
 
     syncZones();
-    observer.observe(element);
+    observers.forEach((observer) => observer.observe(element));
 
     const syncAfterLayout = requestAnimationFrame(() => {
       syncZones();
@@ -96,7 +107,7 @@ export function useGalleryCardMedia(path: string, previewUrl: string) {
 
     return () => {
       cancelAnimationFrame(syncAfterLayout);
-      observer.disconnect();
+      observers.forEach((observer) => observer.disconnect());
     };
   }, [path]);
 
