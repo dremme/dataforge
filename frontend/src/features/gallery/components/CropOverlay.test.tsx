@@ -299,19 +299,28 @@ describe("CropOverlay", () => {
       expect(next.height).toBeCloseTo(0.49);
     });
 
-    it("hands the readout the inverse transform so it stays upright", () => {
+    it("keeps the readout upright and on the rect's on-screen top-left through a turn", () => {
       renderOverlay({ orientation: turned({ rotate: 90, mirrorH: true }) });
 
+      // Turned, so the half extents swap: the rect is painted 450 wide and 800 tall.
       expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
-        "--crop-readout-transform": "rotate(-90deg) scaleX(-1) scaleY(1)",
+        "--crop-readout-transform": "scaleX(-1) scaleY(1) rotate(-90deg) translate(-225px, -400px)",
       });
     });
 
-    it("leaves an upright preview without a transform to undo", () => {
+    it("pins an upright preview's readout to the same corner", () => {
       renderOverlay();
 
       expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
-        "--crop-readout-transform": "rotate(0deg) scaleX(1) scaleY(1)",
+        "--crop-readout-transform": "scaleX(1) scaleY(1) rotate(0deg) translate(-400px, -225px)",
+      });
+    });
+
+    it("measures the pin from the cropped rect, not the whole frame", () => {
+      renderOverlay({ crop: { x: 0.1, y: 0.1, width: 0.5, height: 0.4 } });
+
+      expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
+        "--crop-readout-transform": "scaleX(1) scaleY(1) rotate(0deg) translate(-200px, -90px)",
       });
     });
   });

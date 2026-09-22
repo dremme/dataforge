@@ -348,6 +348,7 @@ export function GalleryItemModal({
   // Derived above the early return so the hooks below are not called conditionally.
   const canEditVideoItem = item ? isEditableVideo(item) : false;
   const canEditImageItem = item ? isEditableImage(item) : false;
+  const editing = editMode && (canEditVideoItem || canEditImageItem);
 
   // In frame/edit mode Escape steps back to viewing; ModalShell stands down via escape="none".
   useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);
@@ -544,7 +545,12 @@ export function GalleryItemModal({
           </div>
         </header>
 
-        <div className="gallery-item-modal__stage">
+        <div
+          className={classNames(
+            "gallery-item-modal__stage",
+            editing && "gallery-item-modal__stage--editing",
+          )}
+        >
           <button
             type="button"
             className="gallery-item-modal__nav gallery-item-modal__nav--prev"

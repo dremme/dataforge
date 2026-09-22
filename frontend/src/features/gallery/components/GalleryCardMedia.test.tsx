@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { HOME_PATH } from "@/test/fixtures";
 import {
   getGalleryPreviewLoaderStateForTests,
+  pauseGalleryPreviewLoader,
+  resumeGalleryPreviewLoader,
   resetGalleryPreviewLoaderForTests,
   syncGalleryPreviewTargets,
 } from "@/features/gallery/lib/previewLoader";
@@ -90,6 +92,26 @@ describe("GalleryCardMedia", () => {
     resetGalleryPreviewLoaderForTests();
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("loads a newly captured frame when the video modal closes without scrolling", () => {
+    const preview = installPendingPreviewImages();
+    vi.spyOn(galleryScrollRoot, "getGalleryMediaZones").mockReturnValue(visibleZones);
+
+    try {
+      pauseGalleryPreviewLoader();
+      const { container } = render(<GalleryCardMedia item={imageItem} />);
+      expect(preview.loads).toHaveLength(0);
+      expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
+
+      act(() => resumeGalleryPreviewLoader());
+      expect(preview.loads).toHaveLength(1);
+      act(() => preview.loads[0].onload?.());
+      expect(container.querySelector('img[src*="/api/thumbnail"]')).not.toBeNull();
+      expect(container.querySelector(".card__media-placeholder")).toBeNull();
+    } finally {
+      preview.restore();
+    }
   });
 
   it.each([false, true])(

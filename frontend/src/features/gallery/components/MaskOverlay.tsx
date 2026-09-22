@@ -15,6 +15,7 @@ import {
   MIN_MASK_FRACTION,
   UPRIGHT,
   moveCrop,
+  readoutTransform,
   resizeCrop,
   screenDeltaToSource,
   type CropHandle,
@@ -266,10 +267,6 @@ export function MaskOverlay({
     top: `${box.top}px`,
     width: `${box.width}px`,
     height: `${box.height}px`,
-    // Inverse of the host transform so the readout stays upright.
-    "--mask-readout-transform":
-      `rotate(${-orientation.rotate}deg)` +
-      ` scaleX(${orientation.mirrorH ? -1 : 1}) scaleY(${orientation.mirrorV ? -1 : 1})`,
   } as CSSProperties;
 
   return (
@@ -292,6 +289,12 @@ export function MaskOverlay({
           "--mask-y": `${mask.rect.y * 100}%`,
           "--mask-w": `${mask.rect.width * 100}%`,
           "--mask-h": `${mask.rect.height * 100}%`,
+          // Per region: the pin needs this rect's own painted size, not the overlay's.
+          "--mask-readout-transform": readoutTransform(
+            orientation,
+            box.width * mask.rect.width,
+            box.height * mask.rect.height,
+          ),
         } as CSSProperties;
 
         return (

@@ -6,6 +6,7 @@ import {
   UPRIGHT,
   isCornerHandle,
   moveCrop,
+  readoutTransform,
   resizeCrop,
   screenDeltaToSource,
   type CropHandle,
@@ -154,10 +155,12 @@ export function CropOverlay({
     "--crop-y": `${crop.y * 100}%`,
     "--crop-w": `${crop.width * 100}%`,
     "--crop-h": `${crop.height * 100}%`,
-    // Inverse of the host transform so the readout stays upright.
-    "--crop-readout-transform":
-      `rotate(${-orientation.rotate}deg)` +
-      ` scaleX(${orientation.mirrorH ? -1 : 1}) scaleY(${orientation.mirrorV ? -1 : 1})`,
+    // Undoes the host turn and pins the readout to the rect's on-screen top-left corner.
+    "--crop-readout-transform": readoutTransform(
+      orientation,
+      box.width * crop.width,
+      box.height * crop.height,
+    ),
   } as CSSProperties;
 
   return (

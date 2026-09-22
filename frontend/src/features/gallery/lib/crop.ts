@@ -199,3 +199,25 @@ export function screenDeltaToSource(
 
   return { dx: x, dy: y };
 }
+
+/**
+ * Screen-aligns an overlay readout and pins it to the rect's on-screen top-left corner.
+ * The caller places the readout at the rect's centre and sizes it in painted pixels.
+ */
+export function readoutTransform(
+  orientation: Orientation,
+  rectWidth: number,
+  rectHeight: number,
+): string {
+  const flipX = orientation.mirrorH ? -1 : 1;
+  const flipY = orientation.mirrorV ? -1 : 1;
+  const turned = orientation.rotate === 90 || orientation.rotate === 270;
+  const halfWidth = (turned ? rectHeight : rectWidth) / 2;
+  const halfHeight = (turned ? rectWidth : rectHeight) / 2;
+
+  // The host turns before it mirrors, so undoing it has to mirror before it turns back.
+  return (
+    `scaleX(${flipX}) scaleY(${flipY}) rotate(${-orientation.rotate}deg)` +
+    ` translate(${-halfWidth}px, ${-halfHeight}px)`
+  );
+}

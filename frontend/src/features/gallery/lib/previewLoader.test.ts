@@ -3,6 +3,8 @@ import {
   getGalleryPreviewLoaderStateForTests,
   isMediaPathWarmed,
   markMediaPathWarmed,
+  pauseGalleryPreviewLoader,
+  resumeGalleryPreviewLoader,
   requestPreviewLoad,
   resetGalleryPreviewLoaderForTests,
   setGalleryScrollPhase,
@@ -37,6 +39,42 @@ describe("galleryPreviewLoader", () => {
   afterEach(() => {
     resetGalleryPreviewLoaderForTests();
     vi.restoreAllMocks();
+  });
+
+  it("resumes only the latest targets after folder updates during a pause", () => {
+    const started = vi.spyOn(HTMLImageElement.prototype, "src", "set");
+    pauseGalleryPreviewLoader();
+    syncGalleryPreviewTargets([{ path: "old.jpg", url: "/old.jpg", priority: "visible" }]);
+    syncGalleryPreviewTargets([{ path: "frame.jpg", url: "/frame.jpg", priority: "visible" }]);
+    expect(getGalleryPreviewLoaderStateForTests()).toMatchObject({
+      activeCount: 0,
+      visibleWaitCount: 1,
+    });
+    expect(started).not.toHaveBeenCalled();
+
+    resumeGalleryPreviewLoader();
+    expect(getGalleryPreviewLoaderStateForTests()).toMatchObject({
+      activeCount: 1,
+      visibleWaitCount: 0,
+    });
+    expect(started).toHaveBeenCalledExactlyOnceWith("/frame.jpg");
+  });
+
+  it("keeps requests queued before a pause and starts them after resuming", () => {
+    for (let index = 0; index < 25; index += 1) {
+      requestPreviewLoad(`frame-${index}.jpg`, `/frame-${index}.jpg`, "visible");
+    }
+    pauseGalleryPreviewLoader();
+    expect(getGalleryPreviewLoaderStateForTests().visibleWaitCount).toBe(1);
+    syncGalleryPreviewTargets([
+      { path: "frame-24.jpg", url: "/frame-24.jpg", priority: "visible" },
+    ]);
+    expect(getGalleryPreviewLoaderStateForTests().activeCount).toBe(0);
+    resumeGalleryPreviewLoader();
+    expect(getGalleryPreviewLoaderStateForTests()).toMatchObject({
+      activeCount: 1,
+      visibleWaitCount: 0,
+    });
   });
 
   it("prioritizes visible requests ahead of prefetch", () => {

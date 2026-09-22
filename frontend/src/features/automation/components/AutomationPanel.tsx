@@ -306,6 +306,20 @@ export function AutomationPanel({
                 />
               </div>
             )}
+
+            {errorMessage && (
+              <div className="automation__message automation__message--error" role="alert">
+                <Icon icon={iconCircleAlert} className="automation__message-icon" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {warningMessage && (
+              <div className="automation__message automation__message--warning" role="status">
+                <Icon icon={iconTriangleAlert} className="automation__message-icon" />
+                <span>{warningMessage}</span>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -364,20 +378,6 @@ export function AutomationPanel({
         )}
         {job && (
           <>
-            {errorMessage && (
-              <div className="automation__message automation__message--error" role="alert">
-                <Icon icon={iconCircleAlert} className="automation__message-icon" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {warningMessage && (
-              <div className="automation__message automation__message--warning" role="status">
-                <Icon icon={iconTriangleAlert} className="automation__message-icon" />
-                <span>{warningMessage}</span>
-              </div>
-            )}
-
             <TrainingSamples samples={trainingSamples} />
             <ComfyProcessLog key={`log-${job.id}`} job={job} />
             <JobFileResults

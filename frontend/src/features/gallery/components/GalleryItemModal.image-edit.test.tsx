@@ -147,6 +147,31 @@ describe("GalleryItemModal", () => {
         expect(dialog.querySelector("img")?.getAttribute("src")).toContain("original=1");
       });
 
+      it("widens the stage so the crop handles clear the next and previous buttons", async () => {
+        const user = userEvent.setup();
+        renderModal(imageItem());
+
+        const dialog = await openEditMode(user);
+
+        expect(dialog.querySelector(".gallery-item-modal__stage")).toHaveClass(
+          "gallery-item-modal__stage--editing",
+        );
+      });
+
+      it("gives the stage its viewing width back on exit", async () => {
+        const user = userEvent.setup();
+        renderModal(imageItem());
+
+        const dialog = await openEditMode(user);
+        await user.click(
+          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+        );
+
+        expect(dialog.querySelector(".gallery-item-modal__stage")).not.toHaveClass(
+          "gallery-item-modal__stage--editing",
+        );
+      });
+
       it("gives up zooming for the duration", async () => {
         // The stage carries the rotation; two transforms would fight the overlay's measurements.
         const user = userEvent.setup();

@@ -476,11 +476,12 @@ describe("MaskOverlay", () => {
     frames.mockRestore();
   });
 
-  it("hands the readout the inverse transform so it stays upright", () => {
+  it("pins each region's readout to its own on-screen top-left through a turn", () => {
     renderOverlay({ orientation: { rotate: 90, mirrorH: true, mirrorV: false } });
 
-    expect(screen.getByRole("group", { name: "Blur regions" })).toHaveStyle({
-      "--mask-readout-transform": "rotate(-90deg) scaleX(-1) scaleY(1)",
+    // The pin is per region: FIRST covers half the 800x450 box, so 400x225 painted.
+    expect(document.querySelector(".mask-overlay__region")).toHaveStyle({
+      "--mask-readout-transform": "scaleX(-1) scaleY(1) rotate(-90deg) translate(-112.5px, -200px)",
     });
   });
 });

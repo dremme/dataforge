@@ -180,6 +180,8 @@ function reconcilePreviewQueues(
 }
 
 function ensureRoomForVisible(): void {
+  if (paused) return;
+
   const maxConcurrent = maxConcurrentPreviews();
 
   while (visibleQueue.length > 0 && activeCount >= maxConcurrent) {
@@ -247,7 +249,7 @@ export function requestPreviewLoad(
   url: string,
   priority: GalleryMediaZonePriority,
 ): void {
-  if (paused || priority === "hidden") return;
+  if (priority === "hidden") return;
   if (!shouldLoad(path, url)) return;
 
   const effectivePriority = priority === "visible" ? "visible" : "prefetch";
@@ -269,8 +271,6 @@ export function requestPreviewLoad(
 }
 
 export function syncGalleryPreviewTargets(targets: readonly PreviewRequest[]): void {
-  if (paused) return;
-
   const visiblePaths = new Set<string>();
   const prefetchPaths = new Set<string>();
 
@@ -330,14 +330,13 @@ export function subscribePreviewSettled(
 
 export function pauseGalleryPreviewLoader(): void {
   paused = true;
-  visibleQueue.length = 0;
-  prefetchQueue.length = 0;
 }
 
 export function resumeGalleryPreviewLoader(): void {
   if (!paused) return;
 
   paused = false;
+  ensureRoomForVisible();
   drainQueue();
 }
 

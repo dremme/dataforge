@@ -11,6 +11,7 @@ import {
   resizeCrop,
   screenDeltaToSource,
   type CropRect,
+  readoutTransform,
   type Orientation,
   type RotationDegrees,
 } from "./crop";
@@ -248,5 +249,40 @@ describe("screenDeltaToSource", () => {
         }
       }
     }
+  });
+});
+
+describe("readoutTransform", () => {
+  const upright = { rotate: 0, mirrorH: false, mirrorV: false } as const;
+
+  it("lifts an unturned readout to the rect's own top-left corner", () => {
+    expect(readoutTransform(upright, 100, 50)).toBe(
+      "scaleX(1) scaleY(1) rotate(0deg) translate(-50px, -25px)",
+    );
+  });
+
+  it("swaps the half extents on a quarter turn, where the rect is painted on its side", () => {
+    expect(readoutTransform({ ...upright, rotate: 90 }, 100, 50)).toBe(
+      "scaleX(1) scaleY(1) rotate(-90deg) translate(-25px, -50px)",
+    );
+    expect(readoutTransform({ ...upright, rotate: 270 }, 100, 50)).toBe(
+      "scaleX(1) scaleY(1) rotate(-270deg) translate(-25px, -50px)",
+    );
+  });
+
+  it("keeps the half extents on a half turn", () => {
+    expect(readoutTransform({ ...upright, rotate: 180 }, 100, 50)).toBe(
+      "scaleX(1) scaleY(1) rotate(-180deg) translate(-50px, -25px)",
+    );
+  });
+
+  // Mirroring after the turn would leave the readout upside down, not merely flipped.
+  it("undoes the mirrors before the turn, the reverse of how the host applies them", () => {
+    expect(readoutTransform({ rotate: 90, mirrorH: true, mirrorV: false }, 100, 50)).toBe(
+      "scaleX(-1) scaleY(1) rotate(-90deg) translate(-25px, -50px)",
+    );
+    expect(readoutTransform({ rotate: 0, mirrorH: false, mirrorV: true }, 100, 50)).toBe(
+      "scaleX(1) scaleY(-1) rotate(0deg) translate(-50px, -25px)",
+    );
   });
 });
