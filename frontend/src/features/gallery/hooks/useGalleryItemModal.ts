@@ -1,8 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  pauseGalleryPreviewLoader,
-  resumeGalleryPreviewLoader,
-} from "@/features/gallery/lib/previewLoader";
 import type { GalleryItem } from "@/shared/types";
 
 export function useGalleryItemModal(
@@ -37,15 +33,6 @@ export function useGalleryItemModal(
       setModalNavigationPaths(null);
     }
   }, [images, selectedPath]);
-
-  useEffect(() => {
-    if (selectedPath) {
-      pauseGalleryPreviewLoader();
-      return;
-    }
-
-    resumeGalleryPreviewLoader();
-  }, [selectedPath]);
 
   const openGalleryItem = useCallback(
     (path: string) => {

@@ -1,165 +1,86 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
-import {
-  isGalleryScrollActive,
-  setGalleryScrollPhase,
-  syncGalleryPreviewTargets,
-} from "./previewLoader";
-import { galleryItemThumbnailPreviewUrl } from "./thumbnail";
+import { useThumbnailRuntime } from "@/features/gallery/context/thumbnailContext";
+import { galleryItemThumbnailPreviewUrl, galleryItemMediaUrl } from "./thumbnail";
+import type { ThumbnailDemand } from "./thumbnailStore";
 import type { GalleryItem } from "@/shared/types";
 
-const PREFETCH_ROWS_BEFORE = 1;
-const PREFETCH_ROWS_AFTER = 3;
-const SCROLL_IDLE_MS = 150;
-
-const NO_ITEMS: readonly GalleryItem[] = [];
-
 export type RowAt = (index: number) => readonly GalleryItem[];
-
-interface PreviewTarget {
-  path: string;
-  url: string;
-  priority: "visible" | "prefetch";
-}
+type Neighbors = { before?: number; after?: number };
 
 export function collectGalleryPreviewTargets(
   rowAt: RowAt,
   rowCount: number,
   virtualItems: { index: number }[],
-  includePrefetch: boolean,
-  neighbors: { before?: number; after?: number } = {},
-): PreviewTarget[] {
-  if (virtualItems.length === 0) return [];
-
-  const before = neighbors.before ?? PREFETCH_ROWS_BEFORE;
-  const after = neighbors.after ?? PREFETCH_ROWS_AFTER;
-  const minIndex = virtualItems[0].index;
-  const maxIndex = virtualItems[virtualItems.length - 1].index;
-  const start = includePrefetch ? Math.max(0, minIndex - before) : minIndex;
-  const end = includePrefetch ? Math.min(rowCount - 1, maxIndex + after) : maxIndex;
-
-  const targets: PreviewTarget[] = [];
-
+  neighbors: Neighbors = {},
+): ThumbnailDemand[] {
+  if (!virtualItems.length) return [];
+  const min = virtualItems[0].index;
+  const max = virtualItems[virtualItems.length - 1].index;
+  const start = Math.max(0, min - (neighbors.before ?? 1));
+  const end = Math.min(rowCount - 1, max + (neighbors.after ?? 3));
+  const targets: ThumbnailDemand[] = [];
   for (let index = start; index <= end; index += 1) {
-    const priority = index >= minIndex && index <= maxIndex ? "visible" : "prefetch";
     for (const item of rowAt(index)) {
       targets.push({
-        path: item.path,
         url: galleryItemThumbnailPreviewUrl(item),
-        priority,
+        fallbackUrl: item.media_type === "video" ? undefined : galleryItemMediaUrl(item),
+        priority: index >= min && index <= max ? "visible" : "prefetch",
       });
     }
   }
-
   return targets;
 }
 
-export function prefetchGalleryVisibleRange(
-  rowAt: RowAt,
-  rowCount: number,
-  virtualItems: { index: number }[],
-  includePrefetch = true,
-  neighbors?: { before?: number; after?: number },
-): void {
-  syncGalleryPreviewTargets(
-    collectGalleryPreviewTargets(rowAt, rowCount, virtualItems, includePrefetch, neighbors),
-  );
-}
-
-function usePrefetchRange(
+function usePrefetchTargets(
   scrollElement: HTMLElement | null,
-  rowAt: RowAt,
-  rowCount: number,
-  getVirtualItems: () => { index: number }[],
-  triggers: readonly unknown[],
-  neighbors?: { before?: number; after?: number },
-): void {
-  const sourceRef = useRef({ rowAt, getVirtualItems });
-  sourceRef.current = { rowAt, getVirtualItems };
-
-  const rafRef = useRef<number | null>(null);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const runPrefetch = useCallback(
-    (includePrefetch: boolean) => {
-      const { rowAt: currentRowAt, getVirtualItems: currentItems } = sourceRef.current;
-      prefetchGalleryVisibleRange(
-        currentRowAt,
-        rowCount,
-        currentItems(),
-        includePrefetch,
-        neighbors,
-      );
-    },
-    [neighbors, rowCount],
-  );
-
-  const markScrollActive = useCallback(() => {
-    setGalleryScrollPhase("active");
-
-    if (idleTimerRef.current != null) {
-      clearTimeout(idleTimerRef.current);
-    }
-
-    idleTimerRef.current = setTimeout(() => {
-      idleTimerRef.current = null;
-      setGalleryScrollPhase("idle");
-      runPrefetch(true);
-    }, SCROLL_IDLE_MS);
-  }, [runPrefetch]);
-
+  targets: readonly ThumbnailDemand[],
+) {
+  const { store } = useThumbnailRuntime();
+  const consumer = useRef({});
   useEffect(() => {
-    runPrefetch(!isGalleryScrollActive());
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- caller names its own triggers
-  }, [runPrefetch, ...triggers]);
-
+    store.setDemand(consumer.current, targets);
+  }, [store, targets]);
+  useEffect(() => {
+    const owner = consumer.current;
+    return () => store.setDemand(owner, []);
+  }, [store]);
   useEffect(() => {
     if (!scrollElement) return;
-
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const onScroll = () => {
-      markScrollActive();
-
-      if (rafRef.current != null) return;
-
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        runPrefetch(false);
-      });
+      store.setScrolling(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => store.setScrolling(false), 150);
     };
-
     scrollElement.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       scrollElement.removeEventListener("scroll", onScroll);
-      if (rafRef.current != null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      if (idleTimerRef.current != null) {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = null;
-      }
-      setGalleryScrollPhase("idle");
+      clearTimeout(timer);
+      store.setScrolling(false);
     };
-  }, [markScrollActive, runPrefetch, scrollElement]);
+  }, [store, scrollElement]);
 }
 
 export function useGalleryItemPrefetch(
   scrollElement: HTMLElement | null,
   items: GalleryItem[],
   range: { min: number; max: number } | null,
-  neighbors?: { before?: number; after?: number },
+  neighbors?: Neighbors,
 ): void {
-  usePrefetchRange(
-    scrollElement,
-    (index) => {
-      const item = items[index];
-      return item ? [item] : NO_ITEMS;
-    },
-    items.length,
-    () => (range == null ? [] : [{ index: range.min }, { index: range.max }]),
-    [items, range == null ? "empty" : `${range.min}:${range.max}`],
-    neighbors,
+  const min = range?.min;
+  const max = range?.max;
+  const targets = useMemo(
+    () =>
+      collectGalleryPreviewTargets(
+        (index) => (items[index] ? [items[index]] : []),
+        items.length,
+        min === undefined || max === undefined ? [] : [{ index: min }, { index: max }],
+        neighbors,
+      ),
+    [items, min, max, neighbors],
   );
+  usePrefetchTargets(scrollElement, targets);
 }
 
 export function useGalleryVisiblePrefetch(
@@ -167,14 +88,20 @@ export function useGalleryVisiblePrefetch(
   rowAt: RowAt,
   rowCount: number,
   virtualizer: Virtualizer<HTMLElement, Element>,
-  neighbors?: { before?: number; after?: number },
+  neighbors?: Neighbors,
 ): void {
-  usePrefetchRange(
-    scrollElement,
-    rowAt,
-    rowCount,
-    () => virtualizer.getVirtualItems(),
-    [rowAt, virtualizer.scrollOffset],
-    neighbors,
+  const virtualItems = virtualizer.getVirtualItems();
+  const min = virtualItems[0]?.index;
+  const max = virtualItems.at(-1)?.index;
+  const targets = useMemo(
+    () =>
+      collectGalleryPreviewTargets(
+        rowAt,
+        rowCount,
+        min === undefined || max === undefined ? [] : [{ index: min }, { index: max }],
+        neighbors,
+      ),
+    [rowAt, rowCount, min, max, neighbors],
   );
+  usePrefetchTargets(scrollElement, targets);
 }

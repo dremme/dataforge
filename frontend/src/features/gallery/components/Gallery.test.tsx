@@ -1,4 +1,6 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderWithThumbnails as render } from "@/test/renderWithThumbnails";
+import { installThumbnailImages } from "@/test/thumbnailImages";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as captionStatus from "@/features/gallery/lib/captionStatus";
 import * as scrollRoot from "@/features/gallery/lib/scrollRoot";
@@ -150,6 +152,7 @@ describe("Gallery", () => {
   });
 
   it("mounts image previews and video placeholders for visible virtual rows", () => {
+    const loads = installThumbnailImages();
     const { container } = render(
       withGallerySelection(
         <main className="main">
@@ -158,6 +161,11 @@ describe("Gallery", () => {
       ),
     );
 
+    expect(container.querySelectorAll(".card__media-placeholder")).toHaveLength(2);
+    act(() => {
+      loads.load(0);
+      loads.load(1);
+    });
     expect(container.querySelectorAll("img.card__img")).toHaveLength(2);
     expect(container.querySelector("video.card__video")).toBeNull();
   });

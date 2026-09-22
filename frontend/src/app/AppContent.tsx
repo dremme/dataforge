@@ -1,3 +1,4 @@
+import { ThumbnailProvider } from "@/features/gallery/context/ThumbnailProvider";
 import { AppFolderContent } from "@/app/components/AppFolderContent";
 import { AppHeader } from "@/app/components/AppHeader";
 import { AppOverlays } from "@/app/components/AppOverlays";
@@ -49,148 +50,150 @@ export function AppContent() {
   } = gallery;
 
   return (
-    <GallerySelectionProvider
-      selectionMode={selectionMode}
-      selectedPaths={selectedPaths}
-      visibleSelectedPaths={visibleSelectedPaths}
-      visibleSelectedCount={visibleSelectedCount}
-      enterSelectionMode={enterSelectionMode}
-      exitSelectionMode={exitSelectionMode}
-      toggleSelectedPath={handleToggleSelectPath}
-      extendSelectionTo={handleExtendSelectionTo}
-      clearSelectedPaths={clearSelectedPaths}
-      selectAllPaths={handleSelectAllPaths}
-      invertSelectedPaths={handleInvertSelection}
-      onDeleted={onGalleryItemsDeleted}
-      onMoved={onGalleryItemsMoved}
-      onCopied={onGalleryItemsCopied}
-      actions={selectionActions}
-    >
-      <div className="app">
-        {folder && (
-          <AppHeader
-            folder={folder}
-            folderNotFound={folderNotFound}
-            refreshing={refreshing}
-            onNavigate={navigateTo}
-            onOpenFolderPicker={folderPicker.openPicker}
-            toolbarProps={{
-              subfolderCount: folder.subfolder_count,
-              fileCount: items.length,
-              captionedCount: query.captionedCount,
-              issueCount: gallery.issueCount,
-              hasCaptionBackup: folder.has_caption_backup,
-              statsLoading: loading && !refreshing,
-              searchQuery: query.searchQuery,
-              searchRegex: query.searchRegex,
-              searchNames: query.searchNames,
-              sort: query.sort,
-              filter: query.filter,
-              filterCounts: query.filterCounts,
-              mediaTypeFilter: query.mediaTypeFilter,
-              mediaTypeFilterCounts: query.mediaTypeFilterCounts,
-              fileFilter: query.fileFilter,
-              fileFilterCounts: query.fileFilterCounts,
-              statsOpen: statsDrawer.statsOpen,
-              onToggleStats: statsDrawer.toggleStats,
-              onSearchQueryChange: query.setSearchQuery,
-              onSearchRegexChange: query.setSearchRegex,
-              onSearchNamesChange: query.setSearchNames,
-              onSortChange: query.setSort,
-              onFilterChange: query.setFilter,
-              onMediaTypeFilterChange: query.setMediaTypeFilter,
-              onFileFilterChange: query.setFileFilter,
-            }}
-          />
-        )}
-
-        <main ref={mainRef} className="main">
-          <div className="main__inner">
-            <AppFolderContent
-              error={error}
-              loading={loading}
+    <ThumbnailProvider paused={Boolean(gallery.selectedPath)}>
+      <GallerySelectionProvider
+        selectionMode={selectionMode}
+        selectedPaths={selectedPaths}
+        visibleSelectedPaths={visibleSelectedPaths}
+        visibleSelectedCount={visibleSelectedCount}
+        enterSelectionMode={enterSelectionMode}
+        exitSelectionMode={exitSelectionMode}
+        toggleSelectedPath={handleToggleSelectPath}
+        extendSelectionTo={handleExtendSelectionTo}
+        clearSelectedPaths={clearSelectedPaths}
+        selectAllPaths={handleSelectAllPaths}
+        invertSelectedPaths={handleInvertSelection}
+        onDeleted={onGalleryItemsDeleted}
+        onMoved={onGalleryItemsMoved}
+        onCopied={onGalleryItemsCopied}
+        actions={selectionActions}
+      >
+        <div className="app">
+          {folder && (
+            <AppHeader
               folder={folder}
-              subfolders={subfolders}
-              filteredSubfolders={filteredSubfolders}
-              items={items}
-              filteredItems={query.filteredItems}
-              filterEmptyState={query.filterEmptyState}
+              folderNotFound={folderNotFound}
+              refreshing={refreshing}
               onNavigate={navigateTo}
-              onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
-              createFolderDisabled={createFolder.busy}
-              onOpenGalleryItem={openGalleryItem}
-              displayMode={gallery.displayMode}
-              onDisplayModeChange={gallery.setDisplayMode}
-              automationPanelProps={automation.panelProps}
-              fileDrop={{
-                enabled: Boolean(folder) && !folderNotFound && !loading,
-                active: fileDrop.isDragActive,
-                folderLabel:
-                  folder?.breadcrumbs[folder.breadcrumbs.length - 1]?.name ??
-                  folder?.path ??
-                  "this folder",
-                onDragEnter: fileDrop.onDragEnter,
-                onDragOver: fileDrop.onDragOver,
-                onDragLeave: fileDrop.onDragLeave,
-                onDrop: fileDrop.onDrop,
+              onOpenFolderPicker={folderPicker.openPicker}
+              toolbarProps={{
+                subfolderCount: folder.subfolder_count,
+                fileCount: items.length,
+                captionedCount: query.captionedCount,
+                issueCount: gallery.issueCount,
+                hasCaptionBackup: folder.has_caption_backup,
+                statsLoading: loading && !refreshing,
+                searchQuery: query.searchQuery,
+                searchRegex: query.searchRegex,
+                searchNames: query.searchNames,
+                sort: query.sort,
+                filter: query.filter,
+                filterCounts: query.filterCounts,
+                mediaTypeFilter: query.mediaTypeFilter,
+                mediaTypeFilterCounts: query.mediaTypeFilterCounts,
+                fileFilter: query.fileFilter,
+                fileFilterCounts: query.fileFilterCounts,
+                statsOpen: statsDrawer.statsOpen,
+                onToggleStats: statsDrawer.toggleStats,
+                onSearchQueryChange: query.setSearchQuery,
+                onSearchRegexChange: query.setSearchRegex,
+                onSearchNamesChange: query.setSearchNames,
+                onSortChange: query.setSort,
+                onFilterChange: query.setFilter,
+                onMediaTypeFilterChange: query.setMediaTypeFilter,
+                onFileFilterChange: query.setFileFilter,
               }}
             />
-          </div>
-        </main>
+          )}
 
-        <AppOverlays
-          currentFolder={folder?.path}
-          onOpenFolder={navigateTo}
-          folderPicker={folderPicker}
-          quickAction={quickAction}
-          selectionActions={selectionActions.overlay}
-          sidecarSweep={sidecarSweep.overlay}
-          onCaptionSaved={gallery.onCaptionSaved}
-          gallery={{
-            selectedPath: gallery.selectedPath,
-            selectedIndex: gallery.selectedIndex,
-            modalItems: gallery.modalItems,
-            searchQuery: query.searchQuery,
-            searchRegex: query.searchRegex,
-            hasCaptionBackup: folder?.has_caption_backup ?? false,
-            onClose: gallery.closeGalleryItem,
-            onPrevious: gallery.goToPrevious,
-            onNext: gallery.goToNext,
-            onDeleted: gallery.onGalleryItemDeleted,
-            onMoved: onGalleryItemsMoved,
-            onCopied: onGalleryItemsCopied,
-            onResolveIssue: gallery.onResolveGalleryItemIssue,
-          }}
-          issueResolver={gallery.issueResolver.overlay}
-          sysprompt={{
-            open: gallery.syspromptOpen,
-            item: gallery.syspromptModalItem,
-            onClose: gallery.closeSysPrompt,
-          }}
-          stats={{
-            open: statsDrawer.statsOpen,
-            items,
-            onClose: statsDrawer.closeStats,
-            onSearchWord: (word) => {
-              query.setSearchNames(false);
-              query.setSearchQuery(word);
-              statsDrawer.closeStats();
-            },
-          }}
-          duplicateResolver={duplicateResolver.overlay}
-          candidateReview={candidateReview.overlay}
-          jobStart={automation.jobStartConfirm}
-          automation={automation.dialogs}
-          fileImport={{
-            overwritePrompt: fileDrop.overwritePrompt,
-            busy: fileDrop.importing,
-            onReplaceExisting: fileDrop.confirmOverwrite,
-            onCopyNewOnly: fileDrop.importNewFilesOnly,
-            onCancel: fileDrop.dismissOverwritePrompt,
-          }}
-          createFolder={createFolder.overlay}
-        />
-      </div>
-    </GallerySelectionProvider>
+          <main ref={mainRef} className="main">
+            <div className="main__inner">
+              <AppFolderContent
+                error={error}
+                loading={loading}
+                folder={folder}
+                subfolders={subfolders}
+                filteredSubfolders={filteredSubfolders}
+                items={items}
+                filteredItems={query.filteredItems}
+                filterEmptyState={query.filterEmptyState}
+                onNavigate={navigateTo}
+                onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
+                createFolderDisabled={createFolder.busy}
+                onOpenGalleryItem={openGalleryItem}
+                displayMode={gallery.displayMode}
+                onDisplayModeChange={gallery.setDisplayMode}
+                automationPanelProps={automation.panelProps}
+                fileDrop={{
+                  enabled: Boolean(folder) && !folderNotFound && !loading,
+                  active: fileDrop.isDragActive,
+                  folderLabel:
+                    folder?.breadcrumbs[folder.breadcrumbs.length - 1]?.name ??
+                    folder?.path ??
+                    "this folder",
+                  onDragEnter: fileDrop.onDragEnter,
+                  onDragOver: fileDrop.onDragOver,
+                  onDragLeave: fileDrop.onDragLeave,
+                  onDrop: fileDrop.onDrop,
+                }}
+              />
+            </div>
+          </main>
+
+          <AppOverlays
+            currentFolder={folder?.path}
+            onOpenFolder={navigateTo}
+            folderPicker={folderPicker}
+            quickAction={quickAction}
+            selectionActions={selectionActions.overlay}
+            sidecarSweep={sidecarSweep.overlay}
+            onCaptionSaved={gallery.onCaptionSaved}
+            gallery={{
+              selectedPath: gallery.selectedPath,
+              selectedIndex: gallery.selectedIndex,
+              modalItems: gallery.modalItems,
+              searchQuery: query.searchQuery,
+              searchRegex: query.searchRegex,
+              hasCaptionBackup: folder?.has_caption_backup ?? false,
+              onClose: gallery.closeGalleryItem,
+              onPrevious: gallery.goToPrevious,
+              onNext: gallery.goToNext,
+              onDeleted: gallery.onGalleryItemDeleted,
+              onMoved: onGalleryItemsMoved,
+              onCopied: onGalleryItemsCopied,
+              onResolveIssue: gallery.onResolveGalleryItemIssue,
+            }}
+            issueResolver={gallery.issueResolver.overlay}
+            sysprompt={{
+              open: gallery.syspromptOpen,
+              item: gallery.syspromptModalItem,
+              onClose: gallery.closeSysPrompt,
+            }}
+            stats={{
+              open: statsDrawer.statsOpen,
+              items,
+              onClose: statsDrawer.closeStats,
+              onSearchWord: (word) => {
+                query.setSearchNames(false);
+                query.setSearchQuery(word);
+                statsDrawer.closeStats();
+              },
+            }}
+            duplicateResolver={duplicateResolver.overlay}
+            candidateReview={candidateReview.overlay}
+            jobStart={automation.jobStartConfirm}
+            automation={automation.dialogs}
+            fileImport={{
+              overwritePrompt: fileDrop.overwritePrompt,
+              busy: fileDrop.importing,
+              onReplaceExisting: fileDrop.confirmOverwrite,
+              onCopyNewOnly: fileDrop.importNewFilesOnly,
+              onCancel: fileDrop.dismissOverwritePrompt,
+            }}
+            createFolder={createFolder.overlay}
+          />
+        </div>
+      </GallerySelectionProvider>
+    </ThumbnailProvider>
   );
 }

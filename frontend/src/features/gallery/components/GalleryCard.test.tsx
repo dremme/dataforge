@@ -1,5 +1,6 @@
+import { renderWithThumbnails as render } from "@/test/renderWithThumbnails";
 import { StrictMode } from "react";
-import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { HOME_PATH } from "@/test/fixtures";

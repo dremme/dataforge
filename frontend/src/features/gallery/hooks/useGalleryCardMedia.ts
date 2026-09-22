@@ -1,140 +1,94 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  isMediaPathWarmed,
-  isPreviewLoadPending,
-  requestPreviewLoad,
-  subscribePreviewSettled,
-} from "@/features/gallery/lib/previewLoader";
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { useThumbnailRuntime } from "@/features/gallery/context/thumbnailContext";
 import {
-  GALLERY_MEDIA_KEEP_MARGIN_PX,
-  GALLERY_MEDIA_LOAD_MARGIN_PX,
-  getGalleryMediaZones,
-  getGalleryScrollRoot,
-  type GalleryMediaZones,
-} from "@/features/gallery/lib/scrollRoot";
+  galleryItemMediaUrl,
+  galleryItemThumbnailPreviewUrl,
+} from "@/features/gallery/lib/thumbnail";
+import { getGalleryScrollRoot } from "@/features/gallery/lib/scrollRoot";
+import type { GalleryMediaZones } from "@/features/gallery/lib/scrollRoot";
+import type { GalleryItem } from "@/shared/types";
 
-const HIDDEN_ZONES: GalleryMediaZones = {
-  shouldLoad: false,
-  shouldKeep: false,
-  priority: "hidden",
-};
-
-const MAX_PREVIEW_ATTEMPTS = 2;
-
-function syncImageReadyState(image: HTMLImageElement | null, onReady: () => void): void {
-  if (!image || !image.complete) {
-    return;
-  }
-
-  if (image.naturalWidth > 0) {
-    onReady();
-  }
-}
-
-export function useGalleryCardMedia(path: string, previewUrl: string) {
+export function useGalleryCardMedia(
+  item: Pick<GalleryItem, "path" | "modified_at" | "size" | "media_type">,
+) {
+  const { store, visibility } = useThumbnailRuntime();
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const [zones, setZones] = useState<GalleryMediaZones>(HIDDEN_ZONES);
-  const [ready, setReady] = useState(() => isMediaPathWarmed(path));
-  const [loadDirectly, setLoadDirectly] = useState(false);
-  const [retryToken, setRetryToken] = useState(0);
-  const attemptsRef = useRef(0);
-
-  useEffect(() => {
-    attemptsRef.current = 0;
-    setRetryToken(0);
-    setLoadDirectly(false);
-    setReady(isMediaPathWarmed(path));
-
-    return subscribePreviewSettled(path, (outcome) => {
-      if (outcome === "loaded") {
-        setReady(true);
-        return;
-      }
-
-      attemptsRef.current += 1;
-
-      // Failed or cancelled too often: hand the URL over, or the <img> error fallback never runs.
-      if (outcome === "failed" || attemptsRef.current >= MAX_PREVIEW_ATTEMPTS) {
-        setLoadDirectly(true);
-        return;
-      }
-
-      setRetryToken((token) => token + 1);
-    });
-  }, [path]);
+  const consumer = useRef({});
+  const [zones, setZones] = useState<GalleryMediaZones>({
+    shouldLoad: false,
+    shouldKeep: false,
+    priority: "hidden",
+  });
+  const [loadedSrc, setLoadedSrc] = useState<string>();
+  const url = galleryItemThumbnailPreviewUrl(item);
+  const fallbackUrl = item.media_type === "video" ? undefined : galleryItemMediaUrl(item);
+  const source = useMemo(() => ({ url, fallbackUrl }), [url, fallbackUrl]);
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribe(url, listener),
+    [store, url],
+  );
+  const getSnapshot = useCallback(() => store.getSnapshot(url), [store, url]);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot);
 
   useLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-
-    const root = getGalleryScrollRoot() ?? element.closest("main");
-    const syncZones = (isIntersectingHint?: boolean) => {
-      const next = getGalleryMediaZones(element, root, isIntersectingHint);
-      setZones((previous) =>
-        previous.shouldLoad === next.shouldLoad &&
-        previous.shouldKeep === next.shouldKeep &&
-        previous.priority === next.priority
-          ? previous
-          : next,
-      );
-    };
-
-    const observers = [0, GALLERY_MEDIA_LOAD_MARGIN_PX, GALLERY_MEDIA_KEEP_MARGIN_PX].map(
-      (margin) =>
-        new IntersectionObserver(
-          (entries) => {
-            for (const entry of entries) {
-              if (entry.target === element) {
-                syncZones(entry.isIntersecting);
-              }
-            }
-          },
-          {
-            root,
-            rootMargin: `${margin}px 0px`,
-            threshold: 0,
-          },
-        ),
-    );
-
-    syncZones();
-    observers.forEach((observer) => observer.observe(element));
-
-    const syncAfterLayout = requestAnimationFrame(() => {
-      syncZones();
-    });
-
-    return () => {
-      cancelAnimationFrame(syncAfterLayout);
-      observers.forEach((observer) => observer.disconnect());
-    };
-  }, [path]);
-
-  useEffect(() => {
-    if (loadDirectly || !zones.shouldLoad || isPreviewLoadPending(path)) return;
-
-    requestPreviewLoad(path, previewUrl, zones.priority);
-  }, [loadDirectly, path, previewUrl, retryToken, zones.priority, zones.shouldLoad]);
-
-  const showImage = zones.shouldLoad || (zones.shouldKeep && ready);
-
-  const handleReady = useCallback(() => {
-    setReady(true);
-  }, []);
+    return visibility.observe(element, getGalleryScrollRoot() ?? element.closest("main"), setZones);
+  }, [visibility]);
 
   useLayoutEffect(() => {
-    if (!showImage) return;
-    syncImageReadyState(imageRef.current, handleReady);
-  }, [handleReady, showImage, previewUrl]);
+    const owner = consumer.current;
+    store.setDemand(
+      owner,
+      zones.shouldKeep || zones.shouldLoad
+        ? [
+            {
+              ...source,
+              priority: zones.shouldLoad
+                ? zones.priority === "visible"
+                  ? "visible"
+                  : "prefetch"
+                : "retain",
+              recover: zones.shouldLoad,
+            },
+          ]
+        : [],
+    );
+  }, [source, store, zones]);
 
-  return {
-    containerRef,
-    imageRef,
-    shouldLoad: zones.shouldLoad,
-    showImage,
-    ready,
-    srcReady: ready || loadDirectly,
-    handleReady,
-  };
+  useLayoutEffect(() => {
+    const owner = consumer.current;
+    return () => store.setDemand(owner, []);
+  }, [store]);
+
+  const src = snapshot.status === "ready" ? snapshot.src : undefined;
+  const showImage = Boolean(src && (zones.shouldLoad || zones.shouldKeep));
+  const ready = Boolean(src && loadedSrc === src);
+  const handleReady = useCallback(() => {
+    const image = imageRef.current;
+    if (src && image?.getAttribute("src") === src) setLoadedSrc(src);
+  }, [src]);
+  useLayoutEffect(() => {
+    if (!showImage) {
+      setLoadedSrc(undefined);
+      return;
+    }
+    const image = imageRef.current;
+    if (image?.complete && image.naturalWidth > 0) handleReady();
+  }, [showImage, handleReady]);
+
+  const handleError = useCallback(() => {
+    setLoadedSrc(undefined);
+    store.reportError(url, snapshot);
+  }, [store, url, snapshot]);
+
+  return { containerRef, imageRef, showImage, ready, src, handleReady, handleError };
 }
