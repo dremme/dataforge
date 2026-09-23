@@ -10,6 +10,7 @@ New here? Start with [Getting started](getting-started.md).
 | Connect a vision model               | [Configuration](configuration.md#connect-a-vision-model)      |
 | Fix slow, empty, or cut-off captions | [Media input budgets](configuration.md#media-input-budgets)   |
 | Change ports, paths, or logging      | [Server, storage, and logging](configuration.md#server-storage-and-logging) |
+| Show CPU temperature on Windows      | [CPU temperature on Windows](configuration.md#cpu-temperature-on-windows) |
 | Process media with ComfyUI           | [ComfyUI](comfyui.md)                                         |
 | Train a LoRA                         | [AI-Toolkit](ai-toolkit.md)                                   |
 | Work on DataForge itself             | [Development](development.md)                                 |

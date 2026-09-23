@@ -8,7 +8,9 @@ import platform
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -202,11 +204,33 @@ def _cpu_load_percent() -> float | None:
 _LINUX_CPU_HWMON_NAMES = ("k10temp", "zenpower", "coretemp", "cpu_thermal", "cpu-thermal")
 
 
-def _cpu_temperature_celsius() -> float | None:
-    """Only Linux answers without a ring-0 driver: Windows boards expose no usable ACPI zone."""
-    if not sys.platform.startswith("linux"):
-        return None
+#: Written by the elevated task from scripts/install-cpu-temperature-sensor.ps1.
+_WINDOWS_SENSOR_FILE = Path("DataForge", "sensors", "cpu_temperature.txt")
+_WINDOWS_SENSOR_MAX_AGE_SECONDS = 10.0
+_AMD_CLI_TEMPERATURE = re.compile(r"^GetCurrentTemperature\s*\.+\s*(-?\d+(?:\.\d+)?) Celsius", re.M)
 
+
+def _windows_cpu_temperature() -> float | None:
+    program_data = os.environ.get("PROGRAMDATA")
+    if not program_data:
+        return None
+    sensor_file = Path(program_data) / _WINDOWS_SENSOR_FILE
+    try:
+        if time.time() - sensor_file.stat().st_mtime > _WINDOWS_SENSOR_MAX_AGE_SECONDS:
+            return None
+        match = _AMD_CLI_TEMPERATURE.search(
+            sensor_file.read_text(encoding="utf-8", errors="replace")
+        )
+    except OSError:
+        return None
+    if not match:
+        return None
+    celsius = float(match.group(1))
+    # The SDK leaves -1 in the field when the CPU does not report it.
+    return celsius if celsius >= 0 else None
+
+
+def _linux_cpu_temperature() -> float | None:
     for hwmon in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
         try:
             with open(os.path.join(hwmon, "name"), encoding="utf-8") as handle:
@@ -216,6 +240,14 @@ def _cpu_temperature_celsius() -> float | None:
                 return int(handle.read().strip()) / 1000
         except (OSError, ValueError):
             continue
+    return None
+
+
+def _cpu_temperature_celsius() -> float | None:
+    if sys.platform == "win32":
+        return _windows_cpu_temperature()
+    if sys.platform.startswith("linux"):
+        return _linux_cpu_temperature()
     return None
 
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import venv
 from pathlib import Path
@@ -137,8 +139,6 @@ class CpuUsageTests(unittest.TestCase):
 
 
 class CpuTemperatureTests(unittest.TestCase):
-    """Windows and macOS have no sensor a normal process may read; only Linux is wired up."""
-
     def test_reads_the_hwmon_package_sensor(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             unrelated = Path(directory) / "hwmon0"
@@ -168,14 +168,82 @@ class CpuTemperatureTests(unittest.TestCase):
             ):
                 self.assertIsNone(system_specs._cpu_temperature_celsius())
 
-    def test_reads_no_sensor_off_linux(self) -> None:
+    def test_reads_no_sensor_on_macos(self) -> None:
         with (
-            patch("system_specs.sys.platform", "win32"),
+            patch("system_specs.sys.platform", "darwin"),
             patch("system_specs.glob.glob") as glob_mock,
         ):
             self.assertIsNone(system_specs._cpu_temperature_celsius())
 
         glob_mock.assert_not_called()
+
+
+class WindowsSensorFileTests(unittest.TestCase):
+    CLI_OUTPUT = (
+        "GetPMTableData .................................... PPT Current Limit : 200.000000 W\r\n"
+        "GetPMTableData .................................... cHTC Limit: 90.00 Celsius\r\n"
+        "GetPMTableData .................................... cHTC Current Value: 0.000000 celsius\r\n"
+        "GetEffectiveFrequency Core : 0  ................... 5412.3 MHz-Active \r\n"
+        "GetCurrentTemperature ............................. 59.25 Celsius\r\n"
+        "GetAverageCoreVoltage ............................. 1.102000 V\r\n"
+    )
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.program_data = Path(directory.name)
+        self.sensor_file = self.program_data / "DataForge" / "sensors" / "cpu_temperature.txt"
+        patcher = patch.dict("os.environ", {"PROGRAMDATA": str(self.program_data)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def write_sensor_file(self, content: str, age_seconds: float = 0) -> None:
+        self.sensor_file.parent.mkdir(parents=True, exist_ok=True)
+        self.sensor_file.write_text(content, encoding="utf-8")
+        written_at = time.time() - age_seconds
+        os.utime(self.sensor_file, (written_at, written_at))
+
+    def read_on_windows(self) -> float | None:
+        with patch("system_specs.sys.platform", "win32"):
+            return system_specs._cpu_temperature_celsius()
+
+    def test_reads_the_temperature_not_the_thermal_limit_printed_before_it(self) -> None:
+        self.write_sensor_file(self.CLI_OUTPUT)
+
+        self.assertEqual(self.read_on_windows(), 59.25)
+
+    def test_is_none_where_the_cpu_deprecated_the_single_reading(self) -> None:
+        self.write_sensor_file(
+            "GetCurrentTemperature ............................. Deprecated API. Use GetPMTableData\r\n"
+        )
+
+        self.assertIsNone(self.read_on_windows())
+
+    def test_is_none_when_the_sdk_reports_its_unset_sentinel(self) -> None:
+        self.write_sensor_file(
+            "GetCurrentTemperature ............................. -1.00 Celsius\r\n"
+        )
+
+        self.assertIsNone(self.read_on_windows())
+
+    def test_ignores_a_reading_the_stopped_task_left_behind(self) -> None:
+        self.write_sensor_file(self.CLI_OUTPUT, age_seconds=30)
+
+        self.assertIsNone(self.read_on_windows())
+
+    def test_is_none_without_the_sensor_task_installed(self) -> None:
+        self.assertIsNone(self.read_on_windows())
+
+    def test_is_none_when_the_amd_cli_reported_an_error(self) -> None:
+        self.write_sensor_file("Platform init failed\r\n")
+
+        self.assertIsNone(self.read_on_windows())
+
+    def test_is_none_without_a_program_data_folder(self) -> None:
+        self.write_sensor_file(self.CLI_OUTPUT)
+
+        with patch.dict("os.environ", clear=True):
+            self.assertIsNone(self.read_on_windows())
 
 
 class SystemMemoryTests(unittest.TestCase):

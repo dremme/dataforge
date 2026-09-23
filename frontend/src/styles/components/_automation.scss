@@ -131,12 +131,6 @@
       font-size: var(--text-2xs);
     }
 
-    &-vram {
-      white-space: nowrap;
-      color: var(--text-subtle);
-      font-size: var(--text-2xs);
-    }
-
     &-detail {
       @include tabular-nums;
       white-space: nowrap;

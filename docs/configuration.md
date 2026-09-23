@@ -145,6 +145,27 @@ Min-p and top-k are passed as server-specific extras (`extra_body`). The repeat 
 
 Folders for the database and cache are created as needed. Launcher and developer variables (`DATAFORGE_PYTHON`, `DATAFORGE_RELOAD`, `DATAFORGE_DISABLE_DOTENV`) are covered in [Getting started](getting-started.md#linux-and-macos) and [Development](development.md#development-variables).
 
+## CPU temperature on Windows
+
+The system specifications panel shows GPU temperature on its own, and CPU temperature on Linux. Windows exposes no CPU temperature that a normal process can read, so on Windows the CPU reading stays hidden until you install a small sensor task. It currently supports AMD Ryzen CPUs only.
+
+1. Install AMD's [Ryzen Master Monitoring SDK](https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html). Its driver can read the CPU, but only for administrators.
+2. Right-click `scripts\install-cpu-temperature-sensor.bat` and choose **Run as administrator**. From a terminal run as administrator, the same works from the project root:
+
+   ```bat
+   scripts\install-cpu-temperature-sensor.bat
+   ```
+
+   The script reads the temperature once through AMD's CLI and refuses to install if that fails.
+
+This registers a scheduled task named **DataForge CPU temperature**. It starts with Windows, runs as SYSTEM, calls AMD's CLI every two seconds, and writes the result to `%ProgramData%\DataForge\sensors\cpu_temperature.txt`. Only administrators can change that folder. DataForge reads the file and keeps running without elevation. If the task stops, the reading disappears from the panel within 10 seconds instead of going stale.
+
+To remove the task and the folder:
+
+```bat
+scripts\install-cpu-temperature-sensor.bat -Uninstall
+```
+
 ## Data sent to integrations
 
 Every endpoint defaults to your own machine. If you point one at another machine, the data below leaves yours. Check how that server stores and logs requests first.

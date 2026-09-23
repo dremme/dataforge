@@ -105,7 +105,10 @@ export function AutomationSystemSpecs({
           >
             {cpuLoad != null && <LoadDetail percent={cpuLoad} title="CPU load" />}
             {cpuTemperature != null && (
-              <TemperatureDetail celsius={cpuTemperature} title="CPU temperature" />
+              <>
+                ·
+                <TemperatureDetail celsius={cpuTemperature} title="CPU temperature" />
+              </>
             )}
             {cpuLoad == null && cpuTemperature == null && (
               <span className="automation__spec-detail">Unavailable</span>
@@ -139,12 +142,13 @@ export function AutomationSystemSpecs({
                 {gpu_load_percent != null && (
                   <LoadDetail percent={gpu_load_percent} title="GPU load" />
                 )}
+                ·
                 {gpu_temperature_celsius != null && (
                   <TemperatureDetail celsius={gpu_temperature_celsius} title="GPU temperature" />
                 )}
+                ·
                 {gpu_memory_bytes != null && (
                   <span className="automation__spec-vram">
-                    VRAM{" "}
                     {gpu_memory_used_bytes != null ? (
                       <MemoryDetail
                         usedBytes={gpu_memory_used_bytes}
