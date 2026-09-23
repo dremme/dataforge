@@ -4,36 +4,22 @@ import {
   getCachedFolderFavorites,
   refreshFolderFavoritesInBackground,
 } from "@/features/folder/lib/folderFavorites";
+import type { AcceptAllCandidatesActions } from "@/features/gallery/hooks/useAcceptAllCandidates";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSweep";
 import { readRecentFolderPaths } from "@/features/folder/lib/folderPreferences";
-import { folderPathsEqual } from "@/features/folder/lib/folderPath";
 import { fetchFolderRoots, openFolderInExplorer } from "@/features/folder/api/folders";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { formatApiError } from "@/shared/api/http";
-import {
-  iconArrowUp,
-  iconArrowUpRight,
-  iconCode,
-  iconCopy,
-  iconFiles,
-  iconFolderOpen,
-  iconFolderPlus,
-  iconHome,
-  iconMessageWarning,
-  iconRefresh,
-  iconScanSquare,
-} from "@/shared/icons";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { FolderFavorite, FolderResponse } from "@/shared/types";
 import {
+  buildCommandItems,
   buildFavoriteItems,
   buildJobItems,
   buildRecentFolderItems,
   buildFilterItems,
   buildRunJobItems,
-  buildSelectionCommandItems,
-  buildSidecarSweepItems,
   buildSubfolderItems,
   folderPathFromQuickActionId,
   folderQuickAction,
@@ -61,6 +47,7 @@ interface UseQuickActionHostOptions {
   onSelectAll: () => void;
   onInvertSelection: () => void;
   sidecarSweep: SidecarSweepActions;
+  acceptAllCandidates: AcceptAllCandidatesActions;
   filters: Omit<FilterCommandOptions, "hasFolder">;
 }
 
@@ -79,6 +66,7 @@ export function useQuickActionHost({
   onSelectAll,
   onInvertSelection,
   sidecarSweep,
+  acceptAllCandidates,
   filters,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
@@ -149,184 +137,77 @@ export function useQuickActionHost({
     [favoritePaths, folder?.path, goTo, recentFolderPaths],
   );
 
-  const commandItems = useMemo<QuickActionItem[]>(() => {
-    const parent = folder?.parent;
-    const commands: QuickActionItem[] = [
-      {
-        id: "cmd:open-folder",
-        section: "commands",
-        label: "Open folder...",
-        detail: "Pick a folder by path, favorite or recent",
-        icon: iconFolderOpen,
-        keywords: "browse path picker",
-        run: onOpenFolderPicker,
-      },
-      {
-        id: "cmd:home-folder",
-        section: "commands",
-        label: "Home",
-        detail: "Go to your home folder",
-        icon: iconHome,
-        keywords: "root start",
-        disabled: Boolean(folder && !folderNotFound && folderPathsEqual(folder.path, folder.home)),
-        run: goHome,
-      },
-      {
-        id: "cmd:parent-folder",
-        section: "commands",
-        label: "Go to parent folder",
-        detail: parent ?? "No parent folder",
-        icon: iconArrowUp,
-        keywords: "up back",
-        disabled: !parent,
-        run: () => {
-          if (parent) goTo(parent);
+  const commandItems = useMemo(
+    () =>
+      buildCommandItems({
+        folder,
+        folderFound: !folderNotFound,
+        onOpenFolderPicker,
+        onGoHome: goHome,
+        onNavigate: goTo,
+        onCreateFolder,
+        onRefresh: () => void refreshFolder(),
+        onCopyPath: copyFolderPath,
+        onRevealInExplorer: revealInExplorer,
+        onEditSysprompt: panel.onEditSysprompt,
+        review: {
+          issueCount: panel.issueCount ?? 0,
+          onResolveIssues: panel.onResolveIssues,
+          duplicateGroupCount: panel.duplicateGroupCount ?? 0,
+          onResolveDuplicates: panel.onResolveDuplicates,
+          candidateCount: panel.candidateCount ?? 0,
+          onReviewCandidates: panel.onReviewCandidates,
         },
-      },
-    ];
-
-    if (!folder) return commands;
-
-    if (!folderNotFound) {
-      commands.push({
-        id: "cmd:new-folder",
-        section: "commands",
-        label: "New folder",
-        detail: "Create a subfolder here",
-        icon: iconFolderPlus,
-        keywords: "create make directory",
-        run: onCreateFolder,
-      });
-    }
-
-    commands.push({
-      id: "cmd:refresh-folder",
-      section: "commands",
-      label: "Refresh folder",
-      detail: "Reload this folder from disk",
-      icon: iconRefresh,
-      keywords: "reload rescan",
-      run: () => void refreshFolder(),
-    });
-
-    if (panel.onResolveIssues) {
-      commands.push({
-        id: "cmd:resolve-issues",
-        section: "commands",
-        label: "Resolve caption issues",
-        detail: `${panel.issueCount} flagged`,
-        icon: iconMessageWarning,
-        keywords: "fix captions problems",
-        run: panel.onResolveIssues,
-      });
-    }
-
-    if (panel.onResolveDuplicates) {
-      commands.push({
-        id: "cmd:resolve-duplicates",
-        section: "commands",
-        label: "Resolve duplicates",
-        detail: `${panel.duplicateGroupCount} group${panel.duplicateGroupCount === 1 ? "" : "s"}`,
-        icon: iconFiles,
-        keywords: "dedupe near identical",
-        run: panel.onResolveDuplicates,
-      });
-    }
-
-    if (panel.onReviewCandidates) {
-      const candidates = panel.candidateCount ?? 0;
-      commands.push({
-        id: "cmd:review-candidates",
-        section: "commands",
-        label: "Review candidates",
-        detail: `${candidates} waiting`,
-        icon: iconScanSquare,
-        keywords: "comfyui upscale staging accept reject compare",
-        run: panel.onReviewCandidates,
-      });
-    }
-
-    commands.push(
-      ...buildSidecarSweepItems({
-        hasFolder: !folderNotFound,
-        counts: sidecarSweep.counts,
-        busy: sidecarSweep.busy,
-        onSweep: sidecarSweep.openSweep,
+        acceptAllCandidates: {
+          count: acceptAllCandidates.count,
+          fromSelection: acceptAllCandidates.fromSelection,
+          busy: acceptAllCandidates.busy,
+          onAccept: acceptAllCandidates.openConfirm,
+        },
+        sidecarSweep: {
+          counts: sidecarSweep.counts,
+          busy: sidecarSweep.busy,
+          onSweep: sidecarSweep.openSweep,
+        },
+        selection: {
+          selectionMode,
+          selectedCount,
+          visibleCount,
+          busy: selection.busy,
+          onSelectAll,
+          onInvertSelection,
+          onMove: () => selection.startTransfer("move"),
+          onCopy: () => selection.startTransfer("copy"),
+          onDelete: selection.openDeleteConfirm,
+        },
       }),
-      ...buildSelectionCommandItems({
-        hasFolder: !folderNotFound,
-        selectionMode,
-        selectedCount,
-        visibleCount,
-        busy: selection.busy,
-        onSelectAll,
-        onInvertSelection,
-        onMove: () => selection.startTransfer("move"),
-        onCopy: () => selection.startTransfer("copy"),
-        onDelete: selection.openDeleteConfirm,
-      }),
-    );
-
-    commands.push({
-      id: "cmd:edit-sysprompt",
-      section: "commands",
-      label: "Edit system prompt",
-      detail: "The captioning instructions for this folder",
-      icon: iconCode,
-      keywords: "sysprompt instructions",
-      run: panel.onEditSysprompt,
-    });
-
-    if (!folderNotFound) {
-      const path = folder.path;
-      commands.push(
-        {
-          id: "cmd:copy-path",
-          section: "commands",
-          label: "Copy folder path",
-          detail: path,
-          icon: iconCopy,
-          keywords: "clipboard",
-          run: () => copyFolderPath(path),
-        },
-        {
-          id: "cmd:open-in-explorer",
-          section: "commands",
-          label: "Open in File Explorer",
-          detail: path,
-          icon: iconArrowUpRight,
-          keywords: "reveal windows",
-          run: () => revealInExplorer(path),
-        },
-      );
-    }
-
-    return commands;
-  }, [
-    copyFolderPath,
-    folder,
-    folderNotFound,
-    goHome,
-    goTo,
-    onCreateFolder,
-    onOpenFolderPicker,
-    panel.duplicateGroupCount,
-    panel.candidateCount,
-    panel.issueCount,
-    panel.onEditSysprompt,
-    panel.onResolveDuplicates,
-    panel.onReviewCandidates,
-    panel.onResolveIssues,
-    refreshFolder,
-    revealInExplorer,
-    onInvertSelection,
-    onSelectAll,
-    selectedCount,
-    selection,
-    selectionMode,
-    sidecarSweep,
-    visibleCount,
-  ]);
+    [
+      acceptAllCandidates,
+      copyFolderPath,
+      folder,
+      folderNotFound,
+      goHome,
+      goTo,
+      onCreateFolder,
+      onInvertSelection,
+      onOpenFolderPicker,
+      onSelectAll,
+      panel.candidateCount,
+      panel.duplicateGroupCount,
+      panel.issueCount,
+      panel.onEditSysprompt,
+      panel.onResolveDuplicates,
+      panel.onResolveIssues,
+      panel.onReviewCandidates,
+      refreshFolder,
+      revealInExplorer,
+      selectedCount,
+      selection,
+      selectionMode,
+      sidecarSweep,
+      visibleCount,
+    ],
+  );
 
   const items = useMemo<QuickActionItem[]>(
     () =>

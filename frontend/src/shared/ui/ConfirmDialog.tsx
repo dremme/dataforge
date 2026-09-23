@@ -9,7 +9,7 @@ interface ConfirmDialogProps {
   description: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
-  confirmVariant?: "primary" | "danger";
+  confirmVariant?: "primary" | "warning" | "danger";
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;

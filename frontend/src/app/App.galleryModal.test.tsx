@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { HOME_PATH, homeFolder } from "@/test/fixtures";
+import { HOME_PATH, homeFolder, mediaItem } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 import type { FolderResponse } from "@/shared/types";
@@ -23,6 +23,35 @@ const issueFolder: FolderResponse = {
 function installIssueBackend() {
   return installMockBackend({
     folderByPath: { undefined: issueFolder, [HOME_PATH]: issueFolder },
+  });
+}
+
+const STAGING_PATH = `${HOME_PATH}\\staging`;
+
+const candidateFolder: FolderResponse = {
+  ...homeFolder,
+  items: homeFolder.items.map((item) =>
+    item.name === "sunset.png" || item.name === "beach.jpg"
+      ? { ...item, has_candidate: true, candidate_name: item.name }
+      : item,
+  ),
+};
+
+const stagingFolder: FolderResponse = {
+  ...homeFolder,
+  path: STAGING_PATH,
+  parent: HOME_PATH,
+  subfolders: [],
+  items: [mediaItem("sunset.png", STAGING_PATH), mediaItem("beach.jpg", STAGING_PATH)],
+};
+
+function installCandidateBackend() {
+  return installMockBackend({
+    folderByPath: {
+      undefined: candidateFolder,
+      [HOME_PATH]: candidateFolder,
+      [STAGING_PATH]: stagingFolder,
+    },
   });
 }
 
@@ -182,5 +211,39 @@ describe("App: gallery item modal", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
+  });
+
+  it("reviews only the open file's candidate, then returns to that file", async () => {
+    const user = userEvent.setup();
+    installCandidateBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
+
+    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    await user.click(
+      within(modal).getByRole("button", { name: "Review candidate for sunset.png" }),
+    );
+
+    const review = await screen.findByRole("dialog", { name: "Review candidate 1 of 1" });
+    expect(within(review).getByRole("heading", { name: "sunset.png" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Viewing sunset.png" })).not.toBeInTheDocument();
+
+    await user.click(within(review).getByRole("button", { name: "Close" }));
+
+    expect(await screen.findByRole("dialog", { name: "Viewing sunset.png" })).toBeInTheDocument();
+  });
+
+  it("offers no candidate review for a file without one", async () => {
+    const user = userEvent.setup();
+    installCandidateBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "View waves.mp4" }));
+
+    const modal = await screen.findByRole("dialog", { name: "Viewing waves.mp4" });
+    expect(
+      within(modal).queryByRole("button", { name: /^Review candidate for / }),
+    ).not.toBeInTheDocument();
   });
 });

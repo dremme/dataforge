@@ -18,11 +18,8 @@ import {
   jobTypeLabelFor,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
-import {
-  SIDECAR_SWEEP_COPY,
-  SIDECAR_SWEEP_KINDS,
-  sidecarSweepDetail,
-} from "@/features/gallery/lib/sidecarSweep";
+import { candidateCountPhrase } from "@/features/gallery/lib/acceptAllCandidates";
+import { SIDECAR_SWEEP_KINDS, sidecarCountPhrase } from "@/features/gallery/lib/sidecarSweep";
 import {
   FILE_FILTER_OPTIONS,
   FILTER_AXIS_LABELS,
@@ -32,13 +29,23 @@ import {
 import type { FileFilter, ItemFilter, MediaTypeFilter } from "@/features/gallery/lib/query";
 import {
   iconArrowLeftRight,
+  iconArrowUp,
+  iconArrowUpRight,
   iconBrain,
+  iconCode,
   iconCopy,
+  iconFiles,
   iconFolder,
   iconFilter,
   iconFilterX,
   iconFolderInput,
+  iconFolderOpen,
+  iconFolderPlus,
+  iconHome,
   iconListChecks,
+  iconMessageWarning,
+  iconRefresh,
+  iconScanSquare,
   iconStar,
   iconTrash2,
   type AppIcon,
@@ -46,6 +53,7 @@ import {
 import type {
   ExternalOstrisJob,
   FolderFavorite,
+  FolderResponse,
   Job,
   JobType,
   SidecarKind,
@@ -192,6 +200,175 @@ export function buildRunJobItems({
   });
 }
 
+export interface NavigationCommandOptions {
+  parentPath: string | null;
+  atHome: boolean;
+  onOpenFolderPicker: () => void;
+  onGoHome: () => void;
+  onNavigate: (path: string) => void;
+}
+
+export function buildNavigationCommandItems({
+  parentPath,
+  atHome,
+  onOpenFolderPicker,
+  onGoHome,
+  onNavigate,
+}: NavigationCommandOptions): QuickActionItem[] {
+  return [
+    {
+      id: "cmd:open-folder",
+      section: "commands",
+      label: "Open folder...",
+      detail: "Pick a folder by path, favorite or recent",
+      icon: iconFolderOpen,
+      keywords: "browse path picker navigate jump switch go to directory",
+      run: onOpenFolderPicker,
+    },
+    {
+      id: "cmd:home-folder",
+      section: "commands",
+      label: "Home",
+      detail: "Go to your home folder",
+      icon: iconHome,
+      keywords: "root start base top go home",
+      disabled: atHome,
+      run: onGoHome,
+    },
+    {
+      id: "cmd:parent-folder",
+      section: "commands",
+      label: "Go to parent folder",
+      detail: parentPath ?? "No parent folder",
+      icon: iconArrowUp,
+      keywords: "up back level higher directory",
+      disabled: !parentPath,
+      run: () => {
+        if (parentPath) onNavigate(parentPath);
+      },
+    },
+  ];
+}
+
+export interface FolderCommandOptions {
+  folderFound: boolean;
+  onCreateFolder: () => void;
+  onRefresh: () => void;
+}
+
+export function buildFolderCommandItems({
+  folderFound,
+  onCreateFolder,
+  onRefresh,
+}: FolderCommandOptions): QuickActionItem[] {
+  const refresh: QuickActionItem = {
+    id: "cmd:refresh-folder",
+    section: "commands",
+    label: "Refresh folder",
+    detail: "Reload this folder from disk",
+    icon: iconRefresh,
+    keywords: "reload rescan sync update reread disk",
+    run: onRefresh,
+  };
+
+  if (!folderFound) return [refresh];
+
+  return [
+    {
+      id: "cmd:new-folder",
+      section: "commands",
+      label: "New folder",
+      detail: "Create a subfolder here",
+      icon: iconFolderPlus,
+      keywords: "create make add mkdir directory subfolder",
+      run: onCreateFolder,
+    },
+    refresh,
+  ];
+}
+
+/** A row appears only while its callback is set; the panel sets one only when there is work. */
+export interface ReviewCommandOptions {
+  issueCount: number;
+  onResolveIssues?: () => void;
+  duplicateGroupCount: number;
+  onResolveDuplicates?: () => void;
+  candidateCount: number;
+  onReviewCandidates?: () => void;
+}
+
+export function buildReviewCommandItems({
+  issueCount,
+  onResolveIssues,
+  duplicateGroupCount,
+  onResolveDuplicates,
+  candidateCount,
+  onReviewCandidates,
+}: ReviewCommandOptions): QuickActionItem[] {
+  const items: QuickActionItem[] = [];
+
+  if (onResolveIssues) {
+    items.push({
+      id: "cmd:resolve-issues",
+      section: "commands",
+      label: "Resolve caption issues",
+      detail: `${issueCount} flagged`,
+      icon: iconMessageWarning,
+      keywords: "fix captions problems flagged findings warnings verify review",
+      run: onResolveIssues,
+    });
+  }
+
+  if (onResolveDuplicates) {
+    items.push({
+      id: "cmd:resolve-duplicates",
+      section: "commands",
+      label: "Resolve duplicates",
+      detail: `${duplicateGroupCount} group${duplicateGroupCount === 1 ? "" : "s"}`,
+      icon: iconFiles,
+      keywords: "dedupe near identical similar copies clones compare review",
+      run: onResolveDuplicates,
+    });
+  }
+
+  if (onReviewCandidates) {
+    items.push({
+      id: "cmd:review-candidates",
+      section: "commands",
+      label: "Review candidates",
+      detail: `${candidateCount} waiting`,
+      icon: iconScanSquare,
+      keywords:
+        "comfyui upscale upscaled staging staged accept reject approve compare before after side by side",
+      run: onReviewCandidates,
+    });
+  }
+
+  return items;
+}
+
+const SIDECAR_SWEEP_COMMANDS: Record<
+  SidecarKind,
+  { label: string; icon: AppIcon; keywords: string }
+> = {
+  issue: {
+    label: "Delete all .issue.json files",
+    icon: iconMessageWarning,
+    keywords:
+      "sidecar caption issues verify findings flags warnings clear remove sweep cleanup purge",
+  },
+  duplicate: {
+    label: "Delete all .duplicate.json files",
+    icon: iconFiles,
+    keywords: "sidecar duplicates dedupe findings flags clear remove sweep cleanup purge",
+  },
+};
+
+function sidecarSweepDetail(kind: SidecarKind, count: number): string {
+  if (count === 0) return "Nothing to delete";
+  return sidecarCountPhrase(kind, count);
+}
+
 export interface SidecarSweepOptions {
   hasFolder: boolean;
   counts: Record<SidecarKind, number>;
@@ -210,13 +387,55 @@ export function buildSidecarSweepItems({
   return SIDECAR_SWEEP_KINDS.map((kind) => ({
     id: `cmd:delete-${kind}-sidecars`,
     section: "commands",
-    label: SIDECAR_SWEEP_COPY[kind].label,
+    label: SIDECAR_SWEEP_COMMANDS[kind].label,
     detail: sidecarSweepDetail(kind, counts[kind]),
-    icon: SIDECAR_SWEEP_COPY[kind].icon,
-    keywords: SIDECAR_SWEEP_COPY[kind].keywords,
+    icon: SIDECAR_SWEEP_COMMANDS[kind].icon,
+    keywords: SIDECAR_SWEEP_COMMANDS[kind].keywords,
     disabled: busy || counts[kind] === 0,
     run: () => onSweep(kind),
   }));
+}
+
+export interface AcceptAllCandidatesOptions {
+  hasFolder: boolean;
+  count: number;
+  fromSelection: boolean;
+  busy: boolean;
+  onAccept: () => void;
+}
+
+function acceptAllCandidatesDetail(count: number, fromSelection: boolean): string {
+  if (fromSelection) {
+    return count === 0
+      ? "No candidates in the selection"
+      : `${candidateCountPhrase(count)} in the selection`;
+  }
+  if (count === 0) return "No candidates waiting";
+  return `${candidateCountPhrase(count)} waiting`;
+}
+
+export function buildAcceptAllCandidatesItems({
+  hasFolder,
+  count,
+  fromSelection,
+  busy,
+  onAccept,
+}: AcceptAllCandidatesOptions): QuickActionItem[] {
+  if (!hasFolder) return [];
+
+  return [
+    {
+      id: "cmd:accept-all-candidates",
+      section: "commands",
+      label: fromSelection ? "Accept selected candidates" : "Accept all staged candidates",
+      detail: acceptAllCandidatesDetail(count, fromSelection),
+      icon: iconScanSquare,
+      keywords:
+        "comfyui upscale upscaled staging staged approve apply keep publish replace bulk batch",
+      disabled: busy || count === 0,
+      run: onAccept,
+    },
+  ];
 }
 
 export interface SelectionCommandOptions {
@@ -266,7 +485,7 @@ export function buildSelectionCommandItems({
       label: "Select all",
       detail: nothingVisible ? "No files in this view" : "Every file in this view",
       icon: iconListChecks,
-      keywords: "selection everything",
+      keywords: "selection everything check mark ctrl+a",
       disabled: busy || nothingVisible || allVisibleSelected,
       run: onSelectAll,
     },
@@ -276,7 +495,7 @@ export function buildSelectionCommandItems({
       label: "Invert selection",
       detail: invertDetail,
       icon: iconArrowLeftRight,
-      keywords: "selection toggle flip opposite",
+      keywords: "selection toggle flip opposite reverse swap",
       disabled: busy || !selectionMode || nothingVisible,
       run: onInvertSelection,
     },
@@ -286,7 +505,7 @@ export function buildSelectionCommandItems({
       label: "Move selected files",
       detail: selectionDetail,
       icon: iconFolderInput,
-      keywords: "selection transfer relocate",
+      keywords: "selection transfer relocate cut send",
       disabled: !canActOnSelection,
       run: onMove,
     },
@@ -296,7 +515,7 @@ export function buildSelectionCommandItems({
       label: "Copy selected files",
       detail: selectionDetail,
       icon: iconCopy,
-      keywords: "selection transfer duplicate",
+      keywords: "selection transfer duplicate clone send",
       disabled: !canActOnSelection,
       run: onCopy,
     },
@@ -306,10 +525,114 @@ export function buildSelectionCommandItems({
       label: "Delete selected files",
       detail: selectionDetail,
       icon: iconTrash2,
-      keywords: "selection remove trash",
+      keywords: "selection remove erase discard trash recycle bin",
       disabled: !canActOnSelection,
       run: onDelete,
     },
+  ];
+}
+
+export function buildSyspromptCommandItem(onEditSysprompt: () => void): QuickActionItem {
+  return {
+    id: "cmd:edit-sysprompt",
+    section: "commands",
+    label: "Edit system prompt",
+    detail: "The captioning instructions for this folder",
+    icon: iconCode,
+    keywords: "sysprompt instructions captioning rules guidelines template",
+    run: onEditSysprompt,
+  };
+}
+
+export interface FolderPathCommandOptions {
+  folderPath: string;
+  onCopyPath: (path: string) => void;
+  onRevealInExplorer: (path: string) => void;
+}
+
+export function buildFolderPathCommandItems({
+  folderPath,
+  onCopyPath,
+  onRevealInExplorer,
+}: FolderPathCommandOptions): QuickActionItem[] {
+  return [
+    {
+      id: "cmd:copy-path",
+      section: "commands",
+      label: "Copy folder path",
+      detail: folderPath,
+      icon: iconCopy,
+      keywords: "clipboard location directory address",
+      run: () => onCopyPath(folderPath),
+    },
+    {
+      id: "cmd:open-in-explorer",
+      section: "commands",
+      label: "Open in File Explorer",
+      detail: folderPath,
+      icon: iconArrowUpRight,
+      keywords: "reveal show windows finder file manager browse disk",
+      run: () => onRevealInExplorer(folderPath),
+    },
+  ];
+}
+
+export interface CommandOptions {
+  folder: Pick<FolderResponse, "path" | "home" | "parent"> | null;
+  /** False once the open folder has gone missing on disk. */
+  folderFound: boolean;
+  onOpenFolderPicker: () => void;
+  onGoHome: () => void;
+  onNavigate: (path: string) => void;
+  onCreateFolder: () => void;
+  onRefresh: () => void;
+  onCopyPath: (path: string) => void;
+  onRevealInExplorer: (path: string) => void;
+  onEditSysprompt: () => void;
+  review: ReviewCommandOptions;
+  acceptAllCandidates: Omit<AcceptAllCandidatesOptions, "hasFolder">;
+  sidecarSweep: Omit<SidecarSweepOptions, "hasFolder">;
+  selection: Omit<SelectionCommandOptions, "hasFolder">;
+}
+
+/** Every command row, in palette order. */
+export function buildCommandItems({
+  folder,
+  folderFound,
+  onOpenFolderPicker,
+  onGoHome,
+  onNavigate,
+  onCreateFolder,
+  onRefresh,
+  onCopyPath,
+  onRevealInExplorer,
+  onEditSysprompt,
+  review,
+  acceptAllCandidates,
+  sidecarSweep,
+  selection,
+}: CommandOptions): QuickActionItem[] {
+  const navigation = buildNavigationCommandItems({
+    parentPath: folder?.parent ?? null,
+    atHome: Boolean(folder && folderFound && folderPathsEqual(folder.path, folder.home)),
+    onOpenFolderPicker,
+    onGoHome,
+    onNavigate,
+  });
+
+  if (!folder) return navigation;
+
+  return [
+    ...navigation,
+    ...buildFolderCommandItems({ folderFound, onCreateFolder, onRefresh }),
+    ...buildReviewCommandItems(review),
+    ...buildAcceptAllCandidatesItems({ ...acceptAllCandidates, hasFolder: folderFound }),
+    ...buildSidecarSweepItems({ ...sidecarSweep, hasFolder: folderFound }),
+    ...buildSelectionCommandItems({ ...selection, hasFolder: folderFound }),
+    buildSyspromptCommandItem(onEditSysprompt),
+    ...(folderFound
+      ? buildFolderPathCommandItems({ folderPath: folder.path, onCopyPath, onRevealInExplorer })
+      : []),
   ];
 }
 
@@ -365,7 +688,7 @@ function filterAxisItems<T extends string>(
           ? `${axisLabel} · already active`
           : `${axisLabel} · ${count} file${count === 1 ? "" : "s"}`,
         icon: iconFilter,
-        keywords: `filter show only ${option.label}`,
+        keywords: `filter show only hide others ${option.label}`,
         disabled: isActive,
         run: () => onSelect(option.value),
       };
@@ -403,7 +726,7 @@ export function buildFilterItems({
       // Search is separate state with its own clear button, so it is not swept up here.
       detail: hasActiveFilters ? "Back to all media, captions and files" : "No filters active",
       icon: iconFilterX,
-      keywords: "clear remove show everything",
+      keywords: "clear remove unfilter show everything all files",
       disabled: !hasActiveFilters,
       run: onReset,
     },

@@ -643,6 +643,80 @@ class ComfyCandidateEndpointTests(unittest.TestCase):
             self.assertEqual(response.json()["failed"], [])
             self.assertFalse(candidate.is_file())
 
+    def test_batch_accept_publishes_every_candidate(self) -> None:
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            first = write_media(root, "first.png")
+            second = write_jpeg(root, "second.jpg")
+            (root / STAGING_DIR_NAME).mkdir()
+            write_media(root / STAGING_DIR_NAME, "first.png", width=64, height=48)
+            write_media(root / STAGING_DIR_NAME, "second.png", width=64, height=48)
+
+            response = client.post(
+                "/api/media/comfy-candidates/accept",
+                json={"paths": [str(first), str(second)]},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["settled"], [str(first), str(second)])
+            self.assertEqual(response.json()["failed"], [])
+            self.assertEqual(
+                sorted(path.name for path in root.iterdir()),
+                [
+                    "first.png",
+                    "second.png",
+                    STAGING_DIR_NAME,
+                ],
+            )
+            self.assertEqual(list((root / STAGING_DIR_NAME).iterdir()), [])
+
+    def test_batch_accept_discards_an_unreverted_edit_and_publishes_the_candidate(self) -> None:
+        from PIL import Image
+
+        from constants import STAGING_DIR_NAME
+        from edit_sidecars import backup_path_for, edit_spec_path
+
+        with TempMediaFolder() as root:
+            edited = write_media(root, "edited.png")
+            backup_path_for(edited).write_bytes(b"pre-edit original")
+            edit_spec_path(edited).write_text("{}", encoding="utf-8")
+            (root / STAGING_DIR_NAME).mkdir()
+            staged = write_media(root / STAGING_DIR_NAME, "edited.png", width=64, height=48)
+
+            response = client.post(
+                "/api/media/comfy-candidates/accept",
+                json={"paths": [str(edited)]},
+            )
+
+            self.assertEqual(response.json()["settled"], [str(edited)])
+            self.assertEqual(response.json()["failed"], [])
+            self.assertFalse(backup_path_for(edited).exists())
+            self.assertFalse(edit_spec_path(edited).exists())
+            self.assertFalse(staged.exists())
+            with Image.open(edited) as published:
+                self.assertEqual(published.size, (64, 48))
+
+    def test_batch_accept_fails_a_source_that_is_gone(self) -> None:
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            candidate = write_media(root / STAGING_DIR_NAME, "photo.png")
+            media.unlink()
+
+            response = client.post(
+                "/api/media/comfy-candidates/accept",
+                json={"paths": [str(media)]},
+            )
+
+            self.assertEqual(response.json()["settled"], [])
+            self.assertEqual(
+                [failure["path"] for failure in response.json()["failed"]], [str(media)]
+            )
+            self.assertTrue(candidate.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

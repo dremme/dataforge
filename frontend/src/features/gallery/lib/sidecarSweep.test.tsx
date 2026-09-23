@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SidecarDeleteResponse } from "@/shared/types";
-import { sidecarSweepDetail, sidecarSweepOutcome } from "./sidecarSweep";
+import { sidecarCountPhrase, sidecarSweepOutcome } from "./sidecarSweep";
 
 function result(overrides: Partial<SidecarDeleteResponse> = {}): SidecarDeleteResponse {
   return {
@@ -13,20 +13,15 @@ function result(overrides: Partial<SidecarDeleteResponse> = {}): SidecarDeleteRe
   };
 }
 
-describe("sidecarSweepDetail", () => {
-  it("says there is nothing to delete at zero", () => {
-    expect(sidecarSweepDetail("issue", 0)).toBe("Nothing to delete");
-    expect(sidecarSweepDetail("duplicate", 0)).toBe("Nothing to delete");
-  });
-
+describe("sidecarCountPhrase", () => {
   it("uses the singular noun at one", () => {
-    expect(sidecarSweepDetail("issue", 1)).toBe("1 caption issue file");
-    expect(sidecarSweepDetail("duplicate", 1)).toBe("1 duplicate finding file");
+    expect(sidecarCountPhrase("issue", 1)).toBe("1 caption issue file");
+    expect(sidecarCountPhrase("duplicate", 1)).toBe("1 duplicate finding file");
   });
 
   it("uses the plural noun for more than one", () => {
-    expect(sidecarSweepDetail("issue", 3)).toBe("3 caption issue files");
-    expect(sidecarSweepDetail("duplicate", 3)).toBe("3 duplicate finding files");
+    expect(sidecarCountPhrase("issue", 3)).toBe("3 caption issue files");
+    expect(sidecarCountPhrase("duplicate", 3)).toBe("3 duplicate finding files");
   });
 });
 

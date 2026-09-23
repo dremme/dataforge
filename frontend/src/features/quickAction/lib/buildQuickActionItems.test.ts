@@ -1,15 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import { folderLeafName } from "@/features/folder/lib/folderPath";
-import { iconFilter, iconFilterX } from "@/shared/icons";
+import { iconFilter, iconFilterX, iconScanSquare } from "@/shared/icons";
 import type { ExternalOstrisJob, Job } from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 import {
+  buildAcceptAllCandidatesItems,
+  buildCommandItems,
   buildFilterItems,
+  buildFolderCommandItems,
+  buildFolderPathCommandItems,
+  buildNavigationCommandItems,
+  buildReviewCommandItems,
+  buildSyspromptCommandItem,
   buildJobItems,
   buildSelectionCommandItems,
   buildSidecarSweepItems,
   buildSubfolderItems,
   quickActionFolderId,
+  type AcceptAllCandidatesOptions,
+  type CommandOptions,
   type FilterCommandOptions,
   type SelectionCommandOptions,
   type SidecarSweepOptions,
@@ -29,6 +38,241 @@ function sections(overrides: Partial<Record<QuickActionSection, QuickActionItem[
   };
 }
 
+function idsFor(items: QuickActionItem[], query: string) {
+  return flattenGroups(rankQuickActionItems(items, query)).map((item) => item.id);
+}
+
+function navigationItems(
+  overrides: Partial<Parameters<typeof buildNavigationCommandItems>[0]> = {},
+) {
+  return buildNavigationCommandItems({
+    parentPath: "C:\\Photos",
+    atHome: false,
+    onOpenFolderPicker: vi.fn(),
+    onGoHome: vi.fn(),
+    onNavigate: vi.fn(),
+    ...overrides,
+  });
+}
+
+describe("buildNavigationCommandItems", () => {
+  it("lists open, home and parent under stable ids", () => {
+    expect(navigationItems().map((item) => item.id)).toEqual([
+      "cmd:open-folder",
+      "cmd:home-folder",
+      "cmd:parent-folder",
+    ]);
+  });
+
+  it("disables home at home and parent at a root", () => {
+    const [, home, parent] = navigationItems({ atHome: true, parentPath: null });
+
+    expect(home.disabled).toBe(true);
+    expect(parent.disabled).toBe(true);
+    expect(parent.detail).toBe("No parent folder");
+  });
+
+  it("navigates to the parent it names", () => {
+    const onNavigate = vi.fn();
+    const [, , parent] = navigationItems({ onNavigate });
+
+    parent.run();
+
+    expect(parent.detail).toBe("C:\\Photos");
+    expect(onNavigate).toHaveBeenCalledWith("C:\\Photos");
+  });
+
+  it.each([
+    ["jump", "cmd:open-folder"],
+    ["go home", "cmd:home-folder"],
+    ["up", "cmd:parent-folder"],
+  ])("finds %s as %s", (query, id) => {
+    expect(idsFor(navigationItems(), query)).toEqual([id]);
+  });
+});
+
+describe("buildFolderCommandItems", () => {
+  it("offers only refresh for a folder that has gone missing", () => {
+    const items = buildFolderCommandItems({
+      folderFound: false,
+      onCreateFolder: vi.fn(),
+      onRefresh: vi.fn(),
+    });
+
+    expect(items.map((item) => item.id)).toEqual(["cmd:refresh-folder"]);
+  });
+
+  it.each([
+    ["mkdir", "cmd:new-folder"],
+    ["reload", "cmd:refresh-folder"],
+  ])("finds %s as %s", (query, id) => {
+    const items = buildFolderCommandItems({
+      folderFound: true,
+      onCreateFolder: vi.fn(),
+      onRefresh: vi.fn(),
+    });
+
+    expect(idsFor(items, query)).toEqual([id]);
+  });
+});
+
+describe("buildReviewCommandItems", () => {
+  const counts = { issueCount: 2, duplicateGroupCount: 1, candidateCount: 3 };
+
+  it("offers only the reviews that have work", () => {
+    expect(buildReviewCommandItems(counts)).toEqual([]);
+
+    const items = buildReviewCommandItems({ ...counts, onReviewCandidates: vi.fn() });
+    expect(items.map((item) => item.id)).toEqual(["cmd:review-candidates"]);
+  });
+
+  it("counts what each review has waiting", () => {
+    const items = buildReviewCommandItems({
+      ...counts,
+      onResolveIssues: vi.fn(),
+      onResolveDuplicates: vi.fn(),
+      onReviewCandidates: vi.fn(),
+    });
+
+    expect(items.map((item) => item.detail)).toEqual(["2 flagged", "1 group", "3 waiting"]);
+  });
+
+  it.each([
+    ["warnings", "cmd:resolve-issues"],
+    ["dedupe", "cmd:resolve-duplicates"],
+    ["side by side", "cmd:review-candidates"],
+  ])("finds %s as %s", (query, id) => {
+    const items = buildReviewCommandItems({
+      ...counts,
+      onResolveIssues: vi.fn(),
+      onResolveDuplicates: vi.fn(),
+      onReviewCandidates: vi.fn(),
+    });
+
+    expect(idsFor(items, query)).toEqual([id]);
+  });
+});
+
+describe("buildFolderPathCommandItems", () => {
+  it("copies and reveals the folder it shows", () => {
+    const onCopyPath = vi.fn();
+    const onRevealInExplorer = vi.fn();
+    const [copy, reveal] = buildFolderPathCommandItems({
+      folderPath: "C:\\Photos",
+      onCopyPath,
+      onRevealInExplorer,
+    });
+
+    copy.run();
+    reveal.run();
+
+    expect(onCopyPath).toHaveBeenCalledWith("C:\\Photos");
+    expect(onRevealInExplorer).toHaveBeenCalledWith("C:\\Photos");
+  });
+});
+
+describe("buildSyspromptCommandItem", () => {
+  it("is found by what the prompt is for", () => {
+    expect(idsFor([buildSyspromptCommandItem(vi.fn())], "guidelines")).toEqual([
+      "cmd:edit-sysprompt",
+    ]);
+  });
+});
+
+function commandItems(overrides: Partial<CommandOptions> = {}) {
+  return buildCommandItems({
+    folder: { path: "C:\\Photos\\Lakes", home: "C:\\Photos", parent: "C:\\Photos" },
+    folderFound: true,
+    onOpenFolderPicker: vi.fn(),
+    onGoHome: vi.fn(),
+    onNavigate: vi.fn(),
+    onCreateFolder: vi.fn(),
+    onRefresh: vi.fn(),
+    onCopyPath: vi.fn(),
+    onRevealInExplorer: vi.fn(),
+    onEditSysprompt: vi.fn(),
+    review: {
+      issueCount: 1,
+      onResolveIssues: vi.fn(),
+      duplicateGroupCount: 0,
+      candidateCount: 0,
+    },
+    acceptAllCandidates: { count: 2, fromSelection: false, busy: false, onAccept: vi.fn() },
+    sidecarSweep: { counts: { issue: 1, duplicate: 0 }, busy: false, onSweep: vi.fn() },
+    selection: {
+      selectionMode: false,
+      selectedCount: 0,
+      visibleCount: 3,
+      busy: false,
+      onSelectAll: vi.fn(),
+      onInvertSelection: vi.fn(),
+      onMove: vi.fn(),
+      onCopy: vi.fn(),
+      onDelete: vi.fn(),
+    },
+    ...overrides,
+  });
+}
+
+describe("buildCommandItems", () => {
+  it("lists every command in palette order", () => {
+    expect(commandItems().map((item) => item.id)).toEqual([
+      "cmd:open-folder",
+      "cmd:home-folder",
+      "cmd:parent-folder",
+      "cmd:new-folder",
+      "cmd:refresh-folder",
+      "cmd:resolve-issues",
+      "cmd:accept-all-candidates",
+      "cmd:delete-issue-sidecars",
+      "cmd:delete-duplicate-sidecars",
+      "cmd:select-all",
+      "cmd:invert-selection",
+      "cmd:move-selected",
+      "cmd:copy-selected",
+      "cmd:delete-selected",
+      "cmd:edit-sysprompt",
+      "cmd:copy-path",
+      "cmd:open-in-explorer",
+    ]);
+  });
+
+  it("offers only navigation before a folder is open", () => {
+    expect(commandItems({ folder: null }).map((item) => item.id)).toEqual([
+      "cmd:open-folder",
+      "cmd:home-folder",
+      "cmd:parent-folder",
+    ]);
+  });
+
+  it("keeps only what still works for a folder that has gone missing", () => {
+    expect(commandItems({ folderFound: false }).map((item) => item.id)).toEqual([
+      "cmd:open-folder",
+      "cmd:home-folder",
+      "cmd:parent-folder",
+      "cmd:refresh-folder",
+      "cmd:resolve-issues",
+      "cmd:edit-sysprompt",
+    ]);
+  });
+
+  it("disables home only while at home", () => {
+    const home = (options: Partial<CommandOptions>) =>
+      commandItems(options).find((item) => item.id === "cmd:home-folder");
+
+    expect(home({})?.disabled).toBe(false);
+    expect(
+      home({ folder: { path: "C:\\Photos", home: "C:\\Photos", parent: null } })?.disabled,
+    ).toBe(true);
+    expect(
+      home({
+        folder: { path: "C:\\Photos", home: "C:\\Photos", parent: null },
+        folderFound: false,
+      })?.disabled,
+    ).toBe(false);
+  });
+});
+
 function sweepItems(overrides: Partial<SidecarSweepOptions> = {}) {
   return buildSidecarSweepItems({
     hasFolder: true,
@@ -42,6 +286,21 @@ function sweepItems(overrides: Partial<SidecarSweepOptions> = {}) {
 describe("buildSidecarSweepItems", () => {
   it("offers nothing without a folder", () => {
     expect(sweepItems({ hasFolder: false })).toEqual([]);
+  });
+
+  it.each(["cleanup", "purge", "sidecar"])("finds both sweeps by %s", (query) => {
+    expect(flattenGroups(rankQuickActionItems(sweepItems(), query)).map((item) => item.id)).toEqual(
+      ["cmd:delete-issue-sidecars", "cmd:delete-duplicate-sidecars"],
+    );
+  });
+
+  it.each([
+    ["warnings", "cmd:delete-issue-sidecars"],
+    ["dedupe", "cmd:delete-duplicate-sidecars"],
+  ])("tells the sweeps apart by %s", (query, id) => {
+    expect(flattenGroups(rankQuickActionItems(sweepItems(), query)).map((item) => item.id)).toEqual(
+      [id],
+    );
   });
 
   it("lists both sweeps, issue first, under stable ids", () => {
@@ -99,6 +358,79 @@ describe("buildSidecarSweepItems", () => {
   });
 });
 
+function acceptAllItems(overrides: Partial<AcceptAllCandidatesOptions> = {}) {
+  return buildAcceptAllCandidatesItems({
+    hasFolder: true,
+    count: 4,
+    fromSelection: false,
+    busy: false,
+    onAccept: vi.fn(),
+    ...overrides,
+  });
+}
+
+describe("buildAcceptAllCandidatesItems", () => {
+  it("offers nothing without a folder", () => {
+    expect(acceptAllItems({ hasFolder: false })).toEqual([]);
+  });
+
+  it("offers one command under a stable id, counting what is waiting", () => {
+    const [item] = acceptAllItems();
+
+    expect(item).toMatchObject({
+      id: "cmd:accept-all-candidates",
+      section: "commands",
+      label: "Accept all staged candidates",
+      detail: "4 candidates waiting",
+      disabled: false,
+    });
+  });
+
+  it("wears the candidate icon every other candidate surface uses", () => {
+    expect(acceptAllItems()[0].icon).toBe(iconScanSquare);
+  });
+
+  it("narrows to the selection when files are selected", () => {
+    const [item] = acceptAllItems({ count: 1, fromSelection: true });
+
+    expect(item.label).toBe("Accept selected candidates");
+    expect(item.detail).toBe("1 candidate in the selection");
+  });
+
+  it("is disabled when no selected file has a candidate", () => {
+    const [item] = acceptAllItems({ count: 0, fromSelection: true });
+
+    expect(item.disabled).toBe(true);
+    expect(item.detail).toBe("No candidates in the selection");
+  });
+
+  it("is disabled when nothing is waiting", () => {
+    const [item] = acceptAllItems({ count: 0 });
+
+    expect(item.disabled).toBe(true);
+    expect(item.detail).toBe("No candidates waiting");
+  });
+
+  it("is disabled while a batch is already running", () => {
+    expect(acceptAllItems({ busy: true })[0].disabled).toBe(true);
+  });
+
+  it("opens the confirmation instead of accepting", () => {
+    const onAccept = vi.fn();
+    const [item] = acceptAllItems({ onAccept });
+
+    item.run();
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["approve", "comfyui", "bulk", "upscaled", "apply"])("is found by %s", (query) => {
+    const ranked = rankQuickActionItems(acceptAllItems(), query);
+
+    expect(flattenGroups(ranked).map((item) => item.id)).toEqual(["cmd:accept-all-candidates"]);
+  });
+});
+
 function selectionItems(overrides: Partial<SelectionCommandOptions> = {}) {
   return buildSelectionCommandItems({
     hasFolder: true,
@@ -116,6 +448,18 @@ function selectionItems(overrides: Partial<SelectionCommandOptions> = {}) {
 }
 
 describe("buildSelectionCommandItems", () => {
+  it.each([
+    ["ctrl+a", "cmd:select-all"],
+    ["reverse", "cmd:invert-selection"],
+    ["cut", "cmd:move-selected"],
+    ["clone", "cmd:copy-selected"],
+    ["recycle", "cmd:delete-selected"],
+  ])("finds %s as %s", (query, id) => {
+    expect(
+      flattenGroups(rankQuickActionItems(selectionItems(), query)).map((item) => item.id),
+    ).toEqual([id]);
+  });
+
   it("offers nothing without a folder", () => {
     expect(selectionItems({ hasFolder: false })).toEqual([]);
   });
@@ -237,6 +581,14 @@ function filterItems(overrides: Partial<FilterCommandOptions> = {}) {
 }
 
 describe("buildFilterItems", () => {
+  it("finds reset by unfilter", () => {
+    expect(
+      flattenGroups(rankQuickActionItems(filterItems({ hasActiveFilters: true }), "unfilter")).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["filter:reset"]);
+  });
+
   it("offers nothing without a folder", () => {
     expect(filterItems({ hasFolder: false })).toEqual([]);
   });

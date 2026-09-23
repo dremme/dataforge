@@ -1,5 +1,4 @@
 import { postJson, requestJson } from "@/shared/api/http";
-import { mediaUrl } from "@/features/gallery/api/media";
 import type {
   ComfyCandidateBatchResponse,
   ComfyCandidateResponse,
@@ -9,11 +8,6 @@ import type {
 /** Every candidate call names the source image, never the staged file. */
 function candidateParams(mediaPath: string): URLSearchParams {
   return new URLSearchParams({ path: mediaPath });
-}
-
-/** Unversioned archive of the file an accepted candidate replaced. */
-export function comfyOriginalUrl(mediaPath: string): string {
-  return `${mediaUrl(mediaPath)}&original=1`;
 }
 
 export async function fetchCandidateState(
@@ -42,6 +36,11 @@ export async function rejectCandidate(mediaPath: string): Promise<ComfyCandidate
     `/api/media/comfy-candidate/reject?${candidateParams(mediaPath)}`,
     undefined,
   );
+}
+
+/** Discards unreverted edits, so each candidate becomes its file's new original. */
+export async function acceptCandidates(paths: string[]): Promise<ComfyCandidateBatchResponse> {
+  return postJson<ComfyCandidateBatchResponse>("/api/media/comfy-candidates/accept", { paths });
 }
 
 export async function rejectCandidates(paths: string[]): Promise<ComfyCandidateBatchResponse> {

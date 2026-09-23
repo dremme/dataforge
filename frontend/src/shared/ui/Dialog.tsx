@@ -155,7 +155,7 @@ interface DialogActionsProps {
   confirmLabel: string;
   busyLabel?: string;
   cancelLabel?: string;
-  confirmVariant?: "primary" | "danger";
+  confirmVariant?: "primary" | "warning" | "danger";
   busy?: boolean;
   confirmDisabled?: boolean;
   onConfirm: () => void;

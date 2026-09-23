@@ -12,6 +12,7 @@ import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateR
 import { CandidateReviewModal } from "@/features/gallery/components/CandidateReviewModal";
 import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
 import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepOverlay";
+import { AcceptAllCandidatesDialog } from "@/features/gallery/components/AcceptAllCandidatesDialog";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
@@ -29,6 +30,7 @@ export function AppOverlays({
   quickAction,
   selectionActions,
   sidecarSweep,
+  acceptAllCandidates,
   onCaptionSaved,
   gallery,
   issueResolver,
@@ -55,6 +57,8 @@ export function AppOverlays({
       <SelectionActionOverlays {...selectionActions} />
 
       <SidecarSweepOverlay {...sidecarSweep} />
+
+      <AcceptAllCandidatesDialog {...acceptAllCandidates} />
 
       {quickAction.open && (
         <QuickActionBar
@@ -119,6 +123,7 @@ export function AppOverlays({
           onMoved={gallery.onMoved}
           onCopied={gallery.onCopied}
           onResolveIssue={gallery.onResolveIssue}
+          onReviewCandidate={gallery.onReviewCandidate}
         />
       )}
 

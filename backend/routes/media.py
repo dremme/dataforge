@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from time import monotonic
 
@@ -593,6 +594,7 @@ def reject_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateRespons
 
 def _settle_candidates(
     paths: list[str],
+    resolve: Callable[[str], Path],
     settle: Callable[[Path], ComfyCandidateResponse],
 ) -> ComfyCandidateBatchResponse:
     """Settle each path on its own, recording rather than raising what fails."""
@@ -602,7 +604,7 @@ def _settle_candidates(
 
     for raw in paths:
         try:
-            media = resolve_candidate_source(raw)
+            media = resolve(raw)
         except HTTPException as exc:
             failed.append(ComfyCandidateFailure(path=raw, detail=str(exc.detail)))
             continue
@@ -618,6 +620,16 @@ def _settle_candidates(
     return ComfyCandidateBatchResponse(settled=settled, skipped=skipped, failed=failed)
 
 
+@router.post("/media/comfy-candidates/accept", response_model=ComfyCandidateBatchResponse)
+def accept_comfy_candidates(body: ComfyCandidateBatchRequest) -> ComfyCandidateBatchResponse:
+    """Discards unreverted edits, so the candidate becomes each file's new base."""
+    return _settle_candidates(
+        body.paths,
+        resolve_candidate_media,
+        partial(accept_candidate, discard_edit=True),
+    )
+
+
 @router.post("/media/comfy-candidates/reject", response_model=ComfyCandidateBatchResponse)
 def reject_comfy_candidates(body: ComfyCandidateBatchRequest) -> ComfyCandidateBatchResponse:
-    return _settle_candidates(body.paths, reject_candidate)
+    return _settle_candidates(body.paths, resolve_candidate_source, reject_candidate)

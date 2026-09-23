@@ -28,6 +28,7 @@ export function AppContent() {
     duplicateResolver,
     candidateReview,
     sidecarSweep,
+    acceptAllCandidates,
   } = useAppWorkspace();
 
   const {
@@ -147,6 +148,7 @@ export function AppContent() {
             quickAction={quickAction}
             selectionActions={selectionActions.overlay}
             sidecarSweep={sidecarSweep.overlay}
+            acceptAllCandidates={acceptAllCandidates.overlay}
             onCaptionSaved={gallery.onCaptionSaved}
             gallery={{
               selectedPath: gallery.selectedPath,
@@ -162,6 +164,7 @@ export function AppContent() {
               onMoved: onGalleryItemsMoved,
               onCopied: onGalleryItemsCopied,
               onResolveIssue: gallery.onResolveGalleryItemIssue,
+              onReviewCandidate: candidateReview.reviewGalleryItemCandidate,
             }}
             issueResolver={gallery.issueResolver.overlay}
             sysprompt={{

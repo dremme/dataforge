@@ -146,4 +146,95 @@ describe("useCandidateReviewOverlay", () => {
 
     expect(fetchFolderMock).toHaveBeenCalledWith(STAGING_PATH);
   });
+
+  describe("focused on one file", () => {
+    const lake = mediaItem("lake.png", HOME_PATH, {
+      has_candidate: true,
+      candidate_name: "lake.png",
+    });
+    const ridge = mediaItem("ridge.png", HOME_PATH, {
+      has_candidate: true,
+      candidate_name: "ridge.png",
+    });
+
+    beforeEach(() => {
+      fetchFolderMock.mockResolvedValue(
+        stagingListing([mediaItem("lake.png", STAGING_PATH), mediaItem("ridge.png", STAGING_PATH)]),
+      );
+    });
+
+    it("queues only that file's candidate", async () => {
+      const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
+
+      await act(async () => {
+        await result.current.openCandidateReview(HOME_PATH, [lake, ridge], {
+          path: ridge.path,
+          onOpen: vi.fn(),
+        });
+      });
+
+      expect(result.current.entries.map((entry) => entry.path)).toEqual([ridge.path]);
+    });
+
+    it("hands over only once the queue is ready, so a failed listing leaves the file open", async () => {
+      fetchFolderMock.mockRejectedValue(new Error("Disk on fire"));
+      const onOpen = vi.fn();
+      const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
+
+      await act(async () => {
+        await result.current.openCandidateReview(HOME_PATH, [lake], { path: lake.path, onOpen });
+      });
+
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(result.current.open).toBe(false);
+    });
+
+    it("says so when that file's candidate is already gone", async () => {
+      fetchFolderMock.mockResolvedValue(stagingListing([mediaItem("ridge.png", STAGING_PATH)]));
+      const onOpen = vi.fn();
+      const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
+
+      await act(async () => {
+        await result.current.openCandidateReview(HOME_PATH, [lake, ridge], {
+          path: lake.path,
+          onOpen,
+        });
+      });
+
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(result.current.open).toBe(false);
+      expect(await screen.findByText("No candidate is waiting for lake.png.")).toBeInTheDocument();
+    });
+
+    it("returns to the file on close", async () => {
+      const onReturnToItem = vi.fn();
+      const { result } = renderHook(() => useCandidateReviewOverlay(vi.fn(), onReturnToItem), {
+        wrapper,
+      });
+
+      await act(async () => {
+        await result.current.openCandidateReview(HOME_PATH, [lake], {
+          path: lake.path,
+          onOpen: vi.fn(),
+        });
+      });
+      act(() => result.current.closeCandidateReview());
+
+      expect(onReturnToItem).toHaveBeenCalledExactlyOnceWith(lake.path);
+    });
+
+    it("does not return anywhere after a folder-wide review", async () => {
+      const onReturnToItem = vi.fn();
+      const { result } = renderHook(() => useCandidateReviewOverlay(vi.fn(), onReturnToItem), {
+        wrapper,
+      });
+
+      await act(async () => {
+        await result.current.openCandidateReview(HOME_PATH, [lake]);
+      });
+      act(() => result.current.closeCandidateReview());
+
+      expect(onReturnToItem).not.toHaveBeenCalled();
+    });
+  });
 });

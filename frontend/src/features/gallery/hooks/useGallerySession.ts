@@ -246,6 +246,7 @@ export function useGallerySession({
     selectedIndex,
     modalItems,
     closeGalleryItem,
+    returnToGalleryItem,
     goToPrevious,
     goToNext,
     issueResolver,

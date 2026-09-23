@@ -2,6 +2,7 @@ import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
 import type { SidecarSweepOverlayProps } from "@/features/gallery/components/SidecarSweepOverlay";
+import type { AcceptAllCandidatesDialogProps } from "@/features/gallery/components/AcceptAllCandidatesDialog";
 import type { CandidateReviewEntry } from "@/features/gallery/lib/candidateReview";
 import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
 import type {
@@ -31,6 +32,7 @@ type GalleryOverlayState = {
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
+  onReviewCandidate?: (item: GalleryItem) => void;
 };
 
 type IssueResolverOverlayState = {
@@ -109,6 +111,7 @@ export type AppOverlaysProps = {
   quickAction: QuickActionOverlayState;
   selectionActions: SelectionActionOverlaysProps;
   sidecarSweep: SidecarSweepOverlayProps;
+  acceptAllCandidates: AcceptAllCandidatesDialogProps;
   onCaptionSaved: CaptionSavedHandler;
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;

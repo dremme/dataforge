@@ -36,12 +36,14 @@ import {
   iconLoader2,
   iconMessageCheck,
   iconRotateCcw,
+  iconScanSquare,
   iconSquarePen,
   iconTrash2,
   iconVideo,
   iconX,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
+import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import {
   isEditableImage,
   isEditableVideo,
@@ -102,6 +104,7 @@ interface GalleryItemModalProps {
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
+  onReviewCandidate?: (item: GalleryItem) => void;
 }
 
 export function GalleryItemModal({
@@ -119,6 +122,7 @@ export function GalleryItemModal({
   onMoved,
   onCopied,
   onResolveIssue,
+  onReviewCandidate,
 }: GalleryItemModalProps) {
   const item = items[index];
   const { recordResolution, getResolution } = useMediaResolution();
@@ -294,6 +298,12 @@ export function GalleryItemModal({
     onResolveIssue({ ...item, description: caption });
   }, [busy, caption, flushPendingSave, item, onResolveIssue]);
 
+  const handleReviewCandidate = useCallback(() => {
+    if (!item || busy || !onReviewCandidate) return;
+    flushPendingSave();
+    onReviewCandidate(item);
+  }, [busy, flushPendingSave, item, onReviewCandidate]);
+
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer) return;
 
@@ -366,6 +376,7 @@ export function GalleryItemModal({
   const canCopyCaption = copyContent.length > 0;
   const canRestoreBackup = backupCaption !== null && backupCaption.trim() !== caption.trim();
   const canResolveIssue = isResolvableIssueItem(item) && Boolean(onResolveIssue);
+  const canReviewCandidate = isCandidateItem(item) && Boolean(onReviewCandidate);
   // Destination folder only; a missing onCopied costs the refresh, not the save.
   const canCaptureFrame = (itemIsVideo || itemIsGif) && Boolean(currentFolder);
   const placeholder =
@@ -768,6 +779,22 @@ export function GalleryItemModal({
                         className="gallery-item-modal__caption-action-icon"
                       />
                       Resolve issue
+                    </button>
+                  )}
+                  {canReviewCandidate && (
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action"
+                      onClick={handleReviewCandidate}
+                      disabled={busy}
+                      aria-label={`Review candidate for ${item.name}`}
+                      title="Compare the staged candidate against this file"
+                    >
+                      <Icon
+                        icon={iconScanSquare}
+                        className="gallery-item-modal__caption-action-icon"
+                      />
+                      Review candidate
                     </button>
                   )}
                   <button

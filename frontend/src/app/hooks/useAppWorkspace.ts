@@ -15,14 +15,15 @@ import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplicateResolverOverlay";
 import { useCandidateReviewOverlay } from "@/features/gallery/hooks/useCandidateReviewOverlay";
 import { useSidecarSweep } from "@/features/gallery/hooks/useSidecarSweep";
+import { useAcceptAllCandidates } from "@/features/gallery/hooks/useAcceptAllCandidates";
 import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
-import { countCandidates } from "@/features/gallery/lib/candidateReview";
+import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
-import type { FolderChangesResponse, JobType } from "@/shared/types";
+import type { FolderChangesResponse, GalleryItem, JobType } from "@/shared/types";
 
 export function useAppWorkspace() {
   const mainRef = useRef<HTMLElement>(null);
@@ -137,9 +138,38 @@ export function useAppWorkspace() {
   // Refresh on close: per-deletion reloads race the watcher's push against the frozen queue.
   const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
   const duplicateGroupCount = useMemo(() => countDuplicateGroups(items), [items]);
-  const candidateCount = useMemo(() => countCandidates(items), [items]);
+  const candidateSourcePaths = useMemo(
+    () => items.filter(isCandidateItem).map((item) => item.path),
+    [items],
+  );
+  const candidateCount = candidateSourcePaths.length;
 
-  const candidateReview = useCandidateReviewOverlay(refreshFolder);
+  const candidateReviewOverlay = useCandidateReviewOverlay(
+    refreshFolder,
+    gallery.returnToGalleryItem,
+  );
+  const { openCandidateReview } = candidateReviewOverlay;
+  const { closeGalleryItem } = gallery;
+
+  const reviewGalleryItemCandidate = useCallback(
+    (item: GalleryItem) => {
+      if (!folder?.path || !isCandidateItem(item)) return;
+      void openCandidateReview(folder.path, items, { path: item.path, onOpen: closeGalleryItem });
+    },
+    [closeGalleryItem, folder?.path, items, openCandidateReview],
+  );
+
+  const candidateReview = { ...candidateReviewOverlay, reviewGalleryItemCandidate };
+  const acceptAllCandidates = useAcceptAllCandidates({
+    folderLabel,
+    folderItemCount: items.length,
+    candidatePaths: candidateSourcePaths,
+    selectedPaths:
+      selection.selectionMode && gallery.visibleSelectedCount > 0
+        ? gallery.visibleSelectedPaths
+        : null,
+    onAccepted: refreshFolder,
+  });
 
   // Set from useAutomationHost's return below, which in turn needs these handlers.
   const requestJobStartRef = useRef<(jobType: JobType) => void>(() => {});
@@ -243,6 +273,7 @@ export function useAppWorkspace() {
     onSelectAll: gallery.handleSelectAllPaths,
     onInvertSelection: gallery.handleInvertSelection,
     sidecarSweep,
+    acceptAllCandidates,
     filters: quickActionFilters,
   });
 
@@ -267,6 +298,7 @@ export function useAppWorkspace() {
     gallery,
     selectionActions,
     sidecarSweep,
+    acceptAllCandidates,
     automation,
     quickAction,
     statsDrawer,
