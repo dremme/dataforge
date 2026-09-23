@@ -115,6 +115,17 @@ describe("GalleryCard", () => {
       expect(play).toHaveBeenCalled();
     });
 
+    it("plays the preview at double speed, surviving the load that resets the rate", () => {
+      const { container } = render(<GalleryCard item={uncaptionedItem} onSelect={vi.fn()} />);
+
+      hover(screen.getByRole("button"));
+      act(() => vi.advanceTimersByTime(400));
+
+      const video = preview(container)!;
+      expect(video.defaultPlaybackRate).toBe(2);
+      expect(video.playbackRate).toBe(2);
+    });
+
     // StrictMode replays the effect; its cleanup strips src, which a JSX prop never restores.
     it("keeps the preview source through an effect replay", () => {
       const { container } = render(

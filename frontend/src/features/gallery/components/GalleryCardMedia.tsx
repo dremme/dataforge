@@ -6,6 +6,8 @@ import type { GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 
+const PREVIEW_PLAYBACK_RATE = 2;
+
 type MediaItem = Pick<GalleryItem, "path" | "modified_at" | "size" | "media_type" | "name">;
 
 interface GalleryCardMediaProps {
@@ -76,6 +78,9 @@ function CardVideoPreview({
 
     // React does not reliably reflect `muted`, and autoplay is only allowed when it is set.
     video.muted = true;
+    // Loading a source resets playbackRate to the default, so the default carries the speed.
+    video.defaultPlaybackRate = PREVIEW_PLAYBACK_RATE;
+    video.playbackRate = PREVIEW_PLAYBACK_RATE;
     video.src = src;
     video.play()?.catch(() => {});
 
