@@ -1,5 +1,10 @@
 import type { EditorView } from "@codemirror/view";
-import { EditorSelection } from "@codemirror/state";
+import {
+  EditorSelection,
+  type ChangeSpec,
+  type EditorState,
+  type SelectionRange,
+} from "@codemirror/state";
 
 interface MarkdownCommands {
   bold: (view: EditorView) => void;
@@ -11,7 +16,27 @@ interface MarkdownCommands {
   unorderedList: (view: EditorView) => void;
   orderedList: (view: EditorView) => void;
   link: (view: EditorView) => void;
+  unlink: (view: EditorView) => void;
   removeFormatting: (view: EditorView) => void;
+}
+
+const MARKDOWN_LINK = /(?<!!)\[([^\]]+)\]\([^)]+\)/g;
+
+function linkMarkupTouching(state: EditorState, range: SelectionRange): ChangeSpec[] {
+  const from = state.doc.lineAt(range.from).from;
+  const text = state.doc.sliceString(from, state.doc.lineAt(range.to).to);
+  const changes: ChangeSpec[] = [];
+
+  for (const match of text.matchAll(MARKDOWN_LINK)) {
+    const start = from + match.index;
+    const end = start + match[0].length;
+    if (end < range.from || start > range.to) continue;
+
+    const labelEnd = start + 1 + match[1].length;
+    changes.push({ from: start, to: start + 1 }, { from: labelEnd, to: end });
+  }
+
+  return changes;
 }
 
 function wrapSelection(view: EditorView, before: string, after: string = before) {
@@ -92,6 +117,16 @@ export const markdownCommands: MarkdownCommands = {
     });
 
     view.dispatch(changes);
+    view.focus();
+  },
+  unlink: (view: EditorView) => {
+    const { state } = view;
+    const transaction = state.changeByRange((range) => {
+      const changes = state.changes(linkMarkupTouching(state, range));
+      return { changes, range: range.map(changes) };
+    });
+
+    view.dispatch(transaction);
     view.focus();
   },
   removeFormatting: (view: EditorView) => {

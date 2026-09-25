@@ -121,7 +121,7 @@ export function MarkdownEditor({ toolbarAside, ...props }: MarkdownEditorProps) 
           <ToolbarButton
             icon={iconUnlink}
             title="Remove link"
-            onClick={() => executeCommand("removeFormatting")}
+            onClick={() => executeCommand("unlink")}
           />
         </div>
         <ToolbarButton
