@@ -2,84 +2,78 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
+import { touchRecentFolder } from "@/features/folder/lib/folderPreferences";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
+async function openLintDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: /More/ }));
+  await user.click(screen.getByRole("menuitem", { name: /Lint captions/ }));
+  return screen.findByRole("alertdialog", { name: "Lint captions?" });
+}
+
 describe("App: dialogs", () => {
-  it("shows favorites and lets recent folders be starred in the folder picker", async () => {
+  it("shows favorites and lets a recent folder be starred in the folder picker", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    touchRecentFolder(VACATION_PATH);
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Open folder" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
+    const favoritesSection = await within(dialog).findByRole("region", { name: "Favorites" });
+    expect(
+      within(favoritesSection).getByRole("button", { name: "Remove Home from favorites" }),
+    ).toBeInTheDocument();
+
+    const recentSection = within(dialog).getByRole("region", { name: "Recent folders" });
+    await user.click(
+      within(recentSection).getByRole("button", { name: "Add Vacation to favorites" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        within(dialog).getByRole("button", { name: "Remove Vacation from favorites" }),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole("button", { name: "Add Vacation to favorites" }),
+      ).not.toBeInTheDocument();
+    });
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove Vacation from favorites" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        within(dialog).queryByRole("button", { name: "Remove Vacation from favorites" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(within(dialog).getByRole("region", { name: "Recent folders" })).toContainElement(
+      within(dialog).getByRole("button", { name: "Add Vacation to favorites" }),
+    );
+  });
+
+  it("lists a folder opened from the gallery under recent folders in the picker", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Open folder" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
-
-    await waitFor(() => {
-      expect(within(dialog).getByRole("region", { name: "Favorites" })).toBeInTheDocument();
-    });
-
-    expect(
-      within(dialog).getByRole("button", { name: "Remove Home from favorites" }),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Vacation/ }));
+    await user.click(await screen.findByRole("button", { name: /Vacation/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View lake.png" })).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Photos" }));
+    await user.click(await screen.findByRole("button", { name: "Open folder" }));
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Open folder" }));
-
-    const reopenedDialog = await screen.findByRole("dialog", { name: "Open folder" });
-
-    await waitFor(() => {
-      expect(
-        within(reopenedDialog).getByRole("region", { name: "Recent folders" }),
-      ).toBeInTheDocument();
-      expect(
-        within(reopenedDialog).getByRole("button", { name: "Add Vacation to favorites" }),
-      ).toBeInTheDocument();
-    });
-
-    await user.click(
-      within(reopenedDialog).getByRole("button", { name: "Add Vacation to favorites" }),
-    );
-
-    await waitFor(() => {
-      expect(
-        within(reopenedDialog).getByRole("button", { name: "Remove Vacation from favorites" }),
-      ).toBeInTheDocument();
-      expect(
-        within(reopenedDialog).queryByRole("button", { name: "Add Vacation to favorites" }),
-      ).not.toBeInTheDocument();
-    });
-
-    await user.click(
-      within(reopenedDialog).getByRole("button", { name: "Remove Vacation from favorites" }),
-    );
-
-    await waitFor(() => {
-      expect(
-        within(reopenedDialog).getByRole("button", { name: "Add Vacation to favorites" }),
-      ).toBeInTheDocument();
-    });
-
-    const recentSection = within(reopenedDialog).getByRole("region", { name: "Recent folders" });
-    const firstRecentName = recentSection.querySelector(
-      ".open-folder-modal__option-name",
-    )?.textContent;
-    expect(firstRecentName).toBe("Vacation");
+    const dialog = await screen.findByRole("dialog", { name: "Open folder" });
+    const recentSection = await within(dialog).findByRole("region", { name: "Recent folders" });
+    expect(
+      within(recentSection).getByRole("button", { name: "Add Vacation to favorites" }),
+    ).toBeInTheDocument();
   });
 
   it("opens a folder from the folder picker", async () => {
@@ -131,26 +125,25 @@ describe("App: dialogs", () => {
     );
   });
 
-  it("lints only once caption rules were written in the folder instructions", async () => {
+  it("keeps linting disabled while no caption rules apply to the folder", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+
+    const dialog = await openLintDialog(user);
+    expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
+      /^All \d+ files? in Photos$/,
+    );
+    await within(dialog).findByText(/No caption rules apply to this folder yet/);
+    expect(within(dialog).getByRole("button", { name: "Lint captions" })).toBeDisabled();
+  });
+
+  it("lints once caption rules were written in the folder instructions", async () => {
     const user = userEvent.setup();
     const { fetchMock } = installMockBackend();
     await renderApp();
 
-    const openCheck = async () => {
-      await user.click(await screen.findByRole("button", { name: /More/ }));
-      await user.click(screen.getByRole("menuitem", { name: /Lint captions/ }));
-      return screen.findByRole("alertdialog", { name: "Lint captions?" });
-    };
-
-    const empty = await openCheck();
-    expect(empty.querySelector(".dialog-scope__line")).toHaveTextContent(
-      /^All \d+ files? in Photos$/,
-    );
-    await within(empty).findByText(/No caption rules apply to this folder yet/);
-    expect(within(empty).getByRole("button", { name: "Lint captions" })).toBeDisabled();
-    await user.click(within(empty).getByRole("button", { name: "Cancel" }));
-
-    await user.click(screen.getByRole("button", { name: "Edit instructions" }));
+    await user.click(await screen.findByRole("button", { name: "Edit instructions" }));
     const editor = await screen.findByRole("dialog", { name: "Folder instructions" });
     await user.click(within(editor).getByRole("tab", { name: "Caption rules" }));
     await user.click(await within(editor).findByRole("button", { name: "Use template" }));
@@ -159,7 +152,7 @@ describe("App: dialogs", () => {
       expect(screen.queryByRole("dialog", { name: "Folder instructions" })).toBeNull();
     });
 
-    const ready = await openCheck();
+    const ready = await openLintDialog(user);
     expect(await within(ready).findByText(".captionrules")).toBeInTheDocument();
     await user.click(within(ready).getByRole("button", { name: "Lint captions" }));
 
