@@ -82,6 +82,8 @@ export function AppContent() {
                 fileCount: items.length,
                 captionedCount: query.captionedCount,
                 issueCount: gallery.issueCount,
+                hasSysprompt: folder.has_sysprompt,
+                hasCaptionRules: folder.has_caption_rules,
                 hasCaptionBackup: folder.has_caption_backup,
                 statsLoading: loading && !refreshing,
                 searchQuery: query.searchQuery,

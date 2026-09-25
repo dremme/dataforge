@@ -10,6 +10,8 @@ import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
 import {
   iconArchive,
   iconArrowDownWideNarrow,
+  iconFileBraces,
+  iconFileText,
   iconFolder,
   iconMessageCheck,
   iconMessageWarning,
@@ -18,6 +20,7 @@ import {
   iconSearch,
   iconTag,
   iconX,
+  type AppIcon,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
@@ -32,6 +35,8 @@ interface ToolbarProps {
   fileCount: number;
   captionedCount: number;
   issueCount?: number;
+  hasSysprompt?: boolean;
+  hasCaptionRules?: boolean;
   hasCaptionBackup?: boolean;
   statsLoading?: boolean;
   searchQuery: string;
@@ -182,11 +187,23 @@ function StatValue({ loading, value }: { loading?: boolean; value: number }) {
   return <strong>{value}</strong>;
 }
 
+function FolderMarker({ icon, label }: { icon: AppIcon; label: string }) {
+  return (
+    <Tooltip content={label}>
+      <span className="stat" aria-label={label}>
+        <Icon icon={icon} className="stat__icon" />
+      </span>
+    </Tooltip>
+  );
+}
+
 export function Toolbar({
   subfolderCount,
   fileCount,
   captionedCount,
   issueCount = 0,
+  hasSysprompt = false,
+  hasCaptionRules = false,
   hasCaptionBackup = false,
   statsLoading = false,
   searchQuery,
@@ -275,12 +292,18 @@ export function Toolbar({
             </span>
           </Tooltip>
         )}
-        {hasCaptionBackup && (
-          <Tooltip content="This folder has backed up captions">
-            <span className="stat stat--backup" aria-label="This folder has backed up captions">
-              <Icon icon={iconArchive} className="stat__icon" />
-            </span>
-          </Tooltip>
+        {(hasSysprompt || hasCaptionRules || hasCaptionBackup) && (
+          <span className="toolbar__markers">
+            {hasSysprompt && (
+              <FolderMarker icon={iconFileText} label="This folder has its own system prompt" />
+            )}
+            {hasCaptionRules && (
+              <FolderMarker icon={iconFileBraces} label="This folder has its own caption rules" />
+            )}
+            {hasCaptionBackup && (
+              <FolderMarker icon={iconArchive} label="This folder has backed up captions" />
+            )}
+          </span>
         )}
       </div>
 

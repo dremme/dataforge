@@ -1,12 +1,12 @@
 import { instructionApplies, type InstructionKind } from "@/shared/api/folderInstructions";
 import { CAPTION_RULES_FILENAME, SYSPROMPT_FILENAME } from "@/shared/constants";
 import type { FolderInstructionsState } from "@/shared/hooks/useFolderInstructions";
-import { iconFileText, iconLoader2 } from "@/shared/icons";
+import { iconFileBraces, iconFileText, iconLoader2, type AppIcon } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 
-const FILENAMES: Record<InstructionKind, string> = {
-  sysprompt: SYSPROMPT_FILENAME,
-  caption_rules: CAPTION_RULES_FILENAME,
+const FILES: Record<InstructionKind, { filename: string; icon: AppIcon }> = {
+  sysprompt: { filename: SYSPROMPT_FILENAME, icon: iconFileText },
+  caption_rules: { filename: CAPTION_RULES_FILENAME, icon: iconFileBraces },
 };
 
 interface InstructionFileSourceProps {
@@ -16,7 +16,7 @@ interface InstructionFileSourceProps {
 
 /** Names the instruction file a job will read, for a dialog footer. */
 export function InstructionFileSource({ state, kind }: InstructionFileSourceProps) {
-  const filename = FILENAMES[kind];
+  const { filename, icon } = FILES[kind];
 
   if (state.status === "loading") {
     return (
@@ -34,7 +34,7 @@ export function InstructionFileSource({ state, kind }: InstructionFileSourceProp
 
   return (
     <p className="instruction-file-source">
-      <Icon icon={iconFileText} className="instruction-file-source__icon" />
+      <Icon icon={icon} className="instruction-file-source__icon" />
       <span className="instruction-file-source__text">
         Uses{" "}
         {file.has_file ? (

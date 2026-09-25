@@ -43,6 +43,7 @@ export {
   Droplets as iconDroplets,
   Eclipse as iconEclipse,
   Expand as iconExpand,
+  FileBraces as iconFileBraces,
   FileCheck as iconFileCheck,
   FileDown as iconFileDown,
   FileImage as iconFileImage,

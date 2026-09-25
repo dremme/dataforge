@@ -27,6 +27,8 @@ const defaultProps = {
   fileCount: 3,
   captionedCount: 2,
   issueCount: 0,
+  hasSysprompt: false,
+  hasCaptionRules: false,
   hasCaptionBackup: false,
   searchQuery: "",
   searchRegex: false,
@@ -346,15 +348,47 @@ describe("Toolbar", () => {
   it("marks the stats when the open folder has backed up captions", () => {
     renderToolbar({ hasCaptionBackup: true });
 
-    const badge = screen.getByLabelText("This folder has backed up captions");
-    expect(badge).toHaveClass("stat--backup");
-    expect(badge.closest(".toolbar__stats")).not.toBeNull();
+    const marker = screen.getByLabelText("This folder has backed up captions");
+    expect(marker.closest(".toolbar__markers")).not.toBeNull();
+    expect(marker.closest(".toolbar__stats")).not.toBeNull();
   });
 
-  it("leaves the stats unmarked without a backup", () => {
+  it("marks the stats when the open folder has its own system prompt", () => {
+    renderToolbar({ hasSysprompt: true });
+
+    const marker = screen.getByLabelText("This folder has its own system prompt");
+    expect(marker.closest(".toolbar__markers")).not.toBeNull();
+    expect(screen.queryByLabelText(/caption rules/)).not.toBeInTheDocument();
+  });
+
+  it("marks the stats when the open folder has its own caption rules", () => {
+    renderToolbar({ hasCaptionRules: true });
+
+    const marker = screen.getByLabelText("This folder has its own caption rules");
+    expect(marker.closest(".toolbar__markers")).not.toBeNull();
+    expect(screen.queryByLabelText(/system prompt/)).not.toBeInTheDocument();
+  });
+
+  it("groups every folder marker behind one divider, instructions first", () => {
+    renderToolbar({ hasSysprompt: true, hasCaptionRules: true, hasCaptionBackup: true });
+
+    const groups = document.querySelectorAll(".toolbar__markers");
+    expect(groups).toHaveLength(1);
+    expect(
+      Array.from(groups[0].querySelectorAll(".stat"), (marker) =>
+        marker.getAttribute("aria-label"),
+      ),
+    ).toEqual([
+      "This folder has its own system prompt",
+      "This folder has its own caption rules",
+      "This folder has backed up captions",
+    ]);
+  });
+
+  it("leaves the stats unmarked without instructions or a backup", () => {
     renderToolbar();
 
-    expect(document.querySelector(".stat--backup")).toBeNull();
+    expect(document.querySelector(".toolbar__markers")).toBeNull();
   });
 
   it("does not focus search while an overlay is open", async () => {

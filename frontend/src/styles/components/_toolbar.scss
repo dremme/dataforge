@@ -244,6 +244,15 @@ $toolbar-search-width-max: 22rem;
     }
   }
 
+  // Presence marks for the open folder's own files, set apart from the counts.
+  &__markers {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.625rem;
+    border-left: 1px solid var(--border);
+  }
+
   &__filter-menu {
     position: relative;
     height: var(--toolbar-control-height);
@@ -392,12 +401,6 @@ $toolbar-search-width-max: 22rem;
         opacity: 1;
       }
     }
-  }
-
-  &--backup {
-    padding-left: 0.625rem;
-    border-left: 1px solid var(--border);
-    color: var(--text-subtle);
   }
 
   &__percent {
