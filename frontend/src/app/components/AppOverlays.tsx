@@ -1,4 +1,3 @@
-import { lazy, Suspense } from "react";
 import { AutomationDialogOverlays } from "@/features/automation/components/AutomationDialogOverlays";
 import { CreateFolderDialog } from "@/features/folder/components/CreateFolderDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
@@ -10,18 +9,13 @@ import { JOB_START_CONFIRM } from "@/features/jobs/lib/jobMeta";
 import { JobsDrawer } from "@/features/jobs/components/JobsDrawer";
 import { DuplicateResolverModal } from "@/features/gallery/components/DuplicateResolverModal";
 import { CandidateReviewModal } from "@/features/gallery/components/CandidateReviewModal";
+import { FolderInstructionsModal } from "@/features/gallery/components/FolderInstructionsModal";
 import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
 import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepOverlay";
 import { AcceptAllCandidatesDialog } from "@/features/gallery/components/AcceptAllCandidatesDialog";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
-
-const FolderInstructionsModal = lazy(() =>
-  import("@/features/gallery/components/FolderInstructionsModal").then((module) => ({
-    default: module.FolderInstructionsModal,
-  })),
-);
 
 export function AppOverlays({
   currentFolder,
@@ -128,14 +122,12 @@ export function AppOverlays({
       )}
 
       {instructions.open && instructions.folderPath && (
-        <Suspense fallback={null}>
-          <FolderInstructionsModal
-            key={instructions.folderPath}
-            folderPath={instructions.folderPath}
-            onClose={instructions.onClose}
-            onSaved={instructions.onSaved}
-          />
-        </Suspense>
+        <FolderInstructionsModal
+          key={instructions.folderPath}
+          folderPath={instructions.folderPath}
+          onClose={instructions.onClose}
+          onSaved={instructions.onSaved}
+        />
       )}
 
       {jobStart.pending && (

@@ -23,6 +23,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      // Served from loopback, so bundle size costs parse time, not download time.
+      chunkSizeWarningLimit: 2000,
+    },
     resolve: {
       alias: {
         "@": path.resolve(rootDir, "src"),
