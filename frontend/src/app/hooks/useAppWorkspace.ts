@@ -206,7 +206,6 @@ export function useAppWorkspace() {
     getJobPaths: gallery.getJobPaths,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,
-    onEditCaptionRules: gallery.openCaptionRules,
     issueCount: gallery.issueCount,
     onResolveIssues:
       gallery.issueCount > 0 ? () => gallery.issueResolver.openIssueResolver(items) : undefined,

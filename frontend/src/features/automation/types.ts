@@ -47,7 +47,9 @@ export type AutomationDialogsState = {
       preserveThinking: boolean,
     ) => void,
     JobSettingsByType["auto_caption"]
-  >;
+  > & {
+    folderPath: string;
+  };
   verifyCaptions: FolderBusyDialogState<
     (
       mode: VerifyCaptionsMode,
@@ -99,7 +101,6 @@ export type AutomationDialogsState = {
     busy: boolean;
     folderPath: string;
     onConfirm: () => void;
-    onEditRules: () => void;
     onCancel: () => void;
   };
 };

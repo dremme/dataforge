@@ -131,7 +131,7 @@ describe("App: dialogs", () => {
     );
   });
 
-  it("routes a folder without caption rules to the rules tab, then checks against them", async () => {
+  it("lints only once caption rules were written in the folder instructions", async () => {
     const user = userEvent.setup();
     const { fetchMock } = installMockBackend();
     await renderApp();
@@ -146,14 +146,13 @@ describe("App: dialogs", () => {
     expect(empty.querySelector(".dialog-scope__line")).toHaveTextContent(
       /^All \d+ files? in Photos$/,
     );
-    await user.click(await within(empty).findByRole("button", { name: "Edit caption rules" }));
+    await within(empty).findByText(/No caption rules apply to this folder yet/);
+    expect(within(empty).getByRole("button", { name: "Lint captions" })).toBeDisabled();
+    await user.click(within(empty).getByRole("button", { name: "Cancel" }));
 
+    await user.click(screen.getByRole("button", { name: "Edit instructions" }));
     const editor = await screen.findByRole("dialog", { name: "Folder instructions" });
-    expect(screen.queryByRole("alertdialog", { name: "Lint captions?" })).toBeNull();
-    expect(within(editor).getByRole("tab", { name: "Caption rules" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    await user.click(within(editor).getByRole("tab", { name: "Caption rules" }));
     await user.click(await within(editor).findByRole("button", { name: "Use template" }));
     await user.click(within(editor).getByRole("button", { name: "Save" }));
     await waitFor(() => {
@@ -161,7 +160,8 @@ describe("App: dialogs", () => {
     });
 
     const ready = await openCheck();
-    await user.click(await within(ready).findByRole("button", { name: "Lint captions" }));
+    expect(await within(ready).findByText(".captionrules")).toBeInTheDocument();
+    await user.click(within(ready).getByRole("button", { name: "Lint captions" }));
 
     await waitFor(() => {
       const calls = fetchMock.mock.calls.map(([input, init]) => {

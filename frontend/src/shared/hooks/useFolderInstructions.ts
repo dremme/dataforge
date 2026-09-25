@@ -3,7 +3,7 @@ import { fetchFolderInstructions, type InstructionKind } from "@/shared/api/fold
 import { formatApiError } from "@/shared/api/http";
 import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
 
-type FolderInstructionsState =
+export type FolderInstructionsState =
   | { status: "loading" }
   | { status: "ready"; instructions: FolderInstructionsResponse }
   | { status: "error"; message: string };

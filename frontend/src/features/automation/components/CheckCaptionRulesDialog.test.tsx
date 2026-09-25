@@ -1,12 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as FolderInstructionsApi from "@/shared/api/folderInstructions";
 import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
 import { CheckCaptionRulesDialog } from "./CheckCaptionRulesDialog";
 
 const fetchFolderInstructions = vi.fn();
 
-vi.mock("@/shared/api/folderInstructions", () => ({
+vi.mock("@/shared/api/folderInstructions", async (importOriginal) => ({
+  ...(await importOriginal<typeof FolderInstructionsApi>()),
   fetchFolderInstructions: (...args: unknown[]) => fetchFolderInstructions(...args),
 }));
 
@@ -30,18 +32,20 @@ function rulesResponse(rules: Partial<InstructionFileResponse> = {}): FolderInst
 
 function renderDialog() {
   const onConfirm = vi.fn();
-  const onEditRules = vi.fn();
   const onCancel = vi.fn();
   render(
     <CheckCaptionRulesDialog
       scope={{ itemCount: 12, folderLabel: "portraits", fromSelection: false }}
       folderPath={FOLDER}
       onConfirm={onConfirm}
-      onEditRules={onEditRules}
       onCancel={onCancel}
     />,
   );
-  return { onConfirm, onEditRules, onCancel };
+  return { onConfirm, onCancel };
+}
+
+function footer() {
+  return screen.getByRole("alertdialog").querySelector("footer") as HTMLElement;
 }
 
 describe("CheckCaptionRulesDialog", () => {
@@ -49,19 +53,21 @@ describe("CheckCaptionRulesDialog", () => {
     fetchFolderInstructions.mockReset();
   });
 
-  it("names the folder's own rule file and starts the check", async () => {
+  it("names the folder's own rule file at the bottom and starts the check", async () => {
     const user = userEvent.setup();
     fetchFolderInstructions.mockResolvedValue(
       rulesResponse({ has_file: true, text: "trigger: x\n" }),
     );
-    const { onConfirm, onEditRules } = renderDialog();
+    const { onConfirm } = renderDialog();
 
-    expect(await screen.findByText(/Uses this folder's/)).toBeInTheDocument();
+    expect(await within(footer()).findByText(".captionrules")).toBeInTheDocument();
+    expect(footer().querySelector(".instruction-file-source")).toHaveTextContent(
+      "Uses .captionrules",
+    );
     expect(fetchFolderInstructions).toHaveBeenCalledWith(FOLDER, expect.anything());
     await user.click(screen.getByRole("button", { name: "Lint captions" }));
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(onEditRules).not.toHaveBeenCalled();
   });
 
   it("names the parent folder an inherited rule file lives in", async () => {
@@ -74,39 +80,35 @@ describe("CheckCaptionRulesDialog", () => {
     );
     renderDialog();
 
-    expect(await screen.findByText("..\\.captionrules")).toHaveAttribute(
+    expect(await within(footer()).findByText("..\\.captionrules")).toHaveAttribute(
       "title",
       "C:\\datasets\\sample",
     );
     expect(screen.getByRole("button", { name: "Lint captions" })).toBeEnabled();
   });
 
-  it("offers to edit rules that exist without starting the check", async () => {
-    const user = userEvent.setup();
+  it("offers no way to edit the rules from the dialog", async () => {
     fetchFolderInstructions.mockResolvedValue(
       rulesResponse({ has_file: true, text: "trigger: x\n" }),
     );
-    const { onConfirm, onEditRules } = renderDialog();
+    renderDialog();
 
-    await user.click(await screen.findByRole("button", { name: "Edit rules" }));
+    await within(footer()).findByText(".captionrules");
 
-    expect(onEditRules).toHaveBeenCalledTimes(1);
-    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("sends a folder without rules to the rules editor instead of starting", async () => {
-    const user = userEvent.setup();
+  it("cannot start without rules and names no file", async () => {
     fetchFolderInstructions.mockResolvedValue(rulesResponse());
-    const { onConfirm, onEditRules } = renderDialog();
+    const { onConfirm } = renderDialog();
 
     expect(
       await screen.findByText(/No caption rules apply to this folder yet/),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Lint captions" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Edit rules" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Edit caption rules" }));
-
-    expect(onEditRules).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Lint captions" })).toBeDisabled();
+    expect(footer().querySelector(".instruction-file-source")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 

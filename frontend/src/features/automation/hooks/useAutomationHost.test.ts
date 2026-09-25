@@ -52,7 +52,6 @@ function setupHost(
       // The hook only reads the fields asserted here.
       automation: automation as never,
       onEditSysprompt: vi.fn(),
-      onEditCaptionRules: vi.fn(),
       issueCount: 0,
       duplicateGroupCount: 0,
       candidateCount: 0,

@@ -132,7 +132,6 @@ export function AppOverlays({
           <FolderInstructionsModal
             key={instructions.folderPath}
             folderPath={instructions.folderPath}
-            initialTab={instructions.tab}
             onClose={instructions.onClose}
             onSaved={instructions.onSaved}
           />

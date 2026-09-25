@@ -3,11 +3,13 @@ import {
   AutomationModeSelector,
   type AutomationMode,
 } from "@/features/automation/components/AutomationModeSelector";
+import { InstructionFileSource } from "@/features/automation/components/InstructionFileSource";
 import {
   ReasoningEffortSelector,
   type ReasoningEffort,
 } from "@/features/automation/components/ReasoningEffortSelector";
 import { VisionModelBadge } from "@/features/automation/components/VisionModelBadge";
+import { useFolderInstructions } from "@/shared/hooks/useFolderInstructions";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
@@ -16,6 +18,7 @@ export type AutoCaptionMode = AutomationMode;
 
 interface AutoCaptionDialogProps {
   scope: DialogScopeInfo;
+  folderPath: string;
   initialSettings: JobSettingsByType["auto_caption"];
   busy?: boolean;
   onConfirm: (
@@ -29,6 +32,7 @@ interface AutoCaptionDialogProps {
 
 export function AutoCaptionDialog({
   scope,
+  folderPath,
   initialSettings,
   busy = false,
   onConfirm,
@@ -40,6 +44,7 @@ export function AutoCaptionDialog({
     initialSettings.reasoning_effort,
   );
   const [preserveThinking, setPreserveThinking] = useState(initialSettings.preserve_thinking);
+  const { state } = useFolderInstructions(folderPath);
   const captionAudioId = useId();
   const preserveThinkingId = useId();
 
@@ -62,13 +67,16 @@ export function AutoCaptionDialog({
       onConfirm={handleConfirm}
       onClose={onCancel}
       footer={
-        <DialogActions
-          confirmLabel="Start auto-caption"
-          busyLabel="Starting..."
-          busy={busy}
-          onConfirm={handleConfirm}
-          onCancel={onCancel}
-        />
+        <>
+          <InstructionFileSource state={state} kind="sysprompt" />
+          <DialogActions
+            confirmLabel="Start auto-caption"
+            busyLabel="Starting..."
+            busy={busy}
+            onConfirm={handleConfirm}
+            onCancel={onCancel}
+          />
+        </>
       }
     >
       <AutomationModeSelector
@@ -122,6 +130,12 @@ export function AutoCaptionDialog({
           Describes what is heard as well as what is seen. Needs a model with audio support.
         </p>
       </div>
+
+      {state.status === "error" && (
+        <p className="dialog__error" role="alert">
+          Could not load the system prompt. {state.message}
+        </p>
+      )}
     </Dialog>
   );
 }

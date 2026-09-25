@@ -38,7 +38,6 @@ function setupOverlays(
   scope: { itemCount?: number; folderItemCount?: number; selectionActive?: boolean } = {},
 ) {
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
-  const onEditCaptionRules = vi.fn();
   const { itemCount = 3, folderItemCount = 3, selectionActive = false } = scope;
 
   const { result } = renderHook(() =>
@@ -50,11 +49,10 @@ function setupOverlays(
       folderItemCount,
       selectionActive,
       startJob,
-      onEditCaptionRules,
     }),
   );
 
-  return { result, startJob, onEditCaptionRules };
+  return { result, startJob };
 }
 
 describe("useAutomationDialogOverlays scope", () => {
@@ -104,19 +102,15 @@ describe("useAutomationDialogOverlays scope", () => {
 });
 
 describe("useAutomationDialogOverlays", () => {
-  it("closes the caption rules check to hand over to the rules editor", async () => {
-    const { result, startJob, onEditCaptionRules } = setupOverlays();
+  it("hands the auto-caption dialog the folder whose system prompt it names", async () => {
+    const { result } = setupOverlays();
 
     await act(async () => {
-      result.current.openDialogForJobType("check_caption_rules");
+      result.current.openDialogForJobType("auto_caption");
     });
-    await waitFor(() => expect(result.current.dialogs.checkCaptionRules.open).toBe(true));
+    await waitFor(() => expect(result.current.dialogs.autoCaption.open).toBe(true));
 
-    act(() => result.current.dialogs.checkCaptionRules.onEditRules());
-
-    expect(result.current.dialogs.checkCaptionRules.open).toBe(false);
-    expect(onEditCaptionRules).toHaveBeenCalledTimes(1);
-    expect(startJob).not.toHaveBeenCalled();
+    expect(result.current.dialogs.autoCaption.folderPath).toBe("C:\\Photos");
   });
 
   it("opens dialogs and starts jobs after confirm", async () => {

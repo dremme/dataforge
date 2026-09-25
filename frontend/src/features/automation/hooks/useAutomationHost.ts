@@ -29,7 +29,6 @@ type UseAutomationHostOptions = {
   getJobPaths: () => string[] | undefined;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
-  onEditCaptionRules: () => void;
   issueCount: number;
   onResolveIssues?: () => void;
   duplicateGroupCount: number;
@@ -55,7 +54,6 @@ export function useAutomationHost({
   getJobPaths,
   automation,
   onEditSysprompt,
-  onEditCaptionRules,
   issueCount,
   onResolveIssues,
   duplicateGroupCount,
@@ -84,7 +82,6 @@ export function useAutomationHost({
     selectionActive,
     startJob,
     getJobPaths,
-    onEditCaptionRules,
   });
 
   const {

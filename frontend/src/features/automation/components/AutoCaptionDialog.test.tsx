@@ -1,14 +1,49 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as FolderInstructionsApi from "@/shared/api/folderInstructions";
+import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
 import { AutoCaptionDialog } from "./AutoCaptionDialog";
 import {
   emptyAutomationSettings,
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 
-const DEFAULTS: JobSettingsByType["auto_caption"] =
-  emptyAutomationSettings("C:/datasets/photos").auto_caption;
+const FOLDER = "C:/datasets/photos";
+
+const DEFAULTS: JobSettingsByType["auto_caption"] = emptyAutomationSettings(FOLDER).auto_caption;
+
+const fetchFolderInstructions = vi.fn();
+
+vi.mock("@/shared/api/folderInstructions", async (importOriginal) => ({
+  ...(await importOriginal<typeof FolderInstructionsApi>()),
+  fetchFolderInstructions: (...args: unknown[]) => fetchFolderInstructions(...args),
+}));
+
+const NO_FILE: InstructionFileResponse = {
+  text: "",
+  has_file: false,
+  parent_folder: null,
+  parent_relative_path: null,
+  parent_text: "",
+};
+
+function instructionsResponse(
+  sysprompt: Partial<InstructionFileResponse>,
+): FolderInstructionsResponse {
+  return {
+    sysprompt: { ...NO_FILE, ...sysprompt },
+    caption_rules: NO_FILE,
+    caption_rules_template: "",
+  };
+}
+
+beforeEach(() => {
+  fetchFolderInstructions.mockReset();
+  fetchFolderInstructions.mockResolvedValue(
+    instructionsResponse({ has_file: true, text: "Describe the scene." }),
+  );
+});
 
 function renderDialog(
   busy = false,
@@ -18,6 +53,7 @@ function renderDialog(
   render(
     <AutoCaptionDialog
       scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+      folderPath={FOLDER}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       busy={busy}
       onConfirm={onConfirm}
@@ -34,6 +70,10 @@ function audioCheckbox() {
 
 function preserveThinkingCheckbox() {
   return screen.getByRole("checkbox", { name: "Preserve thinking" });
+}
+
+function footer() {
+  return screen.getByRole("alertdialog").querySelector("footer") as HTMLElement;
 }
 
 function confirm(user: ReturnType<typeof userEvent.setup>) {
@@ -127,5 +167,52 @@ describe("AutoCaptionDialog saved settings", () => {
 
     expect(audioCheckbox()).toBeChecked();
     expect(screen.getByRole("radio", { name: /Instruct/ })).toBeChecked();
+  });
+});
+
+describe("AutoCaptionDialog system prompt source", () => {
+  it("names the folder's own system prompt at the bottom", async () => {
+    renderDialog();
+
+    expect(await within(footer()).findByText(".sysprompt")).toBeInTheDocument();
+    expect(footer().querySelector(".instruction-file-source")).toHaveTextContent("Uses .sysprompt");
+    expect(fetchFolderInstructions).toHaveBeenCalledWith(FOLDER, expect.anything());
+  });
+
+  it("names the parent folder an inherited system prompt lives in", async () => {
+    fetchFolderInstructions.mockResolvedValue(
+      instructionsResponse({
+        parent_folder: "C:/datasets",
+        parent_relative_path: "../.sysprompt",
+        parent_text: "Describe the scene.",
+      }),
+    );
+    renderDialog();
+
+    expect(await within(footer()).findByText("../.sysprompt")).toHaveAttribute(
+      "title",
+      "C:/datasets",
+    );
+  });
+
+  it("offers no way to edit the system prompt from the dialog", async () => {
+    renderDialog();
+
+    await within(footer()).findByText(".sysprompt");
+
+    expect(screen.queryByRole("button", { name: /Edit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("still starts when the system prompt cannot be read", async () => {
+    const user = userEvent.setup();
+    fetchFolderInstructions.mockRejectedValue(new Error("Failed to read the file"));
+    const onConfirm = renderDialog();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to read the file");
+    expect(footer().querySelector(".instruction-file-source")).toBeNull();
+    await confirm(user);
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });

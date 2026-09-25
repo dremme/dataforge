@@ -66,9 +66,10 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
         />
       )}
 
-      {autoCaption.open && autoCaption.initialSettings && (
+      {autoCaption.open && autoCaption.folderPath && autoCaption.initialSettings && (
         <AutoCaptionDialog
           scope={autoCaption.scope}
+          folderPath={autoCaption.folderPath}
           initialSettings={autoCaption.initialSettings}
           busy={autoCaption.busy}
           onConfirm={autoCaption.onConfirm}
@@ -152,7 +153,6 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           folderPath={checkCaptionRules.folderPath}
           busy={checkCaptionRules.busy}
           onConfirm={checkCaptionRules.onConfirm}
-          onEditRules={checkCaptionRules.onEditRules}
           onCancel={checkCaptionRules.onCancel}
         />
       )}

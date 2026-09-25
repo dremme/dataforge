@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type RefObject } from "react";
 import { useGalleryItemModal } from "@/features/gallery/hooks/useGalleryItemModal";
-import type { InstructionKind } from "@/shared/api/folderInstructions";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 
@@ -18,7 +17,6 @@ export function useGalleryOverlays({
   mainRef,
 }: UseGalleryOverlaysArgs) {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
-  const [instructionsTab, setInstructionsTab] = useState<InstructionKind>("sysprompt");
 
   const {
     selectedPath,
@@ -43,20 +41,10 @@ export function useGalleryOverlays({
     [openGalleryItemBase],
   );
 
-  const openInstructionsTab = useCallback(
-    (tab: InstructionKind) => {
-      closeGalleryItem();
-      setInstructionsTab(tab);
-      setInstructionsOpen(true);
-    },
-    [closeGalleryItem],
-  );
-
-  const openSysPrompt = useCallback(() => openInstructionsTab("sysprompt"), [openInstructionsTab]);
-  const openCaptionRules = useCallback(
-    () => openInstructionsTab("caption_rules"),
-    [openInstructionsTab],
-  );
+  const openSysPrompt = useCallback(() => {
+    closeGalleryItem();
+    setInstructionsOpen(true);
+  }, [closeGalleryItem]);
 
   const closeInstructions = useCallback(() => setInstructionsOpen(false), []);
 
@@ -75,9 +63,7 @@ export function useGalleryOverlays({
     goToNext,
     removeGalleryItem,
     openSysPrompt,
-    openCaptionRules,
     closeInstructions,
     instructionsOpen,
-    instructionsTab,
   };
 }

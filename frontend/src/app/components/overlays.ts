@@ -44,7 +44,6 @@ type IssueResolverOverlayState = {
 type InstructionsOverlayState = {
   open: boolean;
   folderPath: string | undefined;
-  tab: InstructionKind;
   onClose: () => void;
   onSaved: (kind: InstructionKind, saved: InstructionFileResponse) => void;
 };

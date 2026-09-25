@@ -48,6 +48,7 @@ export {
   FileImage as iconFileImage,
   FilePen as iconFilePen,
   FilePlus as iconFilePlus,
+  FileText as iconFileText,
   Files as iconFiles,
   Filter as iconFilter,
   FilterX as iconFilterX,

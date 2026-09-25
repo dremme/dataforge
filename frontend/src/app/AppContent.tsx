@@ -170,7 +170,6 @@ export function AppContent() {
             instructions={{
               open: gallery.instructionsOpen,
               folderPath: folder?.path,
-              tab: gallery.instructionsTab,
               onClose: gallery.closeInstructions,
               onSaved: gallery.onInstructionsSaved,
             }}
