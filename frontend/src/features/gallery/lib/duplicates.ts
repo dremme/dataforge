@@ -1,10 +1,8 @@
-import { isSysPrompt } from "@/features/gallery/lib/itemKind";
 import type { NotifyOptions } from "@/shared/notifications/notifications";
 import type { GalleryItem } from "@/shared/types";
 
-/** Not a sysprompt, so a media type added later cannot fall out of the count. */
 export function isDuplicateItem(item: GalleryItem): boolean {
-  return item.has_duplicate_file && !isSysPrompt(item);
+  return item.has_duplicate_file;
 }
 
 export function countDuplicates(items: GalleryItem[]): number {

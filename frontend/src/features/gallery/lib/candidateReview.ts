@@ -1,4 +1,4 @@
-import { isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
+import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 
 /** Paired by the source's `candidate_name`. A gone source stays null, or staging fills silently. */
@@ -18,9 +18,8 @@ export function isVideoEntry(entry: CandidateReviewEntry): boolean {
   return isVideo(entry.candidate) || (entry.source !== null && isVideo(entry.source));
 }
 
-/** Not a sysprompt, so a media type added later cannot fall out of the count. */
 export function isCandidateItem(item: GalleryItem): boolean {
-  return item.has_candidate && !isSysPrompt(item);
+  return item.has_candidate;
 }
 
 export function countCandidates(items: GalleryItem[]): number {

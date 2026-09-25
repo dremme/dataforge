@@ -30,7 +30,7 @@ The app opens at `http://localhost:18081`. Try it on [`sample_images/`](sample_i
 - **Browse** large folders with live updates, search (including regex), filters, sorting, and card or list views.
 - **Caption** by hand with autosave, backups, and word completion, or in bulk with set, find & replace, and AI rewrite.
 - **Auto-caption** images and video with any OpenAI-compatible vision model, optionally including the audio track.
-- **Review quality**: have the model check captions against the media, find near-duplicates, and read folder statistics.
+- **Review quality**: have the model check captions against the media, check them against your own caption rules, find near-duplicates, and read folder statistics.
 - **Edit media** without losing the original: crop, resize, color, trim, speed, and blur or blackout regions. Watermark copies or strip metadata in bulk.
 - **Process** media through ComfyUI workflows, and review every result before it replaces a source.
 - **Train** a LoRA on the current folder through AI-Toolkit.

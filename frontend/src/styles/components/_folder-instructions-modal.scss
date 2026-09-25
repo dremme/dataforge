@@ -1,0 +1,219 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.folder-instructions-modal {
+  @include modal-shell($z-index-modal);
+
+  &__backdrop {
+    @include modal-backdrop;
+  }
+
+  &__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(760px, 100%);
+    max-height: 88vh;
+    overflow: hidden;
+    @include modal-panel-surface;
+  }
+
+  &__header {
+    @include modal-editor-header;
+    border-bottom: none;
+  }
+
+  &__header-text {
+    @include modal-editor-header-text;
+  }
+
+  &__header-copy {
+    @include modal-editor-header-copy;
+  }
+
+  &__header-actions {
+    @include modal-editor-header-actions;
+  }
+
+  &__title {
+    @include modal-editor-title;
+  }
+
+  &__subtitle {
+    @include modal-editor-subtitle;
+  }
+
+  &__subtitle,
+  &__source-text {
+    strong {
+      color: var(--text);
+      font-weight: var(--font-semibold);
+    }
+  }
+
+  &__close {
+    @include modal-close-btn;
+  }
+
+  &__meta {
+    display: flex;
+    flex: 1;
+    gap: 0.5rem;
+    background: var(--bg-card);
+
+    &-value {
+      color: var(--text-muted);
+      font-size: var(--text-xs);
+      line-height: var(--leading-snug);
+      @include tabular-nums;
+    }
+
+    &-divider {
+      @include modal-meta-divider;
+      height: 1rem;
+    }
+  }
+
+  &__tabs {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.25rem;
+    // Tabs sit inset by their own padding, so their text lines up with the title above.
+    padding: 0 calc(1.125rem - 0.625rem);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  &__tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5625rem 0.625rem;
+    border: none;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: color var(--transition);
+    @include focus-ring;
+
+    // Sits on the row's border, so the active tab reads as attached to the editor.
+    &::after {
+      content: "";
+      position: absolute;
+      right: 0.625rem;
+      bottom: -1px;
+      left: 0.625rem;
+      height: 2px;
+      border-radius: 1px;
+      background: transparent;
+    }
+
+    &:hover {
+      color: var(--text);
+    }
+
+    &--active {
+      color: var(--text);
+
+      &::after {
+        background: var(--accent);
+      }
+    }
+  }
+
+  &__tab-dot {
+    flex-shrink: 0;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 50%;
+    background: $color-warning;
+  }
+
+  &__body {
+    @include modal-editor-body;
+
+    // The mixin's display: flex would otherwise override the attribute.
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // Sits at the far end of either editor's toolbar, after any formatting buttons. As tall as
+  // those buttons, so the toolbar without them keeps the same height and the editor never moves.
+  &__source {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    min-height: var(--control-height-xs);
+    margin-left: auto;
+  }
+
+  // A parent folder's path can be long; it gives way first and shows in full on hover.
+  &__source-text {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__source-action {
+    @include pill-btn-ghost(0.3125rem);
+    flex-shrink: 0;
+    height: var(--control-height-xs);
+    padding: 0 0.625rem;
+    font-size: var(--text-xs);
+  }
+
+  &__source-action-icon {
+    @include icon-size(var(--icon-size-sm));
+  }
+
+  // Holds the editor's height so switching tabs does not resize the panel.
+  &__status {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4375rem;
+    min-height: 22rem;
+    margin: 0;
+    padding: 0 1.5rem;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+
+    &--error {
+      color: $color-caption-error;
+    }
+  }
+
+  &__status-icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-base));
+  }
+
+  &__error {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0.625rem 1.125rem;
+    border-top: 1px solid rgba($color-caption-error, 0.25);
+    background: rgba($color-caption-error, 0.08);
+    color: $color-caption-error;
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+  }
+
+  &__footer {
+    @include modal-chrome-footer;
+    gap: 0.5625rem;
+  }
+}

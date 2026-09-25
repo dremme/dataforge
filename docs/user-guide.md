@@ -27,7 +27,9 @@ Every file operation carries the related files along with the media: caption, fi
 
 Open a file to edit its caption. Captions **autosave**, trimmed of surrounding whitespace, and a failed save shows **Retry**. **Revert** returns to the text you opened with, and **Restore backup** loads the copy in `.backup/`. Type two characters, or press `Ctrl+Space`, to get completions from words already used in the folder.
 
-Create or edit the folder's `.sysprompt` from the automation panel. Use it to set the voice, required details, or format of AI captions. Unlike captions, it does not autosave: **Save** writes it, **Reset** discards your changes, and closing with unsaved changes asks first. **Auto-caption** stays disabled until the folder has a non-empty `.sysprompt`.
+**Create instructions** or **Edit instructions** in the automation panel opens the folder instructions. The **System prompt** tab edits `.sysprompt`, which sets the voice, required details, or format of AI captions; **Auto-caption** stays disabled until one applies. The **Caption rules** tab edits `.captionrules`, which [Lint captions](#caption-rules) checks against.
+
+Both files cover their folder and every subfolder without a file of its own. The editor only ever writes the current folder's file, never a parent's, and says which file applies; **Copy from parent** starts from the one the folder inherits. Saving a tab empty deletes the folder's file, so the parent's applies again. Neither tab autosaves: **Save** writes whatever changed, **Reset** discards the changes in the open tab, and closing with unsaved changes asks first.
 
 The caption, issue, and `.sysprompt` editors show an approximate token count (`~`), estimated from text length rather than a real tokenizer.
 
@@ -36,6 +38,24 @@ The caption, issue, and `.sysprompt` editors show an approximate token count (`~
 **Verify captions** has the model compare each caption with the image, the GIF's first frame, or the video's keyframes. It writes a `.issue.json` beside each file it flags and leaves other findings alone.
 
 **Resolve caption issues** steps through the flagged files. Fix the caption, mark it resolved (`Ctrl+Enter`), and move on with the arrow keys. Still images can be zoomed, and on Windows opened in the system viewer. **Delete all .issue.json files** in the quick action bar clears every finding in the folder without touching captions or media.
+
+### Caption rules
+
+**Lint captions** checks every caption against the folder's caption rules, without a model, and records each hit in `.issue.json`. Hits show up under **With issues** and in the resolver, apart from the model's suggested changes, and neither job clears the other's findings.
+
+Rules live in `.captionrules`, which is edited and inherited like the [system prompt](#captions). In a folder with no rules anywhere above it, **Use template** fills in an example.
+
+```yaml
+trigger: sample_style        # the caption must start with this word
+words: { min: 8, max: 120 }  # allowed word count
+repeated_phrases: 4          # flag any phrase of 4 or more words that appears twice
+flag:
+  - match: [float*, hover*, suspended]
+    note: check the subject is really off the ground
+  - match: [in the background]
+```
+
+Every setting is optional, but a file needs at least one. Terms in `match` ignore case and match whole words, a trailing `*` also matches longer words (`float*` catches "floating"), and a phrase matches across line breaks. Each file keeps up to five rule hits, and the last one sums up any beyond that. Try it on [`sample_images/`](../sample_images/), which ships with a small rule file.
 
 ### Duplicates
 
@@ -65,8 +85,9 @@ Cancelling stops the run but keeps whatever it already wrote. Starting a job rep
 
 | Job                      | What it does                                                         | What it writes                                                                         |
 | ------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Auto-caption**         | Captions media with a vision model, optionally hearing the video's audio | `.txt`. Needs a `.sysprompt` and a [model](configuration.md#connect-a-vision-model); skips captions already longer than [the threshold](configuration.md#vision-model-settings) |
+| **Auto-caption**         | Captions media with a vision model, optionally hearing the video's audio | `.txt`. Needs a `.sysprompt`, the folder's or a parent's, and a [model](configuration.md#connect-a-vision-model); skips captions already longer than [the threshold](configuration.md#vision-model-settings) |
 | **Verify captions**      | Checks each caption against its media                                | `.issue.json` for problems; captions are untouched                                     |
+| **Lint captions**        | Checks each caption against the nearest `.captionrules`, no model    | `.issue.json` for rule hits; captions are untouched                                    |
 | **Edit captions**        | Rewrites captions from an instruction; the model sees text, not media | `.txt`, backing up to `.backup/` first unless you opt out                              |
 | **Set captions**         | Writes the same text to every file                                   | `.txt`; overwrites existing captions only if you allow it                              |
 | **Find & replace**       | Replaces text or regex matches, or adds text at the start or end     | `.txt`; the dialog previews the count and examples first                               |
@@ -98,17 +119,18 @@ Every format below appears in the gallery with a thumbnail, takes `.txt` caption
 
 ## Files DataForge creates
 
-| File                                  | Where                  | Created by                    | Removed when                          |
-| ------------------------------------- | ---------------------- | ----------------------------- | ------------------------------------- |
-| `<stem>.txt`                          | Beside the media       | You, or any caption job       | You delete it                         |
-| `.sysprompt`                          | Dataset folder         | You                           | You delete it                         |
-| `<name>.issue.json`                   | Beside the media       | **Verify captions**           | Resolved or cleared                   |
-| `<name>.duplicate.json`               | Beside the media       | **Find duplicates**           | Group resolved, dismissed, or cleared |
-| `<name>.bak`, `<name>.edit.json`      | Beside the media       | A media edit                  | **Revert original**                   |
-| `<stem>.txt`                          | `.backup/`             | **Backup captions**           | You delete it                         |
-| Watermarked copies                    | `watermarked/`         | **Watermark**                 | You delete them                       |
-| ComfyUI result and its `.comfy.json`  | `staging/`             | **Process with ComfyUI**      | Accepted or rejected                  |
-| Settings, job history, thumbnails     | `backend/data/`        | The app                       | —                                     |
+| File                                 | Where                 | Created by                                   | Removed when                          |
+| ------------------------------------ | --------------------- | -------------------------------------------- | ------------------------------------- |
+| `<stem>.txt`                         | Beside the media      | You, or any caption job                      | You delete it                         |
+| `.sysprompt`                         | Dataset or any parent | You, in **Edit instructions**                | Saved empty, or you delete it         |
+| `.captionrules`                      | Dataset or any parent | You, in **Edit instructions**                | Saved empty, or you delete it         |
+| `<name>.issue.json`                  | Beside the media      | **Verify captions**, **Lint captions**       | Resolved or cleared                   |
+| `<name>.duplicate.json`              | Beside the media      | **Find duplicates**                          | Group resolved, dismissed, or cleared |
+| `<name>.bak`, `<name>.edit.json`     | Beside the media      | A media edit                                 | **Revert original**                   |
+| `<stem>.txt`                         | `.backup/`            | **Backup captions**                          | You delete it                         |
+| Watermarked copies                   | `watermarked/`        | **Watermark**                                | You delete them                       |
+| ComfyUI result and its `.comfy.json` | `staging/`            | **Process with ComfyUI**                     | Accepted or rejected                  |
+| Settings, job history, thumbnails    | `backend/data/`       | The app                                      | —                                     |
 
 `<stem>` is the file name without its extension (`scene`), and `<name>` is the full file name (`scene.jpg`), as in `scene.jpg.issue.json`. None of these appear as items in the gallery. Moving, copying, renaming, or deleting media in DataForge carries these files along. Changes made outside DataForge leave them behind; see [ComfyUI](comfyui.md#review-candidates) for orphaned results.
 

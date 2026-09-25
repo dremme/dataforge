@@ -6,7 +6,7 @@ isolate_test_database()
 
 import unittest
 
-from captions import save_issue_fixes
+from captions import save_issue_findings
 from constants import STAGING_DIR_NAME
 from duplicates import DuplicateFinding, save_duplicate_finding
 from folder_fingerprint import compute_folder_fingerprint
@@ -56,7 +56,7 @@ class FolderFingerprintTests(unittest.TestCase):
             media = write_media(root, "alpha.png")
             first = compute_folder_fingerprint(root)
 
-            save_issue_fixes(media, ["The caption omits the mountains."])
+            save_issue_findings(media, "fixes", ["The caption omits the mountains."])
             second = compute_folder_fingerprint(root)
 
             save_duplicate_finding(

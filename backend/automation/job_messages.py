@@ -114,6 +114,15 @@ def comfy_process_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to stage {error_count} files. The originals were not changed."
 
 
+def check_caption_rules_error_message(stats: dict[str, int]) -> str | None:
+    failed = int(stats.get("read_error") or 0) + int(stats.get("write_error") or 0)
+    if failed == 0:
+        return None
+    if failed == 1:
+        return "Failed to lint 1 file. Its caption or issue file could not be read or written."
+    return f"Failed to lint {failed} files. Their captions or issue files could not be read or written."
+
+
 def set_captions_error_message(stats: dict[str, int]) -> str | None:
     write_errors = int(stats.get("write_error") or 0)
     if write_errors == 0:
@@ -288,6 +297,8 @@ def resolve_job_error(
         return strip_metadata_error_message(stats)
     if job_type == "set_captions":
         return set_captions_error_message(stats)
+    if job_type == "check_caption_rules":
+        return check_caption_rules_error_message(stats)
     if job_type == "replace_captions":
         return replace_captions_error_message(stats)
     if job_type == "find_duplicates":

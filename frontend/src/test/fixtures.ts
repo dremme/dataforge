@@ -2,6 +2,7 @@ import { GIF_EXTENSION, VIDEO_EXTENSIONS } from "@/shared/constants";
 import type { FolderResponse, GalleryItem, Job } from "@/shared/types";
 
 export const HOME_PATH = "C:\\Photos";
+export const HOME_SYSPROMPT = "Caption every image with rich detail.";
 
 export const VACATION_PATH = `${HOME_PATH}\\Vacation`;
 
@@ -27,6 +28,7 @@ export function mediaItem(
     has_description: false,
     has_caption_file: false,
     issue_fixes: [],
+    rule_findings: [],
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
@@ -55,24 +57,6 @@ export function job(options: Partial<Job> = {}): Job {
     processed: 0,
     stats: {},
     created_at: "2026-01-01T00:00:00.000Z",
-    ...options,
-  };
-}
-
-function syspromptItem(folder: string, options: Partial<GalleryItem> = {}): GalleryItem {
-  return {
-    name: ".sysprompt",
-    path: `${folder}\\.sysprompt`,
-    description: null,
-    has_description: false,
-    has_caption_file: true,
-    issue_fixes: [],
-    has_issue_file: false,
-    has_duplicate_file: false,
-    has_backup: false,
-    has_candidate: false,
-    caption_status: "none",
-    media_type: "sysprompt",
     ...options,
   };
 }
@@ -111,12 +95,10 @@ export const homeFolder: FolderResponse = {
     mediaItem("beach.jpg", HOME_PATH),
     mediaItem("waves.mp4", HOME_PATH),
   ],
-  sysprompt: syspromptItem(HOME_PATH, {
-    description: "Caption every image with rich detail.",
-    has_description: true,
-    caption_status: "text",
-  }),
+  has_sysprompt: true,
+  sysprompt_applies: true,
   has_caption_backup: false,
+  has_caption_rules: false,
   item_count: 3,
   subfolder_count: 2,
   fingerprint: "fp-home",
@@ -140,8 +122,10 @@ export const vacationFolder: FolderResponse = {
       caption_status: "text",
     }),
   ],
-  sysprompt: null,
+  has_sysprompt: false,
+  sysprompt_applies: true,
   has_caption_backup: false,
+  has_caption_rules: false,
   item_count: 1,
   subfolder_count: 0,
   fingerprint: "fp-vacation",
@@ -158,8 +142,10 @@ export const emptyFolder: FolderResponse = {
   ],
   subfolders: [],
   items: [],
-  sysprompt: null,
+  has_sysprompt: false,
+  sysprompt_applies: true,
   has_caption_backup: false,
+  has_caption_rules: false,
   item_count: 0,
   subfolder_count: 0,
   fingerprint: "fp-empty",

@@ -167,10 +167,12 @@ export function AppContent() {
               onReviewCandidate: candidateReview.reviewGalleryItemCandidate,
             }}
             issueResolver={gallery.issueResolver.overlay}
-            sysprompt={{
-              open: gallery.syspromptOpen,
-              item: gallery.syspromptModalItem,
-              onClose: gallery.closeSysPrompt,
+            instructions={{
+              open: gallery.instructionsOpen,
+              folderPath: folder?.path,
+              tab: gallery.instructionsTab,
+              onClose: gallery.closeInstructions,
+              onSaved: gallery.onInstructionsSaved,
             }}
             stats={{
               open: statsDrawer.statsOpen,

@@ -2,6 +2,7 @@ import type {
   AutoCaptionStartRequest,
   BackupCaptionsStartRequest,
   BatchRenameStartRequest,
+  CheckCaptionRulesStartRequest,
   ComfyProcessStartRequest,
   FindDuplicatesStartRequest,
   JobType,
@@ -22,6 +23,7 @@ export interface JobStartBodies {
   replace_captions: ReplaceCaptionsStartRequest;
   find_duplicates: FindDuplicatesStartRequest;
   verify_captions: VerifyCaptionsStartRequest;
+  check_caption_rules: CheckCaptionRulesStartRequest;
   edit_captions: EditCaptionsStartRequest;
   batch_rename: BatchRenameStartRequest;
   train_lora: TrainLoraStartRequest;

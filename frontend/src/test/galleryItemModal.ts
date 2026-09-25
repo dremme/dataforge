@@ -9,6 +9,7 @@ export function makeItem(name: string, overrides: Partial<GalleryItem> = {}): Ga
     has_description: true,
     has_caption_file: true,
     issue_fixes: [],
+    rule_findings: [],
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,

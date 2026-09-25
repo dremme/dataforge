@@ -6,7 +6,7 @@ from captions import build_caption_response, load_backup_caption, save_caption
 from comfy_metadata import media_has_comfy_workflow
 from comfy_prompts import PromptText, extract_workflow_prompts
 from constants import COMFY_WORKFLOW_EXTENSIONS
-from routes._helpers import resolve_media_file, resolve_sysprompt_target
+from routes._helpers import resolve_media_file
 from schemas import (
     CaptionBackupResponse,
     CaptionSaveResponse,
@@ -16,9 +16,7 @@ from schemas import (
     ComfyPromptText,
     ComfyWorkflowPromptsResponse,
     PngWorkflowResponse,
-    SysPromptSaveResponse,
 )
-from sysprompt import save_sysprompt
 
 router = APIRouter()
 
@@ -119,18 +117,3 @@ def update_caption(
 
     # Pydantic validates the splat at runtime; the builder's dict cannot say so.
     return CaptionSaveResponse(**result)  # ty: ignore[invalid-argument-type]
-
-
-@router.put("/sysprompt", response_model=SysPromptSaveResponse)
-def update_sysprompt(
-    path: str = Query(..., description="Absolute path to folder or .sysprompt file"),
-    body: CaptionUpdate = ...,
-) -> SysPromptSaveResponse:
-    folder = resolve_sysprompt_target(path)
-
-    try:
-        result = save_sysprompt(folder, body.text)
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail="Failed to write .sysprompt file") from exc
-
-    return SysPromptSaveResponse(**result)

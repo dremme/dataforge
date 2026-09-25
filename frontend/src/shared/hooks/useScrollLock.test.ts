@@ -25,7 +25,9 @@ describe("useScrollLock", () => {
     allowed.appendChild(scroller);
     scrollHost.appendChild(allowed);
 
-    renderHook(() => useScrollLock(true, "sysprompt-modal-open", { current: scrollHost }));
+    renderHook(() =>
+      useScrollLock(true, "folder-instructions-modal-open", { current: scrollHost }),
+    );
 
     const wheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
     const preventDefault = vi.spyOn(wheel, "preventDefault");
@@ -66,7 +68,9 @@ describe("useScrollLock", () => {
     scrollHost.className = "main";
     document.body.appendChild(scrollHost);
 
-    renderHook(() => useScrollLock(true, "sysprompt-modal-open", { current: scrollHost }));
+    renderHook(() =>
+      useScrollLock(true, "folder-instructions-modal-open", { current: scrollHost }),
+    );
 
     const wheel = new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true });
     const preventDefault = vi.spyOn(wheel, "preventDefault");

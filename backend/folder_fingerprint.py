@@ -128,6 +128,9 @@ def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
     if scan.sysprompt is not None:
         sysprompt = scan.sysprompt
         shell.append(("sysprompt", sysprompt.name, sysprompt.mtime_ns, sysprompt.size))
+    if scan.caption_rules is not None:
+        rules = scan.caption_rules
+        shell.append(("caption_rules", rules.name, rules.mtime_ns, rules.size))
 
     return FolderSignature(
         fingerprint=fingerprint_from_scan(scan),

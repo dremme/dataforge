@@ -19,6 +19,7 @@ function makeItem(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_description: false,
     has_caption_file: false,
     issue_fixes: [],
+    rule_findings: [],
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,

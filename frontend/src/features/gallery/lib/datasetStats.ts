@@ -1,5 +1,5 @@
 import { tokenizeCaptionWords } from "@/features/gallery/lib/captionTokens";
-import { isGif, isSysPrompt, isVideo } from "@/features/gallery/lib/itemKind";
+import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
 
@@ -191,10 +191,7 @@ function countWords(captions: string[]): WordCount[] {
     .slice(0, TOP_WORD_LIMIT);
 }
 
-export function computeDatasetStats(items: GalleryItem[]): DatasetStats {
-  // .sysprompt description is captioning instructions, not a caption.
-  const media = items.filter((item) => !isSysPrompt(item));
-
+export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
   const captions: string[] = [];
   const lengths: number[] = [];
   const megapixels: number[] = [];

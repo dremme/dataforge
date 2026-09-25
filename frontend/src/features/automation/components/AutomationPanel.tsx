@@ -73,7 +73,10 @@ export interface AutomationPanelProps {
   startingJobType: JobType | null;
   canStart: boolean;
   hasSyspromptFile: boolean;
-  hasSyspromptContent: boolean;
+  /** The folder's own .captionrules; a parent's file does not count. */
+  hasCaptionRulesFile: boolean;
+  /** A non-empty .sysprompt reaches this folder, its own or a parent's. */
+  syspromptApplies: boolean;
   /** Folder state that decides which secondary jobs can be started. */
   jobAvailability: JobAvailability;
   onEditSysprompt: () => void;
@@ -100,7 +103,8 @@ export function AutomationPanel({
   startingJobType,
   canStart,
   hasSyspromptFile,
-  hasSyspromptContent,
+  hasCaptionRulesFile,
+  syspromptApplies,
   jobAvailability,
   onEditSysprompt,
   onRequestStart,
@@ -150,14 +154,13 @@ export function AutomationPanel({
     ? `Starting ${primaryLabel.toLowerCase()} job...`
     : starting
       ? "Another job is starting..."
-      : !hasSyspromptFile
-        ? "Add a .sysprompt file to enable auto-captioning"
-        : !hasSyspromptContent
-          ? "Write instructions in .sysprompt before running auto-caption"
-          : (primaryMeta.menuDescription ?? `Start ${primaryLabel.toLowerCase()}`);
-  const syspromptTooltip = hasSyspromptFile
-    ? "Edit the .sysprompt instructions for this folder"
-    : "Create a .sysprompt file with captioning instructions";
+      : !syspromptApplies
+        ? "Write a system prompt in the folder instructions to enable auto-captioning"
+        : (primaryMeta.menuDescription ?? `Start ${primaryLabel.toLowerCase()}`);
+  const hasInstructions = hasSyspromptFile || hasCaptionRulesFile;
+  const syspromptTooltip = hasInstructions
+    ? "Edit the system prompt and caption rules for this folder"
+    : "Create a system prompt or caption rules for this folder";
 
   return (
     <>
@@ -181,13 +184,13 @@ export function AutomationPanel({
                     type="button"
                     className="automation__sysprompt"
                     onClick={onEditSysprompt}
-                    aria-label={hasSyspromptFile ? "Edit instructions" : "Create instructions"}
+                    aria-label={hasInstructions ? "Edit instructions" : "Create instructions"}
                   >
                     <Icon
-                      icon={hasSyspromptFile ? iconFilePen : iconFilePlus}
+                      icon={hasInstructions ? iconFilePen : iconFilePlus}
                       className="automation__btn-icon"
                     />
-                    {hasSyspromptFile ? "Edit instructions" : "Create instructions"}
+                    {hasInstructions ? "Edit instructions" : "Create instructions"}
                   </button>
                 </Tooltip>
 
@@ -197,7 +200,7 @@ export function AutomationPanel({
                       type="button"
                       className="automation__start"
                       onClick={() => onRequestStart(PRIMARY_JOB_TYPE)}
-                      disabled={starting || filteredItems.length === 0 || !hasSyspromptContent}
+                      disabled={starting || filteredItems.length === 0 || !syspromptApplies}
                     >
                       {startingPrimary ? (
                         <>

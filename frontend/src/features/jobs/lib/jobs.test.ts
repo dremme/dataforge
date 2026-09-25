@@ -3,6 +3,7 @@ import type { Job } from "@/shared/types";
 import {
   classifyProcessedBatch,
   createJobTimingTracker,
+  jobTimingCounts,
   formatDuration,
   formatElapsed,
   isTrainLoraCoTrackedByExternal,
@@ -131,6 +132,91 @@ describe("remaining time", () => {
     const nowMs = Date.parse("2026-01-01T12:01:00.000Z");
     expect(jobRemainingSeconds(job, nowMs)).toBe(240);
     expect(jobRemainingTimeLabel(job, nowMs)).toBe("~4 min left");
+  });
+
+  it.each([
+    "check_caption_rules",
+    "backup_captions",
+    "restore_captions",
+    "set_captions",
+    "batch_rename",
+    "replace_captions",
+    "find_duplicates",
+  ] as const)("estimates %s from its steady per-file rate", (jobType) => {
+    const job = makeJob({
+      job_type: jobType,
+      processed: 4,
+      total: 10,
+      started_at: "2026-01-01T12:00:00.000Z",
+      stats: { success: 4, issues_found: 1 },
+    });
+    const tracker = { ...createJobTimingTracker(job.id), slowItems: 0, recentFastStreak: 4 };
+    const nowMs = Date.parse("2026-01-01T12:00:20.000Z");
+
+    expect(jobRemainingSeconds(job, nowMs)).toBe(30);
+    expect(jobRemainingSeconds(job, nowMs, tracker)).toBe(30);
+    expect(jobRemainingTimeLabel(job, nowMs)).toBe("~30s left");
+  });
+
+  it.each([
+    [
+      "strip_metadata",
+      { success: 3, image_success: 2, video_success: 1, read_error: 1, cancelled: 4 },
+      { slow: 1, fast: 3 },
+    ],
+    [
+      "watermark",
+      { success: 3, image_success: 2, video_success: 1, ffmpeg_error: 1, write_error: 1 },
+      { slow: 2, fast: 3 },
+    ],
+    [
+      "comfy_process",
+      { success: 2, comfy_error: 1, write_error: 1, skipped: 3, read_error: 1 },
+      { slow: 4, fast: 4 },
+    ],
+    [
+      "verify_captions",
+      { success: 2, issues_found: 1, api_error: 1, parse_error: 1, no_caption: 2 },
+      { slow: 4, fast: 2 },
+    ],
+    [
+      "auto_caption",
+      { success: 2, too_short: 1, frame_error: 1, skipped_long: 1, no_caption: 1 },
+      { slow: 4, fast: 2 },
+    ],
+    [
+      "edit_captions",
+      { success: 1, unchanged: 1, rejected: 1, api_error: 1, no_caption: 2 },
+      { slow: 4, fast: 2 },
+    ],
+  ] as const)("splits %s into slow and fast files", (jobType, stats, expected) => {
+    expect(jobTimingCounts(makeJob({ job_type: jobType, stats }))).toEqual(expected);
+  });
+
+  it("estimates an images-only watermark before any video has finished", () => {
+    const job = makeJob({
+      job_type: "watermark",
+      processed: 4,
+      total: 10,
+      started_at: "2026-01-01T12:00:00.000Z",
+      stats: { success: 4, image_success: 4 },
+    });
+
+    expect(jobRemainingSeconds(job, Date.parse("2026-01-01T12:00:08.000Z"))).toBe(12);
+  });
+
+  it("keeps estimating while a model job has only skipped files behind it", () => {
+    const job = makeJob({
+      job_type: "auto_caption",
+      processed: 4,
+      total: 10,
+      started_at: "2026-01-01T12:00:00.000Z",
+      stats: { skipped_long: 4 },
+    });
+
+    expect(jobRemainingTimeLabel(job, Date.parse("2026-01-01T12:00:08.000Z"))).toBe(
+      "Estimating...",
+    );
   });
 
   it("does not let skipped images drag the estimate down", () => {

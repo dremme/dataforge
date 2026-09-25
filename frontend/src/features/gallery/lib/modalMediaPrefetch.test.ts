@@ -12,13 +12,7 @@ function item(name: string, mediaType: GalleryItem["media_type"] = "image"): Gal
 }
 
 describe("collectAdjacentModalMediaTargets", () => {
-  const items = [
-    item("a.jpg"),
-    item("b.mp4", "video"),
-    item("c.jpg"),
-    item("sysprompt.txt", "sysprompt"),
-    item("d.jpg"),
-  ];
+  const items = [item("a.jpg"), item("b.mp4", "video"), item("c.jpg"), item("d.jpg")];
 
   it("returns previous and next media around the current index", () => {
     expect(collectAdjacentModalMediaTargets(items, 1)).toEqual([
@@ -45,7 +39,7 @@ describe("collectAdjacentModalMediaTargets", () => {
     ]);
   });
 
-  it("skips system prompts and only includes existing neighbors", () => {
+  it("only includes existing neighbors", () => {
     expect(collectAdjacentModalMediaTargets(items, 0)).toEqual([
       {
         path: "C:\\Photos\\b.mp4",
@@ -53,7 +47,6 @@ describe("collectAdjacentModalMediaTargets", () => {
         kind: "video",
       },
     ]);
-    expect(collectAdjacentModalMediaTargets(items, 4)).toEqual([]);
-    expect(collectAdjacentModalMediaTargets(items, 2, { offsets: [1] })).toEqual([]);
+    expect(collectAdjacentModalMediaTargets(items, 3, { offsets: [1] })).toEqual([]);
   });
 });

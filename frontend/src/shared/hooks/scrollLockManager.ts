@@ -8,7 +8,7 @@ const SCROLL_LOCK_CLASSES = [
   "issue-resolver-modal-open",
   "duplicate-resolver-modal-open",
   "candidate-review-modal-open",
-  "sysprompt-modal-open",
+  "folder-instructions-modal-open",
   "confirm-dialog-open",
   "open-folder-modal-open",
   "jobs-drawer-open",

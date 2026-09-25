@@ -67,11 +67,11 @@ describe("AcceptAllCandidatesDialog", () => {
     expect(props.onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it("warns rather than alarms, since accepting is what the candidates are for", () => {
+  it("confirms as a primary action, since accepting is what the candidates are for", () => {
     renderDialog();
 
     expect(screen.getByRole("button", { name: "Accept" })).toHaveClass(
-      "confirm-dialog__btn--warning",
+      "confirm-dialog__btn--primary",
     );
   });
 

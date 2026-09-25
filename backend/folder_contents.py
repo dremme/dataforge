@@ -16,7 +16,7 @@ from folder_fingerprint import (
 from folder_scan import scan_folder
 from media_listing import list_media_from_scan, media_items_named
 from schemas import FolderChangesResponse, FolderResponse, SubfolderStats, SubfolderStatsResponse
-from sysprompt import load_sysprompt_item
+from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,10 @@ def build_folder_response(folder: Path) -> FolderResponse:
         breadcrumbs=build_breadcrumbs(folder),
         subfolders=subfolders,
         items=items,
-        sysprompt=load_sysprompt_item(folder),
+        has_sysprompt=scan is not None and scan.sysprompt is not None,
+        sysprompt_applies=load_sysprompt(folder) is not None,
         has_caption_backup=has_caption_backup(folder),
+        has_caption_rules=scan is not None and scan.caption_rules is not None,
         item_count=len(items),
         subfolder_count=len(subfolders),
         fingerprint=fingerprint,

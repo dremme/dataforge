@@ -37,6 +37,7 @@ function item(
     has_description: false,
     has_caption_file: false,
     issue_fixes: [],
+    rule_findings: [],
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
@@ -157,15 +158,6 @@ describe("applyFileFilter", () => {
 
   it("keeps only files with a candidate", () => {
     expect(applyFileFilter(items, "candidates").map((entry) => entry.name)).toEqual(["d.png"]);
-  });
-
-  it("does not treat a sysprompt as a candidate", () => {
-    const mixed = [
-      { ...item("b.png", "image"), has_candidate: true },
-      { ...item(".sysprompt", "sysprompt"), has_candidate: true },
-    ];
-
-    expect(applyFileFilter(mixed, "candidates").map((entry) => entry.name)).toEqual(["b.png"]);
   });
 });
 

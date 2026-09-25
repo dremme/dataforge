@@ -37,8 +37,7 @@ export function useCandidateReviewOverlay(
     async (folderPath: string, items: readonly GalleryItem[], focus?: CandidateReviewFocus) => {
       try {
         const staging = await fetchFolder(stagingPath(folderPath));
-        const candidates = staging.items.filter((item) => item.media_type !== "sysprompt");
-        const queue = buildCandidateReviewQueue(folderPath, items, candidates).filter(
+        const queue = buildCandidateReviewQueue(folderPath, items, staging.items).filter(
           (entry) => !focus || entry.path === focus.path,
         );
 

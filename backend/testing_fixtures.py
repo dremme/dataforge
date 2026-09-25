@@ -387,12 +387,16 @@ def write_txt_caption(media: Path, text: str) -> Path:
     return caption
 
 
-def write_issue_sidecar(media: Path, *fixes: str) -> Path:
+def write_issue_sidecar(media: Path, *fixes: str, rules: tuple[str, ...] = ()) -> Path:
     from captions import issue_file_path
+
+    payload: dict[str, list[str]] = {"fixes": list(fixes)}
+    if rules:
+        payload["rules"] = list(rules)
 
     issue_path = issue_file_path(media)
     issue_path.write_text(
-        json.dumps({"fixes": list(fixes)}, indent=2) + "\n",
+        json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
     return issue_path

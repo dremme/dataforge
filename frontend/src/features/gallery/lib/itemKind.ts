@@ -10,10 +10,6 @@ const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
 const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
 const IMAGE_EDIT_EXTENSION_SET = new Set<string>(IMAGE_EDIT_EXTENSIONS);
 
-export function isSysPrompt(item: GalleryItem): boolean {
-  return item.media_type === "sysprompt";
-}
-
 function extensionOfName(name: string): string | null {
   const dot = name.lastIndexOf(".");
   if (dot === -1) return null;
@@ -48,7 +44,7 @@ export function isEditableVideo(item: GalleryItem): boolean {
 
 /** Guarded on isMotion too: a Pillow round-trip would flatten a GIF's animation. */
 export function isEditableImage(item: GalleryItem): boolean {
-  if (isMotion(item) || isSysPrompt(item)) return false;
+  if (isMotion(item)) return false;
 
   const extension = extensionOf(item);
   return extension !== null && IMAGE_EDIT_EXTENSION_SET.has(extension);

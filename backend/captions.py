@@ -2,7 +2,7 @@ import json
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from caption_cache import cached_by_stat
 from constants import (
@@ -11,6 +11,7 @@ from constants import (
     ISSUE_FIX_SENTINELS,
     ISSUE_SIDECAR_SUFFIX,
     MAX_ISSUE_FIXES,
+    MAX_RULE_FINDINGS,
 )
 
 
@@ -139,7 +140,7 @@ def build_caption_response(media_path: Path) -> dict[str, object]:
     caption_status = bundle.caption_status
     caption_path = bundle.caption_path
 
-    issue_fixes, has_issue_file = load_issue_summary(media_path)
+    issue = load_issue_summary(media_path)
 
     return {
         "description": description,
@@ -147,8 +148,9 @@ def build_caption_response(media_path: Path) -> dict[str, object]:
         "has_caption_file": caption_status != "none",
         "caption_status": caption_status,
         "caption_file": str(caption_path) if caption_path else "",
-        "issue_fixes": issue_fixes,
-        "has_issue_file": has_issue_file,
+        "issue_fixes": issue.fixes,
+        "rule_findings": issue.rules,
+        "has_issue_file": issue.has_file,
     }
 
 
@@ -231,55 +233,74 @@ def normalize_issue_fixes(value: object) -> list[str]:
     return fixes
 
 
-def _issue_fixes_from_file(issue_path: Path) -> tuple[str, ...]:
-    """An unreadable sidecar still counts as present so the resolver can surface it."""
+type IssueSource = Literal["fixes", "rules"]
+
+
+class IssueSummary(NamedTuple):
+    fixes: list[str]
+    rules: list[str]
+    has_file: bool
+
+
+def _normalize_rule_findings(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+
+    findings = [entry.strip() for entry in value if isinstance(entry, str) and entry.strip()]
+    return findings[:MAX_RULE_FINDINGS]
+
+
+_NORMALIZERS: dict[IssueSource, Callable[[object], list[str]]] = {
+    "fixes": normalize_issue_fixes,
+    "rules": _normalize_rule_findings,
+}
+
+
+def _findings_from_file(issue_path: Path) -> dict[IssueSource, list[str]]:
+    """An unreadable sidecar reads as empty; callers still count the file as present."""
     try:
         data = json.loads(issue_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return ()
+        data = None
 
     if not isinstance(data, dict):
-        return ()
+        data = {}
 
-    return tuple(normalize_issue_fixes(data.get("fixes")))
+    return {source: normalize(data.get(source)) for source, normalize in _NORMALIZERS.items()}
 
 
-def issue_summary_from_sidecar(
-    issue_path: Path,
-    mtime_ns: int,
-    size: int,
-) -> tuple[list[str], bool]:
+def issue_summary_from_sidecar(issue_path: Path, mtime_ns: int, size: int) -> IssueSummary:
     """:func:`load_issue_summary` for a sidecar the caller has already stat'ed."""
-    fixes = cached_by_stat(
+    findings = cached_by_stat(
         "issue",
         issue_path,
         mtime_ns,
         size,
-        lambda: _issue_fixes_from_file(issue_path),
+        lambda: {source: tuple(found) for source, found in _findings_from_file(issue_path).items()},
     )
-    # Fresh list per call: the cache hands back the same tuple every time.
-    return list(fixes), True
+    # Fresh lists per call: the cache hands back the same tuples every time.
+    return IssueSummary(list(findings["fixes"]), list(findings["rules"]), True)
 
 
-def load_issue_summary(media_path: Path) -> tuple[list[str], bool]:
+def load_issue_summary(media_path: Path) -> IssueSummary:
     issue_path = issue_file_path(media_path)
     if not issue_path.is_file():
-        return [], False
+        return IssueSummary([], [], False)
 
-    return list(_issue_fixes_from_file(issue_path)), True
+    findings = _findings_from_file(issue_path)
+    return IssueSummary(findings["fixes"], findings["rules"], True)
 
 
-def save_issue_fixes(media_path: Path, fixes: list[str]) -> None:
-    """Write the sidecar's fixes, or remove it when there are none left to record."""
-    capped = normalize_issue_fixes(fixes)
+def save_issue_findings(media_path: Path, source: IssueSource, findings: list[str]) -> None:
+    """Replace one source's findings and keep the other's; the sidecar goes once both are empty."""
     issue_path = issue_file_path(media_path)
+    stored = _findings_from_file(issue_path)
+    stored[source] = _NORMALIZERS[source](findings)
+    payload = {key: found for key, found in stored.items() if found}
 
-    if not capped:
+    if not payload:
         if issue_path.is_file():
             issue_path.unlink()
         return
 
-    issue_path.write_text(
-        json.dumps({"fixes": capped}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    issue_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

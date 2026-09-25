@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { JobType } from "@/shared/types";
 import {
@@ -38,6 +38,7 @@ function setupOverlays(
   scope: { itemCount?: number; folderItemCount?: number; selectionActive?: boolean } = {},
 ) {
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+  const onEditCaptionRules = vi.fn();
   const { itemCount = 3, folderItemCount = 3, selectionActive = false } = scope;
 
   const { result } = renderHook(() =>
@@ -49,10 +50,11 @@ function setupOverlays(
       folderItemCount,
       selectionActive,
       startJob,
+      onEditCaptionRules,
     }),
   );
 
-  return { result, startJob };
+  return { result, startJob, onEditCaptionRules };
 }
 
 describe("useAutomationDialogOverlays scope", () => {
@@ -102,6 +104,21 @@ describe("useAutomationDialogOverlays scope", () => {
 });
 
 describe("useAutomationDialogOverlays", () => {
+  it("closes the caption rules check to hand over to the rules editor", async () => {
+    const { result, startJob, onEditCaptionRules } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("check_caption_rules");
+    });
+    await waitFor(() => expect(result.current.dialogs.checkCaptionRules.open).toBe(true));
+
+    act(() => result.current.dialogs.checkCaptionRules.onEditRules());
+
+    expect(result.current.dialogs.checkCaptionRules.open).toBe(false);
+    expect(onEditCaptionRules).toHaveBeenCalledTimes(1);
+    expect(startJob).not.toHaveBeenCalled();
+  });
+
   it("opens dialogs and starts jobs after confirm", async () => {
     const { result, startJob } = setupOverlays();
 

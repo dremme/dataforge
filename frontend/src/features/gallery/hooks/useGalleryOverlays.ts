@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import { useGalleryItemModal } from "@/features/gallery/hooks/useGalleryItemModal";
-import { buildSyspromptItem } from "@/features/gallery/lib/sysprompt";
+import type { InstructionKind } from "@/shared/api/folderInstructions";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
 
@@ -8,8 +8,6 @@ type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
   folderResetToken: number;
-  folder: string | undefined;
-  sysprompt: GalleryItem | null;
   mainRef: RefObject<HTMLElement | null>;
 };
 
@@ -17,11 +15,10 @@ export function useGalleryOverlays({
   images,
   filteredItems,
   folderResetToken,
-  folder,
-  sysprompt,
   mainRef,
 }: UseGalleryOverlaysArgs) {
-  const [syspromptOpen, setSyspromptOpen] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [instructionsTab, setInstructionsTab] = useState<InstructionKind>("sysprompt");
 
   const {
     selectedPath,
@@ -35,32 +32,38 @@ export function useGalleryOverlays({
   } = useGalleryItemModal(images, filteredItems, folderResetToken);
 
   useEffect(() => {
-    setSyspromptOpen(false);
+    setInstructionsOpen(false);
   }, [folderResetToken]);
 
   const openGalleryItem = useCallback(
     (path: string) => {
-      setSyspromptOpen(false);
+      setInstructionsOpen(false);
       openGalleryItemBase(path);
     },
     [openGalleryItemBase],
   );
 
-  const openSysPrompt = useCallback(() => {
-    closeGalleryItem();
-    setSyspromptOpen(true);
-  }, [closeGalleryItem]);
-
-  const closeSysPrompt = useCallback(() => setSyspromptOpen(false), []);
-
-  const modalOpen = selectedPath !== null || syspromptOpen;
-  const modalLockClass = selectedPath !== null ? "gallery-item-modal-open" : "sysprompt-modal-open";
-  useScrollLock(modalOpen, modalLockClass, mainRef);
-
-  const syspromptModalItem = useMemo(
-    () => (folder ? buildSyspromptItem(folder, sysprompt) : null),
-    [folder, sysprompt],
+  const openInstructionsTab = useCallback(
+    (tab: InstructionKind) => {
+      closeGalleryItem();
+      setInstructionsTab(tab);
+      setInstructionsOpen(true);
+    },
+    [closeGalleryItem],
   );
+
+  const openSysPrompt = useCallback(() => openInstructionsTab("sysprompt"), [openInstructionsTab]);
+  const openCaptionRules = useCallback(
+    () => openInstructionsTab("caption_rules"),
+    [openInstructionsTab],
+  );
+
+  const closeInstructions = useCallback(() => setInstructionsOpen(false), []);
+
+  const modalOpen = selectedPath !== null || instructionsOpen;
+  const modalLockClass =
+    selectedPath !== null ? "gallery-item-modal-open" : "folder-instructions-modal-open";
+  useScrollLock(modalOpen, modalLockClass, mainRef);
 
   return {
     selectedPath,
@@ -72,8 +75,9 @@ export function useGalleryOverlays({
     goToNext,
     removeGalleryItem,
     openSysPrompt,
-    closeSysPrompt,
-    syspromptOpen,
-    syspromptModalItem,
+    openCaptionRules,
+    closeInstructions,
+    instructionsOpen,
+    instructionsTab,
   };
 }

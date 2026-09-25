@@ -47,6 +47,7 @@ from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
+    write_issue_sidecar,
     write_media,
     write_mp4_video,
     write_txt_caption,
@@ -774,6 +775,20 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             self.assertFalse(issue_file_path(media).exists())
 
+    def test_a_clean_verdict_keeps_the_caption_rule_hits(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A red car floating.")
+            write_issue_sidecar(media, "old", rules=('Flagged "floating".',))
+
+            with patch(
+                "automation.verify_captions.verify_caption",
+                return_value=_fixes_json(),
+            ):
+                run_verify_captions_job(root)
+
+            self.assertEqual(load_issue_summary(media), ([], ['Flagged "floating".'], True))
+
     def test_a_clean_file_does_not_clear_a_stem_sharer_findings(self) -> None:
         """A generated folder holds clip.mp4 beside the clip.png that previews it.
 
@@ -796,7 +811,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                 run_verify_captions_job(root)
 
             self.assertEqual(load_issue_summary(flagged)[0], ["The caption omits the mountains."])
-            self.assertEqual(load_issue_summary(clean), ([], False))
+            self.assertEqual(load_issue_summary(clean), ([], [], False))
 
     def test_run_job_records_api_errors(self) -> None:
         with TempMediaFolder() as root:

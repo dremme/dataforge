@@ -106,6 +106,7 @@ export {
   Search as iconSearch,
   Shredder as iconShredder,
   Sparkles as iconSparkles,
+  SpellCheck2 as iconSpellCheck2,
   SquarePen as iconSquarePen,
   Stamp as iconStamp,
   Star as iconStar,

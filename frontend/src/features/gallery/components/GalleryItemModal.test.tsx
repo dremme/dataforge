@@ -524,6 +524,7 @@ describe("GalleryItemModal", () => {
       caption_status: "text",
       caption_file: `${HOME_PATH}\\sunset.txt`,
       issue_fixes: [],
+      rule_findings: [],
       has_issue_file: false,
     });
 

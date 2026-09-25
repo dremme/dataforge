@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field, StringConstraints, model_validator
 #: ``no_caption`` is a job stat key, not one of these.
 type CaptionStatus = Literal["none", "empty", "text"]
 
-#: GIF is its own type so it renders as ``<img>``; a sysprompt is listed as media too.
-type MediaType = Literal["image", "video", "gif", "sysprompt"]
+#: GIF is its own type so it renders as ``<img>``.
+type MediaType = Literal["image", "video", "gif"]
 
 type WatermarkSizeName = Literal["small", "medium", "large"]
 type WatermarkOpacity = Literal[25, 50, 75]
@@ -37,6 +37,7 @@ type JobType = Literal[
     "replace_captions",
     "find_duplicates",
     "verify_captions",
+    "check_caption_rules",
     "edit_captions",
     "batch_rename",
     "backup_captions",
@@ -100,6 +101,7 @@ class GalleryItem(BaseModel):
     has_description: bool
     has_caption_file: bool
     issue_fixes: list[str] = Field(default_factory=list)
+    rule_findings: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
     #: Group membership comes from ``/api/duplicates``, never from the item.
     duplicate_group: str | None = None
@@ -195,8 +197,13 @@ class FolderResponse(BaseModel):
     breadcrumbs: list[Breadcrumb]
     subfolders: list[Subfolder]
     items: list[GalleryItem]
-    sysprompt: GalleryItem | None = None
+    #: The folder's own .sysprompt; a parent's file does not count.
+    has_sysprompt: bool = False
+    #: A non-empty .sysprompt reaches this folder, its own or a parent's.
+    sysprompt_applies: bool = False
     has_caption_backup: bool = False
+    #: The folder's own .captionrules; a parent's file does not count.
+    has_caption_rules: bool = False
     item_count: int
     subfolder_count: int
     fingerprint: str = ""
@@ -275,6 +282,7 @@ class CaptionSaveResponse(BaseModel):
     caption_status: CaptionStatus
     caption_file: str = ""
     issue_fixes: list[str] = Field(default_factory=list)
+    rule_findings: list[str] = Field(default_factory=list)
     has_issue_file: bool = False
 
 
@@ -283,12 +291,28 @@ class CaptionBackupResponse(BaseModel):
     description: str | None = None
 
 
-class SysPromptSaveResponse(BaseModel):
-    description: str | None
-    has_description: bool
-    has_caption_file: bool
-    caption_status: CaptionStatus
-    path: str
+class InstructionFileResponse(BaseModel):
+    """A .sysprompt or .captionrules as one folder sees it."""
+
+    #: The folder's own file; empty when it has none.
+    text: str
+    has_file: bool
+    #: The nearest parent holding the file; it applies wherever the folder has none of its own.
+    parent_folder: str | None
+    #: The parent's file as seen from the folder, e.g. ``../.captionrules``.
+    parent_relative_path: str | None
+    parent_text: str
+
+
+class FolderInstructionsResponse(BaseModel):
+    sysprompt: InstructionFileResponse
+    caption_rules: InstructionFileResponse
+    #: A starting point for a folder without caption rules.
+    caption_rules_template: str
+
+
+class InstructionFileUpdate(BaseModel):
+    text: str
 
 
 class JobSelectionRequest(BaseModel):
@@ -370,6 +394,10 @@ class FindDuplicatesStartRequest(JobSelectionRequest, FindDuplicatesJobSettings)
 
 
 class StripMetadataStartRequest(JobSelectionRequest):
+    pass
+
+
+class CheckCaptionRulesStartRequest(JobSelectionRequest):
     pass
 
 

@@ -17,9 +17,9 @@ import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
 
-const SysPromptModal = lazy(() =>
-  import("@/features/gallery/components/SysPromptModal").then((module) => ({
-    default: module.SysPromptModal,
+const FolderInstructionsModal = lazy(() =>
+  import("@/features/gallery/components/FolderInstructionsModal").then((module) => ({
+    default: module.FolderInstructionsModal,
   })),
 );
 
@@ -34,7 +34,7 @@ export function AppOverlays({
   onCaptionSaved,
   gallery,
   issueResolver,
-  sysprompt,
+  instructions,
   stats,
   duplicateResolver,
   candidateReview,
@@ -127,13 +127,14 @@ export function AppOverlays({
         />
       )}
 
-      {sysprompt.open && sysprompt.item && (
+      {instructions.open && instructions.folderPath && (
         <Suspense fallback={null}>
-          <SysPromptModal
-            key={sysprompt.item.path}
-            item={sysprompt.item}
-            onClose={sysprompt.onClose}
-            onSaved={onCaptionSaved}
+          <FolderInstructionsModal
+            key={instructions.folderPath}
+            folderPath={instructions.folderPath}
+            initialTab={instructions.tab}
+            onClose={instructions.onClose}
+            onSaved={instructions.onSaved}
           />
         </Suspense>
       )}

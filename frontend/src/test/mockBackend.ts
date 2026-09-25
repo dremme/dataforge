@@ -7,14 +7,18 @@ import type {
   Job,
   JobFileResult,
   FolderResponse,
+  InstructionFileResponse,
 } from "@/shared/types";
-import { emptyFolder, homeFolder, vacationFolder } from "./fixtures";
+import type { InstructionKind } from "@/shared/api/folderInstructions";
+import { emptyFolder, HOME_SYSPROMPT, homeFolder, vacationFolder } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0,
   0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1, 13, 10, 46,
   180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
 ]);
+
+export const MOCK_CAPTION_RULES_TEMPLATE = "repeated_phrases: 4\n";
 
 export interface MockBackendOptions {
   failFolder?: boolean;
@@ -89,6 +93,51 @@ export function installMockBackend(options: MockBackendOptions = {}) {
   };
 
   const getFavoritePaths = () => folderFavorites ?? [homeFolder.home];
+
+  const instructionFiles: Record<InstructionKind, Map<string, string>> = {
+    sysprompt: new Map([[homeFolder.path, `${HOME_SYSPROMPT}\n`]]),
+    caption_rules: new Map(),
+  };
+
+  const parentFolderPath = (path: string): string | null => {
+    const trimmed = path.replace(/[/\\]+$/, "");
+    const index = Math.max(trimmed.lastIndexOf("\\"), trimmed.lastIndexOf("/"));
+    return index > 0 ? trimmed.slice(0, index) : null;
+  };
+
+  const describeInstructionFile = (
+    kind: InstructionKind,
+    folderPath: string,
+  ): InstructionFileResponse => {
+    const files = instructionFiles[kind];
+    const filename = kind === "sysprompt" ? ".sysprompt" : ".captionrules";
+    const text = files.get(folderPath);
+    let parent = parentFolderPath(folderPath);
+    let levels = 1;
+    while (parent !== null && !files.has(parent)) {
+      parent = parentFolderPath(parent);
+      levels += 1;
+    }
+    return {
+      text: text ?? "",
+      has_file: text !== undefined,
+      parent_folder: parent,
+      parent_relative_path: parent === null ? null : `${"..\\".repeat(levels)}${filename}`,
+      parent_text: parent === null ? "" : (files.get(parent) ?? ""),
+    };
+  };
+
+  const saveInstructionFile = (kind: InstructionKind, url: URL, init?: RequestInit) => {
+    const folderPath = url.searchParams.get("path") ?? "";
+    const body = init?.body ? JSON.parse(init.body as string) : { text: "" };
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (text) {
+      instructionFiles[kind].set(folderPath, `${text}\n`);
+    } else {
+      instructionFiles[kind].delete(folderPath);
+    }
+    return jsonResponse(describeInstructionFile(kind, folderPath));
+  };
 
   const buildFavoritesResponse = () => ({
     favorites: getFavoritePaths().map((path) => ({
@@ -374,18 +423,21 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
-    if (url.pathname === "/api/sysprompt" && method === "PUT") {
-      const path = url.searchParams.get("path") ?? "";
-      const body = init?.body ? JSON.parse(init.body as string) : { text: "" };
-      const text = typeof body.text === "string" ? body.text : "";
-
+    if (url.pathname === "/api/folder-instructions" && method === "GET") {
+      const folderPath = url.searchParams.get("path") ?? "";
       return jsonResponse({
-        description: text || null,
-        has_description: text.length > 0,
-        has_caption_file: true,
-        caption_status: text.length > 0 ? "text" : "empty",
-        path,
+        sysprompt: describeInstructionFile("sysprompt", folderPath),
+        caption_rules: describeInstructionFile("caption_rules", folderPath),
+        caption_rules_template: MOCK_CAPTION_RULES_TEMPLATE,
       });
+    }
+
+    if (url.pathname === "/api/sysprompt" && method === "PUT") {
+      return saveInstructionFile("sysprompt", url, init);
+    }
+
+    if (url.pathname === "/api/caption-rules" && method === "PUT") {
+      return saveInstructionFile("caption_rules", url, init);
     }
 
     if (url.pathname === "/api/caption/backup" && method === "GET") {
@@ -412,6 +464,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         caption_status: item?.caption_status ?? "none",
         caption_file: path.replace(/\.[^.]+$/, ".txt"),
         issue_fixes: item?.issue_fixes ?? [],
+        rule_findings: item?.rule_findings ?? [],
         has_issue_file: item?.has_issue_file ?? false,
       };
       return jsonResponse(caption);
@@ -438,12 +491,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
         if (resolveIssue) {
           item.issue_fixes = [];
+          item.rule_findings = [];
           item.has_issue_file = false;
         }
       }
 
       const issueFields = {
         issue_fixes: savedItem?.issue_fixes ?? [],
+        rule_findings: savedItem?.rule_findings ?? [],
         has_issue_file: savedItem?.has_issue_file ?? false,
       };
 
@@ -671,6 +726,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/batch-rename" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "batch_rename"));
+    }
+
+    if (url.pathname === "/api/automation/check-caption-rules" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
+      return jsonResponse(createMockJob(folderPath, "check_caption_rules"));
     }
 
     if (url.pathname === "/api/automation/verify-captions" && method === "POST") {

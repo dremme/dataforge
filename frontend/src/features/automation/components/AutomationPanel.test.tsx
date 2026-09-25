@@ -40,6 +40,7 @@ const galleryItem: GalleryItem = {
   has_description: false,
   has_caption_file: false,
   issue_fixes: [],
+  rule_findings: [],
   has_issue_file: false,
   has_duplicate_file: false,
   has_backup: false,
@@ -91,7 +92,8 @@ const baseProps = {
   startingJobType: null,
   canStart: false,
   hasSyspromptFile: false,
-  hasSyspromptContent: false,
+  hasCaptionRulesFile: false,
+  syspromptApplies: false,
   jobAvailability: {
     hasCaptionBackup: false,
     ostrisAvailable: false,
@@ -157,6 +159,43 @@ describe("AutomationPanel", () => {
 
     expect(screen.getByLabelText("Automation")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create instructions" })).toBeInTheDocument();
+  });
+
+  it("starts auto-captioning on a system prompt inherited from a parent folder", () => {
+    mockShowSpecs = false;
+    render(
+      <AutomationPanel
+        {...baseProps}
+        canStart
+        filteredItems={[galleryItem]}
+        hasSyspromptFile={false}
+        syspromptApplies
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Auto-caption/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create instructions" })).toBeInTheDocument();
+  });
+
+  it("keeps auto-captioning off until a system prompt reaches the folder", () => {
+    mockShowSpecs = false;
+    render(<AutomationPanel {...baseProps} canStart filteredItems={[galleryItem]} />);
+
+    expect(screen.getByRole("button", { name: /Auto-caption/ })).toBeDisabled();
+  });
+
+  it("offers to edit the instructions when only caption rules exist", () => {
+    mockShowSpecs = false;
+    render(<AutomationPanel {...baseProps} hasCaptionRulesFile />);
+
+    expect(screen.getByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
+  });
+
+  it("offers to edit the instructions when only a system prompt exists", () => {
+    mockShowSpecs = false;
+    render(<AutomationPanel {...baseProps} hasSyspromptFile />);
+
+    expect(screen.getByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
   });
 
   it("shows a counted review action when the folder has issue files", async () => {

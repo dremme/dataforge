@@ -89,7 +89,6 @@ export function useAppWorkspace() {
 
   const subfolders = useMemo(() => folder?.subfolders ?? [], [folder?.subfolders]);
   const items = useMemo(() => folder?.items ?? [], [folder?.items]);
-  const sysprompt = folder?.sysprompt ?? null;
 
   useSubfolderStats(folder?.path, folder?.fingerprint, subfolders, setFolder, !folderNotFound);
 
@@ -99,7 +98,6 @@ export function useAppWorkspace() {
     selection,
     items,
     folderPath: folder?.path,
-    sysprompt,
     setFolder,
     mainRef,
     refreshFolder,
@@ -199,13 +197,16 @@ export function useAppWorkspace() {
     breadcrumbs: folder?.breadcrumbs ?? [],
     items,
     filteredItems: gallery.query.filteredItems,
-    sysprompt,
+    hasSysprompt: folder?.has_sysprompt ?? false,
+    syspromptApplies: folder?.sysprompt_applies ?? false,
+    hasCaptionRules: folder?.has_caption_rules ?? false,
     hasCaptionBackup: folder?.has_caption_backup ?? false,
     ostrisAvailable,
     comfyPresetsAvailable,
     getJobPaths: gallery.getJobPaths,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,
+    onEditCaptionRules: gallery.openCaptionRules,
     issueCount: gallery.issueCount,
     onResolveIssues:
       gallery.issueCount > 0 ? () => gallery.issueResolver.openIssueResolver(items) : undefined,

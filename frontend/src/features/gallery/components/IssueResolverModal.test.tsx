@@ -32,6 +32,7 @@ function makeIssueItem(name: string, overrides: Partial<GalleryItem> = {}): Gall
       'Replace "a blue car" with "a red car".',
       'Remove "parked at the curb" - the car is moving.',
     ],
+    rule_findings: [],
     has_issue_file: true,
     has_duplicate_file: false,
     has_backup: false,
@@ -100,6 +101,61 @@ describe("IssueResolverModal", () => {
 
     expect(within(dialog).getAllByRole("listitem")).toHaveLength(1);
     expect(dialog).toHaveTextContent('Change "seated" to "kneeling".');
+  });
+
+  it("lists rule hits apart from the model's suggested changes", async () => {
+    render(
+      <IssueResolverModal
+        items={[
+          makeIssueItem("balloon.png", {
+            description: "A balloon floating over the hills.",
+            issue_fixes: ['Replace "hills" with "dunes".'],
+            rule_findings: ['"floating": check the subject is off the ground'],
+          }),
+        ]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for balloon.png",
+    });
+
+    const suggested = within(dialog).getByText("Suggested changes").closest("section")!;
+    const ruleHits = within(dialog).getByText("Rule hits").closest("section")!;
+    expect(suggested).toHaveTextContent('Replace "hills" with "dunes".');
+    expect(ruleHits).toHaveTextContent('"floating": check the subject is off the ground');
+    await waitFor(() => {
+      expect(vi.mocked(literalMatchHighlight)).toHaveBeenLastCalledWith(["hills", "floating"]);
+    });
+  });
+
+  it("shows rule hits alone when the model found nothing", async () => {
+    render(
+      <IssueResolverModal
+        items={[
+          makeIssueItem("balloon.png", {
+            issue_fixes: [],
+            rule_findings: ["Too short: 3 words, the rules ask for at least 8."],
+          }),
+        ]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for balloon.png",
+    });
+
+    expect(within(dialog).getByText("Rule hits")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Suggested changes")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Error in issue file")).not.toBeInTheDocument();
   });
 
   it("falls back to an error line when the issue file carries no fixes", async () => {

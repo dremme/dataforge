@@ -14,7 +14,8 @@ import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolverOverlay";
 import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery/lib/issues";
-import type { FolderResponse, GalleryItem } from "@/shared/types";
+import { instructionApplies, type InstructionKind } from "@/shared/api/folderInstructions";
+import type { FolderResponse, GalleryItem, InstructionFileResponse } from "@/shared/types";
 
 type GallerySelection = ReturnType<typeof useGallerySelection>;
 
@@ -22,7 +23,6 @@ type UseGallerySessionOptions = {
   selection: GallerySelection;
   items: GalleryItem[];
   folderPath: string | undefined;
-  sysprompt: GalleryItem | null;
   setFolder: Dispatch<SetStateAction<FolderResponse | null>>;
   mainRef: RefObject<HTMLElement | null>;
   refreshFolder: () => Promise<void>;
@@ -33,7 +33,6 @@ export function useGallerySession({
   selection,
   items,
   folderPath,
-  sysprompt,
   setFolder,
   mainRef,
   refreshFolder,
@@ -100,15 +99,14 @@ export function useGallerySession({
     goToNext,
     removeGalleryItem,
     openSysPrompt,
-    closeSysPrompt,
-    syspromptOpen,
-    syspromptModalItem,
+    openCaptionRules,
+    closeInstructions,
+    instructionsOpen,
+    instructionsTab,
   } = useGalleryOverlays({
     images: items,
     filteredItems: query.filteredItems,
     folderResetToken,
-    folder: folderPath,
-    sysprompt,
     mainRef,
   });
 
@@ -130,6 +128,18 @@ export function useGallerySession({
       void syncBaseline();
     },
     [handleCaptionSaved, syncBaseline],
+  );
+
+  const onInstructionsSaved = useCallback(
+    (kind: InstructionKind, saved: InstructionFileResponse) => {
+      const patch =
+        kind === "sysprompt"
+          ? { has_sysprompt: saved.has_file, sysprompt_applies: instructionApplies(saved) }
+          : { has_caption_rules: saved.has_file };
+      setFolder((current) => current && { ...current, ...patch });
+      void syncBaseline();
+    },
+    [setFolder, syncBaseline],
   );
 
   // Same commit so the item modal never overlaps the resolver.
@@ -239,9 +249,10 @@ export function useGallerySession({
     issueCount,
     openGalleryItem,
     openSysPrompt,
-    closeSysPrompt,
-    syspromptOpen,
-    syspromptModalItem,
+    openCaptionRules,
+    closeInstructions,
+    instructionsOpen,
+    instructionsTab,
     selectedPath,
     selectedIndex,
     modalItems,
@@ -252,6 +263,7 @@ export function useGallerySession({
     issueResolver,
     onResolveGalleryItemIssue,
     onCaptionSaved,
+    onInstructionsSaved,
     onGalleryItemDeleted,
     onGalleryItemsDeleted,
     onGalleryItemsMoved,

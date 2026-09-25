@@ -174,8 +174,14 @@
   &__issue-content {
     display: flex;
     flex-direction: column;
-    gap: 0.1875rem;
+    gap: 0.625rem;
     min-width: 0;
+  }
+
+  &__issue-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1875rem;
   }
 
   &__issue-label {

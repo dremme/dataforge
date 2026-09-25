@@ -1,11 +1,37 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { HOME_PATH, HOME_SYSPROMPT, VACATION_PATH } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
 describe("App: captions", () => {
-  it("opens and edits the system prompt modal", async () => {
+  it("lets a subfolder start its own system prompt from the one it inherits", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: /Vacation/ }));
+    await user.click(await screen.findByRole("button", { name: "Create instructions" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Folder instructions" });
+    const editor = await within(dialog).findByRole("textbox", { name: "System prompt" });
+    expect(editor).toHaveValue("");
+    expect(within(dialog).getByText("..\\.sysprompt")).toHaveAttribute("title", HOME_PATH);
+
+    await user.click(within(dialog).getByRole("button", { name: "Copy from parent" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
+    const saved = fetchMock.mock.calls.find(
+      ([input, init]) => String(input).startsWith("/api/sysprompt") && init?.method === "PUT",
+    );
+    expect(new URL(String(saved?.[0]), "http://localhost").searchParams.get("path")).toBe(
+      VACATION_PATH,
+    );
+  });
+
+  it("opens the folder instructions and edits the system prompt", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -16,10 +42,12 @@ describe("App: captions", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit instructions" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Edit system prompt" });
-    const editor = within(dialog).getByRole("textbox", { name: "System prompt" });
-    expect(within(dialog).getByRole("heading", { name: ".sysprompt" })).toBeInTheDocument();
-    expect(editor).toHaveValue("Caption every image with rich detail.");
+    const dialog = await screen.findByRole("dialog", { name: "Folder instructions" });
+    const editor = await within(dialog).findByRole("textbox", { name: "System prompt" });
+    expect(
+      within(dialog).getByRole("heading", { name: "Folder instructions" }),
+    ).toBeInTheDocument();
+    expect(editor).toHaveValue(`${HOME_SYSPROMPT}\n`);
 
     await user.clear(editor);
     await user.type(editor, "New folder prompt.");

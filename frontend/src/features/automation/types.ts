@@ -93,4 +93,13 @@ export type AutomationDialogsState = {
     (settings: ComfyProcessSettings) => void,
     JobSettingsByType["comfy_process"]
   >;
+  checkCaptionRules: {
+    open: boolean;
+    scope: DialogScopeInfo;
+    busy: boolean;
+    folderPath: string;
+    onConfirm: () => void;
+    onEditRules: () => void;
+    onCancel: () => void;
+  };
 };

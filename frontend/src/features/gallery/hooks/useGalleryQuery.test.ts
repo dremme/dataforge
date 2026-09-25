@@ -20,6 +20,7 @@ function item(
     has_description: hasDescription,
     has_caption_file: hasDescription,
     issue_fixes: hasIssue ? ["Mention the mountain peak."] : [],
+    rule_findings: [],
     has_issue_file: hasIssue,
     has_duplicate_file: hasDuplicate,
     has_backup: false,

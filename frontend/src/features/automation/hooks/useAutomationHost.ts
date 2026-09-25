@@ -20,13 +20,16 @@ type UseAutomationHostOptions = {
   breadcrumbs: Breadcrumb[];
   items: GalleryItem[];
   filteredItems: GalleryItem[];
-  sysprompt: GalleryItem | null;
+  hasSysprompt: boolean;
+  syspromptApplies: boolean;
+  hasCaptionRules: boolean;
   hasCaptionBackup: boolean;
   ostrisAvailable: boolean;
   comfyPresetsAvailable: boolean;
   getJobPaths: () => string[] | undefined;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
+  onEditCaptionRules: () => void;
   issueCount: number;
   onResolveIssues?: () => void;
   duplicateGroupCount: number;
@@ -43,13 +46,16 @@ export function useAutomationHost({
   breadcrumbs,
   items,
   filteredItems,
-  sysprompt,
+  hasSysprompt,
+  syspromptApplies,
+  hasCaptionRules,
   hasCaptionBackup,
   ostrisAvailable,
   comfyPresetsAvailable,
   getJobPaths,
   automation,
   onEditSysprompt,
+  onEditCaptionRules,
   issueCount,
   onResolveIssues,
   duplicateGroupCount,
@@ -78,6 +84,7 @@ export function useAutomationHost({
     selectionActive,
     startJob,
     getJobPaths,
+    onEditCaptionRules,
   });
 
   const {
@@ -114,8 +121,9 @@ export function useAutomationHost({
       job: automation.folderJob,
       startingJobType: automation.startingJobType,
       canStart: !automation.folderHasActiveJob,
-      hasSyspromptFile: Boolean(sysprompt),
-      hasSyspromptContent: sysprompt?.has_description ?? false,
+      hasSyspromptFile: hasSysprompt,
+      hasCaptionRulesFile: hasCaptionRules,
+      syspromptApplies,
       jobAvailability,
       onEditSysprompt,
       onRequestStart: requestStart,
@@ -138,6 +146,7 @@ export function useAutomationHost({
       automation.folderJob,
       automation.startingJobType,
       filteredItems,
+      hasCaptionRules,
       jobAvailability,
       issueCount,
       duplicateGroupCount,
@@ -150,7 +159,8 @@ export function useAutomationHost({
       onRetryFailed,
       onRunAgain,
       requestStart,
-      sysprompt,
+      hasSysprompt,
+      syspromptApplies,
     ],
   );
 

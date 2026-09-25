@@ -276,14 +276,12 @@ class CaptionCacheTests(unittest.TestCase):
             issue_path = issue_file_path(media)
             stat = issue_path.stat()
 
-            first, _ = issue_summary_from_sidecar(issue_path, stat.st_mtime_ns, stat.st_size)
-            first.append("mutated")
-            second, has_issue_file = issue_summary_from_sidecar(
-                issue_path, stat.st_mtime_ns, stat.st_size
-            )
+            first = issue_summary_from_sidecar(issue_path, stat.st_mtime_ns, stat.st_size)
+            first.fixes.append("mutated")
+            first.rules.append("mutated")
+            second = issue_summary_from_sidecar(issue_path, stat.st_mtime_ns, stat.st_size)
 
-            self.assertTrue(has_issue_file)
-            self.assertEqual(second, ['Replace "a" with "b".'])
+            self.assertEqual(second, (['Replace "a" with "b".'], [], True))
 
 
 if __name__ == "__main__":

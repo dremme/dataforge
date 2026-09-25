@@ -10,6 +10,7 @@ function item(overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_description: true,
     has_caption_file: true,
     issue_fixes: ['Replace "a blue lake" with "a snow-covered mountain peak".'],
+    rule_findings: [],
     has_issue_file: true,
     has_duplicate_file: false,
     has_backup: false,
@@ -27,31 +28,18 @@ describe("listResolvableIssueItems", () => {
       item({ name: "clip.mp4", path: "C:\\Photos\\clip.mp4", media_type: "video" }),
       item({ name: "loop.gif", path: "C:\\Photos\\loop.gif", media_type: "gif" }),
       item({
-        name: ".sysprompt",
-        media_type: "sysprompt",
-        has_issue_file: false,
-        has_duplicate_file: false,
-        has_backup: false,
-        has_candidate: false,
-      }),
-      item({
         name: "plain.png",
         has_issue_file: false,
         has_duplicate_file: false,
         has_backup: false,
         has_candidate: false,
         issue_fixes: [],
+        rule_findings: [],
       }),
     ];
 
     expect(listResolvableIssueItems(items)).toHaveLength(3);
     expect(countResolvableIssues(items)).toBe(3);
-  });
-
-  it("keeps a sysprompt out even when it carries an issue file", () => {
-    const items = [item({ name: ".sysprompt", media_type: "sysprompt" })];
-
-    expect(listResolvableIssueItems(items)).toHaveLength(0);
   });
 });
 

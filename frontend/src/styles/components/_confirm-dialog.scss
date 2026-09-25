@@ -386,6 +386,39 @@
   overflow: hidden;
 }
 
+.check-caption-rules-dialog {
+  // Holds roughly the source line's height so the panel does not jump when the rules arrive.
+  &__loading {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    min-height: 2.25rem;
+    margin: 0.75rem 0 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  &__loading-icon {
+    flex-shrink: 0;
+    @include icon-size(var(--icon-size-base));
+  }
+
+  &__source {
+    margin-top: 0.75rem;
+
+    strong {
+      color: var(--text);
+      font-weight: var(--font-semibold);
+      word-break: break-word;
+    }
+  }
+
+  // Pushes the edit action to the far side, apart from the confirm pair.
+  &__edit {
+    margin-right: auto;
+  }
+}
+
 .replace-captions-dialog {
   &__body {
     @include app-scrollbar;

@@ -1,4 +1,4 @@
-import { JOB_TYPE_LABELS } from "@/shared/constants";
+import { CAPTION_RULES_FILENAME, JOB_TYPE_LABELS } from "@/shared/constants";
 import type { ReactNode } from "react";
 import type { AppIcon } from "@/shared/icons";
 import {
@@ -15,6 +15,7 @@ import {
   iconReplace,
   iconShredder,
   iconSparkles,
+  iconSpellCheck2,
   iconStamp,
 } from "@/shared/icons";
 import type { JobType } from "@/shared/types";
@@ -74,6 +75,13 @@ export const JOB_TYPE_META = {
     startUi: "dialog" as const,
     menuDescription: "Verifies captions by comparing them with their media file.",
   },
+  check_caption_rules: {
+    type: "check_caption_rules" as const,
+    group: "datasets" as const,
+    icon: iconSpellCheck2,
+    startUi: "dialog" as const,
+    menuDescription: `Check captions against your ${CAPTION_RULES_FILENAME} file, no model needed.`,
+  },
   edit_captions: {
     type: "edit_captions" as const,
     group: "datasets" as const,
@@ -121,7 +129,7 @@ export const JOB_TYPE_META = {
     group: "files" as const,
     icon: iconFiles,
     startUi: "dialog" as const,
-    menuDescription: "Flag duplicate and near-duplicate media as caption issues.",
+    menuDescription: "Find duplicate and near-duplicate media and group them for review.",
   },
   backup_captions: {
     type: "backup_captions" as const,

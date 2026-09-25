@@ -1,0 +1,8 @@
+# Sample caption rules. Run Lint captions to see the hits as caption issues.
+
+words:
+  min: 10
+repeated_phrases: 4
+flag:
+  - match: [twinkl*, flicker*]
+    note: a still image cannot show light changing over time

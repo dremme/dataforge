@@ -5,6 +5,7 @@ import { ReplaceCaptionsDialog } from "./ReplaceCaptionsDialog";
 import { EditCaptionsDialog } from "./EditCaptionsDialog";
 import { FindDuplicatesDialog } from "./FindDuplicatesDialog";
 import { BatchRenameDialog } from "./BatchRenameDialog";
+import { CheckCaptionRulesDialog } from "./CheckCaptionRulesDialog";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
@@ -28,6 +29,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     trainLora,
     watermark,
     comfyProcess,
+    checkCaptionRules,
   } = dialogs;
 
   return (
@@ -141,6 +143,17 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={comfyProcess.busy}
           onConfirm={comfyProcess.onConfirm}
           onCancel={comfyProcess.onCancel}
+        />
+      )}
+
+      {checkCaptionRules.open && (
+        <CheckCaptionRulesDialog
+          scope={checkCaptionRules.scope}
+          folderPath={checkCaptionRules.folderPath}
+          busy={checkCaptionRules.busy}
+          onConfirm={checkCaptionRules.onConfirm}
+          onEditRules={checkCaptionRules.onEditRules}
+          onCancel={checkCaptionRules.onCancel}
         />
       )}
     </>

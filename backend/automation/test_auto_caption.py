@@ -723,6 +723,33 @@ class AutoCaptionFolderValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, ".sysprompt"):
                 validate_auto_caption_folder(root)
 
+    def test_validate_refuses_an_empty_sysprompt(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            write_sysprompt(root, "  ")
+
+            with self.assertRaisesRegex(ValueError, ".sysprompt"):
+                validate_auto_caption_folder(root)
+
+    def test_validate_accepts_a_parent_folder_sysprompt(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            child = root / "portraits"
+            child.mkdir()
+            write_media(child, "photo.png")
+
+            validate_auto_caption_folder(child)
+
+    def test_captions_with_the_parent_folder_sysprompt(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Name every animal in the frame.")
+            child = root / "portraits"
+            child.mkdir()
+
+            prompt = build_system_prompt(child, media_kind="image")
+
+            self.assertIn("Name every animal in the frame.", prompt)
+
     def test_validate_requires_supported_media(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")

@@ -37,6 +37,7 @@ type UseAutomationDialogOverlaysOptions = {
     paths?: string[],
   ) => Promise<unknown>;
   getJobPaths?: () => string[] | undefined;
+  onEditCaptionRules: () => void;
 };
 
 export function useAutomationDialogOverlays({
@@ -48,6 +49,7 @@ export function useAutomationDialogOverlays({
   selectionActive,
   startJob,
   getJobPaths,
+  onEditCaptionRules,
 }: UseAutomationDialogOverlaysOptions) {
   // At most one dialog is ever open, so one job type beats a boolean per dialog.
   const [openJobType, setOpenJobType] = useState<JobType | null>(null);
@@ -211,11 +213,24 @@ export function useAutomationDialogOverlays({
             overwrite_candidates: draft.overwriteCandidates,
           }),
       },
+      checkCaptionRules: {
+        open: openJobType === "check_caption_rules",
+        scope,
+        busy: startingJobType === "check_caption_rules",
+        folderPath: folderPath ?? "",
+        onCancel: closeDialog,
+        onConfirm: () => startJobFromDialog("check_caption_rules"),
+        onEditRules: () => {
+          closeDialog();
+          onEditCaptionRules();
+        },
+      },
     };
   }, [
     closeDialog,
     folderPath,
     getJobPaths,
+    onEditCaptionRules,
     openJobType,
     scope,
     settings,

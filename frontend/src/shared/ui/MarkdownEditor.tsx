@@ -20,7 +20,10 @@ import {
 } from "@/shared/icons";
 import { markdownCommands } from "@/shared/lib/markdownCommands";
 
-export type MarkdownEditorProps = Omit<CodeMirrorEditorProps, "language">;
+export type MarkdownEditorProps = Omit<CodeMirrorEditorProps, "language"> & {
+  /** Shown at the far end of the toolbar. */
+  toolbarAside?: ReactNode;
+};
 
 interface ToolbarButtonProps {
   children?: ReactNode;
@@ -45,7 +48,7 @@ function ToolbarButton({ icon, title, onClick }: ToolbarButtonProps) {
   );
 }
 
-export function MarkdownEditor(props: MarkdownEditorProps) {
+export function MarkdownEditor({ toolbarAside, ...props }: MarkdownEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   const executeCommand = useCallback(
@@ -126,6 +129,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
           title="Remove formatting"
           onClick={() => executeCommand("removeFormatting")}
         />
+        {toolbarAside}
       </div>
       <CodeMirrorEditor ref={editorRef} language="markdown" {...props} />
     </div>

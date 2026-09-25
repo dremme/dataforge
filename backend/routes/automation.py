@@ -24,6 +24,7 @@ from schemas import (
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
+    CheckCaptionRulesStartRequest,
     ComfyLogsResponse,
     ComfyPresetsResponse,
     ComfyPresetSummary,
@@ -159,6 +160,14 @@ def start_find_duplicates_job(
         body,
         threshold=body.threshold,
     )
+
+
+@router.post("/automation/check-caption-rules", response_model=JobResponse)
+def start_check_caption_rules_job(
+    path: str = Query(..., description="Absolute path to folder with media files"),
+    body: CheckCaptionRulesStartRequest = CheckCaptionRulesStartRequest(),
+) -> JobResponse:
+    return _start_job("check_caption_rules", resolve_folder(path), body)
 
 
 @router.post("/automation/strip-metadata", response_model=JobResponse)

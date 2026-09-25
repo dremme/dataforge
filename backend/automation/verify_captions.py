@@ -36,7 +36,7 @@ from captions import (
     load_reference_caption,
     normalize_issue_fixes,
     normalize_issue_text,
-    save_issue_fixes,
+    save_issue_findings,
 )
 from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
 from openai_settings import (
@@ -456,11 +456,6 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     }
 
 
-def _write_caption_fixes(media_path: Path, fixes: list[str]) -> None:
-    """Replace this file's findings only; a folder-wide clear used to wipe unselected files."""
-    save_issue_fixes(media_path, fixes)
-
-
 def _failure_outcome(status: str, message: str | None) -> FileOutcome:
     return FileOutcome(
         status=status,
@@ -511,7 +506,7 @@ def run_verify_captions_job(
                 return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
 
             try:
-                _write_caption_fixes(media_path, list(verification.fixes))
+                save_issue_findings(media_path, "fixes", list(verification.fixes))
             except OSError as exc:
                 return FileOutcome(
                     status="write_error",

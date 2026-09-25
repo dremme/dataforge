@@ -1,4 +1,3 @@
-import { isSysPrompt } from "./itemKind";
 import type { CaptionStatus, GalleryItem } from "@/shared/types";
 
 export type CaptionStatusVariant = "success" | "warning" | "muted";
@@ -23,17 +22,6 @@ const CARD_STATUS_MESSAGES: Partial<Record<CaptionStatus, CaptionStatusDisplay>>
   },
 };
 
-const SYSPROMPT_STATUS_MESSAGES: Partial<Record<CaptionStatus, CaptionStatusDisplay>> = {
-  empty: {
-    message: "System prompt file is empty",
-    variant: "warning",
-  },
-  none: {
-    message: "No system prompt yet",
-    variant: "muted",
-  },
-};
-
 function galleryItemStatusMessage(status: CaptionStatus, mediaLabel: string): string {
   switch (status) {
     case "empty":
@@ -45,8 +33,7 @@ function galleryItemStatusMessage(status: CaptionStatus, mediaLabel: string): st
 
 export function getCardCaptionDisplay(item: GalleryItem): CaptionStatusDisplay | null {
   if (item.description) return null;
-  const messages = isSysPrompt(item) ? SYSPROMPT_STATUS_MESSAGES : CARD_STATUS_MESSAGES;
-  return messages[resolveCaptionStatus(item)] ?? null;
+  return CARD_STATUS_MESSAGES[resolveCaptionStatus(item)] ?? null;
 }
 
 const ROW_STATUS_MESSAGES: Record<CaptionStatus, CaptionStatusDisplay> = {
@@ -70,17 +57,6 @@ export function getGalleryItemCaptionDisplay(
   const status = resolveCaptionStatus(item);
   if (status === "text") {
     return { message: item.description ?? "", variant: "success" };
-  }
-
-  if (isSysPrompt(item)) {
-    const variant = status === "empty" ? "warning" : "muted";
-    return {
-      message:
-        status === "empty"
-          ? "System prompt file exists but has no content."
-          : "No system prompt has been written for this folder yet.",
-      variant,
-    };
   }
 
   const variant = status === "empty" ? "warning" : "muted";

@@ -5,6 +5,7 @@ import unittest
 from automation.job_messages import (
     auto_caption_error_message,
     auto_caption_failure_message,
+    check_caption_rules_error_message,
     edit_captions_failure_message,
     resolve_job_error,
     verify_captions_failure_message,
@@ -113,6 +114,25 @@ class JobMessagesTests(unittest.TestCase):
         message = watermark_error_message({"read_error": 1})
 
         self.assertEqual(message, "Failed to watermark 1 file. The original was not changed.")
+
+    def test_lint_captions_is_silent_without_errors(self) -> None:
+        self.assertIsNone(check_caption_rules_error_message({"success": 4, "issues_found": 2}))
+
+    def test_lint_captions_counts_read_and_write_failures_together(self) -> None:
+        message = check_caption_rules_error_message({"read_error": 1, "write_error": 2})
+
+        self.assertEqual(
+            message,
+            "Failed to lint 3 files. Their captions or issue files could not be read or written.",
+        )
+
+    def test_lint_captions_uses_the_singular_for_one_failure(self) -> None:
+        message = check_caption_rules_error_message({"write_error": 1})
+
+        self.assertEqual(
+            message,
+            "Failed to lint 1 file. Its caption or issue file could not be read or written.",
+        )
 
     def test_resolve_job_error_reconstructs_watermark_message(self) -> None:
         message = resolve_job_error(

@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
 from captions import issue_file_path
-from constants import LAST_FOLDER_KEY, STAGING_DIR_NAME
+from constants import CAPTION_RULES_FILENAME, LAST_FOLDER_KEY, STAGING_DIR_NAME
 from db import get_preference, set_preference
 from folder_fingerprint import compute_folder_fingerprint
 from media_listing import (
@@ -40,7 +40,7 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertEqual(payload["item_count"], 2)
 
             by_name = {item["name"]: item for item in payload["items"]}
-            self.assertIsNone(payload["sysprompt"])
+            self.assertFalse(payload["has_sysprompt"])
             self.assertTrue(by_name["captioned.png"]["has_description"])
             self.assertEqual(by_name["captioned.png"]["caption_status"], "text")
             self.assertFalse(by_name["plain.png"]["has_description"])
@@ -251,20 +251,49 @@ class FolderContentsEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertEqual(response.json()["detail"], "Path is not a directory")
 
-    def test_includes_sysprompt_in_response(self) -> None:
+    def test_reports_the_folder_own_sysprompt_and_whether_one_applies(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe scenes in detail.")
+            child = root / "portraits"
+            child.mkdir()
 
-            response = client.get(f"/api/folders/contents?path={quote(str(root))}")
+            own = client.get(f"/api/folders/contents?path={quote(str(root))}").json()
+            inherited = client.get(f"/api/folders/contents?path={quote(str(child))}").json()
 
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            sysprompt = payload["sysprompt"]
-            self.assertEqual(len(payload["items"]), 0)
-            self.assertEqual(sysprompt["name"], ".sysprompt")
-            self.assertEqual(sysprompt["media_type"], "sysprompt")
-            self.assertEqual(sysprompt["description"], "Describe scenes in detail.")
-            self.assertEqual(sysprompt["caption_status"], "text")
+            self.assertEqual(own["items"], [])
+            self.assertTrue(own["has_sysprompt"])
+            self.assertTrue(own["sysprompt_applies"])
+            self.assertFalse(inherited["has_sysprompt"])
+            self.assertTrue(inherited["sysprompt_applies"])
+
+    def test_an_empty_sysprompt_does_not_apply(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "  ")
+
+            payload = client.get(f"/api/folders/contents?path={quote(str(root))}").json()
+
+            self.assertTrue(payload["has_sysprompt"])
+            self.assertFalse(payload["sysprompt_applies"])
+
+    def test_reports_whether_the_folder_has_its_own_caption_rules(self) -> None:
+        with TempMediaFolder() as root:
+            child = root / "portraits"
+            child.mkdir()
+            (root / CAPTION_RULES_FILENAME).write_text("repeated_phrases: 4\n", encoding="utf-8")
+
+            own = client.get(f"/api/folders/contents?path={quote(str(root))}").json()
+            inherited = client.get(f"/api/folders/contents?path={quote(str(child))}").json()
+
+            self.assertTrue(own["has_caption_rules"])
+            self.assertFalse(inherited["has_caption_rules"])
+
+    def test_caption_rules_are_not_listed_as_media(self) -> None:
+        with TempMediaFolder() as root:
+            (root / CAPTION_RULES_FILENAME).write_text("repeated_phrases: 4\n", encoding="utf-8")
+
+            payload = client.get(f"/api/folders/contents?path={quote(str(root))}").json()
+
+            self.assertEqual(payload["items"], [])
 
     def test_includes_caption_issue_metadata(self) -> None:
         with TempMediaFolder() as root:

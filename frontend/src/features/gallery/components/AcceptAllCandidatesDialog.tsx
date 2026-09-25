@@ -40,7 +40,6 @@ export function AcceptAllCandidatesDialog({
         <DialogActions
           confirmLabel="Accept"
           busyLabel="Accepting..."
-          confirmVariant="warning"
           busy={busy}
           onConfirm={confirm}
           onCancel={onCancel}

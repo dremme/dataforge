@@ -31,7 +31,7 @@ Open any folder from the app, or start with [`sample_images/`](../sample_images/
 A typical first pass:
 
 1. Look through the gallery. Filters and the statistics drawer show what still needs work.
-2. Write captions in the detail view, or edit the folder's `.sysprompt` if you plan to auto-caption.
+2. Write captions in the detail view, or write a system prompt with **Create instructions** if you plan to auto-caption.
 3. [Connect a vision model](configuration.md#connect-a-vision-model) only if you want **Auto-caption**, **Verify captions**, or **Edit captions**.
 4. Select files to limit a job to them, or select nothing to run it on the whole folder.
 5. Review the results and resolve any flagged captions, duplicates, or ComfyUI results.

@@ -52,33 +52,6 @@ describe("computeDatasetStats", () => {
     expect(stats.findings.duplicateGroups).toBe(2);
   });
 
-  it("never counts the sysprompt as a duplicate", () => {
-    const stats = computeDatasetStats([
-      mediaItem("a.png", HOME_PATH),
-      mediaItem(".sysprompt", HOME_PATH, {
-        media_type: "sysprompt",
-        has_duplicate_file: true,
-        duplicate_group: "g1",
-      }),
-    ]);
-
-    expect(stats.findings.duplicates).toBe(0);
-  });
-
-  it("excludes the sysprompt, whose description is instructions rather than a caption", () => {
-    const stats = computeDatasetStats([
-      captioned("one.png", "a dog"),
-      mediaItem(".sysprompt", HOME_PATH, {
-        media_type: "sysprompt",
-        description: "Describe every photograph in detail.",
-        caption_status: "text",
-      }),
-    ]);
-
-    expect(stats.total).toBe(1);
-    expect(stats.topWords.map((entry) => entry.word)).not.toContain("describe");
-  });
-
   it("summarizes caption length", () => {
     const stats = computeDatasetStats([
       captioned("one.png", "a".repeat(10)),

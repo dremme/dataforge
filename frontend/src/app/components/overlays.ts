@@ -1,3 +1,4 @@
+import type { InstructionKind } from "@/shared/api/folderInstructions";
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
@@ -9,14 +10,11 @@ import type {
   CaptionSaveResponse,
   DuplicateGroup,
   GalleryItem,
-  SysPromptSaveResponse,
+  InstructionFileResponse,
 } from "@/shared/types";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
-type CaptionSavedHandler = (
-  path: string,
-  update: CaptionSaveResponse | SysPromptSaveResponse,
-) => void;
+type CaptionSavedHandler = (path: string, update: CaptionSaveResponse) => void;
 
 type GalleryOverlayState = {
   selectedPath: string | null;
@@ -43,10 +41,12 @@ type IssueResolverOverlayState = {
   onIndexChange: (index: number) => void;
 };
 
-type SysPromptOverlayState = {
+type InstructionsOverlayState = {
   open: boolean;
-  item: GalleryItem | null;
+  folderPath: string | undefined;
+  tab: InstructionKind;
   onClose: () => void;
+  onSaved: (kind: InstructionKind, saved: InstructionFileResponse) => void;
 };
 
 type DuplicateResolverOverlayState = {
@@ -115,7 +115,7 @@ export type AppOverlaysProps = {
   onCaptionSaved: CaptionSavedHandler;
   gallery: GalleryOverlayState;
   issueResolver: IssueResolverOverlayState;
-  sysprompt: SysPromptOverlayState;
+  instructions: InstructionsOverlayState;
   stats: StatsOverlayState;
   duplicateResolver: DuplicateResolverOverlayState;
   candidateReview: CandidateReviewOverlayState;

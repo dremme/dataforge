@@ -94,10 +94,15 @@ AUDIO_USER_SENTENCE = (
 )
 
 
+SYSPROMPT_REQUIRED = (
+    f"Auto-captioning needs a {SYSPROMPT_FILENAME} with instructions in this folder or one above it"
+)
+
+
 def _load_specific_sysprompt(folder: Path) -> str:
-    specific_sys_prompt, _, _ = load_sysprompt(folder)
-    if not specific_sys_prompt:
-        raise ValueError("System prompt is empty")
+    specific_sys_prompt = load_sysprompt(folder)
+    if specific_sys_prompt is None:
+        raise ValueError(SYSPROMPT_REQUIRED)
     return specific_sys_prompt
 
 
@@ -314,9 +319,8 @@ def validate_auto_caption_folder(folder: Path, *, caption_audio: bool = False) -
     if not folder.is_dir():
         raise ValueError("Folder not found")
 
-    sysprompt_path = folder / SYSPROMPT_FILENAME
-    if not sysprompt_path.is_file():
-        raise ValueError(".sysprompt file is required for auto-captioning")
+    if load_sysprompt(folder) is None:
+        raise ValueError(SYSPROMPT_REQUIRED)
 
     if not list_auto_caption_media(folder):
         raise ValueError("No supported images or videos found in folder")

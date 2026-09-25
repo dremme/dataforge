@@ -310,7 +310,7 @@ class RestoreCaptionsJobTests(unittest.TestCase):
 
             self.assertTrue(media.with_suffix(".txt").is_file())
             self.assertFalse(issue_file_path(media).exists())
-            self.assertEqual(load_issue_summary(media), ([], False))
+            self.assertEqual(load_issue_summary(media), ([], [], False))
             self.assertEqual(result["stats"]["success"], 1)
 
     def test_skips_backed_up_captions_without_media(self) -> None:

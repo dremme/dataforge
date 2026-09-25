@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 from candidate_pairing import candidate_name_for
 from captions import (
+    IssueSummary,
     caption_summary_from_sidecar,
     issue_summary_from_sidecar,
     resolve_caption_file_name,
@@ -173,15 +174,15 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         )
 
     issue_sidecar = _issue_sidecar(scan, media)
-    if issue_sidecar is None:
-        issue_fixes: list[str] = []
-        has_issue_file = False
-    else:
-        issue_fixes, has_issue_file = issue_summary_from_sidecar(
+    issue = (
+        IssueSummary([], [], False)
+        if issue_sidecar is None
+        else issue_summary_from_sidecar(
             issue_sidecar.path,
             issue_sidecar.mtime_ns,
             issue_sidecar.size,
         )
+    )
 
     duplicate_sidecar = _duplicate_sidecar(scan, media)
     duplicate_finding = (
@@ -203,8 +204,9 @@ def _build_media_item(scan: FolderScan, media: ScannedEntry, media_type: str) ->
         "description": description,
         "has_description": description is not None,
         "has_caption_file": caption_status != "none",
-        "issue_fixes": issue_fixes,
-        "has_issue_file": has_issue_file,
+        "issue_fixes": issue.fixes,
+        "rule_findings": issue.rules,
+        "has_issue_file": issue.has_file,
         "duplicate_group": None if duplicate_finding is None else duplicate_finding.group,
         "has_duplicate_file": duplicate_finding is not None,
         "has_candidate": candidate_name is not None,

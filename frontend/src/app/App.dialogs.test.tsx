@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { VACATION_PATH } from "@/test/fixtures";
+import { HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -129,6 +129,68 @@ describe("App: dialogs", () => {
     expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
       "1 selected file in Photos",
     );
+  });
+
+  it("routes a folder without caption rules to the rules tab, then checks against them", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = installMockBackend();
+    await renderApp();
+
+    const openCheck = async () => {
+      await user.click(await screen.findByRole("button", { name: /More/ }));
+      await user.click(screen.getByRole("menuitem", { name: /Lint captions/ }));
+      return screen.findByRole("alertdialog", { name: "Lint captions?" });
+    };
+
+    const empty = await openCheck();
+    expect(empty.querySelector(".dialog-scope__line")).toHaveTextContent(
+      /^All \d+ files? in Photos$/,
+    );
+    await user.click(await within(empty).findByRole("button", { name: "Edit caption rules" }));
+
+    const editor = await screen.findByRole("dialog", { name: "Folder instructions" });
+    expect(screen.queryByRole("alertdialog", { name: "Lint captions?" })).toBeNull();
+    expect(within(editor).getByRole("tab", { name: "Caption rules" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await user.click(await within(editor).findByRole("button", { name: "Use template" }));
+    await user.click(within(editor).getByRole("button", { name: "Save" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Folder instructions" })).toBeNull();
+    });
+
+    const ready = await openCheck();
+    await user.click(await within(ready).findByRole("button", { name: "Lint captions" }));
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.map(([input, init]) => {
+        const requestUrl =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        return `${(init?.method ?? "GET").toUpperCase()} ${new URL(requestUrl, "http://localhost").pathname}`;
+      });
+      const saved = calls.indexOf("PUT /api/caption-rules");
+      const started = calls.indexOf("POST /api/automation/check-caption-rules");
+      expect(saved).toBeGreaterThanOrEqual(0);
+      expect(started).toBeGreaterThan(saved);
+    });
+  });
+
+  it("offers to edit the instructions once the folder has caption rules of its own", async () => {
+    const user = userEvent.setup();
+    const withoutSysprompt = { ...homeFolder, has_sysprompt: false, sysprompt_applies: false };
+    installMockBackend({
+      folderByPath: { undefined: withoutSysprompt, [HOME_PATH]: withoutSysprompt },
+    });
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Create instructions" }));
+    const editor = await screen.findByRole("dialog", { name: "Folder instructions" });
+    await user.click(within(editor).getByRole("tab", { name: "Caption rules" }));
+    await user.click(await within(editor).findByRole("button", { name: "Use template" }));
+    await user.click(within(editor).getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
   });
 
   it("asks for confirmation before starting an auto-caption job", async () => {

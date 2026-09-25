@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from urllib.parse import quote
 
-from constants import STAGING_DIR_NAME
+from constants import CAPTION_RULES_FILENAME, STAGING_DIR_NAME
 from folder_fingerprint import clear_remembered_signatures_for_tests
 from routes._test_client import client
 from testing_fixtures import (
@@ -143,6 +143,18 @@ class FolderChangesTests(unittest.TestCase):
             listed = self._listing(root)
 
             (root / "album").mkdir()
+
+            changes = self._changes(root, listed["fingerprint"])
+
+            self.assertTrue(changes["full"])
+
+    def test_new_caption_rules_ask_for_a_full_reload(self) -> None:
+        """The listing's has_caption_rules flag is only refreshed by a full reload."""
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            listed = self._listing(root)
+
+            (root / CAPTION_RULES_FILENAME).write_text("repeated_phrases: 4\n", encoding="utf-8")
 
             changes = self._changes(root, listed["fingerprint"])
 

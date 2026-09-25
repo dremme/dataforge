@@ -227,62 +227,59 @@ export function updateJobTimingTracker(
   };
 }
 
-function jobTimingCounts(job: Job): { fast: number; slow: number } {
+/** Every file costs about the same, so elapsed time over processed files predicts the rest. */
+const STEADY_RATE_JOB_TYPES: ReadonlySet<JobType> = new Set([
+  "backup_captions",
+  "restore_captions",
+  "check_caption_rules",
+  "set_captions",
+  "batch_rename",
+  "replace_captions",
+  "find_duplicates",
+]);
+
+interface TimingSplit {
+  /** Per-file statuses behind the expensive step: a model call, an ffmpeg run, a workflow. */
+  slow: readonly string[];
+  fast: readonly string[];
+  /** Fast files still did real work, so their rate stands in until a slow one finishes. */
+  fastIsWork?: boolean;
+}
+
+const MEDIA_KIND_SPLIT: TimingSplit = {
+  slow: ["video_success", "ffmpeg_error"],
+  fast: ["image_success", "read_error", "write_error"],
+  fastIsWork: true,
+};
+
+const TIMING_SPLITS: Partial<Record<JobType, TimingSplit>> = {
+  auto_caption: {
+    slow: ["success", "api_error", "frame_error", "too_short", "read_error", "write_error"],
+    fast: ["no_caption", "skipped_long"],
+  },
+  edit_captions: {
+    slow: ["success", "api_error", "unchanged", "rejected", "read_error", "write_error"],
+    fast: ["no_caption"],
+  },
+  verify_captions: {
+    slow: ["success", "api_error", "parse_error", "frame_error", "read_error", "write_error"],
+    fast: ["no_caption"],
+  },
+  comfy_process: {
+    slow: ["success", "comfy_error", "write_error"],
+    fast: ["skipped", "read_error"],
+  },
+  watermark: MEDIA_KIND_SPLIT,
+  strip_metadata: MEDIA_KIND_SPLIT,
+};
+
+export function jobTimingCounts(job: Job): { fast: number; slow: number } {
+  const split = TIMING_SPLITS[jobTypeOf(job)];
   const stats = job.stats ?? {};
-  const type = jobTypeOf(job);
+  const total = (keys: readonly string[] = []) =>
+    keys.reduce((sum, key) => sum + (stats[key] ?? 0), 0);
 
-  if (type === "strip_metadata") {
-    const slow = (stats.success ?? 0) + (stats.write_error ?? 0) + (stats.ffmpeg_error ?? 0);
-    const fast = stats.read_error ?? 0;
-    return { fast, slow };
-  }
-
-  if (type === "set_captions") {
-    const slow = (stats.success ?? 0) + (stats.write_error ?? 0);
-    const fast = stats.skipped ?? 0;
-    return { fast, slow };
-  }
-
-  if (type === "batch_rename") {
-    const slow = (stats.success ?? 0) + (stats.rename_error ?? 0);
-    return { fast: stats.cancelled ?? 0, slow };
-  }
-
-  // Watermark videos are slow; treating stills the same wrecks the remaining-time estimate.
-  if (type === "watermark") {
-    const slow = (stats.video_success ?? 0) + (stats.ffmpeg_error ?? 0);
-    const fast = (stats.image_success ?? 0) + (stats.read_error ?? 0) + (stats.write_error ?? 0);
-    return { fast, slow };
-  }
-
-  if (type === "backup_captions" || type === "restore_captions") {
-    return { fast: job.processed, slow: 0 };
-  }
-
-  if (type === "verify_captions") {
-    const slow =
-      (stats.success ?? 0) +
-      (stats.api_error ?? 0) +
-      (stats.parse_error ?? 0) +
-      (stats.frame_error ?? 0) +
-      (stats.read_error ?? 0) +
-      (stats.write_error ?? 0);
-    const fast = stats.no_caption ?? 0;
-    return { fast, slow };
-  }
-
-  const fast = (stats.no_caption ?? 0) + (stats.skipped_long ?? 0);
-  const slow =
-    (stats.success ?? 0) +
-    (stats.api_error ?? 0) +
-    (stats.frame_error ?? 0) +
-    (stats.too_short ?? 0) +
-    (stats.rejected ?? 0) +
-    (stats.unchanged ?? 0) +
-    (stats.read_error ?? 0) +
-    (stats.write_error ?? 0);
-
-  return { fast, slow };
+  return { slow: total(split?.slow), fast: total(split?.fast) };
 }
 
 function estimateSlowRemainingFraction(
@@ -398,15 +395,18 @@ export function jobRemainingSeconds(
   }
 
   const elapsedSeconds = Math.max(1, (nowMs - startedMs) / 1000);
+  const steadyRateSeconds = Math.ceil(remainingItems * (elapsedSeconds / job.processed));
+  if (STEADY_RATE_JOB_TYPES.has(jobTypeOf(job))) {
+    return steadyRateSeconds;
+  }
+
   const counts = jobTimingCounts(job);
   const trackedSlow = tracker?.slowItems ?? 0;
   const slowCompleted = Math.max(counts.slow, trackedSlow);
 
   if (slowCompleted < 1) {
-    if (counts.fast + counts.slow === 0 && trackedSlow < 1) {
-      return Math.ceil(remainingItems * (elapsedSeconds / job.processed));
-    }
-    return null;
+    const noCounts = counts.fast + counts.slow === 0 && trackedSlow < 1;
+    return noCounts || TIMING_SPLITS[jobTypeOf(job)]?.fastIsWork ? steadyRateSeconds : null;
   }
 
   const fastCompleted = counts.fast > 0 ? counts.fast : Math.max(0, job.processed - slowCompleted);

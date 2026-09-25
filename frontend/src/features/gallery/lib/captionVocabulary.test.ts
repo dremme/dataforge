@@ -56,13 +56,8 @@ describe("buildCaptionVocabulary", () => {
     expect(harbour?.count).toBe(2);
   });
 
-  it("ignores captioning instructions and uncaptioned files", () => {
+  it("ignores uncaptioned files", () => {
     const entries = buildCaptionVocabulary([
-      makeItem(".sysprompt", {
-        media_type: "sysprompt",
-        description: "Describe every image with rich detail",
-        caption_status: "text",
-      }),
       makeItem("blank.png", { description: null, has_description: false, caption_status: "none" }),
       captioned("a.png", "harbour"),
     ]);

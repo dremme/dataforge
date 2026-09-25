@@ -14,7 +14,6 @@ from testing_fixtures import (
     write_issue_sidecar,
     write_media,
     write_mp4_video,
-    write_sysprompt,
     write_txt_caption,
 )
 
@@ -160,6 +159,16 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
 
 
 class CaptionEndpointTests(unittest.TestCase):
+    def test_the_caption_response_carries_the_rule_hits(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            write_issue_sidecar(media, rules=('Flagged "floating".',))
+
+            response = client.get(f"/api/caption?path={quote(str(media))}")
+
+            self.assertEqual(response.json()["rule_findings"], ['Flagged "floating".'])
+            self.assertTrue(response.json()["has_issue_file"])
+
     def test_read_caption_reflects_sidecar_changes(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
@@ -330,60 +339,6 @@ class CaptionBackupEndpointTests(unittest.TestCase):
             payload = response.json()
             self.assertTrue(payload["exists"])
             self.assertEqual(payload["description"], "")
-
-
-class SysPromptEndpointTests(unittest.TestCase):
-    def test_update_sysprompt_by_file_path(self) -> None:
-        with TempMediaFolder() as root:
-            sysprompt = write_sysprompt(root, "Original prompt.")
-
-            response = client.put(
-                f"/api/sysprompt?path={quote(str(sysprompt))}",
-                json={"text": "Updated prompt."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertEqual(payload["description"], "Updated prompt.")
-            self.assertEqual(payload["caption_status"], "text")
-            self.assertEqual(sysprompt.read_text(encoding="utf-8"), "Updated prompt.\n")
-
-    def test_create_sysprompt_by_folder_path(self) -> None:
-        with TempMediaFolder() as root:
-            response = client.put(
-                f"/api/sysprompt?path={quote(str(root))}",
-                json={"text": "Brand new prompt."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            sysprompt = root / ".sysprompt"
-            self.assertTrue(sysprompt.is_file())
-            self.assertEqual(sysprompt.read_text(encoding="utf-8"), "Brand new prompt.\n")
-            self.assertEqual(response.json()["caption_status"], "text")
-
-    def test_empty_sysprompt_clears_file(self) -> None:
-        with TempMediaFolder() as root:
-            sysprompt = write_sysprompt(root, "Previous prompt.")
-
-            response = client.put(
-                f"/api/sysprompt?path={quote(str(root))}",
-                json={"text": "   "},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(sysprompt.read_text(encoding="utf-8"), "")
-            self.assertEqual(response.json()["caption_status"], "empty")
-
-    def test_returns_404_for_missing_folder(self) -> None:
-        with TempMediaFolder() as root:
-            missing = root / "does-not-exist"
-
-            response = client.put(
-                f"/api/sysprompt?path={quote(str(missing))}",
-                json={"text": "Nope."},
-            )
-
-            self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":

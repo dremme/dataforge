@@ -206,6 +206,34 @@ class StripMetadataAutomationEndpointTests(unittest.TestCase):
             self.assertEqual(response.json()["job_type"], "strip_metadata")
 
 
+class CheckCaptionRulesAutomationEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def test_requires_a_rule_file(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = client.post(f"/api/automation/check-caption-rules?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(".captionrules", response.json()["detail"])
+
+    def test_starts_job_and_records_the_hits(self) -> None:
+        with TempMediaFolder() as root:
+            (root / ".captionrules").write_text("flag:\n  - match: [float*]\n", encoding="utf-8")
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "A balloon floating over the hills.")
+
+            response = client.post(f"/api/automation/check-caption-rules?path={quote(str(root))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["job_type"], "check_caption_rules")
+            job = wait_for_job(response.json()["id"])
+            self.assertEqual(job.status, "completed")
+            self.assertEqual(job.stats["issues_found"], 1)
+
+
 class SetCaptionsAutomationEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_job_manager()

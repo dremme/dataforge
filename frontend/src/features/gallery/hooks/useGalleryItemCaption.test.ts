@@ -22,6 +22,7 @@ function makeItem(name: string, overrides: Partial<GalleryItem> = {}): GalleryIt
     has_description: true,
     has_caption_file: true,
     issue_fixes: [],
+    rule_findings: [],
     has_issue_file: false,
     has_duplicate_file: false,
     has_backup: false,
@@ -43,6 +44,7 @@ function captionResponse(
     caption_status: "text",
     caption_file: `${HOME_PATH}\\file.txt`,
     issue_fixes: [],
+    rule_findings: [],
     has_issue_file: false,
     ...overrides,
   };

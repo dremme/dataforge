@@ -68,6 +68,8 @@ DUPLICATE_SIDECAR_SUFFIX = ".duplicate.json"
 # Prompt states this cap; the parser enforces it.
 MAX_ISSUE_FIXES = 3
 
+MAX_RULE_FINDINGS = 5
+
 # Models often answer "None" instead of an empty list.
 ISSUE_FIX_SENTINELS = frozenset({"none", "n/a", "no issues", "no changes"})
 
@@ -118,11 +120,14 @@ LAST_FOLDER_KEY = "last_folder"
 
 SYSPROMPT_FILENAME = ".sysprompt"
 
+CAPTION_RULES_FILENAME = ".captionrules"
+
 #: User-facing job names, shared so the UI and job notifications cannot drift apart.
 JOB_TYPE_LABELS: dict[str, str] = {
     "auto_caption": "Auto-caption",
     "set_captions": "Set captions",
     "verify_captions": "Verify captions",
+    "check_caption_rules": "Lint captions",
     "edit_captions": "Edit captions",
     "replace_captions": "Find & replace",
     "train_lora": "LoRA training",
@@ -140,6 +145,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
     "CAPTION_SIDECAR_EXTENSIONS": list(CAPTION_SIDECAR_EXTENSIONS),
     "SYSPROMPT_FILENAME": SYSPROMPT_FILENAME,
+    "CAPTION_RULES_FILENAME": CAPTION_RULES_FILENAME,
     "VIDEO_EXTENSIONS": sorted(VIDEO_EXTENSIONS),
     "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
     "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),

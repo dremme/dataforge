@@ -21,15 +21,6 @@ describe("isDuplicateItem", () => {
     expect(isDuplicateItem(duplicate("one.png", "g1"))).toBe(true);
     expect(isDuplicateItem(mediaItem("two.png", HOME_PATH))).toBe(false);
   });
-
-  it("never counts the sysprompt", () => {
-    const sysprompt = mediaItem(".sysprompt", HOME_PATH, {
-      media_type: "sysprompt",
-      has_duplicate_file: true,
-    });
-
-    expect(isDuplicateItem(sysprompt)).toBe(false);
-  });
 });
 
 describe("countDuplicates", () => {

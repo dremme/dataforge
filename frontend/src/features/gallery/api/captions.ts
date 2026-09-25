@@ -5,7 +5,6 @@ import type {
   CaptionUpdate,
   ComfyWorkflowPromptsResponse,
   PngWorkflowResponse,
-  SysPromptSaveResponse,
 } from "@/shared/types";
 
 export async function fetchCaption(mediaPath: string): Promise<CaptionSaveResponse> {
@@ -45,12 +44,4 @@ export async function saveCaption(
   }
 
   return putJson<CaptionSaveResponse>(`/api/caption?${params}`, body);
-}
-
-export async function saveSysPrompt(
-  syspromptPath: string,
-  text: string,
-): Promise<SysPromptSaveResponse> {
-  const params = new URLSearchParams({ path: syspromptPath });
-  return putJson<SysPromptSaveResponse>(`/api/sysprompt?${params}`, { text });
 }

@@ -42,7 +42,9 @@ function setupHost(
       breadcrumbs: [{ name: "Photos", path: "C:\\Photos" }],
       items: [] as GalleryItem[],
       filteredItems: [] as GalleryItem[],
-      sysprompt: null,
+      hasSysprompt: false,
+      syspromptApplies: false,
+      hasCaptionRules: false,
       hasCaptionBackup: options.hasCaptionBackup ?? true,
       ostrisAvailable: options.ostrisAvailable ?? false,
       comfyPresetsAvailable: options.comfyPresetsAvailable ?? false,
@@ -50,6 +52,7 @@ function setupHost(
       // The hook only reads the fields asserted here.
       automation: automation as never,
       onEditSysprompt: vi.fn(),
+      onEditCaptionRules: vi.fn(),
       issueCount: 0,
       duplicateGroupCount: 0,
       candidateCount: 0,

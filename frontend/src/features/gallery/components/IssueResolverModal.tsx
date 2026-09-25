@@ -31,9 +31,21 @@ import { ModalShell } from "@/shared/ui/ModalShell";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 
-function issueCardLabel(fixCount: number, resolved: boolean): string {
-  if (fixCount === 0) return resolved ? "Resolved" : "Issue";
-  return resolved ? "Applied changes" : "Suggested changes";
+interface IssueGroup {
+  label: string;
+  entries: string[];
+}
+
+function issueGroups(fixes: string[], ruleHits: string[], resolved: boolean): IssueGroup[] {
+  const groups = [
+    { label: resolved ? "Applied changes" : "Suggested changes", entries: fixes },
+    { label: "Rule hits", entries: ruleHits },
+  ];
+  return groups.filter((group) => group.entries.length > 0);
+}
+
+function cleanFindings(findings: readonly string[] | undefined): string[] {
+  return (findings ?? []).map((finding) => finding.trim()).filter(Boolean);
 }
 
 interface IssueResolverModalProps {
@@ -79,11 +91,12 @@ export function IssueResolverModal({
   }, [index, queue]);
 
   // Above the early return: the highlight terms below derive from these through a hook.
-  const fixes = useMemo(
-    () => (item?.issue_fixes ?? []).map((fix) => fix.trim()).filter(Boolean),
-    [item?.issue_fixes],
+  const fixes = useMemo(() => cleanFindings(item?.issue_fixes), [item?.issue_fixes]);
+  const ruleHits = useMemo(() => cleanFindings(item?.rule_findings), [item?.rule_findings]);
+  const flaggedPhrases = useMemo(
+    () => flaggedCaptionPhrases([...fixes, ...ruleHits]),
+    [fixes, ruleHits],
   );
-  const flaggedPhrases = useMemo(() => flaggedCaptionPhrases(fixes), [fixes]);
   const captionCompletions = useMemo(() => buildCaptionVocabulary(queue), [queue]);
 
   const closeModal = useCallback(() => {
@@ -172,6 +185,7 @@ export function IssueResolverModal({
   const placeholder =
     captionDisplay.variant === "success" ? "Add a caption..." : captionDisplay.message;
   const alreadyResolved = resolvedPaths.has(item.path);
+  const groups = issueGroups(fixes, ruleHits, alreadyResolved);
 
   return (
     <ModalShell
@@ -293,21 +307,27 @@ export function IssueResolverModal({
                 className="issue-resolver-modal__issue-icon"
               />
               <div className="issue-resolver-modal__issue-content">
-                <span className="issue-resolver-modal__issue-label">
-                  {issueCardLabel(fixes.length, alreadyResolved)}
-                </span>
-                {fixes.length > 0 ? (
-                  <ol className="issue-resolver-modal__issue-list">
-                    {fixes.map((fix) => (
-                      <li key={fix} className="issue-resolver-modal__issue-text">
-                        {fix}
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="issue-resolver-modal__issue-text">
-                    {alreadyResolved ? "The caption was saved." : "Error in issue file"}
-                  </p>
+                {groups.map((group) => (
+                  <section key={group.label} className="issue-resolver-modal__issue-group">
+                    <span className="issue-resolver-modal__issue-label">{group.label}</span>
+                    <ol className="issue-resolver-modal__issue-list">
+                      {group.entries.map((entry) => (
+                        <li key={entry} className="issue-resolver-modal__issue-text">
+                          {entry}
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                ))}
+                {groups.length === 0 && (
+                  <section className="issue-resolver-modal__issue-group">
+                    <span className="issue-resolver-modal__issue-label">
+                      {alreadyResolved ? "Resolved" : "Issue"}
+                    </span>
+                    <p className="issue-resolver-modal__issue-text">
+                      {alreadyResolved ? "The caption was saved." : "Error in issue file"}
+                    </p>
+                  </section>
                 )}
               </div>
             </div>

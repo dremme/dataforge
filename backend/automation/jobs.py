@@ -22,6 +22,10 @@ from automation.backup_captions import (
     validate_backup_captions_folder,
     validate_restore_captions_folder,
 )
+from automation.check_caption_rules import (
+    run_check_caption_rules_job,
+    validate_check_caption_rules_folder,
+)
 from automation.comfy_process import run_comfy_process_job, validate_comfy_process_folder
 from automation.edit_captions import run_edit_captions_job, validate_edit_captions_folder
 from automation.find_duplicates import (
@@ -34,6 +38,7 @@ from automation.find_duplicates import (
 from automation.job_messages import (
     auto_caption_failure_message,
     backup_captions_error_message,
+    check_caption_rules_error_message,
     comfy_process_error_message,
     edit_captions_failure_message,
     find_duplicates_error_message,
@@ -377,6 +382,12 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_verify_captions_job,
         resolve_status=_resolve_verify_captions_status,
         validate=_folder_only(validate_verify_captions_folder),
+    ),
+    "check_caption_rules": JobSpec(
+        thread_prefix="check-caption-rules",
+        run=run_check_caption_rules_job,
+        resolve_status=_resolve_stats_errors(check_caption_rules_error_message),
+        validate=_folder_only(validate_check_caption_rules_folder),
     ),
     "edit_captions": JobSpec(
         thread_prefix="edit-captions",

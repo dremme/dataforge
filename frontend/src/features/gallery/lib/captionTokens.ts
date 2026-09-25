@@ -1,4 +1,3 @@
-import { isSysPrompt } from "@/features/gallery/lib/itemKind";
 import type { GalleryItem } from "@/shared/types";
 
 const STOP_WORDS = new Set([
@@ -50,9 +49,9 @@ export function tokenizeCaptionWords(caption: string): string[] {
   return words;
 }
 
-/** Captions of real media, in folder order. The .sysprompt holds instructions, not a caption. */
+/** Captions of real media, in folder order. */
 export function mediaCaptions(items: GalleryItem[]): string[] {
   return items
-    .filter((item) => !isSysPrompt(item) && item.caption_status === "text" && item.description)
+    .filter((item) => item.caption_status === "text" && item.description)
     .map((item) => item.description as string);
 }

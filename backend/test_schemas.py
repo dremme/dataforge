@@ -49,7 +49,7 @@ class GalleryItemSchemaTests(unittest.TestCase):
             self.assertEqual(_gallery_item(caption_status=status).caption_status, status)
 
     def test_accepts_every_media_type(self) -> None:
-        for media_type in ("image", "video", "sysprompt"):
+        for media_type in ("image", "video"):
             self.assertEqual(_gallery_item(media_type=media_type).media_type, media_type)
 
     def test_rejects_unknown_caption_status(self) -> None:
@@ -66,7 +66,7 @@ class GalleryItemSchemaTests(unittest.TestCase):
             _gallery_item(media_type="audio")
 
     def test_accepts_every_media_type_the_scanner_can_emit(self) -> None:
-        for media_type in ("image", "video", "gif", "sysprompt"):
+        for media_type in ("image", "video", "gif"):
             self.assertEqual(_gallery_item(media_type=media_type).media_type, media_type)
 
 

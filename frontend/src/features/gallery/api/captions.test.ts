@@ -10,7 +10,7 @@ vi.mock("@/shared/api/http", () => ({
   putJson: putJsonMock,
 }));
 
-import { fetchCaption, fetchComfyWorkflow, saveCaption, saveSysPrompt } from "./captions";
+import { fetchCaption, fetchComfyWorkflow, saveCaption } from "./captions";
 
 describe("captions API", () => {
   afterEach(() => {
@@ -43,16 +43,6 @@ describe("captions API", () => {
 
     expect(putJsonMock).toHaveBeenCalledWith("/api/caption?path=C%3A%5CPhotos%5Csunset.png", {
       text: "Updated.",
-    });
-  });
-
-  it("saves a system prompt", async () => {
-    putJsonMock.mockResolvedValue({ description: "Prompt." });
-
-    await saveSysPrompt("C:\\Photos", "Prompt.");
-
-    expect(putJsonMock).toHaveBeenCalledWith("/api/sysprompt?path=C%3A%5CPhotos", {
-      text: "Prompt.",
     });
   });
 });

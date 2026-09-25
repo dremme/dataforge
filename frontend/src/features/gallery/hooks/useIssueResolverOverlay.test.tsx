@@ -12,6 +12,7 @@ function item(name: string, overrides: Partial<GalleryItem> = {}): GalleryItem {
     has_description: true,
     has_caption_file: true,
     issue_fixes: ['Replace "a blue car" with "a red car".'],
+    rule_findings: [],
     has_issue_file: true,
     has_duplicate_file: false,
     has_backup: false,
@@ -59,11 +60,7 @@ describe("useIssueResolverOverlay", () => {
     const { result } = renderHook(() => useIssueResolverOverlay(), { wrapper });
 
     act(() =>
-      result.current.openIssueResolver([
-        flagged[0],
-        item(".sysprompt", { media_type: "sysprompt" }),
-        item("clean.png", { has_issue_file: false }),
-      ]),
+      result.current.openIssueResolver([flagged[0], item("clean.png", { has_issue_file: false })]),
     );
 
     expect(result.current.items.map((entry) => entry.name)).toEqual(["car.png"]);
