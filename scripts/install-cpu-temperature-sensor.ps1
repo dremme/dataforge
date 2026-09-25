@@ -38,7 +38,10 @@ $TaskName = 'DataForge CPU temperature'
 $DataForgeDir = Join-Path $env:ProgramData 'DataForge'
 $SensorDir = Join-Path $DataForgeDir 'sensors'
 $LoopScript = Join-Path $SensorDir 'sensor-loop.ps1'
-$Cli = Join-Path $env:ProgramFiles 'AMD\RyzenMasterSDK\AMDRyzenMasterCLI\bin-prebuilt\AMDRyzenMasterCLI.exe'
+$ReadingFile = Join-Path $SensorDir 'cpu_temperature.txt'
+$PendingFile = Join-Path $SensorDir 'cpu_temperature.pending'
+$FirstReadingTimeoutSeconds = 20
+$Cli =Join-Path $env:ProgramFiles 'AMD\RyzenMasterSDK\AMDRyzenMasterCLI\bin-prebuilt\AMDRyzenMasterCLI.exe'
 
 $SystemSid = 'S-1-5-18'
 $AdministratorsSid = 'S-1-5-32-544'
@@ -88,13 +91,38 @@ function New-SensorDir {
   New-Item -ItemType Directory -Path $SensorDir | Out-Null
 }
 
-if ($Uninstall) {
+function Uninstall-Sensor {
   Stop-SensorTask
   Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
   Remove-SensorDir
   if ((Test-Path -LiteralPath $DataForgeDir) -and -not (Get-ChildItem -LiteralPath $DataForgeDir -Force)) {
     Remove-Item -LiteralPath $DataForgeDir -Force
   }
+}
+
+function Wait-FirstReading {
+  $deadline = (Get-Date).AddSeconds($FirstReadingTimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-Path -LiteralPath $ReadingFile) {
+      $reading = [regex]::Match((Get-Content -Raw -LiteralPath $ReadingFile),
+        '(?m)^GetCurrentTemperature\s*\.+\s*(-?\d+(?:\.\d+)?) Celsius')
+      return $reading.Groups[1].Value
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  $null
+}
+
+function Get-LastCliOutput {
+  try {
+    Get-Content -Raw -LiteralPath $PendingFile
+  } catch {
+    'nothing'
+  }
+}
+
+if ($Uninstall) {
+  Uninstall-Sensor
   Write-Host "Removed the '$TaskName' task and $SensorDir."
   return
 }
@@ -102,13 +130,6 @@ if ($Uninstall) {
 if (-not (Test-Path -LiteralPath $Cli)) {
   throw "AMD's Ryzen Master SDK CLI was not found at $Cli. Install the SDK first: https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html"
 }
-
-$probe = & $Cli -a GetPMTableData 2>&1 | Out-String
-$reading = [regex]::Match($probe, '(?m)^GetCurrentTemperature\s*\.+\s*(-?\d+(?:\.\d+)?) Celsius')
-if (-not $reading.Success -or [double]$reading.Groups[1].Value -lt 0) {
-  throw "AMD's CLI did not report a temperature, so nothing was installed. It printed:`n$probe"
-}
-Write-Host "AMD's CLI reads the CPU at $($reading.Groups[1].Value) Celsius."
 
 Stop-SensorTask
 New-SensorDir
@@ -125,6 +146,14 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
   -Principal $principal -Settings $settings -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
 
+$celsius = Wait-FirstReading
+if (-not $celsius) {
+  $output = Get-LastCliOutput
+  Uninstall-Sensor
+  throw "AMD's CLI did not report a temperature within $FirstReadingTimeoutSeconds seconds, so nothing was installed. It printed:`n$output"
+}
+
+Write-Host "AMD's CLI reads the CPU at $celsius Celsius."
 Write-Host "Installed the '$TaskName' task. It starts with Windows and updates"
 Write-Host "$SensorDir\cpu_temperature.txt every two seconds."
 Write-Host "Remove it with: scripts\install-cpu-temperature-sensor.bat -Uninstall"
