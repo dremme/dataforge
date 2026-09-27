@@ -181,6 +181,88 @@ describe("Tooltip", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("hides a focused trigger's tooltip when another one opens on hover", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <>
+        <Tooltip content="Rename folder">
+          <button type="button">Rename</button>
+        </Tooltip>
+        <Tooltip content="Delete folder">
+          <button type="button">Delete</button>
+        </Tooltip>
+      </>,
+    );
+
+    fireEvent.focus(screen.getByRole("button", { name: "Rename" }));
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Delete" }).parentElement!);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Delete folder");
+  });
+
+  it("does not bring a superseded tooltip back when the newer one closes", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <>
+        <Tooltip content="Rename folder">
+          <button type="button">Rename</button>
+        </Tooltip>
+        <Tooltip content="Delete folder">
+          <button type="button">Delete</button>
+        </Tooltip>
+      </>,
+    );
+
+    fireEvent.focus(screen.getByRole("button", { name: "Rename" }));
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+    const deleteWrapper = screen.getByRole("button", { name: "Delete" }).parentElement!;
+    fireEvent.mouseEnter(deleteWrapper);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+    fireEvent.mouseLeave(deleteWrapper);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("hides a forced-open tooltip when another one opens on hover", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <>
+        <Tooltip content="Copied!" open>
+          <button type="button">Copy</button>
+        </Tooltip>
+        <Tooltip content="Open in explorer">
+          <button type="button">Reveal</button>
+        </Tooltip>
+      </>,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Reveal" }).parentElement!);
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Open in explorer");
+  });
+
   it("shows tooltips for disabled controls via the wrapper", async () => {
     vi.useFakeTimers();
 

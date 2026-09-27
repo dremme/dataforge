@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -18,6 +19,17 @@ import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 const VIEWPORT_GUTTER = 8;
 /** Matches the bubble's fade in `_tooltip.scss`; it stays mounted until that ends. */
 const FADE_MS = 150;
+
+let dismissShownTooltip: (() => void) | null = null;
+
+function claimShownTooltip(dismiss: () => void) {
+  if (dismissShownTooltip !== dismiss) dismissShownTooltip?.();
+  dismissShownTooltip = dismiss;
+}
+
+function releaseShownTooltip(dismiss: () => void) {
+  if (dismissShownTooltip === dismiss) dismissShownTooltip = null;
+}
 
 interface TooltipChildProps {
   disabled?: boolean;
@@ -55,6 +67,12 @@ export function Tooltip({
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
+  const [openDismissed, setOpenDismissed] = useState(false);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    setOpenDismissed(false);
+  }
   const childExpanded = isValidElement(children) && children.props["aria-expanded"] === true;
 
   const clearShowTimeout = useCallback(() => {
@@ -75,6 +93,24 @@ export function Tooltip({
     setVisible(false);
   }, [clearShowTimeout]);
 
+  const dismiss = useCallback(() => {
+    hide();
+    setOpenDismissed(true);
+  }, [hide]);
+
+  // Hover must not cover a menu/drawer this trigger just opened; forced `open` still wins.
+  const shown =
+    !disabled &&
+    content != null &&
+    content !== "" &&
+    ((open && !openDismissed) || (visible && !childExpanded));
+
+  useLayoutEffect(() => {
+    if (!shown) return;
+    claimShownTooltip(dismiss);
+    return () => releaseShownTooltip(dismiss);
+  }, [dismiss, shown]);
+
   useEffect(() => clearShowTimeout, [clearShowTimeout]);
 
   useEffect(() => {
@@ -90,9 +126,6 @@ export function Tooltip({
   const childAriaLabel = childProps["aria-label"];
   const tooltipDuplicatesLabel =
     typeof childAriaLabel === "string" && typeof content === "string" && childAriaLabel === content;
-  // Hover must not cover a menu/drawer this trigger just opened; forced `open` still wins.
-  const shown =
-    !disabled && content != null && content !== "" && (open || (visible && !childExpanded));
   const describedBy = shown && !tooltipDuplicatesLabel ? id : undefined;
   const ariaDescribedBy =
     [childProps["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined;
