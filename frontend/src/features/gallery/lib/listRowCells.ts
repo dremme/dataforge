@@ -1,3 +1,4 @@
+import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
 import {
   getRowCaptionDisplay,
   type CaptionStatusVariant,
@@ -34,7 +35,7 @@ export interface RowMetaCell {
   value: string;
 }
 
-export type RowMetaColumn = "megapixels" | "duration" | "size" | "modified";
+export type RowMetaColumn = "megapixels" | "aspect-ratio" | "duration" | "size" | "modified";
 
 export function rowMarkers(item: GalleryItem): RowMarker[] {
   const markers: RowMarker[] = [];
@@ -79,11 +80,16 @@ export function rowMarkers(item: GalleryItem): RowMarker[] {
 /** Missing facts stay empty strings: dropping a cell slides later columns out of line. */
 export function rowMetaCells(item: GalleryItem): RowMetaCell[] {
   const modified = item.modified_at ? formatModifiedAt(item.modified_at) : null;
+  const { width, height } = item;
 
   return [
     {
       key: "megapixels",
-      value: item.width && item.height ? formatMegapixels(item.width, item.height) : "",
+      value: width && height ? formatMegapixels(width, height) : "",
+    },
+    {
+      key: "aspect-ratio",
+      value: width && height ? formatAspectRatio(width, height) : "",
     },
     { key: "duration", value: formatDurationSeconds(item.duration) },
     { key: "size", value: item.size ? formatFileSize(item.size) : "" },

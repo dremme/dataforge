@@ -94,15 +94,25 @@ describe("FolderInstructionsModal", () => {
     );
   });
 
-  it("reports the prompt in characters and estimated tokens, not words", async () => {
+  it("reports the prompt in estimated tokens only", async () => {
     renderModal();
     await editor("sysprompt");
 
     const stats = screen.getByLabelText("Prompt statistics");
-    expect(stats).toHaveTextContent("36 characters");
     // 36 characters over 6 words, so the character rule sets the estimate.
     expect(stats).toHaveTextContent("~9 tokens");
+    expect(stats).not.toHaveTextContent("characters");
     expect(fetchFolderInstructions).toHaveBeenCalledWith(HOME_PATH, expect.anything());
+  });
+
+  it("reports the rules in lines only", async () => {
+    fetchFolderInstructions.mockResolvedValue(instructions({ caption_rules: own(TEMPLATE) }));
+    renderModal({ initialTab: "caption_rules" });
+    await editor("caption_rules");
+
+    const stats = screen.getByLabelText("Rule statistics");
+    expect(stats).toHaveTextContent("2 lines");
+    expect(stats).not.toHaveTextContent("characters");
   });
 
   it("saves only when asked, then closes", async () => {

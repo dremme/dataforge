@@ -1,5 +1,6 @@
 import type { GalleryItem } from "@/shared/types";
 import type { MediaResolution } from "@/features/gallery/hooks/useMediaResolution";
+import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
 import { formatCount, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
 import { Icon } from "@/shared/ui/Icon";
 import { iconComfyUi } from "@/shared/brandIcons";
@@ -8,7 +9,6 @@ interface GalleryItemModalMetaProps {
   item: GalleryItem;
   resolution: MediaResolution | undefined;
   hasComfyWorkflow: boolean;
-  captionCharacterCount: number;
   captionTokenCount: number;
   onInspectComfyWorkflow: () => void;
 }
@@ -22,7 +22,6 @@ export function GalleryItemModalMeta({
   item,
   resolution,
   hasComfyWorkflow,
-  captionCharacterCount,
   captionTokenCount,
   onInspectComfyWorkflow,
 }: GalleryItemModalMetaProps) {
@@ -59,6 +58,13 @@ export function GalleryItemModalMeta({
             </span>
             <span className="gallery-item-modal__meta-label">Width × Height</span>
           </div>
+          <span className="gallery-item-modal__meta-divider" aria-hidden="true" />
+          <div className="gallery-item-modal__meta-item">
+            <span className="gallery-item-modal__meta-value">
+              {formatAspectRatio(resolution.width, resolution.height)}
+            </span>
+            <span className="gallery-item-modal__meta-label">Aspect ratio</span>
+          </div>
         </>
       )}
       {hasComfyWorkflow && (
@@ -82,11 +88,6 @@ export function GalleryItemModalMeta({
         <p className="gallery-item-modal__meta-unavailable">Media details unavailable</p>
       )}
       {hasMediaMeta && <span className="gallery-item-modal__meta-divider" aria-hidden="true" />}
-      <div className="gallery-item-modal__meta-item">
-        <span className="gallery-item-modal__meta-value">{formatCount(captionCharacterCount)}</span>
-        <span className="gallery-item-modal__meta-label">Characters</span>
-      </div>
-      <span className="gallery-item-modal__meta-divider" aria-hidden="true" />
       <div
         className="gallery-item-modal__meta-item"
         title="Estimated from text length; the exact count depends on the model"

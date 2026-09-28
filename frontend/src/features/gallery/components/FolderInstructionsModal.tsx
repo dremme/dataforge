@@ -322,10 +322,6 @@ export function FolderInstructionsModal({
           className="folder-instructions-modal__meta"
           aria-label={tab === "sysprompt" ? "Prompt statistics" : "Rule statistics"}
         >
-          <div className="folder-instructions-modal__meta-value">
-            {formatCount(text.length)} characters
-          </div>
-          <span className="folder-instructions-modal__meta-divider" aria-hidden="true" />
           {tab === "sysprompt" ? (
             <div
               className="folder-instructions-modal__meta-value"

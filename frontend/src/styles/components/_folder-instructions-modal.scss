@@ -67,11 +67,6 @@
       line-height: var(--leading-snug);
       @include tabular-nums;
     }
-
-    &-divider {
-      @include modal-meta-divider;
-      height: 1rem;
-    }
   }
 
   &__tabs {

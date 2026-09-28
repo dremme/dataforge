@@ -6,6 +6,7 @@ type TextColumn = RowMetaColumn;
 
 const TEXT_COLUMNS = [
   "megapixels",
+  "aspect-ratio",
   "duration",
   "size",
   "modified",

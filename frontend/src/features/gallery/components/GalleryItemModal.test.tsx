@@ -135,7 +135,26 @@ describe("GalleryItemModal", () => {
     expect(within(dialog).getByText(modifiedLabel!)).toBeInTheDocument();
   });
 
-  it("reports the caption in characters and estimated tokens", async () => {
+  it("shows the aspect ratio next to the dimensions", async () => {
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const meta = within(dialog).getByLabelText("Media details");
+
+    expect(within(meta).getByText("Aspect ratio")).toBeInTheDocument();
+    expect(within(meta).getByText("16:9")).toBeInTheDocument();
+  });
+
+  it("reports the caption in estimated tokens only", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <GalleryItemModal
@@ -152,20 +171,18 @@ describe("GalleryItemModal", () => {
     const meta = within(dialog).getByLabelText("Media details");
 
     // "Golden hour over the lake" is 25 characters over 5 words.
-    expect(within(meta).getByText("Characters")).toBeInTheDocument();
-    expect(within(meta).getByText("25")).toBeInTheDocument();
     expect(within(meta).getByText("Tokens")).toBeInTheDocument();
     expect(within(meta).getByText("~7")).toBeInTheDocument();
+    expect(within(meta).queryByText("Characters")).not.toBeInTheDocument();
 
     const captionInput = await screen.findByLabelText("Caption for sunset.png");
     await user.clear(captionInput);
     await user.type(captionInput, "Short");
 
-    // Both counts follow the editor rather than the saved sidecar.
+    // The estimate follows the editor rather than the saved sidecar.
     await waitFor(() => {
-      expect(within(meta).getByText("5")).toBeInTheDocument();
+      expect(within(meta).getByText("~2")).toBeInTheDocument();
     });
-    expect(within(meta).getByText("~2")).toBeInTheDocument();
   });
 
   it("copies the caption without re-fetch loops", async () => {

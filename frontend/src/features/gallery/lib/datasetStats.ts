@@ -1,3 +1,8 @@
+import {
+  ASPECT_RATIO_BUCKETS,
+  OTHER_ASPECT_LABEL,
+  aspectRatioLabel,
+} from "@/features/gallery/lib/aspectRatio";
 import { tokenizeCaptionWords } from "@/features/gallery/lib/captionTokens";
 import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import { durationSeconds } from "@/shared/lib/format";
@@ -36,20 +41,6 @@ const LENGTH_BUCKETS = [
   { label: "1200 – 1400", max: 1400 },
   { label: "> 1400", max: Number.POSITIVE_INFINITY },
 ] as const;
-
-const ASPECT_RATIO_BUCKETS = [
-  { label: "1:1", ratio: 1 },
-  { label: "4:3", ratio: 4 / 3 },
-  { label: "3:4", ratio: 3 / 4 },
-  { label: "3:2", ratio: 3 / 2 },
-  { label: "2:3", ratio: 2 / 3 },
-  { label: "16:9", ratio: 16 / 9 },
-  { label: "9:16", ratio: 9 / 16 },
-] as const;
-
-const OTHER_ASPECT_LABEL = "Other";
-
-const ASPECT_RATIO_MAX_DRIFT = 1.15;
 
 export interface StatBucket {
   label: string;
@@ -115,22 +106,6 @@ function bucketize(values: number[], buckets: ReadonlyArray<{ label: string; max
     counts[index === -1 ? counts.length - 1 : index].count += 1;
   }
   return counts;
-}
-
-function aspectRatioLabel(width: number, height: number): string {
-  const ratio = width / height;
-  let bestLabel = OTHER_ASPECT_LABEL;
-  let bestDrift = Number.POSITIVE_INFINITY;
-
-  for (const bucket of ASPECT_RATIO_BUCKETS) {
-    const drift = ratio > bucket.ratio ? ratio / bucket.ratio : bucket.ratio / ratio;
-    if (drift < bestDrift) {
-      bestDrift = drift;
-      bestLabel = bucket.label;
-    }
-  }
-
-  return bestDrift <= ASPECT_RATIO_MAX_DRIFT ? bestLabel : OTHER_ASPECT_LABEL;
 }
 
 function countAspectRatios(labels: string[]): StatBucket[] {

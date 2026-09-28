@@ -132,6 +132,15 @@ Object.defineProperty(HTMLMediaElement.prototype, "pause", {
   value: function pause(this: HTMLMediaElement) {},
 });
 
+// jsdom logs "Not implemented" and returns null; canvas callers already bail on null.
+Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+  configurable: true,
+  writable: true,
+  value: function getContext(this: HTMLCanvasElement) {
+    return null;
+  },
+});
+
 // jsdom has no EventSource; tests that deliver frames remock via installFakeEventSource.
 class InertEventSource {
   onopen: (() => void) | null = null;

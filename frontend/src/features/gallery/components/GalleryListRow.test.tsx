@@ -80,12 +80,15 @@ describe("GalleryListRow", () => {
     expect(new Set([captioned.icon, empty.icon, missing.icon]).size).toBe(3);
   });
 
-  it("shows megapixels, size, and modified date", () => {
+  it("shows megapixels, aspect ratio, size, and modified date", () => {
     const { container } = render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
 
     // Resolution is one number per row, not a w × h pair to compare down the column.
     expect(container.querySelector(".gallery-list-row__meta-item--megapixels")?.textContent).toBe(
       "2.1 MP",
+    );
+    expect(container.querySelector(".gallery-list-row__meta-item--aspect-ratio")?.textContent).toBe(
+      "16:9",
     );
     expect(container.querySelector(".gallery-list-row__meta-item--size")?.textContent).toBe(
       "2.4 MB",
@@ -105,8 +108,8 @@ describe("GalleryListRow", () => {
 
     // Dropping the cells would slide every later column out of the list's table.
     const cells = [...container.querySelectorAll(".gallery-list-row__meta-item")];
-    expect(cells).toHaveLength(4);
-    expect(cells.map((cell) => cell.textContent)).toEqual(["", "", "", ""]);
+    expect(cells).toHaveLength(5);
+    expect(cells.map((cell) => cell.textContent)).toEqual(["", "", "", "", ""]);
   });
 
   it("shows a video's length in seconds", () => {

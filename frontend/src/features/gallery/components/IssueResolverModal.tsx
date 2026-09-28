@@ -283,10 +283,6 @@ export function IssueResolverModal({
                 <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
               </>
             )}
-            <div className="issue-resolver-modal__meta-value">
-              {formatCount(caption.length)} characters
-            </div>
-            <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
             <div
               className="issue-resolver-modal__meta-value"
               title="Estimated from text length; the exact count depends on the model"

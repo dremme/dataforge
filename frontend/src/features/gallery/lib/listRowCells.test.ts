@@ -53,6 +53,23 @@ describe("rowMarkers", () => {
 });
 
 describe("rowMetaCells", () => {
+  it("places the aspect ratio beside the megapixels", () => {
+    const cells = rowMetaCells(item({ width: 2048, height: 1024 }));
+    expect(cells.map((cell) => cell.key)).toEqual([
+      "megapixels",
+      "aspect-ratio",
+      "duration",
+      "size",
+      "modified",
+    ]);
+    expect(cells[1]?.value).toBe("~16:9");
+  });
+
+  it("leaves the aspect ratio cell empty when the item has no dimensions", () => {
+    const cells = rowMetaCells(item({ width: null, height: null }));
+    expect(cells.find((cell) => cell.key === "aspect-ratio")?.value).toBe("");
+  });
+
   it("formats a video duration in seconds", () => {
     const cells = rowMetaCells(item({ duration: 5.4 }));
     expect(cells.find((cell) => cell.key === "duration")?.value).toBe("5 s");

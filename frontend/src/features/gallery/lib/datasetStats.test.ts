@@ -205,6 +205,7 @@ describe("computeDatasetStats", () => {
       mediaItem("two-three.png", HOME_PATH, { width: 1000, height: 1500 }),
       mediaItem("tall.png", HOME_PATH, { width: 1080, height: 1920 }),
       mediaItem("ultrawide.png", HOME_PATH, { width: 2560, height: 1080 }),
+      mediaItem("panorama.png", HOME_PATH, { width: 3000, height: 1000 }),
       mediaItem("clip.mkv", HOME_PATH, { width: null, height: null }),
     ]);
 
@@ -216,6 +217,7 @@ describe("computeDatasetStats", () => {
       { label: "2:3", count: 1 },
       { label: "16:9", count: 1 },
       { label: "9:16", count: 1 },
+      { label: "21:9", count: 1 },
       { label: "Other", count: 1 },
     ]);
   });

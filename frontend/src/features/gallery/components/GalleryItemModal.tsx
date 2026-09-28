@@ -370,7 +370,6 @@ export function GalleryItemModal({
   const mediaLabel = mediaLabelFor(item);
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
-  const captionCharacterCount = caption.length;
   const captionTokenCount = estimateTokens(caption);
   const copyContent = caption;
   const canCopyCaption = copyContent.length > 0;
@@ -725,7 +724,6 @@ export function GalleryItemModal({
               item={item}
               resolution={resolution}
               hasComfyWorkflow={hasComfyWorkflow}
-              captionCharacterCount={captionCharacterCount}
               captionTokenCount={captionTokenCount}
               onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
             />

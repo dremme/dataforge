@@ -75,6 +75,7 @@ describe("useGalleryListColumns", () => {
     const columns = renderColumns([item({ width: null, height: null })]);
 
     expect(columns?.["--gallery-list-col-megapixels"]).toBe("0px");
+    expect(columns?.["--gallery-list-col-aspect-ratio"]).toBe("0px");
     expect(columns?.["--gallery-list-col-duration"]).toBe("0px");
     expect(columns?.["--gallery-list-col-size"]).not.toBe("0px");
   });
@@ -93,6 +94,16 @@ describe("useGalleryListColumns", () => {
 
     expect(one?.["--gallery-list-col-markers"]).toBe("12.5px");
     expect(three?.["--gallery-list-col-markers"]).toBe("32.5px");
+  });
+
+  it("sizes the aspect ratio column to its widest label", () => {
+    const columns = renderColumns([
+      item({ path: `${HOME_PATH}\\square.png`, width: 1024, height: 1024 }),
+      item({ path: `${HOME_PATH}\\panorama.png`, width: 3000, height: 1000 }),
+    ]);
+
+    // "3.00:1" outruns "1:1".
+    expect(columns?.["--gallery-list-col-aspect-ratio"]).toBe("8.5px");
   });
 
   it("measures nothing outside list mode", () => {
