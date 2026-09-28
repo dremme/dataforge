@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import get_args
 
 from preferences import JsonPreference
-from schemas import GallerySort, UiSettingsResponse
+from schemas import GallerySort, ThemePreference, UiSettingsResponse
 
 UI_SETTINGS_KEY = "ui_settings"
 DEFAULT_SORT: GallerySort = "name-asc"
@@ -28,8 +28,10 @@ def update_ui_settings(
     *,
     sort: str | None = None,
     show_automation_specs: bool | None = None,
+    theme: ThemePreference | None = None,
 ) -> UiSettingsResponse:
     return _settings.update(
         sort=_normalized_sort(sort),
         show_automation_specs=show_automation_specs,
+        theme=theme,
     )

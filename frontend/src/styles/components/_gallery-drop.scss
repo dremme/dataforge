@@ -17,7 +17,7 @@
   position: absolute;
   inset: 0;
   z-index: 30;
-  background: rgba(15, 17, 21, 0.82);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
   border: 2px dashed var(--accent);
   border-radius: var(--radius);
   pointer-events: none;

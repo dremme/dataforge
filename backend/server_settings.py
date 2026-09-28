@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from env_file import env_str
+
 DEFAULT_UI_PORT = 18081
 
 # A browser treats the two spellings of loopback as distinct origins.
@@ -16,10 +18,6 @@ _MAX_PORT = 65535
 _FALSEY = {"0", "false", "no", "off", ""}
 
 
-def _env_str(name: str) -> str:
-    return os.environ.get(name, "").strip()
-
-
 def _env_flag(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
     if raw is None:
@@ -28,7 +26,7 @@ def _env_flag(name: str, default: bool) -> bool:
 
 
 def _env_port(name: str, default: int) -> int:
-    raw = _env_str(name)
+    raw = env_str(name)
     if not raw:
         return default
     try:

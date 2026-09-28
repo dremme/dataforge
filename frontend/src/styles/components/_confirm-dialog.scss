@@ -194,8 +194,6 @@
     font-size: var(--text-sm);
     cursor: pointer;
     outline: none;
-    // Without this a dark app pops a white OS dropdown.
-    color-scheme: dark;
 
     &:disabled {
       cursor: not-allowed;

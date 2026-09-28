@@ -26,13 +26,15 @@ export function galleryThumbnailPreviewUrl(
   path: string,
   modifiedAt?: string | null,
   size?: number | null,
+  epoch = 0,
 ): string {
   const cacheKey = mediaCacheKey(modifiedAt, size);
-  return thumbnailUrl(path, GALLERY_THUMBNAIL_WIDTH, cacheKey);
+  const withEpoch = epoch ? [cacheKey, epoch].filter(Boolean).join(".") : cacheKey;
+  return thumbnailUrl(path, GALLERY_THUMBNAIL_WIDTH, withEpoch);
 }
 
-export function galleryItemThumbnailPreviewUrl(item: MediaSource): string {
-  return galleryThumbnailPreviewUrl(item.path, item.modified_at, item.size);
+export function galleryItemThumbnailPreviewUrl(item: MediaSource, epoch = 0): string {
+  return galleryThumbnailPreviewUrl(item.path, item.modified_at, item.size, epoch);
 }
 
 export function galleryItemMediaUrl(item: MediaSource): string {

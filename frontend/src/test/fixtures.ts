@@ -1,5 +1,5 @@
 import { GIF_EXTENSION, VIDEO_EXTENSIONS } from "@/shared/constants";
-import type { FolderResponse, GalleryItem, Job } from "@/shared/types";
+import type { AppSettingsResponse, FolderResponse, GalleryItem, Job } from "@/shared/types";
 
 export const HOME_PATH = "C:\\Photos";
 export const HOME_SYSPROMPT = "Caption every image with rich detail.";
@@ -150,3 +150,24 @@ export const emptyFolder: FolderResponse = {
   subfolder_count: 0,
   fingerprint: "fp-empty",
 };
+
+export function appSettings(overrides: Partial<AppSettingsResponse> = {}): AppSettingsResponse {
+  const fromDefault = <T extends string | number>(value: T) => ({
+    value,
+    source: "default" as const,
+    fallback: value,
+    fallback_source: "default" as const,
+  });
+  return {
+    vision_base_url: fromDefault("http://127.0.0.1:8888/v1"),
+    vision_model: fromDefault("qwen38"),
+    vision_timeout_seconds: fromDefault(600),
+    draft_caption_threshold: fromDefault(256),
+    comfy_base_url: fromDefault("http://127.0.0.1:9000"),
+    ai_toolkit_base_url: fromDefault("http://127.0.0.1:8675"),
+    thumbnail_cache_max_mb: fromDefault(2048),
+    database_path: `${HOME_PATH}\\DataForge\\app.db`,
+    env_file: null,
+    ...overrides,
+  };
+}

@@ -18,7 +18,7 @@
   @include full-bleed;
   padding: 0.625rem 0 0.875rem;
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-soft);
 
   &__inner {
     max-width: var(--content-max);
@@ -55,7 +55,7 @@
   @include full-bleed;
   padding: 1.5rem 0 4rem;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, $color-body-glow, transparent), var(--bg);
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--body-glow), transparent), var(--bg);
   @include app-scrollbar;
 
   &__inner {
@@ -78,7 +78,7 @@
     border-radius: 50%;
     background: var(--accent-soft);
     border: 1px solid var(--accent-border);
-    box-shadow: 0 0 28px $color-initial-loading-glow;
+    box-shadow: 0 0 28px var(--initial-loading-glow);
   }
 
   &__icon {

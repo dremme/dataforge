@@ -78,7 +78,7 @@
   }
 
   &__video {
-    background: $color-video-bg;
+    background: var(--video-bg);
   }
 
   &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {

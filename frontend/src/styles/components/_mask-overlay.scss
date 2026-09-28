@@ -31,7 +31,7 @@ $handle-size: 0.75rem;
   }
 
   &--interactive &__region {
-    outline: 1px dashed rgb(255 255 255 / 0.6);
+    outline: 1px dashed var(--media-outline);
     outline-offset: -1px;
   }
 

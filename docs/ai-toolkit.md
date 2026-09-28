@@ -6,7 +6,7 @@
 
 ## Connect AI-Toolkit
 
-Start AI-Toolkit so that its API answers at `http://127.0.0.1:8675`. DataForge always uses that address, and it cannot be changed. The menu item is disabled while AI-Toolkit is unreachable.
+Start AI-Toolkit. DataForge expects its API at `http://127.0.0.1:8675`, AI-Toolkit's default. To use another address, change **AI-Toolkit URL** in **Settings**, or set it in `.env` and restart. The menu item is disabled while AI-Toolkit is unreachable.
 
 If AI-Toolkit refers to its state by a relative path, such as `aitk_db.db`, tell DataForge where it is installed, then restart:
 
@@ -43,7 +43,7 @@ Checkpoints, samples, and outputs belong to AI-Toolkit and stay in its training 
 
 ## Troubleshooting
 
-**The menu item is disabled.** AI-Toolkit isn't answering at `http://127.0.0.1:8675`. Start it.
+**The menu item is disabled.** AI-Toolkit isn't answering at the **AI-Toolkit URL** shown in **Settings**. Start it, or correct the address.
 
 **The name is rejected.** Names must be unique and at most 80 characters, and can't contain `< > : " / \ | ? *`.
 

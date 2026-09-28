@@ -97,6 +97,11 @@ type CreateFolderOverlayState = {
   onCancel: () => void;
 };
 
+type SettingsOverlayState = {
+  open: boolean;
+  onClose: () => void;
+};
+
 type FolderPickerOverlayState = {
   open: boolean;
   openPicker: () => void;
@@ -122,4 +127,5 @@ export type AppOverlaysProps = {
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;
   createFolder: CreateFolderOverlayState | null;
+  settings: SettingsOverlayState;
 };

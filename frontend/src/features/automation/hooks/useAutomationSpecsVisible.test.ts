@@ -13,6 +13,7 @@ describe("useAutomationSpecsVisible", () => {
     vi.spyOn(uiPreferences, "loadUiSettings").mockResolvedValue({
       sort: "name-asc",
       showAutomationSpecs: true,
+      theme: "system",
     });
 
     const { result } = renderHook(() => useAutomationSpecsVisible());
@@ -27,10 +28,11 @@ describe("useAutomationSpecsVisible", () => {
     vi.spyOn(uiPreferences, "loadUiSettings").mockResolvedValue({
       sort: "name-asc",
       showAutomationSpecs: false,
+      theme: "system",
     });
     const updateUiSettings = vi
       .spyOn(uiPreferences, "updateUiSettings")
-      .mockResolvedValue({ sort: "name-asc", showAutomationSpecs: true });
+      .mockResolvedValue({ sort: "name-asc", showAutomationSpecs: true, theme: "system" });
 
     const { result } = renderHook(() => useAutomationSpecsVisible());
 

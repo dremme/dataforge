@@ -10,8 +10,10 @@ import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSwe
 import { readRecentFolderPaths } from "@/features/folder/lib/folderPreferences";
 import { fetchFolderRoots, openFolderInExplorer } from "@/features/folder/api/folders";
 import { useJobs } from "@/features/jobs/context/JobsContext";
+import { useClearThumbnailCache } from "@/features/settings/hooks/useClearThumbnailCache";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
+import { resolveTheme, setThemePreference, useThemePreference } from "@/shared/theme/theme";
 import type { FolderFavorite, FolderResponse } from "@/shared/types";
 import {
   buildCommandItems,
@@ -49,6 +51,7 @@ interface UseQuickActionHostOptions {
   sidecarSweep: SidecarSweepActions;
   acceptAllCandidates: AcceptAllCandidatesActions;
   filters: Omit<FilterCommandOptions, "hasFolder">;
+  onOpenSettings: () => void;
 }
 
 export function useQuickActionHost({
@@ -68,10 +71,13 @@ export function useQuickActionHost({
   sidecarSweep,
   acceptAllCandidates,
   filters,
+  onOpenSettings,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
   const { jobs, externalJobs } = useJobs();
   const notify = useNotify();
+  const { clearing: clearingThumbnails, clear: clearThumbnails } = useClearThumbnailCache();
+  const themePreference = useThemePreference();
 
   const [favorites, setFavorites] = useState<FolderFavorite[]>(() => getCachedFolderFavorites());
   const [recentFolderPaths, setRecentFolderPaths] = useState<string[]>([]);
@@ -180,9 +186,18 @@ export function useQuickActionHost({
           onCopy: () => selection.startTransfer("copy"),
           onDelete: selection.openDeleteConfirm,
         },
+        app: {
+          theme: resolveTheme(themePreference),
+          clearingThumbnails,
+          onOpenSettings,
+          onSetTheme: setThemePreference,
+          onClearThumbnailCache: () => void clearThumbnails(),
+        },
       }),
     [
       acceptAllCandidates,
+      clearThumbnails,
+      clearingThumbnails,
       copyFolderPath,
       folder,
       folderNotFound,
@@ -191,6 +206,7 @@ export function useQuickActionHost({
       onCreateFolder,
       onInvertSelection,
       onOpenFolderPicker,
+      onOpenSettings,
       onSelectAll,
       panel.candidateCount,
       panel.duplicateGroupCount,
@@ -205,6 +221,7 @@ export function useQuickActionHost({
       selection,
       selectionMode,
       sidecarSweep,
+      themePreference,
       visibleCount,
     ],
   );

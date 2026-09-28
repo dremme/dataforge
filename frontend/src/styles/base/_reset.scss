@@ -32,7 +32,7 @@ input {
   font: inherit;
 }
 
-// Chrome/Safari draw number spinners from the UA's light scheme; this app never declares `color-scheme`, so they crowd the right-aligned digits in the 4.25rem W/H boxes.
+// Native number spinners crowd the right-aligned digits in the 4.25rem W/H boxes.
 input[type="number"] {
   appearance: textfield;
 }

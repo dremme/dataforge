@@ -17,7 +17,6 @@ from automation.audio import AUDIO_MAX_SECONDS
 from automation.auto_caption import (
     AUDIO_OBJECTIVE_SENTENCE,
     AUDIO_USER_SENTENCE,
-    DRAFT_CAPTION_THRESHOLD_VAR,
     MOTION_OBJECTIVE_SENTENCE,
     build_system_prompt,
     complete_caption,
@@ -874,7 +873,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             write_txt_caption(media, "Draft.")
 
             with (
-                patch.dict(os.environ, {DRAFT_CAPTION_THRESHOLD_VAR: "8"}),
+                patch.dict(os.environ, {"DRAFT_CAPTION_THRESHOLD": "8"}),
                 patch(
                     "automation.auto_caption.complete_caption",
                     return_value="A short caption.",
@@ -897,7 +896,7 @@ class AutoCaptionJobRunTests(unittest.TestCase):
             write_txt_caption(media, "Draft.")
 
             with (
-                patch.dict(os.environ, {DRAFT_CAPTION_THRESHOLD_VAR: "4"}),
+                patch.dict(os.environ, {"DRAFT_CAPTION_THRESHOLD": "4"}),
                 patch("automation.auto_caption.complete_caption") as mock_complete,
             ):
                 _path, caption, status, _message, _audio_missing = process_media(

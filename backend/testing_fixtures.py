@@ -6,8 +6,20 @@ import os
 import struct
 import subprocess
 import tempfile
+import unittest
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
+
+COMFY_TEST_URL = "http://comfy.test"
+
+
+def mock_comfy_client(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Client:
+    return httpx.Client(base_url=COMFY_TEST_URL, transport=httpx.MockTransport(handler))
+
 
 _test_database_dir: tempfile.TemporaryDirectory[str] | None = None
 
@@ -67,6 +79,34 @@ def isolate_test_database() -> Path:
         atexit.register(_cleanup_test_database)
 
     return Path(os.environ["DATAFORGE_DB_PATH"])
+
+
+class CacheFolderTestCase(unittest.TestCase):
+    """Points the thumbnail cache at a temporary folder for each test."""
+
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory(prefix="dataforge-thumb-cache-")
+        self.addCleanup(temp.cleanup)
+        self.cache_dir = Path(temp.name)
+        cache_env = patch.dict(os.environ, {"DATAFORGE_THUMBNAIL_CACHE": temp.name})
+        cache_env.start()
+        self.addCleanup(cache_env.stop)
+
+    def write_thumbnail(self, name: str, size: int, used_at: float, suffix: str = ".webp") -> Path:
+        path = self.cache_dir / name[:2] / f"{name}{suffix}"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\x00" * size)
+        os.utime(path, (used_at, used_at))
+        return path
+
+
+def forget_saved_settings() -> None:
+    from typing import get_args
+
+    from app_settings import update_app_settings
+    from schemas import AppSettingKey, AppSettingsUpdate
+
+    update_app_settings(AppSettingsUpdate(reset=list(get_args(AppSettingKey.__value__))))
 
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"

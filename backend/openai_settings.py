@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
-DEFAULT_OPENAI_BASE_URL = "http://127.0.0.1:8888/v1"
+from app_settings import effective_settings
+from env_file import env_str
+
 # SDK requires api_key; local servers do not. "EMPTY" is a filler, not a credential.
 DEFAULT_OPENAI_API_KEY = "EMPTY"
-DEFAULT_OPENAI_MODEL = "qwen38"
 
 DEFAULT_MAX_TOKENS = 16384
 DEFAULT_TOP_K = 20
 
-DEFAULT_TIMEOUT_SECONDS = 600.0
 CONNECT_TIMEOUT_SECONDS = 10.0
 
 # 1.0 disables the repetition penalty; the key is omitted from extra_body at this value.
@@ -50,12 +49,8 @@ INSTRUCT_DEFAULTS = SamplingProfile(
 )
 
 
-def _env_str(name: str) -> str:
-    return os.environ.get(name, "").strip()
-
-
 def env_int(name: str, default: int) -> int:
-    raw = _env_str(name)
+    raw = env_str(name)
     if not raw:
         return default
     try:
@@ -71,7 +66,7 @@ def positive_env_int(name: str, default: int) -> int:
 
 
 def _env_float(name: str, default: float) -> float:
-    raw = _env_str(name)
+    raw = env_str(name)
     if not raw:
         return default
     try:
@@ -81,15 +76,15 @@ def _env_float(name: str, default: float) -> float:
 
 
 def get_openai_base_url() -> str:
-    return _env_str("OPENAI_API_BASE_URL") or DEFAULT_OPENAI_BASE_URL
+    return effective_settings().vision_base_url
 
 
 def get_openai_api_key() -> str:
-    return _env_str("OPENAI_API_KEY") or DEFAULT_OPENAI_API_KEY
+    return env_str("OPENAI_API_KEY") or DEFAULT_OPENAI_API_KEY
 
 
 def get_openai_model() -> str:
-    return _env_str("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
+    return effective_settings().vision_model
 
 
 def get_max_tokens() -> int:
@@ -101,8 +96,7 @@ def get_top_k() -> int:
 
 
 def get_openai_timeout() -> float:
-    timeout = _env_float("OPENAI_TIMEOUT", DEFAULT_TIMEOUT_SECONDS)
-    return timeout if timeout > 0 else DEFAULT_TIMEOUT_SECONDS
+    return effective_settings().vision_timeout_seconds
 
 
 def get_sampling_profile(mode: str) -> SamplingProfile:

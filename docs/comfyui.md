@@ -6,7 +6,7 @@ Run a folder of images or videos through a ComfyUI workflow, such as an upscale,
 
 ## Connect ComfyUI
 
-DataForge expects ComfyUI at `http://127.0.0.1:9000`, the ComfyUI Desktop default. To change anything, set it in `.env` and restart:
+DataForge expects ComfyUI at `http://127.0.0.1:9000`, the ComfyUI Desktop default. Change the address under **ComfyUI URL** in **Settings**, which applies immediately. Everything else, and the address too if you prefer, is set in `.env`, followed by a restart:
 
 | Variable              | Default                 | Purpose                                                                          |
 | --------------------- | ----------------------- | -------------------------------------------------------------------------------- |
@@ -103,7 +103,7 @@ PNG, MP4, MOV, and M4V files made by ComfyUI usually carry their workflow. Click
 
 **The preset is missing.** Check that `COMFY_WORKFLOWS_DIR` exists and that the preset is a `.json` file exported in API format. Reopen the dialog after adding it.
 
-**ComfyUI shows as unavailable.** Start it, and check that `COMFY_BASE_URL` is its origin, such as `http://127.0.0.1:9000`, not a page within it. Restart DataForge after changing the URL.
+**ComfyUI shows as unavailable.** Start it, and check that the **ComfyUI URL** in **Settings** is its origin, such as `http://127.0.0.1:9000`, not a page within it.
 
 **The workflow is refused as ambiguous, or the prompt is refused.** Add `DataForge Input` and `DataForge Output` titles, and put `DataForge Prompt` and `DataForge FPS` only on nodes that own their value. Export in API format again.
 

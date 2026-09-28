@@ -9,6 +9,7 @@ html.jobs-drawer-open,
 html.quick-action-open,
 html.stats-drawer-open,
 html.folder-instructions-modal-open,
-html.training-sample-modal-open {
+html.training-sample-modal-open,
+html.settings-modal-open {
   @include modal-scroll-lock;
 }

@@ -6,16 +6,29 @@ DataForge works without any configuration. You only need a `.env` file to connec
 
 ## How settings are loaded
 
-Copy [`.env.example`](../.env.example) to `.env` in the project root, uncomment what you need, and **restart DataForge**. Settings are read only at startup. `.env` is gitignored; keep keys and machine-specific paths there, never in source.
+Copy [`.env.example`](../.env.example) to `.env` in the project root, uncomment what you need, and **restart DataForge**. `.env` is read only at startup. It is gitignored; keep keys and machine-specific paths there, never in source.
+
+The most common settings can also be changed in the app, under **Settings** (the gear in the toolbar, or `Ctrl+,`). Those take effect immediately, without a restart:
+
+| In Settings                          | Variable                           |
+| ------------------------------------ | ---------------------------------- |
+| Vision server URL, model, timeout    | `OPENAI_API_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TIMEOUT` |
+| Draft threshold                      | `DRAFT_CAPTION_THRESHOLD`          |
+| ComfyUI URL                          | `COMFY_BASE_URL`                   |
+| AI-Toolkit URL                       | `OSTRIS_BASE_URL`                  |
+| Thumbnail cache limit                | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` |
+
+A running job keeps the server it started with; the change applies from the next job. **Reset** in Settings removes the saved value, so the variable or the default applies again.
 
 When a setting is defined in more than one place, the highest one wins:
 
-1. Environment variables already set in your shell or OS
-2. `.env` in the project root
-3. `backend/.env`, read only if there is no project-root `.env`; the two files are never merged
-4. Built-in defaults
+1. A value saved in **Settings**, stored in the database
+2. Environment variables already set in your shell or OS
+3. `.env` in the project root
+4. `backend/.env`, read only if there is no project-root `.env`; the two files are never merged
+5. Built-in defaults
 
-Blank, malformed, or out-of-range values fall back to their defaults. For example, a zero or negative number never sets a smaller limit. Relative paths resolve against the server's working directory, so prefer absolute ones.
+Blank, malformed, or out-of-range values in the environment fall back to their defaults. Settings refuses them instead. For example, a zero or negative number never sets a smaller limit. Relative paths resolve against the server's working directory, so prefer absolute ones.
 
 ## Connect a vision model
 
@@ -176,19 +189,20 @@ Every endpoint defaults to your own machine. If you point one at another machine
 | **Verify captions**      | Downscaled image or video frames, the caption, and any additional context; never audio | `OPENAI_API_BASE_URL` |
 | **Edit captions**        | Caption text and your instruction; no media                                      | `OPENAI_API_BASE_URL`   |
 | **Process with ComfyUI** | The original media file and the workflow inputs                                  | `COMFY_BASE_URL`        |
-| **Quick LoRA training**  | Folder path and training config, including prompts; no media                     | `127.0.0.1:8675` only   |
+| **Quick LoRA training**  | Folder path and training config, including prompts; no media                     | `OSTRIS_BASE_URL`       |
 
 AI-Toolkit reads the dataset from the path it is given, and its config decides where it writes outputs.
 
 ## Troubleshooting
 
 **A change has no effect.**
-1. Restart DataForge.
-2. Check that a variable of the same name isn't already set in your shell or OS; that value wins.
-3. Check that you edited the project-root `.env`. If it exists, `backend/.env` is ignored.
-4. Check the spelling, and remove quotes, comments, or other text after the value.
-5. Remember that mode, effort, audio, and the other dialog options are not environment variables.
-6. For a model change, reload the model server too.
+1. Open **Settings** and check whether the value is marked **Saved**. A saved value outranks `.env`; use **Reset** to hand control back to it.
+2. Restart DataForge.
+3. Check that a variable of the same name isn't already set in your shell or OS; that value wins over `.env`.
+4. Check that you edited the project-root `.env`. If it exists, `backend/.env` is ignored.
+5. Check the spelling, and remove quotes, comments, or other text after the value.
+6. Remember that mode, effort, audio, and the other dialog options are not environment variables.
+7. For a model change, reload the model server too.
 
 **Captions ignore the image.** The server is running text-only. With llama.cpp, add `--mmproj`. Also check that `OPENAI_MODEL` names a vision model. A successful response only proves the text path works.
 

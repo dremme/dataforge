@@ -246,15 +246,92 @@ type GallerySort = Literal[
 ]
 
 
+type ThemePreference = Literal["system", "light", "dark"]
+
+
 class UiSettingsResponse(BaseModel):
     sort: GallerySort = "name-asc"
     show_automation_specs: bool = False
+    theme: ThemePreference = "system"
 
 
 class UiSettingsUpdate(BaseModel):
     # Deliberately not ``GallerySort``: an unknown sort resets to the default instead of failing.
     sort: str | None = None
     show_automation_specs: bool | None = None
+    theme: ThemePreference | None = None
+
+
+type AppSettingKey = Literal[
+    "vision_base_url",
+    "vision_model",
+    "vision_timeout_seconds",
+    "draft_caption_threshold",
+    "comfy_base_url",
+    "ai_toolkit_base_url",
+    "thumbnail_cache_max_mb",
+]
+
+type SettingSource = Literal["saved", "env", "default"]
+
+type FallbackSource = Literal["env", "default"]
+
+
+class TextSettingState(BaseModel):
+    value: str
+    source: SettingSource
+    fallback: str
+    fallback_source: FallbackSource
+
+
+class NumberSettingState(BaseModel):
+    value: int | float
+    source: SettingSource
+    fallback: int | float
+    fallback_source: FallbackSource
+
+
+class AppSettingsResponse(BaseModel):
+    """``fallback`` is what a reset would restore: the environment's value, else the built-in default."""
+
+    vision_base_url: TextSettingState
+    vision_model: TextSettingState
+    vision_timeout_seconds: NumberSettingState
+    draft_caption_threshold: NumberSettingState
+    comfy_base_url: TextSettingState
+    ai_toolkit_base_url: TextSettingState
+    thumbnail_cache_max_mb: NumberSettingState
+    database_path: str
+    env_file: str | None = None
+
+
+class AppSettingsOverrides(BaseModel):
+    """``None`` means not saved, so the environment or the default applies."""
+
+    vision_base_url: str | None = None
+    vision_model: str | None = None
+    vision_timeout_seconds: float | None = None
+    draft_caption_threshold: int | None = None
+    comfy_base_url: str | None = None
+    ai_toolkit_base_url: str | None = None
+    thumbnail_cache_max_mb: int | None = None
+
+
+class AppSettingsUpdate(AppSettingsOverrides):
+    """A key in both ``reset`` and the values ends up saved with the new value."""
+
+    reset: list[AppSettingKey] = Field(default_factory=list)
+
+
+class ThumbnailCacheStats(BaseModel):
+    directory: str
+    file_count: int
+    size_bytes: int
+
+
+class ThumbnailCacheCleared(BaseModel):
+    removed_files: int
+    freed_bytes: int
 
 
 type GalleryDisplayMode = Literal["large", "small", "list"]

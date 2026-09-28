@@ -43,6 +43,8 @@ AI is optional. Browsing, manual captioning, editing, and most bulk tools work w
 | ComfyUI                         | `http://127.0.0.1:9000`    | [ComfyUI guide](docs/comfyui.md)                              |
 | AI-Toolkit                      | `http://127.0.0.1:8675`    | [AI-Toolkit guide](docs/ai-toolkit.md)                        |
 
+Each address can be changed in the app under **Settings**, without a restart.
+
 ## Your data stays local
 
 - Captions, AI instructions (`.sysprompt`), and review findings are small files beside your media.

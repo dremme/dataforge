@@ -51,6 +51,7 @@ const defaultProps = {
   fileFilterCounts: { all: 5, edited: 3, duplicates: 2, candidates: 1 },
   statsOpen: false,
   onToggleStats: vi.fn(),
+  onOpenSettings: vi.fn(),
   onSearchQueryChange: vi.fn(),
   onSearchRegexChange: vi.fn(),
   onSearchNamesChange: vi.fn(),

@@ -4,7 +4,7 @@ export type AppIcon = LucideIcon;
 
 // Brand marks lucide does not carry, drawn on the same grid. Re-exported here so callers
 // have one import site for icons regardless of where a given one came from.
-export { iconComfyUi } from "./brandIcons";
+export { iconAiToolkit, iconComfyUi } from "./brandIcons";
 
 export {
   AlertTriangle as iconAlertTriangle,
@@ -65,6 +65,7 @@ export {
   Grid2x2 as iconGrid2x2,
   Grid3x3 as iconGrid3x3,
   Hammer as iconHammer,
+  HardDrive as iconHardDrive,
   Heading1 as iconHeading1,
   Heading2 as iconHeading2,
   Heading3 as iconHeading3,
@@ -87,12 +88,14 @@ export {
   MessageCirclePlus as iconMessagePlus,
   MessageCircleWarning as iconMessageWarning,
   MessageSquareText as iconMessageSquareText,
+  Moon as iconMoon,
   Palette as iconPalette,
   Pause as iconPause,
   Pencil as iconPencil,
   PencilSparkles as iconPencilSparkles,
   Play as iconPlay,
   Plus as iconPlus,
+  Plug as iconPlug,
   Proportions as iconProportions,
   Quote as iconQuote,
   Regex as iconRegex,
@@ -106,6 +109,7 @@ export {
   ScanSquare as iconScanSquare,
   Scissors as iconScissors,
   Search as iconSearch,
+  Settings as iconSettings,
   Shredder as iconShredder,
   Sparkles as iconSparkles,
   SpellCheck2 as iconSpellCheck2,

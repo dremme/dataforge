@@ -10,8 +10,10 @@ from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
 
+from app_settings import effective_settings
 from constants import MEDIA_EXTENSIONS, PILLOW_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
+from schemas import ThumbnailCacheCleared, ThumbnailCacheStats
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +22,15 @@ MIN_THUMBNAIL_WIDTH = 64
 MAX_THUMBNAIL_WIDTH = 1200
 WEBP_QUALITY = 80
 
-#: Rewrites orphan old entries; nothing else deletes them, so the cache is trimmed to this budget.
-DEFAULT_CACHE_BUDGET_MB = 2048
-
 #: A prune walks the whole cache tree; a gallery scrolling a new folder generates in bursts.
 PRUNE_EVERY_N_THUMBNAILS = 200
 
 _lock_guard = threading.Lock()
 _generation_locks: dict[str, threading.Lock] = {}
+
+THUMBNAIL_SUFFIX = ".webp"
+# In-progress renders share the shard folder; a different suffix keeps eviction off them.
+PARTIAL_SUFFIX = ".partial"
 
 _prune_guard = threading.Lock()
 _thumbnails_since_prune = 0
@@ -49,18 +52,8 @@ def get_thumbnail_cache_dir() -> Path:
 
 
 def get_thumbnail_cache_budget_bytes() -> int:
-    """``0`` or less turns pruning off."""
-    raw = os.environ.get("DATAFORGE_THUMBNAIL_CACHE_MAX_MB", "").strip()
-    if not raw:
-        return DEFAULT_CACHE_BUDGET_MB * 1024 * 1024
-
-    try:
-        megabytes = int(raw)
-    except ValueError:
-        logger.warning("Ignoring DATAFORGE_THUMBNAIL_CACHE_MAX_MB=%r: not a number", raw)
-        return DEFAULT_CACHE_BUDGET_MB * 1024 * 1024
-
-    return max(0, megabytes) * 1024 * 1024
+    """``0`` turns pruning off."""
+    return effective_settings().thumbnail_cache_max_mb * 1024 * 1024
 
 
 def normalize_thumbnail_width(width: int) -> int:
@@ -80,7 +73,7 @@ def thumbnail_cache_digest(source: Path, width: int) -> str:
 def thumbnail_cache_path(source: Path, width: int) -> Path:
     cache_dir = get_thumbnail_cache_dir()
     digest = thumbnail_cache_digest(source, width)
-    return cache_dir / digest[:2] / f"{digest}.webp"
+    return cache_dir / digest[:2] / f"{digest}{THUMBNAIL_SUFFIX}"
 
 
 def _generation_lock(cache_key: str) -> threading.Lock:
@@ -226,13 +219,11 @@ def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None
 
 
 def _cached_thumbnails() -> list[tuple[float, int, Path]]:
-    """``(last use, size, path)``. Uses max(atime, mtime) because many mounts use ``noatime``."""
+    """``(last use, size, path)``, oldest first. Uses max(atime, mtime) because many mounts use ``noatime``."""
     entries: list[tuple[float, int, Path]] = []
 
-    for path in get_thumbnail_cache_dir().rglob("*"):
+    for path in get_thumbnail_cache_dir().rglob(f"*{THUMBNAIL_SUFFIX}"):
         try:
-            if not path.is_file():
-                continue
             stat = path.stat()
         except OSError:
             continue
@@ -242,33 +233,52 @@ def _cached_thumbnails() -> list[tuple[float, int, Path]]:
     return entries
 
 
+def _evict(entries: list[tuple[float, int, Path]], keep_bytes: int) -> tuple[int, int]:
+    """Deletes oldest first until at most ``keep_bytes`` remain. Returns ``(files, bytes)`` freed."""
+    remaining = sum(size for _, size, _ in entries)
+    removed = 0
+    freed = 0
+    for _, size, path in entries:
+        if remaining - freed <= keep_bytes:
+            break
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        removed += 1
+        freed += size
+    return removed, freed
+
+
 def prune_thumbnail_cache(budget_bytes: int | None = None) -> int:
     """Returns bytes reclaimed."""
     budget = get_thumbnail_cache_budget_bytes() if budget_bytes is None else budget_bytes
     if budget <= 0:
         return 0
 
-    entries = _cached_thumbnails()
-    total = sum(size for _, size, _ in entries)
-    if total <= budget:
-        return 0
-
-    reclaimed = 0
-    for _, size, path in entries:
-        if total - reclaimed <= budget:
-            break
-        try:
-            path.unlink()
-        except OSError:
-            continue
-        reclaimed += size
-
-    logger.info(
-        "Pruned %.1f MB from the thumbnail cache (budget %.0f MB)",
-        reclaimed / (1024 * 1024),
-        budget / (1024 * 1024),
-    )
+    _, reclaimed = _evict(_cached_thumbnails(), budget)
+    if reclaimed:
+        logger.info(
+            "Pruned %.1f MB from the thumbnail cache (budget %.0f MB)",
+            reclaimed / (1024 * 1024),
+            budget / (1024 * 1024),
+        )
     return reclaimed
+
+
+def thumbnail_cache_stats() -> ThumbnailCacheStats:
+    entries = _cached_thumbnails()
+    return ThumbnailCacheStats(
+        directory=str(get_thumbnail_cache_dir()),
+        file_count=len(entries),
+        size_bytes=sum(size for _, size, _ in entries),
+    )
+
+
+def clear_thumbnail_cache() -> ThumbnailCacheCleared:
+    removed, freed = _evict(_cached_thumbnails(), 0)
+    logger.info("Cleared %d thumbnails (%.1f MB)", removed, freed / (1024 * 1024))
+    return ThumbnailCacheCleared(removed_files=removed, freed_bytes=freed)
 
 
 def _prune_thumbnail_cache_periodically() -> None:
@@ -307,7 +317,7 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
         cached.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
             dir=cached.parent,
-            suffix=".webp",
+            suffix=PARTIAL_SUFFIX,
             delete=False,
         ) as handle:
             temp_path = Path(handle.name)

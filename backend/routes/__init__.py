@@ -15,6 +15,7 @@ from routes import (
     media,
     notifications,
     preferences,
+    settings,
     sidecars,
     system,
 )
@@ -35,6 +36,7 @@ for module in (
     files,
     notifications,
     preferences,
+    settings,
     jobs,
     external_jobs,
     events,

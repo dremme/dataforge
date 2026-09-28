@@ -1,8 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-$meta-badge-color: #fcd34d;
-
 .gallery-item-modal {
   @include modal-shell($z-index-modal);
 
@@ -138,7 +136,7 @@ $meta-badge-color: #fcd34d;
     max-height: $modal-media-max-height;
     overflow: hidden;
     border-radius: var(--radius-sm);
-    background: $color-video-bg;
+    background: var(--video-bg);
   }
 
   &__filter {
@@ -201,10 +199,10 @@ $meta-badge-color: #fcd34d;
       align-items: center;
       padding: 0.1875rem 0.5rem;
       gap: 0.3125rem;
-      border: 1px solid rgba($meta-badge-color, 0.2);
+      border: 1px solid color-mix(in srgb, var(--meta-badge) 20%, transparent);
       border-radius: var(--radius-pill);
-      background: rgba($meta-badge-color, 0.12);
-      color: $meta-badge-color;
+      background: color-mix(in srgb, var(--meta-badge) 12%, transparent);
+      color: var(--meta-badge);
       font-size: var(--text-2xs);
       font-weight: var(--font-semibold);
       line-height: 1;
@@ -218,8 +216,8 @@ $meta-badge-color: #fcd34d;
           background var(--transition);
 
         &:hover {
-          border-color: rgba($meta-badge-color, 0.45);
-          background: rgba($meta-badge-color, 0.22);
+          border-color: color-mix(in srgb, var(--meta-badge) 45%, transparent);
+          background: color-mix(in srgb, var(--meta-badge) 22%, transparent);
         }
       }
 
@@ -263,15 +261,15 @@ $meta-badge-color: #fcd34d;
 
     &--copied,
     &--copied:hover:not(:disabled) {
-      color: $color-caption-saved;
-      border-color: $color-caption-saved;
-      background: rgba($color-caption-saved, 0.12);
+      color: var(--caption-saved);
+      border-color: var(--caption-saved);
+      background: color-mix(in srgb, var(--caption-saved) 12%, transparent);
     }
 
     &--error {
-      color: $color-caption-error;
-      border-color: $color-caption-error;
-      background: rgba($color-caption-error, 0.12);
+      color: var(--caption-error);
+      border-color: var(--caption-error);
+      background: color-mix(in srgb, var(--caption-error) 12%, transparent);
     }
 
     &--issue {

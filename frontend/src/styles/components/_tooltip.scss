@@ -16,7 +16,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+    box-shadow: var(--shadow-tooltip);
     color: var(--text);
     font-size: var(--text-xs);
     font-weight: var(--font-medium);

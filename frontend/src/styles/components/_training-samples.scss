@@ -54,7 +54,7 @@
     border-radius: var(--radius-sm);
 
     &:hover {
-      border-color: $color-card-hover-border;
+      border-color: var(--card-hover-border);
 
       .training-samples__image {
         transform: scale(1.15);

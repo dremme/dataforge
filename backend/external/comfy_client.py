@@ -40,8 +40,9 @@ class ComfyPromptError(ComfyError):
     """ComfyUI rejected the graph, or failed while executing it."""
 
 
-def comfy_url(path: str) -> str:
-    return f"{get_comfy_base_url()}/{path.lstrip('/')}"
+def open_comfy_client(timeout: float) -> httpx.Client:
+    """Binds the address once, so a job keeps talking to the ComfyUI it started on."""
+    return httpx.Client(base_url=get_comfy_base_url(), timeout=timeout)
 
 
 def _media_type(source: Path) -> str:
@@ -91,7 +92,7 @@ def upload_media(
             # The field is "image" for video too; VHS uploads through this same endpoint.
             files = {"image": (name, handle, _media_type(source))}
             response = client.post(
-                comfy_url("/upload/image"),
+                "/upload/image",
                 files=files,
                 data=data,
                 timeout=COMFY_TRANSFER_TIMEOUT_SECONDS,
@@ -117,7 +118,7 @@ def submit_prompt(client: httpx.Client, prompt: dict[str, Any], *, client_id: st
     """Queue a patched graph, returning its prompt id. A 200 with ``node_errors`` is still a reject."""
     try:
         response = client.post(
-            comfy_url("/prompt"),
+            "/prompt",
             json={"prompt": prompt, "client_id": client_id},
             timeout=COMFY_REQUEST_TIMEOUT_SECONDS,
         )
@@ -149,7 +150,7 @@ def fetch_history(client: httpx.Client, prompt_id: str) -> dict[str, Any] | None
     """The finished run's entry, or None while it is still queued or executing."""
     try:
         response = client.get(
-            comfy_url(f"/history/{prompt_id}"),
+            f"/history/{prompt_id}",
             timeout=COMFY_REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
@@ -253,7 +254,7 @@ def download_view_to(client: httpx.Client, ref: dict[str, str], destination: Pat
         with (
             client.stream(
                 "GET",
-                comfy_url("/view"),
+                "/view",
                 params=ref,
                 timeout=COMFY_TRANSFER_TIMEOUT_SECONDS,
             ) as response,
@@ -273,7 +274,7 @@ def download_view_to(client: httpx.Client, ref: dict[str, str], destination: Pat
 def fetch_queue(client: httpx.Client) -> tuple[list[str], list[str]]:
     """Prompt ids ComfyUI is running now, and those still pending."""
     try:
-        response = client.get(comfy_url("/queue"), timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
+        response = client.get("/queue", timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()
         payload = response.json()
     except httpx.HTTPError as error:
@@ -300,7 +301,7 @@ def fetch_queue(client: httpx.Client) -> tuple[list[str], list[str]]:
 def interrupt(client: httpx.Client, prompt_id: str) -> None:
     try:
         response = client.post(
-            comfy_url("/interrupt"),
+            "/interrupt",
             json={"prompt_id": prompt_id},
             timeout=COMFY_REQUEST_TIMEOUT_SECONDS,
         )
@@ -313,7 +314,7 @@ def delete_queued(client: httpx.Client, prompt_id: str) -> None:
     """Drop a still-pending prompt from the queue."""
     try:
         response = client.post(
-            comfy_url("/queue"),
+            "/queue",
             json={"delete": [prompt_id]},
             timeout=COMFY_REQUEST_TIMEOUT_SECONDS,
         )
@@ -325,7 +326,7 @@ def delete_queued(client: httpx.Client, prompt_id: str) -> None:
 def fetch_raw_log_entries(client: httpx.Client) -> list[dict[str, Any]]:
     """ComfyUI's recent console writes, oldest first. The window is bounded by ComfyUI, not us."""
     try:
-        response = client.get(comfy_url(COMFY_LOGS_PATH), timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
+        response = client.get(COMFY_LOGS_PATH, timeout=COMFY_REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()
         payload = response.json()
     except httpx.HTTPError as error:
@@ -346,7 +347,7 @@ def read_log_lines(*, limit: int = LOG_TAIL_LINES) -> list[str] | None:
     None and an empty list are different answers: nothing to read versus nothing written.
     """
     try:
-        with httpx.Client(timeout=COMFY_REQUEST_TIMEOUT_SECONDS) as client:
+        with open_comfy_client(COMFY_REQUEST_TIMEOUT_SECONDS) as client:
             entries = fetch_raw_log_entries(client)
     except ComfyError:
         return None
@@ -357,8 +358,8 @@ def read_log_lines(*, limit: int = LOG_TAIL_LINES) -> list[str] | None:
 def probe_available() -> bool:
     """Whether ComfyUI answers, for the dialog to say so before a job is queued."""
     try:
-        with httpx.Client(timeout=COMFY_REQUEST_TIMEOUT_SECONDS) as client:
-            response = client.get(comfy_url("/system_stats"))
+        with open_comfy_client(COMFY_REQUEST_TIMEOUT_SECONDS) as client:
+            response = client.get("/system_stats")
             response.raise_for_status()
     except httpx.HTTPError:
         return False

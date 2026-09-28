@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -10,10 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import httpx
 
 from external.comfy_client import (
+    COMFY_REQUEST_TIMEOUT_SECONDS,
     ComfyError,
     ComfyPromptError,
     ComfyUnavailableError,
-    comfy_url,
     delete_queued,
     download_view_to,
     fetch_history,
@@ -23,21 +24,19 @@ from external.comfy_client import (
     history_is_finished,
     history_outputs,
     interrupt,
+    open_comfy_client,
     read_log_lines,
     submit_prompt,
     upload_media,
 )
-
-
-def client_for(handler) -> httpx.Client:
-    return httpx.Client(transport=httpx.MockTransport(handler))
+from testing_fixtures import mock_comfy_client
 
 
 def refusing_client() -> httpx.Client:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused", request=request)
 
-    return client_for(handler)
+    return mock_comfy_client(handler)
 
 
 class SubmitPromptTests(unittest.TestCase):
@@ -48,7 +47,7 @@ class SubmitPromptTests(unittest.TestCase):
             captured["body"] = json.loads(request.content)
             return httpx.Response(200, json={"prompt_id": "p-1", "node_errors": {}})
 
-        with client_for(handler) as client:
+        with mock_comfy_client(handler) as client:
             self.assertEqual(submit_prompt(client, {"1": {}}, client_id="c-1"), "p-1")
 
         self.assertEqual(captured["body"]["client_id"], "c-1")
@@ -65,7 +64,7 @@ class SubmitPromptTests(unittest.TestCase):
                 },
             )
 
-        with client_for(handler) as client, self.assertRaises(ComfyPromptError) as caught:
+        with mock_comfy_client(handler) as client, self.assertRaises(ComfyPromptError) as caught:
             submit_prompt(client, {}, client_id="c-1")
 
         self.assertIn("Model not found", str(caught.exception))
@@ -76,7 +75,7 @@ class SubmitPromptTests(unittest.TestCase):
                 400, json={"error": {"message": "Invalid prompt", "details": "node 4"}}
             )
 
-        with client_for(handler) as client, self.assertRaises(ComfyPromptError) as caught:
+        with mock_comfy_client(handler) as client, self.assertRaises(ComfyPromptError) as caught:
             submit_prompt(client, {}, client_id="c-1")
 
         self.assertIn("Invalid prompt", str(caught.exception))
@@ -88,13 +87,13 @@ class SubmitPromptTests(unittest.TestCase):
 
 class HistoryTests(unittest.TestCase):
     def test_an_empty_history_means_still_running(self) -> None:
-        with client_for(lambda _r: httpx.Response(200, json={})) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, json={})) as client:
             self.assertIsNone(fetch_history(client, "p-1"))
 
     def test_a_finished_entry_comes_back(self) -> None:
         entry = {"status": {"completed": True}, "outputs": {}}
 
-        with client_for(lambda _r: httpx.Response(200, json={"p-1": entry})) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, json={"p-1": entry})) as client:
             self.assertEqual(fetch_history(client, "p-1"), entry)
 
     def test_completion_is_read_from_either_shape(self) -> None:
@@ -187,7 +186,7 @@ class TransferTests(unittest.TestCase):
             source = Path(temp) / "photo.png"
             source.write_bytes(b"pixels")
 
-            with client_for(handler) as client:
+            with mock_comfy_client(handler) as client:
                 self.assertEqual(
                     upload_media(client, source, name="job_00001.png"),
                     "dataforge/job_00001.png",
@@ -201,7 +200,7 @@ class TransferTests(unittest.TestCase):
             source = Path(temp) / "photo.png"
             source.write_bytes(b"pixels")
 
-            with client_for(handler) as client:
+            with mock_comfy_client(handler) as client:
                 self.assertEqual(upload_media(client, source, name="photo.png"), "photo.png")
 
     def test_a_video_uploads_under_the_same_multipart_field(self) -> None:
@@ -215,7 +214,7 @@ class TransferTests(unittest.TestCase):
             source = Path(temp) / "clip.mp4"
             source.write_bytes(b"moov")
 
-            with client_for(handler) as client:
+            with mock_comfy_client(handler) as client:
                 self.assertEqual(
                     upload_media(client, source, name="clip.mp4"), "dataforge/clip.mp4"
                 )
@@ -230,7 +229,7 @@ class TransferTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             destination = Path(temp) / "out.mp4"
 
-            with client_for(handler) as client:
+            with mock_comfy_client(handler) as client:
                 download_view_to(
                     client, {"filename": "out.mp4", "subfolder": "", "type": "output"}, destination
                 )
@@ -245,7 +244,7 @@ class TransferTests(unittest.TestCase):
             return httpx.Response(200, content=b"image-bytes")
 
         ref = {"filename": "a.png", "subfolder": "DataForge", "type": "temp"}
-        with tempfile.TemporaryDirectory() as temp, client_for(handler) as client:
+        with tempfile.TemporaryDirectory() as temp, mock_comfy_client(handler) as client:
             download_view_to(client, ref, Path(temp) / "a.png")
 
         self.assertEqual(captured["params"], ref)
@@ -258,14 +257,16 @@ class QueueTests(unittest.TestCase):
             "queue_pending": [[1, "p-pending", {}], [2, "p-other", {}]],
         }
 
-        with client_for(lambda _r: httpx.Response(200, json=payload)) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, json=payload)) as client:
             running, pending = fetch_queue(client)
 
         self.assertEqual(running, ["p-running"])
         self.assertEqual(pending, ["p-pending", "p-other"])
 
     def test_a_malformed_queue_is_empty_rather_than_a_crash(self) -> None:
-        with client_for(lambda _r: httpx.Response(200, json={"queue_running": "?"})) as client:
+        with mock_comfy_client(
+            lambda _r: httpx.Response(200, json={"queue_running": "?"})
+        ) as client:
             self.assertEqual(fetch_queue(client), ([], []))
 
     def test_deleting_names_the_prompt(self) -> None:
@@ -275,7 +276,7 @@ class QueueTests(unittest.TestCase):
             captured["body"] = json.loads(request.content)
             return httpx.Response(200, json={})
 
-        with client_for(handler) as client:
+        with mock_comfy_client(handler) as client:
             delete_queued(client, "p-1")
 
         self.assertEqual(captured["body"], {"delete": ["p-1"]})
@@ -287,7 +288,7 @@ class QueueTests(unittest.TestCase):
             requests.append(request)
             return httpx.Response(200, content=b"")
 
-        with client_for(handler) as client:
+        with mock_comfy_client(handler) as client:
             interrupt(client, "p-1")
 
         self.assertEqual(len(requests), 1)
@@ -296,11 +297,15 @@ class QueueTests(unittest.TestCase):
         self.assertEqual(json.loads(requests[0].content), {"prompt_id": "p-1"})
 
 
-class UrlTests(unittest.TestCase):
-    def test_paths_join_without_a_double_slash(self) -> None:
-        self.assertTrue(comfy_url("/prompt").endswith("/prompt"))
-        self.assertEqual(comfy_url("/prompt"), comfy_url("prompt"))
-        self.assertNotIn("//prompt", comfy_url("/prompt"))
+class ClientTests(unittest.TestCase):
+    def test_a_client_is_bound_to_the_configured_comfyui(self) -> None:
+        with (
+            patch.dict(os.environ, {"COMFY_BASE_URL": "http://gpu-box:8188/"}),
+            open_comfy_client(COMFY_REQUEST_TIMEOUT_SECONDS) as client,
+        ):
+            self.assertEqual(
+                str(client.build_request("GET", "/prompt").url), "http://gpu-box:8188/prompt"
+            )
 
 
 if __name__ == "__main__":
@@ -321,7 +326,7 @@ class LogWindowTests(unittest.TestCase):
                 },
             )
 
-        with client_for(handler) as client:
+        with mock_comfy_client(handler) as client:
             entries = fetch_raw_log_entries(client)
 
         self.assertEqual(captured["path"], "/internal/logs/raw")
@@ -329,7 +334,7 @@ class LogWindowTests(unittest.TestCase):
 
     def test_an_older_build_without_the_endpoint_is_unavailable(self) -> None:
         # 404 and a refused connection are the same answer: nobody distinguishes them.
-        with client_for(lambda _r: httpx.Response(404)) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(404)) as client:
             with self.assertRaises(ComfyUnavailableError):
                 fetch_raw_log_entries(client)
 
@@ -339,14 +344,14 @@ class LogWindowTests(unittest.TestCase):
                 fetch_raw_log_entries(client)
 
     def test_an_unreadable_body_is_not_an_availability_problem(self) -> None:
-        with client_for(lambda _r: httpx.Response(200, content=b"not json")) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, content=b"not json")) as client:
             with self.assertRaises(ComfyError) as caught:
                 fetch_raw_log_entries(client)
 
         self.assertNotIsInstance(caught.exception, ComfyUnavailableError)
 
     def test_a_payload_without_entries_reads_as_empty(self) -> None:
-        with client_for(lambda _r: httpx.Response(200, json={"size": {}})) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, json={"size": {}})) as client:
             self.assertEqual(fetch_raw_log_entries(client), [])
 
 

@@ -2,9 +2,9 @@ import { CAPTION_RULES_FILENAME, JOB_TYPE_LABELS } from "@/shared/constants";
 import type { ReactNode } from "react";
 import type { AppIcon } from "@/shared/icons";
 import {
+  iconAiToolkit,
   iconArchive,
   iconArchiveRestore,
-  iconBrain,
   iconCircleQuestionMark,
   iconComfyUi,
   iconFilePen,
@@ -99,7 +99,7 @@ export const JOB_TYPE_META = {
   train_lora: {
     type: "train_lora" as const,
     group: "datasets" as const,
-    icon: iconBrain,
+    icon: iconAiToolkit,
     startUi: "dialog" as const,
     menuLabel: "Quick LoRA training",
     menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",

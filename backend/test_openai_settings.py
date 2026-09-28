@@ -4,15 +4,13 @@ import os
 import unittest
 from unittest.mock import patch
 
+from app_settings import EffectiveSettings
 from openai_settings import (
     CONNECT_TIMEOUT_SECONDS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_OPENAI_API_KEY,
-    DEFAULT_OPENAI_BASE_URL,
-    DEFAULT_OPENAI_MODEL,
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
-    DEFAULT_TIMEOUT_SECONDS,
     DEFAULT_TOP_K,
     INSTRUCT_DEFAULTS,
     NEUTRAL_REPEAT_PENALTY,
@@ -29,6 +27,11 @@ from openai_settings import (
     get_sampling_profile,
     get_top_k,
 )
+
+DEFAULTS = EffectiveSettings()
+DEFAULT_OPENAI_BASE_URL = DEFAULTS.vision_base_url
+DEFAULT_OPENAI_MODEL = DEFAULTS.vision_model
+DEFAULT_TIMEOUT_SECONDS = DEFAULTS.vision_timeout_seconds
 
 
 class OpenAISettingsTests(unittest.TestCase):

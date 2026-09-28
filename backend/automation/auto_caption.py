@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from app_settings import effective_settings
 from automation.audio import AUDIO_MAX_SECONDS, extract_audio_wav
 from automation.job_runner import FileOutcome, run_media_job
 from automation.llm import (
@@ -37,19 +38,15 @@ from openai_settings import (
     DEFAULT_REASONING_EFFORT,
     get_max_tokens,
     get_openai_model,
-    positive_env_int,
 )
 from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
 
-# Longer reference captions are left alone; generated captions this short or shorter are retried.
-DRAFT_CAPTION_THRESHOLD = 256
-DRAFT_CAPTION_THRESHOLD_VAR = "DRAFT_CAPTION_THRESHOLD"
-
 
 def get_draft_caption_threshold() -> int:
-    return positive_env_int(DRAFT_CAPTION_THRESHOLD_VAR, DRAFT_CAPTION_THRESHOLD)
+    """Longer reference captions are left alone; generated captions this short or shorter are retried."""
+    return effective_settings().draft_caption_threshold
 
 
 AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS

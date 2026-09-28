@@ -26,8 +26,7 @@ export function getCachedVisionModelId(): string | null {
   return cachedModel;
 }
 
-/** @internal */
-export function resetVisionModelIdCacheForTests(): void {
+export function forgetVisionModelId(): void {
   cachedModel = null;
   inflight = null;
 }

@@ -51,6 +51,7 @@ from external.comfy_client import (
     history_is_finished,
     history_outputs,
     interrupt,
+    open_comfy_client,
     submit_prompt,
     upload_media,
 )
@@ -449,7 +450,7 @@ def run_comfy_process_job(
     job_tag = uuid.uuid4().hex[:8]
     client_id = uuid.uuid4().hex
 
-    client = httpx.Client(timeout=COMFY_TRANSFER_TIMEOUT_SECONDS)
+    client = open_comfy_client(COMFY_TRANSFER_TIMEOUT_SECONDS)
     counter = {"index": 0}
 
     def process(media_path: Path) -> FileOutcome:

@@ -2,6 +2,8 @@ import { vi } from "vitest";
 import { clearFolderCache } from "@/features/folder/lib/folderCache";
 import { clearFolderScrollMemory } from "@/features/folder/lib/folderScrollMemory";
 import type {
+  AppSettingKey,
+  AppSettingsResponse,
   CaptionSaveResponse,
   FolderChangesResponse,
   Job,
@@ -10,7 +12,7 @@ import type {
   InstructionFileResponse,
 } from "@/shared/types";
 import type { InstructionKind } from "@/shared/api/folderInstructions";
-import { emptyFolder, HOME_SYSPROMPT, homeFolder, vacationFolder } from "./fixtures";
+import { appSettings, emptyFolder, HOME_SYSPROMPT, homeFolder, vacationFolder } from "./fixtures";
 
 const MINIMAL_PNG = new Uint8Array([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0,
@@ -72,6 +74,12 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
 
 export function installMockBackend(options: MockBackendOptions = {}) {
   let folderFavorites: string[] | null = null;
+  let savedSettings = appSettings();
+  let thumbnailCache = {
+    directory: "C:/DataForge/thumbnails",
+    file_count: 1200,
+    size_bytes: 48 * 1024 ** 2,
+  };
 
   // Module singletons; leftover payloads from an earlier test would skip this mock.
   clearFolderCache();
@@ -367,6 +375,35 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/settings") {
+      if (method === "PUT") {
+        const body = init?.body ? JSON.parse(init.body as string) : {};
+        const next = { ...savedSettings } as Record<string, unknown>;
+        for (const key of body.reset ?? []) {
+          const state = savedSettings[key as AppSettingKey];
+          next[key] = { ...state, value: state.fallback, source: state.fallback_source };
+        }
+        for (const [key, value] of Object.entries(body)) {
+          if (key === "reset") continue;
+          next[key] = { ...savedSettings[key as AppSettingKey], value, source: "saved" };
+        }
+        savedSettings = next as unknown as AppSettingsResponse;
+      }
+      return jsonResponse(savedSettings);
+    }
+
+    if (url.pathname === "/api/thumbnails/cache") {
+      if (method === "DELETE") {
+        const cleared = {
+          removed_files: thumbnailCache.file_count,
+          freed_bytes: thumbnailCache.size_bytes,
+        };
+        thumbnailCache = { ...thumbnailCache, file_count: 0, size_bytes: 0 };
+        return jsonResponse(cleared);
+      }
+      return jsonResponse(thumbnailCache);
+    }
+
     if (url.pathname === "/api/system/vision-llm") {
       return jsonResponse({ model: "qwen38" });
     }
@@ -374,10 +411,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/preferences/ui") {
       if (method === "PUT") {
         const body = init?.body ? JSON.parse(init.body as string) : {};
-        return jsonResponse({ sort: body.sort ?? "name-asc" });
+        return jsonResponse({ sort: body.sort ?? "name-asc", theme: body.theme ?? "system" });
       }
 
-      return jsonResponse({ sort: "name-asc" });
+      return jsonResponse({ sort: "name-asc", theme: "system" });
     }
 
     if (url.pathname === "/api/preferences/automation") {
@@ -839,5 +876,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
   vi.stubGlobal("fetch", fetchMock);
 
-  return { fetchMock, removeFolder, renameItem };
+  /** The calls made to exactly `url` with `method`, oldest first. */
+  const requestsTo = (url: string, method = "GET") =>
+    fetchMock.mock.calls.filter(
+      ([input, init]) => String(input) === url && (init?.method ?? "GET") === method,
+    );
+
+  return { fetchMock, requestsTo, removeFolder, renameItem };
 }

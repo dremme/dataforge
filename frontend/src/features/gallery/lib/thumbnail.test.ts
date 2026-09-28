@@ -17,6 +17,20 @@ describe("galleryThumbnail", () => {
     expect(url).toContain("/api/thumbnail?");
     expect(url).toContain("w=400");
   });
+
+  it("a new epoch changes a versioned thumbnail URL", () => {
+    const modifiedAt = "2026-06-19T12:00:00.000Z";
+    const url = (epoch: number) =>
+      galleryThumbnailPreviewUrl("C:\\Photos\\sunset.png", modifiedAt, 4096, epoch);
+
+    expect(url(2)).toContain(`v=${Date.parse(modifiedAt)}-4096.2`);
+    expect(url(2)).not.toBe(url(1));
+  });
+
+  it("an unversioned thumbnail takes the epoch too, since every thumbnail is immutable", () => {
+    expect(galleryThumbnailPreviewUrl("sunset.png", null, null, 3)).toContain("v=3");
+    expect(galleryThumbnailPreviewUrl("sunset.png", null, null, 0)).not.toContain("v=");
+  });
 });
 
 describe("galleryItemMediaUrl", () => {

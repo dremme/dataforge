@@ -4,14 +4,15 @@ import { tags } from "@lezer/highlight";
 
 export type CodeEditorLanguage = "markdown" | "yaml" | "plaintext";
 
-const mkpBright = "#fcfcfa";
-const mkpYellow = "#ffd866";
-const mkpOrange = "#fc9867";
-const mkpPink = "#ff6188";
-const mkpGreen = "#a9dc76";
-const mkpCyan = "#78dce8";
-const mkpPurple = "#ab9df2";
-const mkpMuted = "#939293";
+// Palette lives in the theme tokens, so the editor follows light and dark.
+const mkpBright = "var(--code-bright)";
+const mkpYellow = "var(--code-yellow)";
+const mkpOrange = "var(--code-orange)";
+const mkpPink = "var(--code-pink)";
+const mkpGreen = "var(--code-green)";
+const mkpCyan = "var(--code-cyan)";
+const mkpPurple = "var(--code-purple)";
+const mkpMuted = "var(--code-muted)";
 
 const markdownHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, color: mkpYellow, fontWeight: "bold" },

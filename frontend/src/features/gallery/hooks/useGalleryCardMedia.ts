@@ -12,6 +12,7 @@ import {
   galleryItemThumbnailPreviewUrl,
 } from "@/features/gallery/lib/thumbnail";
 import { getGalleryScrollRoot } from "@/features/gallery/lib/scrollRoot";
+import { useThumbnailEpoch } from "@/features/gallery/lib/thumbnailEpoch";
 import type { GalleryMediaZones } from "@/features/gallery/lib/scrollRoot";
 import type { GalleryItem } from "@/shared/types";
 
@@ -28,7 +29,8 @@ export function useGalleryCardMedia(
     priority: "hidden",
   });
   const [loadedSrc, setLoadedSrc] = useState<string>();
-  const url = galleryItemThumbnailPreviewUrl(item);
+  const epoch = useThumbnailEpoch();
+  const url = galleryItemThumbnailPreviewUrl(item, epoch);
   const fallbackUrl = item.media_type === "video" ? undefined : galleryItemMediaUrl(item);
   const source = useMemo(() => ({ url, fallbackUrl }), [url, fallbackUrl]);
   const subscribe = useCallback(

@@ -10,13 +10,13 @@ from typing import Any
 
 import httpx
 
+from app_settings import effective_settings
 from filesystem import path_leaf_name
 
-OSTRIS_BASE_URL = "http://127.0.0.1:8675"
-OSTRIS_JOBS_URL = f"{OSTRIS_BASE_URL}/api/jobs"
-OSTRIS_SETTINGS_URL = f"{OSTRIS_BASE_URL}/api/settings"
-OSTRIS_GPU_URL = f"{OSTRIS_BASE_URL}/api/gpu"
-OSTRIS_QUEUE_URL = f"{OSTRIS_BASE_URL}/api/queue"
+OSTRIS_JOBS_PATH = "/api/jobs"
+OSTRIS_SETTINGS_PATH = "/api/settings"
+OSTRIS_GPU_PATH = "/api/gpu"
+OSTRIS_QUEUE_PATH = "/api/queue"
 OSTRIS_REQUEST_TIMEOUT_SECONDS = 3.0
 OSTRIS_TRAINING_TIMEOUT_SECONDS = 30.0
 OSTRIS_STOP_OPERATION_TIMEOUT_SECONDS = 600.0
@@ -32,6 +32,15 @@ TERMINAL_OSTRIS_STATUSES = frozenset({"stopped", "completed", "error"})
 
 class OstrisJobStopError(Exception):
     pass
+
+
+def get_ostris_base_url() -> str:
+    return effective_settings().ai_toolkit_base_url
+
+
+def open_ostris_client(timeout: float) -> httpx.Client:
+    """Binds the address once, so a run keeps talking to the AI-Toolkit it started on."""
+    return httpx.Client(base_url=get_ostris_base_url(), timeout=timeout)
 
 
 def _first_process_config(job_config: dict[str, Any]) -> dict[str, Any]:
@@ -169,12 +178,12 @@ def resolve_sqlite_db_path(raw_job: dict[str, Any]) -> Path | None:
     return None
 
 
-def _ostris_job_url(job_id: str) -> str:
-    return f"{OSTRIS_JOBS_URL}/{job_id}"
+def _ostris_job_path(job_id: str) -> str:
+    return f"{OSTRIS_JOBS_PATH}/{job_id}"
 
 
 def fetch_ostris_job(client: httpx.Client, job_id: str) -> dict[str, Any] | None:
-    response = client.get(OSTRIS_JOBS_URL, params={"id": job_id})
+    response = client.get(OSTRIS_JOBS_PATH, params={"id": job_id})
     response.raise_for_status()
     payload = response.json()
     return payload if isinstance(payload, dict) else None
@@ -182,7 +191,7 @@ def fetch_ostris_job(client: httpx.Client, job_id: str) -> dict[str, Any] | None
 
 def fetch_ostris_job_by_name(client: httpx.Client, name: str) -> dict[str, Any] | None:
     """Look up a job by its unique name, which Ostris enforces on creation."""
-    response = client.get(OSTRIS_JOBS_URL)
+    response = client.get(OSTRIS_JOBS_PATH)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
@@ -199,7 +208,7 @@ def fetch_ostris_job_by_name(client: httpx.Client, name: str) -> dict[str, Any] 
 
 
 def fetch_ostris_training_folder(client: httpx.Client) -> str | None:
-    response = client.get(OSTRIS_SETTINGS_URL)
+    response = client.get(OSTRIS_SETTINGS_PATH)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
@@ -211,7 +220,7 @@ def fetch_ostris_training_folder(client: httpx.Client) -> str | None:
 
 def fetch_ostris_gpu_ids(client: httpx.Client) -> str:
     """The GPU the job is queued on. Ostris rewrites this to "mps" on macOS itself."""
-    response = client.get(OSTRIS_GPU_URL)
+    response = client.get(OSTRIS_GPU_PATH)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
@@ -234,30 +243,30 @@ def create_ostris_job(
     job_config: dict[str, Any],
 ) -> httpx.Response:
     return client.post(
-        OSTRIS_JOBS_URL,
+        OSTRIS_JOBS_PATH,
         json={"name": name, "gpu_ids": gpu_ids, "job_config": job_config},
     )
 
 
 def queue_ostris_job(client: httpx.Client, job_id: str) -> None:
-    response = client.get(f"{_ostris_job_url(job_id)}/start")
+    response = client.get(f"{_ostris_job_path(job_id)}/start")
     response.raise_for_status()
 
 
 def start_ostris_queue(client: httpx.Client, gpu_ids: str) -> None:
     """Queueing a job is not enough; its GPU queue has to be running to pick it up."""
-    response = client.get(f"{OSTRIS_QUEUE_URL}/{gpu_ids}/start")
+    response = client.get(f"{OSTRIS_QUEUE_PATH}/{gpu_ids}/start")
     response.raise_for_status()
 
 
 def mark_ostris_job_stopped(client: httpx.Client, job_id: str) -> None:
     """Drop a job that is still queued. The checkpoint stop only accepts running jobs."""
-    response = client.get(f"{_ostris_job_url(job_id)}/mark_stopped")
+    response = client.get(f"{_ostris_job_path(job_id)}/mark_stopped")
     response.raise_for_status()
 
 
 def request_save_next_step(client: httpx.Client, job_id: str) -> None:
-    response = client.get(f"{_ostris_job_url(job_id)}/save_now")
+    response = client.get(f"{_ostris_job_path(job_id)}/save_now")
     response.raise_for_status()
 
 
@@ -326,7 +335,7 @@ def wait_for_job_stop(
 
 
 def stop_ostris_job_with_checkpoint(job_id: str) -> dict[str, Any]:
-    with httpx.Client(timeout=OSTRIS_STOP_OPERATION_TIMEOUT_SECONDS) as client:
+    with open_ostris_client(OSTRIS_STOP_OPERATION_TIMEOUT_SECONDS) as client:
         job = fetch_ostris_job(client, job_id)
         if job is None:
             raise OstrisJobStopError("Ostris job not found.")
@@ -422,8 +431,8 @@ def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
 
 def fetch_active_ostris_jobs() -> tuple[list[dict[str, Any]], bool]:
     try:
-        with httpx.Client(timeout=OSTRIS_REQUEST_TIMEOUT_SECONDS) as client:
-            response = client.get(OSTRIS_JOBS_URL)
+        with open_ostris_client(OSTRIS_REQUEST_TIMEOUT_SECONDS) as client:
+            response = client.get(OSTRIS_JOBS_PATH)
             response.raise_for_status()
             payload = response.json()
     except (httpx.HTTPError, json.JSONDecodeError, TypeError, ValueError):

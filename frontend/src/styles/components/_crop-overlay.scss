@@ -2,7 +2,6 @@
 @use "../abstracts/mixins" as *;
 
 $handle-size: 0.75rem;
-$scrim: rgb(0 0 0 / 0.55);
 
 // Positioned against the painted video box, not the element: `object-fit: contain` letterboxes, and a rect over the element would sit off by the bars.
 .crop-overlay {
@@ -11,7 +10,7 @@ $scrim: rgb(0 0 0 / 0.55);
 
   &__scrim {
     position: absolute;
-    background: $scrim;
+    background: var(--media-scrim);
     pointer-events: none;
   }
 
@@ -55,12 +54,12 @@ $scrim: rgb(0 0 0 / 0.55);
       repeating-linear-gradient(
         to right,
         transparent 0 calc(33.333% - 1px),
-        rgb(255 255 255 / 0.25) calc(33.333% - 1px) 33.333%
+        var(--media-guide) calc(33.333% - 1px) 33.333%
       ),
       repeating-linear-gradient(
         to bottom,
         transparent 0 calc(33.333% - 1px),
-        rgb(255 255 255 / 0.25) calc(33.333% - 1px) 33.333%
+        var(--media-guide) calc(33.333% - 1px) 33.333%
       );
   }
 

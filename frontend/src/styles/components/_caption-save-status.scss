@@ -13,11 +13,11 @@
   line-height: var(--leading-tight);
 
   &--saved {
-    color: $color-caption-saved;
+    color: var(--caption-saved);
   }
 
   &--error {
-    color: $color-caption-error;
+    color: var(--caption-error);
   }
 
   &__icon {
@@ -39,11 +39,11 @@
     margin-left: 0.125rem;
     font-size: var(--text-xs);
     font-weight: var(--font-medium);
-    color: $color-caption-error;
-    border-color: $color-caption-error;
+    color: var(--caption-error);
+    border-color: var(--caption-error);
 
     &:hover:not(:disabled) {
-      background: rgba($color-caption-error, 0.12);
+      background: color-mix(in srgb, var(--caption-error) 12%, transparent);
     }
   }
 }

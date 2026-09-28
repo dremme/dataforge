@@ -10,7 +10,7 @@ from automation.test_comfy_process import VideoWorkspace, run_with, video_handle
 from comfy_candidates import accept_candidate, read_candidate_sidecar
 from external.comfy_client import ComfyError
 from external.comfy_workflows import ComfyWorkflowError, parse_comfy_workflow
-from testing_fixtures import playable_video_bytes, write_gif
+from testing_fixtures import mock_comfy_client, playable_video_bytes, write_gif
 
 
 class VideoSafetyTests(unittest.TestCase):
@@ -63,9 +63,7 @@ class VideoSafetyTests(unittest.TestCase):
             "status": {"completed": True},
             "outputs": {"11": {"gifs": []}, "9": {"images": [{"filename": "preview.png"}]}},
         }
-        with httpx.Client(
-            transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"p": entry}))
-        ) as client:
+        with mock_comfy_client(lambda _: httpx.Response(200, json={"p": entry})) as client:
             with self.assertRaises(ComfyError):
                 _await_output(client, "p", output_node="11", timeout=30, should_cancel=None)
 

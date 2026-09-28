@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { useThumbnailRuntime } from "@/features/gallery/context/thumbnailContext";
 import { galleryItemThumbnailPreviewUrl, galleryItemMediaUrl } from "./thumbnail";
+import { useThumbnailEpoch } from "./thumbnailEpoch";
 import type { ThumbnailDemand } from "./thumbnailStore";
 import type { GalleryItem } from "@/shared/types";
 
@@ -13,6 +14,7 @@ export function collectGalleryPreviewTargets(
   rowCount: number,
   virtualItems: { index: number }[],
   neighbors: Neighbors = {},
+  epoch = 0,
 ): ThumbnailDemand[] {
   if (!virtualItems.length) return [];
   const min = virtualItems[0].index;
@@ -23,7 +25,7 @@ export function collectGalleryPreviewTargets(
   for (let index = start; index <= end; index += 1) {
     for (const item of rowAt(index)) {
       targets.push({
-        url: galleryItemThumbnailPreviewUrl(item),
+        url: galleryItemThumbnailPreviewUrl(item, epoch),
         fallbackUrl: item.media_type === "video" ? undefined : galleryItemMediaUrl(item),
         priority: index >= min && index <= max ? "visible" : "prefetch",
       });
@@ -70,6 +72,7 @@ export function useGalleryItemPrefetch(
 ): void {
   const min = range?.min;
   const max = range?.max;
+  const epoch = useThumbnailEpoch();
   const targets = useMemo(
     () =>
       collectGalleryPreviewTargets(
@@ -77,8 +80,9 @@ export function useGalleryItemPrefetch(
         items.length,
         min === undefined || max === undefined ? [] : [{ index: min }, { index: max }],
         neighbors,
+        epoch,
       ),
-    [items, min, max, neighbors],
+    [items, min, max, neighbors, epoch],
   );
   usePrefetchTargets(scrollElement, targets);
 }
@@ -93,6 +97,7 @@ export function useGalleryVisiblePrefetch(
   const virtualItems = virtualizer.getVirtualItems();
   const min = virtualItems[0]?.index;
   const max = virtualItems.at(-1)?.index;
+  const epoch = useThumbnailEpoch();
   const targets = useMemo(
     () =>
       collectGalleryPreviewTargets(
@@ -100,8 +105,9 @@ export function useGalleryVisiblePrefetch(
         rowCount,
         min === undefined || max === undefined ? [] : [{ index: min }, { index: max }],
         neighbors,
+        epoch,
       ),
-    [rowAt, rowCount, min, max, neighbors],
+    [rowAt, rowCount, min, max, neighbors, epoch],
   );
   usePrefetchTargets(scrollElement, targets);
 }

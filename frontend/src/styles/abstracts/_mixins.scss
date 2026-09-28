@@ -37,6 +37,14 @@
   white-space: nowrap;
 }
 
+@mixin unsaved-dot {
+  flex-shrink: 0;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
 // RTL overflow so the ellipsis is on the start without reversing glyphs.
 @mixin truncate-path-start {
   overflow: hidden;
@@ -812,9 +820,9 @@
     border: 1px solid var(--danger-border);
     color: var(--danger);
   } @else if $variant == warning {
-    background: $color-warning-soft;
-    border: 1px solid $color-warning-border;
-    color: $color-warning;
+    background: var(--warning-soft);
+    border: 1px solid var(--warning-border);
+    color: var(--warning);
   }
 
   &-icon {
@@ -876,7 +884,7 @@
   position: fixed;
   inset: 0;
   border: none;
-  background: $color-modal-backdrop;
+  background: var(--modal-backdrop);
   backdrop-filter: blur($modal-backdrop-blur);
   -webkit-backdrop-filter: blur($modal-backdrop-blur);
   cursor: pointer;
@@ -892,7 +900,7 @@
   background: var(--bg-sticky);
   backdrop-filter: blur(var(--modal-backdrop-blur));
   -webkit-backdrop-filter: blur(var(--modal-backdrop-blur));
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-soft);
 }
 
 @mixin modal-panel-surface {
@@ -910,7 +918,7 @@
   min-height: 0;
   padding: $padding;
   background:
-    radial-gradient(ellipse 70% 60% at 50% 50%, $color-modal-stage-glow, transparent),
+    radial-gradient(ellipse 70% 60% at 50% 50%, var(--modal-stage-glow), transparent),
     var(--bg-media);
 }
 
@@ -991,7 +999,7 @@
   flex: 1;
   min-height: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, $color-accent-soft, transparent 70%), var(--bg-media);
+    radial-gradient(ellipse 80% 50% at 50% 0%, var(--accent-soft), transparent 70%), var(--bg-media);
 }
 
 @mixin modal-editor-footer {
@@ -1055,7 +1063,11 @@
 
   &--warning,
   &--cancelled {
-    background: linear-gradient(90deg, $color-warning, rgba(251, 191, 36, 0.55));
+    background: linear-gradient(
+      90deg,
+      var(--warning),
+      color-mix(in srgb, var(--warning) 55%, transparent)
+    );
   }
 }
 
@@ -1063,7 +1075,7 @@
   background: linear-gradient(
     90deg,
     var(--bg-elevated) 0%,
-    $color-shimmer-mid 50%,
+    var(--shimmer-mid) 50%,
     var(--bg-elevated) 100%
   );
   background-size: 200% 100%;

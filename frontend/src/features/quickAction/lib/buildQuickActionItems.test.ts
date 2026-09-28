@@ -5,6 +5,7 @@ import type { ExternalOstrisJob, Job } from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 import {
   buildAcceptAllCandidatesItems,
+  buildAppCommandItems,
   buildCommandItems,
   buildFilterItems,
   buildFolderCommandItems,
@@ -171,6 +172,42 @@ describe("buildFolderPathCommandItems", () => {
   });
 });
 
+describe("buildAppCommandItems", () => {
+  const appItems = (clearingThumbnails = false, onSetTheme = vi.fn()) =>
+    buildAppCommandItems({
+      theme: "dark",
+      clearingThumbnails,
+      onOpenSettings: vi.fn(),
+      onSetTheme,
+      onClearThumbnailCache: vi.fn(),
+    });
+
+  it.each([
+    ["preferences", "cmd:settings"],
+    ["port", "cmd:settings"],
+    ["purge", "cmd:clear-thumbnail-cache"],
+    ["night mode", "cmd:toggle-theme"],
+  ])("finds %j", (query, id) => {
+    expect(idsFor(appItems(), query)).toEqual([id]);
+  });
+
+  it("offers the scheme that is not on screen", () => {
+    const onSetTheme = vi.fn();
+    const toggle = appItems(false, onSetTheme).find((item) => item.id === "cmd:toggle-theme");
+
+    toggle?.run();
+
+    expect(toggle?.label).toBe("Switch to light theme");
+    expect(onSetTheme).toHaveBeenCalledWith("light");
+  });
+
+  it("cannot clear the cache twice at once", () => {
+    const clear = appItems(true).find((item) => item.id === "cmd:clear-thumbnail-cache");
+
+    expect(clear?.disabled).toBe(true);
+  });
+});
+
 describe("buildSyspromptCommandItem", () => {
   it("is found by what the prompt is for", () => {
     expect(idsFor([buildSyspromptCommandItem(vi.fn())], "guidelines")).toEqual([
@@ -210,6 +247,13 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
       onCopy: vi.fn(),
       onDelete: vi.fn(),
     },
+    app: {
+      theme: "dark",
+      clearingThumbnails: false,
+      onOpenSettings: vi.fn(),
+      onSetTheme: vi.fn(),
+      onClearThumbnailCache: vi.fn(),
+    },
     ...overrides,
   });
 }
@@ -234,14 +278,20 @@ describe("buildCommandItems", () => {
       "cmd:edit-sysprompt",
       "cmd:copy-path",
       "cmd:open-in-explorer",
+      "cmd:settings",
+      "cmd:toggle-theme",
+      "cmd:clear-thumbnail-cache",
     ]);
   });
 
-  it("offers only navigation before a folder is open", () => {
+  it("offers navigation and app commands before a folder is open", () => {
     expect(commandItems({ folder: null }).map((item) => item.id)).toEqual([
       "cmd:open-folder",
       "cmd:home-folder",
       "cmd:parent-folder",
+      "cmd:settings",
+      "cmd:toggle-theme",
+      "cmd:clear-thumbnail-cache",
     ]);
   });
 
@@ -253,6 +303,9 @@ describe("buildCommandItems", () => {
       "cmd:refresh-folder",
       "cmd:resolve-issues",
       "cmd:edit-sysprompt",
+      "cmd:settings",
+      "cmd:toggle-theme",
+      "cmd:clear-thumbnail-cache",
     ]);
   });
 

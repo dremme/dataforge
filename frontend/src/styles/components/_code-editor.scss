@@ -58,16 +58,6 @@
   }
 }
 
-$code-editor-text: #d6d6dd;
-$code-editor-bright: #fcfcfa;
-$code-editor-muted: #939293;
-$code-editor-selection: rgba(120, 220, 232, 0.26);
-$code-editor-selection-match: rgba(171, 157, 242, 0.28);
-$code-editor-search-match: rgba(255, 216, 102, 0.32);
-$code-editor-search-match-outline: rgba(255, 216, 102, 0.55);
-$code-editor-search-match-selected: rgba(255, 97, 136, 0.42);
-$code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
-
 .code-editor {
   position: relative;
   width: 100%;
@@ -78,7 +68,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   overscroll-behavior: contain;
 
   &--warning .cm-placeholder {
-    color: $color-warning;
+    color: var(--warning);
     opacity: 0.9;
   }
 
@@ -87,17 +77,17 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   }
 
   &:focus-within:not(.code-editor--saved):not(.code-editor--error)::after {
-    box-shadow: inset 0 0 0 1px $color-caption-focus;
+    box-shadow: inset 0 0 0 1px var(--caption-focus);
   }
 
   &--saved::after,
   &--saved:focus-within::after {
-    box-shadow: inset 0 0 0 1px $color-caption-saved;
+    box-shadow: inset 0 0 0 1px var(--caption-saved);
   }
 
   &--error::after,
   &--error:focus-within::after {
-    box-shadow: inset 0 0 0 1px $color-caption-error;
+    box-shadow: inset 0 0 0 1px var(--caption-error);
   }
 
   &::after {
@@ -119,7 +109,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     display: flex;
     flex-direction: column;
     background-color: var(--bg-media);
-    color: $code-editor-text;
+    color: var(--code-text);
   }
 
   .cm-editor.cm-focused {
@@ -138,13 +128,13 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   }
 
   .cm-content {
-    caret-color: $code-editor-bright;
+    caret-color: var(--code-bright);
   }
 
   .cm-gutters {
     background-color: var(--bg-media);
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
-    color: $code-editor-muted;
+    border-right: 1px solid var(--code-gutter-border);
+    color: var(--code-muted);
     font-family: var(--font-mono);
     font-size: var(--text-sm);
     font-weight: var(--font-normal);
@@ -160,12 +150,12 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   .cm-editor.cm-light .cm-selectionBackground,
   .cm-editor.cm-dark .cm-selectionBackground,
   .cm-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
-    background: $code-editor-selection;
+    background: var(--code-selection);
   }
 
   // Default lime clashes with green tokens.
   .cm-selectionMatch {
-    background-color: $code-editor-selection-match;
+    background-color: var(--code-selection-match);
   }
 
   // Find takes precedence when both marks wrap the same span.
@@ -178,24 +168,24 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
   .cm-editor.cm-dark .cm-searchMatch,
   .cm-searchMatch,
   .cm-query-match {
-    background-color: $code-editor-search-match;
-    outline: 1px solid $code-editor-search-match-outline;
+    background-color: var(--code-search-match);
+    outline: 1px solid var(--code-search-match-outline);
     border-radius: 1px;
   }
 
   .cm-editor.cm-light .cm-searchMatch-selected,
   .cm-editor.cm-dark .cm-searchMatch-selected,
   .cm-searchMatch-selected {
-    background-color: $code-editor-search-match-selected;
-    outline-color: $code-editor-search-match-selected-outline;
+    background-color: var(--code-search-match-selected);
+    outline-color: var(--code-search-match-selected-outline);
   }
 
   .cm-editor.cm-focused .cm-cursor {
-    border-left-color: $code-editor-bright;
+    border-left-color: var(--code-bright);
   }
 
   .cm-placeholder {
-    color: $code-editor-muted;
+    color: var(--code-muted);
     font-style: italic;
     opacity: 0.9;
   }
@@ -342,7 +332,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     margin: 0;
     border: 1px solid var(--border);
     border-radius: 0.5rem;
-    background: $color-caption-input-bg;
+    background: var(--caption-input-bg);
     color: var(--text);
     overflow: hidden;
 
@@ -410,7 +400,7 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     .cm-editor.cm-light .cm-selectionBackground,
     .cm-editor.cm-dark .cm-selectionBackground,
     .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
-      background: var(--accent-soft, $color-caption-focus-ring);
+      background: var(--accent-soft);
     }
 
     .cm-editor.cm-focused .cm-cursor {
@@ -418,17 +408,17 @@ $code-editor-search-match-selected-outline: rgba(255, 97, 136, 0.8);
     }
 
     &:focus-within:not(.code-editor--saved):not(.code-editor--error) {
-      border-color: var(--accent, $color-caption-focus);
+      border-color: var(--accent);
     }
 
     &.code-editor--saved,
     &.code-editor--saved:focus-within {
-      border-color: $color-caption-saved;
+      border-color: var(--caption-saved);
     }
 
     &.code-editor--error,
     &.code-editor--error:focus-within {
-      border-color: $color-caption-error;
+      border-color: var(--caption-error);
     }
   }
 }

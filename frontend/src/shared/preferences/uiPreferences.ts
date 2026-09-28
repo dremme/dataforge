@@ -1,15 +1,28 @@
 import { putJson, requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
 import { readStored, writeStored } from "@/shared/lib/storage";
-import type { UiSettingsResponse, UiSettingsUpdate } from "@/shared/types";
+import type { ThemePreference, UiSettingsResponse, UiSettingsUpdate } from "@/shared/types";
 
 export interface UiSettings {
   sort: string;
   showAutomationSpecs: boolean;
+  theme: ThemePreference;
 }
 
 const SORT_CACHE_KEY = "gallery-sort";
 const AUTOMATION_SPECS_CACHE_KEY = "automation-specs-visible";
+/** `index.html` reads this key before first paint; rename both together. */
+export const THEME_CACHE_KEY = "ui-theme";
+
+const THEME_PREFERENCES: readonly string[] = [
+  "system",
+  "light",
+  "dark",
+] satisfies ThemePreference[];
+
+export function parseThemePreference(raw: string | null): ThemePreference {
+  return raw !== null && THEME_PREFERENCES.includes(raw) ? (raw as ThemePreference) : "system";
+}
 
 export function readCachedSortPreference(): string | null {
   return readStored(SORT_CACHE_KEY);
@@ -34,6 +47,7 @@ function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
   return {
     sort: data.sort,
     showAutomationSpecs: Boolean(data.show_automation_specs),
+    theme: data.theme,
   };
 }
 
@@ -64,6 +78,9 @@ export async function updateUiSettings(partial: Partial<UiSettings>): Promise<Ui
   if (partial.showAutomationSpecs !== undefined) {
     body.show_automation_specs = partial.showAutomationSpecs;
   }
+  if (partial.theme !== undefined) {
+    body.theme = partial.theme;
+  }
 
   const data = await putJson<UiSettingsResponse>("/api/preferences/ui", body);
   const settings = parseUiSettingsResponse(data);
@@ -72,7 +89,7 @@ export async function updateUiSettings(partial: Partial<UiSettings>): Promise<Ui
   return settings;
 }
 
-export async function loadUiSettings(): Promise<UiSettings> {
+async function loadUiSettingsOnce(): Promise<UiSettings> {
   try {
     return await fetchUiSettingsWithRetry();
   } catch {
@@ -81,6 +98,17 @@ export async function loadUiSettings(): Promise<UiSettings> {
     return {
       sort: cachedSort ?? "",
       showAutomationSpecs: cachedSpecs ?? false,
+      theme: parseThemePreference(readStored(THEME_CACHE_KEY)),
     };
   }
+}
+
+let inflight: Promise<UiSettings> | null = null;
+
+/** Every startup reader shares one request. */
+export function loadUiSettings(): Promise<UiSettings> {
+  inflight ??= loadUiSettingsOnce().finally(() => {
+    inflight = null;
+  });
+  return inflight;
 }

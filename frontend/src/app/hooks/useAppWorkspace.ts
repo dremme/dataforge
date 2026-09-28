@@ -19,6 +19,7 @@ import { useAcceptAllCandidates } from "@/features/gallery/hooks/useAcceptAllCan
 import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
+import { useSettingsModal } from "@/features/settings/hooks/useSettingsModal";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
@@ -132,6 +133,7 @@ export function useAppWorkspace() {
   });
 
   const statsDrawer = useStatsDrawer();
+  const settings = useSettingsModal();
 
   // Refresh on close: per-deletion reloads race the watcher's push against the frozen queue.
   const duplicateResolver = useDuplicateResolverOverlay(refreshFolder);
@@ -275,6 +277,7 @@ export function useAppWorkspace() {
     sidecarSweep,
     acceptAllCandidates,
     filters: quickActionFilters,
+    onOpenSettings: settings.openSettings,
   });
 
   return {
@@ -302,6 +305,7 @@ export function useAppWorkspace() {
     automation,
     quickAction,
     statsDrawer,
+    settings,
     duplicateResolver,
     candidateReview,
   };

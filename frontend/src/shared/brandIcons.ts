@@ -12,3 +12,17 @@ export const iconComfyUi = createLucideIcon("comfy-ui", [
     },
   ],
 ]);
+
+// Ostris AI-Toolkit's dripping O, from its logo and scaled onto the 24-unit grid.
+export const iconAiToolkit = createLucideIcon("ai-toolkit", [
+  [
+    "path",
+    {
+      d: "M4.62 8.38L4.62 18.79A1.06 1.06 0 0 0 6.74 18.79L6.74 12.69A1.07 1.07 0 0 1 8.87 12.69L8.87 21.96A1.04 1.04 0 0 0 10.95 21.96L10.95 15.8A1.07 1.07 0 0 1 13.08 15.8L13.08 17.26A1.03 1.03 0 0 0 15.14 17.26L15.14 13.47A1.07 1.07 0 0 1 17.28 13.47L17.28 20.24A1.05 1.05 0 0 0 19.38 20.24L19.38 8.38A7.38 7.38 0 0 0 4.62 8.38ZM12 5.07A3.33 3.33 0 1 0 12 11.73A3.33 3.33 0 1 0 12 5.07Z",
+      fill: "currentColor",
+      fillRule: "evenodd",
+      stroke: "none",
+      key: "ai-toolkit-o",
+    },
+  ],
+]);

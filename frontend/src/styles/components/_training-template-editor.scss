@@ -59,9 +59,9 @@
     flex-shrink: 0;
     margin: 0;
     padding: 0.625rem 1.125rem;
-    border-top: 1px solid rgba($color-caption-error, 0.25);
-    background: rgba($color-caption-error, 0.08);
-    color: $color-caption-error;
+    border-top: 1px solid color-mix(in srgb, var(--caption-error) 25%, transparent);
+    background: color-mix(in srgb, var(--caption-error) 8%, transparent);
+    color: var(--caption-error);
     font-size: var(--text-xs);
     line-height: var(--leading-relaxed);
     // YAML parser errors name a line and column; keep that shape readable.

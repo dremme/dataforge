@@ -14,6 +14,7 @@ import { SelectionActionOverlays } from "@/features/gallery/components/Selection
 import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepOverlay";
 import { AcceptAllCandidatesDialog } from "@/features/gallery/components/AcceptAllCandidatesDialog";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
+import { SettingsModal } from "@/features/settings/components/SettingsModal";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
 
@@ -36,6 +37,7 @@ export function AppOverlays({
   automation,
   fileImport,
   createFolder,
+  settings,
 }: AppOverlaysProps) {
   return (
     <>
@@ -162,6 +164,8 @@ export function AppOverlays({
           onCancel={createFolder.onCancel}
         />
       )}
+
+      {settings.open && <SettingsModal onClose={settings.onClose} />}
     </>
   );
 }

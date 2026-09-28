@@ -21,6 +21,7 @@ from external.ostris_jobs import (
     fetch_ostris_job_by_name,
     fetch_ostris_training_folder,
     mark_ostris_job_stopped,
+    open_ostris_client,
     ostris_job_speed_seconds_per_step,
     ostris_job_total_steps,
     stop_ostris_job_with_checkpoint,
@@ -235,7 +236,7 @@ def run_train_lora_job(
     name = lora_name.strip()
     sample_prompts = _clean_prompts(prompts)
 
-    with httpx.Client(timeout=OSTRIS_TRAINING_TIMEOUT_SECONDS) as client:
+    with open_ostris_client(OSTRIS_TRAINING_TIMEOUT_SECONDS) as client:
         training_folder = fetch_ostris_training_folder(client)
         if training_folder is None:
             raise OstrisTrainingError("AI-Toolkit did not report a training folder.")

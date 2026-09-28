@@ -1,7 +1,8 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-.stats-button {
+.stats-button,
+.settings-button {
   @include pill-btn-ghost(0.4rem);
   padding: 0 0.5625rem;
 
@@ -37,7 +38,7 @@
     height: 100%;
     background: var(--bg-elevated);
     border-left: 1px solid var(--border);
-    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--shadow-drawer);
     pointer-events: auto;
     animation: drawer-slide-in 0.22s ease;
 
@@ -284,7 +285,7 @@
       display: block;
       width: 100%;
       height: 100%;
-      background: #94a3b8;
+      background: var(--chart-other);
 
       &[data-extension=".png"] {
         background: var(--accent);
@@ -292,47 +293,47 @@
 
       &[data-extension=".jpg"],
       &[data-extension=".jpeg"] {
-        background: #60a5fa;
+        background: var(--chart-jpg);
       }
 
       &[data-extension=".webp"] {
-        background: #818cf8;
+        background: var(--chart-webp);
       }
 
       &[data-extension=".bmp"] {
-        background: #93c5fd;
+        background: var(--chart-bmp);
       }
 
       &[data-extension=".gif"] {
-        background: #67e8f9;
+        background: var(--chart-gif);
       }
 
       &[data-extension=".mp4"] {
-        background: #c4b5fd;
+        background: var(--chart-mp4);
       }
 
       &[data-extension=".mov"] {
-        background: #e879f9;
+        background: var(--chart-mov);
       }
 
       &[data-extension=".mkv"] {
-        background: #d8b4fe;
+        background: var(--chart-mkv);
       }
 
       &[data-extension=".m4v"] {
-        background: #c084fc;
+        background: var(--chart-m4v);
       }
 
       &[data-extension=".avi"] {
-        background: #a78bfa;
+        background: var(--chart-avi);
       }
 
       &[data-extension=".wmv"] {
-        background: #f0abfc;
+        background: var(--chart-wmv);
       }
 
       &[data-extension=".flv"] {
-        background: #f5d0fe;
+        background: var(--chart-flv);
       }
     }
   }

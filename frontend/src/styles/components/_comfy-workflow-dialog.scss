@@ -231,15 +231,15 @@
 
     &--copied,
     &--copied:hover:not(:disabled) {
-      color: $color-caption-saved;
-      border-color: $color-caption-saved;
-      background: rgba($color-caption-saved, 0.12);
+      color: var(--caption-saved);
+      border-color: var(--caption-saved);
+      background: color-mix(in srgb, var(--caption-saved) 12%, transparent);
     }
 
     &--error {
-      color: $color-caption-error;
-      border-color: $color-caption-error;
-      background: rgba($color-caption-error, 0.12);
+      color: var(--caption-error);
+      border-color: var(--caption-error);
+      background: color-mix(in srgb, var(--caption-error) 12%, transparent);
     }
   }
 

@@ -104,6 +104,17 @@ Cancelling stops the run but keeps whatever it already wrote. Starting a job rep
 
 The **statistics** drawer always describes the whole folder, whatever the filters show. It covers caption coverage, missing captions, issues, duplicate files and groups, shortest, median, and longest captions, frequent words, file types, video durations, megapixel and aspect-ratio distributions, and files whose size or duration couldn't be read.
 
+## Settings
+
+Open **Settings** with the gear at the end of the toolbar, `Ctrl+,`, or the quick action bar. Changes apply when you select **Save**, with no restart. A dot on a section marks unsaved changes, and **Cancel** discards them.
+
+- **Appearance**: a light or dark color scheme, or **System** to follow your OS. The choice is previewed as you pick it. The quick action bar can also switch it directly.
+- **Vision model**: the server URL, model, and timeout for the AI caption jobs, and the draft threshold for **Auto-caption**.
+- **Integrations**: where ComfyUI and AI-Toolkit answer.
+- **Storage**: the thumbnail cache's size and limit, and **Clear cache**, which deletes every cached thumbnail so they are recreated as you browse. **Clear thumbnail cache** in the quick action bar does the same. Also shows where the database, the cache, and the loaded `.env` file are.
+
+Each field says whether its value is the default, comes from `.env` or the environment, or was saved here. A saved value overrides `.env`; **Reset** removes it. A job that is already running keeps the server it started with. See [Configuration](configuration.md#how-settings-are-loaded) for how the sources combine.
+
 ## Supported formats
 
 Every format below appears in the gallery with a thumbnail, takes `.txt` captions, and can be used for training and ComfyUI processing. Editing and metadata tools support fewer video containers, only those DataForge can read and rewrite safely.
@@ -142,6 +153,7 @@ On macOS, use `⌘` instead of `Ctrl`. Plain-key shortcuts such as arrows and `D
 | ---------------------------- | ------------------------------------------ | -------------------------------------------------------- |
 | `Ctrl+K`                     | Gallery                                    | Focus search                                             |
 | `Ctrl+Space`                 | Anywhere                                   | Open the quick action bar                                |
+| `Ctrl+,`                     | Anywhere                                   | Open **Settings**                                        |
 | `↑` `↓` `Home` `End` `Enter` | Quick action bar                           | Move through actions and run one                         |
 | `Ctrl+A`                     | Gallery                                    | Select every visible file                                |
 | `Delete` / `Backspace`       | With files selected                        | Delete the selection (asks first)                        |

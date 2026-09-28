@@ -1,8 +1,9 @@
-import { useCallback, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useState } from "react";
 import { saveInstructionFile, type InstructionKind } from "@/shared/api/folderInstructions";
 import { formatApiError } from "@/shared/api/http";
 import { CAPTION_RULES_FILENAME, SYSPROMPT_FILENAME } from "@/shared/constants";
 import { useFolderInstructions } from "@/shared/hooks/useFolderInstructions";
+import { useTabList } from "@/shared/hooks/useTabList";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconCopy, iconFilePlus, iconLoader2, iconX } from "@/shared/icons";
 import type { InstructionFileResponse } from "@/shared/types";
@@ -37,13 +38,6 @@ const KINDS = Object.keys(DOCUMENTS) as InstructionKind[];
 
 /** Rules first on save: they are the document the backend can refuse. */
 const SAVE_ORDER: readonly InstructionKind[] = ["caption_rules", "sysprompt"];
-
-const TAB_KEY_TARGETS: Record<string, (index: number) => number> = {
-  ArrowRight: (index) => index + 1,
-  ArrowLeft: (index) => index - 1,
-  Home: () => 0,
-  End: () => KINDS.length - 1,
-};
 
 const NO_DRAFTS: Record<InstructionKind, string | null> = { sysprompt: null, caption_rules: null };
 
@@ -88,8 +82,7 @@ export function FolderInstructionsModal({
   const [errors, setErrors] = useState<Record<InstructionKind, string | null>>(NO_DRAFTS);
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
-  const idPrefix = useId();
-  const tabRefs = useRef<Partial<Record<InstructionKind, HTMLButtonElement | null>>>({});
+  const tabs = useTabList(KINDS, tab, setTab);
 
   const textOf = (kind: InstructionKind) => drafts[kind] ?? instructions?.[kind].text ?? "";
   const editedKinds = KINDS.filter(
@@ -135,18 +128,6 @@ export function FolderInstructionsModal({
     onClose();
   };
 
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const target = TAB_KEY_TARGETS[event.key];
-    if (!target) return;
-
-    event.preventDefault();
-    const next = KINDS[(target(KINDS.indexOf(tab)) + KINDS.length) % KINDS.length];
-    setTab(next);
-    tabRefs.current[next]?.focus();
-  };
-
-  const panelId = (kind: InstructionKind) => `${idPrefix}-${kind}-panel`;
-  const tabId = (kind: InstructionKind) => `${idPrefix}-${kind}-tab`;
   const text = textOf(tab);
   const unsavedNames = editedKinds.map((kind) => DOCUMENTS[kind].label.toLowerCase()).join(" and ");
 
@@ -248,49 +229,29 @@ export function FolderInstructionsModal({
       </header>
 
       <div
-        role="tablist"
+        {...tabs.tabListProps}
         aria-label="Folder instructions"
         className="folder-instructions-modal__tabs"
-        onKeyDown={handleTabKeyDown}
       >
-        {KINDS.map((kind) => {
-          const selected = kind === tab;
-          return (
-            <button
-              key={kind}
-              ref={(element) => {
-                tabRefs.current[kind] = element;
-              }}
-              type="button"
-              role="tab"
-              id={tabId(kind)}
-              aria-selected={selected}
-              aria-controls={panelId(kind)}
-              tabIndex={selected ? 0 : -1}
-              className={classNames(
-                "folder-instructions-modal__tab",
-                selected && "folder-instructions-modal__tab--active",
-              )}
-              onClick={() => setTab(kind)}
-            >
-              {DOCUMENTS[kind].label}
-              {editedKinds.includes(kind) && (
-                <span className="folder-instructions-modal__tab-dot" aria-hidden="true" />
-              )}
-            </button>
-          );
-        })}
+        {KINDS.map((kind) => (
+          <button
+            key={kind}
+            {...tabs.tabProps(kind)}
+            className={classNames(
+              "folder-instructions-modal__tab",
+              kind === tab && "folder-instructions-modal__tab--active",
+            )}
+          >
+            {DOCUMENTS[kind].label}
+            {editedKinds.includes(kind) && (
+              <span className="folder-instructions-modal__tab-dot" aria-hidden="true" />
+            )}
+          </button>
+        ))}
       </div>
 
       {KINDS.map((kind) => (
-        <div
-          key={kind}
-          role="tabpanel"
-          id={panelId(kind)}
-          aria-labelledby={tabId(kind)}
-          className="folder-instructions-modal__body"
-          hidden={tab !== kind}
-        >
+        <div key={kind} {...tabs.panelProps(kind)} className="folder-instructions-modal__body">
           {state.status === "loading" && (
             <p className="folder-instructions-modal__status" role="status">
               <Icon icon={iconLoader2} spin className="folder-instructions-modal__status-icon" />

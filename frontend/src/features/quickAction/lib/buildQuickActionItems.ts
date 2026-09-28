@@ -44,9 +44,12 @@ import {
   iconHome,
   iconListChecks,
   iconMessageWarning,
+  iconMoon,
   iconRefresh,
   iconScanSquare,
+  iconSettings,
   iconStar,
+  iconSun,
   iconTrash2,
   type AppIcon,
 } from "@/shared/icons";
@@ -59,6 +62,7 @@ import type {
   SidecarKind,
   Subfolder,
 } from "@/shared/types";
+import type { ResolvedTheme } from "@/shared/theme/theme";
 import type { QuickActionItem, QuickActionSection } from "../types";
 
 export const ALL_JOB_TYPES: JobType[] = [PRIMARY_JOB_TYPE, ...SECONDARY_JOB_TYPES];
@@ -577,6 +581,55 @@ export function buildFolderPathCommandItems({
   ];
 }
 
+export interface AppCommandOptions {
+  /** The scheme on screen now, so the toggle can name the other one. */
+  theme: ResolvedTheme;
+  clearingThumbnails: boolean;
+  onOpenSettings: () => void;
+  onSetTheme: (theme: ResolvedTheme) => void;
+  onClearThumbnailCache: () => void;
+}
+
+export function buildAppCommandItems({
+  theme,
+  clearingThumbnails,
+  onOpenSettings,
+  onSetTheme,
+  onClearThumbnailCache,
+}: AppCommandOptions): QuickActionItem[] {
+  const other = theme === "dark" ? "light" : "dark";
+  return [
+    {
+      id: "cmd:settings",
+      section: "commands",
+      label: "Settings...",
+      detail: "Theme, server addresses, and the thumbnail cache",
+      icon: iconSettings,
+      keywords: "preferences options configure port url vision comfyui ai-toolkit",
+      run: onOpenSettings,
+    },
+    {
+      id: "cmd:toggle-theme",
+      section: "commands",
+      label: `Switch to ${other} theme`,
+      detail: "Change the color scheme",
+      icon: other === "light" ? iconSun : iconMoon,
+      keywords: "appearance color scheme dark mode light mode night mode day mode toggle",
+      run: () => onSetTheme(other),
+    },
+    {
+      id: "cmd:clear-thumbnail-cache",
+      section: "commands",
+      label: "Clear thumbnail cache",
+      detail: "Delete cached thumbnails; they are recreated as you browse",
+      icon: iconTrash2,
+      keywords: "thumbnails cache purge reset regenerate disk space",
+      disabled: clearingThumbnails,
+      run: onClearThumbnailCache,
+    },
+  ];
+}
+
 export interface CommandOptions {
   folder: Pick<FolderResponse, "path" | "home" | "parent"> | null;
   /** False once the open folder has gone missing on disk. */
@@ -593,6 +646,7 @@ export interface CommandOptions {
   acceptAllCandidates: Omit<AcceptAllCandidatesOptions, "hasFolder">;
   sidecarSweep: Omit<SidecarSweepOptions, "hasFolder">;
   selection: Omit<SelectionCommandOptions, "hasFolder">;
+  app: AppCommandOptions;
 }
 
 /** Every command row, in palette order. */
@@ -611,6 +665,7 @@ export function buildCommandItems({
   acceptAllCandidates,
   sidecarSweep,
   selection,
+  app,
 }: CommandOptions): QuickActionItem[] {
   const navigation = buildNavigationCommandItems({
     parentPath: folder?.parent ?? null,
@@ -620,7 +675,9 @@ export function buildCommandItems({
     onNavigate,
   });
 
-  if (!folder) return navigation;
+  const appCommands = buildAppCommandItems(app);
+
+  if (!folder) return [...navigation, ...appCommands];
 
   return [
     ...navigation,
@@ -633,6 +690,7 @@ export function buildCommandItems({
     ...(folderFound
       ? buildFolderPathCommandItems({ folderPath: folder.path, onCopyPath, onRevealInExplorer })
       : []),
+    ...appCommands,
   ];
 }
 

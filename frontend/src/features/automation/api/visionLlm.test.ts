@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  getCachedVisionModelId,
-  loadVisionModelId,
-  resetVisionModelIdCacheForTests,
-} from "./visionLlm";
+import { getCachedVisionModelId, loadVisionModelId, forgetVisionModelId } from "./visionLlm";
 
 const requestJsonMock = vi.fn();
 
@@ -13,7 +9,7 @@ vi.mock("@/shared/api/http", () => ({
 
 describe("visionLlm", () => {
   afterEach(() => {
-    resetVisionModelIdCacheForTests();
+    forgetVisionModelId();
     requestJsonMock.mockReset();
   });
 

@@ -24,7 +24,7 @@ from automation.comfy_process import (
 from comfy_candidates import candidate_write_path, read_candidate_sidecar
 from constants import STAGING_DIR_NAME
 from external.comfy_client import ComfyError
-from testing_fixtures import playable_video_bytes, write_gif
+from testing_fixtures import COMFY_TEST_URL, mock_comfy_client, playable_video_bytes, write_gif
 from video_edit import SourceProbe
 
 WORKFLOW = {
@@ -247,8 +247,10 @@ def run_with(handler, folder: Path, *, preset: str = "upscale", **kwargs: object
     # Bound before the patch: looking up `httpx.Client` inside the factory would recurse.
     real_client = httpx.Client
 
-    def make_client(*_args: object, **_kwargs: object) -> httpx.Client:
-        return real_client(transport=httpx.MockTransport(handler))
+    def make_client(
+        *_args: object, base_url: str = COMFY_TEST_URL, **_kwargs: object
+    ) -> httpx.Client:
+        return real_client(base_url=base_url, transport=httpx.MockTransport(handler))
 
     with patch("automation.comfy_process.httpx.Client", make_client):
         return run_comfy_process_job(folder, preset=preset, **kwargs)
@@ -374,6 +376,24 @@ class RunJobTests(unittest.TestCase):
                 with Image.open(workspace.folder / name) as original:
                     self.assertEqual(original.size, (16, 16))
 
+    def test_a_run_keeps_the_comfyui_it_started_on(self) -> None:
+        hosts: list[str] = []
+        serve = comfy_handler()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            hosts.append(request.url.host)
+            os.environ["COMFY_BASE_URL"] = "http://moved.test"
+            return serve(request)
+
+        with (
+            Workspace() as workspace,
+            patch.dict(os.environ, {"COMFY_BASE_URL": "http://started.test"}),
+        ):
+            result = run_with(handler, workspace.folder)
+
+        self.assertEqual(result["stats"]["success"], 2)
+        self.assertEqual(set(hosts), {"started.test"})
+
     def test_a_candidate_records_what_produced_it(self) -> None:
         with Workspace(names=("a.png",)) as workspace:
             run_with(comfy_handler(), workspace.folder, seed=4321)
@@ -488,7 +508,7 @@ class AwaitOutputTests(unittest.TestCase):
                 return httpx.Response(200, json={"queue_running": [], "queue_pending": []})
             return httpx.Response(200, json={})
 
-        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with mock_comfy_client(handler) as client:
             with self.assertRaises(ComfyProcessCancelled):
                 _await_output(
                     client, "p-1", output_node="3", timeout=30.0, should_cancel=lambda: True
@@ -503,9 +523,7 @@ class AwaitOutputTests(unittest.TestCase):
             },
         }
 
-        with httpx.Client(
-            transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={"p-1": entry}))
-        ) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, json={"p-1": entry})) as client:
             ref = _await_output(client, "p-1", output_node="3", timeout=30.0, should_cancel=None)
 
         # Last wins: preview then save lists them in execution order.
@@ -514,9 +532,7 @@ class AwaitOutputTests(unittest.TestCase):
     def test_a_run_that_produced_nothing_says_so(self) -> None:
         entry = {"status": {"completed": True}, "outputs": {"3": {"images": []}}}
 
-        with httpx.Client(
-            transport=httpx.MockTransport(lambda _r: httpx.Response(200, json={"p-1": entry}))
-        ) as client:
+        with mock_comfy_client(lambda _r: httpx.Response(200, json={"p-1": entry})) as client:
             with self.assertRaises(ComfyError):
                 _await_output(client, "p-1", output_node="3", timeout=30.0, should_cancel=None)
 
@@ -529,7 +545,7 @@ class RequestStopTests(unittest.TestCase):
                 return httpx.Response(200, json=payload)
             return httpx.Response(200, json={})
 
-        return httpx.Client(transport=httpx.MockTransport(handler))
+        return mock_comfy_client(handler)
 
     def test_our_running_prompt_is_interrupted(self) -> None:
         calls: list[str] = []
@@ -551,7 +567,7 @@ class RequestStopTests(unittest.TestCase):
             requests.append(request)
             return httpx.Response(200)
 
-        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with mock_comfy_client(handler) as client:
             _request_stop(client, "p-1")
 
         self.assertEqual(len(requests), 1)
@@ -583,7 +599,7 @@ class RequestStopTests(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("refused", request=request)
 
-        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with mock_comfy_client(handler) as client:
             _request_stop(client, "p-1")
 
 

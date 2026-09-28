@@ -5,7 +5,6 @@ from testing_fixtures import isolate_test_database
 isolate_test_database()
 
 import os
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +12,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from testing_fixtures import (
+    CacheFolderTestCase,
     TempMediaFolder,
     make_png_bytes,
     write_gif,
@@ -21,28 +21,19 @@ from testing_fixtures import (
     write_mp4_video,
 )
 from thumbnails import (
+    PARTIAL_SUFFIX,
     _video_thumbnail_commands,
+    clear_thumbnail_cache,
     get_or_create_thumbnail,
     get_thumbnail_cache_budget_bytes,
     get_thumbnail_cache_dir,
     prune_thumbnail_cache,
     thumbnail_cache_path,
+    thumbnail_cache_stats,
 )
 
 
-class ThumbnailGenerationTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self._cache_dir = tempfile.TemporaryDirectory(prefix="dataforge-thumb-cache-")
-        self._cache_env = patch.dict(
-            "os.environ",
-            {"DATAFORGE_THUMBNAIL_CACHE": self._cache_dir.name},
-        )
-        self._cache_env.start()
-
-    def tearDown(self) -> None:
-        self._cache_env.stop()
-        self._cache_dir.cleanup()
-
+class ThumbnailGenerationTests(CacheFolderTestCase):
     def test_generates_webp_thumbnail_for_images(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, width=640, height=480)
@@ -158,36 +149,17 @@ class ThumbnailGenerationTests(unittest.TestCase):
             self.assertGreater(thumbnail.stat().st_size, 0)
 
 
-class ThumbnailCachePruneTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self._cache_dir = tempfile.TemporaryDirectory(prefix="dataforge-thumb-cache-")
-        self._cache_env = patch.dict(
-            "os.environ",
-            {"DATAFORGE_THUMBNAIL_CACHE": self._cache_dir.name},
-        )
-        self._cache_env.start()
-
-    def tearDown(self) -> None:
-        self._cache_env.stop()
-        self._cache_dir.cleanup()
-
-    def _write_entry(self, name: str, size: int, used_at: float) -> Path:
-        path = get_thumbnail_cache_dir() / name[:2] / f"{name}.webp"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"\x00" * size)
-        os.utime(path, (used_at, used_at))
-        return path
-
+class ThumbnailCachePruneTests(CacheFolderTestCase):
     def test_keeps_everything_while_the_cache_fits(self) -> None:
-        kept = self._write_entry("aa" * 8, 100, used_at=1_000)
+        kept = self.write_thumbnail("aa" * 8, 100, used_at=1_000)
 
         self.assertEqual(prune_thumbnail_cache(budget_bytes=1000), 0)
         self.assertTrue(kept.is_file())
 
     def test_evicts_least_recently_used_until_the_budget_is_met(self) -> None:
-        oldest = self._write_entry("aa" * 8, 100, used_at=1_000)
-        middle = self._write_entry("bb" * 8, 100, used_at=2_000)
-        newest = self._write_entry("cc" * 8, 100, used_at=3_000)
+        oldest = self.write_thumbnail("aa" * 8, 100, used_at=1_000)
+        middle = self.write_thumbnail("bb" * 8, 100, used_at=2_000)
+        newest = self.write_thumbnail("cc" * 8, 100, used_at=3_000)
 
         reclaimed = prune_thumbnail_cache(budget_bytes=150)
 
@@ -198,13 +170,56 @@ class ThumbnailCachePruneTests(unittest.TestCase):
 
     def test_a_budget_of_zero_turns_pruning_off(self) -> None:
         """An explicit 0 means "never delete my thumbnails", not "delete them all"."""
-        kept = self._write_entry("aa" * 8, 100, used_at=1_000)
+        kept = self.write_thumbnail("aa" * 8, 100, used_at=1_000)
 
         self.assertEqual(prune_thumbnail_cache(budget_bytes=0), 0)
         self.assertTrue(kept.is_file())
 
     def test_pruning_an_empty_cache_is_harmless(self) -> None:
         self.assertEqual(prune_thumbnail_cache(budget_bytes=10), 0)
+
+
+class ThumbnailCacheClearTests(CacheFolderTestCase):
+    def test_stats_count_every_thumbnail(self) -> None:
+        self.write_thumbnail("aa" * 8, 100, used_at=1_000)
+        self.write_thumbnail("bb" * 8, 50, used_at=2_000)
+
+        stats = thumbnail_cache_stats()
+
+        self.assertEqual((stats.file_count, stats.size_bytes), (2, 150))
+        self.assertEqual(stats.directory, str(get_thumbnail_cache_dir()))
+
+    def test_clearing_removes_every_thumbnail_but_keeps_the_folder(self) -> None:
+        first = self.write_thumbnail("aa" * 8, 100, used_at=1_000)
+        second = self.write_thumbnail("bb" * 8, 50, used_at=2_000)
+
+        cleared = clear_thumbnail_cache()
+
+        self.assertEqual((cleared.removed_files, cleared.freed_bytes), (2, 150))
+        self.assertFalse(first.exists())
+        self.assertFalse(second.exists())
+        self.assertTrue(get_thumbnail_cache_dir().is_dir())
+
+    def test_clearing_leaves_a_render_in_progress_alone(self) -> None:
+        partial = self.write_thumbnail("render", 100, used_at=1_000, suffix=PARTIAL_SUFFIX)
+
+        cleared = clear_thumbnail_cache()
+
+        self.assertEqual(cleared.removed_files, 0)
+        self.assertTrue(partial.is_file())
+
+    def test_a_thumbnail_that_cannot_be_deleted_is_not_counted(self) -> None:
+        self.write_thumbnail("aa" * 8, 100, used_at=1_000)
+
+        with patch.object(Path, "unlink", side_effect=FileNotFoundError):
+            cleared = clear_thumbnail_cache()
+
+        self.assertEqual((cleared.removed_files, cleared.freed_bytes), (0, 0))
+
+    def test_a_missing_cache_folder_reads_as_empty(self) -> None:
+        with patch.dict("os.environ", {"DATAFORGE_THUMBNAIL_CACHE": str(self.cache_dir / "gone")}):
+            self.assertEqual(thumbnail_cache_stats().file_count, 0)
+            self.assertEqual(clear_thumbnail_cache().removed_files, 0)
 
 
 class ThumbnailCacheBudgetTests(unittest.TestCase):

@@ -1,0 +1,81 @@
+// Overrides only what differs from the dark default; media overlays stay as they are.
+:root[data-theme="light"] {
+  --bg: #f4f5f8;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-media: #eaecf1;
+  --bg-sticky: rgba(255, 255, 255, 0.85);
+  --bg-soft: rgba(255, 255, 255, 0.6);
+  --border: rgba(15, 23, 42, 0.12);
+  --text: #111827;
+  --text-muted: #4b5563;
+  --text-subtle: #6b7280;
+  --accent: #3f5fd9;
+  --accent-soft: rgba(63, 95, 217, 0.1);
+  --accent-border: rgba(63, 95, 217, 0.3);
+  --accent-hover: rgba(63, 95, 217, 0.16);
+  --success: #047857;
+  --success-soft: rgba(4, 120, 87, 0.1);
+  --success-border: rgba(4, 120, 87, 0.28);
+  --warning: #b45309;
+  --warning-soft: rgba(180, 83, 9, 0.08);
+  --warning-border: rgba(180, 83, 9, 0.28);
+  --danger: #b91c1c;
+  --danger-soft: rgba(185, 28, 28, 0.08);
+  --danger-border: rgba(185, 28, 28, 0.28);
+  --danger-deep: #991b1b;
+  --danger-hover: rgba(185, 28, 28, 0.14);
+  --surface-hover: rgba(15, 23, 42, 0.05);
+  --overlay: rgba(15, 23, 42, 0.25);
+  --modal-backdrop: rgba(15, 23, 42, 0.35);
+  --body-glow: rgba(63, 95, 217, 0.1);
+  --card-hover-border: rgba(15, 23, 42, 0.22);
+  --captioned-border: rgba(4, 120, 87, 0.3);
+  --partial-border: rgba(180, 83, 9, 0.3);
+  --modal-stage-glow: rgba(63, 95, 217, 0.05);
+  --shimmer-mid: rgba(15, 23, 42, 0.06);
+  --initial-loading-glow: rgba(63, 95, 217, 0.18);
+  --caption-input-bg: rgba(15, 23, 42, 0.03);
+  --caption-focus: #2563eb;
+  --caption-saved: #15803d;
+  --caption-error: #dc2626;
+  --meta-badge: #b45309;
+
+  --shadow: 0 18px 50px rgba(15, 23, 42, 0.14);
+  --shadow-soft: 0 0 8px rgba(15, 23, 42, 0.12);
+  --shadow-drawer: -12px 0 40px rgba(15, 23, 42, 0.12);
+  --shadow-tooltip: 0 6px 18px rgba(15, 23, 42, 0.16);
+
+  // Monokai Pro Light.
+  --code-text: #29242a;
+  --code-bright: #1c1a1c;
+  --code-muted: #8a8486;
+  --code-yellow: #b36b00;
+  --code-orange: #d9531e;
+  --code-pink: #d62f63;
+  --code-green: #1f8a5b;
+  --code-cyan: #117f9b;
+  --code-purple: #6a4fc4;
+  --code-gutter-border: rgba(15, 23, 42, 0.08);
+  --code-selection: rgba(17, 127, 155, 0.18);
+  --code-selection-match: rgba(106, 79, 196, 0.16);
+  --code-search-match: rgba(179, 107, 0, 0.2);
+  --code-search-match-outline: rgba(179, 107, 0, 0.45);
+  --code-search-match-selected: rgba(214, 47, 99, 0.22);
+  --code-search-match-selected-outline: rgba(214, 47, 99, 0.6);
+
+  --chart-other: #64748b;
+  --chart-jpg: #2563eb;
+  --chart-webp: #4f46e5;
+  --chart-bmp: #60a5fa;
+  --chart-gif: #0891b2;
+  --chart-mp4: #8b5cf6;
+  --chart-mov: #c026d3;
+  --chart-mkv: #a855f7;
+  --chart-m4v: #9333ea;
+  --chart-avi: #6d28d9;
+  --chart-wmv: #d946ef;
+  --chart-flv: #e879f9;
+
+  color-scheme: light;
+}

@@ -63,6 +63,20 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         read_back = client.get("/api/preferences/ui")
         self.assertTrue(read_back.json()["show_automation_specs"])
 
+    def test_the_theme_follows_the_system_by_default(self) -> None:
+        self.assertEqual(client.get("/api/preferences/ui").json()["theme"], "system")
+
+    def test_update_theme(self) -> None:
+        response = client.put("/api/preferences/ui", json={"theme": "light"})
+
+        self.assertEqual(response.json()["theme"], "light")
+        self.assertEqual(client.get("/api/preferences/ui").json()["theme"], "light")
+
+    def test_an_unknown_theme_is_refused(self) -> None:
+        response = client.put("/api/preferences/ui", json={"theme": "sepia"})
+
+        self.assertEqual(response.status_code, 422)
+
 
 class GalleryDisplayPreferencesEndpointTests(unittest.TestCase):
     def tearDown(self) -> None:

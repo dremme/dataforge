@@ -17,6 +17,7 @@ from external.ostris_jobs import (
     fetch_ostris_job_by_name,
     fetch_ostris_training_folder,
     job_sample_prompts,
+    open_ostris_client,
     queue_ostris_job,
     start_ostris_queue,
 )
@@ -233,7 +234,7 @@ def list_training_samples(
 def fetch_training_samples(name: str) -> tuple[list[dict[str, Any]], int | None, bool]:
     """Latest samples for a training run, degrading quietly when AI-Toolkit is offline."""
     try:
-        with httpx.Client(timeout=OSTRIS_REQUEST_TIMEOUT_SECONDS) as client:
+        with open_ostris_client(OSTRIS_REQUEST_TIMEOUT_SECONDS) as client:
             training_folder = fetch_ostris_training_folder(client)
             if training_folder is None:
                 return [], None, True

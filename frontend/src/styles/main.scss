@@ -1,4 +1,5 @@
 @use "tokens/root";
+@use "tokens/light";
 @use "base/reset";
 @use "base/scrollbar";
 @use "base/typography";
@@ -38,6 +39,7 @@
 @use "components/candidate-review-modal";
 @use "components/quick-action";
 @use "components/sections";
+@use "components/settings-modal";
 @use "components/stats-drawer";
 @use "components/folder-instructions-modal";
 @use "components/toolbar";

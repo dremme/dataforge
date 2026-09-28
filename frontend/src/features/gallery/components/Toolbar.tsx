@@ -29,6 +29,7 @@ import { NotificationsButton } from "@/shared/notifications/NotificationsButton"
 import { StatsButton } from "./StatsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
+import { SettingsButton } from "@/features/settings/components/SettingsButton";
 
 interface ToolbarProps {
   subfolderCount: number;
@@ -51,6 +52,7 @@ interface ToolbarProps {
   fileFilterCounts: Record<FileFilter, number>;
   statsOpen: boolean;
   onToggleStats: () => void;
+  onOpenSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchRegexChange: (value: boolean) => void;
   onSearchNamesChange: (value: boolean) => void;
@@ -218,6 +220,7 @@ export function Toolbar({
   fileFilterCounts,
   statsOpen,
   onToggleStats,
+  onOpenSettings,
   onSearchQueryChange,
   onSearchRegexChange,
   onSearchNamesChange,
@@ -348,11 +351,13 @@ export function Toolbar({
           onFileFilterChange={onFileFilterChange}
         />
 
-        <NotificationsButton />
-
         <StatsButton open={statsOpen} onToggle={onToggleStats} />
 
         <JobsButton />
+
+        <NotificationsButton />
+
+        <SettingsButton onOpen={onOpenSettings} />
       </div>
     </div>
   );

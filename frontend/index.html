@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DataForge</title>
+    <script>
+      // Before first paint, so a light theme never flashes dark. Mirrors resolveTheme in theme.ts.
+      try {
+        const stored = localStorage.getItem("ui-theme");
+        const light =
+          stored === "light" ||
+          (stored !== "dark" && matchMedia("(prefers-color-scheme: light)").matches);
+        document.documentElement.dataset.theme = light ? "light" : "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

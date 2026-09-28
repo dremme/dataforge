@@ -25,6 +25,7 @@ export function AppContent() {
     automation,
     quickAction,
     statsDrawer,
+    settings,
     duplicateResolver,
     candidateReview,
     sidecarSweep,
@@ -98,6 +99,7 @@ export function AppContent() {
                 fileFilterCounts: query.fileFilterCounts,
                 statsOpen: statsDrawer.statsOpen,
                 onToggleStats: statsDrawer.toggleStats,
+                onOpenSettings: settings.openSettings,
                 onSearchQueryChange: query.setSearchQuery,
                 onSearchRegexChange: query.setSearchRegex,
                 onSearchNamesChange: query.setSearchNames,
@@ -197,6 +199,7 @@ export function AppContent() {
               onCancel: fileDrop.dismissOverwritePrompt,
             }}
             createFolder={createFolder.overlay}
+            settings={{ open: settings.open, onClose: settings.closeSettings }}
           />
         </div>
       </GallerySelectionProvider>

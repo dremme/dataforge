@@ -4,7 +4,7 @@
 .empty-state {
   padding: 3.5rem 2rem;
   text-align: center;
-  background: rgba($color-bg, 0.3);
+  background: color-mix(in srgb, var(--bg) 30%, transparent);
   border: 1px dashed var(--border);
   border-radius: var(--radius);
 

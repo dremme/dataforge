@@ -1,34 +1,103 @@
 @use "../abstracts/variables" as *;
 
 :root {
-  --bg: #{$color-bg};
-  --bg-elevated: #{$color-bg-elevated};
-  --bg-card: #{$color-bg-card};
-  --bg-media: #{$color-bg-media};
-  --bg-sticky: #{$color-bg-sticky};
-  --border: #{$color-border};
-  --text: #{$color-text};
-  --text-muted: #{$color-text-muted};
-  --text-subtle: #{$color-text-subtle};
-  --accent: #{$color-accent};
-  --accent-soft: #{$color-accent-soft};
-  --accent-border: #{$color-accent-border};
-  --accent-hover: #{$color-accent-hover};
-  --success: #{$color-success};
-  --success-soft: #{$color-success-soft};
-  --success-border: #{$color-success-border};
-  --warning: #{$color-warning};
-  --warning-soft: #{$color-warning-soft};
-  --warning-border: #{$color-warning-border};
-  --danger: #{$color-danger};
-  --danger-soft: #{$color-danger-soft};
-  --danger-border: #{$color-danger-border};
-  --danger-deep: #{$color-danger-deep};
-  --danger-hover: #{$color-danger-hover};
-  --surface-hover: #{$color-surface-hover};
-  --overlay: #{$color-overlay};
-  --modal-backdrop: #{$color-modal-backdrop};
+  --bg: #0f1115;
+  --bg-elevated: #171a21;
+  --bg-card: #1c2029;
+  --bg-media: #0a0c10;
+  --bg-sticky: rgba(23, 26, 33, 0.8);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f3f4f6;
+  --text-muted: #9ca3af;
+  --text-subtle: #6b7280;
+  --accent: #7c9cff;
+  --accent-soft: rgba(124, 156, 255, 0.15);
+  --accent-border: rgba(124, 156, 255, 0.25);
+  --accent-hover: rgba(124, 156, 255, 0.22);
+  --success: #6ee7b7;
+  --success-soft: rgba(110, 231, 183, 0.12);
+  --success-border: rgba(110, 231, 183, 0.25);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.08);
+  --warning-border: rgba(251, 191, 36, 0.22);
+  --danger: #fca5a5;
+  --danger-soft: rgba(252, 165, 165, 0.12);
+  --danger-border: rgba(252, 165, 165, 0.25);
+  --danger-deep: #c45a5a;
+  --danger-hover: rgba(252, 165, 165, 0.22);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --overlay: rgba(0, 0, 0, 0.45);
+  --modal-backdrop: rgba(0, 0, 0, 0.62);
   --modal-backdrop-blur: #{$modal-backdrop-blur};
+  --bg-soft: rgba(23, 26, 33, 0.25);
+  --body-glow: rgba(124, 156, 255, 0.18);
+  --card-hover-border: rgba(255, 255, 255, 0.14);
+  --captioned-border: rgba(110, 231, 183, 0.2);
+  --partial-border: rgba(251, 191, 36, 0.22);
+  --modal-stage-glow: rgba(124, 156, 255, 0.06);
+  --shimmer-mid: rgba(255, 255, 255, 0.07);
+  --initial-loading-glow: rgba(124, 156, 255, 0.14);
+  --caption-input-bg: rgba(0, 0, 0, 0.2);
+  --caption-focus: #60a5fa;
+  --caption-saved: #4ade80;
+  --caption-error: #f87171;
+  --meta-badge: #fcd34d;
+
+  // Overlays drawn on top of media look the same in both themes.
+  --video-bg: #000;
+  --video-badge-bg: rgba(128, 128, 128, 0.5);
+  --media-scrim: rgba(0, 0, 0, 0.55);
+  --media-scrim-border: rgba(255, 255, 255, 0.35);
+  --media-guide: rgba(255, 255, 255, 0.25);
+  --media-outline: rgba(255, 255, 255, 0.6);
+  --media-warning: #fbbf24;
+  --media-warning-deep: #cf9604;
+
+  // Miniature windows in the theme picker show each scheme whatever the active one is.
+  --sketch-light-canvas: #e6e9ef;
+  --sketch-light-window: #ffffff;
+  --sketch-light-chrome: #f1f3f6;
+  --sketch-light-line: #d3d8e1;
+  --sketch-light-accent: #3f5fd9;
+  --sketch-dark-canvas: #07090c;
+  --sketch-dark-window: #171a21;
+  --sketch-dark-chrome: #1f232d;
+  --sketch-dark-line: #2e3440;
+  --sketch-dark-accent: #7c9cff;
+
+  // Monokai Pro, shared by the SCSS chrome and the CodeMirror highlight styles.
+  --code-text: #d6d6dd;
+  --code-bright: #fcfcfa;
+  --code-muted: #939293;
+  --code-yellow: #ffd866;
+  --code-orange: #fc9867;
+  --code-pink: #ff6188;
+  --code-green: #a9dc76;
+  --code-cyan: #78dce8;
+  --code-purple: #ab9df2;
+  --code-gutter-border: rgba(255, 255, 255, 0.06);
+  --code-selection: rgba(120, 220, 232, 0.26);
+  --code-selection-match: rgba(171, 157, 242, 0.28);
+  --code-search-match: rgba(255, 216, 102, 0.32);
+  --code-search-match-outline: rgba(255, 216, 102, 0.55);
+  --code-search-match-selected: rgba(255, 97, 136, 0.42);
+  --code-search-match-selected-outline: rgba(255, 97, 136, 0.8);
+
+  // One hue per container in the stats drawer; images blue, videos violet.
+  --chart-other: #94a3b8;
+  --chart-jpg: #60a5fa;
+  --chart-webp: #818cf8;
+  --chart-bmp: #93c5fd;
+  --chart-gif: #67e8f9;
+  --chart-mp4: #c4b5fd;
+  --chart-mov: #e879f9;
+  --chart-mkv: #d8b4fe;
+  --chart-m4v: #c084fc;
+  --chart-avi: #a78bfa;
+  --chart-wmv: #f0abfc;
+  --chart-flv: #f5d0fe;
+
+  color-scheme: dark;
 
   --content-max: #{$content-max};
   --radius: #{$radius};
@@ -36,7 +105,10 @@
   --radius-md: #{$radius-md};
   --radius-lg: calc(var(--radius) + #{$radius-lg-offset});
   --radius-pill: #{$radius-pill};
-  --shadow: #{$shadow};
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 0 8px rgba(0, 0, 0, 0.28);
+  --shadow-drawer: -12px 0 40px rgba(0, 0, 0, 0.35);
+  --shadow-tooltip: 0 6px 18px rgba(0, 0, 0, 0.38);
   --control-height: #{$control-height};
   --control-height-sm: #{$control-height-sm};
   --control-height-xs: #{$control-height-xs};
