@@ -51,8 +51,6 @@ config:
         loss_type: "mse"
         do_differential_guidance: true
         differential_guidance_scale: 3
-        do_guidance_loss: true
-        guidance_loss_target: 3.5
       logging:
         log_every: 1
         use_ui_logger: true
@@ -66,7 +64,7 @@ config:
         low_vram: true
         model_kwargs:
           image_refs_as_video: true
-        assistant_lora_path: "ostris/minimax_h3_training_adapter/minimax_h3_ref2va_training_adapter_v1.safetensors"
+        assistant_lora_path: "ostris/minimax_h3_training_adapter/minimax_h3_ref2va_training_adapter_v3.safetensors"
       sample:
         sampler: "flowmatch"
         sample_every: 200
