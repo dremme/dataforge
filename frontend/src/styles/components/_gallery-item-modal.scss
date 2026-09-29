@@ -60,7 +60,7 @@
     &:hover:not(:disabled) {
       color: var(--accent);
       border-color: var(--accent-border);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
   }
 
@@ -75,7 +75,7 @@
     &:hover:not(:disabled) {
       color: var(--danger);
       border-color: var(--danger-border);
-      background: var(--danger-soft);
+      @include fade-bg(var(--danger-soft));
     }
   }
 
@@ -201,7 +201,7 @@
       gap: 0.3125rem;
       border: 1px solid color-mix(in srgb, var(--meta-badge) 20%, transparent);
       border-radius: var(--radius-pill);
-      background: color-mix(in srgb, var(--meta-badge) 12%, transparent);
+      @include fade-bg(color-mix(in srgb, var(--meta-badge) 12%, transparent));
       color: var(--meta-badge);
       font-size: var(--text-2xs);
       font-weight: var(--font-semibold);
@@ -213,11 +213,11 @@
         cursor: pointer;
         transition:
           border-color var(--transition),
-          background var(--transition);
+          --fade-bg var(--transition);
 
         &:hover {
           border-color: color-mix(in srgb, var(--meta-badge) 45%, transparent);
-          background: color-mix(in srgb, var(--meta-badge) 22%, transparent);
+          @include fade-bg(color-mix(in srgb, var(--meta-badge) 22%, transparent));
         }
       }
 
@@ -263,13 +263,13 @@
     &--copied:hover:not(:disabled) {
       color: var(--caption-saved);
       border-color: var(--caption-saved);
-      background: color-mix(in srgb, var(--caption-saved) 12%, transparent);
+      @include fade-bg(color-mix(in srgb, var(--caption-saved) 12%, transparent));
     }
 
     &--error {
       color: var(--caption-error);
       border-color: var(--caption-error);
-      background: color-mix(in srgb, var(--caption-error) 12%, transparent);
+      @include fade-bg(color-mix(in srgb, var(--caption-error) 12%, transparent));
     }
 
     &--issue {

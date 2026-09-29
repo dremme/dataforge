@@ -95,14 +95,14 @@
 
     // Hovering a row makes it active, so the mixin's hover must go: `.a:hover` outranks a plain `.a--active` and would strip the highlight off the pointed-at row.
     &:hover {
-      background: transparent;
+      @include fade-bg(transparent);
       color: var(--text-muted);
     }
 
     // Ties with `:hover` on specificity and wins on source order.
     &[aria-selected="true"] {
       color: var(--text);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
 
     &--disabled {

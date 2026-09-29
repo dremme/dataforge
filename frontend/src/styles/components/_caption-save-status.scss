@@ -43,7 +43,7 @@
     border-color: var(--caption-error);
 
     &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--caption-error) 12%, transparent);
+      @include fade-bg(color-mix(in srgb, var(--caption-error) 12%, transparent));
     }
   }
 }

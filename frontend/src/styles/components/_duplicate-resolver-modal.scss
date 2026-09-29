@@ -73,16 +73,16 @@
     padding: 0.625rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: var(--bg-card);
+    @include fade-bg(var(--bg-card));
     text-align: left;
     cursor: pointer;
     transition:
       border-color var(--transition),
-      background var(--transition);
+      --fade-bg var(--transition);
 
     &:hover:not(:disabled) {
       border-color: var(--accent-border);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
 
     &:disabled {
@@ -92,7 +92,7 @@
 
     &--keep {
       border-color: var(--accent);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
 
       &:hover:not(:disabled) {
         border-color: var(--accent);

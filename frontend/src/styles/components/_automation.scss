@@ -7,16 +7,17 @@
   z-index: $z-index-sticky-panel;
   margin-bottom: 0;
   padding: 0.875rem var(--panel-padding);
-  background: var(--bg-elevated);
+  @include fade-bg(var(--bg-elevated));
   border: 1px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
   transition:
-    background 0.22s ease,
+    --fade-bg 0.22s ease,
     box-shadow 0.22s ease,
     backdrop-filter 0.22s ease;
 
   &--floating {
     @include floating-sticky-surface;
+    @include fade-bg(var(--bg-sticky));
     border-radius: var(--radius);
   }
 
@@ -230,7 +231,7 @@
 
     &--open &-trigger {
       color: var(--text);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
       border-color: var(--accent-border);
 
       &-chevron {
@@ -275,12 +276,12 @@
       padding: 0.5rem 0.6875rem;
       border: none;
       border-radius: var(--radius-sm);
-      background: transparent;
+      @include fade-bg(transparent);
       color: var(--text);
       text-align: left;
 
       &:hover:not(:disabled) {
-        background: var(--accent-soft);
+        @include fade-bg(var(--accent-soft));
       }
 
       &:disabled {

@@ -55,7 +55,7 @@
     &:hover:not(:disabled) {
       color: var(--accent);
       border-color: var(--accent-border);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
   }
 

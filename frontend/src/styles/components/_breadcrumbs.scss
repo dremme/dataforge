@@ -28,13 +28,13 @@
     &--copied,
     &--copied:hover:not(:disabled) {
       color: var(--success);
-      background: var(--success-soft);
+      @include fade-bg(var(--success-soft));
     }
 
     &--error,
     &--error:hover:not(:disabled) {
       color: var(--danger);
-      background: var(--danger-soft);
+      @include fade-bg(var(--danger-soft));
     }
   }
 
@@ -114,7 +114,7 @@
 
     &--active {
       color: var(--accent);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
   }
 

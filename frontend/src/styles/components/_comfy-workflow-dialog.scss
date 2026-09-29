@@ -233,13 +233,13 @@
     &--copied:hover:not(:disabled) {
       color: var(--caption-saved);
       border-color: var(--caption-saved);
-      background: color-mix(in srgb, var(--caption-saved) 12%, transparent);
+      @include fade-bg(color-mix(in srgb, var(--caption-saved) 12%, transparent));
     }
 
     &--error {
       color: var(--caption-error);
       border-color: var(--caption-error);
-      background: color-mix(in srgb, var(--caption-error) 12%, transparent);
+      @include fade-bg(color-mix(in srgb, var(--caption-error) 12%, transparent));
     }
   }
 

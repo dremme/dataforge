@@ -45,7 +45,7 @@ $toolbar-search-width-max: 22rem;
     align-items: center;
     justify-content: center;
     height: var(--toolbar-control-height);
-    background: var(--bg-elevated);
+    @include fade-bg(var(--bg-elevated));
     border: 1px solid var(--border);
     border-radius: var(--radius-pill);
     overflow: hidden;
@@ -56,7 +56,7 @@ $toolbar-search-width-max: 22rem;
       padding $toolbar-search-expand-duration $toolbar-search-expand-ease,
       gap $toolbar-search-expand-duration $toolbar-search-expand-ease,
       border-color var(--transition),
-      background var(--transition);
+      --fade-bg var(--transition);
 
     &:focus-within .toolbar__search-icon {
       color: var(--accent);
@@ -278,7 +278,7 @@ $toolbar-search-width-max: 22rem;
 
     &--open &-trigger {
       color: var(--text);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
       border-color: var(--accent-border);
     }
 
@@ -313,7 +313,7 @@ $toolbar-search-width-max: 22rem;
 
       &--active {
         color: var(--accent);
-        background: var(--accent-soft);
+        @include fade-bg(var(--accent-soft));
       }
 
       &-icon {

@@ -166,10 +166,18 @@
   line-height: 1;
 }
 
+/// A background that fades between states: set it here instead of `background`.
+/// See `--fade-bg` in base/_properties.scss for why `background` itself never transitions.
+@mixin fade-bg($color) {
+  --fade-bg: #{$color};
+  background: var(--fade-bg);
+}
+
 @mixin control-interactive {
   cursor: pointer;
+  background: var(--fade-bg);
   transition:
-    background var(--transition),
+    --fade-bg var(--transition),
     color var(--transition),
     border-color var(--transition),
     transform var(--transition);
@@ -202,7 +210,7 @@
   padding: 0.375rem 0.5625rem;
   border: none;
   border-radius: var(--radius-sm);
-  background: transparent;
+  @include fade-bg(transparent);
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
@@ -211,7 +219,7 @@
 
   &:hover {
     color: var(--text);
-    background: var(--accent-soft);
+    @include fade-bg(var(--accent-soft));
   }
 }
 
@@ -256,13 +264,13 @@
   &:hover:not(:disabled) {
     color: var(--text);
     border-color: var(--accent-border);
-    background: var(--accent-soft);
+    @include fade-bg(var(--accent-soft));
   }
 }
 
 @mixin btn-hover-accent {
   &:hover:not(:disabled) {
-    background: var(--accent);
+    @include fade-bg(var(--accent));
     color: var(--bg);
     border-color: var(--accent);
   }
@@ -270,7 +278,7 @@
 
 @mixin btn-hover-success {
   &:hover:not(:disabled) {
-    background: var(--success);
+    @include fade-bg(var(--success));
     color: var(--bg);
     border-color: var(--success);
   }
@@ -278,7 +286,7 @@
 
 @mixin btn-hover-warning {
   &:hover:not(:disabled) {
-    background: var(--warning);
+    @include fade-bg(var(--warning));
     color: var(--bg);
     border-color: var(--warning);
   }
@@ -286,7 +294,7 @@
 
 @mixin btn-hover-danger {
   &:hover:not(:disabled) {
-    background: var(--danger);
+    @include fade-bg(var(--danger));
     color: var(--bg);
     border-color: var(--danger);
   }
@@ -294,35 +302,35 @@
 
 @mixin btn-surface-default {
   border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  @include fade-bg(var(--bg-elevated));
   color: var(--text-muted);
   @include btn-hover-default;
 }
 
 @mixin btn-surface-accent {
   border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
+  @include fade-bg(var(--accent-soft));
   color: var(--accent);
   @include btn-hover-accent;
 }
 
 @mixin btn-surface-success {
   border: 1px solid var(--success-border);
-  background: var(--success-soft);
+  @include fade-bg(var(--success-soft));
   color: var(--success);
   @include btn-hover-success;
 }
 
 @mixin btn-surface-warning {
   border: 1px solid var(--warning-border);
-  background: var(--warning-soft);
+  @include fade-bg(var(--warning-soft));
   color: var(--warning);
   @include btn-hover-warning;
 }
 
 @mixin btn-surface-danger {
   border: 1px solid var(--danger-border);
-  background: var(--danger-soft);
+  @include fade-bg(var(--danger-soft));
   color: var(--danger);
   @include btn-hover-danger;
 }
@@ -426,7 +434,7 @@
   height: 1.25rem;
   padding: 0;
   border-radius: var(--radius-pill);
-  background: transparent;
+  @include fade-bg(transparent);
   color: var(--text-subtle);
   --icon-size: #{$icon-size-sm};
   @include btn-disabled;
@@ -440,7 +448,7 @@
   &:hover:not(:disabled) {
     color: var(--text);
     border-color: var(--border);
-    background: var(--accent-soft);
+    @include fade-bg(var(--accent-soft));
   }
 }
 
@@ -459,13 +467,13 @@
   @include control-interactive;
   border: none;
   border-radius: var(--radius-sm);
-  background: transparent;
+  @include fade-bg(transparent);
   color: var(--text-muted);
   @include btn-disabled;
 
   &:hover:not(:disabled) {
     color: var(--text);
-    background: var(--accent-soft);
+    @include fade-bg(var(--accent-soft));
   }
 }
 
@@ -592,7 +600,7 @@
     padding: 0.375rem 0.75rem 0.5rem;
     border: 0;
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    background: transparent;
+    @include fade-bg(transparent);
     color: var(--text-muted);
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
@@ -600,7 +608,7 @@
     --icon-size: #{$icon-size-sm};
 
     &:hover:not(:disabled) {
-      background: var(--bg);
+      @include fade-bg(var(--bg));
       color: var(--text);
     }
   }
@@ -656,7 +664,7 @@
     // Transparent rather than absent: the active state adds a border and would shift its neighbours.
     border: 1px solid transparent;
     border-radius: var(--radius-pill);
-    background: transparent;
+    @include fade-bg(transparent);
     color: var(--text-muted);
     font-size: var(--text-2xs);
     font-weight: var(--font-semibold);
@@ -664,7 +672,7 @@
     line-height: 1;
 
     &:hover:not(:disabled) {
-      background: var(--bg-elevated);
+      @include fade-bg(var(--bg-elevated));
       color: var(--text);
     }
   }
@@ -705,13 +713,13 @@
   padding: 0.5625rem 0.625rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
+  @include fade-bg(var(--bg-elevated));
   color: var(--text);
   cursor: pointer;
   user-select: none;
   transition:
     border-color var(--transition),
-    background var(--transition);
+    --fade-bg var(--transition);
 
   // Input is visually hidden, so the tile reads :disabled from it. Do not stack opacity: the radio and label already fade.
   &:has(input:disabled) {
@@ -724,12 +732,12 @@
 
   &--selected {
     border-color: var(--accent);
-    background: var(--accent-soft);
+    @include fade-bg(var(--accent-soft));
   }
 
   &--selected:hover {
     border-color: var(--accent);
-    background: var(--accent-soft);
+    @include fade-bg(var(--accent-soft));
   }
 }
 
@@ -743,10 +751,10 @@
   height: 1rem;
   border: 1px solid var(--border);
   border-radius: 0.25rem;
-  background: var(--bg-elevated);
+  @include fade-bg(var(--bg-elevated));
   color: var(--bg);
   transition:
-    background var(--transition),
+    --fade-bg var(--transition),
     border-color var(--transition);
 }
 
@@ -772,7 +780,7 @@
 }
 
 @mixin custom-checkbox-box-checked {
-  background: var(--accent);
+  @include fade-bg(var(--accent));
   border-color: var(--accent);
 
   &::after {
@@ -790,10 +798,10 @@
   margin-top: 0.125rem;
   border: 1px solid var(--border);
   border-radius: 50%;
-  background: var(--bg-elevated);
+  @include fade-bg(var(--bg-elevated));
   color: var(--bg);
   transition:
-    background var(--transition),
+    --fade-bg var(--transition),
     border-color var(--transition);
 
   &::after {
@@ -809,7 +817,7 @@
 }
 
 @mixin custom-radio-control-checked {
-  background: var(--accent);
+  @include fade-bg(var(--accent));
   border-color: var(--accent);
 
   &::after {

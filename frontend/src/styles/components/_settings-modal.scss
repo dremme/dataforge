@@ -71,20 +71,19 @@
     padding: 0.5rem;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
-    background: transparent;
     color: var(--text-muted);
     font: inherit;
     text-align: left;
 
     &:hover {
-      background: var(--surface-hover);
+      @include fade-bg(var(--surface-hover));
       color: var(--text);
     }
 
     &--active,
     &--active:hover {
+      @include fade-bg(var(--accent-soft));
       border-color: var(--accent-border);
-      background: var(--accent-soft);
       color: var(--text);
     }
   }

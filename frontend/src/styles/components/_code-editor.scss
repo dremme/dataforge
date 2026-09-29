@@ -252,7 +252,7 @@
 
     button[name="close"] {
       @include dismiss-btn;
-      background-color: transparent;
+      @include fade-bg(transparent);
       border-color: transparent;
       top: 0.25rem;
       right: 0.25rem;
@@ -305,7 +305,7 @@
       }
 
       &:has(input:checked)::before {
-        background: var(--accent);
+        @include fade-bg(var(--accent));
         border-color: var(--accent);
       }
 

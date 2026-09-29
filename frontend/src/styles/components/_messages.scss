@@ -18,7 +18,7 @@
     @include dismiss-btn;
 
     &:hover {
-      background: var(--danger-hover);
+      @include fade-bg(var(--danger-hover));
     }
   }
 }

@@ -248,15 +248,15 @@ $handle-height: 1.5rem;
     transform: translate(-50%, -50%);
     border: 2px solid var(--bg-card);
     border-radius: var(--radius-sm);
-    background: var(--accent);
+    @include fade-bg(var(--accent));
     cursor: ew-resize;
     transition:
       transform var(--transition),
-      background var(--transition);
+      --fade-bg var(--transition);
 
     &:hover:not(:disabled),
     &:focus-visible {
-      background: var(--accent-hover);
+      @include fade-bg(var(--accent-hover));
       transform: translate(-50%, -50%) scaleY(1.1);
     }
 

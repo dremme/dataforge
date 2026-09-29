@@ -142,6 +142,11 @@ def _run_check_steps(
             [str(interpreter), str(SCRIPTS / "check_colors.py")],
             cwd=ROOT,
         )
+        _run_step(
+            "Background transitions",
+            [str(interpreter), str(SCRIPTS / "check_transitions.py")],
+            cwd=ROOT,
+        )
     _run_step(
         "Comments",
         [str(interpreter), str(SCRIPTS / "check_comments.py"), "--scope", scope],

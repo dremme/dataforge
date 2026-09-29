@@ -112,7 +112,7 @@
     border-bottom: none;
     border-left: 1px solid var(--border);
     border-radius: 0;
-    background: transparent;
+    @include fade-bg(transparent);
     color: var(--text-subtle);
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
@@ -125,7 +125,7 @@
 
     &:hover:not(:disabled) {
       color: var(--accent);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
   }
 
@@ -184,16 +184,16 @@
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: var(--bg-card);
+    @include fade-bg(var(--bg-card));
     color: var(--text);
     transition:
       border-color var(--transition),
-      background var(--transition),
+      --fade-bg var(--transition),
       box-shadow var(--transition);
 
     &:hover {
       border-color: var(--card-hover-border);
-      background: var(--surface-hover);
+      @include fade-bg(var(--surface-hover));
     }
 
     &:focus-within {
@@ -202,10 +202,10 @@
 
     &--current {
       border-color: var(--accent-border);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
 
       &:hover {
-        background: var(--accent-hover);
+        @include fade-bg(var(--accent-hover));
       }
     }
 
@@ -215,7 +215,7 @@
 
       &:hover {
         border-color: var(--border);
-        background: var(--bg-card);
+        @include fade-bg(var(--bg-card));
       }
     }
   }
@@ -278,7 +278,7 @@
     border: none;
     border-left: 1px solid var(--border);
     border-radius: 0;
-    background: transparent;
+    @include fade-bg(transparent);
     color: var(--text-subtle);
 
     &:focus {
@@ -287,7 +287,7 @@
 
     &:hover:not(:disabled) {
       color: var(--accent);
-      background: var(--accent-soft);
+      @include fade-bg(var(--accent-soft));
     }
 
     &:disabled {

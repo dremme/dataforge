@@ -1,0 +1,7 @@
+// Fades on the main thread. Chrome runs background-color transitions on the compositor, and one
+// ending while the page is busy can flash a frame of its start. Set it via `fade-bg()`.
+@property --fade-bg {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
