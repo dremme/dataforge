@@ -80,45 +80,7 @@
   }
 
   &__tab {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.5625rem 0.625rem;
-    border: none;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    background: transparent;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: color var(--transition);
-    @include focus-ring;
-
-    // Sits on the row's border, so the active tab reads as attached to the editor.
-    &::after {
-      content: "";
-      position: absolute;
-      right: 0.625rem;
-      bottom: -1px;
-      left: 0.625rem;
-      height: 2px;
-      border-radius: 1px;
-      background: transparent;
-    }
-
-    &:hover {
-      color: var(--text);
-    }
-
-    &--active {
-      color: var(--text);
-
-      &::after {
-        background: var(--accent);
-      }
-    }
+    @include underline-tab;
   }
 
   &__tab-dot {

@@ -12,6 +12,7 @@ from typing import Literal
 
 from PIL import Image
 
+from app_settings import SETTING_DEFAULTS, effective_settings
 from automation.audio import AUDIO_FORMAT
 from automation.llm import run_chat_completion
 from constants import GIF_EXTENSION, VIDEO_EXTENSIONS
@@ -19,7 +20,6 @@ from gif_frames import extract_gif_first_frame, keyframe_indices
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
-    positive_env_int,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,44 +27,36 @@ logger = logging.getLogger(__name__)
 JPEG_QUALITY = 85
 
 VIDEO_KEYFRAME_COUNT = 8
-KEYFRAMES_PER_SECOND = 2
+KEYFRAMES_PER_SECOND = SETTING_DEFAULTS.video_keyframes_per_second
 # Cap: every frame is inlined; 2 * 20s + 2 endpoints is as long as current vision models take.
-MAX_VIDEO_KEYFRAME_COUNT = 42
+MAX_VIDEO_KEYFRAME_COUNT = SETTING_DEFAULTS.video_max_keyframes
 # Above this, fps is usually an MPEG timescale of 90000, not a fast camera.
 MAX_PLAUSIBLE_FPS = 1000.0
 # Walk back this far when CAP_PROP_FRAME_COUNT overshoots the decodable tail.
 TAIL_SEEK_LIMIT = 32
 QWEN_MIN_SIDE_PX = 512
-# Below this both sides floor and a 16:9 frame comes out square.
-MIN_HONORED_MAX_PIXELS = QWEN_MIN_SIDE_PX * QWEN_MIN_SIDE_PX
+MIN_HONORED_MAX_PIXELS = SETTING_DEFAULTS.video_frame_min_pixels
 
-VIDEO_FRAME_MAX_PIXELS = 500_000
+VIDEO_FRAME_MAX_PIXELS = SETTING_DEFAULTS.video_frame_max_pixels
 VIDEO_FRAME_SCALE_START_SECONDS = 7.0
 VIDEO_FRAME_SCALE_END_SECONDS = 20.0
-IMAGE_MAX_PIXELS = 1_500_000
-
-# Defaults above; read per call, not at import, so env overrides reach the frames.
-KEYFRAMES_PER_SECOND_VAR = "VIDEO_KEYFRAMES_PER_SECOND"
-MAX_VIDEO_KEYFRAMES_VAR = "VIDEO_MAX_KEYFRAMES"
-VIDEO_FRAME_MAX_PIXELS_VAR = "VIDEO_FRAME_MAX_PIXELS"
-VIDEO_FRAME_MIN_PIXELS_VAR = "VIDEO_FRAME_MIN_PIXELS"
-IMAGE_MAX_PIXELS_VAR = "IMAGE_MAX_PIXELS"
+IMAGE_MAX_PIXELS = SETTING_DEFAULTS.image_max_pixels
 
 
 def get_keyframes_per_second() -> int:
-    return positive_env_int(KEYFRAMES_PER_SECOND_VAR, KEYFRAMES_PER_SECOND)
+    return effective_settings().video_keyframes_per_second
 
 
 def get_max_video_keyframes() -> int:
-    return positive_env_int(MAX_VIDEO_KEYFRAMES_VAR, MAX_VIDEO_KEYFRAME_COUNT)
+    return effective_settings().video_max_keyframes
 
 
 def get_video_frame_max_pixels() -> int:
-    return positive_env_int(VIDEO_FRAME_MAX_PIXELS_VAR, VIDEO_FRAME_MAX_PIXELS)
+    return effective_settings().video_frame_max_pixels
 
 
 def get_video_frame_min_pixels() -> int:
-    return positive_env_int(VIDEO_FRAME_MIN_PIXELS_VAR, MIN_HONORED_MAX_PIXELS)
+    return effective_settings().video_frame_min_pixels
 
 
 def get_qwen_min_side_px() -> int:
@@ -74,7 +66,7 @@ def get_qwen_min_side_px() -> int:
 
 
 def get_image_max_pixels() -> int:
-    return positive_env_int(IMAGE_MAX_PIXELS_VAR, IMAGE_MAX_PIXELS)
+    return effective_settings().image_max_pixels
 
 
 READ_ERROR = "read_error"

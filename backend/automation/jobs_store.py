@@ -362,6 +362,20 @@ def delete_job(job_id: str) -> bool:
         return cursor.rowcount > 0
 
 
+def prune_finished_jobs(days: int) -> list[str]:
+    """Returns the ids removed. Queued and running jobs are never touched, however old."""
+    with get_connection() as conn:
+        # julianday reads both stored spellings: ISO with an offset and sqlite's datetime('now').
+        rows = conn.execute(
+            "DELETE FROM jobs WHERE status NOT IN ('queued', 'running')"
+            " AND julianday(COALESCE(finished_at, created_at)) < julianday('now', ?)"
+            " RETURNING id",
+            (f"-{days} days",),
+        ).fetchall()
+        conn.commit()
+    return [row[0] for row in rows]
+
+
 def delete_all_jobs() -> int:
     with get_connection() as conn:
         cursor = conn.execute("DELETE FROM jobs")

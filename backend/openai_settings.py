@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app_settings import effective_settings
+from app_settings import NO_API_KEY, SETTING_DEFAULTS, effective_settings
 from env_file import env_str
 
-# SDK requires api_key; local servers do not. "EMPTY" is a filler, not a credential.
-DEFAULT_OPENAI_API_KEY = "EMPTY"
+DEFAULT_OPENAI_API_KEY = NO_API_KEY
 
-DEFAULT_MAX_TOKENS = 16384
-DEFAULT_TOP_K = 20
+DEFAULT_MAX_TOKENS = SETTING_DEFAULTS.vision_max_tokens
+DEFAULT_TOP_K = SETTING_DEFAULTS.vision_top_k
 
+DEFAULT_TIMEOUT_SECONDS = 600.0
 CONNECT_TIMEOUT_SECONDS = 10.0
 
 # 1.0 disables the repetition penalty; the key is omitted from extra_body at this value.
@@ -33,36 +33,18 @@ class SamplingProfile:
     repeat_penalty: float
 
 
-THINKING_DEFAULTS = SamplingProfile(
-    temperature=1.0,
-    presence_penalty=0.0,
-    top_p=0.95,
-    min_p=0.0,
-    repeat_penalty=NEUTRAL_REPEAT_PENALTY,
-)
-INSTRUCT_DEFAULTS = SamplingProfile(
-    temperature=0.7,
-    presence_penalty=1.5,
-    top_p=0.8,
-    min_p=0.0,
-    repeat_penalty=NEUTRAL_REPEAT_PENALTY,
-)
+def _profile(settings: object, mode: str) -> SamplingProfile:
+    return SamplingProfile(
+        temperature=getattr(settings, f"{mode}_temperature"),
+        presence_penalty=getattr(settings, f"{mode}_presence_penalty"),
+        top_p=getattr(settings, f"{mode}_top_p"),
+        min_p=getattr(settings, f"{mode}_min_p"),
+        repeat_penalty=getattr(settings, f"{mode}_repeat_penalty"),
+    )
 
 
-def env_int(name: str, default: int) -> int:
-    raw = env_str(name)
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
-
-
-def positive_env_int(name: str, default: int) -> int:
-    """Ignore zero and below: they silently disable the thing rather than shrinking it."""
-    value = env_int(name, default)
-    return value if value > 0 else default
+THINKING_DEFAULTS = _profile(SETTING_DEFAULTS, "thinking")
+INSTRUCT_DEFAULTS = _profile(SETTING_DEFAULTS, "instruct")
 
 
 def _env_float(name: str, default: float) -> float:
@@ -80,7 +62,7 @@ def get_openai_base_url() -> str:
 
 
 def get_openai_api_key() -> str:
-    return env_str("OPENAI_API_KEY") or DEFAULT_OPENAI_API_KEY
+    return effective_settings().vision_api_key
 
 
 def get_openai_model() -> str:
@@ -88,29 +70,20 @@ def get_openai_model() -> str:
 
 
 def get_max_tokens() -> int:
-    return env_int("OPENAI_MAX_TOKENS", DEFAULT_MAX_TOKENS)
+    return effective_settings().vision_max_tokens
 
 
 def get_top_k() -> int:
-    return env_int("OPENAI_TOP_K", DEFAULT_TOP_K)
+    return effective_settings().vision_top_k
 
 
 def get_openai_timeout() -> float:
-    return effective_settings().vision_timeout_seconds
+    timeout = _env_float("OPENAI_TIMEOUT", DEFAULT_TIMEOUT_SECONDS)
+    return timeout if timeout > 0 else DEFAULT_TIMEOUT_SECONDS
 
 
 def get_sampling_profile(mode: str) -> SamplingProfile:
-    instruct = mode == "instruct"
-    defaults = INSTRUCT_DEFAULTS if instruct else THINKING_DEFAULTS
-    prefix = "OPENAI_INSTRUCT" if instruct else "OPENAI_THINKING"
-
-    return SamplingProfile(
-        temperature=_env_float(f"{prefix}_TEMPERATURE", defaults.temperature),
-        presence_penalty=_env_float(f"{prefix}_PRESENCE_PENALTY", defaults.presence_penalty),
-        top_p=_env_float(f"{prefix}_TOP_P", defaults.top_p),
-        min_p=_env_float(f"{prefix}_MIN_P", defaults.min_p),
-        repeat_penalty=_env_float(f"{prefix}_REPEAT_PENALTY", defaults.repeat_penalty),
-    )
+    return _profile(effective_settings(), "instruct" if mode == "instruct" else "thinking")
 
 
 def build_sampling_extra_body(

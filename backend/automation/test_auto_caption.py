@@ -37,7 +37,6 @@ from automation.vision import (
     QWEN_MIN_SIDE_PX,
     TAIL_SEEK_LIMIT,
     VIDEO_FRAME_MAX_PIXELS,
-    VIDEO_FRAME_MAX_PIXELS_VAR,
     VIDEO_KEYFRAME_COUNT,
     MediaFrames,
     extract_video_keyframes,
@@ -630,7 +629,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
     def test_a_configured_pixel_budget_reaches_the_decoded_frames(self) -> None:
         # Bound at import, frames come out at the old size. Raised because the floor swallows a lower one.
         budget = MIN_HONORED_MAX_PIXELS * 4
-        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: str(budget)}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": str(budget)}):
             frames = self._extract(FakeCapture(decodable=3, width=4000, height=4000))
 
         assert frames is not None
@@ -640,7 +639,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
 
     def test_a_budget_under_the_resize_floor_cannot_shrink_a_frame(self) -> None:
         # Below the floor the knob buys no frames and a 16:9 source comes back square.
-        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "125000"}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "125000"}):
             frames = self._extract(FakeCapture(decodable=1, width=1920, height=1080))
 
         assert frames is not None
@@ -651,7 +650,7 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
     def test_a_configured_budget_reaches_the_request_the_same_way(self) -> None:
         # Was a module-level dict, so a set budget shrank on read and was re-applied at the old size.
         budget = VIDEO_FRAME_MAX_PIXELS // 4
-        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: str(budget)}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": str(budget)}):
             self.assertEqual(media_kind_max_pixels("video"), budget)
             self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
 

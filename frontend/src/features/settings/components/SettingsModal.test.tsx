@@ -62,13 +62,13 @@ describe("SettingsModal", () => {
   it("refuses a malformed number without asking the server", async () => {
     const { onClose, user } = await openDialog();
 
-    await user.type(screen.getByRole("textbox", { name: "Timeout (seconds)" }), "s");
+    await user.type(screen.getByRole("spinbutton", { name: "Draft threshold (chars)" }), ".5");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Timeout needs a number of seconds.",
+      "Draft threshold needs a whole number of at least 1.",
     );
-    expect(screen.getByRole("textbox", { name: "Timeout (seconds)" })).toBeInvalid();
+    expect(screen.getByRole("spinbutton", { name: "Draft threshold (chars)" })).toBeInvalid();
     expect(settingsRequests("PUT")).toHaveLength(0);
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -141,6 +141,40 @@ describe("SettingsModal", () => {
     await user.keyboard("{ArrowDown}");
 
     expect(screen.getByRole("tab", { name: /^Integrations/ })).toHaveFocus();
-    expect(screen.getByRole("textbox", { name: "AI-Toolkit URL" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "ComfyUI URL" })).toBeVisible();
+  });
+
+  it("moves between the vision model's pages with the arrow keys", async () => {
+    const { user } = await openDialog();
+
+    screen.getByRole("tab", { name: "Server" }).focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(screen.getByRole("tab", { name: "Sampling" })).toHaveFocus();
+    expect(screen.getAllByRole("spinbutton", { name: "Temperature" })).toHaveLength(2);
+    expect(screen.getByText(/^Tune sampling last/)).toBeInTheDocument();
+  });
+
+  it("shows the page holding a refused value, wherever the user is", async () => {
+    const { user } = await openDialog();
+    await user.click(screen.getByRole("tab", { name: "Media input" }));
+    await user.clear(screen.getByRole("spinbutton", { name: "Max keyframes (per video)" }));
+    await user.click(screen.getByRole("tab", { name: "Server" }));
+    await user.click(screen.getByRole("tab", { name: /^Integrations/ }));
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Max keyframes needs a whole number of at least 1.",
+    );
+    expect(screen.getByRole("tab", { name: /^Vision model/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: /^Media input/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(settingsRequests("PUT")).toHaveLength(0);
   });
 });

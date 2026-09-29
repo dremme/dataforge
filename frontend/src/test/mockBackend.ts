@@ -75,6 +75,7 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
 export function installMockBackend(options: MockBackendOptions = {}) {
   let folderFavorites: string[] | null = null;
   let savedSettings = appSettings();
+  let remembered = { job_option_folders: 3, display_mode_folders: 2 };
   let thumbnailCache = {
     directory: "C:/DataForge/thumbnails",
     file_count: 1200,
@@ -381,15 +382,58 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         const next = { ...savedSettings } as Record<string, unknown>;
         for (const key of body.reset ?? []) {
           const state = savedSettings[key as AppSettingKey];
-          next[key] = { ...state, value: state.fallback, source: state.fallback_source };
+          next[key] =
+            "fallback" in state
+              ? { ...state, value: state.fallback, source: state.fallback_source }
+              : { ...state, is_set: false, source: state.fallback_source };
         }
         for (const [key, value] of Object.entries(body)) {
           if (key === "reset") continue;
-          next[key] = { ...savedSettings[key as AppSettingKey], value, source: "saved" };
+          const state = savedSettings[key as AppSettingKey];
+          next[key] =
+            "is_set" in state
+              ? { ...state, is_set: true, source: "saved" }
+              : { ...state, value, source: "saved" };
         }
         savedSettings = next as unknown as AppSettingsResponse;
       }
       return jsonResponse(savedSettings);
+    }
+
+    if (url.pathname === "/api/settings/probe" && method === "POST") {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      return jsonResponse({
+        reachable: true,
+        detail: null,
+        models: body.service === "vision" ? ["gemma4", "qwen38"] : [],
+      });
+    }
+
+    if (url.pathname === "/api/preferences/remembered") {
+      return jsonResponse(remembered);
+    }
+
+    if (url.pathname.startsWith("/api/preferences/remembered/") && method === "DELETE") {
+      const kind = url.pathname.split("/").at(-1);
+      remembered = {
+        ...remembered,
+        ...(kind === "job-options" ? { job_option_folders: 0 } : { display_mode_folders: 0 }),
+      };
+      return jsonResponse(remembered);
+    }
+
+    if (url.pathname === "/api/system/about") {
+      return jsonResponse({
+        version: "0.1.0",
+        python_version: "3.13.1",
+        platform: "Windows-11",
+        ffmpeg_path: "C:\\ffmpeg\\bin\\ffmpeg.exe",
+        ffmpeg_source: "path",
+        env_file: null,
+        database_path: "C:\\DataForge\\backend\\data\\app.db",
+        thumbnail_cache_dir: "C:\\DataForge\\backend\\data\\thumbnails",
+        workflows_dir: "C:\\DataForge\\comfy_workflows",
+      });
     }
 
     if (url.pathname === "/api/thumbnails/cache") {

@@ -264,12 +264,31 @@ class UiSettingsUpdate(BaseModel):
 
 type AppSettingKey = Literal[
     "vision_base_url",
+    "vision_api_key",
     "vision_model",
-    "vision_timeout_seconds",
+    "vision_max_tokens",
+    "vision_top_k",
     "draft_caption_threshold",
+    "thinking_temperature",
+    "thinking_top_p",
+    "thinking_min_p",
+    "thinking_presence_penalty",
+    "thinking_repeat_penalty",
+    "instruct_temperature",
+    "instruct_top_p",
+    "instruct_min_p",
+    "instruct_presence_penalty",
+    "instruct_repeat_penalty",
+    "image_max_pixels",
+    "video_keyframes_per_second",
+    "video_max_keyframes",
+    "video_frame_max_pixels",
+    "video_frame_min_pixels",
     "comfy_base_url",
     "ai_toolkit_base_url",
     "thumbnail_cache_max_mb",
+    "job_history_days",
+    "notification_history_days",
 ]
 
 type SettingSource = Literal["saved", "env", "default"]
@@ -289,38 +308,121 @@ class NumberSettingState(BaseModel):
     source: SettingSource
     fallback: int | float
     fallback_source: FallbackSource
+    minimum: int | float
+    maximum: int | float | None
+
+
+class SecretSettingState(BaseModel):
+    """Never carries the secret itself, only whether one applies and where it comes from."""
+
+    is_set: bool
+    source: SettingSource
+    fallback_source: FallbackSource
 
 
 class AppSettingsResponse(BaseModel):
     """``fallback`` is what a reset would restore: the environment's value, else the built-in default."""
 
     vision_base_url: TextSettingState
+    vision_api_key: SecretSettingState
     vision_model: TextSettingState
-    vision_timeout_seconds: NumberSettingState
+    vision_max_tokens: NumberSettingState
+    vision_top_k: NumberSettingState
     draft_caption_threshold: NumberSettingState
+    thinking_temperature: NumberSettingState
+    thinking_top_p: NumberSettingState
+    thinking_min_p: NumberSettingState
+    thinking_presence_penalty: NumberSettingState
+    thinking_repeat_penalty: NumberSettingState
+    instruct_temperature: NumberSettingState
+    instruct_top_p: NumberSettingState
+    instruct_min_p: NumberSettingState
+    instruct_presence_penalty: NumberSettingState
+    instruct_repeat_penalty: NumberSettingState
+    image_max_pixels: NumberSettingState
+    video_keyframes_per_second: NumberSettingState
+    video_max_keyframes: NumberSettingState
+    video_frame_max_pixels: NumberSettingState
+    video_frame_min_pixels: NumberSettingState
     comfy_base_url: TextSettingState
     ai_toolkit_base_url: TextSettingState
     thumbnail_cache_max_mb: NumberSettingState
-    database_path: str
-    env_file: str | None = None
+    job_history_days: NumberSettingState
+    notification_history_days: NumberSettingState
 
 
 class AppSettingsOverrides(BaseModel):
     """``None`` means not saved, so the environment or the default applies."""
 
     vision_base_url: str | None = None
+    vision_api_key: str | None = None
     vision_model: str | None = None
-    vision_timeout_seconds: float | None = None
+    vision_max_tokens: int | None = None
+    vision_top_k: int | None = None
     draft_caption_threshold: int | None = None
+    thinking_temperature: float | None = None
+    thinking_top_p: float | None = None
+    thinking_min_p: float | None = None
+    thinking_presence_penalty: float | None = None
+    thinking_repeat_penalty: float | None = None
+    instruct_temperature: float | None = None
+    instruct_top_p: float | None = None
+    instruct_min_p: float | None = None
+    instruct_presence_penalty: float | None = None
+    instruct_repeat_penalty: float | None = None
+    image_max_pixels: int | None = None
+    video_keyframes_per_second: int | None = None
+    video_max_keyframes: int | None = None
+    video_frame_max_pixels: int | None = None
+    video_frame_min_pixels: int | None = None
     comfy_base_url: str | None = None
     ai_toolkit_base_url: str | None = None
     thumbnail_cache_max_mb: int | None = None
+    job_history_days: int | None = None
+    notification_history_days: int | None = None
 
 
 class AppSettingsUpdate(AppSettingsOverrides):
     """A key in both ``reset`` and the values ends up saved with the new value."""
 
     reset: list[AppSettingKey] = Field(default_factory=list)
+
+
+type ProbedService = Literal["vision", "comfy", "ai_toolkit"]
+
+
+class ServiceProbeRequest(BaseModel):
+    """``api_key`` is only read for the vision server; omitted, the key in force is used."""
+
+    service: ProbedService
+    base_url: str
+    api_key: str | None = None
+
+
+class ServiceProbeResponse(BaseModel):
+    reachable: bool
+    detail: str | None = None
+    models: list[str] = Field(default_factory=list)
+
+
+class RememberedDataResponse(BaseModel):
+    job_option_folders: int
+    display_mode_folders: int
+
+
+type FfmpegSource = Literal["path", "bundled"]
+
+
+class AboutResponse(BaseModel):
+    version: str
+    python_version: str
+    platform: str
+    ffmpeg_path: str | None = None
+    ffmpeg_source: FfmpegSource | None = None
+    env_file: str | None = None
+    database_path: str
+    thumbnail_cache_dir: str
+    workflows_dir: str
 
 
 class ThumbnailCacheStats(BaseModel):

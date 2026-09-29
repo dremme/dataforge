@@ -14,10 +14,19 @@ from app_settings import (
     update_app_settings,
 )
 from automation.auto_caption import get_draft_caption_threshold
+from automation.vision import get_image_max_pixels, get_max_video_keyframes
 from comfy_settings import get_comfy_base_url
 from db import set_preference
 from external.ostris_jobs import get_ostris_base_url
-from openai_settings import get_openai_base_url, get_openai_model, get_openai_timeout
+from openai_settings import (
+    get_max_tokens,
+    get_openai_api_key,
+    get_openai_base_url,
+    get_openai_model,
+    get_openai_timeout,
+    get_sampling_profile,
+    get_top_k,
+)
 from schemas import AppSettingsUpdate
 from testing_fixtures import forget_saved_settings, isolate_test_database
 from thumbnails import get_thumbnail_cache_budget_bytes
@@ -107,8 +116,17 @@ class ValidationTests(unittest.TestCase):
 
     def test_out_of_range_numbers_are_refused(self) -> None:
         updates = (
-            AppSettingsUpdate(vision_timeout_seconds=0),
+            AppSettingsUpdate(vision_max_tokens=0),
             AppSettingsUpdate(draft_caption_threshold=0),
+            AppSettingsUpdate(thinking_temperature=2.5),
+            AppSettingsUpdate(instruct_top_p=0),
+            AppSettingsUpdate(instruct_min_p=1.5),
+            AppSettingsUpdate(thinking_presence_penalty=-3),
+            AppSettingsUpdate(instruct_repeat_penalty=2.5),
+            AppSettingsUpdate(video_keyframes_per_second=0),
+            AppSettingsUpdate(image_max_pixels=0),
+            AppSettingsUpdate(job_history_days=-1),
+            AppSettingsUpdate(vision_api_key="two words"),
             AppSettingsUpdate(thumbnail_cache_max_mb=-1),
             AppSettingsUpdate(vision_model="   "),
         )
@@ -144,6 +162,31 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(settings.comfy_base_url.source, "default")
 
 
+class SecretTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        forget_saved_settings()
+
+    def test_the_key_never_leaves_in_a_description(self) -> None:
+        settings = update_app_settings(AppSettingsUpdate(vision_api_key="sk-local-secret"))
+
+        self.assertNotIn("sk-local-secret", settings.model_dump_json())
+        self.assertTrue(settings.vision_api_key.is_set)
+        self.assertEqual(settings.vision_api_key.source, "saved")
+
+    def test_the_placeholder_key_reads_as_not_set(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            state = describe_app_settings().vision_api_key
+
+        self.assertFalse(state.is_set)
+        self.assertEqual(state.source, "default")
+
+    def test_a_refused_key_is_not_echoed(self) -> None:
+        with self.assertRaises(InvalidSettingError) as caught:
+            update_app_settings(AppSettingsUpdate(vision_api_key="sk secret"))
+
+        self.assertNotIn("sk secret", str(caught.exception))
+
+
 class GetterTests(unittest.TestCase):
     def tearDown(self) -> None:
         forget_saved_settings()
@@ -153,7 +196,13 @@ class GetterTests(unittest.TestCase):
             AppSettingsUpdate(
                 vision_base_url="http://127.0.0.1:8890/v1",
                 vision_model="model-b",
-                vision_timeout_seconds=90,
+                vision_api_key="sk-local",
+                vision_max_tokens=4096,
+                vision_top_k=40,
+                instruct_temperature=0.2,
+                thinking_repeat_penalty=1.1,
+                image_max_pixels=900_000,
+                video_max_keyframes=64,
                 draft_caption_threshold=300,
                 ai_toolkit_base_url="http://127.0.0.1:8700",
                 thumbnail_cache_max_mb=64,
@@ -162,10 +211,25 @@ class GetterTests(unittest.TestCase):
 
         self.assertEqual(get_openai_base_url(), "http://127.0.0.1:8890/v1")
         self.assertEqual(get_openai_model(), "model-b")
-        self.assertEqual(get_openai_timeout(), 90.0)
+        self.assertEqual(get_openai_api_key(), "sk-local")
+        self.assertEqual(get_max_tokens(), 4096)
+        self.assertEqual(get_top_k(), 40)
+        self.assertEqual(get_sampling_profile("instruct").temperature, 0.2)
+        self.assertEqual(get_sampling_profile("thinking").repeat_penalty, 1.1)
+        self.assertEqual(get_image_max_pixels(), 900_000)
+        self.assertEqual(get_max_video_keyframes(), 64)
         self.assertEqual(get_draft_caption_threshold(), 300)
         self.assertEqual(get_ostris_base_url(), "http://127.0.0.1:8700")
         self.assertEqual(get_thumbnail_cache_budget_bytes(), 64 * 1024 * 1024)
+
+    def test_the_timeout_is_read_from_the_environment_only(self) -> None:
+        set_preference(APP_SETTINGS_KEY, json.dumps({"vision_timeout_seconds": 90}))
+        load_saved_settings()
+
+        with patch.dict(os.environ, {"OPENAI_TIMEOUT": "120"}, clear=True):
+            self.assertEqual(get_openai_timeout(), 120.0)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(get_openai_timeout(), 600.0)
 
     def test_the_ai_toolkit_url_reads_the_environment(self) -> None:
         with patch.dict(os.environ, {"OSTRIS_BASE_URL": "http://gpu-box:8675/"}, clear=True):

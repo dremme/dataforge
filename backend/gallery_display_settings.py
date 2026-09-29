@@ -15,8 +15,10 @@ DEFAULT_MODE: GalleryDisplayMode = "large"
 
 __all__ = [
     "GALLERY_DISPLAY_SETTINGS_KEY",
+    "forget_folder_modes",
     "get_gallery_display_settings",
     "preference_folder_key",
+    "remembered_folder_count",
     "update_gallery_display_settings",
 ]
 
@@ -67,3 +69,11 @@ def update_gallery_display_settings(
 
     updated = stored.model_copy(update={"mode_by_folder": modes})
     return _response_for(_settings.save(updated), folder_key)
+
+
+def remembered_folder_count() -> int:
+    return len(_settings.get().mode_by_folder)
+
+
+def forget_folder_modes() -> None:
+    _settings.update(mode_by_folder={})

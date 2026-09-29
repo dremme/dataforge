@@ -21,17 +21,12 @@ from automation.llm import (
 from automation.vision import (
     FRAME_ERROR,
     IMAGE_MAX_PIXELS,
-    IMAGE_MAX_PIXELS_VAR,
     JPEG_QUALITY,
     KEYFRAMES_PER_SECOND,
-    KEYFRAMES_PER_SECOND_VAR,
     MAX_VIDEO_KEYFRAME_COUNT,
-    MAX_VIDEO_KEYFRAMES_VAR,
     MIN_HONORED_MAX_PIXELS,
     READ_ERROR,
     VIDEO_FRAME_MAX_PIXELS,
-    VIDEO_FRAME_MAX_PIXELS_VAR,
-    VIDEO_FRAME_MIN_PIXELS_VAR,
     VIDEO_FRAME_SCALE_END_SECONDS,
     VIDEO_FRAME_SCALE_START_SECONDS,
     VIDEO_KEYFRAME_COUNT,
@@ -250,50 +245,50 @@ class FrameBudgetEnvTests(unittest.TestCase):
         self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
     def test_a_higher_rate_samples_a_clip_more_densely(self) -> None:
-        with patch.dict(os.environ, {KEYFRAMES_PER_SECOND_VAR: "4"}):
+        with patch.dict(os.environ, {"VIDEO_KEYFRAMES_PER_SECOND": "4"}):
             self.assertEqual(keyframe_count_for_seconds(6), 26)
             self.assertEqual(keyframe_count_for_seconds(10), 42)
 
     def test_a_raised_cap_lets_a_long_clip_past_the_default(self) -> None:
-        with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "128"}):
+        with patch.dict(os.environ, {"VIDEO_MAX_KEYFRAMES": "128"}):
             self.assertEqual(keyframe_count_for_seconds(60), 122)
             self.assertEqual(keyframe_count_for_seconds(300), 128)
 
     def test_the_floor_still_applies_under_a_raised_cap(self) -> None:
-        with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "128"}):
+        with patch.dict(os.environ, {"VIDEO_MAX_KEYFRAMES": "128"}):
             self.assertEqual(keyframe_count_for_seconds(1), VIDEO_KEYFRAME_COUNT)
 
     def test_a_lowered_cap_wins_over_the_floor(self) -> None:
         # The cap keeps the request tractable, so it is the last word.
-        with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: "8"}):
+        with patch.dict(os.environ, {"VIDEO_MAX_KEYFRAMES": "8"}):
             self.assertEqual(keyframe_count_for_seconds(1), 8)
 
     def test_a_value_that_would_send_nothing_is_ignored(self) -> None:
         # A cap of zero comes back as a caption of nothing rather than as an error.
         for raw in ("0", "-4", "", "   ", "many", "2.5"):
-            with patch.dict(os.environ, {MAX_VIDEO_KEYFRAMES_VAR: raw}):
+            with patch.dict(os.environ, {"VIDEO_MAX_KEYFRAMES": raw}):
                 self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
-            with patch.dict(os.environ, {KEYFRAMES_PER_SECOND_VAR: raw}):
+            with patch.dict(os.environ, {"VIDEO_KEYFRAMES_PER_SECOND": raw}):
                 self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
-            with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: raw}):
+            with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": raw}):
                 self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
-            with patch.dict(os.environ, {VIDEO_FRAME_MIN_PIXELS_VAR: raw}):
+            with patch.dict(os.environ, {"VIDEO_FRAME_MIN_PIXELS": raw}):
                 self.assertEqual(get_video_frame_min_pixels(), MIN_HONORED_MAX_PIXELS)
-            with patch.dict(os.environ, {IMAGE_MAX_PIXELS_VAR: raw}):
+            with patch.dict(os.environ, {"IMAGE_MAX_PIXELS": raw}):
                 self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
     def test_each_media_kind_reads_its_own_configured_budget(self) -> None:
         # Neither knob may be bound at import.
         with patch.dict(
             os.environ,
-            {IMAGE_MAX_PIXELS_VAR: "900000", VIDEO_FRAME_MAX_PIXELS_VAR: "262144"},
+            {"IMAGE_MAX_PIXELS": "900000", "VIDEO_FRAME_MAX_PIXELS": "262144"},
         ):
             self.assertEqual(media_kind_max_pixels("image"), 900_000)
             self.assertEqual(media_kind_max_pixels("video"), 262_144)
 
     def test_the_two_budgets_are_independent(self) -> None:
         # Setting the video knob must not drag the still one down with it.
-        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "262144"}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "262144"}):
             self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
 
 
@@ -326,13 +321,13 @@ class VideoFramePixelScaleTests(unittest.TestCase):
             self.assertEqual(video_frame_max_pixels_for_seconds(seconds), VIDEO_FRAME_MAX_PIXELS)
 
     def test_a_configured_budget_is_what_a_short_clip_starts_from(self) -> None:
-        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "400000"}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "400000"}):
             self.assertEqual(video_frame_max_pixels_for_seconds(7), 400_000)
             self.assertEqual(video_frame_max_pixels_for_seconds(20), MIN_HONORED_MAX_PIXELS)
             self.assertEqual(media_kind_max_pixels("video", seconds=10), 368_187)
 
     def test_a_budget_already_at_the_floor_does_not_grow_for_a_long_clip(self) -> None:
-        with patch.dict(os.environ, {VIDEO_FRAME_MAX_PIXELS_VAR: "125000"}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "125000"}):
             self.assertEqual(video_frame_max_pixels_for_seconds(7), 125_000)
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 125_000)
 
@@ -340,7 +335,7 @@ class VideoFramePixelScaleTests(unittest.TestCase):
         self.assertEqual(media_kind_max_pixels("image", seconds=60), IMAGE_MAX_PIXELS)
 
     def test_a_configured_min_is_what_a_long_clip_lands_on(self) -> None:
-        with patch.dict(os.environ, {VIDEO_FRAME_MIN_PIXELS_VAR: "300000"}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MIN_PIXELS": "300000"}):
             self.assertEqual(get_video_frame_min_pixels(), 300_000)
             self.assertEqual(video_frame_max_pixels_for_seconds(7), VIDEO_FRAME_MAX_PIXELS)
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 300_000)
@@ -349,14 +344,14 @@ class VideoFramePixelScaleTests(unittest.TestCase):
     def test_a_configured_min_and_max_lerp_together(self) -> None:
         with patch.dict(
             os.environ,
-            {VIDEO_FRAME_MAX_PIXELS_VAR: "400000", VIDEO_FRAME_MIN_PIXELS_VAR: "300000"},
+            {"VIDEO_FRAME_MAX_PIXELS": "400000", "VIDEO_FRAME_MIN_PIXELS": "300000"},
         ):
             self.assertEqual(video_frame_max_pixels_for_seconds(7), 400_000)
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 300_000)
             self.assertEqual(video_frame_max_pixels_for_seconds(10), 376_923)
 
     def test_a_lowered_min_lets_the_resize_go_below_five_hundred_twelve(self) -> None:
-        with patch.dict(os.environ, {VIDEO_FRAME_MIN_PIXELS_VAR: "65536"}):
+        with patch.dict(os.environ, {"VIDEO_FRAME_MIN_PIXELS": "65536"}):
             self.assertEqual(get_qwen_min_side_px(), 256)
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 65_536)
             resized = resize_for_qwen(

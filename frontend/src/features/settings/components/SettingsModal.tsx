@@ -2,17 +2,22 @@ import { useEffect, useState } from "react";
 import { formatApiError, isAbortError } from "@/shared/api/http";
 import { useTabList } from "@/shared/hooks/useTabList";
 import {
-  iconBrain,
   iconAiToolkit,
+  iconBrain,
   iconComfyUi,
   iconGauge,
   iconHardDrive,
+  iconHistory,
+  iconImage,
+  iconInfo,
   iconLink,
   iconLoader2,
   iconPalette,
   iconPlug,
   iconSettings,
+  iconVideo,
   iconX,
+  iconZap,
   type AppIcon,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
@@ -21,11 +26,11 @@ import {
   setThemePreference,
   useThemePreference,
 } from "@/shared/theme/theme";
-import type { AppSettingKey, AppSettingsResponse } from "@/shared/types";
+import type { AppSettingKey, AppSettingsResponse, ProbedService } from "@/shared/types";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
-import { fetchAppSettings, saveAppSettings } from "../api/settings";
+import { fetchAppSettings, probeService, saveAppSettings } from "../api/settings";
 import {
   buildSettingsUpdate,
   draftFromSettings,
@@ -34,12 +39,20 @@ import {
   resetDraftValue,
   type SettingsDraft,
 } from "../lib/settingsForm";
+import { AboutSection } from "./AboutSection";
+import { ConnectionStatus, type ProbeState } from "./ConnectionStatus";
+import { RememberedDataGroup } from "./RememberedDataGroup";
 import { SettingInput } from "./SettingInput";
+import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
+import { SettingsPageTabs } from "./SettingsPageTabs";
 import { StorageSection } from "./StorageSection";
 import { ThemePicker } from "./ThemePicker";
 
-type SectionId = "appearance" | "vision" | "integrations" | "storage";
+type SectionId = "appearance" | "vision" | "integrations" | "storage" | "data" | "about";
+
+type PageId =
+  "appearance" | "server" | "sampling" | "media" | "integrations" | "storage" | "data" | "about";
 
 interface Group {
   title: string;
@@ -47,6 +60,16 @@ interface Group {
   hint?: string;
   /** Fields in layout order; a row of two sits side by side. */
   rows: AppSettingKey[][];
+  probe?: ProbedService;
+}
+
+interface Page {
+  id: PageId;
+  label: string;
+  description: string;
+  groups: Group[];
+  /** Groups sit side by side instead of stacking. */
+  columns?: boolean;
 }
 
 interface Section {
@@ -54,9 +77,16 @@ interface Section {
   label: string;
   caption: string;
   icon: AppIcon;
-  description: string;
-  groups: Group[];
+  /** A section with more than one page shows them as tabs under its header. */
+  pages: Page[];
 }
+
+const samplingRows = (mode: "thinking" | "instruct"): AppSettingKey[][] => [
+  [`${mode}_temperature`],
+  [`${mode}_top_p`, `${mode}_min_p`],
+  [`${mode}_presence_penalty`],
+  [`${mode}_repeat_penalty`],
+];
 
 const SECTIONS: Section[] = [
   {
@@ -64,28 +94,75 @@ const SECTIONS: Section[] = [
     label: "Appearance",
     caption: "Color scheme",
     icon: iconPalette,
-    description: "Pick a color scheme, or let DataForge follow the one your system uses.",
-    groups: [],
+    pages: [
+      {
+        id: "appearance",
+        label: "Appearance",
+        description: "Pick a color scheme, or let DataForge follow the one your system uses.",
+        groups: [],
+      },
+    ],
   },
   {
     id: "vision",
     label: "Vision model",
-    caption: "Captioning server",
+    caption: "Server, sampling, media",
     icon: iconBrain,
-    description:
-      "The OpenAI-compatible server behind Auto-caption, Verify captions, and Edit captions.",
-    groups: [
+    pages: [
       {
-        title: "Connection",
-        icon: iconLink,
-        hint: "A running job keeps the server it started with.",
-        rows: [["vision_base_url"], ["vision_model"]],
+        id: "server",
+        label: "Server",
+        description:
+          "The OpenAI-compatible server behind Auto-caption, Verify captions, and Edit captions.",
+        groups: [
+          {
+            title: "Connection",
+            icon: iconLink,
+            hint: "A running job keeps the server it started with.",
+            rows: [["vision_base_url"], ["vision_api_key", "vision_model"]],
+            probe: "vision",
+          },
+          {
+            title: "Limits",
+            icon: iconGauge,
+            hint: "Auto-caption leaves captions longer than the draft threshold alone and retries shorter results.",
+            rows: [["vision_max_tokens", "vision_top_k", "draft_caption_threshold"]],
+          },
+        ],
       },
       {
-        title: "Limits",
-        icon: iconGauge,
-        hint: "Auto-caption leaves captions longer than the draft threshold alone and retries shorter results.",
-        rows: [["vision_timeout_seconds", "draft_caption_threshold"]],
+        id: "sampling",
+        label: "Sampling",
+        description:
+          "Tune sampling last, once the connection and budgets work. Each job picks its mode.",
+        columns: true,
+        groups: [
+          { title: "Reasoning", icon: iconBrain, rows: samplingRows("thinking") },
+          { title: "Instruct", icon: iconZap, rows: samplingRows("instruct") },
+        ],
+      },
+      {
+        id: "media",
+        label: "Media input",
+        description:
+          "Pixels and frames sent to the model. Shrink these first when VRAM or context runs out.",
+        groups: [
+          {
+            title: "Stills",
+            icon: iconImage,
+            hint: "Images, and a GIF's first frame, are downscaled to fit this budget.",
+            rows: [["image_max_pixels"]],
+          },
+          {
+            title: "Video",
+            icon: iconVideo,
+            hint: "Frames are spread across the clip. The frame budget falls from the short-clip value at 7 s to the long-clip value at 20 s.",
+            rows: [
+              ["video_keyframes_per_second", "video_max_keyframes"],
+              ["video_frame_max_pixels", "video_frame_min_pixels"],
+            ],
+          },
+        ],
       },
     ],
   },
@@ -94,11 +171,22 @@ const SECTIONS: Section[] = [
     label: "Integrations",
     caption: "ComfyUI and AI-Toolkit",
     icon: iconPlug,
-    description:
-      "Where DataForge reaches the tools it drives. Use the origin, not a page within it.",
-    groups: [
-      { title: "ComfyUI", icon: iconComfyUi, rows: [["comfy_base_url"]] },
-      { title: "Ostris AI-Toolkit", icon: iconAiToolkit, rows: [["ai_toolkit_base_url"]] },
+    pages: [
+      {
+        id: "integrations",
+        label: "Integrations",
+        description:
+          "Where DataForge reaches the tools it drives. Use the origin, not a page within it.",
+        groups: [
+          { title: "ComfyUI", icon: iconComfyUi, rows: [["comfy_base_url"]], probe: "comfy" },
+          {
+            title: "Ostris AI-Toolkit",
+            icon: iconAiToolkit,
+            rows: [["ai_toolkit_base_url"]],
+            probe: "ai_toolkit",
+          },
+        ],
+      },
     ],
   },
   {
@@ -106,21 +194,78 @@ const SECTIONS: Section[] = [
     label: "Storage",
     caption: "Thumbnail cache",
     icon: iconHardDrive,
-    description: "Disk space DataForge uses for itself, and where its files live.",
-    groups: [],
+    pages: [
+      {
+        id: "storage",
+        label: "Storage",
+        description: "Disk space DataForge uses for itself.",
+        groups: [
+          { title: "Thumbnail cache", icon: iconHardDrive, rows: [["thumbnail_cache_max_mb"]] },
+        ],
+      },
+    ],
+  },
+  {
+    id: "data",
+    label: "Data & history",
+    caption: "Retention and history",
+    icon: iconHistory,
+    pages: [
+      {
+        id: "data",
+        label: "Data & history",
+        description: "How long DataForge keeps its history, and what it remembers between visits.",
+        groups: [
+          {
+            title: "History",
+            icon: iconHistory,
+            hint: "Finished jobs and notifications older than this are deleted; running jobs never are. 0 keeps everything.",
+            rows: [["job_history_days", "notification_history_days"]],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "about",
+    label: "About",
+    caption: "Version and diagnostics",
+    icon: iconInfo,
+    pages: [
+      {
+        id: "about",
+        label: "About",
+        description: "What is installed and where it lives. Useful when something does not work.",
+        groups: [],
+      },
+    ],
   },
 ];
 
-const STORAGE_KEYS: AppSettingKey[] = ["thumbnail_cache_max_mb"];
-
 const SECTION_IDS = SECTIONS.map((entry) => entry.id);
 
-const keysOf = (entry: Section): AppSettingKey[] =>
-  entry.id === "storage" ? STORAGE_KEYS : entry.groups.flatMap((group) => group.rows.flat());
+const keysOf = (page: Page): AppSettingKey[] => page.groups.flatMap((group) => group.rows.flat());
 
-const SECTION_OF = Object.fromEntries(
-  SECTIONS.flatMap((entry) => keysOf(entry).map((key) => [key, entry.id])),
-) as Record<AppSettingKey, SectionId>;
+/** Where a setting lives, so a refused value can be shown. */
+const HOME_OF = Object.fromEntries(
+  SECTIONS.flatMap((entry) =>
+    entry.pages.flatMap((page) => keysOf(page).map((key) => [key, [entry.id, page.id]])),
+  ),
+) as Record<AppSettingKey, [SectionId, PageId]>;
+
+const PROBE_URL_KEY: Record<ProbedService, AppSettingKey> = {
+  vision: "vision_base_url",
+  comfy: "comfy_base_url",
+  ai_toolkit: "ai_toolkit_base_url",
+};
+
+/** Editing one of these makes the last test result for that service stale. */
+const PROBE_OF: Partial<Record<AppSettingKey, ProbedService>> = {
+  vision_base_url: "vision",
+  vision_api_key: "vision",
+  comfy_base_url: "comfy",
+  ai_toolkit_base_url: "ai_toolkit",
+};
 
 type LoadState =
   | { status: "loading" }
@@ -141,10 +286,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const savedTheme = useThemePreference();
   const [theme, setTheme] = useState(savedTheme);
   const [section, setSection] = useState<SectionId>("appearance");
+  const [openPages, setOpenPages] = useState<Partial<Record<SectionId, PageId>>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<SaveError | null>(null);
+  const [probes, setProbes] = useState<Partial<Record<ProbedService, ProbeState>>>({});
   const tabs = useTabList(SECTION_IDS, section, setSection, "vertical");
   const active = SECTIONS.find((entry) => entry.id === section) ?? SECTIONS[0];
+  const pageOf = (entry: Section) =>
+    entry.pages.find((page) => page.id === openPages[entry.id]) ?? entry.pages[0];
+  const showPage = (entry: SectionId, page: PageId) =>
+    setOpenPages((current) => ({ ...current, [entry]: page }));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -167,20 +318,55 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const editedKeys = state.status === "ready" ? editedSettingKeys(state.settings, state.draft) : [];
   const editedCount = editedKeys.length + (themeEdited ? 1 : 0);
-  const isSectionEdited = (entry: Section) =>
-    entry.id === "appearance" ? themeEdited : keysOf(entry).some((key) => editedKeys.includes(key));
+  const isPageEdited = (page: Page) =>
+    page.id === "appearance" ? themeEdited : keysOf(page).some((key) => editedKeys.includes(key));
+  const isSectionEdited = (entry: Section) => entry.pages.some(isPageEdited);
 
   const updateDraft = (draft: SettingsDraft) => {
     setState((current) => (current.status === "ready" ? { ...current, draft } : current));
     setError(null);
   };
 
+  const editField = (key: AppSettingKey, value: string) => {
+    if (state.status !== "ready") return;
+    updateDraft(editDraftValue(state.draft, key, value));
+    const stale = PROBE_OF[key];
+    if (stale) {
+      setProbes((current) => {
+        const next = { ...current };
+        delete next[stale];
+        return next;
+      });
+    }
+  };
+
+  const testConnection = async (service: ProbedService) => {
+    if (state.status !== "ready") return;
+    const { draft } = state;
+    setProbes((current) => ({ ...current, [service]: { status: "testing" } }));
+    try {
+      const result = await probeService({
+        service,
+        base_url: draft.values[PROBE_URL_KEY[service]],
+        api_key: service === "vision" ? draft.values.vision_api_key.trim() || null : null,
+      });
+      setProbes((current) => ({ ...current, [service]: { status: "done", result } }));
+    } catch (probeError) {
+      setProbes((current) => ({
+        ...current,
+        [service]: { status: "failed", message: formatApiError(probeError) },
+      }));
+    }
+  };
+
   const handleSave = async () => {
     const built =
       state.status === "ready" ? buildSettingsUpdate(state.settings, state.draft) : { update: {} };
     if ("error" in built) {
+      const [home, page] = HOME_OF[built.key];
       setError({ key: built.key, message: built.error });
-      setSection(SECTION_OF[built.key]);
+      setSection(home);
+      showPage(home, page);
       return;
     }
 
@@ -196,6 +382,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
+  const visionProbe = probes.vision;
+  const modelSuggestions =
+    visionProbe?.status === "done" && visionProbe.result.reachable ? visionProbe.result.models : [];
+
   const renderField = (key: AppSettingKey) => {
     if (state.status !== "ready") return null;
     const { settings, draft } = state;
@@ -209,7 +399,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         pendingReset={draft.resets.has(key)}
         invalid={error?.key === key}
         disabled={saving}
-        onChange={(value) => updateDraft(editDraftValue(draft, key, value))}
+        suggestions={key === "vision_model" ? modelSuggestions : undefined}
+        onChange={(value) => editField(key, value)}
         onReset={() => updateDraft(resetDraftValue(draft, settings, key))}
       />
     );
@@ -226,12 +417,47 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       ),
     );
 
-  const renderBody = (entry: Section) => {
-    if (entry.id === "appearance") {
+  const renderGroup = (group: Group) => {
+    const probe = group.probe;
+    const probeState = probe ? probes[probe] : undefined;
+    return (
+      <SettingsGroup
+        key={group.title}
+        title={group.title}
+        icon={group.icon}
+        hint={group.hint}
+        action={
+          probe && (
+            <SettingsActionButton
+              label="Test connection"
+              icon={iconPlug}
+              busy={probeState?.status === "testing"}
+              disabled={saving}
+              onClick={() => void testConnection(probe)}
+            />
+          )
+        }
+      >
+        {renderRows(group.rows)}
+        {probeState && <ConnectionStatus state={probeState} />}
+      </SettingsGroup>
+    );
+  };
+
+  const renderPage = (page: Page) => {
+    if (page.id === "appearance") {
       return (
         <SettingsGroup title="Color scheme" icon={iconPalette}>
           <ThemePicker value={theme} disabled={saving} onChange={setTheme} />
         </SettingsGroup>
+      );
+    }
+    if (page.id === "about") {
+      return (
+        <AboutSection
+          settings={state.status === "ready" ? state.settings : null}
+          visible={section === "about"}
+        />
       );
     }
     if (state.status === "loading") {
@@ -249,18 +475,23 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </p>
       );
     }
-    if (entry.id === "storage") {
+    if (page.id === "storage") {
       return (
-        <StorageSection settings={state.settings} visible={section === "storage"} disabled={saving}>
-          {renderRows([STORAGE_KEYS])}
+        <StorageSection visible={section === "storage"} disabled={saving}>
+          {renderRows(page.groups[0].rows)}
         </StorageSection>
       );
     }
-    return entry.groups.map((group) => (
-      <SettingsGroup key={group.title} title={group.title} icon={group.icon} hint={group.hint}>
-        {renderRows(group.rows)}
-      </SettingsGroup>
-    ));
+    const groups = page.groups.map(renderGroup);
+    if (page.id === "data") {
+      return (
+        <>
+          {groups}
+          <RememberedDataGroup visible={section === "data"} disabled={saving} />
+        </>
+      );
+    }
+    return page.columns ? <div className="settings-modal__columns">{groups}</div> : groups;
   };
 
   return (
@@ -311,7 +542,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <header className="settings-modal__header">
           <div className="settings-modal__heading">
             <h2 className="settings-modal__title">{active.label}</h2>
-            <p className="settings-modal__description">{active.description}</p>
+            <p className="settings-modal__description">{pageOf(active).description}</p>
           </div>
           <button
             type="button"
@@ -325,8 +556,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         </header>
 
         {SECTIONS.map((entry) => (
-          <div key={entry.id} {...tabs.panelProps(entry.id)} className="settings-modal__body">
-            {renderBody(entry)}
+          <div key={entry.id} {...tabs.panelProps(entry.id)} className="settings-modal__pane">
+            {entry.pages.length > 1 ? (
+              <SettingsPageTabs
+                label={entry.label}
+                pages={entry.pages}
+                active={pageOf(entry).id}
+                isEdited={isPageEdited}
+                onSelect={(page) => showPage(entry.id, page)}
+                renderPage={renderPage}
+              />
+            ) : (
+              <div className="settings-modal__body">{renderPage(entry.pages[0])}</div>
+            )}
           </div>
         ))}
 

@@ -109,9 +109,14 @@ The **statistics** drawer always describes the whole folder, whatever the filter
 Open **Settings** with the gear at the end of the toolbar, `Ctrl+,`, or the quick action bar. Changes apply when you select **Save**, with no restart. A dot on a section marks unsaved changes, and **Cancel** discards them.
 
 - **Appearance**: a light or dark color scheme, or **System** to follow your OS. The choice is previewed as you pick it. The quick action bar can also switch it directly.
-- **Vision model**: the server URL, model, and timeout for the AI caption jobs, and the draft threshold for **Auto-caption**.
-- **Integrations**: where ComfyUI and AI-Toolkit answer.
-- **Storage**: the thumbnail cache's size and limit, and **Clear cache**, which deletes every cached thumbnail so they are recreated as you browse. **Clear thumbnail cache** in the quick action bar does the same. Also shows where the database, the cache, and the loaded `.env` file are.
+- **Vision model**, in three tabs:
+  - **Server**: the server URL, API key and model for the AI caption jobs, the response limits, and the draft threshold for **Auto-caption**. **Test connection** tries the address and key as typed, and lists the server's models to pick from. The key is never shown once saved.
+  - **Sampling**: temperature, top-p, min-p and the penalties, for **Reasoning** and **Instruct** mode side by side.
+  - **Media input**: how many pixels and frames of each file reach the model. Shrink these first if a model runs out of memory.
+- **Integrations**: where ComfyUI and AI-Toolkit answer, each with **Test connection**.
+- **Storage**: the thumbnail cache's size and limit, and **Clear cache**, which deletes every cached thumbnail so they are recreated as you browse. **Clear thumbnail cache** in the quick action bar does the same.
+- **Data & history**: how many days to keep finished jobs and notifications, and **Clear** for recent folders, recent quick actions, and the job options and display modes remembered per folder.
+- **About**: the version, Python, ffmpeg, GPU, and where the database, cache, workflows and `.env` file are. **Copy diagnostics** puts all of it on the clipboard for a bug report, without the API key.
 
 Each field says whether its value is the default, comes from `.env` or the environment, or was saved here. A saved value overrides `.env`; **Reset** removes it. A job that is already running keeps the server it started with. See [Configuration](configuration.md#how-settings-are-loaded) for how the sources combine.
 

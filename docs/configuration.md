@@ -10,13 +10,16 @@ Copy [`.env.example`](../.env.example) to `.env` in the project root, uncomment 
 
 The most common settings can also be changed in the app, under **Settings** (the gear in the toolbar, or `Ctrl+,`). Those take effect immediately, without a restart:
 
-| In Settings                          | Variable                           |
-| ------------------------------------ | ---------------------------------- |
-| Vision server URL, model, timeout    | `OPENAI_API_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TIMEOUT` |
-| Draft threshold                      | `DRAFT_CAPTION_THRESHOLD`          |
-| ComfyUI URL                          | `COMFY_BASE_URL`                   |
-| AI-Toolkit URL                       | `OSTRIS_BASE_URL`                  |
-| Thumbnail cache limit                | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` |
+| In Settings                        | Variables                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------- |
+| Vision model > Server              | `OPENAI_API_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MAX_TOKENS`, `OPENAI_TOP_K`, `DRAFT_CAPTION_THRESHOLD` |
+| Vision model > Sampling            | The ten `OPENAI_THINKING_*` and `OPENAI_INSTRUCT_*` variables                 |
+| Vision model > Media input         | `IMAGE_MAX_PIXELS` and the four `VIDEO_*` budget variables                    |
+| Integrations                       | `COMFY_BASE_URL`, `OSTRIS_BASE_URL`                                           |
+| Storage                            | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB`                                            |
+| Data & history                     | `DATAFORGE_JOB_HISTORY_DAYS`, `DATAFORGE_NOTIFICATION_HISTORY_DAYS`           |
+
+The API key is write-only in Settings: it is saved but never shown again, and **Test connection** uses it without displaying it. `OPENAI_TIMEOUT` and the other variables on this page stay `.env`-only.
 
 A running job keeps the server it started with; the change applies from the next job. **Reset** in Settings removes the saved value, so the variable or the default applies again.
 
@@ -154,6 +157,8 @@ Min-p and top-k are passed as server-specific extras (`extra_body`). The repeat 
 | `DATAFORGE_DB_PATH`                | `backend/data/app.db`      | SQLite file for settings and job history                                     |
 | `DATAFORGE_THUMBNAIL_CACHE`        | `backend/data/thumbnails/` | Thumbnail cache folder                                                       |
 | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | `2048`                     | Cache size limit, with the least recently used thumbnails removed first; `0` means no limit |
+| `DATAFORGE_JOB_HISTORY_DAYS`       | `30`                       | Days to keep finished jobs; running jobs are never removed. `0` keeps everything |
+| `DATAFORGE_NOTIFICATION_HISTORY_DAYS` | `3`                     | Days to keep notifications, on top of the 50 most recent that the panel shows. `0` keeps everything |
 | `DATAFORGE_LOG_LEVEL`              | `INFO`                     | Console verbosity, any standard level such as `DEBUG` or `WARNING`; unknown names use `INFO` |
 
 Folders for the database and cache are created as needed. Launcher and developer variables (`DATAFORGE_PYTHON`, `DATAFORGE_RELOAD`, `DATAFORGE_DISABLE_DOTENV`) are covered in [Getting started](getting-started.md#linux-and-macos) and [Development](development.md#development-variables).
@@ -208,6 +213,6 @@ AI-Toolkit reads the dataset from the path it is given, and its config decides w
 
 **Long videos come back with empty captions.** DataForge logs `api_error`, while the server reports success (`finish_reason=stop`) with zero tokens. The vision encoder ran short of VRAM and silently truncated the request. A prompt-token count far below a successful run of the same file is the telltale sign. Free VRAM with a smaller quant or context, reload the model server, then shrink frames as described in [Media input budgets](#media-input-budgets).
 
-**The model server is unreachable.** Check that it is running, that the URL ends in `/v1`, that the key is accepted, and that `OPENAI_MODEL` matches an id the server exposes. Raise `OPENAI_TIMEOUT` only if the server responds but is slow.
+**The model server is unreachable.** Use **Test connection** under **Settings > Vision model > Server**: it tries the address and key as typed, before you save, and lists the model ids the server reports. Otherwise, check that it is running, that the URL ends in `/v1`, that the key is accepted, and that `OPENAI_MODEL` matches an id the server exposes. Raise `OPENAI_TIMEOUT` only if the server responds but is slow.
 
 For ComfyUI and AI-Toolkit, see [ComfyUI troubleshooting](comfyui.md#troubleshooting) and [AI-Toolkit troubleshooting](ai-toolkit.md#troubleshooting).

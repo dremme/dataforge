@@ -47,6 +47,10 @@ export function readRecentFolderPaths(): string[] {
   return dedupeRecentFolders(readRecentFoldersRaw());
 }
 
+export function clearRecentFolders(): void {
+  writeStoredJson(RECENT_FOLDERS_KEY, []);
+}
+
 export function restoreRecentFolders(paths: string[]): void {
   writeRecentFolders(paths);
 }

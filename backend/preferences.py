@@ -84,6 +84,13 @@ class FolderScopedPreference[T: BaseModel]:
             payload = envelope.latest
         return self._model() if payload is None else validate_or_salvage(self._model, payload)
 
+    def folder_keys(self) -> set[str]:
+        return set(self._envelope.get().by_folder)
+
+    def forget_folders(self) -> None:
+        """Keeps ``latest``, so a folder opened afterwards still starts from the last choices."""
+        self._envelope.update(by_folder={})
+
     def latest(self) -> T:
         payload = self._envelope.get().latest
         return self._model() if payload is None else validate_or_salvage(self._model, payload)

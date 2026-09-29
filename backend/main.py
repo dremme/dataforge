@@ -13,6 +13,7 @@ from automation.jobs import job_manager
 from db import init_db
 from external_jobs_feed import run_external_jobs_feed
 from folder_watch import run_folder_watch_feed
+from history_retention import run_history_retention
 from logging_config import configure_logging
 from routes import router
 from server_settings import get_cors_origins
@@ -31,16 +32,19 @@ async def lifespan(_app: FastAPI):
     prune = asyncio.create_task(asyncio.to_thread(prune_thumbnail_cache))
     external_jobs = asyncio.create_task(run_external_jobs_feed())
     folder_watch = asyncio.create_task(run_folder_watch_feed())
+    retention = asyncio.create_task(run_history_retention())
 
     try:
         yield
     finally:
         # Bound wait: prune walks the cache in a thread and cancel does not interrupt it.
-        for task in (external_jobs, folder_watch, prune):
+        for task in (external_jobs, folder_watch, retention, prune):
             task.cancel()
         with suppress(asyncio.TimeoutError):
             await asyncio.wait_for(
-                asyncio.gather(external_jobs, folder_watch, prune, return_exceptions=True),
+                asyncio.gather(
+                    external_jobs, folder_watch, retention, prune, return_exceptions=True
+                ),
                 timeout=1.0,
             )
 

@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { formatApiError, isAbortError } from "@/shared/api/http";
-import { iconFolder, iconHardDrive, iconTrash2 } from "@/shared/icons";
+import { iconHardDrive, iconTrash2 } from "@/shared/icons";
 import { formatCount, formatFileSize } from "@/shared/lib/format";
-import type { AppSettingsResponse, ThumbnailCacheStats } from "@/shared/types";
-import { DialogButton } from "@/shared/ui/Dialog";
+import type { ThumbnailCacheStats } from "@/shared/types";
 import { fetchThumbnailCacheStats } from "../api/settings";
 import { useClearThumbnailCache } from "../hooks/useClearThumbnailCache";
+import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
 
 type StatsState =
@@ -14,14 +14,13 @@ type StatsState =
   | { status: "ready"; stats: ThumbnailCacheStats };
 
 interface StorageSectionProps {
-  settings: AppSettingsResponse;
   /** Measuring walks the whole cache, so it waits until the section is first shown. */
   visible: boolean;
   disabled: boolean;
   children: ReactNode;
 }
 
-export function StorageSection({ settings, visible, disabled, children }: StorageSectionProps) {
+export function StorageSection({ visible, disabled, children }: StorageSectionProps) {
   const [state, setState] = useState<StatsState>({ status: "idle" });
   const { clearing, clear } = useClearThumbnailCache();
   const status = state.status;
@@ -48,57 +47,37 @@ export function StorageSection({ settings, visible, disabled, children }: Storag
   const measuring = state.status === "idle" ? "Measuring..." : null;
 
   return (
-    <>
-      <SettingsGroup
-        title="Thumbnail cache"
-        icon={iconHardDrive}
-        hint="Recreated as you browse. Past the limit, the least recently used go first; 0 means no limit."
-        action={
-          <DialogButton
-            label="Clear cache"
-            variant="secondary"
-            icon={iconTrash2}
-            busy={clearing}
-            disabled={disabled || !stats || stats.file_count === 0}
-            onClick={() => void handleClear()}
-          />
-        }
-      >
-        {state.status === "failed" ? (
-          <p className="dialog__error" role="alert">
-            {state.message}
-          </p>
-        ) : (
-          <dl className="settings-stats" role="status">
-            <div className="settings-stats__tile">
-              <dt>Thumbnails</dt>
-              <dd>{stats ? formatCount(stats.file_count) : measuring}</dd>
-            </div>
-            <div className="settings-stats__tile">
-              <dt>On disk</dt>
-              <dd>{stats ? formatFileSize(stats.size_bytes) : measuring}</dd>
-            </div>
-          </dl>
-        )}
-        {children}
-      </SettingsGroup>
-
-      <SettingsGroup title="Locations" icon={iconFolder}>
-        <dl className="settings-paths">
-          <dt>Database</dt>
-          <dd>
-            <span>{settings.database_path}</span>
-          </dd>
-          <dt>Cache folder</dt>
-          <dd>
-            <span>{stats?.directory ?? "..."}</span>
-          </dd>
-          <dt>.env file</dt>
-          <dd>
-            <span>{settings.env_file ?? "None loaded"}</span>
-          </dd>
+    <SettingsGroup
+      title="Thumbnail cache"
+      icon={iconHardDrive}
+      hint="Recreated as you browse. Past the limit, the least recently used go first; 0 means no limit."
+      action={
+        <SettingsActionButton
+          label="Clear cache"
+          icon={iconTrash2}
+          busy={clearing}
+          disabled={disabled || !stats || stats.file_count === 0}
+          onClick={() => void handleClear()}
+        />
+      }
+    >
+      {state.status === "failed" ? (
+        <p className="dialog__error" role="alert">
+          {state.message}
+        </p>
+      ) : (
+        <dl className="settings-stats" role="status">
+          <div className="settings-stats__tile">
+            <dt>Thumbnails</dt>
+            <dd>{stats ? formatCount(stats.file_count) : measuring}</dd>
+          </div>
+          <div className="settings-stats__tile">
+            <dt>On disk</dt>
+            <dd>{stats ? formatFileSize(stats.size_bytes) : measuring}</dd>
+          </div>
         </dl>
-      </SettingsGroup>
-    </>
+      )}
+      {children}
+    </SettingsGroup>
   );
 }

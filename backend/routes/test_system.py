@@ -57,5 +57,24 @@ class VisionLlmInfoEndpointTests(unittest.TestCase):
         self.assertEqual(response.json(), {"model": "qwen38"})
 
 
+class AboutEndpointTests(unittest.TestCase):
+    def test_reports_the_version_and_where_ffmpeg_came_from(self) -> None:
+        with patch("about.locate_ffmpeg", return_value=("/opt/ffmpeg/bin/ffmpeg", "path")):
+            body = client.get("/api/system/about").json()
+
+        self.assertRegex(body["version"], r"^\d+\.\d+\.\d+")
+        self.assertEqual(body["ffmpeg_path"], "/opt/ffmpeg/bin/ffmpeg")
+        self.assertEqual(body["ffmpeg_source"], "path")
+        self.assertTrue(body["database_path"])
+        self.assertTrue(body["workflows_dir"])
+
+    def test_says_so_when_ffmpeg_is_missing(self) -> None:
+        with patch("about.locate_ffmpeg", return_value=None):
+            body = client.get("/api/system/about").json()
+
+        self.assertIsNone(body["ffmpeg_path"])
+        self.assertIsNone(body["ffmpeg_source"])
+
+
 if __name__ == "__main__":
     unittest.main()

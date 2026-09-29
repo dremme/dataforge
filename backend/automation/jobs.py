@@ -567,6 +567,15 @@ class JobManager:
 
         return deleted_store or had_memory
 
+    def prune_finished(self, days: int) -> int:
+        with self._lock:
+            pruned = jobs_store.prune_finished_jobs(days)
+            for job_id in pruned:
+                self._jobs.pop(job_id, None)
+                self._cancel_flags.pop(job_id, None)
+                self._published.pop(job_id, None)
+        return len(pruned)
+
     def delete_all_jobs(self) -> int:
         with self._lock:
             for job_id, job in list(self._jobs.items()):

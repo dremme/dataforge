@@ -35,7 +35,6 @@ from automation.verify_captions import (
 from automation.vision import (
     FRAME_ERROR,
     IMAGE_MAX_PIXELS,
-    IMAGE_MAX_PIXELS_VAR,
     VIDEO_KEYFRAME_COUNT,
     MediaFrames,
     MediaLoadError,
@@ -506,7 +505,7 @@ class VerifyCaptionsApiTests(unittest.TestCase):
             frames = [Image.new("RGB", (2000, 2000), color="blue")]
 
             fake_client, captured = _make_fake_verify_client()
-            with patch.dict(os.environ, {IMAGE_MAX_PIXELS_VAR: "400000"}):
+            with patch.dict(os.environ, {"IMAGE_MAX_PIXELS": "400000"}):
                 verify_caption(
                     fake_client,
                     media,

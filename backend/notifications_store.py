@@ -140,6 +140,16 @@ def mark_all_read() -> None:
         conn.commit()
 
 
+def prune_notifications(days: int) -> int:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM notifications WHERE julianday(created_at) < julianday('now', ?)",
+            (f"-{days} days",),
+        )
+        conn.commit()
+    return cursor.rowcount
+
+
 def delete_all_notifications() -> int:
     with get_connection() as conn:
         cursor = conn.execute("DELETE FROM notifications")

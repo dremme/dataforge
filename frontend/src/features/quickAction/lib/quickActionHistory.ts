@@ -44,6 +44,6 @@ export function touchRecentAction(id: string): void {
   writeStoredJson(RECENT_ACTIONS_KEY, next);
 }
 
-export function clearRecentActionsForTests(): void {
+export function clearRecentActions(): void {
   writeStoredJson(RECENT_ACTIONS_KEY, []);
 }

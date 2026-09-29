@@ -4,7 +4,11 @@ import json
 import unittest
 from urllib.parse import quote
 
-from automation_settings import AUTOMATION_SETTINGS_KEY_PREFIX, JOB_SETTINGS_MODELS
+from automation_settings import (
+    AUTOMATION_SETTINGS_KEY_PREFIX,
+    JOB_SETTINGS_MODELS,
+    remember_job_settings,
+)
 from db import get_connection
 from gallery_display_settings import GALLERY_DISPLAY_SETTINGS_KEY
 from routes._test_client import client
@@ -213,3 +217,48 @@ class AutomationPreferencesEndpointTests(unittest.TestCase):
         response = client.put("/api/preferences/automation", json={})
 
         self.assertEqual(response.status_code, 405)
+
+
+class RememberedDataEndpointTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM preferences WHERE key LIKE ? OR key = ?",
+                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%", GALLERY_DISPLAY_SETTINGS_KEY),
+            )
+            conn.commit()
+
+    def _remember_two_folders(self) -> None:
+        watermark = JOB_SETTINGS_MODELS["watermark"].model_validate({"text": "sample"})
+        for folder in (r"C:\datasets\sample", r"C:\datasets\sample_train_v1"):
+            remember_job_settings("watermark", watermark, folder_path=folder)
+            client.put(
+                "/api/preferences/gallery-display", json={"mode": "list", "folder_path": folder}
+            )
+
+    def test_counts_the_folders_each_kind_remembers(self) -> None:
+        self._remember_two_folders()
+
+        body = client.get("/api/preferences/remembered").json()
+
+        self.assertEqual(body, {"job_option_folders": 2, "display_mode_folders": 2})
+
+    def test_forgetting_job_options_keeps_the_latest_choices(self) -> None:
+        self._remember_two_folders()
+
+        body = client.delete("/api/preferences/remembered/job-options").json()
+
+        self.assertEqual(body, {"job_option_folders": 0, "display_mode_folders": 2})
+        fresh = client.get(f"/api/preferences/automation?path={quote(r'C:\Photos')}").json()
+        self.assertEqual(fresh["watermark"]["text"], "sample")
+
+    def test_forgetting_display_modes_returns_folders_to_the_default(self) -> None:
+        self._remember_two_folders()
+
+        body = client.delete("/api/preferences/remembered/display-modes").json()
+
+        self.assertEqual(body, {"job_option_folders": 2, "display_mode_folders": 0})
+        mode = client.get(
+            f"/api/preferences/gallery-display?path={quote(r'C:\datasets\sample')}"
+        ).json()["mode"]
+        self.assertEqual(mode, "large")

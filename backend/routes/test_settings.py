@@ -19,7 +19,7 @@ class AppSettingsEndpointTests(unittest.TestCase):
 
         self.assertEqual(body["comfy_base_url"]["source"], "env")
         self.assertEqual(body["ai_toolkit_base_url"]["value"], "http://127.0.0.1:8675")
-        self.assertEqual(body["database_path"], os.environ["DATAFORGE_DB_PATH"])
+        self.assertNotIn("database_path", body)
 
     def test_saves_and_resets_a_setting(self) -> None:
         saved = client.put("/api/settings", json={"vision_model": "model-b"})
@@ -44,13 +44,45 @@ class AppSettingsEndpointTests(unittest.TestCase):
 
         self.assertEqual(json.dumps(body["draft_caption_threshold"]["value"]), "300")
         self.assertEqual(json.dumps(body["thumbnail_cache_max_mb"]["fallback"]), "2048")
-        self.assertEqual(json.dumps(body["vision_timeout_seconds"]["value"]), "600.0")
+        self.assertEqual(json.dumps(body["thinking_top_p"]["value"]), "0.95")
+
+    def test_number_settings_carry_the_range_they_accept(self) -> None:
+        body = client.get("/api/settings").json()
+
+        self.assertEqual(body["thinking_temperature"]["minimum"], 0)
+        self.assertEqual(body["thinking_temperature"]["maximum"], 2)
+        self.assertEqual(body["instruct_top_p"]["minimum"], 0.01)
+        self.assertIsNone(body["vision_max_tokens"]["maximum"])
+        self.assertNotIn("minimum", body["vision_model"])
 
     def test_an_unusable_value_is_refused_with_a_readable_reason(self) -> None:
         response = client.put("/api/settings", json={"comfy_base_url": "gpu-box:8188"})
 
         self.assertEqual(response.status_code, 422)
         self.assertIn("ComfyUI URL", response.json()["detail"])
+
+    def test_a_probe_of_an_unusable_url_is_refused(self) -> None:
+        response = client.post(
+            "/api/settings/probe", json={"service": "comfy", "base_url": "localhost:9000"}
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("URL must be", response.json()["detail"])
+
+    def test_a_probe_reports_an_unreachable_service(self) -> None:
+        response = client.post(
+            "/api/settings/probe", json={"service": "ai_toolkit", "base_url": "http://127.0.0.1:1"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["reachable"])
+
+    def test_changing_retention_prunes_right_away(self) -> None:
+        with patch("routes.settings.prune_history") as prune:
+            client.put("/api/settings", json={"job_history_days": 7})
+            client.put("/api/settings", json={"vision_model": "model-b"})
+
+        self.assertEqual(prune.call_count, 1)
 
     def test_an_unknown_reset_key_is_refused(self) -> None:
         response = client.put("/api/settings", json={"reset": ["log_level"]})

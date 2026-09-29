@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Query
 
+import automation_settings
+import gallery_display_settings
 from automation_settings import get_automation_settings
 from gallery_display_settings import (
     get_gallery_display_settings,
@@ -9,6 +11,7 @@ from schemas import (
     AutomationSettingsResponse,
     GalleryDisplaySettingsResponse,
     GalleryDisplaySettingsUpdate,
+    RememberedDataResponse,
     UiSettingsResponse,
     UiSettingsUpdate,
 )
@@ -51,3 +54,27 @@ def read_automation_settings(
 ) -> AutomationSettingsResponse:
     """Read-only on purpose: settings are stored by the job-start routes themselves."""
     return get_automation_settings(folder_path=path)
+
+
+def _remembered() -> RememberedDataResponse:
+    return RememberedDataResponse(
+        job_option_folders=automation_settings.remembered_folder_count(),
+        display_mode_folders=gallery_display_settings.remembered_folder_count(),
+    )
+
+
+@router.get("/preferences/remembered", response_model=RememberedDataResponse)
+def read_remembered_data() -> RememberedDataResponse:
+    return _remembered()
+
+
+@router.delete("/preferences/remembered/job-options", response_model=RememberedDataResponse)
+def forget_job_options() -> RememberedDataResponse:
+    automation_settings.forget_folder_settings()
+    return _remembered()
+
+
+@router.delete("/preferences/remembered/display-modes", response_model=RememberedDataResponse)
+def forget_display_modes() -> RememberedDataResponse:
+    gallery_display_settings.forget_folder_modes()
+    return _remembered()

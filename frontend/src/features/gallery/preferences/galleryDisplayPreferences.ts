@@ -35,6 +35,10 @@ function readCache(): ModeCache {
   return readStoredJson<ModeCache>(CACHE_KEY, parseCache, {});
 }
 
+export function forgetCachedDisplayModes(): void {
+  writeStoredJson(CACHE_KEY, {});
+}
+
 export function readCachedDisplayMode(folderPath: string | undefined): GalleryDisplayMode | null {
   if (!folderPath) return null;
   return readCache()[cacheKeyFor(folderPath)] ?? null;

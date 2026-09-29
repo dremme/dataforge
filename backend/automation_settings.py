@@ -48,9 +48,11 @@ __all__ = [
     "COMFY_PROCESS_JOB_TYPE",
     "JOB_SETTINGS_MODELS",
     "automation_settings_key",
+    "forget_folder_settings",
     "get_automation_settings",
     "preference_folder_key",
     "remember_job_settings",
+    "remembered_folder_count",
 ]
 
 
@@ -135,3 +137,16 @@ def remember_job_settings(job_type: str, body: BaseModel, *, folder_path: str) -
 
     settings = model.model_validate(body.model_dump(include=set(model.model_fields)))
     _STORES[job_type].save(preference_folder_key(folder_path), settings)
+
+
+def _folder_stores() -> list[FolderScopedPreference]:
+    return [*_STORES.values(), _COMFY_FOLDER_STORE]
+
+
+def remembered_folder_count() -> int:
+    return len(set().union(*(store.folder_keys() for store in _folder_stores())))
+
+
+def forget_folder_settings() -> None:
+    for store in _folder_stores():
+        store.forget_folders()
