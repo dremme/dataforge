@@ -7,7 +7,7 @@ Set-Location $repoRoot
 git config core.hooksPath .githooks
 
 Write-Host "Installed git hooks from .githooks/"
-Write-Host "Pre-commit will auto-fix lint/format issues, then run backend Ruff, frontend ESLint, and Prettier."
+Write-Host "Pre-commit will auto-fix lint/format issues, run backend Ruff, frontend ESLint, and Prettier, then bump the patch version."
 Write-Host ""
 Write-Host "Dependencies required (from project root):"
 Write-Host "  backend: backend\.venv\Scripts\pip install -r backend\requirements.txt -r backend\requirements-dev.txt"

@@ -19,4 +19,5 @@ if [ -z "$PYTHON" ]; then
   exit 1
 fi
 
-exec "$PYTHON" scripts/run_checks.py --fix --lint-only
+"$PYTHON" scripts/run_checks.py --fix --lint-only
+exec "$PYTHON" scripts/bump_version.py

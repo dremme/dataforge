@@ -101,9 +101,13 @@ It runs lint, formatting, comment checks, type checks, and tests for both halves
 | Frontend lint / format  | `cd frontend && npm run lint` / `npm run format`                             |
 | Frontend tests          | `cd frontend && npm test`                                                    |
 | End-to-end tests        | `cd frontend && npm run test:e2e`, after `npx playwright install chromium` once |
-| Install git hooks       | `scripts/install-git-hooks.ps1` or `.sh`; the pre-commit hook fixes lint and formatting |
+| Install git hooks       | `scripts/install-git-hooks.ps1` or `.sh`; the pre-commit hook fixes lint and formatting, then bumps the version |
 
 The end-to-end suite drives Chromium against its own backend on port 18090 and Vite on 18091, with a temporary workspace and a stand-in vision model. It needs no running servers or real model, and currently covers auto-captioning an image and a video. CI runs it separately from `run_checks.py`.
+
+## Versioning
+
+The version shown under Settings → About is `version` in `backend/pyproject.toml`, and nothing else carries one. The pre-commit hook bumps its patch number in every commit. For a minor or major release, edit it by hand and stage it: the hook keeps any staged version that differs from the last commit's. Commits made with `--no-verify` are not bumped, and `--amend` bumps again.
 
 ## Testing Unix launcher changes
 
