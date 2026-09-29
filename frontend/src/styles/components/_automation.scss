@@ -74,7 +74,7 @@
   }
 
   &__disclosure-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     transition: transform var(--transition);
     transform: rotate(-90deg);
 

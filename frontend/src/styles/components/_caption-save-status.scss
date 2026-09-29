@@ -21,7 +21,7 @@
   }
 
   &__icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     flex-shrink: 0;
 
     &--spin {

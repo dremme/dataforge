@@ -44,7 +44,7 @@
   }
 
   &__reset-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__close {

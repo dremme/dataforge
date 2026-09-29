@@ -63,6 +63,8 @@ export const GalleryCard = memo(function GalleryCard({
     onSelect(item.path);
   };
 
+  const compactBadges = displayMode === "small";
+
   return (
     <button
       type="button"
@@ -102,16 +104,35 @@ export const GalleryCard = memo(function GalleryCard({
             Open
           </span>
         </span>
-        {itemIsVideo && <CardBadge icon={iconVideo} label="Video" variant="video" />}
-        {itemIsGif && <CardBadge icon={iconFileImage} label="GIF" variant="gif" />}
+        {itemIsVideo && (
+          <CardBadge icon={iconVideo} compact={compactBadges} label="Video" variant="video" />
+        )}
+        {itemIsGif && (
+          <CardBadge icon={iconFileImage} compact={compactBadges} label="GIF" variant="gif" />
+        )}
         {item.has_issue_file && (
-          <CardBadge icon={iconMessageWarning} label="Issue" variant="issue" />
+          <CardBadge
+            icon={iconMessageWarning}
+            compact={compactBadges}
+            label="Issue"
+            variant="issue"
+          />
         )}
         {item.has_duplicate_file && (
-          <CardBadge icon={iconFiles} label="Duplicate" variant="duplicate" />
+          <CardBadge
+            icon={iconFiles}
+            compact={compactBadges}
+            label="Duplicate"
+            variant="duplicate"
+          />
         )}
         {item.has_candidate && (
-          <CardBadge icon={iconScanSquare} label="Candidate" variant="candidate" />
+          <CardBadge
+            icon={iconScanSquare}
+            compact={compactBadges}
+            label="Candidate"
+            variant="candidate"
+          />
         )}
       </div>
       <div className="card__body">

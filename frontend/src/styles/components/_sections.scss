@@ -63,7 +63,7 @@
 
 .section-header__count-icon {
   @include icon-block;
-  @include icon-size(0.75rem);
+  @include icon-size-sm;
   opacity: var(--icon-muted-strong);
 }
 

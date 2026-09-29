@@ -15,7 +15,7 @@ import { useGallerySession } from "@/features/gallery/hooks/useGallerySession";
 import { useDuplicateResolverOverlay } from "@/features/gallery/hooks/useDuplicateResolverOverlay";
 import { useCandidateReviewOverlay } from "@/features/gallery/hooks/useCandidateReviewOverlay";
 import { useSidecarSweep } from "@/features/gallery/hooks/useSidecarSweep";
-import { useAcceptAllCandidates } from "@/features/gallery/hooks/useAcceptAllCandidates";
+import { useSettleAllCandidates } from "@/features/gallery/hooks/useSettleAllCandidates";
 import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
@@ -160,7 +160,7 @@ export function useAppWorkspace() {
   );
 
   const candidateReview = { ...candidateReviewOverlay, reviewGalleryItemCandidate };
-  const acceptAllCandidates = useAcceptAllCandidates({
+  const settleAllCandidates = useSettleAllCandidates({
     folderLabel,
     folderItemCount: items.length,
     candidatePaths: candidateSourcePaths,
@@ -168,7 +168,7 @@ export function useAppWorkspace() {
       selection.selectionMode && gallery.visibleSelectedCount > 0
         ? gallery.visibleSelectedPaths
         : null,
-    onAccepted: refreshFolder,
+    onSettled: refreshFolder,
   });
 
   // Set from useAutomationHost's return below, which in turn needs these handlers.
@@ -275,7 +275,7 @@ export function useAppWorkspace() {
     onSelectAll: gallery.handleSelectAllPaths,
     onInvertSelection: gallery.handleInvertSelection,
     sidecarSweep,
-    acceptAllCandidates,
+    settleAllCandidates,
     filters: quickActionFilters,
     onOpenSettings: settings.openSettings,
   });
@@ -301,7 +301,7 @@ export function useAppWorkspace() {
     gallery,
     selectionActions,
     sidecarSweep,
-    acceptAllCandidates,
+    settleAllCandidates,
     automation,
     quickAction,
     statsDrawer,

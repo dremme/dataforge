@@ -50,7 +50,7 @@
   }
 
   &__note-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     flex-shrink: 0;
   }
 
@@ -183,7 +183,7 @@
   }
 
   &__row-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     flex-shrink: 0;
     color: var(--text-subtle);
   }
@@ -244,6 +244,6 @@
   }
 
   &__action-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 }

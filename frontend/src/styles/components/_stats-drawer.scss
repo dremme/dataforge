@@ -132,7 +132,7 @@
 
     &-icon {
       flex-shrink: 0;
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
   }
 
@@ -188,7 +188,7 @@
 
     &-icon {
       flex-shrink: 0;
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
 
     &--warning {

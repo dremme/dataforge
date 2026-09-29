@@ -46,14 +46,14 @@
 
       &--tweak {
         .code-editor-wrapper__toolbar-button {
-          --icon-size: #{$icon-size-sm};
+          @include icon-scope-sm;
         }
       }
     }
 
     &-button {
       @include icon-btn-sm;
-      --icon-size: #{$icon-size-sm};
+      @include icon-scope-sm;
     }
   }
 }

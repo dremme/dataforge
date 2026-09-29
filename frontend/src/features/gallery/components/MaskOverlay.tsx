@@ -284,16 +284,20 @@ export function MaskOverlay({
       {masks.map((mask, index) => {
         const selected = interactive && mask.id === selectedId;
         const name = `${modeLabel(mask.mode)} region ${index + 1}`;
+        const paintedWidth = box.width * mask.rect.width;
+        const paintedHeight = box.height * mask.rect.height;
         const regionStyle = {
           "--mask-x": `${mask.rect.x * 100}%`,
           "--mask-y": `${mask.rect.y * 100}%`,
           "--mask-w": `${mask.rect.width * 100}%`,
           "--mask-h": `${mask.rect.height * 100}%`,
           // Per region: the pin needs this rect's own painted size, not the overlay's.
-          "--mask-readout-transform": readoutTransform(
+          "--mask-readout-transform": readoutTransform(orientation, paintedWidth, paintedHeight),
+          "--mask-remove-transform": readoutTransform(
             orientation,
-            box.width * mask.rect.width,
-            box.height * mask.rect.height,
+            paintedWidth,
+            paintedHeight,
+            "top-right",
           ),
         } as CSSProperties;
 

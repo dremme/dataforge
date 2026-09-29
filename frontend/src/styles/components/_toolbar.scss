@@ -165,7 +165,7 @@ $toolbar-search-width-max: 22rem;
       }
 
       &-icon {
-        @include icon-size(var(--icon-size-sm));
+        @include icon-size-sm;
       }
     }
 
@@ -177,7 +177,7 @@ $toolbar-search-width-max: 22rem;
       }
 
       &-icon {
-        @include icon-size(var(--icon-size-sm));
+        @include icon-size-sm;
       }
     }
   }

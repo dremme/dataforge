@@ -4,13 +4,12 @@ import {
   getCachedFolderFavorites,
   refreshFolderFavoritesInBackground,
 } from "@/features/folder/lib/folderFavorites";
-import type { AcceptAllCandidatesActions } from "@/features/gallery/hooks/useAcceptAllCandidates";
+import type { SettleAllCandidatesActions } from "@/features/gallery/hooks/useSettleAllCandidates";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSweep";
 import { readRecentFolderPaths } from "@/features/folder/lib/folderPreferences";
 import { fetchFolderRoots, openFolderInExplorer } from "@/features/folder/api/folders";
 import { useJobs } from "@/features/jobs/context/JobsContext";
-import { useClearThumbnailCache } from "@/features/settings/hooks/useClearThumbnailCache";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import { resolveTheme, setThemePreference, useThemePreference } from "@/shared/theme/theme";
@@ -49,7 +48,7 @@ interface UseQuickActionHostOptions {
   onSelectAll: () => void;
   onInvertSelection: () => void;
   sidecarSweep: SidecarSweepActions;
-  acceptAllCandidates: AcceptAllCandidatesActions;
+  settleAllCandidates: SettleAllCandidatesActions;
   filters: Omit<FilterCommandOptions, "hasFolder">;
   onOpenSettings: () => void;
 }
@@ -69,14 +68,13 @@ export function useQuickActionHost({
   onSelectAll,
   onInvertSelection,
   sidecarSweep,
-  acceptAllCandidates,
+  settleAllCandidates,
   filters,
   onOpenSettings,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
   const { jobs, externalJobs } = useJobs();
   const notify = useNotify();
-  const { clearing: clearingThumbnails, clear: clearThumbnails } = useClearThumbnailCache();
   const themePreference = useThemePreference();
 
   const [favorites, setFavorites] = useState<FolderFavorite[]>(() => getCachedFolderFavorites());
@@ -164,11 +162,12 @@ export function useQuickActionHost({
           candidateCount: panel.candidateCount ?? 0,
           onReviewCandidates: panel.onReviewCandidates,
         },
-        acceptAllCandidates: {
-          count: acceptAllCandidates.count,
-          fromSelection: acceptAllCandidates.fromSelection,
-          busy: acceptAllCandidates.busy,
-          onAccept: acceptAllCandidates.openConfirm,
+        settleAllCandidates: {
+          count: settleAllCandidates.count,
+          fromSelection: settleAllCandidates.fromSelection,
+          busy: settleAllCandidates.busy,
+          onAccept: () => settleAllCandidates.openConfirm("accept"),
+          onDelete: () => settleAllCandidates.openConfirm("delete"),
         },
         sidecarSweep: {
           counts: sidecarSweep.counts,
@@ -188,16 +187,11 @@ export function useQuickActionHost({
         },
         app: {
           theme: resolveTheme(themePreference),
-          clearingThumbnails,
           onOpenSettings,
           onSetTheme: setThemePreference,
-          onClearThumbnailCache: () => void clearThumbnails(),
         },
       }),
     [
-      acceptAllCandidates,
-      clearThumbnails,
-      clearingThumbnails,
       copyFolderPath,
       folder,
       folderNotFound,
@@ -220,6 +214,7 @@ export function useQuickActionHost({
       selectedCount,
       selection,
       selectionMode,
+      settleAllCandidates,
       sidecarSweep,
       themePreference,
       visibleCount,

@@ -25,7 +25,7 @@
 
   &__icon {
     @include icon-block;
-    @include icon-size(0.8125rem);
+    @include icon-size(0.8125rem, $icon-stroke-sm);
     flex-shrink: 0;
     color: var(--accent);
   }
@@ -627,7 +627,7 @@
   }
 
   &__template-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__template-note {
@@ -672,7 +672,7 @@
     flex: none;
 
     &-icon {
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
   }
 
@@ -883,7 +883,7 @@
   }
 
   &__tree-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__tree-select {

@@ -75,6 +75,21 @@ describe("GalleryCard", () => {
     expect(badge).toHaveTextContent("Candidate");
   });
 
+  it("shrinks badges to their icon on small cards", () => {
+    const { container } = render(
+      <GalleryCard
+        item={{ ...captionedItem, has_candidate: true }}
+        onSelect={vi.fn()}
+        displayMode="small"
+      />,
+    );
+
+    const badge = container.querySelector(".card__badge--candidate");
+    expect(badge).toHaveClass("card__badge--compact");
+    expect(badge?.textContent).toBe("");
+    expect(badge?.querySelector(".card__badge-icon")).toBeInTheDocument();
+  });
+
   describe("hover preview", () => {
     let play: ReturnType<typeof vi.fn>;
     let pause: ReturnType<typeof vi.fn>;

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { folderLeafName } from "@/features/folder/lib/folderPath";
-import { iconFilter, iconFilterX, iconScanSquare } from "@/shared/icons";
+import { iconFilter, iconFilterX, iconScanSquare, iconTrash2 } from "@/shared/icons";
 import type { ExternalOstrisJob, Job } from "@/shared/types";
 import type { QuickActionItem, QuickActionSection } from "../types";
 import {
-  buildAcceptAllCandidatesItems,
+  buildSettleAllCandidatesItems,
   buildAppCommandItems,
   buildCommandItems,
   buildFilterItems,
@@ -18,7 +18,7 @@ import {
   buildSidecarSweepItems,
   buildSubfolderItems,
   quickActionFolderId,
-  type AcceptAllCandidatesOptions,
+  type SettleAllCandidatesOptions,
   type CommandOptions,
   type FilterCommandOptions,
   type SelectionCommandOptions,
@@ -173,19 +173,17 @@ describe("buildFolderPathCommandItems", () => {
 });
 
 describe("buildAppCommandItems", () => {
-  const appItems = (clearingThumbnails = false, onSetTheme = vi.fn()) =>
+  const appItems = (onSetTheme = vi.fn()) =>
     buildAppCommandItems({
       theme: "dark",
-      clearingThumbnails,
       onOpenSettings: vi.fn(),
       onSetTheme,
-      onClearThumbnailCache: vi.fn(),
     });
 
   it.each([
     ["preferences", "cmd:settings"],
     ["port", "cmd:settings"],
-    ["purge", "cmd:clear-thumbnail-cache"],
+    ["thumbnail cache", "cmd:settings"],
     ["night mode", "cmd:toggle-theme"],
   ])("finds %j", (query, id) => {
     expect(idsFor(appItems(), query)).toEqual([id]);
@@ -193,18 +191,12 @@ describe("buildAppCommandItems", () => {
 
   it("offers the scheme that is not on screen", () => {
     const onSetTheme = vi.fn();
-    const toggle = appItems(false, onSetTheme).find((item) => item.id === "cmd:toggle-theme");
+    const toggle = appItems(onSetTheme).find((item) => item.id === "cmd:toggle-theme");
 
     toggle?.run();
 
     expect(toggle?.label).toBe("Switch to light theme");
     expect(onSetTheme).toHaveBeenCalledWith("light");
-  });
-
-  it("cannot clear the cache twice at once", () => {
-    const clear = appItems(true).find((item) => item.id === "cmd:clear-thumbnail-cache");
-
-    expect(clear?.disabled).toBe(true);
   });
 });
 
@@ -234,7 +226,13 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
       duplicateGroupCount: 0,
       candidateCount: 0,
     },
-    acceptAllCandidates: { count: 2, fromSelection: false, busy: false, onAccept: vi.fn() },
+    settleAllCandidates: {
+      count: 2,
+      fromSelection: false,
+      busy: false,
+      onAccept: vi.fn(),
+      onDelete: vi.fn(),
+    },
     sidecarSweep: { counts: { issue: 1, duplicate: 0 }, busy: false, onSweep: vi.fn() },
     selection: {
       selectionMode: false,
@@ -249,10 +247,8 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
     },
     app: {
       theme: "dark",
-      clearingThumbnails: false,
       onOpenSettings: vi.fn(),
       onSetTheme: vi.fn(),
-      onClearThumbnailCache: vi.fn(),
     },
     ...overrides,
   });
@@ -268,6 +264,7 @@ describe("buildCommandItems", () => {
       "cmd:refresh-folder",
       "cmd:resolve-issues",
       "cmd:accept-all-candidates",
+      "cmd:delete-all-candidates",
       "cmd:delete-issue-sidecars",
       "cmd:delete-duplicate-sidecars",
       "cmd:select-all",
@@ -280,7 +277,6 @@ describe("buildCommandItems", () => {
       "cmd:open-in-explorer",
       "cmd:settings",
       "cmd:toggle-theme",
-      "cmd:clear-thumbnail-cache",
     ]);
   });
 
@@ -291,7 +287,6 @@ describe("buildCommandItems", () => {
       "cmd:parent-folder",
       "cmd:settings",
       "cmd:toggle-theme",
-      "cmd:clear-thumbnail-cache",
     ]);
   });
 
@@ -305,7 +300,6 @@ describe("buildCommandItems", () => {
       "cmd:edit-sysprompt",
       "cmd:settings",
       "cmd:toggle-theme",
-      "cmd:clear-thumbnail-cache",
     ]);
   });
 
@@ -411,76 +405,104 @@ describe("buildSidecarSweepItems", () => {
   });
 });
 
-function acceptAllItems(overrides: Partial<AcceptAllCandidatesOptions> = {}) {
-  return buildAcceptAllCandidatesItems({
+function settleAllItems(overrides: Partial<SettleAllCandidatesOptions> = {}) {
+  return buildSettleAllCandidatesItems({
     hasFolder: true,
     count: 4,
     fromSelection: false,
     busy: false,
     onAccept: vi.fn(),
+    onDelete: vi.fn(),
     ...overrides,
   });
 }
 
-describe("buildAcceptAllCandidatesItems", () => {
+describe("buildSettleAllCandidatesItems", () => {
   it("offers nothing without a folder", () => {
-    expect(acceptAllItems({ hasFolder: false })).toEqual([]);
+    expect(settleAllItems({ hasFolder: false })).toEqual([]);
   });
 
-  it("offers one command under a stable id, counting what is waiting", () => {
-    const [item] = acceptAllItems();
+  it("offers accept and delete under stable ids, counting what is waiting", () => {
+    const [accept, remove] = settleAllItems();
 
-    expect(item).toMatchObject({
+    expect(accept).toMatchObject({
       id: "cmd:accept-all-candidates",
       section: "commands",
       label: "Accept all staged candidates",
       detail: "4 candidates waiting",
       disabled: false,
     });
+    expect(remove).toMatchObject({
+      id: "cmd:delete-all-candidates",
+      section: "commands",
+      label: "Delete all staged candidates",
+      detail: "4 candidates waiting",
+      disabled: false,
+    });
   });
 
-  it("wears the candidate icon every other candidate surface uses", () => {
-    expect(acceptAllItems()[0].icon).toBe(iconScanSquare);
+  it("wears the candidate icon to accept and the trash icon to delete", () => {
+    const [accept, remove] = settleAllItems();
+
+    expect(accept.icon).toBe(iconScanSquare);
+    expect(remove.icon).toBe(iconTrash2);
   });
 
   it("narrows to the selection when files are selected", () => {
-    const [item] = acceptAllItems({ count: 1, fromSelection: true });
+    const [accept, remove] = settleAllItems({ count: 1, fromSelection: true });
 
-    expect(item.label).toBe("Accept selected candidates");
-    expect(item.detail).toBe("1 candidate in the selection");
+    expect(accept.label).toBe("Accept selected candidates");
+    expect(remove.label).toBe("Delete selected candidates");
+    expect(remove.detail).toBe("1 candidate in the selection");
   });
 
-  it("is disabled when no selected file has a candidate", () => {
-    const [item] = acceptAllItems({ count: 0, fromSelection: true });
-
-    expect(item.disabled).toBe(true);
-    expect(item.detail).toBe("No candidates in the selection");
+  it.each([
+    ["no selected file has a candidate", { count: 0, fromSelection: true }],
+    ["nothing is waiting", { count: 0 }],
+    ["a batch is already running", { busy: true }],
+  ])("is disabled when %s", (_, overrides) => {
+    expect(settleAllItems(overrides).map((item) => item.disabled)).toEqual([true, true]);
   });
 
-  it("is disabled when nothing is waiting", () => {
-    const [item] = acceptAllItems({ count: 0 });
-
-    expect(item.disabled).toBe(true);
-    expect(item.detail).toBe("No candidates waiting");
+  it("says why when nothing can be settled", () => {
+    expect(settleAllItems({ count: 0, fromSelection: true })[0].detail).toBe(
+      "No candidates in the selection",
+    );
+    expect(settleAllItems({ count: 0 })[0].detail).toBe("No candidates waiting");
   });
 
-  it("is disabled while a batch is already running", () => {
-    expect(acceptAllItems({ busy: true })[0].disabled).toBe(true);
-  });
-
-  it("opens the confirmation instead of accepting", () => {
+  it("opens the matching confirmation instead of settling", () => {
     const onAccept = vi.fn();
-    const [item] = acceptAllItems({ onAccept });
+    const onDelete = vi.fn();
+    const [accept, remove] = settleAllItems({ onAccept, onDelete });
 
-    item.run();
+    remove.run();
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onAccept).not.toHaveBeenCalled();
 
+    accept.run();
     expect(onAccept).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["approve", "comfyui", "bulk", "upscaled", "apply"])("is found by %s", (query) => {
-    const ranked = rankQuickActionItems(acceptAllItems(), query);
+  it.each([
+    ["approve", "cmd:accept-all-candidates"],
+    ["apply", "cmd:accept-all-candidates"],
+    ["reject", "cmd:delete-all-candidates"],
+    ["discard", "cmd:delete-all-candidates"],
+    ["recycle bin", "cmd:delete-all-candidates"],
+  ])("finds %j", (query, id) => {
+    const ranked = rankQuickActionItems(settleAllItems(), query);
 
-    expect(flattenGroups(ranked).map((item) => item.id)).toEqual(["cmd:accept-all-candidates"]);
+    expect(flattenGroups(ranked).map((item) => item.id)).toEqual([id]);
+  });
+
+  it.each(["comfyui", "bulk", "upscaled"])("finds both by %s", (query) => {
+    const ranked = rankQuickActionItems(settleAllItems(), query);
+
+    expect(flattenGroups(ranked).map((item) => item.id)).toEqual([
+      "cmd:accept-all-candidates",
+      "cmd:delete-all-candidates",
+    ]);
   });
 });
 

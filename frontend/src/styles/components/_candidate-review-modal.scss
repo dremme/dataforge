@@ -156,7 +156,7 @@
   }
 
   &__meta-arrow {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     display: inline-block;
     margin: 0 0.375rem;
     color: var(--text-subtle);

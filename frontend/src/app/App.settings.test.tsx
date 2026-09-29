@@ -54,11 +54,11 @@ describe("App: settings", () => {
     expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
   });
 
-  it("clears the thumbnail cache from the quick action bar", async () => {
+  it("leads a thumbnail cache search in the quick action bar to settings", async () => {
     const user = await renderHome();
 
-    await runQuickAction(user, "clear thumbnail cache");
+    await runQuickAction(user, "thumbnail cache");
 
-    expect(await screen.findByText(/Cleared 1,200 thumbnails/)).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
   });
 });

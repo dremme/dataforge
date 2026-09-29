@@ -278,7 +278,7 @@
   }
 
   &__badge-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__badge {

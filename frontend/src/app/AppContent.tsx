@@ -29,7 +29,7 @@ export function AppContent() {
     duplicateResolver,
     candidateReview,
     sidecarSweep,
-    acceptAllCandidates,
+    settleAllCandidates,
   } = useAppWorkspace();
 
   const {
@@ -152,7 +152,7 @@ export function AppContent() {
             quickAction={quickAction}
             selectionActions={selectionActions.overlay}
             sidecarSweep={sidecarSweep.overlay}
-            acceptAllCandidates={acceptAllCandidates.overlay}
+            settleAllCandidates={settleAllCandidates.overlay}
             onCaptionSaved={gallery.onCaptionSaved}
             gallery={{
               selectedPath: gallery.selectedPath,

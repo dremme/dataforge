@@ -3,13 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetScrollLockManagerForTests } from "@/shared/hooks/scrollLockManager";
 import {
-  AcceptAllCandidatesDialog,
-  type AcceptAllCandidatesDialogProps,
-} from "./AcceptAllCandidatesDialog";
+  SettleAllCandidatesDialog,
+  type SettleAllCandidatesDialogProps,
+} from "./SettleAllCandidatesDialog";
 
-function renderDialog(overrides: Partial<AcceptAllCandidatesDialogProps> = {}) {
-  const props: AcceptAllCandidatesDialogProps = {
-    open: true,
+function renderDialog(overrides: Partial<SettleAllCandidatesDialogProps> = {}) {
+  const props: SettleAllCandidatesDialogProps = {
+    action: "accept",
     scope: {
       itemCount: 12,
       folderLabel: "Photos",
@@ -21,16 +21,16 @@ function renderDialog(overrides: Partial<AcceptAllCandidatesDialogProps> = {}) {
     onCancel: vi.fn(),
     ...overrides,
   };
-  return { ...render(<AcceptAllCandidatesDialog {...props} />), props };
+  return { ...render(<SettleAllCandidatesDialog {...props} />), props };
 }
 
-describe("AcceptAllCandidatesDialog", () => {
+describe("SettleAllCandidatesDialog", () => {
   afterEach(() => {
     resetScrollLockManagerForTests();
   });
 
   it("renders nothing while closed", () => {
-    renderDialog({ open: false });
+    renderDialog({ action: null });
 
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
@@ -79,5 +79,45 @@ describe("AcceptAllCandidatesDialog", () => {
     renderDialog({ busy: true });
 
     expect(screen.getByRole("button", { name: "Accepting..." })).toBeDisabled();
+  });
+
+  describe("deleting", () => {
+    it("says the source files stay and where the candidates go", () => {
+      renderDialog({ action: "delete" });
+
+      const dialog = screen.getByRole("alertdialog", { name: "Delete all staged candidates?" });
+      expect(dialog).toHaveTextContent("All 12 files in Photos");
+      expect(dialog).toHaveTextContent("3 of them have a staged candidate.");
+      expect(dialog).toHaveTextContent("keeps the files they were made from");
+      expect(dialog).toHaveTextContent("On Windows, candidates are moved to the Recycle Bin.");
+    });
+
+    it("names the selection when files are selected", () => {
+      renderDialog({
+        action: "delete",
+        scope: { itemCount: 2, folderLabel: "Photos", fromSelection: true },
+      });
+
+      expect(
+        screen.getByRole("alertdialog", { name: "Delete selected candidates?" }),
+      ).toHaveTextContent("2 selected files in Photos");
+    });
+
+    it("confirms as a danger action", async () => {
+      const user = userEvent.setup();
+      const { props } = renderDialog({ action: "delete" });
+
+      const deleteButton = screen.getByRole("button", { name: "Delete" });
+      expect(deleteButton).toHaveClass("confirm-dialog__btn--danger");
+
+      await user.click(deleteButton);
+      expect(props.onConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows progress while deleting", () => {
+      renderDialog({ action: "delete", busy: true });
+
+      expect(screen.getByRole("button", { name: "Deleting..." })).toBeDisabled();
+    });
   });
 });

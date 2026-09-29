@@ -15,7 +15,7 @@
     min-height: 1.5rem;
 
     &-icon {
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
 
     &--accent {
@@ -117,7 +117,7 @@
 
     &-icon {
       @include icon-muted;
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
 
     // Counts arrive on a second request; the slot holds its size until they do.
@@ -133,7 +133,7 @@
 
   &__issue-icon {
     flex-shrink: 0;
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     color: var(--warning);
   }
 
@@ -168,7 +168,7 @@
   }
 
   &__icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__findings {
@@ -185,7 +185,7 @@
     }
 
     &-icon {
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
   }
 }

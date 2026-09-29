@@ -261,6 +261,15 @@ describe("readoutTransform", () => {
     );
   });
 
+  it("pins to the on-screen top-right corner on request", () => {
+    expect(readoutTransform(upright, 100, 50, "top-right")).toBe(
+      "scaleX(1) scaleY(1) rotate(0deg) translate(50px, -25px)",
+    );
+    expect(readoutTransform({ ...upright, rotate: 90 }, 100, 50, "top-right")).toBe(
+      "scaleX(1) scaleY(1) rotate(-90deg) translate(25px, -50px)",
+    );
+  });
+
   it("swaps the half extents on a quarter turn, where the rect is painted on its side", () => {
     expect(readoutTransform({ ...upright, rotate: 90 }, 100, 50)).toBe(
       "scaleX(1) scaleY(1) rotate(-90deg) translate(-25px, -50px)",

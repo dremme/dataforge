@@ -1,35 +1,48 @@
 import { useCallback, useMemo, useState } from "react";
-import { acceptCandidates } from "@/features/gallery/api/comfyCandidates";
-import { acceptAllCandidatesOutcome } from "@/features/gallery/lib/acceptAllCandidates";
+import { acceptCandidates, rejectCandidates } from "@/features/gallery/api/comfyCandidates";
+import {
+  settleAllCandidatesOutcome,
+  type SettleAllCandidatesAction,
+} from "@/features/gallery/lib/settleAllCandidates";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
+import type { ComfyCandidateBatchResponse } from "@/shared/types";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 
-export interface UseAcceptAllCandidatesOptions {
+export interface UseSettleAllCandidatesOptions {
   folderLabel: string;
   folderItemCount: number;
   /** Dataset files, never their staged candidates: the settle endpoints are keyed by source. */
   candidatePaths: readonly string[];
   /** Null when nothing is selected, so the whole folder is in scope. */
   selectedPaths: ReadonlySet<string> | null;
-  onAccepted: () => void | Promise<void>;
+  onSettled: () => void | Promise<void>;
 }
 
-interface PendingAccept {
+interface PendingSettle {
+  action: SettleAllCandidatesAction;
   paths: readonly string[];
   scope: DialogScopeInfo;
 }
 
-export function useAcceptAllCandidates({
+const SETTLE_REQUESTS: Record<
+  SettleAllCandidatesAction,
+  (paths: string[]) => Promise<ComfyCandidateBatchResponse>
+> = {
+  accept: acceptCandidates,
+  delete: rejectCandidates,
+};
+
+export function useSettleAllCandidates({
   folderLabel,
   folderItemCount,
   candidatePaths,
   selectedPaths,
-  onAccepted,
-}: UseAcceptAllCandidatesOptions) {
+  onSettled,
+}: UseSettleAllCandidatesOptions) {
   const notify = useNotify();
-  // Snapshotted on open, so a candidate staged while the dialog is up is not accepted unseen.
-  const [pending, setPending] = useState<PendingAccept | null>(null);
+  // Snapshotted on open, so a candidate staged while the dialog is up is not settled unseen.
+  const [pending, setPending] = useState<PendingSettle | null>(null);
   const [busy, setBusy] = useState(false);
 
   const fromSelection = selectedPaths !== null;
@@ -54,10 +67,13 @@ export function useAcceptAllCandidates({
     };
   }, [folderItemCount, folderLabel, fromSelection, scopedPaths.length, selectedPaths]);
 
-  const openConfirm = useCallback(() => {
-    if (busy || scopedPaths.length === 0) return;
-    setPending({ paths: scopedPaths, scope });
-  }, [busy, scope, scopedPaths]);
+  const openConfirm = useCallback(
+    (action: SettleAllCandidatesAction) => {
+      if (busy || scopedPaths.length === 0) return;
+      setPending({ action, paths: scopedPaths, scope });
+    },
+    [busy, scope, scopedPaths],
+  );
 
   const cancelConfirm = useCallback(() => {
     if (busy) return;
@@ -70,17 +86,17 @@ export function useAcceptAllCandidates({
     setBusy(true);
 
     try {
-      const result = await acceptCandidates([...pending.paths]);
+      const result = await SETTLE_REQUESTS[pending.action]([...pending.paths]);
       setPending(null);
-      await onAccepted();
-      notify(acceptAllCandidatesOutcome(result));
+      await onSettled();
+      notify(settleAllCandidatesOutcome(pending.action, result));
     } catch (error: unknown) {
       setPending(null);
       notify({ variant: "danger", message: formatApiError(error) });
     } finally {
       setBusy(false);
     }
-  }, [busy, notify, onAccepted, pending]);
+  }, [busy, notify, onSettled, pending]);
 
   return useMemo(
     () => ({
@@ -89,7 +105,7 @@ export function useAcceptAllCandidates({
       fromSelection,
       openConfirm,
       overlay: {
-        open: pending !== null,
+        action: pending?.action ?? null,
         scope: pending?.scope ?? scope,
         busy,
         onConfirm: confirm,
@@ -100,4 +116,4 @@ export function useAcceptAllCandidates({
   );
 }
 
-export type AcceptAllCandidatesActions = ReturnType<typeof useAcceptAllCandidates>;
+export type SettleAllCandidatesActions = ReturnType<typeof useSettleAllCandidates>;

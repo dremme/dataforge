@@ -9,7 +9,7 @@
   fill: none;
 }
 
-// `non-scaling-stroke` keeps the 2px stroke in CSS pixels (a 16px box would otherwise smear a 1.333px line). Width must be even: Lucide geometry sits on the 24-grid and an odd stroke straddles two pixels.
+// `non-scaling-stroke` keeps the stroke in CSS pixels, so a 16px box draws 2px rather than a smeared 1.333px.
 .lucide :is(path, circle, line, rect, polyline, polygon, ellipse) {
   vector-effect: non-scaling-stroke;
   stroke-width: var(--icon-stroke, 2px);

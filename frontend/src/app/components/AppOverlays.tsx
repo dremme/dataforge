@@ -12,7 +12,7 @@ import { CandidateReviewModal } from "@/features/gallery/components/CandidateRev
 import { FolderInstructionsModal } from "@/features/gallery/components/FolderInstructionsModal";
 import { SelectionActionOverlays } from "@/features/gallery/components/SelectionActionOverlays";
 import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepOverlay";
-import { AcceptAllCandidatesDialog } from "@/features/gallery/components/AcceptAllCandidatesDialog";
+import { SettleAllCandidatesDialog } from "@/features/gallery/components/SettleAllCandidatesDialog";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { SettingsModal } from "@/features/settings/components/SettingsModal";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -25,7 +25,7 @@ export function AppOverlays({
   quickAction,
   selectionActions,
   sidecarSweep,
-  acceptAllCandidates,
+  settleAllCandidates,
   onCaptionSaved,
   gallery,
   issueResolver,
@@ -54,7 +54,7 @@ export function AppOverlays({
 
       <SidecarSweepOverlay {...sidecarSweep} />
 
-      <AcceptAllCandidatesDialog {...acceptAllCandidates} />
+      <SettleAllCandidatesDialog {...settleAllCandidates} />
 
       {quickAction.open && (
         <QuickActionBar

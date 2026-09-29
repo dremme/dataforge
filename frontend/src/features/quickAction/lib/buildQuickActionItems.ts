@@ -18,7 +18,7 @@ import {
   jobTypeLabelFor,
   type JobAvailability,
 } from "@/features/jobs/lib/jobMeta";
-import { candidateCountPhrase } from "@/features/gallery/lib/acceptAllCandidates";
+import { candidateCountPhrase } from "@/features/gallery/lib/settleAllCandidates";
 import { SIDECAR_SWEEP_KINDS, sidecarCountPhrase } from "@/features/gallery/lib/sidecarSweep";
 import {
   FILE_FILTER_OPTIONS,
@@ -400,15 +400,16 @@ export function buildSidecarSweepItems({
   }));
 }
 
-export interface AcceptAllCandidatesOptions {
+export interface SettleAllCandidatesOptions {
   hasFolder: boolean;
   count: number;
   fromSelection: boolean;
   busy: boolean;
   onAccept: () => void;
+  onDelete: () => void;
 }
 
-function acceptAllCandidatesDetail(count: number, fromSelection: boolean): string {
+function settleAllCandidatesDetail(count: number, fromSelection: boolean): string {
   if (fromSelection) {
     return count === 0
       ? "No candidates in the selection"
@@ -418,26 +419,41 @@ function acceptAllCandidatesDetail(count: number, fromSelection: boolean): strin
   return `${candidateCountPhrase(count)} waiting`;
 }
 
-export function buildAcceptAllCandidatesItems({
+export function buildSettleAllCandidatesItems({
   hasFolder,
   count,
   fromSelection,
   busy,
   onAccept,
-}: AcceptAllCandidatesOptions): QuickActionItem[] {
+  onDelete,
+}: SettleAllCandidatesOptions): QuickActionItem[] {
   if (!hasFolder) return [];
+
+  const detail = settleAllCandidatesDetail(count, fromSelection);
+  const disabled = busy || count === 0;
 
   return [
     {
       id: "cmd:accept-all-candidates",
       section: "commands",
       label: fromSelection ? "Accept selected candidates" : "Accept all staged candidates",
-      detail: acceptAllCandidatesDetail(count, fromSelection),
+      detail,
       icon: iconScanSquare,
       keywords:
         "comfyui upscale upscaled staging staged approve apply keep publish replace bulk batch",
-      disabled: busy || count === 0,
+      disabled,
       run: onAccept,
+    },
+    {
+      id: "cmd:delete-all-candidates",
+      section: "commands",
+      label: fromSelection ? "Delete selected candidates" : "Delete all staged candidates",
+      detail,
+      icon: iconTrash2,
+      keywords:
+        "comfyui upscale upscaled staging staged reject discard remove erase trash recycle bin bulk batch",
+      disabled,
+      run: onDelete,
     },
   ];
 }
@@ -584,18 +600,14 @@ export function buildFolderPathCommandItems({
 export interface AppCommandOptions {
   /** The scheme on screen now, so the toggle can name the other one. */
   theme: ResolvedTheme;
-  clearingThumbnails: boolean;
   onOpenSettings: () => void;
   onSetTheme: (theme: ResolvedTheme) => void;
-  onClearThumbnailCache: () => void;
 }
 
 export function buildAppCommandItems({
   theme,
-  clearingThumbnails,
   onOpenSettings,
   onSetTheme,
-  onClearThumbnailCache,
 }: AppCommandOptions): QuickActionItem[] {
   const other = theme === "dark" ? "light" : "dark";
   return [
@@ -617,16 +629,6 @@ export function buildAppCommandItems({
       keywords: "appearance color scheme dark mode light mode night mode day mode toggle",
       run: () => onSetTheme(other),
     },
-    {
-      id: "cmd:clear-thumbnail-cache",
-      section: "commands",
-      label: "Clear thumbnail cache",
-      detail: "Delete cached thumbnails; they are recreated as you browse",
-      icon: iconTrash2,
-      keywords: "thumbnails cache purge reset regenerate disk space",
-      disabled: clearingThumbnails,
-      run: onClearThumbnailCache,
-    },
   ];
 }
 
@@ -643,7 +645,7 @@ export interface CommandOptions {
   onRevealInExplorer: (path: string) => void;
   onEditSysprompt: () => void;
   review: ReviewCommandOptions;
-  acceptAllCandidates: Omit<AcceptAllCandidatesOptions, "hasFolder">;
+  settleAllCandidates: Omit<SettleAllCandidatesOptions, "hasFolder">;
   sidecarSweep: Omit<SidecarSweepOptions, "hasFolder">;
   selection: Omit<SelectionCommandOptions, "hasFolder">;
   app: AppCommandOptions;
@@ -662,7 +664,7 @@ export function buildCommandItems({
   onRevealInExplorer,
   onEditSysprompt,
   review,
-  acceptAllCandidates,
+  settleAllCandidates,
   sidecarSweep,
   selection,
   app,
@@ -683,7 +685,7 @@ export function buildCommandItems({
     ...navigation,
     ...buildFolderCommandItems({ folderFound, onCreateFolder, onRefresh }),
     ...buildReviewCommandItems(review),
-    ...buildAcceptAllCandidatesItems({ ...acceptAllCandidates, hasFolder: folderFound }),
+    ...buildSettleAllCandidatesItems({ ...settleAllCandidates, hasFolder: folderFound }),
     ...buildSidecarSweepItems({ ...sidecarSweep, hasFolder: folderFound }),
     ...buildSelectionCommandItems({ ...selection, hasFolder: folderFound }),
     buildSyspromptCommandItem(onEditSysprompt),

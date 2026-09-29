@@ -15,7 +15,7 @@
     --bg-elevated: var(--bg-soft);
 
     &-icon {
-      @include icon-size(var(--icon-size-sm));
+      @include icon-size-sm;
     }
 
     &--accent {
@@ -53,7 +53,7 @@
   }
 
   &__trigger-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &--open &__trigger {
@@ -411,6 +411,16 @@
       @include icon-block;
       @include icon-size(var(--icon-size-base));
     }
+
+    &--compact {
+      width: 1.25rem;
+      height: 1.25rem;
+      padding: 0;
+
+      .card__badge-icon {
+        @include icon-size-sm;
+      }
+    }
   }
 
   &__body {
@@ -500,8 +510,6 @@
   }
 
   .card__badge {
-    padding: 0.1875rem 0.375rem;
-
     &--video,
     &--gif {
       top: 0.4375rem;
@@ -525,6 +533,11 @@
     right: 0.4375rem;
     width: 1.25rem;
     height: 1.25rem;
+  }
+
+  .card__selection-indicator ~ .card__badge--issue,
+  .card__selection-indicator ~ .card__badge--candidate {
+    right: 0.4375rem + 1.25rem + 0.3125rem;
   }
 }
 
@@ -602,7 +615,7 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
 
   &__check-icon {
     @include icon-block;
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
     color: var(--accent);
   }
 
@@ -644,7 +657,7 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
 
   &__marker-icon {
     @include icon-block;
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__status {
@@ -667,7 +680,7 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
 
   &__status-icon {
     @include icon-block;
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__meta-item {

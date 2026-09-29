@@ -228,7 +228,7 @@
     flex-shrink: 0;
     margin-top: 0.0625rem;
     color: var(--row-accent);
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 
   &__row-body {

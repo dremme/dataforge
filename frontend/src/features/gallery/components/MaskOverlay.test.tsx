@@ -484,4 +484,12 @@ describe("MaskOverlay", () => {
       "--mask-readout-transform": "scaleX(-1) scaleY(1) rotate(-90deg) translate(-112.5px, -200px)",
     });
   });
+
+  it("pins the remove button to the region's on-screen top-right, not past it", () => {
+    renderOverlay({ orientation: { rotate: 90, mirrorH: true, mirrorV: false } });
+
+    expect(document.querySelector(".mask-overlay__region")).toHaveStyle({
+      "--mask-remove-transform": "scaleX(-1) scaleY(1) rotate(-90deg) translate(112.5px, -200px)",
+    });
+  });
 });

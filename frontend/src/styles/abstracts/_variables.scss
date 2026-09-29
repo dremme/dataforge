@@ -34,6 +34,10 @@ $icon-size-base: 1rem; // 16px — off-grid, kept for legibility
 $icon-size-lg: 1.5rem; // 24px — the grid itself
 $icon-size-xl: 2.25rem; // 36px — one and a half
 
+// A 2px stroke fills in the counters of a 12px glyph, so small icons draw lighter.
+$icon-stroke: 2px;
+$icon-stroke-sm: 1.5px;
+
 // Not visual-order: the drawer outranks base modals because its header trigger sits behind every 1000-level backdrop. Sticky section headers dock under the automation panel but above gallery cards (z up to 2).
 $z-index-sticky-section-header: 14;
 $z-index-sticky-panel: 15;

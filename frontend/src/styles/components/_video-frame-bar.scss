@@ -78,7 +78,7 @@ $thumb-size: 0.85rem;
   &__save {
     @include pill-btn-compact(accent);
     flex-shrink: 0;
-    --icon-size: #{$icon-size-sm};
+    @include icon-scope-sm;
     width: 6.25rem;
   }
 

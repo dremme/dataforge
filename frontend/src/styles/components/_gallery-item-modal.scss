@@ -222,7 +222,7 @@
       }
 
       &-icon {
-        @include icon-size(var(--icon-size-sm));
+        @include icon-size-sm;
       }
     }
   }
@@ -278,6 +278,6 @@
   }
 
   &__caption-action-icon {
-    @include icon-size(var(--icon-size-sm));
+    @include icon-size-sm;
   }
 }
