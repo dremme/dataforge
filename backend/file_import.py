@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 from typing import BinaryIO
 
@@ -77,11 +79,25 @@ def import_uploaded_files(
             skipped.append(name)
             continue
 
-        if destination.exists():
-            destination.unlink()
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".import-", suffix=".tmp", dir=folder)
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                shutil.copyfileobj(stream, handle)
 
-        with destination.open("wb") as handle:
-            shutil.copyfileobj(stream, handle)
+            if overwrite:
+                os.replace(temporary, destination)
+            else:
+                try:
+                    if os.name == "nt":
+                        os.rename(temporary, destination)
+                    else:
+                        os.link(temporary, destination)
+                except FileExistsError:
+                    skipped.append(name)
+                    continue
+        finally:
+            temporary.unlink(missing_ok=True)
 
         copied.append(name)
 
