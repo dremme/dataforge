@@ -66,9 +66,8 @@
   &__body {
     display: grid;
     grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+    grid-template-rows: minmax(0, 1fr);
     flex: 0 1 auto;
-    // The floor leaves the details column room for a few fixes above the caption before it scrolls.
-    height: max(#{$modal-media-stage-height}, 24rem);
     min-height: 0;
   }
 
@@ -103,13 +102,13 @@
   }
 
   &__details {
-    @include app-scrollbar;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, max-content) minmax(clamp(10rem, 24vh, 14rem), 1fr);
     gap: 0.875rem;
     min-width: 0;
+    min-height: 0;
     padding: 1rem 1.125rem;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   &__file-name {
@@ -141,13 +140,16 @@
   }
 
   &__issue-card {
+    @include app-scrollbar;
     display: flex;
     flex-direction: column;
     gap: 0.625rem;
+    min-height: 0;
     padding: 0.8125rem 0.875rem;
     border: 1px solid var(--warning-border);
     border-radius: var(--radius-md);
     background: linear-gradient(180deg, var(--warning-soft), transparent 120%);
+    overflow-y: auto;
   }
 
   &__issue-card--resolved {
@@ -238,11 +240,13 @@
   &__caption-editor {
     display: flex;
     flex-direction: column;
-    flex: 1;
     gap: 0.4375rem;
+    min-height: 0;
+    contain: size;
 
     .code-editor--caption {
       flex: 1;
+      max-height: none;
     }
   }
 
