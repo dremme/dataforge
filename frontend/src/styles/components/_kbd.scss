@@ -1,0 +1,65 @@
+@use "../abstracts/mixins" as *;
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0.0625rem 0.3125rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--bg-card);
+  box-shadow: 0 1px var(--border);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: var(--font-medium);
+  line-height: var(--leading-snug);
+  text-align: center;
+  white-space: nowrap;
+
+  &__icon {
+    // One line box tall, so an icon cap matches a lettered cap beside it.
+    width: calc(var(--leading-snug) * 1em);
+    height: calc(var(--leading-snug) * 1em);
+    padding: 0.1em;
+  }
+}
+
+.shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-2xs);
+
+  &__visual {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  &__text {
+    @include visually-hidden;
+  }
+
+  &__chord {
+    display: inline-flex;
+    gap: 0.1875rem;
+  }
+
+  &__or {
+    color: var(--text-subtle);
+  }
+}
+
+.shortcut-hint {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem 0.5rem;
+
+  &__keys .kbd {
+    background: var(--bg-elevated);
+  }
+}

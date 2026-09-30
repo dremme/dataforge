@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
+import { useCallback, useState } from "react";
+import { useGlobalShortcut } from "@/shared/hooks/useGlobalShortcut";
+import { SHORTCUTS } from "@/shared/lib/shortcuts";
 
 export function useSettingsModal() {
   const [open, setOpen] = useState(false);
@@ -7,19 +8,7 @@ export function useSettingsModal() {
   const openSettings = useCallback(() => setOpen(true), []);
   const closeSettings = useCallback(() => setOpen(false), []);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
-      if (event.key !== ",") return;
-      if (getScrollLockDepth() > 0) return;
-
-      event.preventDefault();
-      setOpen(true);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  useGlobalShortcut(SHORTCUTS.settings, openSettings, { inEditable: true });
 
   return { open, openSettings, closeSettings };
 }

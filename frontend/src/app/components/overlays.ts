@@ -26,6 +26,7 @@ type GalleryOverlayState = {
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
+  onGoTo: (index: number) => void;
   onDeleted?: (path: string) => void;
   onMoved?: (paths: string[]) => void | Promise<void>;
   onCopied?: () => void | Promise<void>;
@@ -102,6 +103,11 @@ type SettingsOverlayState = {
   onClose: () => void;
 };
 
+type ShortcutsOverlayState = {
+  open: boolean;
+  onClose: () => void;
+};
+
 type FolderPickerOverlayState = {
   open: boolean;
   openPicker: () => void;
@@ -128,4 +134,5 @@ export type AppOverlaysProps = {
   fileImport: FileImportOverlayState;
   createFolder: CreateFolderOverlayState | null;
   settings: SettingsOverlayState;
+  shortcuts: ShortcutsOverlayState;
 };

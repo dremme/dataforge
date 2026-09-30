@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { fetchFolderChildren, fetchFolderRoots } from "@/features/folder/api/folders";
 import {
   folderLeafName,
@@ -140,12 +149,14 @@ export function TransferMediaDialog({
   const loadingKeysRef = useRef(new Set<string>());
   const childrenByKeyRef = useRef<Record<string, FolderChild[]>>({});
   const didScrollToCurrentRef = useRef(false);
+  const treeItemRefs = useRef(new Map<string, HTMLLIElement>());
 
   const [roots, setRoots] = useState<RootNode[]>([]);
   const [childrenByKey, setChildrenByKey] = useState<Record<string, FolderChild[]>>({});
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState("");
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [rootsLoading, setRootsLoading] = useState(true);
 
   childrenByKeyRef.current = childrenByKey;
@@ -321,6 +332,64 @@ export function TransferMediaDialog({
   const selectedKey = selectedPath ? pathKey(selectedPath) : "";
   const canTransfer = Boolean(selectedPath) && !isDisabledDestination(selectedPath) && !busy;
 
+  const hasEntry = (key: string | null) => entries.some((entry) => entry.key === key);
+  const tabStopKey = [focusedKey, selectedKey, currentKey].find(hasEntry) ?? entries[0]?.key;
+
+  const canExpandEntry = (key: string) => {
+    const children = childrenByKey[key];
+    return loadingKeys.has(key) || children === undefined || children.length > 0;
+  };
+
+  const focusEntry = (entry: TreeEntry) => {
+    setFocusedKey(entry.key);
+    if (!isDisabledDestination(entry.path)) selectPath(entry.path);
+    treeItemRefs.current.get(entry.key)?.focus();
+  };
+
+  // WAI-ARIA tree pattern: focus moves by row and selection follows it.
+  const handleTreeKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
+    if (busy || event.ctrlKey || event.metaKey || event.altKey) return;
+
+    const index = entries.findIndex((entry) => entry.key === tabStopKey);
+    const entry = entries[index];
+    if (!entry) return;
+
+    const expanded = expandedKeys.has(entry.key) && canExpandEntry(entry.key);
+    let target: TreeEntry | undefined;
+
+    switch (event.key) {
+      case "ArrowDown":
+        target = entries[index + 1];
+        break;
+      case "ArrowUp":
+        target = entries[index - 1];
+        break;
+      case "Home":
+        target = entries[0];
+        break;
+      case "End":
+        target = entries[entries.length - 1];
+        break;
+      case "ArrowRight":
+        if (!expanded && canExpandEntry(entry.key)) toggleExpanded(entry.path);
+        else if (entries[index + 1]?.depth > entry.depth) target = entries[index + 1];
+        break;
+      case "ArrowLeft":
+        if (expanded) toggleExpanded(entry.path);
+        else
+          target = entries
+            .slice(0, index)
+            .reverse()
+            .find((row) => row.depth < entry.depth);
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    if (target) focusEntry(target);
+  };
+
   // After the initial expand+load, scroll the current folder into view once.
   useEffect(() => {
     if (rootsLoading || didScrollToCurrentRef.current) return;
@@ -354,6 +423,7 @@ export function TransferMediaDialog({
       role="dialog"
       panelClassName="transfer-media-dialog"
       busy={busy}
+      onConfirm={handleConfirm}
       onClose={onClose}
       footer={
         <DialogActions
@@ -394,7 +464,12 @@ export function TransferMediaDialog({
               Loading folders...
             </div>
           ) : (
-            <ul className="transfer-media-dialog__tree-list" role="tree" aria-label="Folder tree">
+            <ul
+              className="transfer-media-dialog__tree-list"
+              role="tree"
+              aria-label="Folder tree"
+              onKeyDown={handleTreeKeyDown}
+            >
               {entries.map((entry) => {
                 const expanded = expandedKeys.has(entry.key);
                 const loading = loadingKeys.has(entry.key);
@@ -415,9 +490,17 @@ export function TransferMediaDialog({
                       selected && "transfer-media-dialog__tree-item--selected",
                       disabled && "transfer-media-dialog__tree-item--disabled",
                     )}
+                    ref={(node) => {
+                      if (node) treeItemRefs.current.set(entry.key, node);
+                      else treeItemRefs.current.delete(entry.key);
+                    }}
                     role="treeitem"
+                    aria-label={entry.name || folderLeafName(entry.path)}
+                    aria-level={entry.depth + 1}
                     aria-expanded={canExpand ? expanded : undefined}
                     aria-selected={selected}
+                    tabIndex={entry.key === tabStopKey ? 0 : -1}
+                    onFocus={() => setFocusedKey(entry.key)}
                     data-current-folder={isCurrent ? "" : undefined}
                     style={{ ["--tree-depth" as string]: entry.depth }}
                   >
@@ -460,6 +543,7 @@ export function TransferMediaDialog({
                           if (canExpand) toggleExpanded(entry.path);
                         }}
                         disabled={busy || disabled}
+                        tabIndex={-1}
                         title={disabled ? "Files are already in this folder" : entry.path}
                       >
                         <Icon

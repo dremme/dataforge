@@ -8,6 +8,7 @@ import {
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import { iconChevronLeft, iconChevronRight, iconX } from "@/shared/icons";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { queueIndexAfter, queueStepFor } from "@/shared/lib/shortcuts";
 import type { OstrisTrainingSample } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
@@ -36,16 +37,21 @@ export function TrainingSampleModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return;
-      if (event.key === "ArrowLeft") goTo(-1);
-      if (event.key === "ArrowRight") goTo(1);
+      if (event.defaultPrevented || isEditableTarget(event.target)) return;
+
+      const step = queueStepFor(event);
+      if (!step || samples.length === 0) return;
+      event.preventDefault();
+      if (step === "previous") goTo(-1);
+      else if (step === "next") goTo(1);
+      else onIndexChange(queueIndexAfter(step, index, samples.length));
     };
 
     window.addEventListener("keydown", handleKey);
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [goTo]);
+  }, [goTo, index, onIndexChange, samples.length]);
 
   // Warm the neighbours so navigation does not flash empty.
   useEffect(() => {

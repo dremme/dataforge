@@ -177,6 +177,7 @@ describe("buildAppCommandItems", () => {
     buildAppCommandItems({
       theme: "dark",
       onOpenSettings: vi.fn(),
+      onOpenShortcuts: vi.fn(),
       onSetTheme,
     });
 
@@ -185,6 +186,7 @@ describe("buildAppCommandItems", () => {
     ["port", "cmd:settings"],
     ["thumbnail cache", "cmd:settings"],
     ["night mode", "cmd:toggle-theme"],
+    ["hotkeys", "cmd:keyboard-shortcuts"],
   ])("finds %j", (query, id) => {
     expect(idsFor(appItems(), query)).toEqual([id]);
   });
@@ -248,6 +250,7 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
     app: {
       theme: "dark",
       onOpenSettings: vi.fn(),
+      onOpenShortcuts: vi.fn(),
       onSetTheme: vi.fn(),
     },
     ...overrides,
@@ -277,6 +280,7 @@ describe("buildCommandItems", () => {
       "cmd:open-in-explorer",
       "cmd:settings",
       "cmd:toggle-theme",
+      "cmd:keyboard-shortcuts",
     ]);
   });
 
@@ -287,6 +291,7 @@ describe("buildCommandItems", () => {
       "cmd:parent-folder",
       "cmd:settings",
       "cmd:toggle-theme",
+      "cmd:keyboard-shortcuts",
     ]);
   });
 
@@ -300,6 +305,7 @@ describe("buildCommandItems", () => {
       "cmd:edit-sysprompt",
       "cmd:settings",
       "cmd:toggle-theme",
+      "cmd:keyboard-shortcuts",
     ]);
   });
 

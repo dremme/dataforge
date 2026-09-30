@@ -837,6 +837,10 @@
 
   &__tree-item {
     --tree-depth: 0;
+
+    &:focus {
+      outline: none;
+    }
   }
 
   &__tree-row {
@@ -849,6 +853,11 @@
 
   &__tree-item--selected &__tree-row {
     background: var(--accent-soft);
+  }
+
+  &__tree-item:focus-visible &__tree-row {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   &__tree-item--disabled &__tree-select {
@@ -994,5 +1003,66 @@
   [type="number"] {
     @include tabular-nums;
     text-align: right;
+  }
+}
+
+// Fixed content, so it is laid out to fit; the group grid scrolls only on a phone-sized window.
+.confirm-dialog__panel.shortcuts-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(60rem, 100%);
+  max-height: min(92vh, 48rem);
+  overflow: hidden;
+}
+
+.shortcuts-dialog {
+  &__groups {
+    @include app-scrollbar;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 1rem 1.75rem;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  &__group-label {
+    @include section-label;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  &__label {
+    min-width: 0;
+    color: var(--text);
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+  }
+
+  &__keys {
+    // Flex, not block: a block would sit the chips on a text baseline, below the label's centre.
+    display: flex;
+    flex-shrink: 0;
+    margin: 0;
+    color: var(--text-muted);
   }
 }

@@ -8,7 +8,9 @@ export { iconAiToolkit, iconComfyUi } from "./brandIcons";
 
 export {
   AlertTriangle as iconAlertTriangle,
+  ArrowDown as iconArrowDown,
   ArrowDownWideNarrow as iconArrowDownWideNarrow,
+  ArrowLeft as iconArrowLeft,
   ArrowLeftRight as iconArrowLeftRight,
   ArrowUp as iconArrowUp,
   ArrowUpRight as iconArrowUpRight,
@@ -78,6 +80,7 @@ export {
   Images as iconImages,
   Info as iconInfo,
   Italic as iconItalic,
+  Keyboard as iconKeyboard,
   Link as iconLink,
   List as iconList,
   ListChecks as iconListChecks,

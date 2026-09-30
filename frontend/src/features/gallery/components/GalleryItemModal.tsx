@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import {
   deleteMedia,
@@ -99,6 +100,7 @@ interface GalleryItemModalProps {
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
+  onGoTo?: (index: number) => void;
   onCaptionSaved: (path: string, update: CaptionSaveResponse) => void;
   onDeleted?: (path: string) => void;
   onMoved?: (paths: string[]) => void | Promise<void>;
@@ -117,6 +119,7 @@ export function GalleryItemModal({
   onClose,
   onPrevious,
   onNext,
+  onGoTo,
   onCaptionSaved,
   onDeleted,
   onMoved,
@@ -340,25 +343,59 @@ export function GalleryItemModal({
     }
   }, [deleting, flushPendingSave, item, notify, onDeleted]);
 
+  // Derived above the early return so the hooks below are not called conditionally.
+  const canEditVideoItem = item ? isEditableVideo(item) : false;
+  const canEditImageItem = item ? isEditableImage(item) : false;
+  const editing = editMode && (canEditVideoItem || canEditImageItem);
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      // A focused scrubber is exempt via isEditableTarget so arrows still step frames.
       if (childOverlayOpen || busy) return;
+
+      // First: the caption editor, where this gets pressed, has already prevented the default.
+      if (matchesShortcut(event, SHORTCUTS.saveAndNext)) {
+        event.preventDefault();
+        flushPendingSave();
+        onNext();
+        return;
+      }
+      // A mask surface claims arrows and Delete by preventing the default.
+      if (event.defaultPrevented) return;
+      // A focused scrubber is exempt via isEditableTarget so arrows still step frames.
       if (isEditableTarget(event.target)) return;
-      if (event.key === "ArrowLeft") onPrevious();
-      if (event.key === "ArrowRight") onNext();
+
+      if (matchesShortcut(event, SHORTCUTS.deleteItem)) {
+        if (editing || frameCapture.frameMode) return;
+        event.preventDefault();
+        openDeleteConfirm();
+        return;
+      }
+
+      const step = queueStepFor(event);
+      if (!step) return;
+      event.preventDefault();
+      if (step === "previous") onPrevious();
+      else if (step === "next") onNext();
+      else onGoTo?.(queueIndexAfter(step, index, items.length));
     };
 
     window.addEventListener("keydown", handleKey);
     return () => {
       window.removeEventListener("keydown", handleKey);
     };
-  }, [busy, childOverlayOpen, onPrevious, onNext]);
-
-  // Derived above the early return so the hooks below are not called conditionally.
-  const canEditVideoItem = item ? isEditableVideo(item) : false;
-  const canEditImageItem = item ? isEditableImage(item) : false;
-  const editing = editMode && (canEditVideoItem || canEditImageItem);
+  }, [
+    busy,
+    childOverlayOpen,
+    editing,
+    flushPendingSave,
+    frameCapture.frameMode,
+    index,
+    items.length,
+    onGoTo,
+    onNext,
+    onPrevious,
+    openDeleteConfirm,
+  ]);
 
   // In frame/edit mode Escape steps back to viewing; ModalShell stands down via escape="none".
   useEscapeKey(frameCapture.exitFrameMode, frameCapture.frameMode && !busy);

@@ -137,6 +137,26 @@ describe("TrainingSampleModal", () => {
     expect(onIndexChange).toHaveBeenLastCalledWith(0);
   });
 
+  it("leaves a modified arrow to the browser", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange } = renderModal({ index: 1 });
+
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}{Control>}{ArrowRight}{/Control}");
+
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  it("jumps to the last and first sample with End and Home", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange } = renderModal({ index: 1 });
+
+    await user.keyboard("{End}");
+    expect(onIndexChange).toHaveBeenLastCalledWith(2);
+
+    await user.keyboard("{Home}");
+    expect(onIndexChange).toHaveBeenLastCalledWith(0);
+  });
+
   it("leaves the arrow keys alone while typing in a field", async () => {
     const user = userEvent.setup();
     const { onIndexChange } = renderModal();

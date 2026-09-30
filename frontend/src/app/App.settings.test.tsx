@@ -12,7 +12,7 @@ async function renderHome() {
 }
 
 async function runQuickAction(user: ReturnType<typeof userEvent.setup>, query: string) {
-  await user.keyboard("{Control>}{ }{/Control}");
+  await user.keyboard("{Control>}p{/Control}");
   const palette = await screen.findByRole("dialog", { name: "Quick actions" });
   await user.type(within(palette).getByRole("combobox"), query);
   await user.keyboard("{Enter}");

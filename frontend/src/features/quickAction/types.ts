@@ -1,4 +1,5 @@
 import type { AppIcon } from "@/shared/icons";
+import type { ShortcutId } from "@/shared/lib/shortcuts";
 
 export const QUICK_ACTION_SECTIONS = [
   { id: "run", label: "Run a job" },
@@ -19,6 +20,7 @@ export interface QuickActionItem {
   detail?: string;
   icon: AppIcon;
   keywords?: string;
+  shortcut?: ShortcutId;
   disabled?: boolean;
   run: () => void;
 }

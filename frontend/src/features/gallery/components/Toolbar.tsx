@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import {
   SORT_OPTIONS,
   type FileFilter,
@@ -6,7 +6,7 @@ import {
   type MediaTypeFilter,
   type SortOption,
 } from "@/features/gallery/lib/query";
-import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
+import { useGlobalShortcut } from "@/shared/hooks/useGlobalShortcut";
 import {
   iconArchive,
   iconArrowDownWideNarrow,
@@ -23,7 +23,10 @@ import {
   type AppIcon,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
+import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
 import { JobsButton } from "@/features/jobs/components/JobsButton";
 import { NotificationsButton } from "@/shared/notifications/NotificationsButton";
 import { StatsButton } from "./StatsButton";
@@ -91,22 +94,25 @@ function ToolbarSearch({
     input.select();
   };
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== "k") return;
-      if (getScrollLockDepth() > 0) return;
-
-      event.preventDefault();
+  useGlobalShortcut(
+    SHORTCUTS.search,
+    (event) => {
+      // A typed slash belongs to whatever field has focus; only the Ctrl+F chord reaches in.
+      if (event.key === "/" && isEditableTarget(event.target)) return false;
       openSearch();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    },
+    { inEditable: true },
+  );
 
   return (
-    <Tooltip content="Search names and captions, regex optional" disabled={expanded && focused}>
+    <Tooltip
+      content={
+        <ShortcutHint shortcut={SHORTCUTS.search}>
+          Search names and captions, regex optional
+        </ShortcutHint>
+      }
+      disabled={expanded && focused}
+    >
       <label
         className={classNames(
           "toolbar__search",
@@ -133,7 +139,7 @@ function ToolbarSearch({
             onBlur={() => setFocused(false)}
             placeholder="Search..."
             aria-label={names ? "Search files and folders by name or caption" : "Search captions"}
-            aria-keyshortcuts="Control+K Meta+K"
+            aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.search)}
           />
           <button
             type="button"

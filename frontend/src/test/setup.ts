@@ -36,9 +36,11 @@ vi.mock("@codemirror/view", () => ({
   ViewPlugin: {
     fromClass: () => [],
   },
+  keymap: { of: () => [] },
 }));
 
 vi.mock("@codemirror/state", () => ({
+  Prec: { highest: (extension: unknown) => extension },
   RangeSetBuilder: class {
     add() {}
     finish() {

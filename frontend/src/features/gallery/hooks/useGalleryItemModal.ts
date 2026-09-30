@@ -59,6 +59,14 @@ export function useGalleryItemModal(
     setSelectedPath(modalItems[nextIndex].path);
   }, [modalItems, selectedIndex, selectedPath]);
 
+  const goToIndex = useCallback(
+    (index: number) => {
+      const target = modalItems[index];
+      if (target) setSelectedPath(target.path);
+    },
+    [modalItems],
+  );
+
   const removeGalleryItem = useCallback(
     (deletedPath: string) => {
       setModalNavigationPaths((paths) => {
@@ -88,6 +96,7 @@ export function useGalleryItemModal(
     closeGalleryItem,
     goToPrevious,
     goToNext,
+    goToIndex,
     removeGalleryItem,
   };
 }

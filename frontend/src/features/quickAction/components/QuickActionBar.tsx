@@ -11,8 +11,10 @@ import {
 import { iconSearch } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { findSearchMatchRanges } from "@/shared/lib/searchMatchRanges";
+import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { KeyCap, ShortcutKeys } from "@/shared/ui/ShortcutKeys";
 import { touchRecentAction } from "../lib/quickActionHistory";
 import {
   flattenGroups,
@@ -200,6 +202,9 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
                   role="option"
                   aria-selected={isActive}
                   aria-disabled={item.disabled || undefined}
+                  aria-keyshortcuts={
+                    item.shortcut ? ariaKeyShortcuts(SHORTCUTS[item.shortcut]) : undefined
+                  }
                   className={classNames(
                     "quick-action__option",
                     item.disabled && "quick-action__option--disabled",
@@ -219,6 +224,12 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
                       </span>
                     )}
                   </span>
+                  {item.shortcut && (
+                    <ShortcutKeys
+                      shortcut={SHORTCUTS[item.shortcut]}
+                      className="quick-action__option-keys"
+                    />
+                  )}
                 </div>
               );
             })}
@@ -234,14 +245,14 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
 
       <footer className="quick-action__hint" aria-hidden="true">
         <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> navigate
+          <KeyCap label="↑" />
+          <KeyCap label="↓" /> navigate
         </span>
         <span>
-          <kbd>↵</kbd> select
+          <kbd className="kbd">Enter</kbd> select
         </span>
         <span>
-          <kbd>esc</kbd> close
+          <kbd className="kbd">Esc</kbd> close
         </span>
       </footer>
     </ModalShell>

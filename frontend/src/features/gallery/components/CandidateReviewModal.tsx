@@ -33,6 +33,7 @@ import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import type { ComfyCandidateStateResponse, GalleryItem } from "@/shared/types";
 
@@ -147,26 +148,26 @@ export function CandidateReviewModal({
       // A focused player owns the arrows, or seeking a clip walks the queue out from under it.
       if (event.target instanceof Element && event.target.closest("video")) return;
 
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      if (matchesShortcut(event, SHORTCUTS.resolveOrAccept)) {
         event.preventDefault();
         requestAccept();
         return;
       }
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
-
-      const key = event.key.toLowerCase();
-      if (key === "arrowright") {
+      if (matchesShortcut(event, SHORTCUTS.rejectCandidate)) {
         event.preventDefault();
-        goTo(index + 1);
-      } else if (key === "arrowleft") {
-        event.preventDefault();
-        goTo(index - 1);
+        void settle("reject");
+        return;
       }
+
+      const step = queueStepFor(event);
+      if (!step) return;
+      event.preventDefault();
+      goTo(queueIndexAfter(step, index, queue.length));
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [confirmingDiscard, goTo, index, requestAccept]);
+  }, [confirmingDiscard, goTo, index, queue.length, requestAccept, settle]);
 
   if (!entry) return null;
 

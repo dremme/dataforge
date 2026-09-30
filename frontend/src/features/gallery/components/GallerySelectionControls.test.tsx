@@ -723,7 +723,7 @@ describe("GallerySelectionControls", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(screen.getByRole("button", { name: "Delete selected files" })).toHaveAttribute(
       "aria-keyshortcuts",
-      "Delete",
+      "Delete Backspace",
     );
   });
 

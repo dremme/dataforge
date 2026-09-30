@@ -5,6 +5,7 @@ import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { flaggedCaptionPhrases } from "@/features/gallery/lib/issues";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
@@ -156,27 +157,26 @@ export function IssueResolverModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (saving || isEditableTarget(event.target)) return;
+      if (saving) return;
 
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      // Checked before the editable guard: the caption editor is where this gets pressed.
+      if (matchesShortcut(event, SHORTCUTS.resolveOrAccept)) {
         event.preventDefault();
         void handleResolve();
         return;
       }
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isEditableTarget(event.target)) return;
 
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        handleNext();
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        handlePrevious();
-      }
+      const step = queueStepFor(event);
+      if (!step) return;
+      event.preventDefault();
+      const target = queueIndexAfter(step, index, queue.length);
+      if (target !== index) onIndexChange(target);
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [handleNext, handlePrevious, handleResolve, saving]);
+  }, [handleResolve, index, onIndexChange, queue.length, saving]);
 
   if (!item) return null;
 

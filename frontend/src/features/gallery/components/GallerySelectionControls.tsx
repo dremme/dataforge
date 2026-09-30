@@ -1,10 +1,10 @@
-import { useEffect } from "react";
 import type { MediaTransferMode } from "@/features/gallery/api/media";
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
-import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
+import { useGlobalShortcut } from "@/shared/hooks/useGlobalShortcut";
 import { iconCopy, iconFolderInput, iconLoader2, iconTrash2, type AppIcon } from "@/shared/icons";
-import { isEditableTarget } from "@/shared/lib/isEditableTarget";
+import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { Icon } from "@/shared/ui/Icon";
+import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface TransferButtonProps {
@@ -65,71 +65,24 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
   const { busy, deleting, transferring, openDeleteConfirm, startTransfer } = actions;
 
   // Escape empties a selection first, and only leaves the mode once there is nothing left to lose.
-  useEffect(() => {
-    if (!selectionMode) {
-      return;
-    }
+  useGlobalShortcut(
+    SHORTCUTS.clearSelection,
+    () => {
+      if (visibleSelectedCount > 0) clearSelectedPaths();
+      else exitSelectionMode();
+    },
+    { enabled: selectionMode, inEditable: true },
+  );
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
+  useGlobalShortcut(SHORTCUTS.selectAll, () => {
+    if (!busy) selectAllPaths();
+  });
 
-      if (getScrollLockDepth() > 0) {
-        return;
-      }
-
-      event.preventDefault();
-      if (visibleSelectedCount > 0) {
-        clearSelectedPaths();
-        return;
-      }
-      exitSelectionMode();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [clearSelectedPaths, exitSelectionMode, visibleSelectedCount, selectionMode]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== "a") return;
-      if (getScrollLockDepth() > 0) return;
-      if (isEditableTarget(event.target)) return;
-
-      event.preventDefault();
-      if (busy) return;
-      selectAllPaths();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [busy, selectAllPaths]);
-
-  // Delete opens the same confirm the trash button does; Backspace covers Mac keyboards,
-  // where the key labelled "delete" reports Backspace and there is no forward-delete.
-  useEffect(() => {
-    if (!selectionMode) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-      // Cmd/Ctrl+Delete are OS-level idioms; leave them alone.
-      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (getScrollLockDepth() > 0) return;
-      // Load-bearing for Backspace: erasing in the search field must not arm a delete.
-      if (isEditableTarget(event.target)) return;
-
-      event.preventDefault();
-      // Refuses on its own while busy or with nothing selected.
-      openDeleteConfirm();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openDeleteConfirm, selectionMode]);
+  // Backspace covers Mac keyboards, where the key labelled "delete" reports Backspace.
+  // Opening the confirm refuses on its own while busy or with nothing selected.
+  useGlobalShortcut(SHORTCUTS.deleteSelection, () => openDeleteConfirm(), {
+    enabled: selectionMode,
+  });
 
   if (!selectionMode) {
     return (
@@ -138,7 +91,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
           type="button"
           className="gallery-controls__btn"
           onClick={enterSelectionMode}
-          aria-keyshortcuts="Control+A Meta+A"
+          aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.selectAll)}
         >
           Select
         </button>
@@ -162,7 +115,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         className="gallery-controls__btn"
         onClick={selectAllPaths}
         disabled={busy || visibleSelectedCount === totalCount}
-        aria-keyshortcuts="Control+A Meta+A"
+        aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.selectAll)}
       >
         All
       </button>
@@ -198,7 +151,11 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
         disabled={visibleSelectedCount === 0 || busy}
         onClick={() => startTransfer("move")}
       />
-      <Tooltip content="Delete selected files">
+      <Tooltip
+        content={
+          <ShortcutHint shortcut={SHORTCUTS.deleteSelection}>Delete selected files</ShortcutHint>
+        }
+      >
         <button
           type="button"
           className="gallery-controls__btn gallery-controls__btn--icon gallery-controls__btn--danger"
@@ -206,7 +163,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
           disabled={visibleSelectedCount === 0 || busy}
           aria-busy={deleting || undefined}
           aria-label="Delete selected files"
-          aria-keyshortcuts="Delete"
+          aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.deleteSelection)}
         >
           <Icon
             icon={deleting ? iconLoader2 : iconTrash2}

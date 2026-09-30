@@ -452,6 +452,137 @@ describe("GalleryItemModal", () => {
     expect(onPrevious).not.toHaveBeenCalled();
   });
 
+  describe("keyboard", () => {
+    const twoItems = () => [
+      makeItem("sunset.png"),
+      makeItem("beach.jpg", { name: "beach.jpg", path: `${HOME_PATH}\\beach.jpg` }),
+    ];
+
+    function renderKeyboardModal(overrides: Record<string, unknown> = {}) {
+      const props = {
+        items: twoItems(),
+        index: 0,
+        onClose: vi.fn(),
+        onPrevious: vi.fn(),
+        onNext: vi.fn(),
+        onGoTo: vi.fn(),
+        onCaptionSaved: vi.fn(),
+        onDeleted: vi.fn(),
+        ...overrides,
+      };
+      renderWithProviders(<GalleryItemModal {...props} />);
+      return props;
+    }
+
+    it("pages with the arrow keys", async () => {
+      const user = userEvent.setup();
+      const props = renderKeyboardModal();
+      await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+      await user.keyboard("{ArrowRight}{ArrowLeft}");
+
+      expect(props.onNext).toHaveBeenCalledTimes(1);
+      expect(props.onPrevious).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves a modified arrow to the browser", async () => {
+      const user = userEvent.setup();
+      const props = renderKeyboardModal();
+      await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+      await user.keyboard("{Alt>}{ArrowLeft}{/Alt}{Control>}{ArrowRight}{/Control}");
+
+      expect(props.onPrevious).not.toHaveBeenCalled();
+      expect(props.onNext).not.toHaveBeenCalled();
+    });
+
+    it("does not page on a key a control inside already handled", async () => {
+      const props = renderKeyboardModal();
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+      // A focused mask surface nudges on the arrows and removes on Delete this way.
+      for (const key of ["ArrowRight", "Delete"]) {
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+        event.preventDefault();
+        dialog.dispatchEvent(event);
+      }
+
+      expect(props.onNext).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    it("jumps to the first and last item with Home and End", async () => {
+      const user = userEvent.setup();
+      const props = renderKeyboardModal({ index: 1 });
+      await screen.findByRole("dialog", { name: "Viewing beach.jpg" });
+
+      await user.keyboard("{Home}");
+      expect(props.onGoTo).toHaveBeenLastCalledWith(0);
+
+      await user.keyboard("{End}");
+      expect(props.onGoTo).toHaveBeenLastCalledWith(1);
+    });
+
+    it("saves the caption and moves on with Ctrl+Enter from the editor", async () => {
+      const user = userEvent.setup();
+      const saveCaption = vi.spyOn(captionsApi, "saveCaption");
+      const props = renderKeyboardModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+      await waitFor(() => expect(caption).toHaveValue("Golden hour over the lake"));
+      await user.click(caption);
+      await user.keyboard(" at dusk");
+      await user.keyboard("{Control>}{Enter}{/Control}");
+
+      expect(saveCaption).toHaveBeenCalledWith(
+        `${HOME_PATH}\\sunset.png`,
+        "Golden hour over the lake at dusk",
+      );
+      expect(props.onNext).toHaveBeenCalledTimes(1);
+    });
+
+    it("moves on with Ctrl+Enter that the caption editor has already claimed", async () => {
+      const props = renderKeyboardModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      const caption = within(dialog).getByRole("textbox", { name: "Caption for sunset.png" });
+      // The real editor prevents the default so CodeMirror inserts no blank line.
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      event.preventDefault();
+      caption.dispatchEvent(event);
+
+      expect(props.onNext).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks before deleting on the Delete key", async () => {
+      const user = userEvent.setup();
+      renderKeyboardModal();
+      await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+
+      await user.keyboard("{Delete}");
+
+      expect(await screen.findByRole("alertdialog", { name: "Delete file?" })).toBeInTheDocument();
+      expect(deleteMediaMock).not.toHaveBeenCalled();
+    });
+
+    it("leaves Delete and Backspace to the caption editor", async () => {
+      const user = userEvent.setup();
+      renderKeyboardModal();
+
+      const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+      await user.click(within(dialog).getByRole("textbox", { name: "Caption for sunset.png" }));
+      await user.keyboard("{Backspace}{Delete}");
+
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("drops a caption selection when moving to another item", async () => {
     const items = [makeItem("sunset.png"), makeItem("beach.jpg", { description: "A quiet shore" })];
 

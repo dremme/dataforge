@@ -29,6 +29,7 @@ import type { FilterCommandOptions } from "../lib/buildQuickActionItems";
 import { readRecentActionIds } from "../lib/quickActionHistory";
 import { orderQuickActionItems, resolveRecentActions } from "../lib/quickActionResults";
 import type { QuickActionItem, QuickActionSection } from "../types";
+import { useCommandShortcuts } from "./useCommandShortcuts";
 import { useQuickAction } from "./useQuickAction";
 
 const TOP_UP_SECTIONS = new Set<QuickActionSection>(["subfolders", "recentFolders", "favorites"]);
@@ -51,6 +52,7 @@ interface UseQuickActionHostOptions {
   settleAllCandidates: SettleAllCandidatesActions;
   filters: Omit<FilterCommandOptions, "hasFolder">;
   onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
 }
 
 export function useQuickActionHost({
@@ -71,6 +73,7 @@ export function useQuickActionHost({
   settleAllCandidates,
   filters,
   onOpenSettings,
+  onOpenShortcuts,
 }: UseQuickActionHostOptions) {
   const { open, close } = useQuickAction();
   const { jobs, externalJobs } = useJobs();
@@ -188,6 +191,7 @@ export function useQuickActionHost({
         app: {
           theme: resolveTheme(themePreference),
           onOpenSettings,
+          onOpenShortcuts,
           onSetTheme: setThemePreference,
         },
       }),
@@ -201,6 +205,7 @@ export function useQuickActionHost({
       onInvertSelection,
       onOpenFolderPicker,
       onOpenSettings,
+      onOpenShortcuts,
       onSelectAll,
       panel.candidateCount,
       panel.duplicateGroupCount,
@@ -220,6 +225,8 @@ export function useQuickActionHost({
       visibleCount,
     ],
   );
+
+  useCommandShortcuts(commandItems);
 
   const items = useMemo<QuickActionItem[]>(
     () =>

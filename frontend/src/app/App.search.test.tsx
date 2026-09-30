@@ -84,7 +84,7 @@ describe("App: search and filters", () => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("{Control>}f{/Control}");
     await user.click(screen.getByRole("button", { name: "Match file and folder names" }));
 
     await user.type(screen.getByRole("searchbox", { name: "Search captions" }), "golden");

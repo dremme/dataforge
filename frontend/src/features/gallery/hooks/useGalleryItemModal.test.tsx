@@ -36,6 +36,17 @@ function renderModal() {
 }
 
 describe("useGalleryItemModal", () => {
+  it("jumps straight to an index in the navigation list", () => {
+    const { result } = renderModal();
+
+    act(() => result.current.openGalleryItem(images[0].path));
+    act(() => result.current.goToIndex(2));
+    expect(result.current.selectedPath).toBe(images[2].path);
+
+    act(() => result.current.goToIndex(images.length));
+    expect(result.current.selectedPath).toBe(images[2].path);
+  });
+
   it("hands the slot to whichever item slides into the removed one's index", () => {
     const { result } = renderModal();
 

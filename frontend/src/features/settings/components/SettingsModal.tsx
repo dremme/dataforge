@@ -21,6 +21,7 @@ import {
   type AppIcon,
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { SHORTCUTS } from "@/shared/lib/shortcuts";
 import {
   previewThemePreference,
   setThemePreference,
@@ -30,6 +31,7 @@ import type { AppSettingKey, AppSettingsResponse, ProbedService } from "@/shared
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
 import { fetchAppSettings, probeService, saveAppSettings } from "../api/settings";
 import {
   buildSettingsUpdate,
@@ -531,11 +533,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             </button>
           ))}
         </nav>
-        <p className="settings-modal__shortcut">
-          <kbd>Ctrl</kbd>
-          <kbd>,</kbd>
-          opens settings
-        </p>
+        <div className="settings-modal__shortcuts">
+          <p className="settings-modal__shortcut">
+            <ShortcutKeys shortcut={SHORTCUTS.settings} />
+            opens settings
+          </p>
+          <p className="settings-modal__shortcut">
+            <ShortcutKeys shortcut={SHORTCUTS.shortcuts} />
+            lists every shortcut
+          </p>
+        </div>
       </aside>
 
       <div className="settings-modal__main">

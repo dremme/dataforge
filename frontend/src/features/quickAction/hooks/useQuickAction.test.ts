@@ -9,8 +9,8 @@ import { useQuickAction } from "./useQuickAction";
 
 function pressQuickAction(init: Partial<KeyboardEventInit> = {}): KeyboardEvent {
   const event = new KeyboardEvent("keydown", {
-    key: " ",
-    code: "Space",
+    key: "p",
+    code: "KeyP",
     ctrlKey: true,
     bubbles: true,
     cancelable: true,
@@ -34,7 +34,7 @@ describe("useQuickAction", () => {
     expect(result.current.open).toBe(false);
   });
 
-  it("opens on Ctrl+Space and swallows the keypress", () => {
+  it("opens on Ctrl+P and swallows the keypress", () => {
     const { result } = renderHook(() => useQuickAction());
 
     const event = pressQuickAction();
@@ -43,12 +43,20 @@ describe("useQuickAction", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("opens on Cmd+Space too", () => {
+  it("opens on Cmd+P too", () => {
     const { result } = renderHook(() => useQuickAction());
 
     pressQuickAction({ ctrlKey: false, metaKey: true });
 
     expect(result.current.open).toBe(true);
+  });
+
+  it("no longer opens on Ctrl+Space", () => {
+    const { result } = renderHook(() => useQuickAction());
+
+    pressQuickAction({ key: " ", code: "Space" });
+
+    expect(result.current.open).toBe(false);
   });
 
   it("toggles closed on a second press", () => {
@@ -60,7 +68,7 @@ describe("useQuickAction", () => {
     expect(result.current.open).toBe(false);
   });
 
-  it("does not open while a dialog, modal or drawer is up", () => {
+  it("does not open while a dialog, modal or drawer is up, but still blocks printing", () => {
     const { result } = renderHook(() => useQuickAction());
     const handle = acquireScrollLock("confirm-dialog-open");
 
@@ -68,8 +76,7 @@ describe("useQuickAction", () => {
       const event = pressQuickAction();
 
       expect(result.current.open).toBe(false);
-      // The overlay owns the keyboard here, so the chord must pass through untouched.
-      expect(event.defaultPrevented).toBe(false);
+      expect(event.defaultPrevented).toBe(true);
     } finally {
       releaseScrollLock(handle);
     }
@@ -87,7 +94,7 @@ describe("useQuickAction", () => {
     expect(result.current.open).toBe(true);
   });
 
-  it("ignores the chord with Alt or Shift held, and plain Space", () => {
+  it("ignores the chord with Alt or Shift held, and a plain P", () => {
     const { result } = renderHook(() => useQuickAction());
 
     pressQuickAction({ altKey: true });

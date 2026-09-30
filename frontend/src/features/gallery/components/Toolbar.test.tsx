@@ -75,7 +75,7 @@ describe("Toolbar", () => {
     document.documentElement.className = "";
   });
 
-  it("focuses the search input with Ctrl+K", async () => {
+  it("focuses the search input with Ctrl+F", async () => {
     const user = userEvent.setup();
     renderToolbar();
 
@@ -84,9 +84,38 @@ describe("Toolbar", () => {
     });
     expect(search).not.toHaveFocus();
 
-    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("{Control>}f{/Control}");
 
     expect(search).toHaveFocus();
+  });
+
+  it("focuses the search input with a slash, which it does not type", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+
+    await user.keyboard("/");
+
+    const search = screen.getByRole("searchbox", {
+      name: "Search files and folders by name or caption",
+    });
+    expect(search).toHaveFocus();
+    expect(defaultProps.onSearchQueryChange).not.toHaveBeenCalled();
+  });
+
+  it("leaves a slash typed into another field alone", async () => {
+    const user = userEvent.setup();
+    renderToolbar();
+    const other = document.body.appendChild(document.createElement("input"));
+
+    try {
+      await user.click(other);
+      await user.keyboard("/");
+
+      expect(other).toHaveFocus();
+      expect(other).toHaveValue("/");
+    } finally {
+      other.remove();
+    }
   });
 
   it("selects existing search text when focusing with the shortcut", async () => {
@@ -97,7 +126,7 @@ describe("Toolbar", () => {
       name: "Search files and folders by name or caption",
     }) as HTMLInputElement;
 
-    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("{Control>}f{/Control}");
 
     expect(search).toHaveFocus();
     expect(search.selectionStart).toBe(0);
@@ -402,7 +431,7 @@ describe("Toolbar", () => {
         name: "Search files and folders by name or caption",
       });
 
-      await user.keyboard("{Control>}k{/Control}");
+      await user.keyboard("{Control>}f{/Control}");
 
       expect(search).not.toHaveFocus();
     } finally {

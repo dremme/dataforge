@@ -15,6 +15,7 @@ import { SidecarSweepOverlay } from "@/features/gallery/components/SidecarSweepO
 import { SettleAllCandidatesDialog } from "@/features/gallery/components/SettleAllCandidatesDialog";
 import { StatsDrawer } from "@/features/gallery/components/StatsDrawer";
 import { SettingsModal } from "@/features/settings/components/SettingsModal";
+import { ShortcutsDialog } from "@/features/shortcuts/components/ShortcutsDialog";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
 
@@ -38,6 +39,7 @@ export function AppOverlays({
   fileImport,
   createFolder,
   settings,
+  shortcuts,
 }: AppOverlaysProps) {
   return (
     <>
@@ -114,6 +116,7 @@ export function AppOverlays({
           onClose={gallery.onClose}
           onPrevious={gallery.onPrevious}
           onNext={gallery.onNext}
+          onGoTo={gallery.onGoTo}
           onCaptionSaved={onCaptionSaved}
           onDeleted={gallery.onDeleted}
           onMoved={gallery.onMoved}
@@ -166,6 +169,7 @@ export function AppOverlays({
       )}
 
       {settings.open && <SettingsModal onClose={settings.onClose} />}
+      {shortcuts.open && <ShortcutsDialog onClose={shortcuts.onClose} />}
     </>
   );
 }

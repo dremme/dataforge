@@ -358,6 +358,37 @@ describe("CandidateReviewModal", () => {
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
 
+  it("rejects the candidate with Ctrl+Backspace", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange } = renderModal();
+
+    await user.keyboard("{Control>}{Backspace}{/Control}");
+
+    await waitFor(() => expect(rejectOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`));
+    expect(acceptOne).not.toHaveBeenCalled();
+    expect(onIndexChange).toHaveBeenCalledWith(1);
+  });
+
+  it("does not reject from a bare Backspace or Delete", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.keyboard("{Backspace}{Delete}");
+
+    expect(rejectOne).not.toHaveBeenCalled();
+  });
+
+  it("jumps to the last and first candidate with End and Home", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange } = renderModal(["a.png", "b.png", "c.png"], { index: 1 });
+
+    await user.keyboard("{End}");
+    expect(onIndexChange).toHaveBeenLastCalledWith(2);
+
+    await user.keyboard("{Home}");
+    expect(onIndexChange).toHaveBeenLastCalledWith(0);
+  });
+
   it("does not settle anything from a bare keypress", async () => {
     const user = userEvent.setup();
     renderModal();

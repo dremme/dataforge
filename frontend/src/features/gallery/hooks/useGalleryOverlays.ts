@@ -26,6 +26,7 @@ export function useGalleryOverlays({
     closeGalleryItem,
     goToPrevious,
     goToNext,
+    goToIndex,
     removeGalleryItem,
   } = useGalleryItemModal(images, filteredItems, folderResetToken);
 
@@ -61,6 +62,7 @@ export function useGalleryOverlays({
     closeGalleryItem,
     goToPrevious,
     goToNext,
+    goToIndex,
     removeGalleryItem,
     openSysPrompt,
     closeInstructions,

@@ -26,6 +26,7 @@ export function AppContent() {
     quickAction,
     statsDrawer,
     settings,
+    shortcuts,
     duplicateResolver,
     candidateReview,
     sidecarSweep,
@@ -164,6 +165,7 @@ export function AppContent() {
               onClose: gallery.closeGalleryItem,
               onPrevious: gallery.goToPrevious,
               onNext: gallery.goToNext,
+              onGoTo: gallery.goToIndex,
               onDeleted: gallery.onGalleryItemDeleted,
               onMoved: onGalleryItemsMoved,
               onCopied: onGalleryItemsCopied,
@@ -200,6 +202,7 @@ export function AppContent() {
             }}
             createFolder={createFolder.overlay}
             settings={{ open: settings.open, onClose: settings.closeSettings }}
+            shortcuts={{ open: shortcuts.open, onClose: shortcuts.closeShortcuts }}
           />
         </div>
       </GallerySelectionProvider>

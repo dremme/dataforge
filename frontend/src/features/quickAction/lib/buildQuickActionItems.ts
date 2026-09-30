@@ -42,6 +42,7 @@ import {
   iconFolderOpen,
   iconFolderPlus,
   iconHome,
+  iconKeyboard,
   iconListChecks,
   iconMessageWarning,
   iconMoon,
@@ -227,6 +228,7 @@ export function buildNavigationCommandItems({
       detail: "Pick a folder by path, favorite or recent",
       icon: iconFolderOpen,
       keywords: "browse path picker navigate jump switch go to directory",
+      shortcut: "openFolder",
       run: onOpenFolderPicker,
     },
     {
@@ -236,6 +238,7 @@ export function buildNavigationCommandItems({
       detail: "Go to your home folder",
       icon: iconHome,
       keywords: "root start base top go home",
+      shortcut: "homeFolder",
       disabled: atHome,
       run: onGoHome,
     },
@@ -246,6 +249,7 @@ export function buildNavigationCommandItems({
       detail: parentPath ?? "No parent folder",
       icon: iconArrowUp,
       keywords: "up back level higher directory",
+      shortcut: "parentFolder",
       disabled: !parentPath,
       run: () => {
         if (parentPath) onNavigate(parentPath);
@@ -285,6 +289,7 @@ export function buildFolderCommandItems({
       detail: "Create a subfolder here",
       icon: iconFolderPlus,
       keywords: "create make add mkdir directory subfolder",
+      shortcut: "newFolder",
       run: onCreateFolder,
     },
     refresh,
@@ -506,6 +511,7 @@ export function buildSelectionCommandItems({
       detail: nothingVisible ? "No files in this view" : "Every file in this view",
       icon: iconListChecks,
       keywords: "selection everything check mark ctrl+a",
+      shortcut: "selectAll",
       disabled: busy || nothingVisible || allVisibleSelected,
       run: onSelectAll,
     },
@@ -546,6 +552,7 @@ export function buildSelectionCommandItems({
       detail: selectionDetail,
       icon: iconTrash2,
       keywords: "selection remove erase discard trash recycle bin",
+      shortcut: "deleteSelection",
       disabled: !canActOnSelection,
       run: onDelete,
     },
@@ -601,12 +608,14 @@ export interface AppCommandOptions {
   /** The scheme on screen now, so the toggle can name the other one. */
   theme: ResolvedTheme;
   onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
   onSetTheme: (theme: ResolvedTheme) => void;
 }
 
 export function buildAppCommandItems({
   theme,
   onOpenSettings,
+  onOpenShortcuts,
   onSetTheme,
 }: AppCommandOptions): QuickActionItem[] {
   const other = theme === "dark" ? "light" : "dark";
@@ -618,6 +627,7 @@ export function buildAppCommandItems({
       detail: "Theme, server addresses, and the thumbnail cache",
       icon: iconSettings,
       keywords: "preferences options configure port url vision comfyui ai-toolkit",
+      shortcut: "settings",
       run: onOpenSettings,
     },
     {
@@ -628,6 +638,16 @@ export function buildAppCommandItems({
       icon: other === "light" ? iconSun : iconMoon,
       keywords: "appearance color scheme dark mode light mode night mode day mode toggle",
       run: () => onSetTheme(other),
+    },
+    {
+      id: "cmd:keyboard-shortcuts",
+      section: "commands",
+      label: "Keyboard shortcuts",
+      detail: "Every key the app responds to",
+      icon: iconKeyboard,
+      keywords: "hotkeys keys bindings cheat sheet help keymap",
+      shortcut: "shortcuts",
+      run: onOpenShortcuts,
     },
   ];
 }

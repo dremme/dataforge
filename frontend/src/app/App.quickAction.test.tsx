@@ -7,7 +7,7 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
 async function openQuickAction(user: ReturnType<typeof userEvent.setup>) {
-  await user.keyboard("{Control>}{ }{/Control}");
+  await user.keyboard("{Control>}p{/Control}");
 }
 
 async function selectHomeAction(user: ReturnType<typeof userEvent.setup>, palette: HTMLElement) {
@@ -162,7 +162,7 @@ describe("App: quick action bar", () => {
     expect(new URLSearchParams(window.location.search).get("path")).toBe(HOME_PATH);
   });
 
-  it("opens on Ctrl+Space and navigates into a subfolder on Enter", async () => {
+  it("opens on Ctrl+P and navigates into a subfolder on Enter", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();
@@ -283,7 +283,7 @@ describe("App: quick action bar", () => {
     expect(await screen.findByRole("dialog", { name: "Quick actions" })).toBeInTheDocument();
   });
 
-  it("toggles closed on a second Ctrl+Space", async () => {
+  it("toggles closed on a second Ctrl+P", async () => {
     const user = userEvent.setup();
     installMockBackend();
     await renderApp();

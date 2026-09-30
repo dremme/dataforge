@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { SaveState } from "@/shared/hooks/useDebouncedSave";
 import { classNames } from "@/shared/lib/classNames";
 import type { VocabularyEntry } from "@/features/gallery/lib/captionVocabulary";
+import { leaveModEnterToHost } from "@/shared/lib/codeEditorCommitKey";
 import { vocabularyCompletion } from "@/shared/lib/codeEditorCompletion";
 import { literalMatchHighlight, queryMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
 import { CodeMirrorEditor, type CodeMirrorEditorProps } from "./CodeMirrorEditor";
@@ -49,6 +50,7 @@ export function CaptionEditor({
 
   const extensions = useMemo(
     () => [
+      leaveModEnterToHost,
       queryMatchHighlight(searchQuery, searchRegex),
       literalMatchHighlight(highlightTerms),
       ...(completions.length > 0 ? [vocabularyCompletion(completions)] : []),

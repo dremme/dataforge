@@ -466,6 +466,90 @@ describe("IssueResolverModal", () => {
     expect(resolvedPaths).toHaveLength(4);
   });
 
+  it("resolves with Ctrl+Enter while the caption editor has focus", async () => {
+    const user = userEvent.setup();
+    const saveCaption = vi.spyOn(api, "saveCaption");
+    const onIndexChange = vi.fn();
+
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("car.png"), makeIssueItem("boat.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={onIndexChange}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const captionInput = await screen.findByLabelText("Caption for car.png");
+    await user.clear(captionInput);
+    await user.type(captionInput, "A bright red car.");
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    await waitFor(() => {
+      expect(saveCaption).toHaveBeenCalledWith(
+        expect.stringContaining("car.png"),
+        "A bright red car.",
+        { resolveIssue: true },
+      );
+      expect(onIndexChange).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("resolves on a Ctrl+Enter the caption editor has already claimed", async () => {
+    const saveCaption = vi.spyOn(api, "saveCaption");
+
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("car.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const captionInput = await screen.findByLabelText("Caption for car.png");
+    // The real editor prevents the default so CodeMirror inserts no blank line.
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    event.preventDefault();
+    captionInput.dispatchEvent(event);
+
+    await waitFor(() => expect(saveCaption).toHaveBeenCalled());
+  });
+
+  it("jumps to the last and first issue with End and Home", async () => {
+    const user = userEvent.setup();
+    const items = [makeIssueItem("car.png"), makeIssueItem("boat.png"), makeIssueItem("bus.png")];
+
+    function Host() {
+      const [index, setIndex] = useState(0);
+      return (
+        <IssueResolverModal
+          items={items}
+          index={index}
+          onClose={vi.fn()}
+          onIndexChange={setIndex}
+          onCaptionSaved={vi.fn()}
+        />
+      );
+    }
+
+    render(<Host />);
+
+    await screen.findByLabelText("Caption for car.png");
+    await user.keyboard("{End}");
+    expect(await screen.findByLabelText("Caption for bus.png")).toBeInTheDocument();
+
+    await user.keyboard("{Home}");
+    expect(await screen.findByLabelText("Caption for car.png")).toBeInTheDocument();
+  });
+
   it("skips forward with the right arrow without resolving", async () => {
     const user = userEvent.setup();
     const saveCaption = vi.spyOn(api, "saveCaption");
