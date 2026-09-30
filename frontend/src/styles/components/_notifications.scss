@@ -226,7 +226,7 @@
 
   &__row-icon {
     flex-shrink: 0;
-    margin-top: 0.0625rem;
+    margin-top: calc((var(--text-sm) * var(--leading-snug) - var(--icon-size-sm)) / 2);
     color: var(--row-accent);
     @include icon-size-sm;
   }
