@@ -47,6 +47,7 @@ type JobType = Literal[
     "restore_captions",
     "train_lora",
     "watermark",
+    "auto_adjust",
     "comfy_process",
 ]
 
@@ -577,6 +578,14 @@ class FindDuplicatesStartRequest(JobSelectionRequest, FindDuplicatesJobSettings)
 
 class StripMetadataStartRequest(JobSelectionRequest):
     pass
+
+
+class AutoAdjustStartRequest(JobSelectionRequest):
+    # Never remembered: discarding earlier adjustments must be re-chosen every run.
+    replace_adjustments: bool = Field(
+        default=False,
+        description="Reset every Adjust tool first, so a file keeps only the wand's suggestion.",
+    )
 
 
 class CheckCaptionRulesStartRequest(JobSelectionRequest):

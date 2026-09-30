@@ -95,6 +95,13 @@ export type AutomationDialogsState = {
     (settings: ComfyProcessSettings) => void,
     JobSettingsByType["comfy_process"]
   >;
+  autoAdjust: {
+    open: boolean;
+    scope: DialogScopeInfo;
+    busy: boolean;
+    onConfirm: (replaceAdjustments: boolean) => void;
+    onCancel: () => void;
+  };
   checkCaptionRules: {
     open: boolean;
     scope: DialogScopeInfo;

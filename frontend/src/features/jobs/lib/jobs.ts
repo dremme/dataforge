@@ -271,6 +271,10 @@ const TIMING_SPLITS: Partial<Record<JobType, TimingSplit>> = {
   },
   watermark: MEDIA_KIND_SPLIT,
   strip_metadata: MEDIA_KIND_SPLIT,
+  auto_adjust: {
+    ...MEDIA_KIND_SPLIT,
+    fast: [...MEDIA_KIND_SPLIT.fast, "unchanged", "skipped"],
+  },
 };
 
 export function jobTimingCounts(job: Job): { fast: number; slow: number } {

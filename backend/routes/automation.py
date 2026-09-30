@@ -21,6 +21,7 @@ from external.ostris_training import (
 )
 from routes._helpers import job_response, resolve_folder
 from schemas import (
+    AutoAdjustStartRequest,
     AutoCaptionStartRequest,
     BackupCaptionsStartRequest,
     BatchRenameStartRequest,
@@ -202,6 +203,19 @@ def start_backup_captions_job(
         resolve_folder(path),
         body,
         overwrite=body.overwrite,
+    )
+
+
+@router.post("/automation/auto-adjust", response_model=JobResponse)
+def start_auto_adjust_job(
+    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    body: AutoAdjustStartRequest = AutoAdjustStartRequest(),
+) -> JobResponse:
+    return _start_job(
+        "auto_adjust",
+        resolve_folder(path),
+        body,
+        replace_adjustments=body.replace_adjustments,
     )
 
 

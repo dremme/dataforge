@@ -799,6 +799,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse(createMockJob(folderPath, "strip_metadata"));
     }
 
+    if (url.pathname === "/api/automation/auto-adjust" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
+      return jsonResponse(createMockJob(folderPath, "auto_adjust"));
+    }
+
     if (url.pathname === "/api/automation/set-captions" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "set_captions"));

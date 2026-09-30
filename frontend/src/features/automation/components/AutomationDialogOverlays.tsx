@@ -1,3 +1,4 @@
+import { AutoAdjustDialog } from "./AutoAdjustDialog";
 import { AutoCaptionDialog } from "./AutoCaptionDialog";
 import { BackupCaptionsDialog } from "./BackupCaptionsDialog";
 import { SetCaptionsDialog } from "./SetCaptionsDialog";
@@ -29,6 +30,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     trainLora,
     watermark,
     comfyProcess,
+    autoAdjust,
     checkCaptionRules,
   } = dialogs;
 
@@ -144,6 +146,15 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={comfyProcess.busy}
           onConfirm={comfyProcess.onConfirm}
           onCancel={comfyProcess.onCancel}
+        />
+      )}
+
+      {autoAdjust.open && (
+        <AutoAdjustDialog
+          scope={autoAdjust.scope}
+          busy={autoAdjust.busy}
+          onConfirm={autoAdjust.onConfirm}
+          onCancel={autoAdjust.onCancel}
         />
       )}
 

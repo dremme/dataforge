@@ -230,6 +230,27 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
+  it("starts auto-adjust with the choice to replace earlier adjustments", async () => {
+    const { result, startJob } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("auto_adjust");
+    });
+    expect(result.current.dialogs.autoAdjust.open).toBe(true);
+
+    await act(async () => {
+      result.current.dialogs.autoAdjust.onConfirm(true);
+    });
+
+    expect(result.current.dialogs.autoAdjust.open).toBe(false);
+    expect(startJob).toHaveBeenCalledWith(
+      "auto_adjust",
+      "C:\\Photos",
+      { replace_adjustments: true },
+      undefined,
+    );
+  });
+
   it("keeps at most one dialog open", async () => {
     const { result } = setupOverlays();
 

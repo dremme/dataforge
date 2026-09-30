@@ -14,9 +14,11 @@ from color_auto import (
     image_analysis_pixels,
     suggest_adjust,
     video_analysis_pixels,
+    with_auto,
+    without_auto,
 )
 from ffmpeg_bin import ffmpeg_path
-from schemas import ColorAdjust, EditCropRect, MaskRegion
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, MaskRegion
 
 
 def scene(seed: int = 7, size: int = 96) -> np.ndarray:
@@ -121,6 +123,39 @@ class SuggestionTests(unittest.TestCase):
     def test_nothing_left_to_read_is_refused(self) -> None:
         with self.assertRaises(NothingToAnalyseError):
             suggest_adjust(np.zeros((4, 3)), np.zeros(4))
+
+
+class WandBookkeepingTests(unittest.TestCase):
+    SUGGESTION = ColorAdjust(exposure=0.2, contrast=-0.1)
+
+    def test_the_first_press_adds_the_suggestion_and_remembers_the_base(self) -> None:
+        manual = ColorAdjust(warmth=0.3)
+
+        adjust, auto = with_auto(manual, None, self.SUGGESTION)
+
+        self.assertEqual(adjust, ColorAdjust(exposure=0.2, contrast=-0.1, warmth=0.3))
+        self.assertEqual(auto, AutoAdjust(suggestion=self.SUGGESTION, base=manual))
+
+    def test_a_new_suggestion_replaces_the_old_and_keeps_later_manual_moves(self) -> None:
+        adjust, auto = with_auto(ColorAdjust(), None, self.SUGGESTION)
+        tweaked = adjust.model_copy(update={"warmth": 0.4})
+
+        again, _ = with_auto(tweaked, auto, ColorAdjust(exposure=-0.1))
+
+        self.assertAlmostEqual(again.exposure, -0.1)
+        self.assertAlmostEqual(again.contrast, 0.0)
+        self.assertAlmostEqual(again.warmth, 0.4)
+
+    def test_removing_a_rescaled_wand_restores_the_base(self) -> None:
+        auto = AutoAdjust(amount=1.0, suggestion=self.SUGGESTION, base=ColorAdjust(shadows=0.2))
+        composed = ColorAdjust(exposure=0.4, contrast=-0.2, shadows=0.2)
+
+        self.assertEqual(without_auto(composed, auto), ColorAdjust(shadows=0.2))
+
+    def test_the_sum_stays_within_each_tool_range(self) -> None:
+        adjust, _ = with_auto(ColorAdjust(exposure=0.9), None, ColorAdjust(exposure=0.3))
+
+        self.assertEqual(adjust.exposure, 1.0)
 
 
 class ImageAnalysisTests(unittest.TestCase):

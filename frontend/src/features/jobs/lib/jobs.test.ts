@@ -170,6 +170,11 @@ describe("remaining time", () => {
       { slow: 2, fast: 3 },
     ],
     [
+      "auto_adjust",
+      { success: 2, image_success: 1, video_success: 1, unchanged: 2, ffmpeg_error: 1 },
+      { slow: 2, fast: 3 },
+    ],
+    [
       "comfy_process",
       { success: 2, comfy_error: 1, write_error: 1, skipped: 3, read_error: 1 },
       { slow: 4, fast: 4 },

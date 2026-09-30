@@ -30,6 +30,7 @@ describe("automation API", () => {
       ["restore_captions", "restore-captions"],
       ["train_lora", "train-lora"],
       ["watermark", "watermark"],
+      ["auto_adjust", "auto-adjust"],
     ];
 
     for (const [jobType, path] of routes) {

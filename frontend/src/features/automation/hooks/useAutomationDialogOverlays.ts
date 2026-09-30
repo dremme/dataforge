@@ -212,6 +212,14 @@ export function useAutomationDialogOverlays({
             overwrite_candidates: draft.overwriteCandidates,
           }),
       },
+      autoAdjust: {
+        open: openJobType === "auto_adjust",
+        scope,
+        busy: startingJobType === "auto_adjust",
+        onCancel: closeDialog,
+        onConfirm: (replaceAdjustments: boolean) =>
+          startJobFromDialog("auto_adjust", { replace_adjustments: replaceAdjustments }),
+      },
       checkCaptionRules: {
         open: openJobType === "check_caption_rules",
         scope,

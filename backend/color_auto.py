@@ -13,10 +13,17 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from color_adjust import LUMA, linear_to_srgb, srgb_to_linear, tone_curve, white_balance_gains
-from constants import COLOR_ADJUST
+from color_adjust import (
+    GLOBAL_TOOLS,
+    LUMA,
+    linear_to_srgb,
+    srgb_to_linear,
+    tone_curve,
+    white_balance_gains,
+)
+from constants import ADJUST_MAX_HUE, AUTO_ADJUST_DEFAULT_AMOUNT, COLOR_ADJUST
 from image_io import load_image_for_edit
-from schemas import ColorAdjust, EditCropRect, MaskRegion
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, MaskRegion
 
 logger = logging.getLogger(__name__)
 
@@ -267,6 +274,43 @@ def suggest_adjust(rgb: np.ndarray, weights: np.ndarray) -> ColorAdjust:
     )
 
 
+def _tool_range(tool: str) -> tuple[float, float]:
+    if tool == "hue":
+        return -ADJUST_MAX_HUE, ADJUST_MAX_HUE
+    return (-1.0, 1.0) if tool in GLOBAL_TOOLS else (0.0, 1.0)
+
+
+def _shifted(adjust: ColorAdjust, suggestion: ColorAdjust, by: float) -> ColorAdjust:
+    values = adjust.model_dump()
+    for tool, value in suggestion.model_dump().items():
+        low, high = _tool_range(tool)
+        values[tool] = min(high, max(low, values[tool] + by * value))
+    return ColorAdjust(**values)
+
+
+def _share(amount: float) -> float:
+    return amount / AUTO_ADJUST_DEFAULT_AMOUNT
+
+
+def without_auto(adjust: ColorAdjust, auto: AutoAdjust) -> ColorAdjust:
+    """Moves the user made on top of the wand survive its removal."""
+    if auto.base is None:
+        return _shifted(adjust, auto.suggestion, -_share(auto.amount))
+    composed = _shifted(auto.base, auto.suggestion, _share(auto.amount))
+    drift = ColorAdjust.model_construct(
+        **{tool: value - getattr(composed, tool) for tool, value in adjust.model_dump().items()}
+    )
+    return _shifted(auto.base, drift, 1.0)
+
+
+def with_auto(
+    adjust: ColorAdjust, previous: AutoAdjust | None, suggestion: ColorAdjust
+) -> tuple[ColorAdjust, AutoAdjust]:
+    """What pressing the wand does: the earlier suggestion is swapped out at the default amount."""
+    base = adjust if previous is None else without_auto(adjust, previous)
+    return _shifted(base, suggestion, 1.0), AutoAdjust(suggestion=suggestion, base=base)
+
+
 def _frame_weights(
     shape: tuple[int, int], masks: Sequence[MaskRegion], crop: EditCropRect | None
 ) -> tuple[np.ndarray, tuple[slice, slice]]:
@@ -347,5 +391,5 @@ def video_analysis_pixels(
         capture.release()
 
     if not pixels:
-        raise NothingToAnalyseError("No frame of the video could be read")
+        raise ValueError("No frame of the video could be read")
     return np.concatenate(pixels), np.concatenate(weights)

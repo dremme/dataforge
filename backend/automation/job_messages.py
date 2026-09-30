@@ -83,6 +83,25 @@ def watermark_error_message(stats: dict[str, int]) -> str | None:
     return f"Failed to watermark {error_count} files. The originals were not changed."
 
 
+def auto_adjust_error_message(stats: dict[str, int]) -> str | None:
+    ffmpeg_errors = int(stats.get("ffmpeg_error") or 0)
+    error_count = (
+        ffmpeg_errors + int(stats.get("write_error") or 0) + int(stats.get("read_error") or 0)
+    )
+
+    if error_count == 0:
+        return None
+
+    if ffmpeg_errors == error_count:
+        if ffmpeg_errors == 1:
+            return "Failed to auto-adjust 1 video. Check that ffmpeg is available."
+        return f"Failed to auto-adjust {ffmpeg_errors} videos. Check that ffmpeg is available."
+
+    if error_count == 1:
+        return "Failed to auto-adjust 1 file. It was left unchanged."
+    return f"Failed to auto-adjust {error_count} files. They were left unchanged."
+
+
 def comfy_process_error_message(stats: dict[str, int]) -> str | None:
     """Blame ComfyUI only for ``comfy_error``; read/write failures never reached the graph."""
     comfy_errors = int(stats.get("comfy_error") or 0)
@@ -311,6 +330,8 @@ def resolve_job_error(
         return restore_captions_error_message(stats)
     if job_type == "watermark":
         return watermark_error_message(stats)
+    if job_type == "auto_adjust":
+        return auto_adjust_error_message(stats)
     if job_type == "comfy_process":
         return comfy_process_error_message(stats)
     return None

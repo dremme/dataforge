@@ -67,7 +67,7 @@ Every setting is optional, but a file needs at least one. Terms in `match` ignor
 
 ## Edit media
 
-Every edit is rendered in one pass from the original, which is kept beside the file as `<name>.bak` together with the edit settings in `<name>.edit.json`. Changing an edit later never re-encodes an already-edited copy, and **Revert original** restores the original and removes both files.
+Every edit is rendered in one pass from the original, which is kept beside the file as `<name>.bak` together with the edit settings in `<stem>.edit.json`. Changing an edit later never re-encodes an already-edited copy, and **Revert original** restores the original and removes both files.
 
 - **Images** (JPG, PNG, WebP, BMP): crop to preset ratios, rotate in quarter turns, mirror, resize by scale or to exact dimensions, and enhance the picture in **Adjust**.
 - **Videos** (MP4, MOV, M4V): trim on the timeline, crop, resize, change speed or volume or mute, and use the same **Adjust** tools. Rendering shows progress and can be cancelled.
@@ -101,8 +101,11 @@ Cancelling stops the run but keeps whatever it already wrote. Starting a job rep
 | **Rename**               | Renames files in sequence                                            | Renames media and its related files; no undo                                           |
 | **Watermark**            | Stamps text onto copies, optionally stripping their metadata          | Copies in `watermarked/`, without captions                                             |
 | **Strip metadata**       | Removes provenance metadata; see below                               | Rewrites media in place; captions are untouched                                        |
+| **Auto-adjust**          | Applies the Adjust **Auto** wand to images and videos; see below     | Rewrites media in place, keeping the original to revert in the editor                  |
 | **Process with ComfyUI** | Runs media through a workflow                                        | Results in `staging/` for review; see [ComfyUI](comfyui.md)                            |
 | **Quick LoRA training**  | Starts an AI-Toolkit training run                                    | Nothing in the folder; see [AI-Toolkit](ai-toolkit.md)                                 |
+
+**Auto-adjust** does what the **Auto** wand and **Apply** do in the editor, file by file. It keeps a file's earlier edits, such as a crop or a mask, and replaces an earlier wand result rather than stacking on it. Adjustments made by hand, such as exposure, color or Definition, stay and the wand's result is added on top; tick **Replace earlier adjustments** to set every Adjust tool back to zero first, so each file gets only the wand's result. Files the wand would leave as they are, and files being saved from the editor at that moment, are skipped. Open a file in the editor to tune the result with the wand's slider or to revert it.
 
 **Strip metadata**, and the same option in **Watermark**, never changes how a file looks or sounds. On images it removes EXIF, XMP, and text chunks, including embedded ComfyUI workflows, and keeps the color profile and color and density information. On videos it removes container tags and chapters and remuxes without re-encoding, keeping every audio and video stream.
 
@@ -146,7 +149,7 @@ Every format below appears in the gallery with a thumbnail, takes `.txt` caption
 | `.captionrules`                      | Dataset or any parent | You, in **Edit instructions**                | Saved empty, or you delete it         |
 | `<name>.issue.json`                  | Beside the media      | **Verify captions**, **Lint captions**       | Resolved or cleared                   |
 | `<name>.duplicate.json`              | Beside the media      | **Find duplicates**                          | Group resolved, dismissed, or cleared |
-| `<name>.bak`, `<name>.edit.json`     | Beside the media      | A media edit                                 | **Revert original**                   |
+| `<name>.bak`, `<stem>.edit.json`     | Beside the media      | A media edit, **Auto-adjust**                | **Revert original**                   |
 | `<stem>.txt`                         | `.backup/`            | **Backup captions**                          | You delete it                         |
 | Watermarked copies                   | `watermarked/`        | **Watermark**                                | You delete them                       |
 | ComfyUI result and its `.comfy.json` | `staging/`            | **Process with ComfyUI**                     | Accepted or rejected                  |

@@ -137,6 +137,7 @@ JOB_TYPE_LABELS: dict[str, str] = {
     "backup_captions": "Backup captions",
     "restore_captions": "Restore captions",
     "watermark": "Watermark",
+    "auto_adjust": "Auto-adjust",
     "comfy_process": "Process with ComfyUI",
 }
 

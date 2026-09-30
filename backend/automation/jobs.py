@@ -15,6 +15,7 @@ from typing import get_args
 import events
 import notifications
 from automation import job_outcome, jobs_store
+from automation.auto_adjust import run_auto_adjust_job, validate_auto_adjust_folder
 from automation.auto_caption import run_auto_caption_job, validate_auto_caption_folder
 from automation.backup_captions import (
     run_backup_captions_job,
@@ -36,6 +37,7 @@ from automation.find_duplicates import (
     validate_find_duplicates_folder,
 )
 from automation.job_messages import (
+    auto_adjust_error_message,
     auto_caption_failure_message,
     backup_captions_error_message,
     check_caption_rules_error_message,
@@ -279,6 +281,10 @@ def _validate_watermark(folder: Path, **params: object) -> None:
     )
 
 
+def _validate_auto_adjust(folder: Path, **params: object) -> None:
+    validate_auto_adjust_folder(folder, _selected_paths(params))
+
+
 def _validate_comfy_process(folder: Path, **params: object) -> None:
     validate_comfy_process_folder(
         folder,
@@ -401,6 +407,12 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_watermark_job,
         resolve_status=_resolve_stats_errors(watermark_error_message),
         validate=_validate_watermark,
+    ),
+    "auto_adjust": JobSpec(
+        thread_prefix="auto-adjust",
+        run=run_auto_adjust_job,
+        resolve_status=_resolve_stats_errors(auto_adjust_error_message),
+        validate=_validate_auto_adjust,
     ),
     "comfy_process": JobSpec(
         thread_prefix="comfy-process",

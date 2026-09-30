@@ -17,6 +17,7 @@ import {
   iconSparkles,
   iconSpellCheck2,
   iconStamp,
+  iconWandSparkles,
 } from "@/shared/icons";
 import type { JobType } from "@/shared/types";
 
@@ -163,6 +164,13 @@ export const JOB_TYPE_META = {
     icon: iconStamp,
     startUi: "dialog" as const,
     menuDescription: "Adds a watermark to media files.",
+  },
+  auto_adjust: {
+    type: "auto_adjust" as const,
+    group: "files" as const,
+    icon: iconWandSparkles,
+    startUi: "dialog" as const,
+    menuDescription: "Correct exposure, contrast and color with the Adjust wand.",
   },
   comfy_process: {
     type: "comfy_process" as const,

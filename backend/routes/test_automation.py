@@ -19,6 +19,7 @@ from testing_fixtures import (
     TempMediaFolder,
     reset_job_manager,
     wait_for_job,
+    write_image,
     write_media,
     write_sysprompt,
     write_txt_caption,
@@ -204,6 +205,47 @@ class StripMetadataAutomationEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["job_type"], "strip_metadata")
+
+
+class AutoAdjustAutomationEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def test_adjusts_the_selection_and_keeps_its_original(self) -> None:
+        with TempMediaFolder() as root:
+            chosen = write_image(root, "dusk.png", color=(40, 32, 28))
+            write_image(root, "noon.png", color=(40, 32, 28))
+
+            response = client.post(
+                f"/api/automation/auto-adjust?path={quote(str(root))}",
+                json={"paths": [str(chosen)]},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            job = wait_for_job(response.json()["id"])
+            self.assertEqual(job.status, "completed")
+            self.assertEqual(job.stats["image_success"], 1)
+            self.assertTrue((root / "dusk.png.bak").is_file())
+            self.assertTrue((root / "dusk.edit.json").is_file())
+            self.assertFalse((root / "noon.png.bak").exists())
+
+    def test_forwards_the_choice_to_replace_earlier_adjustments(self) -> None:
+        received: dict[str, object] = {}
+
+        def run(folder: Path, **params: object) -> dict[str, object]:
+            received.update(params)
+            return {"stats": {}, "results": []}
+
+        with TempMediaFolder() as root, _patched_job_runner("auto_adjust", run):
+            write_image(root, "dusk.png")
+
+            response = client.post(
+                f"/api/automation/auto-adjust?path={quote(str(root))}",
+                json={"replace_adjustments": True},
+            )
+
+            wait_for_job(response.json()["id"])
+        self.assertEqual(received["replace_adjustments"], True)
 
 
 class CheckCaptionRulesAutomationEndpointTests(unittest.TestCase):

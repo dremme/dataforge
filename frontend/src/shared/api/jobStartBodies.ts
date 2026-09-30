@@ -1,4 +1,5 @@
 import type {
+  AutoAdjustStartRequest,
   AutoCaptionStartRequest,
   BackupCaptionsStartRequest,
   BatchRenameStartRequest,
@@ -32,6 +33,7 @@ export interface JobStartBodies {
   strip_metadata: StripMetadataStartRequest;
   backup_captions: BackupCaptionsStartRequest;
   restore_captions: RestoreCaptionsStartRequest;
+  auto_adjust: AutoAdjustStartRequest;
 }
 
 /** Any job's body, for callers whose job type is only known at runtime. */
