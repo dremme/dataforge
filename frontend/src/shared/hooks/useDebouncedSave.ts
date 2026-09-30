@@ -168,9 +168,10 @@ export function useDebouncedSave<T>({
   useEffect(() => {
     return () => {
       flushPendingSave();
+      invalidate();
       clearFeedbackTimer();
     };
-  }, [clearFeedbackTimer, flushPendingSave]);
+  }, [clearFeedbackTimer, flushPendingSave, invalidate]);
 
   return {
     saveState,

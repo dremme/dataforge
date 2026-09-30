@@ -7,23 +7,23 @@ import {
 } from "@/features/gallery/lib/colorAdjust";
 import { AUTO_ADJUST_DEFAULT_AMOUNT } from "@/shared/constants";
 import {
-  iconAperture,
-  iconBlend,
-  iconCircleDashed,
-  iconCircleDot,
-  iconContrast,
-  iconDroplet,
-  iconEclipse,
-  iconEye,
+  iconAdjustExposure,
+  iconAdjustBrilliance,
+  iconAdjustHighlights,
+  iconAdjustShadows,
+  iconAdjustContrast,
+  iconAdjustBrightness,
+  iconAdjustBlackPoint,
+  iconAdjustSaturation,
+  iconAdjustVibrance,
+  iconAdjustWarmth,
+  iconAdjustTint,
+  iconAdjustHue,
+  iconAdjustDefinition,
+  iconAdjustNoiseReduction,
   iconLoader2,
-  iconMoon,
-  iconPipette,
   iconRotateCcw,
-  iconSparkle,
-  iconSun,
-  iconSunDim,
-  iconThermometer,
-  iconTriangle,
+  iconSquareSplitHorizontal,
   iconWandSparkles,
   type AppIcon,
 } from "@/shared/icons";
@@ -37,20 +37,20 @@ import type { ColorAdjustControls } from "@/features/gallery/hooks/useColorAdjus
 type StripId = "auto" | AdjustTool;
 
 const TOOLS: ReadonlyArray<{ id: AdjustTool; label: string; icon: AppIcon }> = [
-  { id: "exposure", label: "Exposure", icon: iconAperture },
-  { id: "brilliance", label: "Brilliance", icon: iconSparkle },
-  { id: "highlights", label: "Highlights", icon: iconSun },
-  { id: "shadows", label: "Shadows", icon: iconMoon },
-  { id: "contrast", label: "Contrast", icon: iconContrast },
-  { id: "brightness", label: "Brightness", icon: iconSunDim },
-  { id: "black_point", label: "Black Point", icon: iconCircleDot },
-  { id: "saturation", label: "Saturation", icon: iconDroplet },
-  { id: "vibrance", label: "Vibrance", icon: iconBlend },
-  { id: "warmth", label: "Warmth", icon: iconThermometer },
-  { id: "tint", label: "Tint", icon: iconPipette },
-  { id: "hue", label: "Hue", icon: iconEclipse },
-  { id: "definition", label: "Definition", icon: iconTriangle },
-  { id: "noise_reduction", label: "Noise Reduction", icon: iconCircleDashed },
+  { id: "exposure", label: "Exposure", icon: iconAdjustExposure },
+  { id: "brilliance", label: "Brilliance", icon: iconAdjustBrilliance },
+  { id: "highlights", label: "Highlights", icon: iconAdjustHighlights },
+  { id: "shadows", label: "Shadows", icon: iconAdjustShadows },
+  { id: "contrast", label: "Contrast", icon: iconAdjustContrast },
+  { id: "brightness", label: "Brightness", icon: iconAdjustBrightness },
+  { id: "black_point", label: "Black Point", icon: iconAdjustBlackPoint },
+  { id: "saturation", label: "Saturation", icon: iconAdjustSaturation },
+  { id: "vibrance", label: "Vibrance", icon: iconAdjustVibrance },
+  { id: "warmth", label: "Warmth", icon: iconAdjustWarmth },
+  { id: "tint", label: "Tint", icon: iconAdjustTint },
+  { id: "hue", label: "Hue", icon: iconAdjustHue },
+  { id: "definition", label: "Definition", icon: iconAdjustDefinition },
+  { id: "noise_reduction", label: "Noise Reduction", icon: iconAdjustNoiseReduction },
 ];
 
 const STRIP_IDS: readonly StripId[] = ["auto", ...TOOLS.map((tool) => tool.id)];
@@ -152,7 +152,7 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
                 style={ringStyle(ringShare(entry.id, value), value < 0)}
               >
                 <ToolRing />
-                <Icon icon={entry.icon} />
+                <Icon icon={entry.icon} className="adjust-tools__glyph" />
               </button>
             </Tooltip>
           );
@@ -208,7 +208,7 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
             onKeyUp={() => controls.setComparing(false)}
             onBlur={() => controls.setComparing(false)}
           >
-            <Icon icon={iconEye} />
+            <Icon icon={iconSquareSplitHorizontal} />
           </button>
         </Tooltip>
         <Tooltip content="Reset adjustments">

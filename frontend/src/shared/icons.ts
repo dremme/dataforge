@@ -2,9 +2,24 @@ import type { LucideIcon } from "lucide-react";
 
 export type AppIcon = LucideIcon;
 
-// Brand marks lucide does not carry, drawn on the same grid. Re-exported here so callers
-// have one import site for icons regardless of where a given one came from.
 export { iconAiToolkit, iconComfyUi } from "./brandIcons";
+
+export {
+  iconAdjustExposure,
+  iconAdjustBrilliance,
+  iconAdjustHighlights,
+  iconAdjustShadows,
+  iconAdjustContrast,
+  iconAdjustBrightness,
+  iconAdjustBlackPoint,
+  iconAdjustSaturation,
+  iconAdjustVibrance,
+  iconAdjustWarmth,
+  iconAdjustTint,
+  iconAdjustHue,
+  iconAdjustDefinition,
+  iconAdjustNoiseReduction,
+} from "./customIcons";
 
 export {
   AlertTriangle as iconAlertTriangle,
@@ -126,6 +141,7 @@ export {
   Sparkles as iconSparkles,
   SpellCheck2 as iconSpellCheck2,
   SquarePen as iconSquarePen,
+  SquareSplitHorizontal as iconSquareSplitHorizontal,
   Stamp as iconStamp,
   Star as iconStar,
   StarPlusIcon as iconStarPlusIcon,

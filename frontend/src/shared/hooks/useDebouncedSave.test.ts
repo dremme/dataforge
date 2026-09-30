@@ -67,6 +67,36 @@ describe("useDebouncedSave", () => {
     expect(save).toHaveBeenCalledWith({ path: "a.png", text: "Pending" });
   });
 
+  it.each(["pending", "saving"])(
+    "does not schedule feedback after unmounting a %s save",
+    async (state) => {
+      let finishSave!: () => void;
+      const save = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishSave = resolve;
+          }),
+      );
+      const { result, unmount } = renderHook(() =>
+        useDebouncedSave<Payload>({
+          save,
+          isUnchanged: (pending, baseline) => pending.text === baseline.text,
+        }),
+      );
+      act(() => {
+        result.current.setBaseline({ path: "photo.png", text: "" });
+        result.current.scheduleSave({ path: "photo.png", text: "A mountain lake" });
+        if (state === "saving") result.current.flushPendingSave();
+      });
+      unmount();
+      expect(save).toHaveBeenCalledExactlyOnceWith({ path: "photo.png", text: "A mountain lake" });
+      await act(async () => {
+        finishSave();
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
   it("ignores stale save responses after invalidateInFlight", async () => {
     const completionOrder: string[] = [];
     let resolveFirst: (() => void) | undefined;
