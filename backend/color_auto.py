@@ -1,6 +1,7 @@
-"""The Adjust wand: read an image or a clip and suggest tool positions that tidy its levels and cast.
+"""The Adjust wand: read an image or a clip and suggest tool positions toward a natural look.
 
-Suggestions are deliberately partial, so running the wand on its own result changes little.
+It fixes levels, harsh contrast, loud or dull colour and casts, and leaves alone a frame that is
+already within natural bounds. Suggestions are partial, so a second run changes little.
 """
 
 from __future__ import annotations
@@ -24,8 +25,15 @@ ANALYSIS_SIDE = 512
 VIDEO_ANALYSIS_SIDE = 256
 VIDEO_SAMPLE_FRAMES = 8
 
-#: Where a well-exposed median lands, in encoded luminance: a shade under middle grey.
-TARGET_MEDIAN = 0.45
+#: Well-exposed footage keeps its median anywhere in this band of encoded luminance, so a scene
+#: inside it is left alone; outside it the wand moves the median only to the nearer target.
+DARK_MEDIAN = 0.22
+BRIGHT_MEDIAN = 0.6
+DARK_TARGET = 0.3
+BRIGHT_TARGET = 0.52
+#: Brightening stops where the brightest percentile would land, so it never blows highlights.
+HEADROOM_PERCENTILE = 99.0
+HEADROOM_TARGET = 0.93
 #: Share of each measured correction the wand applies.
 CORRECTION_SHARE = 0.5
 MAX_SUGGESTION = 0.5
@@ -33,10 +41,14 @@ MAX_SUGGESTION = 0.5
 MAX_EXPOSURE = 0.3
 MAX_WHITE_BALANCE = 0.25
 MAX_CONTRAST = 0.3
-MAX_VIBRANCE = 0.3
+MAX_VIBRANCE = 0.25
+MAX_DESATURATION = 0.3
 #: A warm scene reads like a warm cast, and cooling a sunset is the worse mistake.
 COOLING_SHARE = 0.25
 MAX_COOLING = 0.1
+#: Foliage reads like a green cast, so tint moves less than warmth.
+TINT_SHARE = 0.35
+MAX_TINT = 0.15
 #: Below this a suggestion is noise, and a tool the user did not ask about should stay at 0.
 DEAD_ZONE = 0.03
 
@@ -47,7 +59,22 @@ CLIPPED_ALLOWANCE = 0.01
 DEEP_SHADOW_LEVEL = 0.1
 DEEP_SHADOW_ALLOWANCE = 0.15
 FLAT_SPREAD = 0.6
-DULL_SATURATION = 0.3
+#: Crushed blacks and blown whites together; past this share the contrast is harsh.
+EXTREME_LOW = 0.04
+EXTREME_HIGH = 0.96
+HARSH_EXTREMES = 0.08
+HARSH_GAIN = 1.5
+#: Oversaturation pins a channel at 0 or 1 in pixels that are neither dark nor white; natural
+#: colour almost never does. Dark pixels are left out: a night sky pins its red channel honestly.
+PINNED_LOW = 0.35
+PINNED_HIGH = 0.95
+PINNED_CHANNEL = 0.015
+PINNED_ALLOWANCE = 0.05
+PINNED_GAIN = 1.5
+#: Hasler and Susstrunk's colourfulness, in 0..1 units: "highly colourful" ends near 0.26.
+LOUD_COLOURFULNESS = 0.26
+LOUD_GAIN = 2.0
+DULL_COLOURFULNESS = 0.1
 NEUTRAL_SATURATION = 0.15
 #: Grey-world needs this share of near-grey pixels, or a warm sunset reads as an orange cast.
 MIN_NEUTRAL_SHARE = 0.1
@@ -84,17 +111,78 @@ def _encoded(luminance: np.ndarray, adjust: ColorAdjust) -> np.ndarray:
     return linear_to_srgb(tone_curve(luminance, adjust))
 
 
-def _solve_exposure(median: float, black_point: float) -> float:
+def _solve_exposure(encoded: float, target: float, black_point: float) -> float:
     """Bisection: the tone curve is monotonic in exposure, so the target has one crossing."""
     low, high = -1.0, 1.0
-    luminance = np.array([median])
+    luminance = srgb_to_linear(np.array([encoded]))
     for _ in range(40):
         middle = (low + high) / 2
         landed = float(
             _encoded(luminance, ColorAdjust(exposure=middle, black_point=black_point))[0]
         )
-        low, high = (middle, high) if landed < TARGET_MEDIAN else (low, middle)
+        low, high = (middle, high) if landed < target else (low, middle)
     return (low + high) / 2
+
+
+def _exposure(encoded_luma: np.ndarray, weights: np.ndarray, black_point: float) -> float:
+    median = _weighted_percentile(encoded_luma, weights, 50.0)
+    if median > BRIGHT_MEDIAN:
+        return _clamp(_solve_exposure(median, BRIGHT_TARGET, black_point), MAX_EXPOSURE)
+    if median >= DARK_MEDIAN:
+        return 0.0
+    brightest = _weighted_percentile(encoded_luma, weights, HEADROOM_PERCENTILE)
+    lift = min(
+        _solve_exposure(median, DARK_TARGET, black_point),
+        _solve_exposure(brightest, HEADROOM_TARGET, black_point),
+    )
+    return _clamp(max(0.0, lift), MAX_EXPOSURE)
+
+
+def _contrast(levelled: np.ndarray, weights: np.ndarray, deep: float) -> float:
+    """Harsh footage is softened. A flat one is only steepened when it is neither dark nor deep in
+    shadow, since steeper midtones would sink what the shadows and exposure lift."""
+    extremes = _weighted_share((levelled < EXTREME_LOW) | (levelled > EXTREME_HIGH), weights)
+    if extremes > HARSH_EXTREMES:
+        return -_clamp((extremes - HARSH_EXTREMES) * HARSH_GAIN + DEAD_ZONE, MAX_CONTRAST)
+    if deep > DEEP_SHADOW_ALLOWANCE or _weighted_percentile(levelled, weights, 50.0) < DARK_MEDIAN:
+        return 0.0
+    flatness = max(0.0, FLAT_SPREAD - _spread(levelled, weights)) / FLAT_SPREAD
+    return _clamp(CORRECTION_SHARE * flatness, MAX_CONTRAST)
+
+
+def _colourfulness(rgb: np.ndarray, weights: np.ndarray) -> float:
+    share = weights / weights.sum()
+    red_green = rgb[:, 0] - rgb[:, 1]
+    yellow_blue = 0.5 * (rgb[:, 0] + rgb[:, 1]) - rgb[:, 2]
+    means = np.array([red_green @ share, yellow_blue @ share])
+    spreads = np.array(
+        [
+            np.sqrt(((red_green - means[0]) ** 2) @ share),
+            np.sqrt(((yellow_blue - means[1]) ** 2) @ share),
+        ]
+    )
+    return float(np.hypot(*spreads) + 0.3 * np.hypot(*means))
+
+
+def _saturation_and_vibrance(
+    rgb: np.ndarray, encoded_luma: np.ndarray, weights: np.ndarray
+) -> tuple[float, float]:
+    """Loud colour is pulled back with saturation; only dull colour is lifted, and gently."""
+    lit = (encoded_luma > PINNED_LOW) & (encoded_luma < PINNED_HIGH)
+    pinned = lit & ((rgb.min(axis=-1) < PINNED_CHANNEL) | (rgb.max(axis=-1) > 1 - PINNED_CHANNEL))
+    pinned_share = _weighted_share(pinned, weights)
+    colourfulness = _colourfulness(rgb, weights)
+
+    cut = max(
+        (pinned_share - PINNED_ALLOWANCE) * PINNED_GAIN if pinned_share > PINNED_ALLOWANCE else 0,
+        (colourfulness - LOUD_COLOURFULNESS) * LOUD_GAIN,
+        0.0,
+    )
+    if cut > 0:
+        return -_clamp(cut + DEAD_ZONE, MAX_DESATURATION), 0.0
+
+    dullness = max(0.0, DULL_COLOURFULNESS - colourfulness) / DULL_COLOURFULNESS
+    return 0.0, _clamp(MAX_VIBRANCE * dullness, MAX_VIBRANCE)
 
 
 def _spread(encoded: np.ndarray, weights: np.ndarray) -> float:
@@ -152,8 +240,7 @@ def suggest_adjust(rgb: np.ndarray, weights: np.ndarray) -> ColorAdjust:
         black_point = (floor - BLACK_TARGET) / COLOR_ADJUST["black_point_level"]
     black_point = _clamp(black_point)
 
-    median = float(srgb_to_linear(np.array(_weighted_percentile(encoded_luma, weights, 50.0))))
-    exposure = _clamp(CORRECTION_SHARE * _solve_exposure(median, black_point), MAX_EXPOSURE)
+    exposure = _exposure(encoded_luma, weights, black_point)
 
     levelled = _encoded(luminance, ColorAdjust(exposure=exposure, black_point=black_point))
     clipped = _weighted_share(levelled > CLIPPED_LEVEL, weights)
@@ -163,15 +250,9 @@ def suggest_adjust(rgb: np.ndarray, weights: np.ndarray) -> ColorAdjust:
     )
     shadows = _clamp((deep - DEEP_SHADOW_ALLOWANCE) * 2.0) if deep > DEEP_SHADOW_ALLOWANCE else 0.0
 
-    flatness = max(0.0, FLAT_SPREAD - _spread(levelled, weights)) / FLAT_SPREAD
-    contrast = _clamp(CORRECTION_SHARE * flatness, MAX_CONTRAST)
-
-    saturation = _saturation(rgb)
+    contrast = _contrast(levelled, weights, deep)
+    saturation, vibrance = _saturation_and_vibrance(rgb, encoded_luma, weights)
     warmth, tint = _white_balance(linear, encoded_luma, weights)
-
-    mean_saturation = float((saturation * weights).sum() / weights.sum())
-    dullness = max(0.0, DULL_SATURATION - mean_saturation) / DULL_SATURATION
-    vibrance = min(MAX_VIBRANCE, CORRECTION_SHARE * dullness)
 
     return ColorAdjust(
         exposure=exposure,
@@ -180,8 +261,9 @@ def suggest_adjust(rgb: np.ndarray, weights: np.ndarray) -> ColorAdjust:
         shadows=shadows,
         contrast=contrast,
         warmth=_cooled_or_warmed(warmth),
-        tint=_clamp(CORRECTION_SHARE * tint, MAX_WHITE_BALANCE),
-        vibrance=_clamp(vibrance),
+        tint=_clamp(TINT_SHARE * tint, MAX_TINT),
+        saturation=saturation,
+        vibrance=vibrance,
     )
 
 

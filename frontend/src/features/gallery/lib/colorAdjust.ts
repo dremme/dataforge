@@ -175,6 +175,42 @@ function fitGamut(linear: Rgb): void {
   }
 }
 
+/** Oklab (Ottosson), row-major: linear sRGB to cones, cube-rooted cones to lightness and chroma. */
+const OKLAB_CONES = [
+  0.4122214708, 0.5363325363, 0.0514459929, 0.2119034982, 0.6806995451, 0.1073969566, 0.0883024619,
+  0.2817188376, 0.6299787005,
+];
+const OKLAB_LAB = [
+  0.2104542553, 0.793617785, -0.0040720468, 1.9779984951, -2.428592205, 0.4505937099, 0.0259040371,
+  0.7827717662, -0.808675766,
+];
+const OKLAB_LAB_INVERSE = [
+  1, 0.3963377774, 0.2158037573, 1, -0.1055613458, -0.0638541728, 1, -0.0894841775, -1.291485548,
+];
+const OKLAB_CONES_INVERSE = [
+  4.0767416621, -3.3077115913, 0.2309699292, -1.2684380046, 2.6097574011, -0.3413193965,
+  -0.0041960863, -0.7034186147, 1.707614701,
+];
+
+function multiply(matrix: readonly number[], vector: Rgb): void {
+  const [x, y, z] = vector;
+  vector[0] = matrix[0] * x + matrix[1] * y + matrix[2] * z;
+  vector[1] = matrix[3] * x + matrix[4] * y + matrix[5] * z;
+  vector[2] = matrix[6] * x + matrix[7] * y + matrix[8] * z;
+}
+
+/** In place, in Oklab, which keeps hue and lightness: linear light turns orange pink. */
+function scaleChroma(linear: Rgb, factor: number): void {
+  multiply(OKLAB_CONES, linear);
+  for (let channel = 0; channel < 3; channel += 1) linear[channel] = Math.cbrt(linear[channel]);
+  multiply(OKLAB_LAB, linear);
+  linear[1] *= factor;
+  linear[2] *= factor;
+  multiply(OKLAB_LAB_INVERSE, linear);
+  for (let channel = 0; channel < 3; channel += 1) linear[channel] **= 3;
+  multiply(OKLAB_CONES_INVERSE, linear);
+}
+
 type LinearPixel = (
   r: number,
   g: number,
@@ -188,6 +224,8 @@ function compile(adjust: ColorAdjust): LinearPixel {
   const gains = whiteBalanceGains(adjust.warmth, adjust.tint);
   const hue = Math.abs(adjust.hue) > IDENTITY_EPSILON ? hueMatrix(adjust.hue) : null;
   const cap = COLOR_ADJUST.tone_chroma_cap;
+  const chromatic =
+    Math.abs(adjust.saturation) > IDENTITY_EPSILON || Math.abs(adjust.vibrance) > IDENTITY_EPSILON;
   const linear: Rgb = [0, 0, 0];
 
   return (inR, inG, inB, out, at) => {
@@ -205,10 +243,13 @@ function compile(adjust: ColorAdjust): LinearPixel {
 
     const high = Math.max(r, g, b);
     const saturation = high > 0 ? (high - Math.min(r, g, b)) / Math.max(high, 1e-12) : 0;
-    const chroma = (1 + adjust.saturation) * (1 + adjust.vibrance * (1 - saturation));
-    r = toned + (r - toned) * chroma;
-    g = toned + (g - toned) * chroma;
-    b = toned + (b - toned) * chroma;
+    if (chromatic) {
+      linear[0] = r;
+      linear[1] = g;
+      linear[2] = b;
+      scaleChroma(linear, (1 + adjust.saturation) * (1 + adjust.vibrance * (1 - saturation)));
+      [r, g, b] = linear;
+    }
 
     if (hue) {
       linear[0] = hue[0] * r + hue[1] * g + hue[2] * b;

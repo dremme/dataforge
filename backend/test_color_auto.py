@@ -70,9 +70,34 @@ class SuggestionTests(unittest.TestCase):
         dull = grey + (scene() - grey) * 0.2
         self.assertGreater(suggest(dull).vibrance, 0.1)
 
+    def test_a_dim_but_well_exposed_frame_keeps_its_exposure(self) -> None:
+        self.assertEqual(suggest(scene() * 0.7).exposure, 0.0)
+
+    def test_brightening_stops_short_of_blowing_the_highlights(self) -> None:
+        dark = scene() * 0.35
+        lamp = dark.copy()
+        lamp[:20, :20] = 0.97
+
+        self.assertGreater(suggest(dark).exposure, 0.1)
+        self.assertEqual(suggest(lamp).exposure, 0.0)
+
+    def test_oversaturated_footage_is_pulled_back(self) -> None:
+        loud = adjust_pixels(scene().reshape(-1, 3), ColorAdjust(saturation=0.8))
+        adjust = suggest(loud)
+
+        self.assertLess(adjust.saturation, -0.1)
+        self.assertEqual(adjust.vibrance, 0.0)
+
+    def test_harsh_contrast_is_softened(self) -> None:
+        harsh = adjust_pixels(scene().reshape(-1, 3), ColorAdjust(contrast=1.0, black_point=0.5))
+        adjust = suggest(harsh)
+
+        self.assertLess(adjust.contrast, -0.1)
+        self.assertGreater(adjust.shadows, 0.0)
+
     def test_the_wand_on_its_own_result_suggests_less(self) -> None:
         for label, faulty in (
-            ("dark", scene() * 0.6),
+            ("dark", scene() * 0.45),
             ("hazy", 0.2 + scene() * 0.75),
             ("blue", np.clip(scene() * [0.88, 0.96, 1.12], 0, 1)),
         ):
@@ -84,7 +109,7 @@ class SuggestionTests(unittest.TestCase):
 
     def test_weights_decide_which_pixels_count(self) -> None:
         dark = np.full((50, 3), 0.02)
-        mid = np.repeat(np.linspace(0.02, 0.98, 50)[:, None], 3, axis=1)
+        mid = np.repeat(np.linspace(0.02, 0.6, 50)[:, None], 3, axis=1)
         pixels = np.concatenate([dark, mid])
         only_mid = np.concatenate([np.zeros(50), np.ones(50)])
 

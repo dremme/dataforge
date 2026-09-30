@@ -144,6 +144,32 @@ def fit_gamut(linear: np.ndarray) -> np.ndarray:
     return grey + offset * scale
 
 
+#: Oklab (Ottosson): linear sRGB to cone response, and cube-rooted cones to lightness and chroma.
+_OKLAB_CONES = np.array(
+    [
+        [0.4122214708, 0.5363325363, 0.0514459929],
+        [0.2119034982, 0.6806995451, 0.1073969566],
+        [0.0883024619, 0.2817188376, 0.6299787005],
+    ]
+)
+_OKLAB_LAB = np.array(
+    [
+        [0.2104542553, 0.7936177850, -0.0040720468],
+        [1.9779984951, -2.4285922050, 0.4505937099],
+        [0.0259040371, 0.7827717662, -0.8086757660],
+    ]
+)
+_OKLAB_CONES_INVERSE = np.linalg.inv(_OKLAB_CONES)
+_OKLAB_LAB_INVERSE = np.linalg.inv(_OKLAB_LAB)
+
+
+def scale_chroma(linear: np.ndarray, factor: np.ndarray) -> np.ndarray:
+    """In Oklab, where scaling chroma keeps hue and lightness; linear light turns orange pink."""
+    lab = np.cbrt(linear @ _OKLAB_CONES.T) @ _OKLAB_LAB.T
+    lab[..., 1:] *= factor[..., None]
+    return (lab @ _OKLAB_LAB_INVERSE.T) ** 3 @ _OKLAB_CONES_INVERSE.T
+
+
 def adjust_pixels(rgb: np.ndarray, adjust: ColorAdjust) -> np.ndarray:
     """sRGB-encoded ``(..., 3)`` in 0..1 to the same, through every global tool."""
     linear = srgb_to_linear(np.asarray(rgb, dtype=np.float64))
@@ -162,7 +188,8 @@ def adjust_pixels(rgb: np.ndarray, adjust: ColorAdjust) -> np.ndarray:
         linear.max(axis=-1) > 0, spread / np.maximum(linear.max(axis=-1), 1e-12), 0
     )
     chroma = (1.0 + adjust.saturation) * (1.0 + adjust.vibrance * (1.0 - saturation))
-    linear = toned[..., None] + (linear - toned[..., None]) * chroma[..., None]
+    if abs(adjust.saturation) > IDENTITY_EPSILON or abs(adjust.vibrance) > IDENTITY_EPSILON:
+        linear = scale_chroma(linear, chroma)
 
     if abs(adjust.hue) > IDENTITY_EPSILON:
         linear = linear @ hue_matrix(adjust.hue).T

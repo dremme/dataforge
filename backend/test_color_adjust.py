@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorsys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -37,6 +38,11 @@ def adjusted(color: np.ndarray, **tools: float) -> np.ndarray:
 
 def luminance(encoded: np.ndarray) -> float:
     return float(color_adjust.srgb_to_linear(encoded) @ LUMA)
+
+
+def hue_degrees(encoded: np.ndarray) -> float:
+    red, green, blue = (float(channel) for channel in encoded)
+    return colorsys.rgb_to_hsv(red, green, blue)[0] * 360.0
 
 
 class IdentityTests(unittest.TestCase):
@@ -122,11 +128,17 @@ class DirectionTests(unittest.TestCase):
 
 
 class ColorTests(unittest.TestCase):
-    def test_full_desaturation_is_grey_of_the_same_luminance(self) -> None:
+    def test_full_desaturation_is_grey(self) -> None:
         grey = adjusted(BRICK, saturation=-1.0)
 
-        self.assertAlmostEqual(float(grey.max() - grey.min()), 0.0, places=9)
-        self.assertAlmostEqual(luminance(grey), luminance(BRICK), places=6)
+        self.assertAlmostEqual(float(grey.max() - grey.min()), 0.0, places=6)
+
+    def test_pulling_saturation_back_keeps_an_orange_orange(self) -> None:
+        orange = np.array([0.95, 0.5, 0.1])
+        muted = adjusted(orange, saturation=-0.6)
+
+        # Scaled in linear light it drifted 11 degrees toward pink.
+        self.assertLess(abs(hue_degrees(muted) - hue_degrees(orange)), 6.0)
 
     def test_vibrance_favours_muted_colors(self) -> None:
         def chroma(color: np.ndarray) -> float:
