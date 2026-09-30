@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import unittest
@@ -101,7 +102,6 @@ class MoveMediaWithSidecarsTests(unittest.TestCase):
 
 
 def _blocking_replace(blocked: str):
-    """Stand in for ``os.replace`` refusing one name, the way a locked file does."""
     real_replace = os.replace
 
     def replace(source, destination):
@@ -113,8 +113,6 @@ def _blocking_replace(blocked: str):
 
 
 class AbortedMoveTests(unittest.TestCase):
-    """A move that cannot finish must leave both folders exactly as it found them."""
-
     def test_unmovable_media_leaves_no_copy_in_the_destination(self) -> None:
         with TempMediaFolder() as root:
             source_dir = root / "Source"
@@ -200,6 +198,149 @@ class AbortedMoveTests(unittest.TestCase):
             self.assertFalse(issue_file_path(destination_dir / "sunset.png").exists())
 
 
+class TransferRollbackTests(unittest.TestCase):
+    def test_successful_overwrite_removes_temporary_backups(self) -> None:
+        for mode in ("copy", "move"):
+            with self.subTest(mode=mode), TempMediaFolder() as root:
+                source_dir, destination_dir = root / "Source", root / "Destination"
+                source_dir.mkdir()
+                destination_dir.mkdir()
+                media = write_media(source_dir, "sunset.png")
+                write_txt_caption(media, "New caption.")
+                expected = {path.name: path.read_bytes() for path in source_dir.iterdir()}
+                for name in expected:
+                    (destination_dir / name).write_bytes(b"original destination content")
+
+                transfer_media_with_sidecars(media, destination_dir, mode=mode, overwrite=True)
+
+                self.assertEqual(
+                    {path.name: path.read_bytes() for path in destination_dir.iterdir()}, expected
+                )
+                self.assertEqual(
+                    {path.name: path.read_bytes() for path in source_dir.iterdir()},
+                    expected if mode == "copy" else {},
+                )
+
+    def test_failed_move_rollback_keeps_both_versions_recoverable(self) -> None:
+        for block_source_restore in (False, True):
+            with self.subTest(block_source_restore=block_source_restore):
+                self._assert_failed_move_rollback_keeps_both_versions(block_source_restore)
+
+    def _assert_failed_move_rollback_keeps_both_versions(self, block_source_restore: bool) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = write_media(source_dir, "sunset.png")
+            original_source = media.read_bytes()
+            write_txt_caption(media, "New caption.")
+            destination_media = destination_dir / media.name
+            original_destination = b"original destination media"
+            destination_media.write_bytes(original_destination)
+            real_replace = os.replace
+
+            def replace(source, destination):
+                source, destination = Path(source), Path(destination)
+                if source == media.with_suffix(".txt"):
+                    raise PermissionError("Caption is locked")
+                if block_source_restore and destination == media:
+                    raise PermissionError("Source folder is locked")
+                if not block_source_restore and source.name.startswith(".transfer-backup-"):
+                    raise PermissionError("Destination folder is locked")
+                return real_replace(source, destination)
+
+            with (
+                patch("media_transfer.os.replace", replace),
+                self.assertLogs("media_transfer", level="WARNING"),
+            ):
+                with self.assertRaises(HTTPException):
+                    transfer_media_with_sidecars(
+                        media, destination_dir, mode="move", overwrite=True
+                    )
+
+            recovered_source = destination_media if block_source_restore else media
+            self.assertEqual(recovered_source.read_bytes(), original_source)
+            self.assertEqual(media.with_suffix(".txt").read_text(encoding="utf-8"), "New caption.")
+            backups = list(destination_dir.glob(".transfer-backup-*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_bytes(), original_destination)
+
+    def test_failed_overwrite_preserves_both_complete_groups(self) -> None:
+        for mode, cross_volume in (("copy", False), ("move", False), ("move", True)):
+            with self.subTest(mode=mode, cross_volume=cross_volume):
+                self._assert_failed_overwrite_preserves_both_groups(mode, cross_volume)
+
+    def _assert_failed_overwrite_preserves_both_groups(self, mode, cross_volume: bool) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = write_media(source_dir, "sunset.png")
+            write_txt_caption(media, "New caption.")
+            issue_file_path(media).write_bytes(b"new issue")
+            existing = destination_dir / media.name
+            existing.write_bytes(b"original destination media")
+            write_txt_caption(existing, "Original caption.")
+            issue_file_path(existing).write_bytes(b"original issue")
+            before = {
+                path.relative_to(root): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+            real_replace, real_copy = os.replace, shutil.copy2
+
+            def replace(source, destination):
+                source, destination = Path(source), Path(destination)
+                if cross_volume and {source.parent, destination.parent} == {
+                    source_dir,
+                    destination_dir,
+                }:
+                    raise OSError(errno.EXDEV, "Different volumes")
+                if source == issue_file_path(media):
+                    raise PermissionError("Issue sidecar is locked")
+                return real_replace(source, destination)
+
+            def copy(source, destination, *args, **kwargs):
+                if Path(source) == issue_file_path(media):
+                    Path(destination).write_bytes(b"partial")
+                    raise OSError(errno.ENOSPC, "Disk is full")
+                return real_copy(source, destination, *args, **kwargs)
+
+            with (
+                patch("media_transfer.os.replace", replace),
+                patch("media_transfer.shutil.copy2", copy),
+            ):
+                with self.assertRaises(HTTPException) as caught:
+                    transfer_media_with_sidecars(media, destination_dir, mode=mode, overwrite=True)
+
+            self.assertEqual(caught.exception.status_code, 500)
+            after = {
+                path.relative_to(root): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(after, before)
+
+    def test_partial_copy_failure_leaves_no_destination_files(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = root / "Source", root / "Destination"
+            source_dir.mkdir()
+            destination_dir.mkdir()
+            media = write_media(source_dir, "sunset.png")
+            original = media.read_bytes()
+
+            def copy(source, destination):
+                Path(destination).write_bytes(b"partial")
+                raise OSError(errno.ENOSPC, "Disk is full")
+
+            with patch("media_transfer.shutil.copy2", copy):
+                with self.assertRaises(HTTPException):
+                    transfer_media_with_sidecars(media, destination_dir, mode="copy")
+
+            self.assertEqual(media.read_bytes(), original)
+            self.assertEqual(list(destination_dir.iterdir()), [])
+
+
 class CopyMediaWithSidecarsTests(unittest.TestCase):
     def _folders(self, root: Path) -> tuple[Path, Path]:
         source_dir = root / "Source"
@@ -276,7 +417,6 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
                 with self.assertRaises(HTTPException):
                     transfer_media_with_sidecars(media, destination_dir, mode="copy")
 
-            # The half-written group is rolled back, and the originals are untouched.
             self.assertFalse((destination_dir / "sunset.png").exists())
             self.assertFalse((destination_dir / "sunset.txt").exists())
             self.assertTrue(media.is_file())
@@ -320,7 +460,6 @@ class TransferVideoEditSidecarTests(unittest.TestCase):
 
 
 def _with_backup_and_candidate(folder: Path) -> Path:
-    """``photo.jpg`` with a backed-up caption and a staged PNG candidate plus its record."""
     media = write_media(folder, "photo.jpg")
     (folder / CAPTION_BACKUP_DIR_NAME).mkdir()
     (folder / CAPTION_BACKUP_DIR_NAME / "photo.txt").write_text("Original.", encoding="utf-8")
@@ -331,8 +470,6 @@ def _with_backup_and_candidate(folder: Path) -> Path:
 
 
 class TransferNameLinkedFilesTests(unittest.TestCase):
-    """Backups and candidates pair by name, so one left behind would pass to a later namesake."""
-
     def test_move_takes_the_backup_caption_and_candidate_along(self) -> None:
         with TempMediaFolder() as root:
             source_dir, destination_dir = root / "Source", root / "Destination"

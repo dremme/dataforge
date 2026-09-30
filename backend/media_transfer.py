@@ -1,11 +1,10 @@
-"""Move or copy media files together with the sidecars that belong to them."""
-
 from __future__ import annotations
 
 import errno
 import logging
 import os
 import shutil
+import tempfile
 from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
@@ -50,7 +49,6 @@ def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[
 
 
 def move_one_file(source: Path, destination: Path) -> None:
-    """Rename, and only copy for a cross-volume move. ``shutil.move`` can leave a stray copy on Windows."""
     try:
         os.replace(source, destination)
         return
@@ -58,42 +56,74 @@ def move_one_file(source: Path, destination: Path) -> None:
         if exc.errno != errno.EXDEV:
             raise
 
-    shutil.copy2(source, destination)
     try:
+        shutil.copy2(source, destination)
         source.unlink()
     except OSError:
-        destination.unlink(missing_ok=True)
+        remove_transfer_file(destination)
         raise
 
 
 def transfer_one_file(source: Path, destination: Path, mode: TransferMode) -> None:
     if mode == "copy":
-        shutil.copy2(source, destination)
+        try:
+            shutil.copy2(source, destination)
+        except OSError:
+            remove_transfer_file(destination)
+            raise
         return
     move_one_file(source, destination)
 
 
-def undo_transfer(done: list[tuple[Path, Path]], mode: TransferMode) -> None:
-    """Unwind a half-finished group so a failure never splits media from its sidecars."""
-    if mode == "copy":
-        for _origin, destination in reversed(done):
-            try:
-                destination.unlink(missing_ok=True)
-            except OSError as exc:
-                logger.warning(
-                    "Failed to remove %s after an aborted copy: %s", destination.name, exc
-                )
-        return
+def remove_transfer_file(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("Failed to remove transfer file %s: %s", path, exc)
 
+
+def backup_transfer_destination(destination: Path) -> Path | None:
+    if not destination.is_file():
+        return None
+    descriptor, name = tempfile.mkstemp(prefix=".transfer-backup-", dir=destination.parent)
+    os.close(descriptor)
+    backup = Path(name)
+    try:
+        os.replace(destination, backup)
+    except OSError:
+        remove_transfer_file(backup)
+        raise
+    return backup
+
+
+def undo_transfer(done: list[tuple[Path, Path]], mode: TransferMode) -> set[Path]:
+    unrestored: set[Path] = set()
     for origin, destination in reversed(done):
         try:
-            os.replace(destination, origin)
+            if mode == "copy":
+                destination.unlink(missing_ok=True)
+            else:
+                move_one_file(destination, origin)
         except OSError as exc:
-            logger.warning("Failed to restore %s after an aborted move: %s", origin.name, exc)
+            unrestored.add(destination)
+            logger.warning("Failed to undo %s from %s to %s: %s", mode, origin, destination, exc)
+    return unrestored
+
+
+def restore_transfer_backups(backups: list[tuple[Path, Path]], unrestored: set[Path]) -> None:
+    for destination, backup in reversed(backups):
+        if destination in unrestored:
+            logger.warning("Original destination %s preserved at %s", destination, backup)
+            continue
+        try:
+            os.replace(backup, destination)
+        except OSError as exc:
+            logger.warning(
+                "Failed to restore %s; backup retained at %s: %s", destination, backup, exc
+            )
 
 
 def discard_replaced_sidecars(destination_media: Path, arrived: set[Path]) -> None:
-    """Drop destination sidecars the source did not bring. Runs only after the whole group has landed."""
     for path in media_group_paths(destination_media):
         if path in arrived:
             continue
@@ -136,18 +166,22 @@ def transfer_media_with_sidecars(
         )
 
     done: list[tuple[Path, Path]] = []
+    backups: list[tuple[Path, Path]] = []
     created_dirs: list[Path] = []
 
     for path in media_group_paths(source):
         destination = group_target(source, destination_media, path)
         try:
-            # The backup and staging subfolders may not exist at the destination yet.
             if not destination.parent.exists():
                 destination.parent.mkdir()
                 created_dirs.append(destination.parent)
+            backup = backup_transfer_destination(destination)
+            if backup is not None:
+                backups.append((destination, backup))
             transfer_one_file(path, destination, mode)
         except OSError as exc:
-            undo_transfer(done, mode)
+            unrestored = undo_transfer(done, mode)
+            restore_transfer_backups(backups, unrestored)
             for created in reversed(created_dirs):
                 with suppress(OSError):
                     created.rmdir()
@@ -157,6 +191,8 @@ def transfer_media_with_sidecars(
 
         done.append((path, destination))
 
+    for _, backup in backups:
+        remove_transfer_file(backup)
     discard_replaced_sidecars(destination_media, {destination for _, destination in done})
 
     return {
