@@ -1,4 +1,5 @@
 import { useCallback, useRef, type CSSProperties, type PointerEvent, type RefObject } from "react";
+import { exactAspectRatioLabel } from "@/features/gallery/lib/aspectRatio";
 import {
   CROP_HANDLES,
   CROP_NUDGE_FRACTION,
@@ -142,10 +143,16 @@ export function CropOverlay({
 
   if (box.width <= 0 || box.height <= 0) return null;
 
-  const pixels = {
+  const sourcePixels = {
     width: round(sourceWidth * crop.width),
     height: round(sourceHeight * crop.height),
   };
+  const pixels =
+    orientation.rotate === 90 || orientation.rotate === 270
+      ? { width: sourcePixels.height, height: sourcePixels.width }
+      : sourcePixels;
+  const ratioLabel =
+    aspectRatio === null ? exactAspectRatioLabel(pixels.width, pixels.height) : null;
   const style = {
     left: `${box.left}px`,
     top: `${box.top}px`,
@@ -179,6 +186,7 @@ export function CropOverlay({
       >
         <span className="crop-overlay__readout">
           {pixels.width} × {pixels.height}
+          {ratioLabel && ` · ${ratioLabel}`}
         </span>
         {CROP_HANDLES.map((handle) => (
           <button

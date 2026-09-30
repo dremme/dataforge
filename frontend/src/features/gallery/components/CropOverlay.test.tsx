@@ -45,8 +45,8 @@ function renderOverlay(overrides: Partial<Props> = {}) {
     ...overrides,
   };
 
-  render(<CropOverlay {...props} />);
-  return props;
+  const { rerender } = render(<CropOverlay {...props} />);
+  return { ...props, rerender };
 }
 
 function drag(element: Element, dx: number, dy: number) {
@@ -93,7 +93,36 @@ describe("CropOverlay", () => {
   it("shows the output size in source pixels, not painted ones", () => {
     renderOverlay({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } });
 
-    expect(screen.getByText("960 × 540")).toBeInTheDocument();
+    expect(screen.getByText("960 × 540 · 16:9")).toBeInTheDocument();
+  });
+
+  it("updates the free-crop label as its rounded dimensions move into and out of a bucket", () => {
+    const props = renderOverlay({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } });
+
+    expect(screen.getByText("960 × 540 · 16:9")).toBeInTheDocument();
+
+    props.rerender(<CropOverlay {...props} crop={{ x: 0, y: 0, width: 0.5, height: 0.55 }} />);
+    expect(screen.getByText("960 × 594")).toBeInTheDocument();
+
+    props.rerender(<CropOverlay {...props} crop={{ x: 0, y: 0, width: 0.5, height: 0.5 }} />);
+    expect(screen.getByText("960 × 540 · 16:9")).toBeInTheDocument();
+  });
+
+  it("uses video rounding before matching a bucket", () => {
+    const evenTrunc = (value: number) => Math.floor(value / 2) * 2;
+    renderOverlay({
+      sourceWidth: 101,
+      sourceHeight: 100,
+      round: evenTrunc,
+    });
+
+    expect(screen.getByText("100 × 100 · 1:1")).toBeInTheDocument();
+  });
+
+  it("hides the ratio while an aspect lock is active", () => {
+    renderOverlay({ aspectRatio: 16 / 9 });
+
+    expect(screen.getByText("1920 × 1080")).toBeInTheDocument();
   });
 
   it("sits over the painted frame, not over the box it is positioned in", () => {
@@ -257,6 +286,18 @@ describe("CropOverlay", () => {
       mirrorH: false,
       mirrorV: false,
       ...overrides,
+    });
+
+    it.each([90, 270] as const)("shows visible dimensions and ratio at %i degrees", (rotate) => {
+      renderOverlay({ orientation: turned({ rotate }) });
+
+      expect(screen.getByText("1080 × 1920 · 9:16")).toBeInTheDocument();
+    });
+
+    it("keeps the ratio when the image is mirrored", () => {
+      renderOverlay({ orientation: turned({ mirrorH: true, mirrorV: true }) });
+
+      expect(screen.getByText("1920 × 1080 · 16:9")).toBeInTheDocument();
     });
 
     it("reads a rightward drag as downward when the preview is turned clockwise", () => {

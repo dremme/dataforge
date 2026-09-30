@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { aspectRatioLabel, formatAspectRatio } from "./aspectRatio";
+import {
+  ASPECT_RATIO_BUCKETS,
+  aspectRatioLabel,
+  exactAspectRatioLabel,
+  formatAspectRatio,
+} from "./aspectRatio";
+
+describe("exactAspectRatioLabel", () => {
+  it.each(ASPECT_RATIO_BUCKETS)("recognizes $label", ({ label, ratio }) => {
+    expect(exactAspectRatioLabel(ratio * 900, 900)).toBe(label);
+  });
+
+  it("includes the 1% boundary but excludes larger drift", () => {
+    expect(exactAspectRatioLabel(101, 100)).toBe("1:1");
+    expect(exactAspectRatioLabel(102, 100)).toBeNull();
+    expect(exactAspectRatioLabel(300, 100)).toBeNull();
+  });
+
+  it.each([
+    [0, 100],
+    [100, 0],
+    [-1, 100],
+    [100, Number.NaN],
+    [Number.POSITIVE_INFINITY, 100],
+  ])("rejects invalid dimensions %s × %s", (width, height) => {
+    expect(exactAspectRatioLabel(width, height)).toBeNull();
+  });
+});
 
 describe("aspectRatioLabel", () => {
   it("snaps to the nearest named ratio", () => {

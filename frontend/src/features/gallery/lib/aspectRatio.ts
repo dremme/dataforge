@@ -31,6 +31,15 @@ function nearestBucket(width: number, height: number) {
   return { label, drift };
 }
 
+export function exactAspectRatioLabel(width: number, height: number): string | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const { label, drift } = nearestBucket(width, height);
+  return drift <= ASPECT_RATIO_EXACT_DRIFT ? label : null;
+}
+
 export function aspectRatioLabel(width: number, height: number): string {
   const { label, drift } = nearestBucket(width, height);
   return drift <= ASPECT_RATIO_MAX_DRIFT ? label : OTHER_ASPECT_LABEL;
