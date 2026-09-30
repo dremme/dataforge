@@ -24,6 +24,7 @@ This only helps DataForge find AI-Toolkit's files. It doesn't start AI-Toolkit o
    | Model                 | For    | Template                                                          |
    | --------------------- | ------ | ----------------------------------------------------------------- |
    | **Krea 2 Turbo**      | Images | [`krea2_turbo.yml`](../ostris_templates/krea2_turbo.yml)          |
+   | **Qwen Image 2.1**    | Images | [`qwen_image_2.yml`](../ostris_templates/qwen_image_2.yml)        |
    | **MiniMax H3**        | Videos | [`h3_fl2va.yml`](../ostris_templates/h3_fl2va.yml)                |
    | **MiniMax H3 Ref2VA** | Videos | [`h3_ref2va.yml`](../ostris_templates/h3_ref2va.yml)              |
 

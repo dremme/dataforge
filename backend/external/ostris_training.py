@@ -30,6 +30,7 @@ DEFAULT_TRAINING_MODEL = "krea2_turbo"
 # model string reach the filesystem.
 TRAINING_TEMPLATES: dict[str, str] = {
     "krea2_turbo": "krea2_turbo.yml",
+    "qwen_image_2": "qwen_image_2.yml",
     "h3_fl2va": "h3_fl2va.yml",
     "h3_ref2va": "h3_ref2va.yml",
 }

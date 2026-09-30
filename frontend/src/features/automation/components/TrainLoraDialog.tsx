@@ -9,7 +9,7 @@ import {
 } from "@/features/automation/lib/training";
 import { useTrainingTemplateDraft } from "@/features/automation/hooks/useTrainingTemplateDraft";
 import type { TrainingModel } from "@/shared/types";
-import { iconFilePen, iconPlus, iconTrash2 } from "@/shared/icons";
+import { iconFilePen, iconPlus, iconTrash2, iconTriangleAlert } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
@@ -140,11 +140,16 @@ export function TrainLoraDialog({
             <Icon icon={iconFilePen} className="train-lora-dialog__template-icon" />
             {templateDraft.loading ? "Opening..." : "Edit template"}
           </button>
-          <span className="train-lora-dialog__template-note">
-            {templateDraft.edited
-              ? "Edited for this run."
-              : "Tweak steps, learning rate or resolution for this run."}
-          </span>
+          {templateDraft.edited ? (
+            <span className="train-lora-dialog__template-note train-lora-dialog__template-note--edited">
+              <Icon icon={iconTriangleAlert} className="train-lora-dialog__template-note-icon" />
+              This run uses your edited template, not the stock one.
+            </span>
+          ) : (
+            <span className="train-lora-dialog__template-note">
+              Tweak steps, learning rate or resolution for this run.
+            </span>
+          )}
         </div>
 
         <div className="dialog__field train-lora-dialog__names">

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requestJson } from "@/shared/api/http";
+import { TRAINING_MODELS } from "@/features/automation/lib/training";
 import { emptyAutomationSettings, loadAutomationSettings } from "./automationPreferences";
 
 vi.mock("@/shared/api/http", () => ({
@@ -106,6 +107,14 @@ describe("loadAutomationSettings", () => {
       position: "top",
       strip_metadata: true,
     });
+  });
+
+  it.each(TRAINING_MODELS)("restores the saved %s training model", async (model) => {
+    respondWith({ train_lora: { model } });
+
+    const settings = await loadAutomationSettings(FOLDER);
+
+    expect(settings.train_lora.model).toBe(model);
   });
 
   it("falls back to the default for a value the backend no longer recognises", async () => {

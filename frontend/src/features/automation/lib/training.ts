@@ -1,23 +1,25 @@
 import type { TrainingModel } from "@/shared/types";
-import type { RadioTileOption } from "@/shared/ui/RadioTileGroup";
+import type { DialogSelectOption } from "@/shared/ui/DialogSelect";
 
-export const TRAINING_MODEL_OPTIONS: ReadonlyArray<RadioTileOption<TrainingModel>> = [
-  {
-    value: "krea2_turbo",
-    title: "Krea 2 Turbo",
-    description: "Image model. 1024px samples.",
-  },
-  {
-    value: "h3_fl2va",
-    title: "MiniMax H3",
-    description: "Video model. 1.6s sample clips.",
-  },
-  {
-    value: "h3_ref2va",
-    title: "MiniMax H3 Ref2VA",
-    description: "Video model. 1.6s sample clips.",
-  },
-];
+const TRAINING_MODEL_ENTRIES: Record<
+  TrainingModel,
+  Omit<DialogSelectOption<TrainingModel>, "value">
+> = {
+  krea2_turbo: { title: "Krea 2 Turbo", group: "Image" },
+  qwen_image_2: { title: "Qwen Image 2.1", group: "Image" },
+  h3_fl2va: { title: "MiniMax H3", group: "Video" },
+  h3_ref2va: { title: "MiniMax H3 Ref2VA", group: "Video" },
+};
+
+export const TRAINING_MODEL_OPTIONS: ReadonlyArray<DialogSelectOption<TrainingModel>> =
+  Object.entries(TRAINING_MODEL_ENTRIES).map(([value, entry]) => ({
+    value: value as TrainingModel,
+    ...entry,
+  }));
+
+export const TRAINING_MODELS: readonly TrainingModel[] = TRAINING_MODEL_OPTIONS.map(
+  (option) => option.value,
+);
 
 export const DEFAULT_TRAINING_MODEL: TrainingModel = "krea2_turbo";
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DialogSelect } from "./DialogSelect";
@@ -60,6 +60,32 @@ describe("DialogSelect", () => {
 
     expect(showPicker).not.toHaveBeenCalled();
     expect(select).not.toHaveFocus();
+  });
+
+  it("groups options that name a group and leaves the rest flat", () => {
+    const { select } = renderSelect({
+      value: "lake",
+      options: [
+        { value: "any", title: "Any" },
+        { value: "lake", title: "Lake", group: "Water" },
+        { value: "river", title: "River", group: "Water" },
+        { value: "peak", title: "Peak", group: "Land" },
+      ],
+    });
+
+    const groups = within(select).getAllByRole("group");
+    expect(groups.map((group) => group.getAttribute("label"))).toEqual(["Water", "Land"]);
+    expect(
+      within(groups[0])
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Lake", "River"]);
+    expect(
+      within(groups[1])
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Peak"]);
+    expect(screen.getByRole("option", { name: "Any" }).parentElement).toBe(select);
   });
 
   it("reports the chosen value", async () => {

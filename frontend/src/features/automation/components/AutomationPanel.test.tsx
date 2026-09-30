@@ -396,14 +396,15 @@ describe("AutomationPanel", () => {
       "Datasets",
       "Backup",
       "Files",
+      "Integrations",
     ]);
 
-    const backup = screen.getByRole("group", { name: "Backup" });
-    expect(
-      within(backup)
+    const titlesIn = (name: string) =>
+      within(screen.getByRole("group", { name }))
         .getAllByRole("menuitem")
-        .map((item) => item.querySelector(".automation__more-item-title")?.textContent),
-    ).toEqual(["Backup captions", "Restore captions"]);
+        .map((item) => item.querySelector(".automation__more-item-title")?.textContent);
+    expect(titlesIn("Backup")).toEqual(["Backup captions", "Restore captions"]);
+    expect(titlesIn("Integrations")).toEqual(["Quick LoRA training", "Process with ComfyUI"]);
   });
 
   it("keeps every job description visible rather than behind a hover hint", async () => {

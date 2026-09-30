@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TRAINING_PROMPTS } from "@/features/automation/lib/training";
@@ -91,6 +91,36 @@ describe("TrainLoraDialog", () => {
     await user.click(screen.getByRole("button", { name: "Start training" }));
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ model: "h3_fl2va" }));
+  });
+
+  it("submits Qwen Image 2.1 and names it in the description", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "qwen_image_2");
+    expect(screen.getByText(/Trains a Qwen Image 2.1 LoRA on them/)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("LoRA name"), "sample_train_v1");
+    await user.click(screen.getByRole("button", { name: "Start training" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ model: "qwen_image_2" }));
+  });
+
+  it("groups the models into image and video", () => {
+    renderDialog();
+
+    const groups = within(screen.getByRole("combobox", { name: "Model" })).getAllByRole("group");
+    expect(
+      groups.map((group) => [
+        group.getAttribute("label"),
+        within(group)
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ]),
+    ).toEqual([
+      ["Image", ["Krea 2 Turbo", "Qwen Image 2.1"]],
+      ["Video", ["MiniMax H3", "MiniMax H3 Ref2VA"]],
+    ]);
   });
 
   it("keeps typed prompts when the model changes", async () => {
@@ -193,6 +223,26 @@ describe("TrainLoraDialog", () => {
     await user.click(screen.getByRole("button", { name: "Start training" }));
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ template: "steps: 250" }));
+  });
+
+  it("warns while the chosen model runs an edited template", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    const warning = () => screen.queryByText(/uses your edited template/);
+    expect(warning()).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /Edit template/ }));
+    const editor = await screen.findByLabelText("Krea 2 Turbo training template");
+    await user.clear(editor);
+    await user.type(editor, "steps: 250");
+    await user.click(screen.getByRole("button", { name: "Use for this run" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /template/ })).toBeNull());
+
+    expect(warning()).toHaveClass("train-lora-dialog__template-note--edited");
+    expect(warning()?.querySelector("svg")).not.toBeNull();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "h3_fl2va");
+    expect(warning()).toBeNull();
   });
 
   /** Each model keeps its own draft, so switching models cannot silently discard an edit. */

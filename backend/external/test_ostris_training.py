@@ -50,6 +50,15 @@ class LoadTrainingTemplateTests(unittest.TestCase):
         self.assertEqual(process["train"]["steps"], 1000)
         self.assertEqual(process["sample"]["sample_every"], 200)
 
+    def test_loads_the_shipped_qwen_image_2_template(self) -> None:
+        template = load_training_template("qwen_image_2")
+
+        model = template["config"]["process"][0]["model"]
+        self.assertEqual(model["name_or_path"], "Comfy-Org/Qwen-Image-2.1")
+        self.assertEqual(model["arch"], "qwen_image_2")
+        self.assertEqual((model["qtype"], model["qtype_te"]), ("convrot8", "convrot8"))
+        self.assertNotIn("assistant_lora_path", model)
+
     def test_loads_the_shipped_h3_fl2va_template(self) -> None:
         template = load_training_template("h3_fl2va")
 

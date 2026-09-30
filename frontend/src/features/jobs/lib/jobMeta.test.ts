@@ -87,13 +87,13 @@ describe("SECONDARY_JOB_GROUPS", () => {
     expect(SECONDARY_JOB_GROUPS.every((group) => group.types.length > 0)).toBe(true);
   });
 
-  it("buckets the dataset, file and backup jobs apart", () => {
+  it("buckets the dataset, file, backup and integration jobs apart", () => {
     const byId = Object.fromEntries(SECONDARY_JOB_GROUPS.map((group) => [group.id, group.types]));
 
     expect(byId.datasets).toContain("set_captions");
     expect(byId.datasets).toContain("edit_captions");
-    expect(byId.datasets).toContain("train_lora");
     expect(byId.files).toContain("batch_rename");
     expect(byId.backup).toEqual(["backup_captions", "restore_captions"]);
+    expect(byId.integrations).toEqual(["train_lora", "comfy_process"]);
   });
 });

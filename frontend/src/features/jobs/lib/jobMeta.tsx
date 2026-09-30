@@ -32,6 +32,7 @@ export const JOB_GROUPS = [
   { id: "datasets", label: "Datasets" },
   { id: "backup", label: "Backup" },
   { id: "files", label: "Files" },
+  { id: "integrations", label: "Integrations" },
 ] as const;
 
 export type JobGroup = (typeof JOB_GROUPS)[number]["id"];
@@ -98,7 +99,7 @@ export const JOB_TYPE_META = {
   },
   train_lora: {
     type: "train_lora" as const,
-    group: "datasets" as const,
+    group: "integrations" as const,
     icon: iconAiToolkit,
     startUi: "dialog" as const,
     menuLabel: "Quick LoRA training",
@@ -165,7 +166,7 @@ export const JOB_TYPE_META = {
   },
   comfy_process: {
     type: "comfy_process" as const,
-    group: "files" as const,
+    group: "integrations" as const,
     icon: iconComfyUi,
     startUi: "dialog" as const,
     menuLabel: "Process with ComfyUI",

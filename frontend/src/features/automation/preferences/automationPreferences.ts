@@ -1,7 +1,7 @@
 import { requestJson } from "@/shared/api/http";
 import { withRetry } from "@/shared/lib/retry";
 import { normalizeFolderPath } from "@/features/folder/lib/folderPath";
-import { DEFAULT_TRAINING_MODEL } from "@/features/automation/lib/training";
+import { DEFAULT_TRAINING_MODEL, TRAINING_MODELS } from "@/features/automation/lib/training";
 import type {
   AutomationMode,
   AutomationSettingsResponse,
@@ -9,7 +9,6 @@ import type {
   ComfyPresetSettings,
   DuplicateThreshold,
   ReasoningEffort,
-  TrainingModel,
   WatermarkOpacity,
   WatermarkPosition,
   WatermarkSizeName,
@@ -43,7 +42,6 @@ const AUTOMATION_MODES: readonly AutomationMode[] = ["thinking", "instruct"];
 const REASONING_EFFORTS: readonly ReasoningEffort[] = ["low", "medium", "xhigh"];
 const REPLACE_MODES: readonly CaptionReplaceMode[] = ["replace", "prepend", "append"];
 const DUPLICATE_THRESHOLDS: readonly DuplicateThreshold[] = ["exact", "near", "loose"];
-const TRAINING_MODELS: readonly TrainingModel[] = ["krea2_turbo", "h3_fl2va"];
 const WATERMARK_SIZES: readonly WatermarkSizeName[] = ["small", "medium", "large"];
 const WATERMARK_OPACITIES: readonly WatermarkOpacity[] = [25, 50, 75];
 const WATERMARK_POSITIONS: readonly WatermarkPosition[] = ["top", "center", "bottom"];
