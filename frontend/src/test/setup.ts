@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+
+// An App-level step re-renders the whole tree: ~300ms here, past the 1s default on CI runners.
+configure({ asyncUtilTimeout: 3000 });
 
 vi.mock("@uiw/react-codemirror", async () => {
   const { MockCodeMirror } = await import("./mockCodeMirror");
@@ -211,5 +214,6 @@ afterEach(() => {
     .mockResolvedValue(undefined);
   window.localStorage.clear();
   window.sessionStorage.clear();
-  window.history.replaceState(null, "", "/");
+  // Push, not replace: only a push cancels a queued back/forward, which would land in the next test.
+  window.history.pushState(null, "", "/");
 });
