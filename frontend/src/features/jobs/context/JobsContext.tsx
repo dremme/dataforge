@@ -308,11 +308,12 @@ export function JobsProvider({ children }: { children: ReactNode }) {
         await deleteJob(jobId);
         await refreshAllJobs();
         return true;
-      } catch {
+      } catch (error) {
+        notify({ variant: "danger", message: `Could not delete job: ${formatApiError(error)}` });
         return false;
       }
     },
-    [refreshAllJobs],
+    [notify, refreshAllJobs],
   );
 
   const deleteAllJobsImpl = useCallback(async () => {
@@ -320,10 +321,11 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       await deleteAllJobs();
       await refreshAllJobs();
       return true;
-    } catch {
+    } catch (error) {
+      notify({ variant: "danger", message: `Could not delete jobs: ${formatApiError(error)}` });
       return false;
     }
-  }, [refreshAllJobs]);
+  }, [notify, refreshAllJobs]);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleDrawer = useCallback(() => setDrawerOpen((current) => !current), []);

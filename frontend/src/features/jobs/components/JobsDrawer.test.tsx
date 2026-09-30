@@ -122,6 +122,63 @@ describe("JobsDrawer", () => {
       expect(screen.getByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
     });
 
+    it("drops a stored run once it is deleted, though the live list never carried it", async () => {
+      const user = userEvent.setup();
+      fetchJobsMock
+        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 1 })
+        .mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
+      jobsContext.deleteJob.mockResolvedValue(true);
+
+      renderDrawer([]);
+      await user.click(await screen.findByLabelText("Delete job for landscapes"));
+
+      await waitFor(() =>
+        expect(screen.queryByLabelText("Watermark job for landscapes")).not.toBeInTheDocument(),
+      );
+      expect(jobsContext.deleteJob).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops a stored run the server no longer has when its delete fails", async () => {
+      const user = userEvent.setup();
+      fetchJobsMock
+        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 1 })
+        .mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
+      jobsContext.deleteJob.mockResolvedValue(false);
+
+      renderDrawer([]);
+      await user.click(await screen.findByLabelText("Delete job for landscapes"));
+
+      await waitFor(() =>
+        expect(screen.queryByLabelText("Watermark job for landscapes")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("closes the clear-all confirmation once every job is deleted", async () => {
+      const user = userEvent.setup();
+      jobsContext.deleteAllJobs.mockResolvedValue(true);
+      renderDrawer([finishedCaption]);
+
+      await user.click(screen.getByRole("button", { name: "Delete all jobs" }));
+      await user.click(screen.getByRole("button", { name: "Delete all" }));
+
+      await waitFor(() =>
+        expect(screen.queryByText("Delete all job records?")).not.toBeInTheDocument(),
+      );
+    });
+
+    it("keeps the clear-all confirmation open when deleting every job fails", async () => {
+      const user = userEvent.setup();
+      jobsContext.deleteAllJobs.mockResolvedValue(false);
+      renderDrawer([finishedCaption]);
+
+      await user.click(screen.getByRole("button", { name: "Delete all jobs" }));
+      await user.click(screen.getByRole("button", { name: "Delete all" }));
+
+      await waitFor(() => expect(jobsContext.deleteAllJobs).toHaveBeenCalledTimes(1));
+      expect(screen.getByText("Delete all job records?")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Delete all" })).toBeEnabled();
+    });
+
     it("sends the chosen filters and hides live jobs that do not match", async () => {
       const user = userEvent.setup();
       renderDrawer([finishedCaption]);

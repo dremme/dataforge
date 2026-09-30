@@ -1,6 +1,6 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchJobs } from "@/features/jobs/api/jobs";
+import { deleteAllJobs, deleteJob, fetchJobs } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs } from "@/features/jobs/api/externalJobs";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
 import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
@@ -25,6 +25,8 @@ vi.mock("@/features/jobs/api/externalJobs", () => ({
 }));
 
 const listJobs = vi.mocked(fetchJobs);
+const deleteJobMock = vi.mocked(deleteJob);
+const deleteAllJobsMock = vi.mocked(deleteAllJobs);
 const listExternalJobs = vi.mocked(fetchOstrisJobs);
 
 /** Minimal stand-in for the browser's EventSource, which jsdom does not implement. */
@@ -309,5 +311,33 @@ describe("JobsProvider", () => {
     });
 
     await waitFor(() => expect(latest.current?.jobs[0]?.id).toBe("job-latest"));
+  });
+
+  it("tells the user when a single delete fails and reports it", async () => {
+    deleteJobMock.mockRejectedValue(new Error("Job not found"));
+    const latest = renderProvider();
+    await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
+
+    let deleted: boolean | undefined;
+    await act(async () => {
+      deleted = await latest.current!.deleteJob("job-1");
+    });
+
+    expect(deleted).toBe(false);
+    expect(await screen.findByText("Could not delete job: Job not found")).toBeInTheDocument();
+  });
+
+  it("tells the user when clearing every job fails", async () => {
+    deleteAllJobsMock.mockRejectedValue(new Error("Database is locked"));
+    const latest = renderProvider();
+    await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
+
+    await act(async () => {
+      await latest.current!.deleteAllJobs();
+    });
+
+    expect(
+      await screen.findByText("Could not delete jobs: Database is locked"),
+    ).toBeInTheDocument();
   });
 });

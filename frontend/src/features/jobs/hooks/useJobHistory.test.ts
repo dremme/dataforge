@@ -82,6 +82,20 @@ describe("useJobHistory", () => {
     );
   });
 
+  it("reloads from the first page on demand, dropping what is no longer stored", async () => {
+    fetchJobsMock
+      .mockResolvedValueOnce(page(jobs("a", 2), 2))
+      .mockResolvedValueOnce(page(jobs("a", 1), 1));
+    const { result } = renderHistory();
+    await waitFor(() => expect(result.current.jobs).toHaveLength(2));
+
+    await act(async () => result.current.reload());
+
+    expect(result.current.jobs).toHaveLength(1);
+    expect(result.current.total).toBe(1);
+    expect(fetchJobsMock).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0 }));
+  });
+
   it("ignores a response that a newer filter superseded", async () => {
     let resolveStale!: (response: JobsResponse) => void;
     fetchJobsMock

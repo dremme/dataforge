@@ -102,10 +102,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
   const runClearAll = async () => {
     setClearingAll(true);
     try {
-      await deleteAllJobs();
-      setClearAllOpen(false);
-    } catch {
-      // Shown in drawer state.
+      if (await deleteAllJobs()) setClearAllOpen(false);
     } finally {
       setClearingAll(false);
     }
@@ -253,7 +250,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                               cancelJob(jobId).catch(() => {});
                             }}
                             onDelete={(jobId) => {
-                              deleteJob(jobId).catch(() => {});
+                              void deleteJob(jobId).finally(() => history.reload());
                             }}
                             onLightboxOpenChange={setLightboxOpen}
                           />

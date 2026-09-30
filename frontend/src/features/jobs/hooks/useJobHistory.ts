@@ -70,5 +70,7 @@ export function useJobHistory(query: JobsQuery, { enabled, refreshKey }: UseJobH
     if (!state.loading) void load(state.jobs.length);
   }, [load, state.jobs.length, state.loading]);
 
-  return { ...state, hasMore: state.jobs.length < state.total, loadMore };
+  const reload = useCallback(() => load(0), [load]);
+
+  return { ...state, hasMore: state.jobs.length < state.total, loadMore, reload };
 }
