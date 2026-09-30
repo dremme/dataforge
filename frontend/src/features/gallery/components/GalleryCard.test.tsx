@@ -75,6 +75,41 @@ describe("GalleryCard", () => {
     expect(badge).toHaveTextContent("Candidate");
   });
 
+  it("stacks the issue and candidate badges in one column, issue first", () => {
+    const { container } = render(
+      <GalleryCard
+        item={{ ...captionedItem, has_issue_file: true, has_candidate: true }}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const stack = container.querySelector(".card__badge-stack");
+    expect(stack).toBeInTheDocument();
+    expect(
+      Array.from(stack!.children, (badge) => badge.classList.contains("card__badge--issue")),
+    ).toEqual([true, false]);
+    expect(stack?.lastElementChild).toHaveClass("card__badge--candidate");
+  });
+
+  it.each([
+    ["issue", { has_issue_file: true }],
+    ["candidate", { has_candidate: true }],
+  ])("keeps a lone %s badge in the stack corner", (variant, flags) => {
+    const { container } = render(
+      <GalleryCard item={{ ...captionedItem, ...flags }} onSelect={vi.fn()} />,
+    );
+
+    const stack = container.querySelector(".card__badge-stack");
+    expect(stack?.children).toHaveLength(1);
+    expect(stack?.firstElementChild).toHaveClass(`card__badge--${variant}`);
+  });
+
+  it("renders no stack when neither badge applies", () => {
+    const { container } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+
+    expect(container.querySelector(".card__badge-stack")).toBeNull();
+  });
+
   it("shrinks badges to their icon on small cards", () => {
     const { container } = render(
       <GalleryCard

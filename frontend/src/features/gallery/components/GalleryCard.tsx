@@ -110,13 +110,25 @@ export const GalleryCard = memo(function GalleryCard({
         {itemIsGif && (
           <CardBadge icon={iconFileImage} compact={compactBadges} label="GIF" variant="gif" />
         )}
-        {item.has_issue_file && (
-          <CardBadge
-            icon={iconMessageWarning}
-            compact={compactBadges}
-            label="Issue"
-            variant="issue"
-          />
+        {(item.has_issue_file || item.has_candidate) && (
+          <span className="card__badge-stack">
+            {item.has_issue_file && (
+              <CardBadge
+                icon={iconMessageWarning}
+                compact={compactBadges}
+                label="Issue"
+                variant="issue"
+              />
+            )}
+            {item.has_candidate && (
+              <CardBadge
+                icon={iconScanSquare}
+                compact={compactBadges}
+                label="Candidate"
+                variant="candidate"
+              />
+            )}
+          </span>
         )}
         {item.has_duplicate_file && (
           <CardBadge
@@ -124,14 +136,6 @@ export const GalleryCard = memo(function GalleryCard({
             compact={compactBadges}
             label="Duplicate"
             variant="duplicate"
-          />
-        )}
-        {item.has_candidate && (
-          <CardBadge
-            icon={iconScanSquare}
-            compact={compactBadges}
-            label="Candidate"
-            variant="candidate"
           />
         )}
       </div>
