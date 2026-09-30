@@ -3,6 +3,7 @@ import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyImageEdit,
+  fetchImageAutoAdjust,
   fetchImageEditState,
   revertImageEdit,
 } from "@/features/gallery/api/imageEdit";
@@ -12,10 +13,12 @@ import { NotificationsProvider } from "@/shared/notifications/NotificationsProvi
 import { makeItem } from "@/test/galleryItemModal";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem, ImageEditResponse, ImageEditSpec } from "@/shared/types";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/features/gallery/api/imageEdit", () => ({
   imageOriginalUrl: (path: string) => `/api/media?path=${path}&original=1`,
   fetchImageEditState: vi.fn(),
+  fetchImageAutoAdjust: vi.fn(),
   applyImageEdit: vi.fn(),
   revertImageEdit: vi.fn(),
 }));
@@ -23,6 +26,9 @@ vi.mock("@/features/gallery/api/imageEdit", () => ({
 const fetchStateMock = vi.mocked(fetchImageEditState);
 const applyMock = vi.mocked(applyImageEdit);
 const revertMock = vi.mocked(revertImageEdit);
+const autoMock = vi.mocked(fetchImageAutoAdjust);
+
+const SUGGESTION = { ...RESTING_ADJUST, exposure: 0.2, warmth: 0.1 };
 
 const PHOTO = `${HOME_PATH}\\sunset.png`;
 
@@ -51,11 +57,8 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
     mirror_v: false,
     rotate: 0,
     scale: 1,
-    brightness: 1,
-    contrast: 1,
-    saturation: 1,
-    warmth: 0,
-    hue: 0,
+    adjust: { ...RESTING_ADJUST },
+    auto_adjust: null,
     ...overrides,
   };
 }
@@ -95,6 +98,7 @@ beforeEach(() => {
   fetchStateMock.mockReset().mockResolvedValue({ path: PHOTO, has_backup: false, spec: null });
   applyMock.mockReset().mockResolvedValue(EDITED);
   revertMock.mockReset().mockResolvedValue({ ...EDITED, has_backup: false });
+  autoMock.mockReset().mockResolvedValue({ suggestion: SUGGESTION });
 });
 
 afterEach(() => {
@@ -125,11 +129,8 @@ describe("useImageEdit", () => {
         mirrorV: false,
         rotate: 0,
         scale: 1,
-        brightness: 1,
-        contrast: 1,
-        saturation: 1,
-        warmth: 0,
-        hue: 0,
+        adjust: { ...RESTING_ADJUST },
+        autoAdjust: null,
       });
       expect(result.current.dirty).toBe(false);
     });
@@ -247,49 +248,120 @@ describe("useImageEdit", () => {
     });
   });
 
-  describe("color", () => {
-    it("moves each color control onto the draft", async () => {
+  describe("adjust", () => {
+    it("moves a tool onto the draft", async () => {
       const { result } = await renderReady();
 
-      act(() => result.current.setBrightness(1.3));
-      act(() => result.current.setWarmth(-0.4));
-      act(() => result.current.setSaturation(0));
+      act(() => result.current.adjust.set("shadows", 0.3));
+      act(() => result.current.adjust.set("hue", -40));
 
-      expect(result.current.draft).toMatchObject({
-        brightness: 1.3,
-        warmth: -0.4,
-        saturation: 0,
-      });
+      expect(result.current.draft.adjust).toMatchObject({ shadows: 0.3, hue: -40 });
+      expect(result.current.adjust.values).toBe(result.current.draft.adjust);
       expect(result.current.dirty).toBe(true);
     });
 
-    it("resets every color control back to identity without touching the geometry", async () => {
+    it("resets every tool and the wand's reading without touching the geometry", async () => {
       const { result } = await renderReady();
 
       act(() => result.current.rotateClockwise());
-      act(() => result.current.setContrast(1.5));
-      act(() => result.current.setHue(90));
-      act(() => result.current.resetColor());
+      act(() => result.current.adjust.set("contrast", 0.5));
+      await act(async () => result.current.adjust.activateAuto());
+      act(() => result.current.adjust.reset());
 
-      expect(result.current.draft).toMatchObject({
-        contrast: 1,
-        hue: 0,
-        rotate: 90,
-      });
+      expect(result.current.draft.adjust).toEqual(RESTING_ADJUST);
+      expect(result.current.draft.autoAdjust).toBeNull();
+      expect(result.current.draft.rotate).toBe(90);
     });
 
-    it("re-opens on the color stored beside the file", async () => {
+    it("re-opens on the tools and the wand's reading stored beside the file", async () => {
+      const reading = { amount: 0.7, suggestion: SUGGESTION };
       fetchStateMock.mockResolvedValue({
         path: PHOTO,
         has_backup: true,
-        spec: spec({ saturation: 1.4, hue: 30 }),
+        spec: spec({ adjust: { ...RESTING_ADJUST, vibrance: 0.4 }, auto_adjust: reading }),
       });
       const { result } = await renderReady();
 
-      await waitFor(() => expect(result.current.draft.saturation).toBe(1.4));
-      expect(result.current.draft.hue).toBe(30);
+      await waitFor(() => expect(result.current.draft.adjust.vibrance).toBe(0.4));
+      expect(result.current.adjust.auto).toEqual(reading);
       expect(result.current.dirty).toBe(false);
     });
+
+    it("asks about the draft the user sees, then adds the wand's reading on top", async () => {
+      const { result } = await renderReady();
+      act(() => result.current.setCrop({ x: 0.25, y: 0, width: 0.5, height: 1 }));
+      act(() => result.current.adjust.set("exposure", 0.1));
+
+      await act(async () => result.current.adjust.activateAuto());
+
+      expect(autoMock).toHaveBeenCalledWith(
+        PHOTO,
+        expect.objectContaining({ crop: { x: 0.25, y: 0, width: 0.5, height: 1 } }),
+      );
+      expect(result.current.draft.adjust.exposure).toBeCloseTo(0.3);
+      expect(result.current.draft.autoAdjust).toEqual({
+        amount: 0.5,
+        suggestion: SUGGESTION,
+        base: { ...RESTING_ADJUST, exposure: 0.1 },
+      });
+      expect(result.current.adjust.autoPending).toBe(false);
+    });
+
+    it("rescales and removes only the wand's own share", async () => {
+      const { result } = await renderReady();
+      act(() => result.current.adjust.set("exposure", -0.1));
+      await act(async () => result.current.adjust.activateAuto());
+
+      act(() => result.current.adjust.setAutoAmount(1));
+      expect(result.current.draft.adjust.exposure).toBeCloseTo(0.3);
+
+      act(() => result.current.adjust.deactivateAuto());
+      expect(result.current.draft.adjust.exposure).toBeCloseTo(-0.1);
+      expect(result.current.draft.autoAdjust).toBeNull();
+    });
+
+    it("says so when the file could not be read, and leaves the tools alone", async () => {
+      autoMock.mockRejectedValue(new Error("The file is not an image"));
+      const { result } = await renderReady();
+
+      await act(async () => result.current.adjust.activateAuto());
+
+      expect(await screen.findByText(/Could not analyse sunset.png/)).toBeInTheDocument();
+      expect(result.current.draft.adjust).toEqual(RESTING_ADJUST);
+      expect(result.current.adjust.autoPending).toBe(false);
+    });
+
+    it("drops a reading that lands after the item changed", async () => {
+      let answer: (value: { suggestion: typeof SUGGESTION }) => void = () => {};
+      autoMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      const view = await renderReady();
+
+      act(() => view.result.current.adjust.activateAuto());
+      expect(view.result.current.adjust.autoPending).toBe(true);
+      view.rerender({ ...view.initial, item: makeItem("forest.png") });
+      await act(async () => answer({ suggestion: SUGGESTION }));
+
+      expect(view.result.current.draft.adjust).toEqual(RESTING_ADJUST);
+      expect(view.result.current.adjust.autoPending).toBe(false);
+    });
+
+    it.each(["resetDraft", "exitEditMode"] as const)(
+      "drops a pending wand reading after %s",
+      async (action) => {
+        let answer!: (value: { suggestion: typeof SUGGESTION }) => void;
+        autoMock.mockReturnValue(
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+        );
+        const { result } = await renderReady();
+        act(() => result.current.adjust.activateAuto());
+        act(() => result.current[action]());
+        await act(async () => answer({ suggestion: SUGGESTION }));
+        expect(result.current.draft.adjust).toEqual(RESTING_ADJUST);
+        expect(result.current.adjust.autoPending).toBe(false);
+      },
+    );
   });
 
   describe("blur regions", () => {

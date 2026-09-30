@@ -25,6 +25,7 @@ import {
 } from "./videoEdit";
 import { newMaskDraft } from "./mask";
 import type { MaskRegion } from "@/shared/types";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 const HD = { width: 1920, height: 1080 };
 
@@ -151,11 +152,8 @@ describe("edit identity", () => {
     ["a rescale", { scale: 0.5 }],
     ["a volume change", { volume: 0.5 }],
     ["a mute", { volume: 0 }],
-    ["a brightness adjustment", { brightness: 1.2 }],
-    ["a contrast adjustment", { contrast: 0.8 }],
-    ["a saturation adjustment", { saturation: 1.5 }],
-    ["a warmth adjustment", { warmth: 0.4 }],
-    ["a hue adjustment", { hue: 30 }],
+    ["an exposure adjustment", { adjust: { ...RESTING_ADJUST, exposure: 0.2 } }],
+    ["a definition adjustment", { adjust: { ...RESTING_ADJUST, definition: 0.4 } }],
     ["a crop", { crop: { x: 0, y: 0, width: 0.5, height: 1 } }],
     ["a blur region", { masks: [newMaskDraft("blur", 0.12, 0)] }],
   ])("counts %s as an edit", (_label, overrides) => {
@@ -182,11 +180,8 @@ describe("wire conversion", () => {
       speed: 2,
       scale: 0.5,
       volume: 0.5,
-      brightness: 1.2,
-      contrast: 0.8,
-      saturation: 1.5,
-      warmth: 0.4,
-      hue: 30,
+      adjust: { ...RESTING_ADJUST, warmth: 0.4, hue: 30, noise_reduction: 0.5 },
+      autoAdjust: { amount: 0.5, suggestion: { ...RESTING_ADJUST, warmth: 0.2 } },
       crop: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
     });
 
@@ -253,11 +248,11 @@ describe("specsEqual", () => {
     ["a speed", { speed: 4 }],
     ["a scale", { scale: 0.25 }],
     ["a volume", { volume: 1 }],
-    ["brightness", { brightness: 1.2 }],
-    ["contrast", { contrast: 0.8 }],
-    ["saturation", { saturation: 1.5 }],
-    ["warmth", { warmth: 0.4 }],
-    ["hue", { hue: 30 }],
+    ["a tool", { adjust: { ...RESTING_ADJUST, vibrance: 0.3 } }],
+    [
+      "the wand's reading",
+      { auto_adjust: { amount: 0.5, suggestion: { ...RESTING_ADJUST, tint: 0.1 } } },
+    ],
   ])("sees a change of %s", (_label, overrides) => {
     expect(specsEqual(base(), { ...base(), ...overrides })).toBe(false);
   });

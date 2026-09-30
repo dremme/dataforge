@@ -1,22 +1,25 @@
 import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchVideoEditState } from "@/features/gallery/api/videoEdit";
+import { fetchVideoAutoAdjust, fetchVideoEditState } from "@/features/gallery/api/videoEdit";
 import { useVideoEdit, type UseVideoEditOptions } from "./useVideoEdit";
 import { AppProviders } from "@/test/AppProviders";
 import { makeItem } from "@/test/galleryItemModal";
 import { HOME_PATH } from "@/test/fixtures";
 import type { VideoEditStateResponse } from "@/shared/types";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/features/gallery/api/videoEdit", () => ({
   videoOriginalUrl: (path: string) => `/api/media?path=${path}&original=1`,
   fetchVideoEditState: vi.fn(),
+  fetchVideoAutoAdjust: vi.fn(),
   applyVideoEdit: vi.fn(),
   cancelVideoEdit: vi.fn(),
   revertVideoEdit: vi.fn(),
 }));
 
 const fetchStateMock = vi.mocked(fetchVideoEditState);
+const autoMock = vi.mocked(fetchVideoAutoAdjust);
 
 const CLIP = `${HOME_PATH}\\clip.mp4`;
 
@@ -121,11 +124,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
-        brightness: 1,
-        contrast: 1,
-        saturation: 1,
-        warmth: 0,
-        hue: 0,
+        adjust: { ...RESTING_ADJUST },
       },
     });
     const { result } = renderEdit();
@@ -151,11 +150,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 0,
-        brightness: 1,
-        contrast: 1,
-        saturation: 1,
-        warmth: 0,
-        hue: 0,
+        adjust: { ...RESTING_ADJUST },
       },
     });
     const { result } = renderEdit();
@@ -172,7 +167,7 @@ describe("useVideoEdit", () => {
     expect(result.current.dirty).toBe(true);
   });
 
-  it("moves and restores the draft colors", async () => {
+  it("moves and restores the adjust tools", async () => {
     fetchStateMock.mockResolvedValue({
       path: CLIP,
       has_backup: true,
@@ -184,11 +179,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
-        brightness: 1.2,
-        contrast: 0.8,
-        saturation: 1.5,
-        warmth: 0.4,
-        hue: 30,
+        adjust: { ...RESTING_ADJUST, warmth: 0.4, hue: 30 },
       },
     });
     const { result } = renderEdit();
@@ -197,32 +188,28 @@ describe("useVideoEdit", () => {
       result.current.handleLoadedMetadata(videoMeta(12));
     });
 
-    await waitFor(() => expect(result.current.draft.brightness).toBe(1.2));
-    expect(result.current.draft.hue).toBe(30);
+    await waitFor(() => expect(result.current.draft.adjust.warmth).toBe(0.4));
+    expect(result.current.draft.adjust.hue).toBe(30);
 
-    act(() => {
-      result.current.setBrightness(1.4);
-      result.current.setContrast(0.9);
-      result.current.setSaturation(1.2);
-      result.current.setWarmth(-0.2);
-      result.current.setHue(45);
-    });
-    expect(result.current.draft).toMatchObject({
-      brightness: 1.4,
-      contrast: 0.9,
-      saturation: 1.2,
-      warmth: -0.2,
-      hue: 45,
-    });
+    act(() => result.current.adjust.set("noise_reduction", 0.6));
+    expect(result.current.draft.adjust).toMatchObject({ noise_reduction: 0.6, warmth: 0.4 });
 
-    act(() => result.current.resetColor());
-    expect(result.current.draft).toMatchObject({
-      brightness: 1,
-      contrast: 1,
-      saturation: 1,
-      warmth: 0,
-      hue: 0,
+    act(() => result.current.adjust.reset());
+    expect(result.current.draft.adjust).toEqual(RESTING_ADJUST);
+  });
+
+  it("asks the wand about the kept range of the clip", async () => {
+    autoMock.mockResolvedValue({ suggestion: { ...RESTING_ADJUST, exposure: 0.2 } });
+    const { result } = renderEdit();
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(12));
     });
+    act(() => result.current.setTrimStart(2));
+
+    await act(async () => result.current.adjust.activateAuto());
+
+    expect(autoMock).toHaveBeenCalledWith(CLIP, expect.objectContaining({ trim_start: 2 }));
+    expect(result.current.draft.adjust.exposure).toBeCloseTo(0.2);
   });
 
   it("still seeds once Infinity becomes a real duration", async () => {
@@ -237,11 +224,7 @@ describe("useVideoEdit", () => {
         speed: 1,
         scale: 1,
         volume: 1,
-        brightness: 1,
-        contrast: 1,
-        saturation: 1,
-        warmth: 0,
-        hue: 0,
+        adjust: { ...RESTING_ADJUST },
       },
     });
     const { result } = renderEdit();

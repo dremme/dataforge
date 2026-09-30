@@ -1,7 +1,12 @@
 import { requestJson } from "@/shared/api/http";
 import { mediaUrl } from "@/features/gallery/api/media";
 import { serverEventsTabId } from "@/shared/api/eventStream";
-import type { VideoEditResponse, VideoEditSpec, VideoEditStateResponse } from "@/shared/types";
+import type {
+  AutoAdjustResponse,
+  VideoEditResponse,
+  VideoEditSpec,
+  VideoEditStateResponse,
+} from "@/shared/types";
 
 /** Original the editor plays; a spec is against it, so a trimmed render misplaces handles. */
 export function videoOriginalUrl(mediaPath: string, cacheKey?: string): string {
@@ -19,6 +24,19 @@ export async function applyVideoEdit(
 ): Promise<VideoEditResponse> {
   const params = new URLSearchParams({ path: mediaPath, tab: serverEventsTabId() });
   return requestJson<VideoEditResponse>(`/api/media/video-edit?${params}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(spec),
+  });
+}
+
+/** The draft rides along: the wand reads only its trim, crop and unmasked pixels. */
+export async function fetchVideoAutoAdjust(
+  mediaPath: string,
+  spec: VideoEditSpec,
+): Promise<AutoAdjustResponse> {
+  const params = new URLSearchParams({ path: mediaPath });
+  return requestJson<AutoAdjustResponse>(`/api/media/video-edit/auto?${params}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(spec),

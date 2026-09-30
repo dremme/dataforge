@@ -7,6 +7,7 @@ import {
 } from "./imageEdit";
 import { requestJson } from "@/shared/api/http";
 import type { ImageEditSpec } from "@/shared/types";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: vi.fn(),
@@ -24,11 +25,7 @@ const SPEC: ImageEditSpec = {
   mirror_v: false,
   rotate: 90,
   scale: 0.5,
-  brightness: 1,
-  contrast: 1,
-  saturation: 1,
-  warmth: 0,
-  hue: 0,
+  adjust: { ...RESTING_ADJUST },
 };
 
 beforeEach(() => {

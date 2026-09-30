@@ -55,6 +55,7 @@ $handle-height: 1.5rem;
 
   &__tool-controls {
     display: flex;
+    flex: 1 1 auto;
     align-items: center;
     flex-wrap: wrap;
     min-width: 0;
@@ -67,35 +68,6 @@ $handle-height: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.25rem;
-  }
-
-  &__sliders {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 0.625rem;
-  }
-
-  &__slider {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    color: var(--text-muted);
-    @include icon-scope-sm;
-  }
-
-  &__slider-input {
-    @include focus-ring;
-    max-width: 4rem;
-    accent-color: var(--accent);
-    border-radius: var(--radius-sm);
-  }
-
-  &__slider-value {
-    @include tabular-nums;
-    min-width: 2rem;
-    font-size: var(--text-2xs);
-    color: var(--text);
   }
 
   @include edit-panel-presets;

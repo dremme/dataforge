@@ -6,6 +6,7 @@ import logging
 import subprocess
 import threading
 from collections.abc import Callable
+from pathlib import Path
 from time import monotonic
 from typing import BinaryIO
 
@@ -63,6 +64,7 @@ def run_ffmpeg(
     should_cancel: ShouldCancel | None = None,
     on_progress: ProgressCallback | None = None,
     timeout: float = FFMPEG_TIMEOUT_SECONDS,
+    cwd: Path | None = None,
 ) -> None:
     """Raises on a non-zero exit, a timeout, or a cancel. ``on_progress`` requires ``-progress pipe:1``."""
     try:
@@ -71,6 +73,7 @@ def run_ffmpeg(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE if on_progress else subprocess.DEVNULL,
             stderr=subprocess.PIPE,
+            cwd=cwd,
         )
     except OSError as exc:
         raise RuntimeError(f"Failed to run ffmpeg: {exc}") from exc

@@ -32,6 +32,7 @@ frontend/playwright-report/
 frontend/src/shared/types.ts
 frontend/src/shared/constants.ts
 frontend/src/shared/wireGuards.ts
+frontend/src/test/colorAdjustCases.ts
 
 # Local-only notes (not shared via git)
 TODO.md

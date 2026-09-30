@@ -310,3 +310,63 @@ class EditedImageListingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoAdjustImageTests(unittest.TestCase):
+    def test_a_dark_image_is_suggested_more_exposure(self) -> None:
+        with TempMediaFolder() as root:
+            media = root / "photo.png"
+            gradient = Image.linear_gradient("L").resize((64, 48)).point(lambda value: value // 3)
+            Image.merge("RGB", (gradient, gradient, gradient)).save(media)
+
+            response = client.post(edit_url(media, "/auto"), json={})
+
+            self.assertEqual(response.status_code, 200)
+            self.assertGreater(response.json()["suggestion"]["exposure"], 0)
+
+    def test_the_original_is_read_rather_than_the_edited_file(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+            edit_sidecars.ensure_backup(media)
+
+            with patch(
+                "routes.media.image_analysis_pixels", side_effect=ValueError("read")
+            ) as read:
+                client.post(edit_url(media, "/auto"), json={})
+
+            self.assertEqual(read.call_args.args[0], edit_sidecars.backup_path_for(media))
+
+    def test_the_crop_and_masks_of_the_draft_are_read(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+            body = {
+                "crop": {"x": 0.25, "y": 0.0, "width": 0.5, "height": 1.0},
+                "masks": [{"x": 0.3, "y": 0.1, "width": 0.2, "height": 0.2, "mode": "blackout"}],
+            }
+
+            with patch(
+                "routes.media.image_analysis_pixels", side_effect=ValueError("read")
+            ) as read:
+                client.post(edit_url(media, "/auto"), json=body)
+
+            _, masks, crop = read.call_args.args
+            self.assertEqual(crop.x, 0.25)
+            self.assertEqual(masks[0].mode, "blackout")
+
+    def test_a_fully_masked_frame_is_a_400(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+            body = {"masks": [{"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}]}
+
+            response = client.post(edit_url(media, "/auto"), json=body)
+
+            self.assertEqual(response.status_code, 400)
+
+    def test_reading_does_not_wait_for_a_render_in_flight(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png")
+
+            with edit_sidecars.render_slot(media):
+                response = client.post(edit_url(media, "/auto"), json={})
+
+            self.assertEqual(response.status_code, 200)

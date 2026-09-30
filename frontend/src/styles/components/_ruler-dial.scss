@@ -1,0 +1,94 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// Two lines inside the edit panel's pinned tool row: caption over a ruler scrubbed under a needle.
+.ruler-dial {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0.125rem;
+  width: 13.5rem;
+  padding: 0.125rem 0;
+  border-radius: var(--radius-sm);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  @include focus-ring;
+
+  &--disabled {
+    @include disabled-state;
+  }
+
+  &__caption {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+    font-size: var(--text-2xs);
+    line-height: 1.1;
+  }
+
+  &__label {
+    @include truncate;
+    color: var(--text-muted);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  &__value {
+    @include tabular-nums;
+    flex-shrink: 0;
+    min-width: 2.25rem;
+    color: var(--text);
+    font-weight: var(--font-semibold);
+    text-align: right;
+  }
+
+  // Faded at both ends so the ruler reads as running on past the window.
+  &__track {
+    position: relative;
+    display: block;
+    height: 0.8125rem;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, var(--text) 18%, var(--text) 82%, transparent);
+  }
+
+  &__ticks {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: var(--dial-length);
+    height: 100%;
+    transform: translateX(var(--dial-offset));
+    background:
+      repeating-linear-gradient(90deg, var(--text-muted) 0 1px, transparent 1px var(--dial-major)) 0
+        0 / 100% 100% no-repeat,
+      repeating-linear-gradient(90deg, var(--text-subtle) 0 1px, transparent 1px var(--dial-tick)) 0
+        100% / 100% 55% no-repeat;
+  }
+
+  &__rest {
+    position: absolute;
+    left: var(--dial-rest);
+    top: 0;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text);
+    transform: translateX(-1px);
+  }
+
+  &__needle {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    transform: translateX(-50%);
+  }
+}

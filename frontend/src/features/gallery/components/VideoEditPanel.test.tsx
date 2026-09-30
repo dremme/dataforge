@@ -8,6 +8,8 @@ import {
   newMaskDraft,
 } from "@/features/gallery/lib/mask";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import { makeAdjustControls } from "@/test/colorAdjustControls";
 
 function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
   const draft: VideoEditDraft = overrides.draft ?? emptyDraft(12);
@@ -61,12 +63,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     setSpeed: vi.fn(),
     setScale: vi.fn(),
     setVolume: vi.fn(),
-    setBrightness: vi.fn(),
-    setContrast: vi.fn(),
-    setSaturation: vi.fn(),
-    setWarmth: vi.fn(),
-    setHue: vi.fn(),
-    resetColor: vi.fn(),
+    adjust: makeAdjustControls({ values: draft.adjust }),
     seekTo: vi.fn(),
     togglePlay: vi.fn(),
     resetDraft: vi.fn(),
@@ -164,7 +161,7 @@ describe("VideoEditPanel", () => {
       ["Speed", { speed: 2 }],
       ["Size", { scale: 0.5 }],
       ["Blur", { masks: [newMaskDraft("blur", 0.12, 0)] }],
-      ["Color", { brightness: 1.3 }],
+      ["Adjust", { adjust: { ...RESTING_ADJUST, definition: 0.4 } }],
     ])("marks %s when it holds a value", (label, overrides) => {
       renderPanel(makeEdit({ draft: { ...emptyDraft(12), ...overrides } }));
 
@@ -330,33 +327,15 @@ describe("VideoEditPanel", () => {
       expect(screen.getByRole("button", { name: "100%" })).toHaveAttribute("aria-pressed", "false");
     });
 
-    it("changes and resets colors", () => {
-      const edit = makeEdit({ draft: { ...emptyDraft(12), hue: 90 } });
+    it("moves a tool from the dial and arms the preview's inspect mode", () => {
+      const edit = makeEdit();
       renderPanel(edit);
 
-      fireEvent.click(tool("Color"));
-      fireEvent.change(screen.getByRole("slider", { name: "Brightness" }), {
-        target: { value: "1.3" },
-      });
-      fireEvent.change(screen.getByRole("slider", { name: "Warmth" }), {
-        target: { value: "-0.5" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Reset colors" }));
+      fireEvent.click(tool("Adjust"));
+      fireEvent.keyDown(screen.getByRole("slider", { name: "Exposure" }), { key: "ArrowLeft" });
 
-      expect(edit.setBrightness).toHaveBeenCalledWith(1.3);
-      expect(edit.setWarmth).toHaveBeenCalledWith(-0.5);
-      expect(edit.resetColor).toHaveBeenCalled();
-    });
-
-    it("offers every color control", () => {
-      renderPanel(makeEdit());
-
-      fireEvent.click(tool("Color"));
-
-      for (const name of ["Brightness", "Contrast", "Saturation", "Warmth", "Hue"]) {
-        expect(screen.getByRole("slider", { name })).toBeInTheDocument();
-      }
-      expect(screen.getByRole("button", { name: "Reset colors" })).toBeDisabled();
+      expect(edit.adjust.set).toHaveBeenCalledWith("exposure", -0.01);
+      expect(edit.adjust.setActive).toHaveBeenLastCalledWith(true);
     });
   });
 

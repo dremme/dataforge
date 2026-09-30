@@ -389,3 +389,41 @@ class ServeOriginalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoAdjustVideoTests(unittest.TestCase):
+    def test_the_trim_and_crop_of_the_draft_are_read_from_the_original(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            edit_sidecars.ensure_backup(media)
+            body = {"trim_start": 1.0, "trim_end": 3.0, "crop": {"width": 0.5}}
+
+            with (
+                patch("routes.media.probe_source", return_value=SourceProbe(seconds=8.0)),
+                patch("routes.media.video_analysis_pixels", side_effect=ValueError("read")) as read,
+            ):
+                response = client.post(edit_url(media, "/auto"), json=body)
+
+            self.assertEqual(response.status_code, 400)
+            source, masks, crop = read.call_args.args
+            self.assertEqual(source, edit_sidecars.backup_path_for(media))
+            self.assertEqual(masks, [])
+            self.assertEqual(crop.width, 0.5)
+            self.assertEqual(read.call_args.kwargs, {"start": 1.0, "end": 3.0, "duration": 8.0})
+
+    def test_a_suggestion_comes_back_for_the_sampled_pixels(self) -> None:
+        import numpy as np
+
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            dark = np.full((100, 3), 0.1)
+            dark[::2] = 0.3
+
+            with (
+                patch("routes.media.probe_source", return_value=SourceProbe(seconds=4.0)),
+                patch("routes.media.video_analysis_pixels", return_value=(dark, np.ones(100))),
+            ):
+                response = client.post(edit_url(media, "/auto"), json={})
+
+            self.assertEqual(response.status_code, 200)
+            self.assertGreater(response.json()["suggestion"]["exposure"], 0)

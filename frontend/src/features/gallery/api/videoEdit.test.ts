@@ -9,6 +9,7 @@ import {
 import { requestJson } from "@/shared/api/http";
 import { serverEventsTabId } from "@/shared/api/eventStream";
 import type { VideoEditSpec } from "@/shared/types";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: vi.fn(),
@@ -27,11 +28,7 @@ const SPEC: VideoEditSpec = {
   speed: 2,
   scale: 0.5,
   volume: 1,
-  brightness: 1,
-  contrast: 1,
-  saturation: 1,
-  warmth: 0,
-  hue: 0,
+  adjust: { ...RESTING_ADJUST },
 };
 
 beforeEach(() => {

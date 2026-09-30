@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import edit_sidecars
-from schemas import EditCropRect, ImageEditSpec, VideoEditSpec
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_media, write_mp4_video
 
 
@@ -37,6 +37,20 @@ class EditSpecSidecarTests(unittest.TestCase):
 
             edit_sidecars.write_spec(media, spec)
 
+            self.assertEqual(edit_sidecars.read_spec(media, ImageEditSpec), spec)
+
+    def test_auto_keeps_manual_values_for_a_reopened_adjustment_at_its_limit(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            spec = ImageEditSpec(
+                adjust=ColorAdjust(exposure=1.0),
+                auto_adjust=AutoAdjust(
+                    amount=0.5,
+                    suggestion=ColorAdjust(exposure=0.2),
+                    base=ColorAdjust(exposure=0.95),
+                ),
+            )
+            edit_sidecars.write_spec(media, spec)
             self.assertEqual(edit_sidecars.read_spec(media, ImageEditSpec), spec)
 
     def test_an_unedited_file_has_no_spec(self) -> None:
@@ -77,6 +91,64 @@ class SidecarPathTests(unittest.TestCase):
                 edit_sidecars.stale_path_for(root / "clip.mp4"),
             ):
                 self.assertNotIn(path.suffix.lower(), {".mp4", ".jpg", ".png"})
+
+    def test_edits_render_from_the_backup_once_there_is_one(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.jpg")
+            self.assertEqual(edit_sidecars.original_path_for(media), media)
+
+            edit_sidecars.ensure_backup(media)
+            self.assertEqual(
+                edit_sidecars.original_path_for(media), edit_sidecars.backup_path_for(media)
+            )
+
+
+class LegacyColorSidecarTests(unittest.TestCase):
+    """Sidecars written before the Adjust tool carried five flat color fields."""
+
+    def test_old_color_fields_reopen_as_the_nearest_tools(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.jpg")
+            edit_sidecars.edit_spec_path(media).write_text(
+                '{"rotate": 90, "brightness": 1.2, "contrast": 0.9, "saturation": 1.3,'
+                ' "warmth": 0.5, "hue": 300.0}',
+                encoding="utf-8",
+            )
+
+            spec = edit_sidecars.read_spec(media, ImageEditSpec)
+
+        assert spec is not None
+        self.assertEqual(spec.rotate, 90)
+        self.assertGreater(spec.adjust.exposure, 0.2)
+        self.assertAlmostEqual(spec.adjust.contrast, -0.1)
+        self.assertAlmostEqual(spec.adjust.saturation, 0.3)
+        self.assertGreater(spec.adjust.warmth, 0.5)
+        self.assertAlmostEqual(spec.adjust.hue, -60.0)
+
+    def test_untouched_old_color_fields_migrate_to_resting_tools(self) -> None:
+        spec = VideoEditSpec.model_validate(
+            {
+                "speed": 2.0,
+                "brightness": 1.0,
+                "contrast": 1.0,
+                "saturation": 1.0,
+                "warmth": 0.0,
+                "hue": 0.0,
+            }
+        )
+
+        self.assertEqual(spec.speed, 2.0)
+        self.assertEqual(spec.adjust, ColorAdjust())
+
+    def test_blacking_out_a_file_migrates_to_the_darkest_exposure(self) -> None:
+        spec = ImageEditSpec.model_validate({"brightness": 0.0})
+
+        self.assertEqual(spec.adjust.exposure, -1.0)
+
+    def test_a_current_sidecar_is_read_as_written(self) -> None:
+        spec = ImageEditSpec(adjust=ColorAdjust(contrast=0.4))
+
+        self.assertEqual(ImageEditSpec.model_validate(spec.model_dump()), spec)
 
 
 class EnsureBackupTests(unittest.TestCase):

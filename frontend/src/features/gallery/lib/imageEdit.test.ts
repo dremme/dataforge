@@ -18,6 +18,7 @@ import {
 } from "./imageEdit";
 import { newMaskDraft } from "./mask";
 import type { ImageEditSpec, MaskRegion } from "@/shared/types";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 const HD = { width: 1920, height: 1080 };
 
@@ -33,11 +34,7 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
     mirror_v: false,
     rotate: 0,
     scale: 1,
-    brightness: 1,
-    contrast: 1,
-    saturation: 1,
-    warmth: 0,
-    hue: 0,
+    adjust: { ...RESTING_ADJUST },
     ...overrides,
   };
 }
@@ -186,13 +183,17 @@ describe("edit identity", () => {
     ["a half turn", draft({ rotate: 180 })],
     ["a scale", draft({ scale: 0.5 })],
     ["a blur region", draft({ masks: [newMaskDraft("blur", 0.12, 0)] })],
-    ["a brightness change", draft({ brightness: 1.2 })],
-    ["a contrast change", draft({ contrast: 0.8 })],
-    ["a saturation change", draft({ saturation: 1.4 })],
-    ["a warmth change", draft({ warmth: 0.3 })],
-    ["a hue turn", draft({ hue: 30 })],
+    ["an exposure change", draft({ adjust: { ...RESTING_ADJUST, exposure: 0.2 } })],
+    ["a noise reduction", draft({ adjust: { ...RESTING_ADJUST, noise_reduction: 0.3 } })],
+    ["a hue turn", draft({ adjust: { ...RESTING_ADJUST, hue: 30 } })],
   ])("%s is a real edit on its own", (_label, value) => {
     expect(isIdentityEdit(value)).toBe(false);
+  });
+
+  it("does not count a remembered wand reading that renders nothing", () => {
+    const reading = { amount: 0.5, suggestion: { ...RESTING_ADJUST, exposure: 0.2 } };
+
+    expect(isIdentityEdit(draft({ autoAdjust: reading }))).toBe(true);
   });
 });
 
@@ -239,11 +240,8 @@ describe("wire conversion", () => {
       mirror_h: true,
       rotate: 180,
       scale: 0.75,
-      brightness: 1.2,
-      contrast: 0.9,
-      saturation: 1.3,
-      warmth: 0.4,
-      hue: 45,
+      adjust: { ...RESTING_ADJUST, exposure: 0.2, shadows: -0.3, hue: 45, definition: 0.4 },
+      auto_adjust: { amount: 0.7, suggestion: { ...RESTING_ADJUST, exposure: 0.1 } },
     });
 
     expect(toImageEditSpec(draftFromSpec(original))).toEqual(original);
@@ -251,6 +249,12 @@ describe("wire conversion", () => {
 
   it("opens on an empty draft when there is no stored spec", () => {
     expect(draftFromSpec(null)).toEqual(emptyDraft());
+  });
+
+  it("clamps float noise that drifted a tool past its end", () => {
+    const sent = toImageEditSpec(draft({ adjust: { ...RESTING_ADJUST, exposure: 1 + 1e-12 } }));
+
+    expect(sent.adjust.exposure).toBe(1);
   });
 
   it("pulls a stored crop back inside the frame", () => {
@@ -280,10 +284,12 @@ describe("specsEqual", () => {
       spec({ crop: { x: 0, y: 0, width: 0.6, height: 0.5 } }),
     ],
     ["a crop against none", spec({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } }), spec()],
-    ["brightness", spec({ brightness: 1.2 }), spec()],
-    ["saturation", spec({ saturation: 1.2 }), spec()],
-    ["warmth", spec({ warmth: 0.3 }), spec()],
-    ["hue", spec({ hue: 30 }), spec()],
+    ["a tool", spec({ adjust: { ...RESTING_ADJUST, contrast: 0.2 } }), spec()],
+    [
+      "the wand's amount",
+      spec({ auto_adjust: { amount: 0.5, suggestion: { ...RESTING_ADJUST } } }),
+      spec({ auto_adjust: { amount: 0.6, suggestion: { ...RESTING_ADJUST } } }),
+    ],
     ["a blur region against none", spec({ masks: [REGION] }), spec()],
     [
       "the style of a region",

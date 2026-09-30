@@ -25,6 +25,8 @@ import {
 } from "@/features/gallery/lib/crop";
 import { blurRadiusPx, modeLabel, pixelBlockPx, type MaskDraft } from "@/features/gallery/lib/mask";
 import { usePaintedBox, type PaintedBox } from "@/features/gallery/hooks/usePaintedBox";
+import { useVideoFrameLoop } from "@/features/gallery/hooks/useVideoFrameLoop";
+import type { AdjustedPicture } from "@/features/gallery/lib/adjustedPicture";
 import { iconX } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
@@ -81,6 +83,8 @@ interface MaskOverlayProps {
   disabled: boolean;
   /** Off while another tool holds the stage, leaving the picture as Apply would write it. */
   interactive: boolean;
+  /** The adjusted preview, when one is showing: fills are cut from it so they tone with it. */
+  picture?: AdjustedPicture | null;
   onSelect: (maskId: string | null) => void;
   onChange: (maskId: string, rect: CropRect) => void;
   onRemove: (maskId: string) => void;
@@ -96,6 +100,7 @@ export function MaskOverlay({
   orientation = UPRIGHT,
   disabled,
   interactive,
+  picture = null,
   onSelect,
   onChange,
   onRemove,
@@ -113,61 +118,13 @@ export function MaskOverlay({
     };
   }, []);
 
+  const paintAll = useCallback(() => paintersRef.current.forEach((paint) => paint()), []);
+
   // A video moves under the regions, so each presented frame is repainted rather than each change.
-  useEffect(() => {
-    const media = mediaRef.current;
-    if (!(media instanceof HTMLVideoElement)) return;
+  useVideoFrameLoop(mediaRef, paintAll);
 
-    const paintAll = () => paintersRef.current.forEach((paint) => paint());
-    let frame = 0;
-    let stopped = false;
-
-    // A frame callback, not readiness: `readyState` says the data arrived, not that the picture
-    // can be drawn yet, and a paused video fires nothing else once it has loaded.
-    if (typeof media.requestVideoFrameCallback === "function") {
-      const onFrame = () => {
-        paintAll();
-        if (!stopped) frame = media.requestVideoFrameCallback(onFrame);
-      };
-      frame = media.requestVideoFrameCallback(onFrame);
-
-      return () => {
-        stopped = true;
-        media.cancelVideoFrameCallback(frame);
-      };
-    }
-
-    const tick = () => {
-      paintAll();
-      frame = requestAnimationFrame(tick);
-    };
-    const start = () => {
-      if (!frame) frame = requestAnimationFrame(tick);
-    };
-    const stop = () => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = 0;
-      paintAll();
-    };
-
-    media.addEventListener("play", start);
-    media.addEventListener("playing", start);
-    media.addEventListener("pause", stop);
-    media.addEventListener("seeked", stop);
-    media.addEventListener("loadeddata", stop);
-    media.addEventListener("canplay", stop);
-    if (!media.paused) start();
-
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      media.removeEventListener("play", start);
-      media.removeEventListener("playing", start);
-      media.removeEventListener("pause", stop);
-      media.removeEventListener("seeked", stop);
-      media.removeEventListener("loadeddata", stop);
-      media.removeEventListener("canplay", stop);
-    };
-  }, [mediaRef]);
+  // An adjusted preview repaints on its own schedule, and the fills show what it shows.
+  useEffect(() => picture?.subscribe(paintAll), [paintAll, picture]);
 
   const source = useMemo(
     () => ({ width: sourceWidth, height: sourceHeight }),
@@ -316,6 +273,7 @@ export function MaskOverlay({
               mask={mask}
               box={box}
               source={source}
+              picture={picture}
               registerPainter={registerPainter}
             />
 
@@ -386,11 +344,12 @@ interface MaskFillProps {
   mask: MaskDraft;
   box: PaintedBox;
   source: Size;
+  picture: AdjustedPicture | null;
   registerPainter: (paint: Painter) => () => void;
 }
 
 /** A canvas, not a CSS filter: only a second resample gives a mosaic its hard block edges. */
-function MaskFill({ mediaRef, src, mask, box, source, registerPainter }: MaskFillProps) {
+function MaskFill({ mediaRef, src, mask, box, source, picture, registerPainter }: MaskFillProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -400,23 +359,29 @@ function MaskFill({ mediaRef, src, mask, box, source, registerPainter }: MaskFil
       // A blackout draws none of the picture, so it need not wait for one to arrive.
       if (!canvas || !media || (mask.mode !== "blackout" && !mediaReady(media))) return;
 
-      paintMask(canvas, media, mask, box, source);
+      paintMask(canvas, picture ?? media, mask, box, source);
     };
 
     paint();
     return registerPainter(paint);
-  }, [box, mask, mediaRef, registerPainter, source, src]);
+  }, [box, mask, mediaRef, picture, registerPainter, source, src]);
 
   return <canvas ref={canvasRef} className="mask-overlay__fill" aria-hidden="true" />;
 }
 
+/** Cut from the media itself, or from an adjusted preview that covers the same frame. */
 function paintMask(
   canvas: HTMLCanvasElement,
-  picture: MaskMedia,
+  from: MaskMedia | AdjustedPicture,
   mask: MaskDraft,
   box: PaintedBox,
   source: Size,
 ): void {
+  const adjusted = !(from instanceof HTMLImageElement || from instanceof HTMLVideoElement);
+  const picture = adjusted ? from.canvas : from;
+  // Source pixels to picture pixels: 1 for the media, the canvas's own size for the preview.
+  const reach = adjusted && source.width > 0 ? from.canvas.width / source.width : 1;
+
   const width = Math.max(1, Math.round(mask.rect.width * box.width));
   const height = Math.max(1, Math.round(mask.rect.height * box.height));
 
@@ -428,7 +393,7 @@ function paintMask(
   if (!context) return;
 
   if (mask.mode === "blackout") {
-    context.fillStyle = "#000";
+    context.fillStyle = adjusted ? from.blackout : "#000";
     context.fillRect(0, 0, width, height);
     return;
   }
@@ -447,7 +412,17 @@ function paintMask(
     const rows = Math.max(1, Math.round(height / block));
 
     context.imageSmoothingEnabled = true;
-    context.drawImage(picture, left, top, right - left, bottom - top, 0, 0, columns, rows);
+    context.drawImage(
+      picture,
+      left * reach,
+      top * reach,
+      (right - left) * reach,
+      (bottom - top) * reach,
+      0,
+      0,
+      columns,
+      rows,
+    );
     context.imageSmoothingEnabled = false;
     context.drawImage(canvas, 0, 0, columns, rows, 0, 0, width, height);
     return;
@@ -466,10 +441,10 @@ function paintMask(
   context.filter = `blur(${radius}px)`;
   context.drawImage(
     picture,
-    outer.left,
-    outer.top,
-    outer.right - outer.left,
-    outer.bottom - outer.top,
+    outer.left * reach,
+    outer.top * reach,
+    (outer.right - outer.left) * reach,
+    (outer.bottom - outer.top) * reach,
     (outer.left - left) * scale,
     (outer.top - top) * scale,
     (outer.right - outer.left) * scale,

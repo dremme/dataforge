@@ -27,6 +27,8 @@
 @use "components/gallery";
 @use "components/gallery-drop";
 @use "components/training-template-editor";
+@use "components/adjust-canvas";
+@use "components/adjust-tools";
 @use "components/gallery-item-modal";
 @use "components/image-edit-panel";
 @use "components/image-edit-stage";
@@ -40,6 +42,7 @@
 @use "components/notifications";
 @use "components/candidate-review-modal";
 @use "components/quick-action";
+@use "components/ruler-dial";
 @use "components/sections";
 @use "components/settings-modal";
 @use "components/stats-drawer";

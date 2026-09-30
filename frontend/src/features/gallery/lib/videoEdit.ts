@@ -1,7 +1,9 @@
 import { clampCrop, IDENTITY_CROP, isIdentityCrop, type CropRect, type Size } from "./crop";
 import { snapToFrame } from "./frameGrid";
 import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
-import type { EditCropRect, VideoEditSpec } from "@/shared/types";
+import { autoAdjustEqual } from "./autoAdjust";
+import { RESTING_ADJUST, adjustEqual, clampAdjust, isAdjustIdentity } from "./colorAdjust";
+import type { AutoAdjust, ColorAdjust, EditCropRect, VideoEditSpec } from "@/shared/types";
 
 /** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
 export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
@@ -24,11 +26,9 @@ export interface VideoEditDraft {
   speed: number;
   scale: number;
   volume: number;
-  brightness: number;
-  contrast: number;
-  saturation: number;
-  warmth: number;
-  hue: number;
+  adjust: ColorAdjust;
+  /** The wand's last reading, so its dial can rescale it; never rendered. */
+  autoAdjust: AutoAdjust | null;
 }
 
 export function evenTrunc(value: number): number {
@@ -48,11 +48,8 @@ export function emptyDraft(duration: number): VideoEditDraft {
     speed: 1,
     scale: 1,
     volume: 1,
-    brightness: 1,
-    contrast: 1,
-    saturation: 1,
-    warmth: 0,
-    hue: 0,
+    adjust: { ...RESTING_ADJUST },
+    autoAdjust: null,
   };
 }
 
@@ -65,11 +62,7 @@ export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean
     Math.abs(draft.speed - 1) < IDENTITY_EPSILON &&
     Math.abs(draft.scale - 1) < IDENTITY_EPSILON &&
     Math.abs(draft.volume - 1) < IDENTITY_EPSILON &&
-    Math.abs(draft.brightness - 1) < IDENTITY_EPSILON &&
-    Math.abs(draft.contrast - 1) < IDENTITY_EPSILON &&
-    Math.abs(draft.saturation - 1) < IDENTITY_EPSILON &&
-    Math.abs(draft.warmth) < IDENTITY_EPSILON &&
-    Math.abs(draft.hue) < IDENTITY_EPSILON
+    isAdjustIdentity(draft.adjust)
   );
 }
 
@@ -175,11 +168,8 @@ export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoE
     speed: draft.speed,
     scale: draft.scale,
     volume: draft.volume,
-    brightness: draft.brightness,
-    contrast: draft.contrast,
-    saturation: draft.saturation,
-    warmth: draft.warmth,
-    hue: draft.hue,
+    adjust: clampAdjust(draft.adjust),
+    auto_adjust: draft.autoAdjust,
   };
 }
 
@@ -195,11 +185,8 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
     speed: spec.speed,
     scale: spec.scale,
     volume: spec.volume,
-    brightness: spec.brightness,
-    contrast: spec.contrast,
-    saturation: spec.saturation,
-    warmth: spec.warmth,
-    hue: spec.hue,
+    adjust: { ...spec.adjust },
+    autoAdjust: spec.auto_adjust ?? null,
   };
 }
 
@@ -233,11 +220,8 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
     sameNumber(a.speed, b.speed) &&
     sameNumber(a.scale, b.scale) &&
     sameNumber(a.volume, b.volume) &&
-    sameNumber(a.brightness, b.brightness) &&
-    sameNumber(a.contrast, b.contrast) &&
-    sameNumber(a.saturation, b.saturation) &&
-    sameNumber(a.warmth, b.warmth) &&
-    sameNumber(a.hue, b.hue)
+    adjustEqual(a.adjust, b.adjust) &&
+    autoAdjustEqual(a.auto_adjust ?? null, b.auto_adjust ?? null)
   );
 }
 

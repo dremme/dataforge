@@ -15,6 +15,7 @@ import {
   revertImageEdit,
 } from "@/features/gallery/api/imageEdit";
 import { GalleryItemModal } from "./GalleryItemModal";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/shared/lib/defer", () => ({
   deferNonCriticalWork: (callback: () => void) => {
@@ -320,11 +321,8 @@ describe("GalleryItemModal", () => {
           mirror_v: false,
           rotate: 90,
           scale: 1,
-          brightness: 1,
-          contrast: 1,
-          saturation: 1,
-          warmth: 0,
-          hue: 0,
+          adjust: { ...RESTING_ADJUST },
+          auto_adjust: null,
         });
         await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
         // Nothing about the surface changes: the editor was already showing the original,
@@ -387,11 +385,7 @@ describe("GalleryItemModal", () => {
             mirror_v: false,
             rotate: 90,
             scale: 1,
-            brightness: 1,
-            contrast: 1,
-            saturation: 1,
-            warmth: 0,
-            hue: 0,
+            adjust: { ...RESTING_ADJUST },
           },
         });
         renderModal(imageItem({ has_backup: true }));

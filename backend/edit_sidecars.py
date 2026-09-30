@@ -80,6 +80,12 @@ def backup_path_for(media: Path) -> Path:
     return media.with_name(f"{media.name}{EDIT_BACKUP_SUFFIX}")
 
 
+def original_path_for(media: Path) -> Path:
+    """What an edit renders from: the backup once one exists, the live file before that."""
+    backup = backup_path_for(media)
+    return backup if backup.is_file() else media
+
+
 def edit_spec_path(media: Path) -> Path:
     return media.with_suffix(EDIT_SIDECAR_SUFFIX)
 

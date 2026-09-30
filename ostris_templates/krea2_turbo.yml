@@ -21,7 +21,7 @@ config:
         - folder_path: ""
           default_caption: ""
           caption_ext: "txt"
-          caption_dropout_rate: 0.1
+          caption_dropout_rate: 0.05
           cache_latents_to_disk: true
           resolution:
             - 512

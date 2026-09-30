@@ -6,6 +6,7 @@ from time import monotonic
 from fastapi import APIRouter, HTTPException, Query, Response
 
 import events
+from color_auto import image_analysis_pixels, suggest_adjust, video_analysis_pixels
 from comfy_candidates import (
     CandidateBusyError,
     NoCandidateError,
@@ -14,7 +15,13 @@ from comfy_candidates import (
     reject_candidate,
 )
 from constants import MEDIA_MIME_TYPES
-from edit_sidecars import EditBusyError, backup_path_for, cancel_render, render_slot
+from edit_sidecars import (
+    EditBusyError,
+    backup_path_for,
+    cancel_render,
+    original_path_for,
+    render_slot,
+)
 from ffmpeg_run import FfmpegCancelled
 from filesystem import MediaPreviewError, open_file_in_default_viewer
 from gif_frames import (
@@ -50,6 +57,7 @@ from routes._helpers import (
     resolve_optional_media_file,
 )
 from schemas import (
+    AutoAdjustResponse,
     ComfyCandidateBatchRequest,
     ComfyCandidateBatchResponse,
     ComfyCandidateFailure,
@@ -126,11 +134,7 @@ def serve_media(
         file_path = resolve_media_file(path)
 
     # Content type comes from the media path; the backup suffix is deliberately non-media.
-    served_path = file_path
-    if original:
-        archive = backup_path_for(file_path)
-        if archive.is_file():
-            served_path = archive
+    served_path = original_path_for(file_path) if original else file_path
 
     # A versioned URL can be cached hard; without one, revalidate or browsers keep old bytes.
     cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
@@ -432,12 +436,10 @@ def read_video_edit(
 
     # The editor plays the original, so probe the file it shows: its rate is the grid the
     # trim handles snap to.
-    backup = backup_path_for(media)
-
     return VideoEditStateResponse(
         path=str(media),
-        has_backup=backup.is_file(),
-        frame_rate=probe_source(backup if backup.is_file() else media).frame_rate,
+        has_backup=backup_path_for(media).is_file(),
+        frame_rate=probe_source(original_path_for(media)).frame_rate,
         spec=read_edit_spec(media),
     )
 
@@ -456,8 +458,7 @@ def edit_video(
 
     # The render reads the backup once it exists, so probe the same file apply_video_edit will,
     # and hand the result on: an untrimmed retime has no end without it, and the bar goes blank.
-    backup = backup_path_for(media)
-    probe = probe_source(backup if backup.is_file() else media)
+    probe = probe_source(original_path_for(media))
     on_progress = _video_edit_progress(media, tab, expected_output_seconds(body, probe.seconds))
 
     try:
@@ -466,6 +467,28 @@ def edit_video(
                 media, body, on_progress=on_progress, should_cancel=should_cancel, probe=probe
             )
     except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
+        raise _video_edit_failure(exc) from exc
+
+
+@router.post("/media/video-edit/auto", response_model=AutoAdjustResponse)
+def auto_adjust_video(
+    path: str = Query(..., description="Absolute path to a video file"),
+    body: VideoEditSpec = ...,
+) -> AutoAdjustResponse:
+    """Suggest Adjust positions for the kept range and crop. Takes no render slot: it only reads."""
+    source = original_path_for(resolve_editable_video(path))
+
+    try:
+        pixels, weights = video_analysis_pixels(
+            source,
+            body.masks,
+            body.crop,
+            start=body.trim_start,
+            end=body.trim_end,
+            duration=probe_source(source).seconds,
+        )
+        return AutoAdjustResponse(suggestion=suggest_adjust(pixels, weights))
+    except (ValueError, OSError) as exc:
         raise _video_edit_failure(exc) from exc
 
 
@@ -529,6 +552,21 @@ def edit_image(
         with render_slot(media):
             return apply_image_edit(media, body)
     except (EditBusyError, ValueError, ImageReadError, OSError) as exc:
+        raise _image_edit_failure(exc) from exc
+
+
+@router.post("/media/image-edit/auto", response_model=AutoAdjustResponse)
+def auto_adjust_image(
+    path: str = Query(..., description="Absolute path to an image file"),
+    body: ImageEditSpec = ...,
+) -> AutoAdjustResponse:
+    """Suggest Adjust positions for the crop. Takes no render slot: it only reads."""
+    source = original_path_for(resolve_editable_image(path))
+
+    try:
+        pixels, weights = image_analysis_pixels(source, body.masks, body.crop)
+        return AutoAdjustResponse(suggestion=suggest_adjust(pixels, weights))
+    except (ValueError, ImageReadError, OSError) as exc:
         raise _image_edit_failure(exc) from exc
 
 

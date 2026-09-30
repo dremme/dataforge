@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyImageEdit,
+  fetchImageAutoAdjust,
   fetchImageEditState,
   revertImageEdit,
 } from "@/features/gallery/api/imageEdit";
@@ -11,6 +12,11 @@ import {
   type CropRect,
   type Orientation,
 } from "@/features/gallery/lib/crop";
+import {
+  useColorAdjust,
+  type AdjustDraft,
+  type ColorAdjustControls,
+} from "@/features/gallery/hooks/useColorAdjust";
 import { useMaskRegions, type MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions";
 import type { MaskDraft } from "@/features/gallery/lib/mask";
 import {
@@ -61,12 +67,7 @@ export interface ImageEdit extends MaskRegionControls {
   toggleMirrorH: () => void;
   toggleMirrorV: () => void;
   setScale: (scale: number) => void;
-  setBrightness: (value: number) => void;
-  setContrast: (value: number) => void;
-  setSaturation: (value: number) => void;
-  setWarmth: (value: number) => void;
-  setHue: (value: number) => void;
-  resetColor: () => void;
+  adjust: ColorAdjustControls;
   resetDraft: () => void;
   apply: () => void;
   revert: () => void;
@@ -213,46 +214,39 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setDraft((current) => ({ ...current, scale }));
   }, []);
 
-  const setBrightness = useCallback((brightness: number) => {
-    setDraft((current) => ({ ...current, brightness }));
-  }, []);
-
-  const setContrast = useCallback((contrast: number) => {
-    setDraft((current) => ({ ...current, contrast }));
-  }, []);
-
-  const setSaturation = useCallback((saturation: number) => {
-    setDraft((current) => ({ ...current, saturation }));
-  }, []);
-
-  const setWarmth = useCallback((warmth: number) => {
-    setDraft((current) => ({ ...current, warmth }));
-  }, []);
-
-  const setHue = useCallback((hue: number) => {
-    setDraft((current) => ({ ...current, hue }));
-  }, []);
-
-  const resetColor = useCallback(() => {
+  const updateAdjust = useCallback((change: (current: AdjustDraft) => AdjustDraft) => {
     setDraft((current) => ({
       ...current,
-      brightness: 1,
-      contrast: 1,
-      saturation: 1,
-      warmth: 0,
-      hue: 0,
+      ...change({ adjust: current.adjust, autoAdjust: current.autoAdjust }),
     }));
   }, []);
 
+  const requestSuggestion = useCallback(
+    async (mediaPath: string) =>
+      (await fetchImageAutoAdjust(mediaPath, toImageEditSpec(draftRef.current))).suggestion,
+    [],
+  );
+
+  const adjust = useColorAdjust({
+    draft,
+    update: updateAdjust,
+    path,
+    name: item?.name,
+    requestSuggestion,
+  });
+  const { cancelAuto } = adjust;
+
   const resetDraft = useCallback(() => {
+    cancelAuto();
     seedDraft(savedSpecRef.current);
-  }, [seedDraft]);
+  }, [cancelAuto, seedDraft]);
 
   const exitEditMode = useCallback(() => {
+    cancelAuto();
     setCropActive(false);
     deactivateMasks();
     setEditMode(false);
-  }, [deactivateMasks, setEditMode]);
+  }, [cancelAuto, deactivateMasks, setEditMode]);
 
   const toggleEditMode = useCallback(() => {
     if (applyingRef.current) return;
@@ -306,6 +300,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   );
 
   const revert = useCallback(() => {
+    cancelAuto();
     runEdit(
       revertImageEdit,
       (name) => `Restored the original ${name}.`,
@@ -314,9 +309,10 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
         seedDraft(null);
       },
     );
-  }, [runEdit, seedDraft]);
+  }, [cancelAuto, runEdit, seedDraft]);
 
   const apply = useCallback(() => {
+    cancelAuto();
     const currentDraft = draftRef.current;
 
     // Identity draft restores the backup instead of re-encoding; else only Revert returns upright.
@@ -338,7 +334,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       (name) => `Edited ${name} - ${size.width} x ${size.height}.`,
       () => setSavedSpec(spec),
     );
-  }, [revert, runEdit]);
+  }, [cancelAuto, revert, runEdit]);
 
   // Dirty vs disk, not an untouched source: an identity draft after a write means Revert.
   const dirty =
@@ -378,12 +374,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     toggleMirrorH,
     toggleMirrorV,
     setScale,
-    setBrightness,
-    setContrast,
-    setSaturation,
-    setWarmth,
-    setHue,
-    resetColor,
+    adjust,
     resetDraft,
     apply,
     revert,

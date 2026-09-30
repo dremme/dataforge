@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ImageEditPanel } from "./ImageEditPanel";
@@ -13,6 +13,8 @@ import {
   DEFAULT_MASK_STRENGTH,
   newMaskDraft,
 } from "@/features/gallery/lib/mask";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import { makeAdjustControls } from "@/test/colorAdjustControls";
 import type { ImageEdit } from "@/features/gallery/hooks/useImageEdit";
 
 const SOURCE = { width: 1920, height: 1080 };
@@ -60,12 +62,7 @@ function makeEdit(overrides: Partial<ImageEdit> = {}): ImageEdit {
     toggleMirrorH: vi.fn(),
     toggleMirrorV: vi.fn(),
     setScale: vi.fn(),
-    setBrightness: vi.fn(),
-    setContrast: vi.fn(),
-    setSaturation: vi.fn(),
-    setWarmth: vi.fn(),
-    setHue: vi.fn(),
-    resetColor: vi.fn(),
+    adjust: makeAdjustControls({ values: draft.adjust }),
     resetDraft: vi.fn(),
     apply: vi.fn(),
     revert: vi.fn(),
@@ -88,9 +85,6 @@ function renderPanel(
   render(<ImageEditPanel {...props} />);
   return props;
 }
-
-/** The hover delay Tooltip defaults to. */
-const TOOLTIP_DELAY_MS = 400;
 
 function draftWith(overrides: Partial<ImageEditDraft>): ImageEditDraft {
   return { ...emptyDraft(), ...overrides };
@@ -160,6 +154,7 @@ describe("ImageEditPanel", () => {
       ["Rotate", draftWith({ mirrorV: true })],
       ["Size", draftWith({ scale: 0.5 })],
       ["Blur", draftWith({ masks: [newMaskDraft("blur", 0.12, 0)] })],
+      ["Adjust", draftWith({ adjust: { ...RESTING_ADJUST, tint: 0.2 } })],
     ])("says %s holds a value once it is off its default", (label, draft) => {
       // Collapsed, the tool is the only thing that can say it carries a change.
       renderPanel(makeEdit({ draft }));
@@ -356,67 +351,39 @@ describe("ImageEditPanel", () => {
     });
   });
 
-  describe("color", () => {
-    async function openColor() {
+  describe("adjust", () => {
+    async function openAdjust() {
       const user = userEvent.setup();
-      await user.click(tools().getByRole("button", { name: /^Color/ }));
+      await user.click(tools().getByRole("button", { name: /^Adjust/ }));
       return user;
     }
 
-    it("moves a color from its slider", async () => {
+    it("arms the preview's inspect mode only while the tab is open", async () => {
       const edit = makeEdit();
       renderPanel(edit);
-      await openColor();
 
-      fireEvent.change(screen.getByRole("slider", { name: "Brightness" }), {
-        target: { value: "1.3" },
-      });
-      expect(edit.setBrightness).toHaveBeenCalledWith(1.3);
+      await openAdjust();
+      expect(edit.adjust.setActive).toHaveBeenLastCalledWith(true);
 
-      fireEvent.change(screen.getByRole("slider", { name: "Warmth" }), {
-        target: { value: "-0.5" },
-      });
-      expect(edit.setWarmth).toHaveBeenCalledWith(-0.5);
+      await userEvent.setup().click(tools().getByRole("button", { name: /^Crop/ }));
+      expect(edit.adjust.setActive).toHaveBeenLastCalledWith(false);
     });
 
-    it("offers every color control the tool carries", async () => {
-      renderPanel(makeEdit());
-      await openColor();
-
-      for (const name of ["Brightness", "Contrast", "Saturation", "Warmth", "Hue"]) {
-        expect(screen.getByRole("slider", { name })).toBeInTheDocument();
-      }
-    });
-
-    it("explains what a control does on hover, since its only label is an icon", async () => {
-      renderPanel(makeEdit());
-      await openColor();
-      const slider = screen.getByRole("slider", { name: "Saturation" });
-
-      vi.useFakeTimers();
-      fireEvent.mouseEnter(slider.closest(".tooltip")!);
-      await act(async () => {
-        vi.advanceTimersByTime(TOOLTIP_DELAY_MS);
-      });
-
-      expect(screen.getByRole("tooltip")).toHaveTextContent("Saturation");
-      vi.useRealTimers();
-    });
-
-    it("resets the colors when something is off default", async () => {
-      const edit = makeEdit({ draft: draftWith({ hue: 90 }) });
+    it("moves the selected tool from the dial", async () => {
+      const edit = makeEdit();
       renderPanel(edit);
-      const user = await openColor();
+      const user = await openAdjust();
 
-      await user.click(screen.getByRole("button", { name: "Reset colors" }));
-      expect(edit.resetColor).toHaveBeenCalled();
+      await user.click(screen.getByRole("tab", { name: "Shadows" }));
+      fireEvent.keyDown(screen.getByRole("slider", { name: "Shadows" }), { key: "ArrowRight" });
+
+      expect(edit.adjust.set).toHaveBeenCalledWith("shadows", 0.01);
     });
 
-    it("leaves nothing to reset while the colors are untouched", async () => {
-      renderPanel(makeEdit());
-      await openColor();
+    it("says so in the summary once a tool has moved", () => {
+      renderPanel(makeEdit({ draft: draftWith({ adjust: { ...RESTING_ADJUST, tint: 0.2 } }) }));
 
-      expect(screen.getByRole("button", { name: "Reset colors" })).toBeDisabled();
+      expect(screen.getByText("Adjusted")).toBeInTheDocument();
     });
   });
 

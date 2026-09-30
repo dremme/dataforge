@@ -1,4 +1,5 @@
-"""Generate frontend/src/shared/{types,constants,wireGuards}.ts from schemas.py and constants.py."""
+"""Generate frontend/src/shared/{types,constants,wireGuards}.ts from schemas.py and constants.py,
+and the color parity cases the frontend port of ``color_adjust`` is tested against."""
 
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ SHARED = ROOT / "frontend" / "src" / "shared"
 OUTPUT = SHARED / "types.ts"
 CONSTANTS_OUTPUT = SHARED / "constants.ts"
 GUARDS_OUTPUT = SHARED / "wireGuards.ts"
+COLOR_CASES_OUTPUT = ROOT / "frontend" / "src" / "test" / "colorAdjustCases.ts"
 
 #: FastAPI validation shapes and multipart bodies named after the route.
 SKIP_EXACT = frozenset({"HTTPValidationError", "ValidationError"})
@@ -394,6 +396,92 @@ def render_constants(constants: Any) -> str:
     return "\n\n".join(lines) + "\n"
 
 
+#: Every global tool alone at a few positions, then mixes that exercise the stages together.
+COLOR_CASE_SETTINGS: tuple[dict[str, float], ...] = (
+    *(
+        {tool: value}
+        for tool in (
+            "exposure",
+            "brilliance",
+            "highlights",
+            "shadows",
+            "contrast",
+            "brightness",
+            "black_point",
+            "saturation",
+            "vibrance",
+            "warmth",
+            "tint",
+        )
+        for value in (-1.0, -0.4, 0.7)
+    ),
+    {"hue": -120.0},
+    {"hue": 45.0},
+    {"hue": 180.0},
+    {"exposure": 0.3, "shadows": 0.4, "contrast": 0.2, "warmth": 0.25, "vibrance": 0.3},
+    {"exposure": -0.2, "highlights": -0.6, "black_point": 0.3, "saturation": -0.3, "tint": 0.4},
+    {"brilliance": 0.8, "brightness": -0.5, "black_point": -0.6, "hue": 90.0, "vibrance": -0.7},
+    {"exposure": 1.0, "saturation": 1.0, "warmth": 1.0},
+)
+
+COLOR_CASE_INPUTS: tuple[tuple[float, float, float], ...] = (
+    (0.0, 0.0, 0.0),
+    (1.0, 1.0, 1.0),
+    (0.18, 0.18, 0.18),
+    (0.5, 0.5, 0.5),
+    (0.9, 0.9, 0.9),
+    (1.0, 0.0, 0.0),
+    (0.0, 1.0, 0.0),
+    (0.0, 0.0, 1.0),
+    (0.8, 0.3, 0.2),
+    (0.5, 0.45, 0.4),
+    (0.95, 0.9, 0.2),
+    (0.05, 0.02, 0.01),
+)
+
+
+def render_color_cases() -> str:
+    import numpy as np  # noqa: PLC0415
+
+    from color_adjust import adjust_pixels  # noqa: PLC0415
+    from schemas import ColorAdjust  # noqa: PLC0415
+
+    inputs = np.array(COLOR_CASE_INPUTS)
+    rows: list[str] = []
+    for settings in COLOR_CASE_SETTINGS:
+        outputs = adjust_pixels(inputs, ColorAdjust(**settings))
+        for source, result in zip(inputs, outputs, strict=True):
+            adjust = json.dumps(settings)
+            rows.append(
+                f"  {{ adjust: {adjust}, input: {_triple(source)}, output: {_triple(result)} }},"
+            )
+
+    return "\n".join(
+        [
+            _banner(
+                "backend/color_adjust.py",
+                "Python's answers the TS port of the pixel pipeline must reproduce.",
+            ),
+            'import type { ColorAdjust } from "@/shared/types";',
+            "",
+            "export interface ColorAdjustCase {",
+            "  adjust: Partial<ColorAdjust>;",
+            "  input: readonly [number, number, number];",
+            "  output: readonly [number, number, number];",
+            "}",
+            "",
+            "export const COLOR_ADJUST_CASES: readonly ColorAdjustCase[] = [",
+            *rows,
+            "];",
+            "",
+        ]
+    )
+
+
+def _triple(values: Any) -> str:
+    return "[" + ", ".join(f"{float(value):.6f}" for value in values) + "]"
+
+
 def render(spec: dict[str, Any]) -> str:
     components: dict[str, Any] = spec["components"]["schemas"]
     responses, requests = _classify(spec)
@@ -437,6 +525,7 @@ def main() -> int:
         OUTPUT: render(spec),
         CONSTANTS_OUTPUT: render_constants(constants),
         GUARDS_OUTPUT: render_guards(spec, schemas),
+        COLOR_CASES_OUTPUT: render_color_cases(),
     }
 
     for path, generated in outputs.items():

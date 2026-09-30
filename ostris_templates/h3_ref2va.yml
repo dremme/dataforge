@@ -10,8 +10,8 @@ config:
       performance_log_every: 10
       network:
         type: "lora"
-        linear: 16
-        linear_alpha: 16
+        linear: 8
+        linear_alpha: 8
         network_kwargs:
           ignore_if_contains:
             - "adaln_proj"
@@ -24,7 +24,7 @@ config:
         - folder_path: ""
           default_caption: ""
           caption_ext: "txt"
-          caption_dropout_rate: 0.05
+          caption_dropout_rate: 0.0
           cache_latents_to_disk: true
           shrink_video_to_frames: true
           num_frames: 39

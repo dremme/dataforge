@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import {
   applyVideoEdit,
   cancelVideoEdit,
+  fetchVideoAutoAdjust,
   fetchVideoEditState,
   revertVideoEdit,
 } from "@/features/gallery/api/videoEdit";
@@ -25,6 +26,11 @@ import {
 } from "@/features/gallery/lib/videoEdit";
 import { frameDurationFor, frameIndexAt } from "@/features/gallery/lib/frameGrid";
 import { useVideoPreviewPlayback } from "@/features/gallery/hooks/useVideoPreviewPlayback";
+import {
+  useColorAdjust,
+  type AdjustDraft,
+  type ColorAdjustControls,
+} from "@/features/gallery/hooks/useColorAdjust";
 import { useMaskRegions, type MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions";
 import type { MaskDraft } from "@/features/gallery/lib/mask";
 import { hasUsableDuration, formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
@@ -81,12 +87,7 @@ export interface VideoEdit extends MaskRegionControls {
   setSpeed: (speed: number) => void;
   setScale: (scale: number) => void;
   setVolume: (volume: number) => void;
-  setBrightness: (value: number) => void;
-  setContrast: (value: number) => void;
-  setSaturation: (value: number) => void;
-  setWarmth: (value: number) => void;
-  setHue: (value: number) => void;
-  resetColor: () => void;
+  adjust: ColorAdjustControls;
   seekTo: (seconds: number) => void;
   togglePlay: () => void;
   resetDraft: () => void;
@@ -366,40 +367,37 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setDraft((current) => ({ ...current, volume }));
   }, []);
 
-  const setBrightness = useCallback((brightness: number) => {
-    setDraft((current) => ({ ...current, brightness }));
-  }, []);
-
-  const setContrast = useCallback((contrast: number) => {
-    setDraft((current) => ({ ...current, contrast }));
-  }, []);
-
-  const setSaturation = useCallback((saturation: number) => {
-    setDraft((current) => ({ ...current, saturation }));
-  }, []);
-
-  const setWarmth = useCallback((warmth: number) => {
-    setDraft((current) => ({ ...current, warmth }));
-  }, []);
-
-  const setHue = useCallback((hue: number) => {
-    setDraft((current) => ({ ...current, hue }));
-  }, []);
-
-  const resetColor = useCallback(() => {
+  const updateAdjust = useCallback((change: (current: AdjustDraft) => AdjustDraft) => {
     setDraft((current) => ({
       ...current,
-      brightness: 1,
-      contrast: 1,
-      saturation: 1,
-      warmth: 0,
-      hue: 0,
+      ...change({ adjust: current.adjust, autoAdjust: current.autoAdjust }),
     }));
   }, []);
 
+  const requestSuggestion = useCallback(
+    async (mediaPath: string) =>
+      (
+        await fetchVideoAutoAdjust(
+          mediaPath,
+          toVideoEditSpec(draftRef.current, durationRef.current),
+        )
+      ).suggestion,
+    [],
+  );
+
+  const adjust = useColorAdjust({
+    draft,
+    update: updateAdjust,
+    path,
+    name: item?.name,
+    requestSuggestion,
+  });
+  const { cancelAuto } = adjust;
+
   const resetDraft = useCallback(() => {
+    cancelAuto();
     seedDraft(savedSpecRef.current, durationRef.current);
-  }, [seedDraft]);
+  }, [cancelAuto, seedDraft]);
 
   const enterEditMode = useCallback(() => {
     // The element remounts on the mode, and the playback hook re-reads the fresh one.
@@ -408,10 +406,11 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   }, [setEditMode, videoRef]);
 
   const exitEditMode = useCallback(() => {
+    cancelAuto();
     setCropActive(false);
     deactivateMasks();
     setEditMode(false);
-  }, [deactivateMasks, setEditMode]);
+  }, [cancelAuto, deactivateMasks, setEditMode]);
 
   const toggleEditMode = useCallback(() => {
     if (applyingRef.current) return;
@@ -469,6 +468,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   );
 
   const revert = useCallback(() => {
+    cancelAuto();
     runEdit(
       revertVideoEdit,
       (name) => `Restored the original ${name}.`,
@@ -477,9 +477,10 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
         seedDraft(null, durationRef.current);
       },
     );
-  }, [runEdit, seedDraft]);
+  }, [cancelAuto, runEdit, seedDraft]);
 
   const apply = useCallback(() => {
+    cancelAuto();
     const currentDraft = draftRef.current;
     const currentDuration = durationRef.current;
 
@@ -497,7 +498,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       (name) => `Edited ${name} - ${formatFrameTime(seconds)} long.`,
       () => setSavedSpec(spec),
     );
-  }, [revert, runEdit]);
+  }, [cancelAuto, revert, runEdit]);
 
   const cancel = useCallback(() => {
     const currentItem = optionsRef.current.item;
@@ -554,12 +555,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setSpeed,
     setScale,
     setVolume,
-    setBrightness,
-    setContrast,
-    setSaturation,
-    setWarmth,
-    setHue,
-    resetColor,
+    adjust,
     seekTo,
     togglePlay,
     resetDraft,

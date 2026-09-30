@@ -1,6 +1,9 @@
+import math
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
+
+from constants import ADJUST_MAX_HUE, AUTO_ADJUST_DEFAULT_AMOUNT, COLOR_ADJUST
 
 # PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
 
@@ -1033,11 +1036,6 @@ MIN_EDIT_SCALE = 0.05
 #: 0 mutes by dropping the track; 2 is a safe boost before clipping gets ugly.
 MIN_EDIT_VOLUME = 0.0
 MAX_EDIT_VOLUME = 2.0
-#: Brightness, contrast and saturation are multipliers: 1 unchanged, 0 blank, 2 doubled.
-MIN_EDIT_COLOR = 0.0
-MAX_EDIT_COLOR = 2.0
-#: Warmth is a symmetric push: negative cools, positive warms.
-MAX_EDIT_WARMTH = 1.0
 MIN_TRIM_SECONDS = 0.1
 
 #: Float noise from a normalized drag can push a full-width rect past 1.0.
@@ -1081,6 +1079,87 @@ class MaskRegion(EditCropRect):
     strength: float = Field(0.12, ge=MIN_MASK_STRENGTH, le=MAX_MASK_STRENGTH)
 
 
+type AdjustTone = Annotated[float, Field(ge=-1.0, le=1.0)]
+type AdjustDetail = Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class ColorAdjust(BaseModel):
+    """Adjust tool positions, each 0 at rest. Detail runs first, then everything else as one LUT."""
+
+    exposure: AdjustTone = 0.0
+    brilliance: AdjustTone = 0.0
+    highlights: AdjustTone = 0.0
+    shadows: AdjustTone = 0.0
+    contrast: AdjustTone = 0.0
+    brightness: AdjustTone = 0.0
+    black_point: AdjustTone = 0.0
+    saturation: AdjustTone = 0.0
+    vibrance: AdjustTone = 0.0
+    warmth: AdjustTone = 0.0
+    tint: AdjustTone = 0.0
+    hue: float = Field(0.0, ge=-ADJUST_MAX_HUE, le=ADJUST_MAX_HUE)
+    definition: AdjustDetail = 0.0
+    noise_reduction: AdjustDetail = 0.0
+
+
+class AutoAdjust(BaseModel):
+    """What the wand last read, kept so its dial can rescale it after a reopen. Never rendered."""
+
+    amount: float = Field(AUTO_ADJUST_DEFAULT_AMOUNT, ge=0.0, le=1.0)
+    suggestion: ColorAdjust
+    base: ColorAdjust | None = None
+
+
+class AutoAdjustResponse(BaseModel):
+    suggestion: ColorAdjust
+
+
+#: The pre-Adjust flat color fields, mapped to their nearest tools when an old sidecar is read.
+_LEGACY_COLOR_FIELDS = ("brightness", "contrast", "saturation", "warmth", "hue")
+#: The old warmth scaled encoded red and blue by this much at full push.
+_LEGACY_WARMTH_GAIN = 0.2
+_SRGB_GAMMA = 2.2
+
+
+def _clamp_tone(value: float) -> float:
+    return max(-1.0, min(1.0, value))
+
+
+def _legacy_adjust(raw: dict[str, object]) -> dict[str, float]:
+    def number(key: str, default: float) -> float:
+        value = raw.get(key, default)
+        return float(value) if isinstance(value, int | float) else default
+
+    brightness = number("brightness", 1.0)
+    warmth = number("warmth", 0.0) * _LEGACY_WARMTH_GAIN
+    hue = number("hue", 0.0) % 360.0
+    return {
+        "exposure": (
+            _clamp_tone(_SRGB_GAMMA * math.log2(brightness) / COLOR_ADJUST["exposure_stops"])
+            if brightness > 0
+            else -1.0
+        ),
+        "contrast": _clamp_tone(number("contrast", 1.0) - 1.0),
+        "saturation": _clamp_tone(number("saturation", 1.0) - 1.0),
+        "warmth": _clamp_tone(
+            _SRGB_GAMMA * math.log((1 + warmth) / (1 - warmth)) / (2 * COLOR_ADJUST["warmth_gain"])
+        ),
+        "hue": hue - 360.0 if hue > ADJUST_MAX_HUE else hue,
+    }
+
+
+def migrated_legacy_color(data: object) -> object:
+    """Old sidecars carry flat color fields; unmigrated, the next Apply would silently drop them."""
+    if not isinstance(data, dict) or "adjust" in data:
+        return data
+    if not any(key in data for key in _LEGACY_COLOR_FIELDS):
+        return data
+
+    migrated = {key: value for key, value in data.items() if key not in _LEGACY_COLOR_FIELDS}
+    migrated["adjust"] = _legacy_adjust(data)
+    return migrated
+
+
 def validated_masks(masks: list[MaskRegion]) -> list[MaskRegion]:
     """Unlike a crop, a full-frame region stands: obscuring the whole picture is a real request."""
     for mask in masks:
@@ -1104,11 +1183,13 @@ class VideoEditSpec(BaseModel):
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
     #: Audio gain: 1 unchanged, 0 mutes (the track is dropped), up to 2 for a boost.
     volume: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
-    brightness: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
-    contrast: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
-    saturation: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
-    warmth: float = Field(0.0, ge=-MAX_EDIT_WARMTH, le=MAX_EDIT_WARMTH)
-    hue: float = Field(0.0, ge=0.0, lt=360.0)
+    adjust: ColorAdjust = Field(default_factory=ColorAdjust)
+    auto_adjust: AutoAdjust | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: object) -> object:
+        return migrated_legacy_color(data)
 
     @model_validator(mode="after")
     def _check(self) -> "VideoEditSpec":
@@ -1142,7 +1223,7 @@ class VideoEditResponse(BaseModel):
 
 
 class ImageEditSpec(BaseModel):
-    """Order is mask, crop, mirror, rotate, scale, color — shared with the frontend overlay."""
+    """Order is mask, crop, mirror, rotate, scale, adjust — shared with the frontend overlay."""
 
     masks: list[MaskRegion] = Field(default_factory=list, max_length=MAX_MASK_REGIONS)
     crop: EditCropRect | None = None
@@ -1152,12 +1233,13 @@ class ImageEditSpec(BaseModel):
     rotate: Literal[0, 90, 180, 270] = 0
     #: Capped at 1: upscaling invents detail a caption would then describe.
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
-    #: Color adjustments, applied last as one matrix. Each defaults to leaving the pixel alone.
-    brightness: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
-    contrast: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
-    saturation: float = Field(1.0, ge=MIN_EDIT_COLOR, le=MAX_EDIT_COLOR)
-    warmth: float = Field(0.0, ge=-MAX_EDIT_WARMTH, le=MAX_EDIT_WARMTH)
-    hue: float = Field(0.0, ge=0.0, lt=360.0)
+    adjust: ColorAdjust = Field(default_factory=ColorAdjust)
+    auto_adjust: AutoAdjust | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: object) -> object:
+        return migrated_legacy_color(data)
 
     @model_validator(mode="after")
     def _check(self) -> "ImageEditSpec":

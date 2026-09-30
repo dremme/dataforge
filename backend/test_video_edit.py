@@ -6,6 +6,7 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -14,9 +15,10 @@ from pydantic import ValidationError
 
 import edit_sidecars
 import video_edit
+from color_adjust import adjust_lut
 from constants import EDIT_STALE_SUFFIX, EDIT_TEMP_SUFFIX, VIDEO_EDIT_MUXERS
 from ffmpeg_run import FfmpegCancelled
-from schemas import EditCropRect, MaskRegion, VideoEditSpec
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, MaskRegion, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_mp4_video
 
 SOURCE = Path("clip.mp4.bak")
@@ -183,19 +185,17 @@ class BuildVideoEditCommandTests(unittest.TestCase):
         self.assertEqual([name.split("=")[0] for name in filters], ["crop", "scale", "setpts"])
         self.assertEqual(filters[-1], "setpts=PTS/2.000000")
 
-    def test_color_uses_the_shared_rgb_matrix_after_the_geometry_and_timing_filters(self) -> None:
-        spec = VideoEditSpec(scale=0.5, speed=2.0, brightness=1.2, hue=45.0)
+    def test_the_lut_runs_after_the_geometry_and_timing_filters(self) -> None:
+        spec = VideoEditSpec(scale=0.5, speed=2.0, adjust=ColorAdjust(exposure=0.2, hue=45.0))
 
         filters = command_for(spec, frame_rate=24.0)
         chain = filters[filters.index("-vf") + 1]
 
         self.assertLess(chain.index("scale="), chain.index("setpts=PTS/2.000000"))
         self.assertLess(chain.index("setpts=PTS/2.000000"), chain.index("fps=24.000000"))
-        self.assertLess(chain.index("fps=24.000000"), chain.index("format=rgb24,geq="))
-        self.assertIn("r='clip(", chain)
-        self.assertIn("r(X,Y)", chain)
-        self.assertIn("g(X,Y)", chain)
-        self.assertIn("b(X,Y)", chain)
+        self.assertTrue(
+            chain.endswith(",format=gbrpf32le,lut3d=file=adjust.cube:interp=trilinear"), chain
+        )
 
     def test_an_identity_spec_carries_no_filters(self) -> None:
         self.assertNotIn("-vf", command_for(VideoEditSpec()))
@@ -439,6 +439,21 @@ class OutputDimensionsTests(unittest.TestCase):
         ((641, 481), 1.0, 1.0, 0.25, (160, 120)),
     )
 
+    def test_a_cropped_or_scaled_frame_follows_the_same_table(self) -> None:
+        for source, crop_w, crop_h, scale, expected in self.CASES:
+            if crop_w == crop_h == scale == 1.0:
+                continue
+            with self.subTest(source=source, crop=(crop_w, crop_h), scale=scale):
+                crop = (
+                    None if crop_w == crop_h == 1.0 else EditCropRect(width=crop_w, height=crop_h)
+                )
+                spec = VideoEditSpec(crop=crop, scale=scale)
+
+                self.assertEqual(video_edit.output_frame_size(source, spec), expected)
+
+    def test_an_untouched_frame_keeps_its_odd_size_until_the_encoder(self) -> None:
+        self.assertEqual(video_edit.output_frame_size((1919, 1081), VideoEditSpec()), (1919, 1081))
+
     def test_even_truncation_matches_the_shared_table(self) -> None:
         for source, crop_w, crop_h, scale, expected in self.CASES:
             with self.subTest(source=source, crop=(crop_w, crop_h), scale=scale):
@@ -464,11 +479,10 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
             VideoEditSpec(volume=0.5),
             VideoEditSpec(volume=0.0),
-            VideoEditSpec(brightness=1.2),
-            VideoEditSpec(contrast=0.8),
-            VideoEditSpec(saturation=1.5),
-            VideoEditSpec(warmth=0.4),
-            VideoEditSpec(hue=30.0),
+            *(
+                VideoEditSpec(adjust=ColorAdjust(**{tool: 0.2}))
+                for tool in ColorAdjust.model_fields
+            ),
         )
         for spec in changed:
             with self.subTest(spec=spec):
@@ -479,16 +493,17 @@ class SpecHelperTests(unittest.TestCase):
             with self.subTest(volume=volume), self.assertRaises(ValidationError):
                 VideoEditSpec(volume=volume)
 
-    def test_color_outside_the_range_is_refused(self) -> None:
-        for kwargs in (
-            {"brightness": 2.5},
-            {"contrast": -0.1},
-            {"saturation": 3.0},
-            {"warmth": 1.5},
-            {"hue": 360.0},
-        ):
+    def test_a_tool_outside_its_range_is_refused(self) -> None:
+        for kwargs in ({"exposure": 1.5}, {"hue": -181.0}, {"noise_reduction": -0.1}):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValidationError):
-                VideoEditSpec(**kwargs)
+                VideoEditSpec(adjust=ColorAdjust(**kwargs))
+
+    def test_a_remembered_wand_reading_alone_changes_nothing(self) -> None:
+        spec = VideoEditSpec(
+            auto_adjust=AutoAdjust(amount=0.5, suggestion=ColorAdjust(exposure=0.3))
+        )
+
+        self.assertTrue(video_edit.is_identity_spec(spec))
 
     def test_expected_output_length_divides_the_kept_span_by_the_speed(self) -> None:
         spec = VideoEditSpec(trim_start=2.0, trim_end=10.0, speed=2.0)
@@ -615,6 +630,122 @@ class ProbeSourceTests(unittest.TestCase):
         self.assertIsNone(probe.size)
 
 
+class AdjustStageTests(unittest.TestCase):
+    def test_resting_tools_add_no_filters(self) -> None:
+        self.assertNotIn("-vf", command_for(VideoEditSpec(speed=1.0, trim_start=1.0)))
+
+    def test_noise_reduction_filters_at_sixteen_bits_on_full_range_planes(self) -> None:
+        chain = command_for(VideoEditSpec(adjust=ColorAdjust(noise_reduction=0.5)))
+        filters = chain[chain.index("-vf") + 1].split(",")
+
+        self.assertEqual(
+            [link.split("=")[0] for link in filters],
+            ["scale", "format", "guided", "guided", "format", "scale", "format"],
+        )
+        self.assertEqual(filters[0], "scale=out_range=full")
+        self.assertEqual(filters[1], "format=yuv420p16le")
+        self.assertIn("planes=1", filters[2])
+        self.assertIn("planes=6", filters[3])
+        self.assertEqual(filters[-2:], ["scale=out_range=limited", "format=yuv420p"])
+
+    def test_the_noise_variance_is_the_strength_squared_and_is_not_squared_again(self) -> None:
+        chain = command_for(VideoEditSpec(adjust=ColorAdjust(noise_reduction=0.5)))
+
+        self.assertIn("guided=radius=2:eps=0.00090000:planes=1", chain[chain.index("-vf") + 1])
+
+    def test_definition_needs_a_graph_and_blurs_a_small_base(self) -> None:
+        command = command_for(
+            VideoEditSpec(adjust=ColorAdjust(definition=0.5, exposure=0.1)),
+            source_size=(1920, 1080),
+        )
+
+        graph = command[command.index("-filter_complex") + 1]
+        self.assertEqual(command[command.index("-map") + 1], "[v]")
+        self.assertIn("[pre]split=2[defsrc][defbase]", graph)
+        self.assertIn("scale=w=455:h=256:flags=area,gblur=sigma=3.840000", graph)
+        self.assertIn("scale=w=1920:h=1080:flags=bilinear[defblur]", graph)
+        self.assertIn("[defsrc][defblur]lut2=c0='clip(", graph)
+        self.assertTrue(graph.endswith("scale=out_range=limited,format=yuv420p[v]"), graph)
+
+    def test_definition_is_sized_after_the_crop_and_scale(self) -> None:
+        spec = VideoEditSpec(
+            crop=EditCropRect(width=0.5, height=0.5), scale=0.5, adjust=ColorAdjust(definition=0.5)
+        )
+        graph = command_for(spec, source_size=(1920, 1080))
+
+        self.assertIn("scale=w=480:h=270:flags=bilinear[defblur]", " ".join(graph))
+
+    def test_definition_follows_the_masks_in_one_graph(self) -> None:
+        spec = VideoEditSpec(
+            masks=[MaskRegion(x=0.1, y=0.1, width=0.2, height=0.2)],
+            adjust=ColorAdjust(definition=0.5),
+        )
+        command = command_for(spec, source_size=(640, 360))
+
+        graph = command[command.index("-filter_complex") + 1]
+        self.assertLess(graph.index("overlay="), graph.index("[pre]split=2"))
+        self.assertIn("[over0]scale=out_range=full[pre]", graph)
+
+    def test_definition_without_a_frame_size_refuses_rather_than_guessing(self) -> None:
+        with self.assertRaises(RuntimeError):
+            command_for(VideoEditSpec(adjust=ColorAdjust(definition=0.5)), source_size=None)
+
+    def test_an_untagged_source_is_read_as_bt709_like_a_browser_does(self) -> None:
+        command = video_edit.build_video_edit_command(
+            SOURCE,
+            DESTINATION,
+            VideoEditSpec(adjust=ColorAdjust(exposure=0.2)),
+            executable="ffmpeg",
+            muxer="mp4",
+            color=video_edit.StreamColor(untagged=True),
+        )
+
+        self.assertTrue(command[command.index("-vf") + 1].startswith("setparams=colorspace=bt709,"))
+
+    def test_a_full_range_source_stays_full_range(self) -> None:
+        command = video_edit.build_video_edit_command(
+            SOURCE,
+            DESTINATION,
+            VideoEditSpec(adjust=ColorAdjust(noise_reduction=0.5)),
+            executable="ffmpeg",
+            muxer="mp4",
+            color=video_edit.StreamColor(full_range=True),
+        )
+
+        chain = command[command.index("-vf") + 1]
+        self.assertNotIn("out_range", chain)
+        self.assertTrue(chain.startswith("format=yuv420p16le,guided="))
+
+    def test_the_stream_summary_names_the_matrix_and_the_range(self) -> None:
+        cases = (
+            ("yuvj420p(pc, bt470bg/unknown/unknown, progressive)", False, True),
+            ("yuv420p(tv, bt709, progressive)", False, False),
+            ("yuv420p(progressive)", True, False),
+        )
+        for described, untagged, full_range in cases:
+            summary = f"  Stream #0:0[0x1](und): Video: h264 (High), {described}, 640x480\n"
+            completed = subprocess.CompletedProcess([], 1, b"", summary.encode())
+            with (
+                self.subTest(described),
+                patch("video_edit.subprocess.run", return_value=completed),
+            ):
+                self.assertEqual(
+                    video_edit.probe_stream_color("ffmpeg", SOURCE),
+                    video_edit.StreamColor(untagged=untagged, full_range=full_range),
+                )
+
+    def test_the_filters_each_tool_needs_are_named(self) -> None:
+        self.assertEqual(video_edit.required_filters(VideoEditSpec()), set())
+        spec = VideoEditSpec(adjust=ColorAdjust(exposure=0.1, noise_reduction=0.1, definition=0.1))
+        self.assertEqual(video_edit.required_filters(spec), {"lut3d", "guided", "gblur", "lut2"})
+
+    def test_an_ffmpeg_without_a_needed_filter_is_refused_up_front(self) -> None:
+        spec = VideoEditSpec(adjust=ColorAdjust(noise_reduction=0.5))
+        with patch("video_edit.ffmpeg_filters", return_value=frozenset({"lut3d"})):
+            with self.assertRaisesRegex(RuntimeError, "guided"):
+                video_edit.check_filters("ffmpeg", spec)
+
+
 class ApplyVideoEditTests(unittest.TestCase):
     """The runner is replaced; what is checked is what it was asked to do."""
 
@@ -626,6 +757,36 @@ class ApplyVideoEditTests(unittest.TestCase):
         )
         self.probe = patcher.start()
         self.addCleanup(patcher.stop)
+
+    def test_the_lut_is_written_where_ffmpeg_runs(self) -> None:
+        cubes: list[str] = []
+        commands: list[list[str]] = []
+        adjust = ColorAdjust(exposure=0.3, warmth=0.2)
+
+        def run(command, *, cwd, **_kwargs):
+            cube = Path(cwd) / video_edit.ADJUST_CUBE_NAME
+            cubes.append(cube.read_text(encoding="ascii"))
+            commands.append(command)
+            Path(command[-1]).write_bytes(b"rendered")
+
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "clip.mp4")
+            with (
+                patch("video_edit.run_ffmpeg", side_effect=run),
+                patch("video_edit.ffmpeg_filters", return_value=frozenset({"lut3d"})),
+                patch("video_edit.probe_stream_color", return_value=video_edit.StreamColor()),
+            ):
+                video_edit.apply_video_edit(media, VideoEditSpec(adjust=adjust), ffmpeg="ffmpeg")
+
+        lines = cubes[0].splitlines()
+        lut = adjust_lut(adjust)
+        self.assertEqual(lines[0], f"LUT_3D_SIZE {lut.shape[0]}")
+        self.assertEqual(len(lines), 1 + lut.shape[0] ** 3)
+        red, green, blue = (float(value) for value in lines[2].split())
+        self.assertAlmostEqual(green, float(lut[0, 0, 1, 1]), places=5)
+        self.assertAlmostEqual(red, float(lut[0, 0, 1, 0]), places=5)
+        self.assertAlmostEqual(blue, float(lut[0, 0, 1, 2]), places=5)
+        self.assertIn(f"lut3d=file={video_edit.ADJUST_CUBE_NAME}", " ".join(commands[0]))
 
     def _render(self, content: bytes = b"rendered"):
         def run(command, **_kwargs):

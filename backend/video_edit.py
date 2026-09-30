@@ -1,14 +1,20 @@
-"""Trim, obscure, crop, retime and rescale one video in place from its untouched original."""
+"""Trim, obscure, crop, retime, rescale and adjust one video in place from its untouched original."""
 
 from __future__ import annotations
 
 import logging
 import math
+import re
+import subprocess
+import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 
+from color_adjust import adjust_lut, is_adjust_identity, is_global_identity, write_cube
+from color_detail import DefinitionParams, definition_params, is_detail_identity, noise_params
 from constants import VIDEO_EDIT_MUXERS
 from edit_sidecars import (
     ensure_backup,
@@ -22,7 +28,6 @@ from edit_sidecars import (
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
-from image_edit import color_matrix, is_color_identity
 from media_dimensions import media_dimensions
 from schemas import MaskRegion, VideoEditResponse, VideoEditSpec
 
@@ -44,6 +49,14 @@ MAX_PLAUSIBLE_FPS = 1000.0
 #: A mosaic block hides about as much as a Gaussian a quarter its size; one strength serves both.
 BLUR_RADIUS_DIVISOR = 4
 
+#: ffmpeg runs in the LUT's temp folder so the filter names a bare file: no filtergraph escaping.
+ADJUST_CUBE_NAME = "adjust.cube"
+
+#: A stream tagged with any of these names its own matrix; an untagged one is taken as BT.709.
+_COLOR_MATRIX_TAGS = ("bt709", "bt470bg", "smpte170m", "bt2020", "smpte240m", "fcc", "ycgco")
+
+_PROBE_TIMEOUT_SECONDS = 15
+
 
 def read_edit_spec(media: Path) -> VideoEditSpec | None:
     return read_spec(media, VideoEditSpec)
@@ -56,7 +69,7 @@ def is_identity_spec(spec: VideoEditSpec) -> bool:
         and abs(spec.speed - 1.0) < IDENTITY_EPSILON
         and abs(spec.scale - 1.0) < IDENTITY_EPSILON
         and abs(spec.volume - 1.0) < IDENTITY_EPSILON
-        and is_color_identity(spec)
+        and is_adjust_identity(spec.adjust)
         and spec.trim_start < IDENTITY_EPSILON
         and spec.trim_end is None
     )
@@ -151,6 +164,22 @@ def _even(value: float) -> int:
     return int(value) // 2 * 2
 
 
+def _even_part(size: int, fraction: float) -> int:
+    """``trunc(size*f/2)*2`` on the same six-decimal ``f`` the crop and scale filters are given."""
+    return math.trunc(size * float(_fraction(fraction)) / 2) * 2
+
+
+def output_frame_size(source_size: tuple[int, int], spec: VideoEditSpec) -> tuple[int, int]:
+    width, height = source_size
+    if spec.crop is not None:
+        width = _even_part(width, spec.crop.width)
+        height = _even_part(height, spec.crop.height)
+    if abs(spec.scale - 1.0) > IDENTITY_EPSILON:
+        width = _even_part(width, spec.scale)
+        height = _even_part(height, spec.scale)
+    return width, height
+
+
 def mask_box(size: tuple[int, int], region: MaskRegion) -> tuple[int, int, int, int]:
     """Even on every edge: ``yuv420p`` has no half chroma sample to put an odd crop on."""
     width, height = size
@@ -205,25 +234,23 @@ def mask_branch(size: tuple[int, int], region: MaskRegion) -> str:
     )
 
 
-def build_mask_filtergraph(spec: VideoEditSpec, size: tuple[int, int], tail: str) -> str:
-    """Regions are cut from the source before the crop, so they keep their place in the frame."""
+def build_mask_filtergraph(spec: VideoEditSpec, size: tuple[int, int]) -> tuple[list[str], str]:
+    """Regions are cut from the source before the crop, so they keep their place in the frame.
+    Returns the graph's links and the label of the masked stream they end on."""
     regions = spec.masks
-    links = [f"[0:v]split={len(regions) + 1}[base]"]
-    links[0] += "".join(f"[cut{index}]" for index in range(len(regions)))
-
-    chain = [";".join(links)]
+    cuts = "".join(f"[cut{index}]" for index in range(len(regions)))
+    links = [f"[0:v]split={len(regions) + 1}[base]{cuts}"]
     for index, region in enumerate(regions):
-        chain.append(f"[cut{index}]{mask_branch(size, region)}[mask{index}]")
+        links.append(f"[cut{index}]{mask_branch(size, region)}[mask{index}]")
 
     stage = "base"
     for index, region in enumerate(regions):
         left, top, _, _ = mask_box(size, region)
         next_stage = f"over{index}"
-        chain.append(f"[{stage}][mask{index}]overlay={left}:{top}[{next_stage}]")
+        links.append(f"[{stage}][mask{index}]overlay={left}:{top}[{next_stage}]")
         stage = next_stage
 
-    chain.append(f"[{stage}]{tail or 'null'}[v]")
-    return ";".join(chain)
+    return links, stage
 
 
 def build_audio_filters(spec: VideoEditSpec) -> str:
@@ -236,26 +263,8 @@ def build_audio_filters(spec: VideoEditSpec) -> str:
     return ",".join(link for link in links if link)
 
 
-def _color_expression(matrix: tuple[float, ...], row: int) -> str:
-    offset = row * 4
-    terms = [
-        f"{matrix[offset + column]:.9f}*{channel}(X,Y)" for column, channel in enumerate("rgb")
-    ]
-    terms.append(f"{matrix[offset + 3]:.9f}")
-    return "+".join(terms).replace("+-", "-")
-
-
-def build_color_filter(spec: VideoEditSpec) -> str:
-    matrix = color_matrix(spec)
-    expressions = ":".join(
-        f"{channel}='clip({_color_expression(matrix, row)},0,255)'"
-        for row, channel in enumerate("rgb")
-    )
-    return f"format=rgb24,geq={expressions}"
-
-
-def build_video_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> str:
-    """Crop, scale and retime, then color. Dimensions are even because ``yuv420p`` cannot express an odd one."""
+def geometry_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> list[str]:
+    """Crop, scale and retime. Dimensions are even because ``yuv420p`` cannot express an odd one."""
     filters: list[str] = []
 
     crop = spec.crop
@@ -280,10 +289,190 @@ def build_video_filters(spec: VideoEditSpec, frame_rate: float | None = None) ->
         if frame_rate is not None:
             filters.append(f"fps={_fraction(frame_rate)}")
 
-    if not is_color_identity(spec):
-        filters.append(build_color_filter(spec))
+    return filters
 
-    return ",".join(filters)
+
+def definition_expression(params: DefinitionParams) -> str:
+    """``lut2`` luma: ``x`` is the pixel, ``y`` its blurred base, both full-range 8-bit."""
+    detail = "(x-y)/255"
+    limited = f"({detail})/(1+abs({detail})/{_fraction(params.knee)})"
+    midtones = "4*(x/255)*(1-x/255)"
+    # lut2 truncates, so the half level makes it round.
+    return f"'clip(x+255*{_fraction(params.gain)}*{limited}*{midtones}+0.5,0,255)'"
+
+
+def definition_links(
+    params: DefinitionParams, frame: tuple[int, int], source: str, target: str
+) -> list[str]:
+    """The base is blurred small and scaled back, as the image path and the preview take it."""
+    small_width, small_height = params.size
+    width, height = frame
+    return [
+        f"[{source}]split=2[defsrc][defbase]",
+        f"[defbase]scale=w={small_width}:h={small_height}:flags=area,"
+        f"gblur=sigma={_fraction(params.sigma)}:steps=4:planes=1,"
+        f"scale=w={width}:h={height}:flags=bilinear[defblur]",
+        f"[defsrc][defblur]lut2=c0={definition_expression(params)}:c1=x:c2=x[{target}]",
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class AdjustStage:
+    """Filters either side of definition, the one step that needs a graph."""
+
+    head: list[str]
+    definition: DefinitionParams | None
+    tail: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class StreamColor:
+    """How the source's pixels are to be read; the render hands them back the same way."""
+
+    untagged: bool = False
+    full_range: bool = False
+
+
+def build_adjust_stage(
+    spec: VideoEditSpec, frame: tuple[int, int] | None, *, color: StreamColor = StreamColor()
+) -> AdjustStage:
+    """Detail on full-range planes, then the LUT, then back to limited range for the encoder."""
+    adjust = spec.adjust
+    if is_adjust_identity(adjust):
+        return AdjustStage([], None, [])
+
+    head: list[str] = []
+    tail: list[str] = []
+    if color.untagged:
+        # Browsers read an untagged stream as BT.709, and that is what the preview showed.
+        head.append("setparams=colorspace=bt709")
+
+    # Detail works on full-range planes; a limited-range source goes back to limited afterwards.
+    ranged = not is_detail_identity(adjust) and not color.full_range
+    if ranged:
+        head.append("scale=out_range=full")
+
+    if adjust.noise_reduction > IDENTITY_EPSILON:
+        params = noise_params(adjust.noise_reduction)
+        # guided truncates its output; at 8 bits that darkens every plane by half a level.
+        head.append("format=yuv420p16le")
+        head.append(f"guided=radius={params.luma_radius}:eps={params.luma_eps:.8f}:planes=1")
+        # Chroma planes are half size in 4:2:0, so half the radius covers the same ground.
+        chroma_radius = max(1, params.chroma_radius // 2)
+        head.append(f"guided=radius={chroma_radius}:eps={params.chroma_eps:.8f}:planes=6")
+        head.append("format=yuv420p")
+
+    definition = None
+    if adjust.definition > IDENTITY_EPSILON:
+        if frame is None:
+            raise RuntimeError(
+                "The video's frame size could not be read, so its definition cannot be sized"
+            )
+        definition = definition_params(adjust.definition, frame)
+
+    if not is_global_identity(adjust):
+        # Float planes: swscale's 8-bit RGB round trip alone darkens by about a level.
+        tail.append(f"format=gbrpf32le,lut3d=file={ADJUST_CUBE_NAME}:interp=trilinear")
+    if ranged:
+        tail.append("scale=out_range=limited,format=yuv420p")
+
+    return AdjustStage(head, definition, tail)
+
+
+def build_video_filters(
+    spec: VideoEditSpec,
+    frame_rate: float | None = None,
+    *,
+    source_size: tuple[int, int] | None = None,
+    color: StreamColor = StreamColor(),
+) -> tuple[str, bool]:
+    """The video filters, and whether they need ``-filter_complex`` rather than ``-vf``."""
+    frame = output_frame_size(source_size, spec) if source_size is not None else None
+    stage = build_adjust_stage(spec, frame, color=color)
+    head = geometry_filters(spec, frame_rate) + stage.head
+
+    if not spec.masks and stage.definition is None:
+        return ",".join(head + stage.tail), False
+
+    links: list[str] = []
+    source = "0:v"
+    if spec.masks:
+        if source_size is None:
+            # Rendering the rest would hand back a file that looks edited but hides nothing.
+            raise RuntimeError(
+                "The video's frame size could not be read, so its blur cannot be placed"
+            )
+        links, source = build_mask_filtergraph(spec, source_size)
+
+    if stage.definition is None or frame is None:
+        links.append(f"[{source}]{','.join(head + stage.tail) or 'null'}[v]")
+        return ";".join(links), True
+
+    links.append(f"[{source}]{','.join(head) or 'null'}[pre]")
+    links += definition_links(stage.definition, frame, "pre", "defined")
+    links.append(f"[defined]{','.join(stage.tail) or 'null'}[v]")
+    return ";".join(links), True
+
+
+@lru_cache(maxsize=8)
+def ffmpeg_filters(executable: str) -> frozenset[str]:
+    """Names from ``-filters``, cached per binary: PATH may hold an older ffmpeg than the wheel."""
+    try:
+        result = subprocess.run(
+            [executable, "-hide_banner", "-filters"],
+            capture_output=True,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    listing = result.stdout.decode("utf-8", errors="replace")
+    return frozenset(re.findall(r"^\s*\S+\s+(\w+)\s", listing, re.MULTILINE))
+
+
+def required_filters(spec: VideoEditSpec) -> set[str]:
+    adjust = spec.adjust
+    needed: set[str] = set()
+    if not is_global_identity(adjust):
+        needed.add("lut3d")
+    if adjust.noise_reduction > IDENTITY_EPSILON:
+        needed.add("guided")
+    if adjust.definition > IDENTITY_EPSILON:
+        needed.update({"gblur", "lut2"})
+    return needed
+
+
+def check_filters(executable: str, spec: VideoEditSpec) -> None:
+    needed = required_filters(spec)
+    if not needed:
+        return
+    missing = sorted(needed - ffmpeg_filters(executable))
+    if missing:
+        raise RuntimeError(
+            f"This ffmpeg has no {', '.join(missing)} filter; the adjustments need ffmpeg 4.4 or newer"
+        )
+
+
+def probe_stream_color(executable: str, media: Path) -> StreamColor:
+    """Matrix and range from ffmpeg's own stream summary, e.g. ``yuvj420p(pc, bt470bg/...)``."""
+    try:
+        result = subprocess.run(
+            [executable, "-nostdin", "-hide_banner", "-i", str(media)],
+            capture_output=True,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return StreamColor(untagged=True)
+    summary = result.stderr.decode("utf-8", errors="replace")
+    stream = re.search(r"^\s*Stream #.*: Video: .*$", summary, re.MULTILINE)
+    if stream is None:
+        return StreamColor(untagged=True)
+    line = stream.group(0)
+    return StreamColor(
+        untagged=not any(tag in line for tag in _COLOR_MATRIX_TAGS),
+        full_range="(pc" in line or "yuvj" in line,
+    )
 
 
 def build_video_edit_command(
@@ -295,6 +484,7 @@ def build_video_edit_command(
     muxer: str,
     frame_rate: float | None = None,
     source_size: tuple[int, int] | None = None,
+    color: StreamColor = StreamColor(),
 ) -> list[str]:
     """One pass. ``-ss``/``-t`` are input options so they are measured before ``setpts`` compresses time.
 
@@ -325,20 +515,15 @@ def build_video_edit_command(
 
     command += ["-i", str(source)]
 
-    video_filters = build_video_filters(spec, frame_rate)
+    video_filters, complex_graph = build_video_filters(
+        spec, frame_rate, source_size=source_size, color=color
+    )
 
     muted = spec.volume <= IDENTITY_EPSILON
 
-    # Regions need `split` and `overlay`, which a linear `-vf` chain cannot express.
-    if spec.masks:
-        if source_size is None:
-            # Rendering the rest would hand back a file that looks edited but hides nothing.
-            raise RuntimeError(
-                "The video's frame size could not be read, so its blur cannot be placed"
-            )
-
-        command += ["-filter_complex", build_mask_filtergraph(spec, source_size, video_filters)]
-        command += ["-map", "[v]"]
+    # Regions and definition need `split`, which a linear `-vf` chain cannot express.
+    if complex_graph:
+        command += ["-filter_complex", video_filters, "-map", "[v]"]
     else:
         command += ["-map", "0:v:0"]
         if video_filters:
@@ -403,10 +588,13 @@ def apply_video_edit(
     muxer = resolve_muxer(media)
     sweep_edit_temp_files(media.parent)
 
+    check_filters(executable, spec)
+
     source = ensure_backup(media)
     temp_path = temp_path_for(media)
     # Probed from the backup: the live file may already have been retimed or rescaled.
     probe = probe or probe_source(source)
+    adjusted = not is_adjust_identity(spec.adjust)
     command = build_video_edit_command(
         source,
         temp_path,
@@ -415,19 +603,25 @@ def apply_video_edit(
         muxer=muxer,
         frame_rate=probe.frame_rate,
         source_size=probe.size,
+        color=probe_stream_color(executable, source) if adjusted else StreamColor(),
     )
 
-    try:
-        run_ffmpeg(
-            command,
-            should_cancel=should_cancel,
-            on_progress=on_progress,
-            timeout=VIDEO_EDIT_TIMEOUT_SECONDS,
-        )
-        publish_replacing(temp_path, media, stale_path_for(media))
-    finally:
-        with suppress(OSError):
-            temp_path.unlink(missing_ok=True)
+    # A cancelled ffmpeg can still hold the cube open on Windows; the folder then goes later.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as workspace:
+        if not is_global_identity(spec.adjust):
+            write_cube(Path(workspace) / ADJUST_CUBE_NAME, adjust_lut(spec.adjust))
+        try:
+            run_ffmpeg(
+                command,
+                should_cancel=should_cancel,
+                on_progress=on_progress,
+                timeout=VIDEO_EDIT_TIMEOUT_SECONDS,
+                cwd=Path(workspace),
+            )
+            publish_replacing(temp_path, media, stale_path_for(media))
+        finally:
+            with suppress(OSError):
+                temp_path.unlink(missing_ok=True)
 
     write_spec(media, spec)
     return describe_edited(media, has_backup=True)

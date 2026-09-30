@@ -65,13 +65,14 @@ setup / start / dev / stop (.bat, .ps1, .sh)   Launchers
 
 ## Generated code
 
-`backend/schemas.py` and `backend/constants.py` define the API contract. [`scripts/generate_types.py`](../scripts/generate_types.py) turns them into three frontend files, so nothing is mirrored by hand:
+`backend/schemas.py` and `backend/constants.py` define the API contract. [`scripts/generate_types.py`](../scripts/generate_types.py) turns them into four frontend files, so nothing is mirrored by hand:
 
-| File                                | Contains                                                  |
-| ----------------------------------- | --------------------------------------------------------- |
-| `frontend/src/shared/types.ts`      | Every request and response type, from the OpenAPI schema  |
-| `frontend/src/shared/constants.ts`  | The values in `constants.SHARED_CONSTANTS`                |
-| `frontend/src/shared/wireGuards.ts` | Runtime checks for `schemas.GUARDED_WIRE_MODELS`          |
+| File                                    | Contains                                                              |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| `frontend/src/shared/types.ts`          | Every request and response type, from the OpenAPI schema              |
+| `frontend/src/shared/constants.ts`      | The values in `constants.SHARED_CONSTANTS`                            |
+| `frontend/src/shared/wireGuards.ts`     | Runtime checks for `schemas.GUARDED_WIRE_MODELS`                      |
+| `frontend/src/test/colorAdjustCases.ts` | `color_adjust` outputs the TS port of the Adjust pipeline is held to  |
 
 They are gitignored and **must never be edited by hand**; the next run overwrites them. A fresh clone doesn't have them, and the frontend won't build until they exist. Setup, every launcher, and `run_checks.py` regenerate them, so a branch switch can't leave a stale contract behind. A file is rewritten only if its content changed, so regenerating doesn't trigger a UI rebuild by itself.
 

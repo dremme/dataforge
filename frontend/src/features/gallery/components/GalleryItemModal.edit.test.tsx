@@ -14,6 +14,7 @@ import {
   revertVideoEdit,
 } from "@/features/gallery/api/videoEdit";
 import { GalleryItemModal } from "./GalleryItemModal";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 
 vi.mock("@/shared/lib/defer", () => ({
   deferNonCriticalWork: (callback: () => void) => {
@@ -179,11 +180,7 @@ describe("GalleryItemModal", () => {
           speed: 2,
           scale: 0.5,
           volume: 1,
-          brightness: 1,
-          contrast: 1,
-          saturation: 1,
-          warmth: 0,
-          hue: 0,
+          adjust: { ...RESTING_ADJUST },
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -280,11 +277,7 @@ describe("GalleryItemModal", () => {
               speed: 2,
               scale: 1,
               volume: 1,
-              brightness: 1,
-              contrast: 1,
-              saturation: 1,
-              warmth: 0,
-              hue: 0,
+              adjust: { ...RESTING_ADJUST },
             }
           : null,
       }));
@@ -327,11 +320,7 @@ describe("GalleryItemModal", () => {
           speed: 1,
           scale: 1,
           volume: 1,
-          brightness: 1,
-          contrast: 1,
-          saturation: 1,
-          warmth: 0,
-          hue: 0,
+          adjust: { ...RESTING_ADJUST },
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -397,11 +386,7 @@ describe("GalleryItemModal", () => {
           speed: 2,
           scale: 1,
           volume: 1,
-          brightness: 1,
-          contrast: 1,
-          saturation: 1,
-          warmth: 0,
-          hue: 0,
+          adjust: { ...RESTING_ADJUST },
         },
       });
       renderModal(videoItem({ has_backup: true }));
@@ -502,11 +487,8 @@ describe("GalleryItemModal", () => {
         speed: 0.5,
         scale: 1,
         volume: 1,
-        brightness: 1,
-        contrast: 1,
-        saturation: 1,
-        warmth: 0,
-        hue: 0,
+        adjust: { ...RESTING_ADJUST },
+        auto_adjust: null,
       });
       await waitFor(() => expect(props.onCopied).toHaveBeenCalled());
       // Nothing about the surface changes: the editor was already playing the original,
@@ -515,44 +497,39 @@ describe("GalleryItemModal", () => {
       expect(dialog.querySelector("video")?.getAttribute("src")).toContain("original=1");
     });
 
-    it("previews and posts color adjustments", async () => {
+    it("posts the adjust tools with the rest of the spec", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
       const dialog = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Color/ }));
-      fireEvent.change(within(dialog).getByRole("slider", { name: "Brightness" }), {
-        target: { value: "1.3" },
+      await user.click(within(dialog).getByRole("button", { name: /^Adjust/ }));
+      await user.click(within(dialog).getByRole("tab", { name: "Warmth" }));
+      fireEvent.keyDown(within(dialog).getByRole("slider", { name: "Warmth" }), {
+        key: "ArrowRight",
+        shiftKey: true,
       });
-
-      expect(dialog.querySelector("video")?.style.filter).toMatch(/^url\(#/);
-
       await user.click(within(dialog).getByRole("button", { name: "Apply" }));
 
       await waitFor(() => expect(applyMock).toHaveBeenCalled());
       expect(applyMock.mock.calls[0][1]).toMatchObject({
-        brightness: 1.3,
-        contrast: 1,
-        saturation: 1,
-        warmth: 0,
-        hue: 0,
+        adjust: { ...RESTING_ADJUST, warmth: 0.1 },
+        auto_adjust: null,
       });
     });
 
-    it("keeps the black video backdrop outside the color filter", async () => {
+    it("leaves the video untouched and says so when the browser cannot preview", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
       const dialog = await openEditMode(user);
 
-      await user.click(within(dialog).getByRole("button", { name: /^Color/ }));
-      fireEvent.change(within(dialog).getByRole("slider", { name: "Brightness" }), {
-        target: { value: "1.3" },
+      await user.click(within(dialog).getByRole("button", { name: /^Adjust/ }));
+      fireEvent.keyDown(within(dialog).getByRole("slider", { name: "Exposure" }), {
+        key: "ArrowRight",
       });
 
-      const video = dialog.querySelector("video")!;
-      expect(video.style.filter).toMatch(/^url\(#/);
-      expect(video.parentElement).toHaveClass("gallery-item-modal__video-backdrop");
-      expect(video.parentElement).not.toHaveStyle({ filter: video.style.filter });
+      expect(dialog.querySelector("video")?.style.filter).toBe("");
+      expect(dialog.querySelector("canvas.adjust-canvas")).toHaveAttribute("hidden");
+      expect(within(dialog).getByText(/no live preview/i)).toBeInTheDocument();
     });
 
     it("goes quiet once the draft matches what it just wrote", async () => {

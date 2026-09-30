@@ -10,3 +10,4 @@ playwright-report
 src/shared/types.ts
 src/shared/constants.ts
 src/shared/wireGuards.ts
+src/test/colorAdjustCases.ts

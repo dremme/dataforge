@@ -141,12 +141,6 @@
     background: var(--video-bg);
   }
 
-  &__filter {
-    position: absolute;
-    width: 0;
-    height: 0;
-  }
-
   &__footer {
     flex-shrink: 0;
     border-top: 1px solid var(--border);

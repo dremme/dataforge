@@ -1,0 +1,70 @@
+import { StrictMode, useCallback, useState, type ReactNode } from "react";
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { useColorAdjust, type AdjustDraft } from "./useColorAdjust";
+import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
+import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import type { ColorAdjust } from "@/shared/types";
+
+function wrapper({ children }: { children: ReactNode }) {
+  return (
+    <StrictMode>
+      <NotificationsProvider>{children}</NotificationsProvider>
+    </StrictMode>
+  );
+}
+
+function renderAdjust() {
+  let resolve!: (suggestion: ColorAdjust) => void;
+  const requestSuggestion = vi.fn(
+    () =>
+      new Promise<ColorAdjust>((done) => {
+        resolve = done;
+      }),
+  );
+  const view = renderHook(
+    () => {
+      const [draft, setDraft] = useState<AdjustDraft>({
+        adjust: { ...RESTING_ADJUST },
+        autoAdjust: null,
+      });
+      const update = useCallback(
+        (change: (current: AdjustDraft) => AdjustDraft) => setDraft(change),
+        [],
+      );
+      return useColorAdjust({
+        draft,
+        update,
+        path: "photo.png",
+        name: "photo.png",
+        requestSuggestion,
+      });
+    },
+    { wrapper },
+  );
+  return { ...view, resolve: (suggestion: ColorAdjust) => resolve(suggestion) };
+}
+
+describe("useColorAdjust", () => {
+  it("drops a wand reading that arrives after resetting the adjustments", async () => {
+    const view = renderAdjust();
+    act(() => view.result.current.activateAuto());
+    act(() => view.result.current.reset());
+    expect(view.result.current.autoPending).toBe(false);
+    await act(async () => view.resolve({ ...RESTING_ADJUST, exposure: 0.3 }));
+    expect(view.result.current.values).toEqual(RESTING_ADJUST);
+    expect(view.result.current.auto).toBeNull();
+  });
+
+  it("releases compare and zoom when leaving the Adjust tab", () => {
+    const view = renderAdjust();
+    act(() => view.result.current.setActive(true));
+    act(() => {
+      view.result.current.setComparing(true);
+      view.result.current.setZoomed(true);
+    });
+    act(() => view.result.current.setActive(false));
+    expect(view.result.current.comparing).toBe(false);
+    expect(view.result.current.zoomed).toBe(false);
+  });
+});

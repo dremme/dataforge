@@ -1,0 +1,21 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+// Laid over the media's painted box, under the crop and mask overlays.
+.adjust-canvas {
+  position: absolute;
+  display: block;
+  border-radius: var(--radius-sm);
+
+  &[hidden] {
+    display: none;
+  }
+
+  &--inspectable {
+    cursor: zoom-in;
+  }
+
+  &--zoomed {
+    cursor: zoom-out;
+  }
+}

@@ -140,6 +140,47 @@ JOB_TYPE_LABELS: dict[str, str] = {
     "comfy_process": "Process with ComfyUI",
 }
 
+#: Adjust tools rest at 0: tones and colors span ±1, detail tools 0..1, hue is degrees.
+ADJUST_MAX_HUE = 180.0
+
+#: Curve constants of ``color_adjust``; the TS port reads the same numbers.
+COLOR_ADJUST: dict[str, float] = {
+    "exposure_stops": 2.0,
+    "warmth_gain": 0.35,
+    "tint_gain": 0.25,
+    # Above 4 (lift) or 1 (crush) the shadow and highlight curves stop being monotonic.
+    "shadow_lift": 2.0,
+    "shadow_crush": 0.8,
+    "highlight_recover": 2.0,
+    "highlight_lift": 0.8,
+    "brightness_gain": 0.9,
+    "black_point_level": 0.2,
+    "black_point_lift": 0.15,
+    "brilliance_shadows": 0.6,
+    "brilliance_highlights": 0.6,
+    "brilliance_contrast": 0.25,
+    "tone_chroma_cap": 4.0,
+}
+
+#: Noise reduction is a self-guided filter; definition a local-contrast boost on luma.
+COLOR_DETAIL: dict[str, float] = {
+    "noise_luma_radius": 2,
+    "noise_luma_std": 0.06,
+    "noise_chroma_radius": 4,
+    "noise_chroma_std": 0.12,
+    "definition_short_side": 256,
+    "definition_sigma": 3.84,
+    "definition_gain": 1.2,
+    "definition_knee": 0.15,
+}
+
+ADJUST_PREVIEW_LUT_SIZE = 33
+#: Pillow's Color3DLUT stops at 65.
+ADJUST_RENDER_LUT_SIZE = 65
+
+#: The wand's dial position that applies its reading once; the far end applies it twice.
+AUTO_ADJUST_DEFAULT_AMOUNT = 0.5
+
 #: Emitted into ``frontend/src/shared/constants.ts``. Sets are sorted; sequences keep walk order.
 SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
@@ -154,4 +195,9 @@ SHARED_CONSTANTS: dict[str, object] = {
     "COMFY_WORKFLOW_EXTENSIONS": sorted(COMFY_WORKFLOW_EXTENSIONS),
     "STAGING_DIR_NAME": STAGING_DIR_NAME,
     "JOB_TYPE_LABELS": JOB_TYPE_LABELS,
+    "ADJUST_MAX_HUE": ADJUST_MAX_HUE,
+    "COLOR_ADJUST": COLOR_ADJUST,
+    "COLOR_DETAIL": COLOR_DETAIL,
+    "ADJUST_PREVIEW_LUT_SIZE": ADJUST_PREVIEW_LUT_SIZE,
+    "AUTO_ADJUST_DEFAULT_AMOUNT": AUTO_ADJUST_DEFAULT_AMOUNT,
 }

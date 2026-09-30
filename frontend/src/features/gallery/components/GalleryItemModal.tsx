@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
@@ -52,6 +52,7 @@ import {
   isVideo,
   mediaLabelFor,
 } from "@/features/gallery/lib/itemKind";
+import type { AdjustedPicture } from "@/features/gallery/lib/adjustedPicture";
 import type { FrameCapture } from "@/features/gallery/lib/frameCapture";
 import { formatFrameOrdinal } from "@/features/gallery/lib/gifFrameCapture";
 import { formatFrameTime, FRAME_STEP_SECONDS } from "@/features/gallery/lib/videoFrameCapture";
@@ -76,6 +77,7 @@ import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
 import { TransferMediaDialog } from "./TransferMediaDialog";
 import { FrameCaptureBar } from "./FrameCaptureBar";
 import { CropOverlay } from "./CropOverlay";
+import { AdjustCanvas } from "./AdjustCanvas";
 import { MaskOverlay } from "./MaskOverlay";
 import { ImageEditPanel } from "./ImageEditPanel";
 import { ImageEditStage } from "./ImageEditStage";
@@ -83,7 +85,6 @@ import { VideoEditPanel } from "./VideoEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
 import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
-import { feColorMatrixValues, isColorIdentity } from "@/features/gallery/lib/color";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 
 const noop = () => {};
@@ -210,8 +211,7 @@ export function GalleryItemModal({
     editMode,
     setEditMode,
   });
-  const videoColorFilterId = useId().replace(/:/g, "");
-  const videoColorAdjusted = editMode && !isColorIdentity(videoEdit.draft);
+  const [videoPicture, setVideoPicture] = useState<AdjustedPicture | null>(null);
 
   const imageEdit = useImageEdit({
     item,
@@ -609,13 +609,6 @@ export function GalleryItemModal({
 
           {itemIsVideo ? (
             <>
-              {videoColorAdjusted && (
-                <svg className="gallery-item-modal__filter" aria-hidden="true" focusable="false">
-                  <filter id={videoColorFilterId} colorInterpolationFilters="sRGB">
-                    <feColorMatrix type="matrix" values={feColorMatrixValues(videoEdit.draft)} />
-                  </filter>
-                </svg>
-              )}
               <div className="gallery-item-modal__video-backdrop">
                 <video
                   // Editing plays the original, so source and key change with the mode, not just the bytes.
@@ -623,7 +616,6 @@ export function GalleryItemModal({
                   ref={videoCapture.videoRef}
                   className="gallery-item-modal__video"
                   src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
-                  style={videoColorAdjusted ? { filter: `url(#${videoColorFilterId})` } : undefined}
                   // Native timeline would seek behind the capture slider or trim handles.
                   controls={!frameCapture.frameMode && !editMode}
                   autoPlay={!editMode}
@@ -642,7 +634,19 @@ export function GalleryItemModal({
                   }}
                 />
               </div>
-              {editMode && videoEdit.draft.masks.length > 0 && (
+              {editMode && canEditVideoItem && (
+                <AdjustCanvas
+                  key={item.path}
+                  mediaRef={videoCapture.videoRef}
+                  sourceWidth={videoEdit.sourceWidth}
+                  sourceHeight={videoEdit.sourceHeight}
+                  crop={videoEdit.draft.crop}
+                  scale={videoEdit.draft.scale}
+                  controls={videoEdit.adjust}
+                  onPictureChange={setVideoPicture}
+                />
+              )}
+              {editMode && videoEdit.draft.masks.length > 0 && !videoEdit.adjust.zoomed && (
                 <MaskOverlay
                   mediaRef={videoCapture.videoRef}
                   src={videoOriginalUrl(item.path)}
@@ -652,6 +656,7 @@ export function GalleryItemModal({
                   sourceHeight={videoEdit.sourceHeight}
                   disabled={busy}
                   interactive={videoEdit.maskActive}
+                  picture={videoPicture}
                   onSelect={videoEdit.selectMask}
                   onChange={videoEdit.setMaskRect}
                   onRemove={videoEdit.removeMask}
