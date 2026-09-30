@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyImageEdit,
+  fetchImageAutoAdjust,
   fetchImageEditState,
   imageOriginalUrl,
   revertImageEdit,
@@ -69,6 +70,17 @@ describe("applyImageEdit", () => {
     await applyImageEdit(PHOTO, SPEC);
 
     expect(String(requestJsonMock.mock.calls[0][0])).not.toContain("tab=");
+  });
+});
+
+describe("fetchImageAutoAdjust", () => {
+  it("posts the draft so the wand reads only what the crop keeps", async () => {
+    await fetchImageAutoAdjust(PHOTO, SPEC);
+
+    const [url, init] = requestJsonMock.mock.calls[0];
+    expect(url).toBe(`/api/media/image-edit/auto?path=${ENCODED}`);
+    expect(init).toMatchObject({ method: "POST" });
+    expect(JSON.parse(String(init?.body))).toEqual(SPEC);
   });
 });
 

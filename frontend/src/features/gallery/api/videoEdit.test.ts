@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyVideoEdit,
   cancelVideoEdit,
+  fetchVideoAutoAdjust,
   fetchVideoEditState,
   revertVideoEdit,
   videoOriginalUrl,
@@ -72,6 +73,17 @@ describe("applyVideoEdit", () => {
 
     const [url] = requestJsonMock.mock.calls[0];
     expect(url).toContain(`tab=${encodeURIComponent(serverEventsTabId())}`);
+  });
+});
+
+describe("fetchVideoAutoAdjust", () => {
+  it("posts the draft so the wand reads only the kept range, and addresses no tab", async () => {
+    await fetchVideoAutoAdjust(CLIP, SPEC);
+
+    const [url, init] = requestJsonMock.mock.calls[0];
+    expect(url).toBe(`/api/media/video-edit/auto?path=${ENCODED}`);
+    expect(init).toMatchObject({ method: "POST" });
+    expect(JSON.parse(String(init?.body))).toEqual(SPEC);
   });
 });
 

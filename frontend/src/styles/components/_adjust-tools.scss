@@ -12,6 +12,8 @@ $adjust-tab-size: 1.75rem;
   min-width: 0;
 
   &__strip {
+    --fade-start: 0rem;
+    --fade-end: 0rem;
     display: flex;
     flex: 0 1 auto;
     align-items: center;
@@ -22,17 +24,26 @@ $adjust-tab-size: 1.75rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+    // Faded only on a side that hides more tools, so the first and last ones read as the ends.
     mask-image: linear-gradient(
       90deg,
       transparent,
-      var(--text) 0.75rem,
-      var(--text) calc(100% - 0.75rem),
+      var(--text) var(--fade-start),
+      var(--text) calc(100% - var(--fade-end)),
       transparent
     );
 
     &::-webkit-scrollbar {
       display: none;
     }
+  }
+
+  &__strip--more-start {
+    --fade-start: 2.5rem;
+  }
+
+  &__strip--more-end {
+    --fade-end: 2.5rem;
   }
 
   &__tab {

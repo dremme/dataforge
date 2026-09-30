@@ -16,6 +16,8 @@ export function useVideoFrameLoop(
     let frame = 0;
     let stopped = false;
 
+    // A frame callback, not readiness: `readyState` says the data arrived, not that the picture
+    // can be drawn yet, and a paused video fires nothing else once it has loaded.
     if (typeof media.requestVideoFrameCallback === "function") {
       const onVideoFrame = () => {
         paint();

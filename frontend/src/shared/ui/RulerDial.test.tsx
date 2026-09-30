@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { RulerDial, DIAL_PIXELS_PER_STEP } from "./RulerDial";
+import { RulerDial } from "./RulerDial";
 
 function dial(overrides: Partial<Parameters<typeof RulerDial>[0]> = {}) {
   const onChange = vi.fn<(value: number) => void>();
@@ -59,18 +59,62 @@ describe("RulerDial", () => {
     expect(slider).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("scrubs the ruler and stops on pointer cancellation", () => {
-    vi.stubGlobal("PointerEvent", MouseEvent);
-    const { slider, onChange } = dial({ value: 0.5 });
-    slider.setPointerCapture = vi.fn();
-    slider.hasPointerCapture = vi.fn(() => true);
-    fireEvent.pointerDown(slider, { button: 0, clientX: 100 });
-    fireEvent.pointerMove(slider, { clientX: 100 + 10 * DIAL_PIXELS_PER_STEP });
-    expect(onChange).toHaveBeenLastCalledWith(0.4);
-    expect(slider).toHaveFocus();
-    fireEvent.pointerCancel(slider);
-    onChange.mockClear();
-    fireEvent.pointerMove(slider, { clientX: 140 });
-    expect(onChange).not.toHaveBeenCalled();
+  describe("dragging", () => {
+    // The track runs from x=100 to x=300, so one pixel is one step of a -1..1 dial.
+    function draggable(overrides: Partial<Parameters<typeof RulerDial>[0]> = {}) {
+      vi.stubGlobal("PointerEvent", MouseEvent);
+      const props = dial(overrides);
+      const track = props.slider.querySelector(".ruler-dial__track") as HTMLElement;
+      track.getBoundingClientRect = () => ({ left: 100, width: 200 }) as DOMRect;
+      props.slider.setPointerCapture = vi.fn();
+      props.slider.hasPointerCapture = vi.fn(() => true);
+      return props;
+    }
+
+    it("jumps to where the track is pressed and follows the pointer", () => {
+      const { slider, onChange } = draggable();
+      fireEvent.pointerDown(slider, { button: 0, clientX: 250 });
+      expect(onChange).toHaveBeenLastCalledWith(0.5);
+      expect(slider).toHaveFocus();
+      fireEvent.pointerMove(slider, { clientX: 120 });
+      expect(onChange).toHaveBeenLastCalledWith(-0.8);
+    });
+
+    it("drags the knob from where it was grabbed, without a jump", () => {
+      const { slider, onChange } = draggable({ value: 0.5 });
+      fireEvent.pointerDown(slider, { button: 0, clientX: 254 });
+      expect(onChange).not.toHaveBeenCalled();
+      fireEvent.pointerMove(slider, { clientX: 264 });
+      expect(onChange).toHaveBeenLastCalledWith(0.6);
+    });
+
+    it("settles on the resting value near it", () => {
+      const { slider, onChange } = draggable({ value: 0.5 });
+      fireEvent.pointerDown(slider, { button: 0, clientX: 201 });
+      expect(onChange).toHaveBeenLastCalledWith(0);
+    });
+
+    it("stops following once the pointer is cancelled", () => {
+      const { slider, onChange } = draggable();
+      fireEvent.pointerDown(slider, { button: 0, clientX: 250 });
+      fireEvent.pointerCancel(slider);
+      onChange.mockClear();
+      fireEvent.pointerMove(slider, { clientX: 140 });
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
+
+  it("fills from the resting value to the knob, or from the origin when given", () => {
+    const { slider } = dial({ value: -0.5 });
+    expect(slider.style.getPropertyValue("--dial-fill-start")).toBe("25%");
+    expect(slider.style.getPropertyValue("--dial-fill-end")).toBe("50%");
+    expect(slider.style.getPropertyValue("--dial-value")).toBe("25%");
+  });
+
+  it("measures an amount from its origin rather than its resting value", () => {
+    const { slider } = dial({ value: 0.3, min: 0, max: 1, rest: 0.5, origin: 0 });
+    expect(slider.style.getPropertyValue("--dial-fill-start")).toBe("0%");
+    expect(slider.style.getPropertyValue("--dial-fill-end")).toBe("30%");
+    expect(slider.querySelector(".ruler-dial__tick--rest")).toHaveStyle({ left: "50%" });
   });
 });

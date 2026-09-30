@@ -8,9 +8,12 @@ import {
 } from "react";
 import { classNames } from "@/shared/lib/classNames";
 
-export const DIAL_PIXELS_PER_STEP = 1.2;
-export const DIAL_DETENT_STEPS = 2;
+/** A drag this close to the resting value, in steps, lands on it. */
+const DIAL_DETENT_STEPS = 2;
+/** Grabbing the knob within this many pixels drags it from where it is, rather than jumping. */
+const KNOB_GRAB_PX = 8;
 const COARSE_STEPS = 10;
+const TICK_SHARES = [0, 0.25, 0.5, 0.75, 1];
 
 interface RulerDialProps {
   label: string;
@@ -19,6 +22,8 @@ interface RulerDialProps {
   max: number;
   step: number;
   rest?: number;
+  /** Where the fill starts; the resting value unless the dial measures an amount from `min`. */
+  origin?: number;
   format: (value: number) => string;
   disabled?: boolean;
   onChange: (value: number) => void;
@@ -30,6 +35,10 @@ function snapped(value: number, min: number, max: number, step: number): number 
   return Math.min(max, Math.max(min, Number((min + steps * step).toFixed(decimals))));
 }
 
+function percent(share: number): string {
+  return `${Math.min(1, Math.max(0, share)) * 100}%`;
+}
+
 export function RulerDial({
   label,
   value,
@@ -37,11 +46,15 @@ export function RulerDial({
   max,
   step,
   rest = 0,
+  origin = rest,
   format,
   disabled = false,
   onChange,
 }: RulerDialProps) {
-  const dragRef = useRef<{ x: number; value: number } | null>(null);
+  const trackRef = useRef<HTMLSpanElement>(null);
+  const grabRef = useRef<number | null>(null);
+
+  const share = (next: number) => (next - min) / (max - min);
 
   const commit = useCallback(
     (next: number) => {
@@ -51,24 +64,34 @@ export function RulerDial({
     [max, min, onChange, step, value],
   );
 
+  const valueAt = (clientX: number): number => {
+    const bounds = trackRef.current?.getBoundingClientRect();
+    if (!bounds || bounds.width <= 0) return value;
+    const next =
+      min + ((clientX - bounds.left - (grabRef.current ?? 0)) / bounds.width) * (max - min);
+    return Math.abs(next - rest) < DIAL_DETENT_STEPS * step ? rest : next;
+  };
+
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (disabled || event.button !== 0) return;
     // The dial must hold focus, or the arrow keys page the gallery instead.
     event.preventDefault();
     event.currentTarget.focus();
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { x: event.clientX, value };
+
+    const bounds = trackRef.current?.getBoundingClientRect();
+    const knobX = bounds ? bounds.left + share(value) * bounds.width : event.clientX;
+    grabRef.current = Math.abs(event.clientX - knobX) <= KNOB_GRAB_PX ? event.clientX - knobX : 0;
+    commit(valueAt(event.clientX));
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    const next = drag.value - ((event.clientX - drag.x) / DIAL_PIXELS_PER_STEP) * step;
-    commit(Math.abs(next - rest) < DIAL_DETENT_STEPS * step ? rest : next);
+    if (grabRef.current === null || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    commit(valueAt(event.clientX));
   };
 
   const handlePointerEnd = () => {
-    dragRef.current = null;
+    grabRef.current = null;
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -92,16 +115,16 @@ export function RulerDial({
 
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (disabled) return;
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    if (delta !== 0) commit(value - Math.sign(delta) * step);
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : -event.deltaY;
+    if (delta !== 0) commit(value + Math.sign(delta) * step);
   };
 
+  const from = share(Math.min(origin, value));
+  const to = share(Math.max(origin, value));
   const dialStyle = {
-    "--dial-length": `${((max - min) / step) * DIAL_PIXELS_PER_STEP}px`,
-    "--dial-offset": `${-((value - min) / step) * DIAL_PIXELS_PER_STEP}px`,
-    "--dial-rest": `${((rest - min) / step) * DIAL_PIXELS_PER_STEP}px`,
-    "--dial-tick": `${5 * DIAL_PIXELS_PER_STEP}px`,
-    "--dial-major": `${25 * DIAL_PIXELS_PER_STEP}px`,
+    "--dial-value": percent(share(value)),
+    "--dial-fill-start": percent(from),
+    "--dial-fill-end": percent(to),
   } as CSSProperties;
 
   return (
@@ -130,11 +153,19 @@ export function RulerDial({
         <span className="ruler-dial__label">{label}</span>
         <span className="ruler-dial__value">{format(value)}</span>
       </span>
-      <span className="ruler-dial__track" aria-hidden="true">
-        <span className="ruler-dial__ticks">
-          <span className="ruler-dial__rest" />
-        </span>
-        <span className="ruler-dial__needle" />
+      <span ref={trackRef} className="ruler-dial__track" aria-hidden="true">
+        {TICK_SHARES.map((tick) => (
+          <span
+            key={tick}
+            className={classNames(
+              "ruler-dial__tick",
+              Math.abs(min + tick * (max - min) - rest) < step / 2 && "ruler-dial__tick--rest",
+            )}
+            style={{ left: percent(tick) }}
+          />
+        ))}
+        <span className="ruler-dial__fill" />
+        <span className="ruler-dial__knob" />
       </span>
     </div>
   );

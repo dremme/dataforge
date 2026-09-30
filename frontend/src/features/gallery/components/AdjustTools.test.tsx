@@ -63,4 +63,47 @@ describe("AdjustTools", () => {
     fireEvent.pointerCancel(compare);
     expect(controls.setComparing).toHaveBeenLastCalledWith(false);
   });
+
+  describe("with more tools than fit", () => {
+    // jsdom lays nothing out and ignores scrollLeft, so the strip is given half its tools' width.
+    function renderOverflowing() {
+      render(<AdjustTools controls={makeAdjustControls()} disabled={false} />);
+      const strip = screen.getByRole("tablist");
+      let scrollLeft = 0;
+      Object.defineProperties(strip, {
+        scrollWidth: { value: 600 },
+        clientWidth: { value: 300 },
+        scrollLeft: {
+          get: () => scrollLeft,
+          set: (value: number) => {
+            scrollLeft = value;
+          },
+        },
+      });
+      fireEvent.scroll(strip);
+      return strip;
+    }
+
+    it("fades only the side that hides more tools", () => {
+      const strip = renderOverflowing();
+      expect(strip).toHaveClass("adjust-tools__strip--more-end");
+      expect(strip).not.toHaveClass("adjust-tools__strip--more-start");
+
+      strip.scrollLeft = 300;
+      fireEvent.scroll(strip);
+
+      expect(strip).toHaveClass("adjust-tools__strip--more-start");
+      expect(strip).not.toHaveClass("adjust-tools__strip--more-end");
+    });
+
+    it("turns a mouse wheel into sideways scrolling", () => {
+      const strip = renderOverflowing();
+
+      const wheel = new WheelEvent("wheel", { deltaY: 120, cancelable: true });
+      strip.dispatchEvent(wheel);
+
+      expect(strip.scrollLeft).toBe(120);
+      expect(wheel.defaultPrevented).toBe(true);
+    });
+  });
 });

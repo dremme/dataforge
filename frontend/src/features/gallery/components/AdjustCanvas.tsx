@@ -15,7 +15,7 @@ import {
   type AdjustedPicture,
   type PublishedPicture,
 } from "@/features/gallery/lib/adjustedPicture";
-import { AdjustRenderer, zoomView } from "@/features/gallery/lib/adjustRenderer";
+import { AdjustRenderer, canZoom, zoomView } from "@/features/gallery/lib/adjustRenderer";
 import {
   adjustPixel,
   buildAdjustLut,
@@ -90,6 +90,11 @@ export function AdjustCanvas({
     };
   }, []);
 
+  const frameSize = useCallback(() => {
+    const state = stateRef.current;
+    return { width: state.sourceWidth * state.scale, height: state.sourceHeight * state.scale };
+  }, []);
+
   const renderNow = useCallback(() => {
     const renderer = rendererRef.current;
     const canvas = canvasRef.current;
@@ -112,7 +117,7 @@ export function AdjustCanvas({
 
     const output = outputSize();
     renderer.render({
-      view: state.zoomed ? zoomView(originRef.current, canvas, output) : FULL_FRAME,
+      view: state.zoomed ? zoomView(originRef.current, canvas, frameSize()) : FULL_FRAME,
       crop: state.crop,
       outputScale: state.scale,
       outputSize: output,
@@ -120,7 +125,7 @@ export function AdjustCanvas({
       original: state.comparing,
     });
     pictureRef.current?.publish();
-  }, [outputSize]);
+  }, [frameSize, outputSize]);
 
   const scheduleRender = useCallback(() => {
     if (frameRef.current) return;
@@ -130,7 +135,14 @@ export function AdjustCanvas({
     });
   }, [renderNow]);
 
-  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(frameRef.current);
+      // StrictMode remounts this instance; a stale id would turn every later render away.
+      frameRef.current = 0;
+    },
+    [],
+  );
 
   const upload = useCallback(async () => {
     const renderer = rendererRef.current;
@@ -215,8 +227,7 @@ export function AdjustCanvas({
   const backingWidth = Math.max(1, Math.round(pixelWidth * shrink));
   const backingHeight = Math.max(1, Math.round(pixelHeight * shrink));
 
-  const output = outputSize();
-  const zoomable = active && (output.width > backingWidth || output.height > backingHeight);
+  const zoomable = active && canZoom({ width: backingWidth, height: backingHeight }, frameSize());
 
   useEffect(() => {
     if (live) scheduleRender();

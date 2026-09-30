@@ -9,13 +9,19 @@ export interface FrameRect {
   height: number;
 }
 
-export function zoomView(
-  origin: { x: number; y: number },
-  canvas: { width: number; height: number },
-  output: { width: number; height: number },
-): FrameRect {
-  const width = Math.min(1, canvas.width / Math.max(1, output.width));
-  const height = Math.min(1, canvas.height / Math.max(1, output.height));
+interface Size {
+  width: number;
+  height: number;
+}
+
+/** `frame` is the whole source at output scale: the canvas shows all of it, crop or not. */
+export function canZoom(canvas: Size, frame: Size): boolean {
+  return frame.width > canvas.width || frame.height > canvas.height;
+}
+
+export function zoomView(origin: { x: number; y: number }, canvas: Size, frame: Size): FrameRect {
+  const width = Math.min(1, canvas.width / Math.max(1, frame.width));
+  const height = Math.min(1, canvas.height / Math.max(1, frame.height));
   return { x: (1 - width) * origin.x, y: (1 - height) * origin.y, width, height };
 }
 
@@ -28,7 +34,7 @@ export interface RenderRequest {
   view: FrameRect;
   crop: FrameRect;
   outputScale: number;
-  outputSize: { width: number; height: number };
+  outputSize: Size;
   detail: DetailSettings;
   original: boolean;
 }
@@ -228,7 +234,7 @@ export function viewRadius(
   return Math.round((outputRadius * canvasWidth) / outputPixels);
 }
 
-export function definitionBase(outputSize: { width: number; height: number }): {
+export function definitionBase(outputSize: Size): {
   width: number;
   height: number;
   sigma: number;

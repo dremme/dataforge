@@ -112,7 +112,7 @@ export const SHORTCUTS = {
   },
   nudgeHandle: {
     group: "editors",
-    label: "Nudge a crop, mask or trim handle",
+    label: "Nudge a crop, mask or trim handle, or an Adjust ruler",
     chords: [{ key: "Arrows" }],
   },
   nudgeHandleCoarse: {

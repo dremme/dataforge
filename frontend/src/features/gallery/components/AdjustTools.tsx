@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   adjustRange,
   formatAdjustValue,
@@ -76,7 +83,38 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
   const stripRef = useRef<HTMLDivElement>(null);
   const tabs = useTabList(STRIP_IDS, selected, setSelected);
 
+  const [overflow, setOverflow] = useState({ start: false, end: false });
+
   const autoOn = controls.auto !== null;
+
+  const measureOverflow = useCallback(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const start = strip.scrollLeft > 1;
+    const end = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1;
+    setOverflow((current) =>
+      current.start === start && current.end === end ? current : { start, end },
+    );
+  }, []);
+
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    // A mouse wheel only scrolls vertically, and the strip scrolls sideways alone.
+    const wheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      if (strip.scrollWidth <= strip.clientWidth) return;
+      event.preventDefault();
+      strip.scrollLeft += event.deltaY;
+    };
+    const observer = new ResizeObserver(measureOverflow);
+    observer.observe(strip);
+    strip.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      observer.disconnect();
+      strip.removeEventListener("wheel", wheel);
+    };
+  }, [measureOverflow]);
 
   // scrollIntoView would also scroll the modal; only the strip may move.
   useLayoutEffect(() => {
@@ -91,7 +129,8 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
     else if (right > strip.scrollLeft + strip.clientWidth) {
       strip.scrollLeft = right - strip.clientWidth;
     }
-  }, [selected]);
+    measureOverflow();
+  }, [measureOverflow, selected]);
 
   const handleWandClick = () => {
     setSelected("auto");
@@ -106,9 +145,14 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
     <div className="adjust-tools">
       <div
         ref={stripRef}
-        className="adjust-tools__strip"
+        className={classNames(
+          "adjust-tools__strip",
+          overflow.start && "adjust-tools__strip--more-start",
+          overflow.end && "adjust-tools__strip--more-end",
+        )}
         aria-label="Adjustments"
         data-scroll-lock-allow
+        onScroll={measureOverflow}
         {...tabs.tabListProps}
       >
         <Tooltip
@@ -175,6 +219,7 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
             value={controls.auto?.amount ?? 0}
             {...AUTO_RANGE}
             rest={AUTO_ADJUST_DEFAULT_AMOUNT}
+            origin={AUTO_RANGE.min}
             format={(amount) => (autoOn ? formatAmount(amount) : "Off")}
             disabled={disabled || !autoOn}
             onChange={controls.setAutoAmount}

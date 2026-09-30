@@ -70,14 +70,14 @@ Every setting is optional, but a file needs at least one. Terms in `match` ignor
 Every edit is rendered in one pass from the original, which is kept beside the file as `<name>.bak` together with the edit settings in `<name>.edit.json`. Changing an edit later never re-encodes an already-edited copy, and **Revert original** restores the original and removes both files.
 
 - **Images** (JPG, PNG, WebP, BMP): crop to preset ratios, rotate in quarter turns, mirror, resize by scale or to exact dimensions, and enhance the picture in **Adjust**.
-- **Videos** (MP4, MOV, M4V): trim on the timeline, crop, resize, change speed or volume or mute, and apply the same color controls. Rendering shows progress and can be cancelled.
+- **Videos** (MP4, MOV, M4V): trim on the timeline, crop, resize, change speed or volume or mute, and use the same **Adjust** tools. Rendering shows progress and can be cancelled.
 - **Both**: add any number of blur, pixelate, or blackout regions to hide parts of the frame.
 - **Frames**: **Save frame as JPG** writes the current frame of a video or GIF beside the source. Names include the video timestamp or the GIF frame number, and the source is not re-encoded.
 - **GIF to MP4**: converts a GIF at 24 fps, and asks before overwriting an MP4 of the same name.
 
-**Adjust** offers Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Select a round tool and drag its ruler, or use arrow keys for small steps and Shift+arrow for larger steps. Double-click the ruler to reset that tool.
+**Adjust** offers Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Select a round tool, then drag or click its slider, or use arrow keys for small steps and Shift+arrow for larger steps. The marked tick is where the tool rests; double-click the slider to return to it. When the tools do not all fit, scroll the row with the mouse wheel.
 
-The **Auto** wand reads the original inside the crop, excluding masked regions, and sets the tools to improve levels and color balance. For videos it samples the trimmed range. Its ruler controls the amount; click the selected wand again to turn Auto off. Hold the eye button to compare with the original. Click the preview to inspect at output resolution when it is larger than the displayed picture, and move the pointer to pan. Live preview needs WebGL 2; saving adjustments still works when preview is unavailable.
+The **Auto** wand reads the original inside the crop, excluding masked regions, and sets the tools to improve levels and color balance. For videos it samples the trimmed range. Its slider controls the amount; click the selected wand again to turn Auto off. Hold the compare button to see the original. Click the preview to inspect at output resolution when it is larger than the displayed picture, and move the pointer to pan. Live preview needs WebGL 2; saving adjustments still works when preview is unavailable.
 
 ## Jobs
 

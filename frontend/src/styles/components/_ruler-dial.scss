@@ -1,17 +1,21 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// Two lines inside the edit panel's pinned tool row: caption over a ruler scrubbed under a needle.
+$dial-track-height: 0.25rem;
+$dial-knob-size: 0.75rem;
+
+// Two lines inside the edit panel's pinned tool row: caption over a fixed min-to-max track.
 .ruler-dial {
   position: relative;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  gap: 0.125rem;
+  gap: 0.1875rem;
   width: 13.5rem;
-  padding: 0.125rem 0;
+  // The knob overhangs the track ends by half its width.
+  padding: 0.125rem calc($dial-knob-size / 2);
   border-radius: var(--radius-sm);
-  cursor: ew-resize;
+  cursor: pointer;
   touch-action: none;
   user-select: none;
   @include focus-ring;
@@ -25,7 +29,6 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0 0.25rem;
     font-size: var(--text-2xs);
     line-height: 1.1;
   }
@@ -47,48 +50,66 @@
     text-align: right;
   }
 
-  // Faded at both ends so the ruler reads as running on past the window.
   &__track {
     position: relative;
     display: block;
-    height: 0.8125rem;
-    overflow: hidden;
-    mask-image: linear-gradient(90deg, transparent, var(--text) 18%, var(--text) 82%, transparent);
+    height: $dial-knob-size;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      top: 50%;
+      height: $dial-track-height;
+      transform: translateY(-50%);
+      border-radius: var(--radius-pill);
+      background: var(--border);
+    }
   }
 
-  &__ticks {
+  // Quarter marks; the resting one stands taller so the way back to it is plain.
+  &__tick {
     position: absolute;
-    left: 50%;
-    bottom: 0;
-    width: var(--dial-length);
-    height: 100%;
-    transform: translateX(var(--dial-offset));
-    background:
-      repeating-linear-gradient(90deg, var(--text-muted) 0 1px, transparent 1px var(--dial-major)) 0
-        0 / 100% 100% no-repeat,
-      repeating-linear-gradient(90deg, var(--text-subtle) 0 1px, transparent 1px var(--dial-tick)) 0
-        100% / 100% 55% no-repeat;
+    top: 50%;
+    width: 1px;
+    height: 0.5rem;
+    transform: translate(-50%, -50%);
+    background: var(--text-subtle);
   }
 
-  &__rest {
-    position: absolute;
-    left: var(--dial-rest);
-    top: 0;
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--text);
-    transform: translateX(-1px);
-  }
-
-  &__needle {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    bottom: 0;
+  &__tick--rest {
     width: 2px;
-    border-radius: 1px;
+    height: $dial-knob-size;
+    border-radius: var(--radius-pill);
+    background: var(--text-muted);
+  }
+
+  &__fill {
+    position: absolute;
+    top: 50%;
+    left: var(--dial-fill-start);
+    width: calc(var(--dial-fill-end) - var(--dial-fill-start));
+    height: $dial-track-height;
+    transform: translateY(-50%);
+    border-radius: var(--radius-pill);
     background: var(--accent);
-    transform: translateX(-50%);
+  }
+
+  &__knob {
+    position: absolute;
+    top: 50%;
+    left: var(--dial-value);
+    width: $dial-knob-size;
+    height: $dial-knob-size;
+    transform: translate(-50%, -50%);
+    border: 2px solid var(--bg-card);
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-border);
+  }
+
+  &--disabled &__knob,
+  &--disabled &__fill {
+    background: var(--text-subtle);
   }
 }

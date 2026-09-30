@@ -1,8 +1,8 @@
 import { StrictMode } from "react";
-import { fireEvent, render } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdjustCanvas } from "./AdjustCanvas";
-import { IDENTITY_CROP } from "@/features/gallery/lib/crop";
+import { IDENTITY_CROP, type CropRect } from "@/features/gallery/lib/crop";
 import { makeAdjustControls } from "@/test/colorAdjustControls";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
 import type { ColorAdjustControls } from "@/features/gallery/hooks/useColorAdjust";
@@ -28,7 +28,7 @@ vi.mock("@/features/gallery/hooks/usePaintedBox", () => ({
   usePaintedBox: () => ({ left: 0, top: 0, width: 320, height: 180 }),
 }));
 
-function preview(overrides: Partial<ColorAdjustControls> = {}) {
+function preview(overrides: Partial<ColorAdjustControls> = {}, crop: CropRect = IDENTITY_CROP) {
   const video = document.createElement("video");
   Object.defineProperties(video, {
     videoWidth: { value: 640 },
@@ -44,7 +44,7 @@ function preview(overrides: Partial<ColorAdjustControls> = {}) {
         mediaRef={{ current: video }}
         sourceWidth={640}
         sourceHeight={360}
-        crop={IDENTITY_CROP}
+        crop={crop}
         scale={1}
         controls={controls}
         onPictureChange={onPictureChange}
@@ -66,6 +66,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   gpu.renderer.floatTargets = true;
   gpu.create.mockReturnValue(gpu.renderer);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("AdjustCanvas", () => {
@@ -105,5 +109,49 @@ describe("AdjustCanvas", () => {
     expect(canvas).not.toHaveAttribute("hidden");
     expect(controls.setPreviewAvailable).toHaveBeenLastCalledWith(true);
     expect(gpu.create).toHaveBeenCalledTimes(3);
+  });
+
+  it("paints an image that finishes loading after the preview mounted", async () => {
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn(async () => ({ width: 640, height: 360, close: vi.fn() })),
+    );
+    const image = document.createElement("img");
+    let loaded = false;
+    Object.defineProperties(image, {
+      complete: { get: () => loaded },
+      naturalWidth: { get: () => (loaded ? 640 : 0) },
+    });
+    render(
+      <StrictMode>
+        <AdjustCanvas
+          mediaRef={{ current: image }}
+          sourceWidth={640}
+          sourceHeight={360}
+          crop={IDENTITY_CROP}
+          scale={1}
+          controls={makeAdjustControls({ active: true })}
+        />
+      </StrictMode>,
+    );
+
+    loaded = true;
+    fireEvent.load(image);
+
+    await waitFor(() => expect(gpu.renderer.render).toHaveBeenCalled());
+  });
+
+  it("zooms a cropped frame to one output pixel per canvas pixel of the whole frame", () => {
+    // The stage shows the whole frame while editing; the crop is only an overlay on it.
+    const crop = { x: 0.1, y: 0.1, width: 0.4, height: 0.4 };
+    const { canvas, unmount } = preview({}, crop);
+    expect(canvas).toHaveClass("adjust-canvas--inspectable");
+    unmount();
+
+    gpu.renderer.render.mockClear();
+    preview({ zoomed: true }, crop);
+    expect(gpu.renderer.render).toHaveBeenCalledWith(
+      expect.objectContaining({ view: expect.objectContaining({ width: 0.5, height: 0.5 }) }),
+    );
   });
 });
