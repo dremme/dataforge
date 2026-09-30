@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,6 +14,7 @@ from constants import (
     CAPTION_SIDECAR_EXTENSIONS,
     MEDIA_EXTENSIONS,
 )
+from file_write import copy_file_atomic
 from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
@@ -126,8 +126,9 @@ def run_backup_captions_job(
             )
 
         try:
+            copied = 0
             for sidecar in pending:
-                shutil.copy2(sidecar, backup_dir / sidecar.name)
+                copied += copy_file_atomic(sidecar, backup_dir / sidecar.name, overwrite=overwrite)
         except OSError as exc:
             return FileOutcome(
                 status="write_error",
@@ -135,9 +136,16 @@ def run_backup_captions_job(
                 fields={"message": str(exc)},
             )
 
+        if not copied:
+            return FileOutcome(
+                status="already_backed_up",
+                stats={"already_backed_up": 1},
+                fields={"message": "Already in the backup"},
+            )
+
         return FileOutcome(
             status="success",
-            stats={"success": 1, "sidecars": len(pending)},
+            stats={"success": 1, "sidecars": copied},
         )
 
     return run_media_job(
@@ -179,7 +187,7 @@ def run_restore_captions_job(
             )
 
         try:
-            shutil.copy2(sidecar, folder / sidecar.name)
+            copy_file_atomic(sidecar, folder / sidecar.name)
         except OSError as exc:
             return FileOutcome(
                 status="write_error",

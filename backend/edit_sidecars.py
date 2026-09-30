@@ -20,6 +20,7 @@ from constants import (
     EDIT_TEMP_SUFFIX,
 )
 from file_publish import publish_replacing
+from file_write import write_text_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def read_spec[SpecT: BaseModel](media: Path, model: type[SpecT]) -> SpecT | None
 
 
 def write_spec(media: Path, spec: BaseModel) -> None:
-    edit_spec_path(media).write_text(json.dumps(spec.model_dump(), indent=2), encoding="utf-8")
+    write_text_atomic(edit_spec_path(media), json.dumps(spec.model_dump(), indent=2))
 
 
 def clear_spec(media: Path) -> None:

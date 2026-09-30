@@ -28,6 +28,7 @@ from constants import (
 from duplicates import duplicate_file_path
 from edit_sidecars import backup_path_for, edit_spec_path
 from file_publish import publish_replacing
+from file_write import write_text_atomic
 from folder_scan import get_media_type
 from media_delete import delete_path
 from media_dimensions import media_info
@@ -183,9 +184,7 @@ def sweep_comfy_temp_files(folder: Path) -> None:
 
 
 def write_candidate_sidecar(candidate: Path, sidecar: ComfyCandidateSidecar) -> None:
-    candidate_sidecar_path(candidate).write_text(
-        json.dumps(sidecar.model_dump(), indent=2), encoding="utf-8"
-    )
+    write_text_atomic(candidate_sidecar_path(candidate), json.dumps(sidecar.model_dump(), indent=2))
 
 
 def read_candidate_sidecar(candidate: Path) -> ComfyCandidateSidecar | None:

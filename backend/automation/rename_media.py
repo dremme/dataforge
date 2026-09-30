@@ -73,9 +73,20 @@ def _repoint_candidate_record(source_media: Path, target_media: Path) -> None:
 
 
 def _rename_media_group(source_media: Path, target_media: Path) -> None:
-    for path in media_group_paths(source_media):
-        path.rename(group_target(source_media, target_media, path))
-    _repoint_candidate_record(source_media, target_media)
+    renamed: list[tuple[Path, Path]] = []
+    try:
+        for path in media_group_paths(source_media):
+            target = group_target(source_media, target_media, path)
+            path.rename(target)
+            renamed.append((path, target))
+        _repoint_candidate_record(source_media, target_media)
+    except OSError:
+        for original, target in reversed(renamed):
+            try:
+                target.rename(original)
+            except OSError:
+                logger.exception("Failed to restore %s from %s", original, target)
+        raise
 
 
 def _check_target_conflict(target_path: Path, moving_sources: set[Path]) -> None:

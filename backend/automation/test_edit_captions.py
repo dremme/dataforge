@@ -385,7 +385,7 @@ class EditCaptionsBackupTests(unittest.TestCase):
                 return real_copy(src, dst, *args, **kwargs)
 
             with (
-                patch("automation.edit_captions.shutil.copy2", side_effect=flaky_copy),
+                patch("file_write.shutil.copy2", side_effect=flaky_copy),
                 patch("automation.edit_captions.edit_caption", return_value=EDITED),
             ):
                 result = _run(root, backup=True)

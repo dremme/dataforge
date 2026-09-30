@@ -11,6 +11,7 @@ from pathlib import Path
 
 from caption_cache import cached_by_stat
 from constants import DUPLICATE_SIDECAR_SUFFIX
+from file_write import write_text_atomic
 from folder_scan import FolderScan
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ def save_duplicate_finding(media_path: Path, finding: DuplicateFinding | None) -
         "max_distance": finding.max_distance,
         "threshold": finding.threshold,
     }
-    sidecar_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_text_atomic(sidecar_path, json.dumps(payload, indent=2) + "\n")
 
 
 def delete_duplicate_file(media_path: Path) -> None:

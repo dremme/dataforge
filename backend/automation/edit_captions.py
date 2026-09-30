@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import textwrap
 from collections.abc import Callable
 from pathlib import Path
@@ -22,6 +21,7 @@ from automation.llm import (
 from automation.selection import filter_media_list, list_folder_media
 from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
 from constants import MEDIA_EXTENSIONS
+from file_write import copy_file_atomic
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
@@ -235,11 +235,9 @@ def process_media(
 
 
 def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:
-    """Copy this file's sidecars into ``backup_dir``, keeping any copy already there."""
     for sidecar in caption_sidecars(media_path):
         target = backup_dir / sidecar.name
-        if not target.exists():
-            shutil.copy2(sidecar, target)
+        copy_file_atomic(sidecar, target, overwrite=False)
 
 
 def _initial_job_stats(total: int) -> dict[str, int]:

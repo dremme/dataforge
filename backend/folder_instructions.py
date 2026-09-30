@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from file_write import write_text_atomic
 from schemas import InstructionFileResponse
 
 
@@ -36,7 +37,6 @@ def describe_instruction_file(folder: Path, filename: str) -> InstructionFileRes
 
 
 def save_instruction_file(folder: Path, filename: str, text: str) -> None:
-    """Write ``folder``'s own file, never a parent's; blank text removes it."""
     path = folder / filename
 
     if not text.strip():
@@ -44,4 +44,4 @@ def save_instruction_file(folder: Path, filename: str, text: str) -> None:
             path.unlink()
         return
 
-    path.write_text(text.strip() + "\n", encoding="utf-8")
+    write_text_atomic(path, text.strip() + "\n")

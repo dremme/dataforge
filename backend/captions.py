@@ -13,6 +13,7 @@ from constants import (
     MAX_ISSUE_FIXES,
     MAX_RULE_FINDINGS,
 )
+from file_write import write_text_atomic
 
 
 def _read_caption_text(path: Path) -> str | None:
@@ -178,9 +179,9 @@ def save_caption(
 ) -> dict[str, object]:
     caption_path = caption_path_for(media_path)
     normalized = text.strip()
-    caption_path.write_text(
+    write_text_atomic(
+        caption_path,
         normalized + ("\n" if normalized and trailing_newline else ""),
-        encoding="utf-8",
     )
 
     return _complete_save_response(
@@ -303,4 +304,4 @@ def save_issue_findings(media_path: Path, source: IssueSource, findings: list[st
             issue_path.unlink()
         return
 
-    issue_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_text_atomic(issue_path, json.dumps(payload, indent=2) + "\n")
