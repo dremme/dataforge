@@ -107,7 +107,7 @@ The end-to-end suite drives Chromium against its own backend on port 18090 and V
 
 ## Versioning
 
-The version shown under Settings → About is `version` in `backend/pyproject.toml`, and nothing else carries one. The pre-commit hook bumps its patch number in every commit. For a minor or major release, edit it by hand and stage it: the hook keeps any staged version that differs from the last commit's. Commits made with `--no-verify` are not bumped, and `--amend` bumps again.
+The version shown under Settings → About is `version` in `backend/pyproject.toml`, and nothing else carries one. The pre-commit hook bumps its patch number in every commit. For a minor or major release, edit it by hand and stage it: the hook keeps any staged version that differs from the parent commit's, so `--amend` never bumps twice. A version edited in the working tree but left unstaged is never overwritten. After `git commit <paths>`, the post-commit hook stages the bumped version so the index does not fall behind. Commits made with `--no-verify` are not bumped.
 
 ## Testing Unix launcher changes
 

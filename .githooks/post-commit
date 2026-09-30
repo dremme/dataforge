@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+. .githooks/venv-python.sh
+
+exec "$PYTHON" scripts/bump_version.py post-commit

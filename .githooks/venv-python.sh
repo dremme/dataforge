@@ -1,0 +1,14 @@
+PYTHON=""
+if [ -f "backend/.venv/Scripts/python.exe" ]; then
+  PYTHON="backend/.venv/Scripts/python.exe"
+elif [ -f "backend/.venv/bin/python" ]; then
+  PYTHON="backend/.venv/bin/python"
+fi
+
+if [ -z "$PYTHON" ]; then
+  echo "git hook: backend/.venv was not found. Create it first:" >&2
+  echo "  cd backend" >&2
+  echo "  python -m venv .venv" >&2
+  echo "  .venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt" >&2
+  exit 1
+fi
