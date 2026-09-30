@@ -67,6 +67,8 @@
     display: grid;
     grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
     flex: 0 1 auto;
+    // The floor leaves the details column room for a few fixes above the caption before it scrolls.
+    height: max(#{$modal-media-stage-height}, 24rem);
     min-height: 0;
   }
 

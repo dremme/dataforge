@@ -58,22 +58,28 @@
   &__compare {
     --stage-gap: 0.875rem;
     --stage-max-h: min(58vh, 34rem);
+    --pane-gap: 0.375rem;
+    --pane-label-h: 1rem;
 
     display: grid;
+    align-content: center;
     gap: var(--stage-gap);
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: calc(var(--stage-max-h) * var(--stage-aspect, 1) * 2 + var(--stage-gap));
+    // No aspect ratio makes a pane taller than this, so paging never resizes the panel.
+    min-height: calc(var(--stage-max-h) + var(--pane-label-h) + var(--pane-gap));
     margin-inline: auto;
   }
 
   &__pane {
     display: flex;
     flex-direction: column;
-    gap: 0.375rem;
+    gap: var(--pane-gap);
     min-width: 0;
   }
 
   &__pane-label {
+    line-height: var(--pane-label-h);
     font-size: var(--text-2xs);
     font-weight: var(--font-semibold);
     text-transform: uppercase;

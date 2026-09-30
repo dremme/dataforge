@@ -84,12 +84,14 @@
   }
 
   &__stage {
-    @include modal-stage(1.25rem 3.75rem);
-    flex: 1;
+    @include modal-stage($modal-stage-padding-block 3.75rem);
+    flex: 0 1 auto;
+    height: $modal-media-stage-height;
 
     // Crop and mask handles straddle the media edge, so they reach into the default padding and
     // land on the nav buttons: 0.875rem offset + 2.75rem button + half a handle + a gap.
     &--editing {
+      height: auto;
       padding-inline: 4.75rem;
     }
   }

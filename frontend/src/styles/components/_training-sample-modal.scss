@@ -47,8 +47,9 @@
   }
 
   &__stage {
-    @include modal-stage(1.25rem 3.75rem);
-    flex: 1;
+    @include modal-stage($modal-stage-padding-block 3.75rem);
+    flex: 0 1 auto;
+    height: $modal-media-stage-height;
   }
 
   &__nav {

@@ -100,10 +100,11 @@
     }
   }
 
+  // Fixed rather than square, or a pair's two wide columns stand far taller than a group of four.
   &__card-stage {
     position: relative;
     display: block;
-    aspect-ratio: 1;
+    height: $modal-media-max-height;
     border-radius: var(--radius-sm);
     background: var(--bg-media);
     overflow: hidden;

@@ -970,7 +970,7 @@
   box-shadow: var(--shadow);
 }
 
-@mixin modal-stage($padding: 1.25rem) {
+@mixin modal-stage($padding: $modal-stage-padding-block) {
   position: relative;
   display: flex;
   align-items: center;

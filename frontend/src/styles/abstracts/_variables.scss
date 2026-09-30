@@ -20,6 +20,9 @@ $sticky-dock-gap: 0.625rem;
 $sticky-dock-padding: 0.5rem;
 $modal-gutter: 1.5rem;
 $modal-media-max-height: min(36vh, 500px);
+$modal-stage-padding-block: 1.25rem;
+// A media stage held at this height fits every aspect ratio, so paging never resizes its panel.
+$modal-media-stage-height: calc(#{$modal-media-max-height} + #{2 * $modal-stage-padding-block});
 // Editing has no caption or footer under it, so the picture takes the room those leave behind.
 $modal-edit-media-max-height: min(50vh, 620px);
 $progress-height: 0.375rem;
