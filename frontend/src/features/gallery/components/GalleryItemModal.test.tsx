@@ -154,7 +154,7 @@ describe("GalleryItemModal", () => {
     expect(within(meta).getByText("16:9")).toBeInTheDocument();
   });
 
-  it("reports the caption in estimated tokens only", async () => {
+  it("reports the caption in estimated tokens beside the caption label", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <GalleryItemModal
@@ -169,19 +169,18 @@ describe("GalleryItemModal", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
     const meta = within(dialog).getByLabelText("Media details");
+    const heading = within(dialog).getByText("Caption").parentElement!;
 
-    // "Golden hour over the lake" is 25 characters over 5 words.
-    expect(within(meta).getByText("Tokens")).toBeInTheDocument();
-    expect(within(meta).getByText("~7")).toBeInTheDocument();
-    expect(within(meta).queryByText("Characters")).not.toBeInTheDocument();
+    expect(within(heading).getByText("~7 tokens")).toBeInTheDocument();
+    expect(meta).not.toHaveTextContent("tokens");
+    expect(dialog).not.toHaveTextContent("Characters");
 
     const captionInput = await screen.findByLabelText("Caption for sunset.png");
     await user.clear(captionInput);
     await user.type(captionInput, "Short");
 
-    // The estimate follows the editor rather than the saved sidecar.
     await waitFor(() => {
-      expect(within(meta).getByText("~2")).toBeInTheDocument();
+      expect(within(heading).getByText("~2 tokens")).toBeInTheDocument();
     });
   });
 

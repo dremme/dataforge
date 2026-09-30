@@ -123,6 +123,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
+    min-height: calc(var(--text-xs) * var(--leading-snug));
 
     &-value {
       color: var(--text-muted);
@@ -241,6 +242,16 @@
     .code-editor--caption {
       flex: 1;
     }
+  }
+
+  &__caption-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.625rem;
+  }
+
+  &__caption-tokens {
+    @include token-estimate;
   }
 
   &__caption-label {

@@ -9,7 +9,6 @@ interface GalleryItemModalMetaProps {
   item: GalleryItem;
   resolution: MediaResolution | undefined;
   hasComfyWorkflow: boolean;
-  captionTokenCount: number;
   onInspectComfyWorkflow: () => void;
 }
 
@@ -22,7 +21,6 @@ export function GalleryItemModalMeta({
   item,
   resolution,
   hasComfyWorkflow,
-  captionTokenCount,
   onInspectComfyWorkflow,
 }: GalleryItemModalMetaProps) {
   const modifiedLabel = item.modified_at ? formatModifiedAt(item.modified_at) : null;
@@ -87,14 +85,6 @@ export function GalleryItemModalMeta({
       {!hasMediaMeta && (
         <p className="gallery-item-modal__meta-unavailable">Media details unavailable</p>
       )}
-      {hasMediaMeta && <span className="gallery-item-modal__meta-divider" aria-hidden="true" />}
-      <div
-        className="gallery-item-modal__meta-item"
-        title="Estimated from text length; the exact count depends on the model"
-      >
-        <span className="gallery-item-modal__meta-value">~{formatCount(captionTokenCount)}</span>
-        <span className="gallery-item-modal__meta-label">Tokens</span>
-      </div>
     </div>
   );
 }

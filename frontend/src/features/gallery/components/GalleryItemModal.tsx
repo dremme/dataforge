@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
-import { estimateTokens } from "@/shared/lib/format";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { getGalleryItemCaptionDisplay } from "@/features/gallery/lib/captionStatus";
 import {
@@ -70,6 +69,7 @@ import { FileImportOverwriteDialog } from "@/features/folder/components/FileImpo
 import { CaptionSaveStatus } from "./CaptionSaveStatus";
 import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
 import { Icon } from "@/shared/ui/Icon";
+import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
 import { TransferMediaDialog } from "./TransferMediaDialog";
@@ -370,7 +370,6 @@ export function GalleryItemModal({
   const mediaLabel = mediaLabelFor(item);
   const resolution = getResolution(item);
   const captionDisplay = getGalleryItemCaptionDisplay(item, mediaLabel);
-  const captionTokenCount = estimateTokens(caption);
   const copyContent = caption;
   const canCopyCaption = copyContent.length > 0;
   const canRestoreBackup = backupCaption !== null && backupCaption.trim() !== caption.trim();
@@ -724,15 +723,20 @@ export function GalleryItemModal({
               item={item}
               resolution={resolution}
               hasComfyWorkflow={hasComfyWorkflow}
-              captionTokenCount={captionTokenCount}
               onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
             />
 
             <div className="gallery-item-modal__caption-editor">
               <div className="gallery-item-modal__caption-toolbar">
-                <label htmlFor="gallery-item-caption" className="gallery-item-modal__caption-label">
-                  Caption
-                </label>
+                <div className="gallery-item-modal__caption-heading">
+                  <label
+                    htmlFor="gallery-item-caption"
+                    className="gallery-item-modal__caption-label"
+                  >
+                    Caption
+                  </label>
+                  <TokenEstimate text={caption} className="gallery-item-modal__caption-tokens" />
+                </div>
                 <div className="gallery-item-modal__caption-actions">
                   {backupCaption !== null && (
                     <button

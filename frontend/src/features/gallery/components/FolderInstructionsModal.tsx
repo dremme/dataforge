@@ -8,11 +8,12 @@ import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconCopy, iconFilePlus, iconLoader2, iconX } from "@/shared/icons";
 import type { InstructionFileResponse } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
-import { formatCount, estimateTokens } from "@/shared/lib/format";
+import { formatCount } from "@/shared/lib/format";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { MarkdownEditor } from "@/shared/ui/MarkdownEditor";
+import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { YamlEditor } from "@/shared/ui/YamlEditor";
 
 interface InstructionDocument {
@@ -284,12 +285,7 @@ export function FolderInstructionsModal({
           aria-label={tab === "sysprompt" ? "Prompt statistics" : "Rule statistics"}
         >
           {tab === "sysprompt" ? (
-            <div
-              className="folder-instructions-modal__meta-value"
-              title="Estimated from text length; the exact count depends on the model"
-            >
-              ~{formatCount(estimateTokens(text))} tokens
-            </div>
+            <TokenEstimate text={text} className="folder-instructions-modal__meta-value" />
           ) : (
             <div className="folder-instructions-modal__meta-value">
               {formatCount(lineCount(text))} lines

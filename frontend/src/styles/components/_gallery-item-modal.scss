@@ -245,6 +245,17 @@
     gap: 0.4375rem;
   }
 
+  &__caption-heading {
+    display: flex;
+    align-items: baseline;
+    flex-shrink: 0;
+    gap: 0.625rem;
+  }
+
+  &__caption-tokens {
+    @include token-estimate;
+  }
+
   &__caption-label {
     color: var(--text);
     font-size: var(--text-xs);

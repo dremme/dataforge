@@ -177,19 +177,54 @@ describe("IssueResolverModal", () => {
     expect(within(dialog).queryByRole("listitem")).not.toBeInTheDocument();
   });
 
-  it("shows resolution and a live token estimate in the meta row", async () => {
+  it("shows resolution and aspect ratio in the meta row", async () => {
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("sunset.png", { width: 1920, height: 1080 })]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+    const meta = within(dialog).getByRole("group", { name: "Media details" });
+
+    expect(meta).toHaveTextContent("2.1 MP");
+    expect(meta).toHaveTextContent("1920 × 1080");
+    expect(meta).toHaveTextContent("16:9");
+    expect(meta).not.toHaveTextContent("tokens");
+  });
+
+  it("leaves the meta row empty until the resolution is known", async () => {
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Resolve caption issue for sunset.png",
+    });
+
+    expect(within(dialog).getByRole("group", { name: "Media details" })).toBeEmptyDOMElement();
+    expect(dialog).toHaveTextContent(/~\d+ tokens/);
+  });
+
+  it("shows a live token estimate beside the caption label", async () => {
     const user = userEvent.setup();
     const caption = "Golden hour over the lake";
 
     render(
       <IssueResolverModal
-        items={[
-          makeIssueItem("sunset.png", {
-            description: caption,
-            width: 1920,
-            height: 1080,
-          }),
-        ]}
+        items={[makeIssueItem("sunset.png", { description: caption })]}
         index={0}
         onClose={vi.fn()}
         onIndexChange={vi.fn()}
@@ -205,10 +240,9 @@ describe("IssueResolverModal", () => {
       expect(screen.getByLabelText("Caption for sunset.png")).toHaveValue(caption);
     });
 
-    expect(dialog).toHaveTextContent("2.1 MP");
-    expect(dialog).toHaveTextContent("1920 × 1080");
+    const heading = within(dialog).getByText("Caption").parentElement!;
     // Five words over 25 characters: the character rule wins here, so ~7.
-    expect(dialog).toHaveTextContent("~7 tokens");
+    expect(within(heading).getByText("~7 tokens")).toBeInTheDocument();
     expect(dialog).not.toHaveTextContent("characters");
 
     const captionInput = screen.getByLabelText("Caption for sunset.png");
@@ -217,7 +251,7 @@ describe("IssueResolverModal", () => {
 
     // The estimate tracks the live editor text, not the saved sidecar.
     await waitFor(() => {
-      expect(dialog).toHaveTextContent("~2 tokens");
+      expect(within(heading).getByText("~2 tokens")).toBeInTheDocument();
     });
     expect(dialog).not.toHaveTextContent("~7 tokens");
   });

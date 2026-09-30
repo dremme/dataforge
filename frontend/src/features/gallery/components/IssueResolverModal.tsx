@@ -14,7 +14,8 @@ import {
   schedulePrefetchModalMedia,
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
-import { formatCount, estimateTokens, formatMegapixels } from "@/shared/lib/format";
+import { formatMegapixels } from "@/shared/lib/format";
+import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
 import { classNames } from "@/shared/lib/classNames";
 import {
   iconArrowUpRight,
@@ -28,6 +29,7 @@ import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
+import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
 
@@ -270,7 +272,7 @@ export function IssueResolverModal({
           <p className="issue-resolver-modal__file-name" title={item.name}>
             {item.name}
           </p>
-          <div className="issue-resolver-modal__meta">
+          <div className="issue-resolver-modal__meta" role="group" aria-label="Media details">
             {resolution && (
               <>
                 <div className="issue-resolver-modal__meta-value">
@@ -281,14 +283,11 @@ export function IssueResolverModal({
                   {resolution.width} × {resolution.height}
                 </div>
                 <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
+                <div className="issue-resolver-modal__meta-value">
+                  {formatAspectRatio(resolution.width, resolution.height)}
+                </div>
               </>
             )}
-            <div
-              className="issue-resolver-modal__meta-value"
-              title="Estimated from text length; the exact count depends on the model"
-            >
-              ~{formatCount(estimateTokens(caption))} tokens
-            </div>
           </div>
 
           <div
@@ -330,9 +329,15 @@ export function IssueResolverModal({
           </div>
 
           <div className="issue-resolver-modal__caption-editor">
-            <label htmlFor="issue-resolver-caption" className="issue-resolver-modal__caption-label">
-              Caption
-            </label>
+            <div className="issue-resolver-modal__caption-heading">
+              <label
+                htmlFor="issue-resolver-caption"
+                className="issue-resolver-modal__caption-label"
+              >
+                Caption
+              </label>
+              <TokenEstimate text={caption} className="issue-resolver-modal__caption-tokens" />
+            </div>
             <CaptionEditor
               // Fresh editor per item: CodeMirror maps selection through a document swap.
               key={item.path}
