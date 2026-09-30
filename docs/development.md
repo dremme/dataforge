@@ -88,7 +88,7 @@ Run from the project root. `<python>` is `backend/.venv/Scripts/python` on Windo
 <python> scripts/run_checks.py --fix
 ```
 
-It runs lint, formatting, comment checks, type checks, and tests for both halves: Ruff and ty for the backend, and ESLint, Prettier, TypeScript, and Vitest for the frontend. `--fix` applies lint and formatting fixes; type errors have to be fixed by hand. Add `--lint-only` to skip tests, or `--scope backend` / `--scope frontend` to check one side. Ruff and ty are pinned in `backend/requirements-dev.txt` and configured in `backend/pyproject.toml`.
+It runs lint, formatting, comment checks, type checks, and tests for both halves: Ruff and ty for the backend, and ESLint, Prettier, TypeScript, and Vitest for the frontend. A passing step is one line with its duration; a failing step prints everything it wrote, then the run stops. In a terminal the two test steps show a progress bar while they run, which the result line replaces. `--fix` applies lint and formatting fixes; type errors have to be fixed by hand. Add `--lint-only` to skip tests, or `--scope backend` / `--scope frontend` to check one side. Ruff and ty are pinned in `backend/requirements-dev.txt` and configured in `backend/pyproject.toml`.
 
 | Task                    | Command                                                                      |
 | ----------------------- | ---------------------------------------------------------------------------- |
@@ -98,7 +98,7 @@ It runs lint, formatting, comment checks, type checks, and tests for both halves
 | Regenerate API types    | `<python> scripts/generate_types.py`                                         |
 | Backend lint            | `<python> scripts/run_lint.py`, with `--fix` to apply fixes                  |
 | Backend typecheck       | `<python> scripts/run_typecheck.py`                                          |
-| Backend tests           | `<python> scripts/run_tests.py`                                              |
+| Backend tests           | `<python> scripts/run_tests.py`, with `-v` to list every test                |
 | Frontend lint / format  | `cd frontend && npm run lint` / `npm run format`                             |
 | Frontend tests          | `cd frontend && npm test`                                                    |
 | End-to-end tests        | `cd frontend && npm run test:e2e`, after `npx playwright install chromium` once |

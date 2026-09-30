@@ -28,7 +28,6 @@ def main() -> int:
         ]
 
     for command in commands:
-        print(f"$ {' '.join(command)}")
         result = subprocess.run(command, cwd=BACKEND, check=False)
         if result.returncode != 0:
             return result.returncode

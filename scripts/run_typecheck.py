@@ -15,9 +15,7 @@ BACKEND = Path(__file__).resolve().parent.parent / "backend"
 
 def main() -> int:
     # Settings, including the test relaxation, live in backend/pyproject.toml under [tool.ty].
-    command = [sys.executable, "-m", "ty", "check", "."]
-
-    print(f"$ {' '.join(command)}")
+    command = [sys.executable, "-m", "ty", "check", "--error-on-warning", "."]
     return subprocess.run(command, cwd=BACKEND, check=False).returncode
 
 
