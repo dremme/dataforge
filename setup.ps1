@@ -23,9 +23,9 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $ProgressPreference = 'SilentlyContinue'
 
-$PyVer = '3.12.6'
-$NodeVer = '20.19.0'
 $Root = $PSScriptRoot
+$PyVer = (Get-Content -LiteralPath (Join-Path $Root '.python-version') -Raw).Trim()
+$NodeVer = '20.19.0'
 $PyDir = Join-Path $Root '.python'
 $NodeDir = Join-Path $Root '.node'
 $PyExe = Join-Path $PyDir 'python.exe'
@@ -34,6 +34,7 @@ $PyStampFile = Join-Path $PyDir 'setup-python-version.txt'
 $NodeStampFile = Join-Path $NodeDir 'setup-node-version.txt'
 $VenvDir = Join-Path $Root 'backend\.venv'
 $VenvPy = Join-Path $VenvDir 'Scripts\python.exe'
+$PyVersionCheck = Join-Path $Root 'scripts\py_version.py'
 
 $Host.UI.RawUI.WindowTitle = 'DataForge Setup'
 
@@ -64,6 +65,24 @@ function Test-StampMatches {
     if (-not (Test-Path -LiteralPath $File -PathType Leaf)) { return $false }
     $got = ((Get-Content -LiteralPath $File -TotalCount 1 -ErrorAction SilentlyContinue) + '')
     return $got.Trim() -eq $Expected
+}
+
+function Test-PythonVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$File,
+        [switch]$Exact
+    )
+    if (-not (Test-Path -LiteralPath $File -PathType Leaf)) { return $false }
+    try {
+        if ($Exact) {
+            $actual = (& $File -c 'import platform; print(platform.python_version())' 2>$null | Out-String).Trim()
+            return $LASTEXITCODE -eq 0 -and $actual -eq $PyVer
+        }
+        & $File $PyVersionCheck 2>$null | Out-Null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
 }
 
 function Get-RemoteFile {
@@ -173,17 +192,9 @@ try {
     $arch = Get-SetupArch
     $pythonReplaced = $false
 
-    if (Test-Path -LiteralPath $PyExe -PathType Leaf) {
-        if (Test-StampMatches -File $PyStampFile -Expected $PyVer) {
-            Write-Host ('Python {0} already present at .python\' -f $PyVer)
-        } elseif (-not (Test-Path -LiteralPath $PyStampFile -PathType Leaf)) {
-            # Older setup.bat dropped the installer here with no stamp. Keep it.
-            Set-Content -LiteralPath $PyStampFile -Value $PyVer -Encoding ASCII
-            Write-Host ('Python already present at .python\ (now marked {0})' -f $PyVer)
-        } else {
-            Install-PortablePython -Arch $arch
-            $pythonReplaced = $true
-        }
+    if (Test-PythonVersion -File $PyExe -Exact) {
+        Set-Content -LiteralPath $PyStampFile -Value $PyVer -Encoding ASCII
+        Write-Host ('Python {0} already present at .python\' -f $PyVer)
     } else {
         Install-PortablePython -Arch $arch
         $pythonReplaced = $true
@@ -198,9 +209,14 @@ try {
 
     $env:PATH = "$PyDir;$NodeDir;$env:PATH"
 
-    if ($pythonReplaced -and (Test-Path -LiteralPath $VenvDir)) {
-        Write-Host 'Python changed; recreating backend\.venv so it points at the new runtime...'
-        Remove-Item -LiteralPath $VenvDir -Recurse -Force
+    if ((Test-Path -LiteralPath $VenvDir) -and ($pythonReplaced -or -not (Test-PythonVersion -File $VenvPy))) {
+        Write-Host ('Recreating backend\.venv with Python {0}...' -f $PyVer)
+        $resolvedVenv = (Resolve-Path -LiteralPath $VenvDir).ProviderPath
+        $workspacePrefix = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+        if (-not $resolvedVenv.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The backend venv is outside the project folder.'
+        }
+        Remove-Item -LiteralPath $resolvedVenv -Recurse -Force
     }
 
     if (-not (Test-Path -LiteralPath $VenvPy -PathType Leaf)) {
@@ -211,6 +227,7 @@ try {
             throw 'Failed to create backend\.venv.'
         }
     }
+    if (-not (Test-PythonVersion -File $VenvPy)) { throw 'The backend venv must use Python 3.13.x.' }
 
     Write-Host 'Upgrading pip and installing backend dependencies...'
     & $VenvPy -m pip install --upgrade pip | Out-Host

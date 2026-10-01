@@ -4,7 +4,7 @@
 
 [![Checks](https://github.com/dremme/dataforge/actions/workflows/checks.yml/badge.svg)](https://github.com/dremme/dataforge/actions/workflows/checks.yml)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.13.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](docs/getting-started.md#requirements)
 
@@ -17,7 +17,7 @@ Browse, caption, review, and edit datasets for LoRA training and fine-tuning. Op
 [Download and extract the project](docs/getting-started.md#install-and-run), or clone it with Git.
 
 - **Windows:** run `setup.bat` once, then `start.bat`. Setup downloads its own Python and Node; no global installation is needed.
-- **Linux and macOS:** install Python 3.12+ and a [supported Node version](docs/getting-started.md#requirements), then run:
+- **Linux and macOS:** install Python 3.13.x and a [supported Node version](docs/getting-started.md#requirements), then run:
 
   ```bash
   ./setup.sh

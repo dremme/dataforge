@@ -6,7 +6,7 @@ For running the app, see [Getting started](getting-started.md). Contributor and 
 
 ## Stack
 
-- **Backend:** Python 3.12+, FastAPI, SQLite, Pillow, ffmpeg, and the OpenAI client.
+- **Backend:** Python 3.13.x, FastAPI, SQLite, Pillow, ffmpeg, and the OpenAI client.
 - **Frontend:** React 19, TypeScript, Vite, and SCSS.
 - **Integrations:** OpenAI-compatible model servers, ComfyUI, and AI-Toolkit; see [Configuration](configuration.md).
 
@@ -101,7 +101,7 @@ The tests run under coverage, and the run ends with one line per side (coverage.
 
 ### CI and end-to-end tests
 
-Backend CI checks Python 3.12 and 3.13; frontend CI generates files with Python and runs its scoped checks. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook.
+Backend, frontend, and end-to-end CI all use the exact Python 3.13.12 release recorded in `.python-version`. Backend CI has one runner. Windows setup uses the same default; local setup and server startup accept any final Python 3.13.x release and reject other release series and prereleases. Frontend CI generates files with Python and runs its scoped checks. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook.
 
 The E2E suite drives Chromium against its own backend on 18090 and Vite on 18091, using temporary data and a stand-in vision model. It needs no existing servers or real model and covers image/video auto-captioning. Avoid using those ports for another service during the run.
 

@@ -1,6 +1,10 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
+from python_version import require_python
+
+require_python()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

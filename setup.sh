@@ -1,25 +1,12 @@
 #!/usr/bin/env bash
-#
-# Installs every dependency for a fresh Unix clone: the venv, the backend packages,
-# the npm packages, and the three generated frontend sources.
-#
-# This is not a port of setup.ps1. That script downloads portable runtimes into
-# .python/ and .node/ because a Windows box may have neither and installing them
-# needs UAC. On macOS and Linux a real python3 and node are the normal case, so this
-# checks the ones already installed and says exactly what is wrong when they are too
-# old - which is the failure a fresh clone actually hits, since nothing else enforces
-# the version floors until something breaks much later.
-#
-# Usage: ./setup.sh
 
 set -eo pipefail
 
 # shellcheck source=scripts/dev-common.sh
 . "$(cd "$(dirname "$0")" && pwd)/scripts/dev-common.sh"
 
-# Keep in step with backend/pyproject.toml (requires-python) and scripts/py_version.py.
-MIN_PY_MAJOR=3
-MIN_PY_MINOR=12
+PYTHON_VERSION="$(tr -d '\r\n' < "$DEV_ROOT/.python-version")"
+PYTHON_SERIES="${PYTHON_VERSION%.*}"
 
 # Keep in step with the engines range in frontend/package.json. Both come from what
 # the lockfile actually resolves: eslint 10 and sass 1.103.
@@ -31,26 +18,21 @@ fail() {
     exit 1
 }
 
-python_is_new_enough() {
-    "$1" -c "import sys; raise SystemExit(0 if sys.version_info >= ($MIN_PY_MAJOR, $MIN_PY_MINOR) else 1)" \
-        >/dev/null 2>&1
+python_matches_pin() {
+    "$1" "$DEV_SCRIPTS/py_version.py" >/dev/null 2>&1
 }
 
 find_python() {
-    # Newest first, so a box with several interpreters gets the best one rather than
-    # whichever bare `python3` happens to be on PATH - that is usually the distro
-    # one, and on Debian 12 or RHEL 9 it is exactly the 3.11 that cannot parse the
-    # backend. DATAFORGE_PYTHON overrides the search entirely.
     local candidate
     if [ -n "$DATAFORGE_PYTHON" ]; then
-        if python_is_new_enough "$DATAFORGE_PYTHON"; then
+        if python_matches_pin "$DATAFORGE_PYTHON"; then
             printf '%s\n' "$DATAFORGE_PYTHON"
             return 0
         fi
         return 1
     fi
-    for candidate in python3.14 python3.13 python3.12 python3 python; do
-        if command -v "$candidate" >/dev/null 2>&1 && python_is_new_enough "$candidate"; then
+    for candidate in "python$PYTHON_SERIES" python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && python_matches_pin "$candidate"; then
             command -v "$candidate"
             return 0
         fi
@@ -79,7 +61,7 @@ node_version_ok() {
 
 say "================================================"
 say "  DataForge setup"
-say "  Python >= $MIN_PY_MAJOR.$MIN_PY_MINOR   Node $NODE_RANGE"
+say "  Python $PYTHON_SERIES.x   Node $NODE_RANGE"
 say "================================================"
 say ""
 
@@ -89,21 +71,18 @@ say ""
 
 PYTHON="$(find_python || true)"
 if [ -z "$PYTHON" ]; then
-    err "No Python $MIN_PY_MAJOR.$MIN_PY_MINOR or newer was found."
+    err "No Python $PYTHON_SERIES.x was found."
     if command -v python3 >/dev/null 2>&1; then
         say "        The python3 on PATH is $(python3 -V 2>&1 | tr -d '\n')."
     fi
     say ""
-    say "        The backend uses PEP 695 syntax that older versions cannot parse,"
-    say "        so this is a hard floor rather than a preference."
+    say "        Install any final Python $PYTHON_SERIES.x release, or use the default from .python-version:"
     say ""
-    say "          macOS    brew install python@3.12"
-    say "          Debian   sudo apt install python3.12 python3.12-venv"
-    say "          Fedora   sudo dnf install python3.12"
-    say "          anywhere pyenv install 3.12"
+    say "          pyenv install $PYTHON_VERSION"
+    say "          pyenv local $PYTHON_VERSION"
     say ""
     say "        Already have one somewhere else? Point at it directly:"
-    say "          DATAFORGE_PYTHON=/path/to/python3.12 ./setup.sh"
+    say "          DATAFORGE_PYTHON=/path/to/python3.13 ./setup.sh"
     exit 1
 fi
 ok "Python: $PYTHON ($("$PYTHON" -V 2>&1 | tr -d '\n'))"
@@ -138,21 +117,19 @@ if [ ! -x "$DEV_VENV_PY" ]; then
     if ! "$PYTHON" -m venv "$DEV_BACKEND/.venv"; then
         err "Failed to create backend/.venv."
         say "        On Debian and Ubuntu the venv module ships separately:"
-        say "          sudo apt install python3.12-venv"
+        say "          sudo apt install python3.13-venv"
         exit 1
     fi
     [ -x "$DEV_VENV_PY" ] || fail "backend/.venv was created but has no bin/python."
 else
-    # An existing venv can predate the floor - it is built against whichever
-    # interpreter created it, and nothing rebuilds it on an upgrade.
-    if ! python_is_new_enough "$DEV_VENV_PY"; then
-        err "backend/.venv runs $("$DEV_VENV_PY" -V 2>&1 | tr -d '\n'), which is too old."
-        say "        Delete it and run this again to rebuild it with $PYTHON:"
-        say "          rm -rf backend/.venv && ./setup.sh"
-        exit 1
+    if ! python_matches_pin "$DEV_VENV_PY"; then
+        say "Recreating backend/.venv with Python $PYTHON_SERIES.x..."
+        "$PYTHON" -m venv --clear "$DEV_BACKEND/.venv" || fail "Failed to recreate backend/.venv."
+    else
+        say "Reusing the existing backend/.venv."
     fi
-    say "Reusing the existing backend/.venv."
 fi
+"$DEV_VENV_PY" "$DEV_SCRIPTS/py_version.py" || fail "backend/.venv must use Python $PYTHON_SERIES.x."
 
 say "Upgrading pip and installing backend dependencies..."
 "$DEV_VENV_PY" -m pip install --upgrade pip || fail "pip upgrade failed."
