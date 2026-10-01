@@ -239,14 +239,30 @@ describe("useAutomationDialogOverlays", () => {
     expect(result.current.dialogs.autoAdjust.open).toBe(true);
 
     await act(async () => {
-      result.current.dialogs.autoAdjust.onConfirm(true);
+      result.current.dialogs.autoAdjust.onConfirm(true, false);
     });
 
     expect(result.current.dialogs.autoAdjust.open).toBe(false);
     expect(startJob).toHaveBeenCalledWith(
       "auto_adjust",
       "C:\\Photos",
-      { replace_adjustments: true },
+      { replace_adjustments: true, reset_adjustments: false },
+      undefined,
+    );
+  });
+
+  it("starts auto-adjust in reset mode", async () => {
+    const { result, startJob } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("auto_adjust");
+      result.current.dialogs.autoAdjust.onConfirm(false, true);
+    });
+
+    expect(startJob).toHaveBeenCalledWith(
+      "auto_adjust",
+      "C:\\Photos",
+      { replace_adjustments: false, reset_adjustments: true },
       undefined,
     );
   });

@@ -1,4 +1,4 @@
-"""Run the Adjust wand over a folder and render each result, as its button and Apply would."""
+"""Apply or reset color adjustments over a folder, rendering each result from its original."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ AUTO_ADJUST_EXTENSIONS = IMAGE_EDIT_EXTENSIONS | VIDEO_EDIT_EXTENSIONS
 
 
 class AlreadyAdjustedError(Exception):
-    """Raised when the wand would leave the file as it is."""
+    """Raised when applying or resetting color adjustments would leave the file as it is."""
 
 
 def list_auto_adjust_files(folder: Path) -> list[Path]:
@@ -61,10 +61,20 @@ def _auto_adjusted[SpecT: (ImageEditSpec, VideoEditSpec)](
     return spec.model_copy(update={"adjust": adjust, "auto_adjust": auto})
 
 
-def auto_adjust_image(media: Path, *, replace: bool = False) -> None:
+def _reset_adjustments[SpecT: (ImageEditSpec, VideoEditSpec)](spec: SpecT) -> SpecT:
+    adjust = ColorAdjust()
+    if spec.adjust == adjust and spec.auto_adjust is None:
+        raise AlreadyAdjustedError
+    return spec.model_copy(update={"adjust": adjust, "auto_adjust": None})
+
+
+def auto_adjust_image(media: Path, *, replace: bool = False, reset: bool = False) -> None:
     spec = read_image_edit_spec(media) or ImageEditSpec()
-    pixels, weights = image_analysis_pixels(original_path_for(media), spec.masks, spec.crop)
-    adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
+    if reset:
+        adjusted = _reset_adjustments(spec)
+    else:
+        pixels, weights = image_analysis_pixels(original_path_for(media), spec.masks, spec.crop)
+        adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
 
     with render_slot(media):
         apply_image_edit(media, adjusted)
@@ -74,21 +84,26 @@ def auto_adjust_video(
     media: Path,
     *,
     replace: bool = False,
+    reset: bool = False,
     ffmpeg: str | None = None,
     should_cancel: ShouldCancel | None = None,
 ) -> None:
     spec = read_edit_spec(media) or VideoEditSpec()
-    source = original_path_for(media)
-    probe = probe_source(source)
-    pixels, weights = video_analysis_pixels(
-        source,
-        spec.masks,
-        spec.crop,
-        start=spec.trim_start,
-        end=spec.trim_end,
-        duration=probe.seconds,
-    )
-    adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
+    probe = None
+    if reset:
+        adjusted = _reset_adjustments(spec)
+    else:
+        source = original_path_for(media)
+        probe = probe_source(source)
+        pixels, weights = video_analysis_pixels(
+            source,
+            spec.masks,
+            spec.crop,
+            start=spec.trim_start,
+            end=spec.trim_end,
+            duration=probe.seconds,
+        )
+        adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
 
     with render_slot(media):
         apply_video_edit(media, adjusted, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe)
@@ -98,15 +113,18 @@ def auto_adjust_file(
     media: Path,
     *,
     replace: bool = False,
+    reset: bool = False,
     ffmpeg: str | None = None,
     should_cancel: ShouldCancel | None = None,
 ) -> str:
-    """Adjust one file in place, returning ``image`` or ``video``; ``replace`` resets only the Adjust tools."""
+    """Apply or reset only the Adjust tools, returning ``image`` or ``video``."""
     if media.suffix.lower() in VIDEO_EDIT_EXTENSIONS:
-        auto_adjust_video(media, replace=replace, ffmpeg=ffmpeg, should_cancel=should_cancel)
+        auto_adjust_video(
+            media, replace=replace, reset=reset, ffmpeg=ffmpeg, should_cancel=should_cancel
+        )
         return "video"
 
-    auto_adjust_image(media, replace=replace)
+    auto_adjust_image(media, replace=replace, reset=reset)
     return "image"
 
 
@@ -118,6 +136,7 @@ def run_auto_adjust_job(
     ffmpeg: str | None = None,
     selected_paths: list[Path] | None = None,
     replace_adjustments: bool = False,
+    reset_adjustments: bool = False,
 ) -> dict[str, object]:
     validate_auto_adjust_folder(folder, selected_paths)
 
@@ -129,6 +148,7 @@ def run_auto_adjust_job(
             kind = auto_adjust_file(
                 media_path,
                 replace=replace_adjustments,
+                reset=reset_adjustments,
                 ffmpeg=resolved_ffmpeg,
                 should_cancel=should_cancel,
             )

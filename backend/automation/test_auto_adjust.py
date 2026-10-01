@@ -16,7 +16,7 @@ from color_auto import suggest_adjust
 from edit_sidecars import backup_path_for, edit_spec_path, render_slot, write_spec
 from ffmpeg_run import FfmpegCancelled
 from image_edit import apply_image_edit, read_image_edit_spec
-from schemas import ColorAdjust, EditCropRect, ImageEditSpec, MaskRegion, VideoEditSpec
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec, MaskRegion, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_image, write_mp4_video
 from video_edit import SourceProbe, read_edit_spec
 
@@ -31,6 +31,60 @@ def results_by_name(result: dict[str, object]) -> dict[str, dict[str, object]]:
 
 
 class ImageTests(unittest.TestCase):
+    def test_reset_clears_manual_and_auto_color_but_keeps_other_edits(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=80, height=40, color=DARK)
+            original = media.read_bytes()
+            earlier = ImageEditSpec(
+                crop=EditCropRect(x=0, y=0, width=0.5, height=1),
+                masks=[MaskRegion(x=0, y=0, width=1, height=1)],
+                mirror_h=True,
+                mirror_v=True,
+                rotate=90,
+                scale=0.5,
+                adjust=ColorAdjust(tint=0.2, hue=30, definition=0.4),
+                auto_adjust=AutoAdjust(suggestion=ColorAdjust(exposure=0.3)),
+            )
+            apply_image_edit(media, earlier)
+
+            with patch("automation.auto_adjust.image_analysis_pixels") as analyse:
+                result = run_auto_adjust_job(root, reset_adjustments=True, replace_adjustments=True)
+
+            self.assertEqual(result["stats"]["image_success"], 1)
+            self.assertEqual(
+                read_image_edit_spec(media),
+                earlier.model_copy(update={"adjust": ColorAdjust(), "auto_adjust": None}),
+            )
+            self.assertEqual(backup_path_for(media).read_bytes(), original)
+            analyse.assert_not_called()
+            with Image.open(media) as edited:
+                self.assertEqual(edited.size, (20, 20))
+                self.assertEqual(edited.getpixel((0, 0)), DARK)
+
+    def test_reset_leaves_unadjusted_files_untouched(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", color=DARK)
+            original = media.read_bytes()
+
+            result = run_auto_adjust_job(root, reset_adjustments=True)
+
+            self.assertEqual(result["stats"]["unchanged"], 1)
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(backup_path_for(media).exists())
+            self.assertFalse(edit_spec_path(media).exists())
+
+    def test_reset_clears_auto_state_even_if_color_values_are_already_zero(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", color=DARK)
+            apply_image_edit(
+                media, ImageEditSpec(auto_adjust=AutoAdjust(amount=0, suggestion=ColorAdjust()))
+            )
+
+            result = run_auto_adjust_job(root, reset_adjustments=True)
+
+            self.assertEqual(result["stats"]["success"], 1)
+            self.assertEqual(read_image_edit_spec(media), ImageEditSpec())
+
     def test_renders_the_suggestion_and_keeps_the_original(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "dusk.png", color=DARK)
@@ -145,6 +199,34 @@ class ImageTests(unittest.TestCase):
 @patch("automation.auto_adjust.probe_source", return_value=SourceProbe(seconds=10.0))
 @patch("automation.auto_adjust.video_analysis_pixels", return_value=(DARK_PIXELS, np.ones(64)))
 class VideoTests(unittest.TestCase):
+    def test_reset_keeps_all_other_video_edits_and_skips_analysis(self, analyse, probe) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root)
+            earlier = VideoEditSpec(
+                trim_start=2,
+                trim_end=6,
+                crop=EditCropRect(x=0, y=0, width=0.5, height=1),
+                masks=[MaskRegion(x=0, y=0, width=1, height=1)],
+                speed=1.5,
+                scale=0.5,
+                volume=0,
+                adjust=ColorAdjust(exposure=0.3, noise_reduction=0.5),
+                auto_adjust=AutoAdjust(suggestion=ColorAdjust(exposure=0.3)),
+            )
+            write_spec(media, earlier)
+
+            with patch("automation.auto_adjust.apply_video_edit") as apply:
+                result = run_auto_adjust_job(root, reset_adjustments=True, ffmpeg="ffmpeg")
+
+            self.assertEqual(result["stats"]["video_success"], 1)
+            self.assertEqual(
+                apply.call_args.args[1],
+                earlier.model_copy(update={"adjust": ColorAdjust(), "auto_adjust": None}),
+            )
+            self.assertEqual(apply.call_args.kwargs["ffmpeg"], "ffmpeg")
+            analyse.assert_not_called()
+            probe.assert_not_called()
+
     def test_reads_the_kept_range_and_renders_the_suggestion(self, analyse, _probe) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root)

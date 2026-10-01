@@ -586,6 +586,10 @@ class AutoAdjustStartRequest(JobSelectionRequest):
         default=False,
         description="Reset every Adjust tool first, so a file keeps only the wand's suggestion.",
     )
+    reset_adjustments: bool = Field(
+        default=False,
+        description="Reset only color adjustments to zero without applying the wand; overrides replace.",
+    )
 
 
 class CheckCaptionRulesStartRequest(JobSelectionRequest):

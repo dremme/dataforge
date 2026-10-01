@@ -99,7 +99,7 @@ export type AutomationDialogsState = {
     open: boolean;
     scope: DialogScopeInfo;
     busy: boolean;
-    onConfirm: (replaceAdjustments: boolean) => void;
+    onConfirm: (replaceAdjustments: boolean, resetAdjustments: boolean) => void;
     onCancel: () => void;
   };
   checkCaptionRules: {

@@ -12,7 +12,9 @@ from urllib.parse import quote
 from automation.backup_captions import run_backup_captions_job
 from automation.jobs import JOB_SPECS, job_manager
 from automation_settings import AUTOMATION_SETTINGS_KEY_PREFIX, JOB_SETTINGS_MODELS
+from image_edit import apply_image_edit, read_image_edit_spec
 from routes._test_client import client
+from schemas import ColorAdjust, EditCropRect, ImageEditSpec
 from testing_fixtures import (
     TempMediaFolder,
     forget_preferences,
@@ -217,6 +219,34 @@ class JobRunEndpointTests(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_job_manager()
+
+    def test_auto_adjust_resets_only_the_selected_files_color(self) -> None:
+        with TempMediaFolder() as root:
+            chosen = write_image(root, "chosen.png", width=80, height=40)
+            other = write_image(root, "other.png", width=80, height=40)
+            earlier = ImageEditSpec(
+                crop=EditCropRect(x=0, y=0, width=0.5, height=1),
+                adjust=ColorAdjust(exposure=0.3),
+            )
+            apply_image_edit(chosen, earlier)
+            apply_image_edit(other, earlier)
+            untouched = other.read_bytes()
+
+            response = _post(
+                "auto-adjust",
+                root,
+                {"paths": [str(chosen)], "reset_adjustments": True, "replace_adjustments": True},
+            )
+            self.assertEqual(response.status_code, 200)
+            job = wait_for_job(response.json()["id"])
+
+            self.assertEqual(job.status, "completed")
+            self.assertEqual(job.stats["image_success"], 1)
+            self.assertEqual(
+                read_image_edit_spec(chosen), earlier.model_copy(update={"adjust": ColorAdjust()})
+            )
+            self.assertEqual(read_image_edit_spec(other), earlier)
+            self.assertEqual(other.read_bytes(), untouched)
 
     def test_auto_adjust_adjusts_only_the_selection_and_keeps_its_original(self) -> None:
         with TempMediaFolder() as root:

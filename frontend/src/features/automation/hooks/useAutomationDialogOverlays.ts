@@ -217,8 +217,11 @@ export function useAutomationDialogOverlays({
         scope,
         busy: startingJobType === "auto_adjust",
         onCancel: closeDialog,
-        onConfirm: (replaceAdjustments: boolean) =>
-          startJobFromDialog("auto_adjust", { replace_adjustments: replaceAdjustments }),
+        onConfirm: (replaceAdjustments: boolean, resetAdjustments: boolean) =>
+          startJobFromDialog("auto_adjust", {
+            replace_adjustments: replaceAdjustments,
+            reset_adjustments: resetAdjustments,
+          }),
       },
       checkCaptionRules: {
         open: openJobType === "check_caption_rules",
