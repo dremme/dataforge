@@ -16,6 +16,7 @@ from types import ModuleType
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 RUN_CHECKS_PATH = SCRIPTS / "run_checks.py"
+NPM = str(Path("nodejs") / "npm.CMD")
 
 VITEST_SUMMARY = (
     "\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m233 passed\x1b[39m\x1b[22m\x1b[90m (233)\x1b[39m\n"
@@ -87,9 +88,7 @@ class CommandDisplayTests(RunChecksTestCase):
         self.assertEqual(step.shown_location, "")
 
     def test_a_frontend_step_names_its_folder(self) -> None:
-        step = self.run_checks.Step(
-            "Frontend ESLint", ["C:\\nodejs\\npm.CMD", "run", "lint"], ROOT / "frontend"
-        )
+        step = self.run_checks.Step("Frontend ESLint", [NPM, "run", "lint"], ROOT / "frontend")
         self.assertEqual(step.shown_command, "npm run lint")
         self.assertEqual(step.shown_location, "frontend/")
 
@@ -254,9 +253,7 @@ class ConsoleTests(RunChecksTestCase):
 
     def test_a_failure_shows_the_command_the_exit_code_and_the_output(self) -> None:
         stream = io.StringIO()
-        step = self.run_checks.Step(
-            "Frontend ESLint", ["C:\\nodejs\\npm.CMD", "run", "lint"], ROOT / "frontend"
-        )
+        step = self.run_checks.Step("Frontend ESLint", [NPM, "run", "lint"], ROOT / "frontend")
         outcome = self.run_checks.Outcome(returncode=2, output="\nsrc/a.ts:1 broken\n\n", seconds=1)
         self._console(stream).failure(step, outcome)
         self.assertEqual(

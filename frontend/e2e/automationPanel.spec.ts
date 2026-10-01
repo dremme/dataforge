@@ -101,7 +101,9 @@ for (const width of [1024, 1440]) {
           duplicate_group: index < 4 ? `group-${Math.floor(index / 2)}` : null,
           has_candidate: index < 4,
         }));
-        await route.fulfill({ json: { ...folder, items, item_count: items.length } });
+        await route.fulfill({
+          json: { ...folder, items, item_count: items.length, subfolders: [], subfolder_count: 0 },
+        });
       });
       await page.route("**/api/system/specs", (route) => route.fulfill({ json: specs }));
       await page.route("**/api/external/ostris/jobs", (route) =>

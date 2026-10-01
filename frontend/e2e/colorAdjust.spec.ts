@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
@@ -83,6 +84,51 @@ function difference(a: number[], b: number[]): { mean: number; worst: number } {
   return { mean: total / a.length, worst };
 }
 
+/** A workspace file with no saved edit, so a retry opens the editor as the first attempt did. */
+function freshMedia(name: string): string {
+  const media = path.join(WORKSPACE, name);
+  const stem = name.slice(0, name.lastIndexOf("."));
+  for (const leftover of [`${media}.bak`, path.join(WORKSPACE, `${stem}.edit.json`)]) {
+    fs.rmSync(leftover, { force: true });
+  }
+  return media;
+}
+
+function stillVideo(name: string): string {
+  const ffmpeg = execFileSync(
+    python,
+    ["-c", "from ffmpeg_bin import ffmpeg_path; print(ffmpeg_path() or '')"],
+    { cwd: path.join(projectRoot, "backend"), encoding: "utf8" },
+  ).trim();
+  expect(ffmpeg).not.toBe("");
+  // Still content, so whichever frame each side lands on shows the same picture. Limited range,
+  // like nearly every camera file: headless Chromium reads a full-range stream as limited.
+  execFileSync(ffmpeg, [
+    "-v",
+    "error",
+    "-y",
+    "-loop",
+    "1",
+    "-i",
+    path.join(projectRoot, "sample_images", "sunset.jpg"),
+    "-t",
+    "1",
+    "-r",
+    "10",
+    "-vf",
+    "scale=640:480:out_range=tv",
+    "-c:v",
+    "libx264",
+    "-crf",
+    "12",
+    "-pix_fmt",
+    "yuv420p",
+    "-an",
+    freshMedia(name),
+  ]);
+  return name;
+}
+
 async function setTool(page: Page, tool: string, key: string, presses = 1): Promise<void> {
   await page.getByRole("tab", { name: new RegExp(`^${tool}`) }).click();
   await page.getByRole("slider", { name: tool }).focus();
@@ -100,7 +146,7 @@ test("the adjust preview matches the image Apply writes", async ({ page }) => {
     "-c",
     "import sys; from PIL import Image; Image.open(sys.argv[1]).convert('RGB').save(sys.argv[2])",
     path.join(projectRoot, "sample_images", "sunset.jpg"),
-    path.join(WORKSPACE, "adjust.png"),
+    freshMedia("adjust.png"),
   ]);
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
   await page.getByRole("button", { name: "View adjust.png" }).click();
@@ -137,7 +183,7 @@ test("the wand moves the tools it reads a fault in", async ({ page }) => {
     "-c",
     "import sys; from PIL import Image; Image.open(sys.argv[1]).convert('RGB').point(lambda v: v // 3).save(sys.argv[2])",
     path.join(projectRoot, "sample_images", "sunset.jpg"),
-    path.join(WORKSPACE, "dark.png"),
+    freshMedia("dark.png"),
   ]);
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
   await page.getByRole("button", { name: "View dark.png" }).click();
@@ -151,38 +197,23 @@ test("the wand moves the tools it reads a fault in", async ({ page }) => {
   await expect(page.getByRole("slider", { name: "Auto" })).toHaveAttribute("aria-valuetext", "50");
 });
 
+test("the unadjusted video preview matches the video itself", async ({ page }) => {
+  const name = stillVideo("plain.mp4");
+  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+  await page.getByRole("button", { name: `View ${name}` }).click();
+  await page.getByRole("button", { name: `Edit ${name}` }).click();
+  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+
+  const preview = await blocks(page, "preview");
+  const source = await blocks(page, { file: name });
+
+  const { mean, worst } = difference(preview, source);
+  expect(mean).toBeLessThan(1.5);
+  expect(worst).toBeLessThan(8);
+});
+
 test("the adjust preview matches the video Apply writes", async ({ page }) => {
-  const ffmpeg = execFileSync(
-    python,
-    ["-c", "from ffmpeg_bin import ffmpeg_path; print(ffmpeg_path() or '')"],
-    { cwd: path.join(projectRoot, "backend"), encoding: "utf8" },
-  ).trim();
-  expect(ffmpeg).not.toBe("");
-  // Still content, so whichever frame each side lands on shows the same picture. Limited range,
-  // like nearly every camera file: headless Chromium reads a full-range stream as limited.
-  execFileSync(ffmpeg, [
-    "-v",
-    "error",
-    "-y",
-    "-loop",
-    "1",
-    "-i",
-    path.join(projectRoot, "sample_images", "sunset.jpg"),
-    "-t",
-    "1",
-    "-r",
-    "10",
-    "-vf",
-    "scale=640:480:out_range=tv",
-    "-c:v",
-    "libx264",
-    "-crf",
-    "12",
-    "-pix_fmt",
-    "yuv420p",
-    "-an",
-    path.join(WORKSPACE, "still.mp4"),
-  ]);
+  stillVideo("still.mp4");
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
   await page.getByRole("button", { name: "View still.mp4" }).click();
   await page.getByRole("button", { name: "Edit still.mp4" }).click();
