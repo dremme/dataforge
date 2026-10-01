@@ -2,22 +2,14 @@
 
 from __future__ import annotations
 
-import argparse
-import logging
 import re
 from collections.abc import Callable
 from pathlib import Path
 
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
-from captions import load_reference_caption, save_caption
+from captions import CAPTION_READ_ERROR, load_reference_caption, save_caption
 from constants import MEDIA_EXTENSIONS
-from logging_config import configure_logging, log_job_summary
-
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 REPLACE_MODES = ("replace", "prepend", "append")
 
@@ -130,14 +122,14 @@ def validate_replace_captions_folder(
     replacement: str = "",
     use_regex: bool = False,
     case_sensitive: bool = False,
-) -> None:
+) -> CaptionReplacer:
     if not folder.is_dir():
         raise ValueError("Folder not found")
 
     if not list_replace_captions_media(folder):
         raise ValueError("No supported images or videos found in folder")
 
-    build_caption_replacer(
+    return build_caption_replacer(
         mode=mode,
         search=search,
         replacement=replacement,
@@ -203,16 +195,8 @@ def run_replace_captions_job(
     should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
-    validate_replace_captions_folder(
+    replacer = validate_replace_captions_folder(
         folder,
-        mode=mode,
-        search=search,
-        replacement=replacement,
-        use_regex=use_regex,
-        case_sensitive=case_sensitive,
-    )
-
-    replacer = build_caption_replacer(
         mode=mode,
         search=search,
         replacement=replacement,
@@ -224,48 +208,24 @@ def run_replace_captions_job(
     def process(media_path: Path) -> FileOutcome:
         text, status = load_reference_caption(media_path)
         if text is None:
-            if status.startswith("read_error"):
-                return FileOutcome(
-                    status="read_error",
-                    stats={"read_error": 1},
-                    fields={"message": status},
-                )
-            return FileOutcome(
-                status="no_caption",
-                stats={"no_caption": 1},
-                fields={"message": "No caption to edit"},
-            )
+            if status == CAPTION_READ_ERROR:
+                return FileOutcome.counted(CAPTION_READ_ERROR, "Could not read the caption")
+            return FileOutcome.counted("no_caption", "No caption to edit")
 
         try:
             edited = replacer(text)
         except ValueError as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
         if edited is None:
-            return FileOutcome(
-                status="skipped",
-                stats={"skipped": 1},
-                fields={"message": "No match"},
-            )
+            return FileOutcome.counted("skipped", "No match")
 
         try:
             save_caption(media_path, edited)
         except Exception as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
-        return FileOutcome(
-            status="success",
-            stats={"success": 1},
-            fields={"description": edited.strip()},
-        )
+        return FileOutcome.counted("success", description=edited.strip())
 
     return run_media_job(
         folder,
@@ -284,62 +244,3 @@ def run_replace_captions_job(
         should_cancel=should_cancel,
         processed_stat_keys=("success", "skipped", "no_caption", "read_error", "write_error"),
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description="Find and replace, prepend, or append text across the captions in a folder.",
-    )
-    parser.add_argument("folder", type=Path, help="Folder containing images and/or videos")
-    parser.add_argument(
-        "--mode",
-        choices=REPLACE_MODES,
-        default=DEFAULT_MODE,
-        help="Edit to apply to each caption",
-    )
-    parser.add_argument("--search", default="", help="Text to search for (replace mode)")
-    parser.add_argument(
-        "--replacement",
-        default="",
-        help="Replacement text, or the text to add in prepend/append mode",
-    )
-    parser.add_argument(
-        "--regex",
-        action="store_true",
-        help="Treat the search term as a regular expression",
-    )
-    parser.add_argument(
-        "--case-sensitive",
-        action="store_true",
-        help="Match case exactly instead of ignoring it",
-    )
-    args = parser.parse_args(argv)
-
-    folder = args.folder.expanduser().resolve()
-    try:
-        result = run_replace_captions_job(
-            folder,
-            mode=args.mode,
-            search=args.search,
-            replacement=args.replacement,
-            use_regex=args.regex,
-            case_sensitive=args.case_sensitive,
-        )
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    log_job_summary(
-        logger,
-        result,
-        stat_keys=("success", "skipped", "no_caption", "read_error", "write_error", "cancelled"),
-    )
-    stats = result.get("stats") or {}
-    if isinstance(stats, dict) and int(stats.get("write_error") or 0) > 0:
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

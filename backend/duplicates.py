@@ -22,13 +22,9 @@ GROUP_ID_LENGTH = 12
 @dataclass(frozen=True)
 class DuplicateFinding:
     group: str
-    #: Worst pairwise Hamming distance, so ``exact`` describes the files, not the threshold.
+    #: Worst pairwise Hamming distance, so 0 means the files are exact, whatever the threshold.
     max_distance: int
     threshold: str
-
-    @property
-    def exact(self) -> bool:
-        return self.max_distance == 0
 
 
 def duplicate_file_path(media_path: Path) -> Path:
@@ -72,7 +68,7 @@ def duplicate_finding_from_sidecar(
     mtime_ns: int,
     size: int,
 ) -> DuplicateFinding | None:
-    """:func:`load_duplicate_finding` for a sidecar the caller has already stat'ed."""
+    """The finding in a sidecar the caller has already stat'ed."""
     return cached_by_stat(
         "duplicate",
         sidecar_path,
@@ -82,20 +78,11 @@ def duplicate_finding_from_sidecar(
     )
 
 
-def load_duplicate_finding(media_path: Path) -> DuplicateFinding | None:
-    sidecar_path = duplicate_file_path(media_path)
-    if not sidecar_path.is_file():
-        return None
-
-    return _finding_from_file(sidecar_path)
-
-
 def save_duplicate_finding(media_path: Path, finding: DuplicateFinding | None) -> None:
     sidecar_path = duplicate_file_path(media_path)
 
     if finding is None:
-        if sidecar_path.is_file():
-            sidecar_path.unlink()
+        sidecar_path.unlink(missing_ok=True)
         return
 
     payload = {
@@ -107,10 +94,7 @@ def save_duplicate_finding(media_path: Path, finding: DuplicateFinding | None) -
 
 
 def delete_duplicate_file(media_path: Path) -> None:
-    sidecar_path = duplicate_file_path(media_path)
-    if not sidecar_path.is_file():
-        return
-    sidecar_path.unlink()
+    duplicate_file_path(media_path).unlink(missing_ok=True)
 
 
 def group_duplicate_findings(scan: FolderScan) -> dict[str, list[tuple[Path, DuplicateFinding]]]:

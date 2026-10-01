@@ -2,24 +2,20 @@
 
 from __future__ import annotations
 
-import argparse
 import logging
 import re
-from collections.abc import Callable
 from pathlib import Path
 
+from automation.job_runner import ProgressCallback, ShouldCancel
 from automation.selection import filter_media_list, list_folder_media
 from candidate_pairing import candidate_path_for
 from comfy_candidates import is_settling, read_candidate_sidecar, write_candidate_sidecar
 from constants import MEDIA_EXTENSIONS
 from edit_sidecars import is_rendering
-from logging_config import configure_logging, log_job_summary
 from media_group import group_target, media_group_paths
 
 logger = logging.getLogger(__name__)
 
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 _INVALID_STEM_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _TEMP_PREFIX = ".__df_rename_media_"
@@ -324,40 +320,3 @@ def run_rename_media_job(
         "stats": stats,
         "results": file_results,
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description="Rename supported media files in a folder with a numbered stem.",
-    )
-    parser.add_argument("folder", type=Path, help="Folder containing images and/or videos")
-    parser.add_argument("--stem", required=True, help='Name stem, e.g. "portugal"')
-    parser.add_argument(
-        "--start-number",
-        type=int,
-        default=1,
-        help="Number the first file gets (default: 1)",
-    )
-    args = parser.parse_args(argv)
-
-    folder = args.folder.expanduser().resolve()
-    try:
-        result = run_rename_media_job(folder, stem=args.stem, start_number=args.start_number)
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    log_job_summary(
-        logger,
-        result,
-        stat_keys=("success", "rename_error", "cancelled"),
-    )
-    stats = result.get("stats") or {}
-    if isinstance(stats, dict) and int(stats.get("rename_error") or 0) > 0:
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

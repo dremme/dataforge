@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from typing import ClassVar
 from unittest.mock import patch
 
@@ -10,11 +11,14 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+from app_settings import SETTING_DEFAULTS
 from automation.llm import (
     _STRIPPED_PREFIXES,
     API_ERROR,
     CANCEL_POLL_SECONDS,
     CANCELLED,
+    INSTRUCT_THINK_PREFILL,
+    MAX_MODEL_ATTEMPTS,
     SUCCESS,
     ModelOutcome,
     call_with_retries,
@@ -27,6 +31,7 @@ from automation.llm import (
     strip_code_fences,
 )
 from testing_fixtures import (
+    FakeChatClient,
     TempMediaFolder,
     write_media,
     write_sysprompt,
@@ -174,7 +179,46 @@ class CancelWhileWaitingTests(unittest.TestCase):
             self.assertEqual(caption_path.read_text(encoding="utf-8"), "Draft.")
 
 
+class UnreadableCaptionTests(unittest.TestCase):
+    def test_every_model_job_counts_an_unreadable_caption_as_a_read_error(self) -> None:
+        from automation.auto_caption import run_auto_caption_job
+        from automation.edit_captions import run_edit_captions_job
+        from automation.verify_captions import run_verify_captions_job
+
+        jobs = {
+            "auto_caption": run_auto_caption_job,
+            "verify_captions": run_verify_captions_job,
+            "edit_captions": lambda root: run_edit_captions_job(root, instruction="Shorten it."),
+        }
+        for name, run in jobs.items():
+            with (
+                self.subTest(job=name),
+                TempMediaFolder() as root,
+                patch("captions._read_caption_text", return_value=None),
+                patch("automation.llm.create_openai_client"),
+            ):
+                write_sysprompt(root, "Describe the scene.")
+                write_txt_caption(write_media(root, "photo.png"), "Draft.")
+
+                result = run(root)
+
+                self.assertEqual(result["stats"]["read_error"], 1)
+                self.assertEqual(result["results"][0]["status"], "read_error")
+                self.assertEqual(result["processed"], 1)
+
+
 class CallWithRetriesTests(unittest.TestCase):
+    def test_every_attempt_is_handed_its_own_number(self) -> None:
+        seen: list[int] = []
+
+        def attempt(number: int) -> ModelOutcome[str]:
+            seen.append(number)
+            return ModelOutcome(status=API_ERROR)
+
+        call_with_retries(attempt, job_label="Auto-caption", media_name="clip.mp4")
+
+        self.assertEqual(seen, list(range(1, MAX_MODEL_ATTEMPTS + 1)))
+
     def test_runs_inline_without_a_cancel_check(self) -> None:
         outcome = call_with_retries(
             lambda _number: ModelOutcome(status=SUCCESS, value="caption"),
@@ -350,38 +394,73 @@ class ModelClientScopeTests(unittest.TestCase):
 
         self.assertEqual(client.close_count, 1)
 
-    def test_a_completed_auto_caption_job_does_not_keep_its_client(self) -> None:
-        client = self._SpyClient()
+    def test_a_completed_job_does_not_keep_its_client(self) -> None:
+        from automation.auto_caption import run_auto_caption_job
+        from automation.verify_captions import run_verify_captions_job
 
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            from automation.auto_caption import run_auto_caption_job
-
+        jobs = (
+            (run_auto_caption_job, "automation.auto_caption.complete_caption"),
+            (run_verify_captions_job, "automation.verify_captions.verify_caption"),
+        )
+        for run, model_call in jobs:
+            client = self._SpyClient()
             with (
+                self.subTest(job=run.__name__),
+                TempMediaFolder() as root,
                 patch("automation.llm.create_openai_client", return_value=client),
-                patch("automation.auto_caption.complete_caption", return_value=None),
+                patch(model_call, return_value=None),
             ):
-                run_auto_caption_job(root)
+                write_sysprompt(root, "Describe the scene.")
+                write_txt_caption(write_media(root, "photo.png"), "Draft.")
 
-        self.assertEqual(client.close_count, 1)
+                run(root)
 
-    def test_a_completed_verify_captions_job_does_not_keep_its_client(self) -> None:
-        client = self._SpyClient()
+                self.assertEqual(client.close_count, 1)
 
-        with TempMediaFolder() as root:
-            write_txt_caption(write_media(root, "photo.png"), "A caption to verify.")
 
-            from automation.verify_captions import run_verify_captions_job
+class RunChatCompletionTests(unittest.TestCase):
+    MESSAGES: ClassVar[list[dict]] = [
+        {"role": "system", "content": "Caption."},
+        {"role": "user", "content": "Go."},
+    ]
 
-            with (
-                patch("automation.llm.create_openai_client", return_value=client),
-                patch("automation.verify_captions.verify_caption", return_value=None),
-            ):
-                run_verify_captions_job(root)
+    def test_each_mode_sends_its_own_sampling_profile(self) -> None:
+        for mode in ("thinking", "instruct"):
+            with self.subTest(mode=mode):
+                client = FakeChatClient("A red hatchback.")
 
-        self.assertEqual(client.close_count, 1)
+                run_chat_completion(client, self.MESSAGES, mode=mode)
+
+                sent = client.last
+                self.assertEqual(
+                    sent["temperature"], getattr(SETTING_DEFAULTS, f"{mode}_temperature")
+                )
+                self.assertEqual(sent["top_p"], getattr(SETTING_DEFAULTS, f"{mode}_top_p"))
+                self.assertEqual(
+                    sent["presence_penalty"], getattr(SETTING_DEFAULTS, f"{mode}_presence_penalty")
+                )
+                self.assertEqual(sent["model"], SETTING_DEFAULTS.vision_model)
+                self.assertEqual(sent["max_tokens"], SETTING_DEFAULTS.vision_max_tokens)
+
+    def test_only_instruct_prefills_an_empty_thinking_block(self) -> None:
+        thinking = FakeChatClient("A red hatchback.")
+        instruct = FakeChatClient("A red hatchback.")
+
+        run_chat_completion(thinking, self.MESSAGES, mode="thinking")
+        run_chat_completion(instruct, self.MESSAGES, mode="instruct")
+
+        self.assertEqual(thinking.last["messages"], self.MESSAGES)
+        self.assertEqual(
+            instruct.last["messages"][-1], {"role": "assistant", "content": INSTRUCT_THINK_PREFILL}
+        )
+
+    def test_only_instruct_falls_back_to_the_reasoning_text(self) -> None:
+        """Thinking-mode chain-of-thought must never be taken for the answer."""
+        for mode, expected in (("instruct", "A red hatchback."), ("thinking", None)):
+            with self.subTest(mode=mode):
+                client = FakeChatClient("", reasoning_content="A red hatchback.")
+
+                self.assertEqual(run_chat_completion(client, self.MESSAGES, mode=mode), expected)
 
 
 class CloseModelClientTests(unittest.TestCase):
@@ -438,7 +517,10 @@ class EmptyCompletionDiagnosticsTests(unittest.TestCase):
         self.assertIn("no choices", describe_empty_completion({"choices": []}))
 
     def test_run_chat_completion_logs_the_empty_response(self) -> None:
-        client = _StubClient(self._response())
+        response = self._response()
+        client = SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_kwargs: response))
+        )
 
         with self.assertLogs("automation.llm", level="ERROR") as logs:
             self.assertIsNone(run_chat_completion(client, [], mode="thinking"))
@@ -474,7 +556,7 @@ class DescribeExceptionTests(unittest.TestCase):
         self.assertIn("context size exceeded", detail)
 
     def test_run_chat_completion_logs_the_failure(self) -> None:
-        client = _RaisingClient(RuntimeError("boom"))
+        client = FakeChatClient(raises=RuntimeError("boom"))
 
         with self.assertLogs("automation.llm", level="ERROR") as logs:
             self.assertIsNone(run_chat_completion(client, [], mode="thinking"))
@@ -496,29 +578,3 @@ class CleanModelTextTests(unittest.TestCase):
 
     def test_strips_a_chat_template_marker(self) -> None:
         self.assertEqual(clean_model_text("a red hatchback<|im_end|>"), "a red hatchback")
-
-
-class _StubCompletions:
-    def __init__(self, response: object) -> None:
-        self._response = response
-
-    def create(self, **_kwargs: object) -> object:
-        return self._response
-
-
-class _StubClient:
-    def __init__(self, response: object) -> None:
-        self.chat = type("Chat", (), {"completions": _StubCompletions(response)})()
-
-
-class _RaisingCompletions:
-    def __init__(self, error: Exception) -> None:
-        self._error = error
-
-    def create(self, **_kwargs: object) -> object:
-        raise self._error
-
-
-class _RaisingClient:
-    def __init__(self, error: Exception) -> None:
-        self.chat = type("Chat", (), {"completions": _RaisingCompletions(error)})()

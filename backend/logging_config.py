@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Any
 
 DEFAULT_LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
@@ -41,21 +40,3 @@ def configure_logging(*, level: str | int | None = None) -> None:
     logging.getLogger("watchfiles").setLevel(logging.WARNING)
 
     _CONFIGURED = True
-
-
-def log_job_summary(
-    logger: logging.Logger,
-    result: dict[str, Any],
-    *,
-    stat_keys: tuple[str, ...],
-) -> None:
-    stats = result.get("stats") or {}
-    if not isinstance(stats, dict):
-        stats = {}
-
-    logger.info("Folder: %s", result.get("folder"))
-    logger.info("Processed: %s/%s", result.get("processed"), result.get("total"))
-    for key in stat_keys:
-        count = int(stats.get(key) or 0)
-        if count:
-            logger.info("  %s: %s", key, count)

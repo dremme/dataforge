@@ -7,9 +7,12 @@ import struct
 import subprocess
 import tempfile
 import unittest
+import zlib
 from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -48,6 +51,45 @@ def playable_video_bytes(*, suffix: str = ".mp4", audio: bool = False) -> bytes:
         command.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", str(output)])
         subprocess.run(command, check=True, capture_output=True, timeout=30)
         return output.read_bytes()
+
+
+class FakeChatClient:
+    """Answers every chat completion with one message and records each request's kwargs."""
+
+    def __init__(
+        self,
+        content: str | None = "",
+        *,
+        reasoning_content: str | None = None,
+        raises: Exception | None = None,
+    ) -> None:
+        self.requests: list[dict] = []
+        self.closed = False
+        self._message = SimpleNamespace(content=content, reasoning_content=reasoning_content)
+        self._raises = raises
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs: object) -> object:
+        self.requests.append(kwargs)
+        if self._raises is not None:
+            raise self._raises
+        return SimpleNamespace(choices=[SimpleNamespace(message=self._message)])
+
+    def close(self) -> None:
+        self.closed = True
+
+    @property
+    def last(self) -> dict:
+        return self.requests[-1]
+
+
+def image_urls(messages: list[dict]) -> list[str]:
+    """The base64 image URLs one request carried, in order."""
+    return [
+        part["image_url"]["url"]
+        for part in messages[1]["content"]
+        if isinstance(part, dict) and part.get("type") == "image_url"
+    ]
 
 
 def _cleanup_test_database() -> None:
@@ -109,27 +151,29 @@ def forget_saved_settings() -> None:
     update_app_settings(AppSettingsUpdate(reset=list(get_args(AppSettingKey.__value__))))
 
 
+def forget_preferences(prefix: str) -> None:
+    """Delete every stored preference whose key starts with ``prefix``."""
+    from db import get_connection
+
+    with get_connection() as conn:
+        conn.execute("DELETE FROM preferences WHERE key LIKE ?", (f"{prefix}%",))
+        conn.commit()
+
+
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
-def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
-    import zlib
-
+def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
     crc = zlib.crc32(chunk_type + data) & 0xFFFFFFFF
     return struct.pack(">I", len(data)) + chunk_type + data + struct.pack(">I", crc)
 
 
-def _png_text_chunk(keyword: str, text: str) -> bytes:
-    payload = keyword.encode("latin1") + b"\x00" + text.encode("utf-8")
-    return _png_chunk(b"tEXt", payload)
-
-
-def _png_ztxt_chunk(keyword: str, text: str) -> bytes:
-    import zlib
-
-    compressed = zlib.compress(text.encode("utf-8"))
-    payload = keyword.encode("latin1") + b"\x00\x00" + compressed
-    return _png_chunk(b"zTXt", payload)
+def _png_text_chunk(keyword: str, text: str, *, compressed: bool) -> bytes:
+    if compressed:
+        return png_chunk(
+            b"zTXt", keyword.encode("latin1") + b"\x00\x00" + zlib.compress(text.encode("utf-8"))
+        )
+    return png_chunk(b"tEXt", keyword.encode("latin1") + b"\x00" + text.encode("utf-8"))
 
 
 def make_png_bytes(
@@ -137,36 +181,16 @@ def make_png_bytes(
     height: int = 48,
     *,
     text_chunks: dict[str, str] | None = None,
+    compressed_text: bool = False,
 ) -> bytes:
-    import zlib
-
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     raw_row = b"\x00" + b"\x00" * (width * 3)
     idat = zlib.compress(raw_row * height)
 
-    parts = [PNG_SIGNATURE, _png_chunk(b"IHDR", ihdr)]
+    parts = [PNG_SIGNATURE, png_chunk(b"IHDR", ihdr)]
     for keyword, text in (text_chunks or {}).items():
-        parts.append(_png_text_chunk(keyword, text))
-    parts.extend([_png_chunk(b"IDAT", idat), _png_chunk(b"IEND", b"")])
-    return b"".join(parts)
-
-
-def make_png_ztxt_bytes(
-    width: int = 64,
-    height: int = 48,
-    *,
-    text_chunks: dict[str, str] | None = None,
-) -> bytes:
-    import zlib
-
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    raw_row = b"\x00" + b"\x00" * (width * 3)
-    idat = zlib.compress(raw_row * height)
-
-    parts = [PNG_SIGNATURE, _png_chunk(b"IHDR", ihdr)]
-    for keyword, text in (text_chunks or {}).items():
-        parts.append(_png_ztxt_chunk(keyword, text))
-    parts.extend([_png_chunk(b"IDAT", idat), _png_chunk(b"IEND", b"")])
+        parts.append(_png_text_chunk(keyword, text, compressed=compressed_text))
+    parts.extend([png_chunk(b"IDAT", idat), png_chunk(b"IEND", b"")])
     return b"".join(parts)
 
 
@@ -388,36 +412,10 @@ def make_minimal_mp4_bytes(
     return ftyp + moov
 
 
-def write_mp4_video(
-    root: Path,
-    name: str = "clip.mp4",
-    *,
-    sample_count: int = 300,
-    timescale: int = 30_000,
-    sample_delta: int = 1_000,
-    metadata: dict[str, str] | None = None,
-    metadata_format: str = "indexed",
-    width: int = 640,
-    height: int = 480,
-    tkhd_version: int = 0,
-    trailing_moov: bool = False,
-    audio: bool = False,
-) -> Path:
+def write_mp4_video(root: Path, name: str = "clip.mp4", **options: Any) -> Path:
+    """``options`` are those of :func:`make_minimal_mp4_bytes`."""
     media = root / name
-    media.write_bytes(
-        make_minimal_mp4_bytes(
-            sample_count=sample_count,
-            timescale=timescale,
-            sample_delta=sample_delta,
-            metadata=metadata,
-            metadata_format=metadata_format,
-            width=width,
-            height=height,
-            tkhd_version=tkhd_version,
-            trailing_moov=trailing_moov,
-            audio=audio,
-        ),
-    )
+    media.write_bytes(make_minimal_mp4_bytes(**options))
     return media
 
 
@@ -442,12 +440,27 @@ def write_issue_sidecar(media: Path, *fixes: str, rules: tuple[str, ...] = ()) -
     return issue_path
 
 
+def load_duplicate_finding(media: Path):
+    from duplicates import _finding_from_file, duplicate_file_path
+
+    sidecar = duplicate_file_path(media)
+    return _finding_from_file(sidecar) if sidecar.is_file() else None
+
+
 def write_sysprompt(folder: Path, text: str) -> Path:
     from constants import SYSPROMPT_FILENAME
 
     sysprompt = folder / SYSPROMPT_FILENAME
     sysprompt.write_text(text, encoding="utf-8")
     return sysprompt
+
+
+def write_caption_rules(folder: Path, text: str) -> Path:
+    from constants import CAPTION_RULES_FILENAME
+
+    rules = folder / CAPTION_RULES_FILENAME
+    rules.write_text(text, encoding="utf-8")
+    return rules
 
 
 class TempMediaFolder:

@@ -6,12 +6,13 @@ isolate_test_database()
 
 import os
 import unittest
+from pathlib import Path
 
 from caption_cache import clear_caption_cache_for_tests
 from captions import caption_summary_from_sidecar, issue_file_path, issue_summary_from_sidecar
 from constants import STAGING_DIR_NAME
 from folder_scan import get_media_type, scan_folder
-from media_listing import list_media_in_folder
+from media_listing import list_media_from_scan
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
@@ -154,6 +155,12 @@ class FolderScanTests(unittest.TestCase):
             self.assertIsNone(scan.sidecar("alpha", ".json"))
 
 
+def _listing(root: Path) -> list[dict]:
+    scan = scan_folder(root)
+    assert scan is not None
+    return list_media_from_scan(scan)
+
+
 class ScanBackedListingTests(unittest.TestCase):
     def test_listing_reports_caption_and_issue_metadata(self) -> None:
         with TempMediaFolder() as root:
@@ -162,7 +169,7 @@ class ScanBackedListingTests(unittest.TestCase):
             write_issue_sidecar(captioned, 'Replace "a" with "b".')
             write_media(root, "plain.png")
 
-            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+            by_name = {item["name"]: item for item in _listing(root)}
 
             self.assertEqual(sorted(by_name), ["captioned.png", "plain.png"])
             self.assertEqual(by_name["captioned.png"]["description"], "Has text.")
@@ -184,7 +191,7 @@ class ScanBackedListingTests(unittest.TestCase):
             staging.mkdir()
             write_media(staging, "upscaled.png")
 
-            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+            by_name = {item["name"]: item for item in _listing(root)}
 
             self.assertTrue(by_name["upscaled.png"]["has_candidate"])
             self.assertFalse(by_name["plain.png"]["has_candidate"])
@@ -194,7 +201,7 @@ class ScanBackedListingTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "alpha.png")
 
-            item = list_media_in_folder(root)[0]
+            item = _listing(root)[0]
 
             self.assertEqual(item["size"], (root / "alpha.png").stat().st_size)
             self.assertTrue(item["modified_at"])
@@ -205,7 +212,7 @@ class ScanBackedListingTests(unittest.TestCase):
             write_gif(root, "loop.gif", width=320, height=240)
             write_mp4_video(root, "clip.mp4", width=1920, height=1080)
 
-            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+            by_name = {item["name"]: item for item in _listing(root)}
             sizes = {name: (item["width"], item["height"]) for name, item in by_name.items()}
 
             self.assertEqual(sizes["alpha.png"], (800, 600))
@@ -220,7 +227,7 @@ class ScanBackedListingTests(unittest.TestCase):
             (root / "headerless.mp4").write_bytes(b"\x00\x00\x00\x10ftypisom\x00\x00\x02\x00")
             (root / "truncated.png").write_bytes(b"\x89PNG\r\n\x1a\n")
 
-            by_name = {item["name"]: item for item in list_media_in_folder(root)}
+            by_name = {item["name"]: item for item in _listing(root)}
 
             for name in ("headerless.mp4", "truncated.png"):
                 self.assertIsNone(by_name[name]["width"])
@@ -228,7 +235,7 @@ class ScanBackedListingTests(unittest.TestCase):
 
     def test_listing_is_empty_for_unreadable_folder(self) -> None:
         with TempMediaFolder() as root:
-            self.assertEqual(list_media_in_folder(root / "missing"), [])
+            self.assertIsNone(scan_folder(root / "missing"))
 
 
 class CaptionCacheTests(unittest.TestCase):

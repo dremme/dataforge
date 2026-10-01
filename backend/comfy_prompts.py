@@ -397,10 +397,10 @@ def _sort_branches(branches: list[OutputBranch]) -> list[OutputBranch]:
     )
 
 
-def _empty(has_workflow: bool = False, source: str = "none") -> WorkflowPrompts:
+def _empty() -> WorkflowPrompts:
     return WorkflowPrompts(
-        has_workflow=has_workflow,
-        source=source,
+        has_workflow=False,
+        source="none",
         branches=[],
         matched_node_id=None,
         orphan_prompts=[],
@@ -428,7 +428,7 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
             break
 
     if graph is None:
-        return _empty(has_workflow=False, source="none")
+        return _empty()
 
     subgraph_labels = _subgraph_labels(workflow)
     file_base = _file_stem_base(file_path)

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
-import logging
-from collections.abc import Callable
 from pathlib import Path
 
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
@@ -15,12 +12,6 @@ from constants import (
     MEDIA_EXTENSIONS,
 )
 from file_write import copy_file_atomic
-from logging_config import configure_logging, log_job_summary
-
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 
 def caption_backup_dir(folder: Path) -> Path:
@@ -107,11 +98,7 @@ def run_backup_captions_job(
     def process(media_path: Path) -> FileOutcome:
         sidecars = caption_sidecars(media_path)
         if not sidecars:
-            return FileOutcome(
-                status="skipped",
-                stats={"skipped": 1},
-                fields={"message": "No sidecar to back up"},
-            )
+            return FileOutcome.counted("skipped", "No sidecar to back up")
 
         pending = (
             sidecars
@@ -119,29 +106,17 @@ def run_backup_captions_job(
             else [sidecar for sidecar in sidecars if not (backup_dir / sidecar.name).exists()]
         )
         if not pending:
-            return FileOutcome(
-                status="already_backed_up",
-                stats={"already_backed_up": 1},
-                fields={"message": "Already in the backup"},
-            )
+            return FileOutcome.counted("already_backed_up", "Already in the backup")
 
         try:
             copied = 0
             for sidecar in pending:
                 copied += copy_file_atomic(sidecar, backup_dir / sidecar.name, overwrite=overwrite)
         except OSError as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
         if not copied:
-            return FileOutcome(
-                status="already_backed_up",
-                stats={"already_backed_up": 1},
-                fields={"message": "Already in the backup"},
-            )
+            return FileOutcome.counted("already_backed_up", "Already in the backup")
 
         return FileOutcome(
             status="success",
@@ -180,22 +155,14 @@ def run_restore_captions_job(
 
     def process(sidecar: Path) -> FileOutcome:
         if not _has_media_for(folder, sidecar):
-            return FileOutcome(
-                status="orphaned",
-                stats={"orphaned": 1},
-                fields={"message": "No media file for this sidecar"},
-            )
+            return FileOutcome.counted("orphaned", "No media file for this sidecar")
 
         try:
             copy_file_atomic(sidecar, folder / sidecar.name)
         except OSError as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
-        return FileOutcome(status="success", stats={"success": 1})
+        return FileOutcome.counted("success")
 
     return run_media_job(
         folder,
@@ -212,53 +179,3 @@ def run_restore_captions_job(
         should_cancel=should_cancel,
         processed_stat_keys=("success", "orphaned", "write_error"),
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description=f"Back up caption sidecars to {CAPTION_BACKUP_DIR_NAME}, or restore them.",
-    )
-    parser.add_argument(
-        "action",
-        choices=("backup", "restore"),
-        help="Copy captions into the backup folder, or copy them back out",
-    )
-    parser.add_argument(
-        "folder",
-        type=Path,
-        help="Folder containing images and/or videos",
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="When backing up, replace sidecars already in the backup instead of keeping them",
-    )
-    args = parser.parse_args(argv)
-
-    folder = args.folder.expanduser().resolve()
-
-    try:
-        if args.action == "backup":
-            result = run_backup_captions_job(folder, overwrite=args.overwrite)
-        else:
-            result = run_restore_captions_job(folder)
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    stat_keys = (
-        ("success", "sidecars", "already_backed_up", "skipped", "write_error")
-        if args.action == "backup"
-        else ("success", "orphaned", "write_error")
-    )
-    log_job_summary(logger, result, stat_keys=stat_keys)
-
-    stats = result.get("stats") or {}
-    if isinstance(stats, dict) and int(stats.get("write_error") or 0) > 0:
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

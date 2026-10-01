@@ -26,16 +26,6 @@ from folder_scan import (
 )
 from media_dimensions import media_info
 
-__all__ = [
-    "clear_folder_summary_cache_for_tests",
-    "folder_summary_fingerprint",
-    "get_media_type",
-    "list_media_from_scan",
-    "list_media_in_folder",
-    "media_items_named",
-    "summarize_folder_contents",
-]
-
 _EMPTY_SUMMARY = {
     "file_count": 0,
     "captioned_count": 0,
@@ -98,11 +88,6 @@ def _summary_signature(scan: FolderScan) -> tuple:
     return tuple(sorted(signatures))
 
 
-def folder_summary_fingerprint(folder: Path) -> tuple | None:
-    scan = scan_folder(folder)
-    return None if scan is None else _summary_signature(scan)
-
-
 def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
     captioned_count = 0
     issue_count = 0
@@ -133,13 +118,6 @@ def _summarize_scan_uncached(scan: FolderScan) -> dict[str, int]:
     }
 
 
-def _summarize_folder_contents_uncached(folder: Path) -> dict[str, int]:
-    scan = scan_folder(folder)
-    if scan is None:
-        return dict(_EMPTY_SUMMARY)
-    return _summarize_scan_uncached(scan)
-
-
 def summarize_folder_contents(folder: Path) -> dict[str, int]:
     scan = scan_folder(folder)
     if scan is None:
@@ -153,7 +131,7 @@ def summarize_folder_contents(folder: Path) -> dict[str, int]:
         if cached is not None and cached.fingerprint == fingerprint:
             return dict(cached.result)
 
-    result = _summarize_folder_contents_uncached(folder)
+    result = _summarize_scan_uncached(scan)
 
     with _summary_cache_lock:
         _summary_cache[folder_key] = _SummaryCacheEntry(fingerprint, dict(result))
@@ -244,10 +222,3 @@ def media_items_named(scan: FolderScan, names: set[str]) -> list[dict]:
         for media in scan.media
         if media.name in names
     ]
-
-
-def list_media_in_folder(folder: Path) -> list[dict]:
-    scan = scan_folder(folder)
-    if scan is None:
-        return []
-    return list_media_from_scan(scan)

@@ -12,7 +12,7 @@ from typing import Literal
 
 from PIL import Image
 
-from app_settings import SETTING_DEFAULTS, effective_settings
+from app_settings import effective_settings
 from automation.audio import AUDIO_FORMAT
 from automation.llm import run_chat_completion
 from constants import GIF_EXTENSION, VIDEO_EXTENSIONS
@@ -27,20 +27,14 @@ logger = logging.getLogger(__name__)
 JPEG_QUALITY = 85
 
 VIDEO_KEYFRAME_COUNT = 8
-KEYFRAMES_PER_SECOND = SETTING_DEFAULTS.video_keyframes_per_second
-# Cap: every frame is inlined; 2 * 20s + 2 endpoints is as long as current vision models take.
-MAX_VIDEO_KEYFRAME_COUNT = SETTING_DEFAULTS.video_max_keyframes
 # Above this, fps is usually an MPEG timescale of 90000, not a fast camera.
 MAX_PLAUSIBLE_FPS = 1000.0
 # Walk back this far when CAP_PROP_FRAME_COUNT overshoots the decodable tail.
 TAIL_SEEK_LIMIT = 32
 QWEN_MIN_SIDE_PX = 512
-MIN_HONORED_MAX_PIXELS = SETTING_DEFAULTS.video_frame_min_pixels
 
-VIDEO_FRAME_MAX_PIXELS = SETTING_DEFAULTS.video_frame_max_pixels
 VIDEO_FRAME_SCALE_START_SECONDS = 7.0
 VIDEO_FRAME_SCALE_END_SECONDS = 20.0
-IMAGE_MAX_PIXELS = SETTING_DEFAULTS.image_max_pixels
 
 
 def get_keyframes_per_second() -> int:

@@ -123,10 +123,11 @@ class ParseTrainingTemplateTests(unittest.TestCase):
             parse_training_template("- one\n- two\n")
 
     def test_rejects_a_template_with_no_process(self) -> None:
-        with self.assertRaises(OstrisTrainingError) as caught:
-            parse_training_template("config: {}\n")
+        for raw in ("config: {}\n", "config: [1]\n", "config: null\n"):
+            with self.subTest(raw=raw), self.assertRaises(OstrisTrainingError) as caught:
+                parse_training_template(raw)
 
-        self.assertIn("process", str(caught.exception))
+            self.assertIn("process", str(caught.exception))
 
     def test_rejects_a_template_with_no_datasets(self) -> None:
         with self.assertRaises(OstrisTrainingError) as caught:

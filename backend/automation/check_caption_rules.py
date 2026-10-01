@@ -7,7 +7,12 @@ from pathlib import Path
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from caption_rules import CaptionRuleChecker, cap_rule_findings, load_caption_rules_for
-from captions import NO_CAPTION_STATUS, load_reference_caption, save_issue_findings
+from captions import (
+    CAPTION_READ_ERROR,
+    NO_CAPTION_STATUS,
+    load_reference_caption,
+    save_issue_findings,
+)
 from constants import MEDIA_EXTENSIONS
 
 
@@ -40,23 +45,19 @@ def run_check_caption_rules_job(
     def process(media_path: Path) -> FileOutcome:
         caption, status = load_reference_caption(media_path)
 
-        if caption is None and status != NO_CAPTION_STATUS:
-            return FileOutcome(
-                status="read_error", stats={"read_error": 1}, fields={"message": status}
-            )
+        if status == CAPTION_READ_ERROR:
+            return FileOutcome.counted(CAPTION_READ_ERROR, "Could not read the caption")
 
         findings = [] if caption is None else cap_rule_findings(checker.check(caption))
         try:
             save_issue_findings(media_path, "rules", findings)
         except OSError as exc:
-            return FileOutcome(
-                status="write_error", stats={"write_error": 1}, fields={"message": str(exc)}
-            )
+            return FileOutcome.counted("write_error", exc)
 
         if caption is None:
-            return FileOutcome(status=NO_CAPTION_STATUS, stats={NO_CAPTION_STATUS: 1})
+            return FileOutcome.counted(NO_CAPTION_STATUS)
         if not findings:
-            return FileOutcome(status="success", stats={"success": 1})
+            return FileOutcome.counted("success")
         return FileOutcome(
             status="success",
             stats={"success": 1, "issues_found": 1},

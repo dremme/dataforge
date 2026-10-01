@@ -70,7 +70,8 @@ def validate_lora_name(name: str) -> None:
 
 
 def _process_config(config: dict[str, Any], source: str = "training template") -> dict[str, Any]:
-    process = config.get("config", {}).get("process") if isinstance(config, dict) else None
+    section = config.get("config")
+    process = section.get("process") if isinstance(section, dict) else None
     if not isinstance(process, list) or not process or not isinstance(process[0], dict):
         raise OstrisTrainingError(f"The {source} has no process configuration.")
     return process[0]
@@ -116,11 +117,9 @@ def parse_training_template(raw: str, *, source: str = "training template") -> d
 
 
 def load_training_template(model: str = DEFAULT_TRAINING_MODEL) -> dict[str, Any]:
-    filename = TRAINING_TEMPLATES.get(model)
-    if filename is None:
-        raise OstrisTrainingError(f'Unknown training model "{model}".')
-
-    return parse_training_template(read_training_template_text(model), source=filename)
+    return parse_training_template(
+        read_training_template_text(model), source=TRAINING_TEMPLATES[model]
+    )
 
 
 def build_training_config(
@@ -140,15 +139,8 @@ def build_training_config(
     process["training_folder"] = training_folder
     process["trigger_word"] = trigger_word.strip() or None
 
-    datasets = process.get("datasets")
-    if not isinstance(datasets, list) or not datasets or not isinstance(datasets[0], dict):
-        raise OstrisTrainingError("The training template has no dataset configuration.")
-    datasets[0]["folder_path"] = dataset_folder
-
-    sample = process.get("sample")
-    if not isinstance(sample, dict):
-        raise OstrisTrainingError("The training template has no sample configuration.")
-    sample["samples"] = [{"prompt": prompt} for prompt in prompts]
+    process["datasets"][0]["folder_path"] = dataset_folder
+    process["sample"]["samples"] = [{"prompt": prompt} for prompt in prompts]
 
     meta = config.get("meta")
     if isinstance(meta, dict):
@@ -187,7 +179,7 @@ def training_samples_folder(training_folder: str, name: str) -> Path:
 def list_training_samples(
     training_folder: str,
     name: str,
-    prompts: list[str] | None = None,
+    prompts: list[str],
 ) -> tuple[list[dict[str, Any]], int | None]:
     """The samples from the most recent step, in prompt order, with their prompts attached."""
     samples_folder = training_samples_folder(training_folder, name)
@@ -219,13 +211,12 @@ def list_training_samples(
         key=lambda item: item[1],
     )
 
-    prompt_list = prompts or []
     samples = [
         {
             "path": str(path),
             "name": path.name,
             "step": step,
-            "prompt": prompt_list[index] if index < len(prompt_list) else "",
+            "prompt": prompts[index] if index < len(prompts) else "",
         }
         for step, index, path in latest
     ]

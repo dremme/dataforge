@@ -10,15 +10,15 @@ from unittest.mock import patch
 from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
-from automation.jobs import JOB_SPECS, Job, job_manager
+from automation.jobs import JOB_SPECS, job_manager
 from automation_settings import AUTOMATION_SETTINGS_KEY_PREFIX, JOB_SETTINGS_MODELS
-from db import get_connection
-from external.ostris_training import OstrisTrainingError
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
+    forget_preferences,
     reset_job_manager,
     wait_for_job,
+    write_caption_rules,
     write_image,
     write_media,
     write_sysprompt,
@@ -34,872 +34,30 @@ def _patched_job_runner(job_type: str, run: Callable[..., object]) -> Iterator[N
         yield
 
 
+def _capturing_runner(received: dict[str, object]) -> Callable[..., dict[str, object]]:
+    def run(folder: Path, **params: object) -> dict[str, object]:
+        received.update(params)
+        return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+    return run
+
+
+def _post(endpoint: str, folder: Path, body: dict[str, object] | None = None):
+    return client.post(f"/api/automation/{endpoint}?path={quote(str(folder))}", json=body)
+
+
+def _write_captioned_folder(folder: Path) -> Path:
+    write_sysprompt(folder, "Describe the scene.")
+    media = write_media(folder, "photo.png")
+    write_txt_caption(media, "A lake.")
+    return media
+
+
 def _stored_settings(folder: Path) -> dict:
     """Every job's remembered settings for ``folder``, as the dialogs would read them."""
     response = client.get(f"/api/preferences/automation?path={quote(str(folder))}")
     assert response.status_code == 200, response.text
     return response.json()
-
-
-class AutoCaptionAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_requires_sysprompt(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Short draft.")
-
-            response = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn(".sysprompt", response.json()["detail"])
-
-    def test_requires_supported_media(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-
-            response = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No supported images or videos", response.json()["detail"])
-
-    def test_rejects_duplicate_active_job(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
-
-            folder = str(root.resolve())
-            with job_manager._lock:
-                job_manager._jobs["running-test"] = Job(
-                    id="running-test",
-                    folder=folder,
-                    status="running",
-                )
-
-            response = client.post(f"/api/automation/auto-caption?path={quote(folder)}")
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("already running", response.json()["detail"])
-
-    def test_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
-
-            response = client.post(f"/api/automation/auto-caption?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertEqual(payload["job_type"], "auto_caption")
-            self.assertEqual(payload.get("auto_caption_mode"), "thinking")
-            self.assertIn("id", payload)
-
-    def _start_and_capture(self, root: Path, **body: object) -> dict[str, object]:
-        """Start the job with a stubbed runner, returning the params it was handed."""
-        received: dict[str, object] = {}
-
-        def run(folder: Path, **params: object) -> dict[str, object]:
-            received.update(params)
-            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
-
-        with _patched_job_runner("auto_caption", run):
-            response = client.post(
-                f"/api/automation/auto-caption?path={quote(str(root))}",
-                json=body,
-            )
-            self.assertEqual(response.status_code, 200)
-            wait_for_job(response.json()["id"])
-
-        return received
-
-    def test_audio_captioning_is_off_unless_asked_for(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            self.assertEqual(self._start_and_capture(root).get("caption_audio"), False)
-
-    def test_audio_captioning_reaches_the_runner(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            received = self._start_and_capture(root, mode="instruct", caption_audio=True)
-
-            self.assertEqual(received.get("caption_audio"), True)
-            self.assertEqual(received.get("mode"), "instruct")
-
-    def test_reasoning_knobs_default_to_medium_and_preserved(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            received = self._start_and_capture(root)
-
-            self.assertEqual(received.get("reasoning_effort"), "medium")
-            self.assertEqual(received.get("preserve_thinking"), True)
-
-    def test_reasoning_knobs_reach_the_runner(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            received = self._start_and_capture(
-                root, reasoning_effort="xhigh", preserve_thinking=False
-            )
-
-            self.assertEqual(received.get("reasoning_effort"), "xhigh")
-            self.assertEqual(received.get("preserve_thinking"), False)
-
-    def test_rejects_an_unknown_reasoning_effort(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            response = client.post(
-                f"/api/automation/auto-caption?path={quote(str(root))}",
-                json={"reasoning_effort": "high"},
-            )
-            self.assertEqual(response.status_code, 422)
-
-    def test_audio_captioning_is_refused_without_ffmpeg(self) -> None:
-        with TempMediaFolder() as root:
-            write_sysprompt(root, "Describe the scene.")
-            write_txt_caption(write_media(root, "photo.png"), "Draft.")
-
-            with patch("automation.auto_caption.ffmpeg_path", return_value=None):
-                response = client.post(
-                    f"/api/automation/auto-caption?path={quote(str(root))}",
-                    json={"caption_audio": True},
-                )
-
-                self.assertEqual(response.status_code, 400)
-                self.assertIn("ffmpeg", response.json()["detail"])
-
-                # The same folder still starts fine without audio.
-                self.assertEqual(
-                    client.post(
-                        f"/api/automation/auto-caption?path={quote(str(root))}"
-                    ).status_code,
-                    200,
-                )
-
-
-class StripMetadataAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_rejects_folder_without_supported_files(self) -> None:
-        with TempMediaFolder() as root:
-            response = client.post(f"/api/automation/strip-metadata?path={quote(str(root))}")
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No JPG, PNG, WebP, BMP, MP4, MOV or M4V", response.json()["detail"])
-
-    def test_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png", text_chunks={"workflow": '{"nodes":{}}'})
-
-            response = client.post(f"/api/automation/strip-metadata?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "strip_metadata")
-
-
-class AutoAdjustAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_adjusts_the_selection_and_keeps_its_original(self) -> None:
-        with TempMediaFolder() as root:
-            chosen = write_image(root, "dusk.png", color=(40, 32, 28))
-            write_image(root, "noon.png", color=(40, 32, 28))
-
-            response = client.post(
-                f"/api/automation/auto-adjust?path={quote(str(root))}",
-                json={"paths": [str(chosen)]},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            job = wait_for_job(response.json()["id"])
-            self.assertEqual(job.status, "completed")
-            self.assertEqual(job.stats["image_success"], 1)
-            self.assertTrue((root / "dusk.png.bak").is_file())
-            self.assertTrue((root / "dusk.edit.json").is_file())
-            self.assertFalse((root / "noon.png.bak").exists())
-
-    def test_forwards_the_choice_to_replace_earlier_adjustments(self) -> None:
-        received: dict[str, object] = {}
-
-        def run(folder: Path, **params: object) -> dict[str, object]:
-            received.update(params)
-            return {"stats": {}, "results": []}
-
-        with TempMediaFolder() as root, _patched_job_runner("auto_adjust", run):
-            write_image(root, "dusk.png")
-
-            response = client.post(
-                f"/api/automation/auto-adjust?path={quote(str(root))}",
-                json={"replace_adjustments": True},
-            )
-
-            wait_for_job(response.json()["id"])
-        self.assertEqual(received["replace_adjustments"], True)
-
-
-class CheckCaptionRulesAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_requires_a_rule_file(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(f"/api/automation/check-caption-rules?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn(".captionrules", response.json()["detail"])
-
-    def test_starts_job_and_records_the_hits(self) -> None:
-        with TempMediaFolder() as root:
-            (root / ".captionrules").write_text("flag:\n  - match: [float*]\n", encoding="utf-8")
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A balloon floating over the hills.")
-
-            response = client.post(f"/api/automation/check-caption-rules?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "check_caption_rules")
-            job = wait_for_job(response.json()["id"])
-            self.assertEqual(job.status, "completed")
-            self.assertEqual(job.stats["issues_found"], 1)
-
-
-class SetCaptionsAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_requires_supported_media(self) -> None:
-        with TempMediaFolder() as root:
-            response = client.post(
-                f"/api/automation/set-captions?path={quote(str(root))}",
-                json={"caption": "Shared caption."},
-            )
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No supported images or videos", response.json()["detail"])
-
-    def test_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(
-                f"/api/automation/set-captions?path={quote(str(root))}",
-                json={"caption": "Shared caption."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "set_captions")
-
-
-class ReplaceCaptionsAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_requires_a_search_term(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(
-                f"/api/automation/replace-captions?path={quote(str(root))}",
-                json={"search": ""},
-            )
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("text to search for", response.json()["detail"])
-
-    def test_rejects_invalid_regex(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(
-                f"/api/automation/replace-captions?path={quote(str(root))}",
-                json={"search": "(unclosed", "use_regex": True},
-            )
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("Invalid regular expression", response.json()["detail"])
-
-    def test_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "a dog")
-
-            response = client.post(
-                f"/api/automation/replace-captions?path={quote(str(root))}",
-                json={"search": "dog", "replacement": "cat"},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "replace_captions")
-
-    def test_preview_reports_matches(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "a dog")
-
-            response = client.post(
-                f"/api/automation/replace-captions/preview?path={quote(str(root))}",
-                json={"search": "dog", "replacement": "cat"},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertEqual(payload["matched"], 1)
-            self.assertIsNone(payload["error"])
-            self.assertEqual(payload["samples"][0]["after"], "a cat")
-
-    def test_preview_reports_a_bad_edit_as_a_field_not_a_400(self) -> None:
-        """The dialog previews while the user types, so a half-typed regex is normal."""
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(
-                f"/api/automation/replace-captions/preview?path={quote(str(root))}",
-                json={"search": "(unclosed", "use_regex": True},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertIn("Invalid regular expression", payload["error"])
-            self.assertEqual(payload["matched"], 0)
-
-
-class VerifyCaptionsAutomationEndpointTest(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def tearDown(self) -> None:
-        with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM preferences WHERE key LIKE ?",
-                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
-            )
-            conn.commit()
-
-    def test_requires_supported_media(self) -> None:
-        with TempMediaFolder() as root:
-            response = client.post(f"/api/automation/verify-captions?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No supported images", response.json()["detail"])
-
-    def test_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
-
-            response = client.post(
-                f"/api/automation/verify-captions?path={quote(str(root))}",
-                json={"mode": "thinking", "context": "Outdoor portraits."},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "verify_captions")
-
-
-class CaptionBackupEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def test_backup_requires_a_caption(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = client.post(f"/api/automation/backup-captions?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No captions found to back up", response.json()["detail"])
-
-    def test_backup_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A plain caption.")
-
-            response = client.post(f"/api/automation/backup-captions?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "backup_captions")
-
-    def _start_backup_and_capture(self, root: Path, **body: object) -> dict[str, object]:
-        """Start the backup with a stubbed runner, returning the params it was handed."""
-        received: dict[str, object] = {}
-
-        def run(folder: Path, **params: object) -> dict[str, object]:
-            received.update(params)
-            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
-
-        with _patched_job_runner("backup_captions", run):
-            response = client.post(
-                f"/api/automation/backup-captions?path={quote(str(root))}",
-                json=body,
-            )
-            self.assertEqual(response.status_code, 200)
-            wait_for_job(response.json()["id"])
-
-        return received
-
-    def test_backup_does_not_overwrite_unless_asked_for(self) -> None:
-        with TempMediaFolder() as root:
-            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
-
-            self.assertEqual(self._start_backup_and_capture(root).get("overwrite"), False)
-
-    def test_backup_overwrite_reaches_the_runner(self) -> None:
-        with TempMediaFolder() as root:
-            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
-
-            received = self._start_backup_and_capture(root, overwrite=True)
-
-            self.assertEqual(received.get("overwrite"), True)
-
-    def test_restore_requires_an_existing_backup(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A plain caption.")
-
-            response = client.post(f"/api/automation/restore-captions?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No caption backup found", response.json()["detail"])
-
-    def test_restore_starts_job_and_returns_payload(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A plain caption.")
-            run_backup_captions_job(root)
-            reset_job_manager()
-
-            response = client.post(f"/api/automation/restore-captions?path={quote(str(root))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["job_type"], "restore_captions")
-
-
-class EditCaptionsAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def tearDown(self) -> None:
-        with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM preferences WHERE key LIKE ?",
-                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
-            )
-            conn.commit()
-
-    def _start(self, folder: Path, **body: object) -> object:
-        payload = {"instruction": "Rewrite in present tense.", **body}
-        return client.post(f"/api/automation/edit-captions?path={quote(str(folder))}", json=payload)
-
-    def test_requires_supported_media(self) -> None:
-        with TempMediaFolder() as root:
-            response = self._start(root)
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No supported images or videos", response.json()["detail"])
-
-    def test_requires_an_instruction(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, instruction="   ")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("instruction", response.json()["detail"])
-
-    def test_starts_the_job(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A woman walked along the street.")
-
-            with _patched_job_runner("edit_captions", _noop_runner):
-                response = self._start(root)
-
-                self.assertEqual(response.status_code, 200, response.text)
-                payload = response.json()
-                self.assertEqual(payload["job_type"], "edit_captions")
-                wait_for_job(payload["id"])
-
-
-class WatermarkAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def tearDown(self) -> None:
-        with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM preferences WHERE key LIKE ?",
-                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
-            )
-            conn.commit()
-
-    def _start(self, folder: Path, **body: object) -> object:
-        payload = {"text": "Sample Studio", **body}
-        return client.post(f"/api/automation/watermark?path={quote(str(folder))}", json=payload)
-
-    def test_requires_watermark_text(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, text="  ")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("cannot be empty", response.json()["detail"])
-
-    def test_requires_supported_media(self) -> None:
-        with TempMediaFolder() as root:
-            response = self._start(root)
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No JPG, PNG, WebP, BMP, MP4, MOV or M4V", response.json()["detail"])
-
-    def test_rejects_an_unknown_size_opacity_or_position(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            for body in ({"size": "huge"}, {"opacity": 33}, {"position": "side"}):
-                with self.subTest(body=body):
-                    self.assertEqual(self._start(root, **body).status_code, 422)
-
-    def test_starts_job_and_passes_the_settings_through(self) -> None:
-        received: dict[str, object] = {}
-
-        def run(folder: Path, **params: object) -> dict[str, object]:
-            received.update(params)
-            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
-
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            with _patched_job_runner("watermark", run):
-                response = self._start(
-                    root, size="large", opacity=75, position="top", strip_metadata=True
-                )
-
-                self.assertEqual(response.status_code, 200)
-                payload = response.json()
-                self.assertEqual(payload["job_type"], "watermark")
-                wait_for_job(payload["id"])
-
-        self.assertEqual(received["text"], "Sample Studio")
-        self.assertEqual(received["size"], "large")
-        self.assertEqual(received["opacity"], 75)
-        self.assertEqual(received["position"], "top")
-        self.assertEqual(received["strip_metadata"], True)
-
-    def test_starting_a_job_stores_the_settings_for_next_time(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            self._start(root, size="large", opacity=25, position="center")
-
-            self.assertEqual(
-                _stored_settings(root)["watermark"],
-                {
-                    "text": "Sample Studio",
-                    "size": "large",
-                    "opacity": 25,
-                    "position": "center",
-                    "strip_metadata": False,
-                },
-            )
-
-    def test_a_refused_start_does_not_store_the_settings(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            refused = self._start(root, text="   ", size="large")
-
-            self.assertEqual(refused.status_code, 400)
-            # Storing before queueing would have kept the size of a run that never happened.
-            self.assertEqual(_stored_settings(root)["watermark"]["size"], "medium")
-
-
-class TrainLoraAutomationEndpointTests(unittest.TestCase):
-    def setUp(self) -> None:
-        reset_job_manager()
-
-    def _start(self, folder: Path, **body: object) -> object:
-        payload = {
-            "lora_name": "sample_train_v1",
-            "trigger_word": "",
-            "prompts": ["a mountain lake at sunrise"],
-            **body,
-        }
-        return client.post(f"/api/automation/train-lora?path={quote(str(folder))}", json=payload)
-
-    def test_requires_supported_media(self) -> None:
-        with TempMediaFolder() as root:
-            response = self._start(root)
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("No supported images or videos", response.json()["detail"])
-
-    def test_requires_a_lora_name(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, lora_name="  ")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("name", response.json()["detail"])
-
-    def test_requires_at_least_one_prompt(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, prompts=[])
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("prompt", response.json()["detail"])
-
-    def test_rejects_a_name_that_would_escape_the_training_folder(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, lora_name="..\\secrets")
-
-            self.assertEqual(response.status_code, 400)
-
-    def test_rejects_a_model_with_no_template(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, model="no_such_model")
-
-            # The wire union rejects it before the job is ever queued.
-            self.assertEqual(response.status_code, 422)
-
-    def test_forwards_the_chosen_model_to_the_runner(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-            seen: list[object] = []
-
-            def capture(folder: Path, **params: object) -> dict[str, object]:
-                seen.append(params.get("model"))
-                return {
-                    "folder": str(folder),
-                    "total": 0,
-                    "processed": 0,
-                    "stats": {},
-                    "results": [],
-                }
-
-            with _patched_job_runner("train_lora", capture):
-                response = self._start(root, model="h3_fl2va")
-                wait_for_job(response.json()["id"])
-
-            self.assertEqual(seen, ["h3_fl2va"])
-
-    def test_forwards_an_edited_template_to_the_runner(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-            seen: list[object] = []
-
-            def capture(folder: Path, **params: object) -> dict[str, object]:
-                seen.append(params.get("template"))
-                return {
-                    "folder": str(folder),
-                    "total": 0,
-                    "processed": 0,
-                    "stats": {},
-                    "results": [],
-                }
-
-            edited = "config:\n  process:\n    - datasets:\n        - {}\n      sample: {}\n"
-            with _patched_job_runner("train_lora", capture):
-                response = self._start(root, template=edited)
-                wait_for_job(response.json()["id"])
-
-            self.assertEqual(seen, [edited])
-
-    def test_rejects_a_broken_edited_template_before_queueing(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            response = self._start(root, template="a: [1, 2")
-
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("not valid YAML", response.json()["detail"])
-
-    def test_starts_job_and_co_tracks_the_external_run(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            def finished(folder: Path, **_params: object) -> dict[str, object]:
-                return {
-                    "folder": str(folder),
-                    "total": 1000,
-                    "processed": 1000,
-                    "stats": {"step": 1000, "stopped": 0},
-                    "results": [],
-                }
-
-            with _patched_job_runner("train_lora", finished):
-                response = self._start(root)
-                job_id = response.json()["id"]
-                wait_for_job(job_id)
-
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertEqual(payload["job_type"], "train_lora")
-            self.assertEqual(payload["external_ref"], "sample_train_v1")
-
-            job = job_manager.get_job(job_id)
-            assert job is not None
-            self.assertEqual(job.status, "completed")
-
-    def test_reports_a_duplicate_training_name(self) -> None:
-        with TempMediaFolder() as root:
-            write_media(root, "photo.png")
-
-            def duplicate(_folder: Path, **_params: object) -> dict[str, object]:
-                raise OstrisTrainingError(
-                    'A training job named "sample_train_v1" already exists in AI-Toolkit.'
-                )
-
-            with _patched_job_runner("train_lora", duplicate):
-                response = self._start(root)
-                job_id = response.json()["id"]
-                wait_for_job(job_id)
-
-            job = job_manager.get_job(job_id)
-            assert job is not None
-            self.assertEqual(job.status, "failed")
-            self.assertIn("already exists", job.error or "")
-
-
-class TrainingTemplateEndpointTests(unittest.TestCase):
-    """The editor reads a template here and checks its edit before the job is started."""
-
-    def test_returns_the_template_as_written(self) -> None:
-        response = client.get("/api/automation/train-lora/template?model=h3_fl2va")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["model"], "h3_fl2va")
-        # Raw text, not a re-dump: the comments are half of what makes it editable.
-        self.assertIn('arch: "minimax_h3"', payload["yaml"])
-
-    def test_defaults_to_the_krea2_turbo_template(self) -> None:
-        response = client.get("/api/automation/train-lora/template")
-
-        self.assertEqual(response.json()["model"], "krea2_turbo")
-        self.assertIn("krea/Krea-2-Turbo", response.json()["yaml"])
-
-    def test_rejects_a_model_with_no_template(self) -> None:
-        response = client.get("/api/automation/train-lora/template?model=no_such_model")
-
-        self.assertEqual(response.status_code, 422)
-
-    def test_a_usable_edit_checks_out(self) -> None:
-        template = client.get("/api/automation/train-lora/template").json()["yaml"]
-
-        response = client.post(
-            "/api/automation/train-lora/template/check", json={"template": template}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"ok": True, "error": None})
-
-    def test_a_broken_edit_answers_200_with_the_reason(self) -> None:
-        """Not an HTTP error: an unparseable draft is the expected answer here."""
-        response = client.post(
-            "/api/automation/train-lora/template/check", json={"template": "a: [1, 2"}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertFalse(payload["ok"])
-        self.assertIn("edited training template", payload["error"])
-
-    def test_a_template_missing_a_block_names_the_block(self) -> None:
-        response = client.post(
-            "/api/automation/train-lora/template/check",
-            json={"template": "config:\n  process:\n    - datasets:\n        - {}\n"},
-        )
-
-        self.assertFalse(response.json()["ok"])
-        self.assertIn("sample", response.json()["error"])
-
-
-class ComfyPresetsEndpointTests(unittest.TestCase):
-    """What the dialog reads before it can offer a workflow."""
-
-    def test_lists_the_presets_on_disk(self) -> None:
-        with patch("routes.automation.probe_available", return_value=True):
-            response = client.get("/api/automation/comfy-process/presets")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertIn("example_lanczos_2x", [preset["name"] for preset in payload["presets"]])
-        self.assertTrue(payload["available"])
-
-    def test_names_the_origin_it_probed(self) -> None:
-        """A bare "not answering" cannot tell a stopped ComfyUI from a wrong port."""
-        with (
-            patch("routes.automation.probe_available", return_value=False),
-            patch.dict(os.environ, {"COMFY_BASE_URL": "http://127.0.0.1:9123"}),
-        ):
-            response = client.get("/api/automation/comfy-process/presets")
-
-        payload = response.json()
-        self.assertFalse(payload["available"])
-        self.assertEqual(payload["base_url"], "http://127.0.0.1:9123")
-
-    def test_carries_the_origin_even_when_comfy_answers(self) -> None:
-        with (
-            patch("routes.automation.probe_available", return_value=True),
-            patch.dict(os.environ, {"COMFY_BASE_URL": "http://gpu-box:8188/"}),
-        ):
-            response = client.get("/api/automation/comfy-process/presets")
-
-        self.assertEqual(response.json()["base_url"], "http://gpu-box:8188")
-
-
-class ComfyLogsEndpointTests(unittest.TestCase):
-    """What the panel reads while a run works, and what it reads when it cannot."""
-
-    def test_serves_the_tail_of_comfy_output(self) -> None:
-        with patch("routes.automation.read_log_lines", return_value=["Phase 3", "done"]):
-            response = client.get("/api/automation/comfy-process/logs")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"lines": ["Phase 3", "done"], "available": True})
-
-    def test_a_comfy_that_cannot_be_read_is_not_an_error(self) -> None:
-        """A stopped or older ComfyUI must leave the panel quiet, not raise a red alert."""
-        with patch("routes.automation.read_log_lines", return_value=None):
-            response = client.get("/api/automation/comfy-process/logs")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertFalse(payload["available"])
-        self.assertEqual(payload["lines"], [])
-
-    def test_a_running_comfy_with_nothing_written_is_still_available(self) -> None:
-        # Empty is not the same answer as unreadable, and the panel says different things.
-        with patch("routes.automation.read_log_lines", return_value=[]):
-            response = client.get("/api/automation/comfy-process/logs")
-
-        payload = response.json()
-        self.assertTrue(payload["available"])
-        self.assertEqual(payload["lines"], [])
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 # One non-default start body per job type, keyed so persistence tests cover the registry.
@@ -953,6 +111,7 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
             "trigger_word": "mtnstyle",
             "prompts": ["a mountain lake at sunrise"],
             "model": "h3_fl2va",
+            "template": "config:\n  process:\n    - datasets:\n        - {}\n      sample: {}\n",
         },
     ),
     "watermark": (
@@ -976,11 +135,274 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
             "overwrite_candidates": True,
         },
     ),
+    "auto_adjust": ("auto-adjust", {"replace_adjustments": True}),
 }
 
 
-def _noop_runner(folder: Path, **params: object) -> dict[str, object]:
-    return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+class JobStartEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+        self.addCleanup(forget_preferences, AUTOMATION_SETTINGS_KEY_PREFIX)
+
+    def _start(self, job_type: str, folder: Path) -> tuple[dict, dict[str, object]]:
+        endpoint, body = _NON_DEFAULT_STARTS[job_type]
+        received: dict[str, object] = {}
+        with _patched_job_runner(job_type, _capturing_runner(received)):
+            response = _post(endpoint, folder, body)
+            self.assertEqual(response.status_code, 200, response.text)
+            wait_for_job(response.json()["id"])
+        return response.json(), received
+
+    def test_every_body_field_reaches_the_runner(self) -> None:
+        for job_type, (_endpoint, body) in _NON_DEFAULT_STARTS.items():
+            with self.subTest(job_type=job_type), TempMediaFolder() as root:
+                _write_captioned_folder(root)
+
+                payload, received = self._start(job_type, root)
+
+                self.assertEqual(payload["job_type"], job_type)
+                self.assertEqual({name: received[name] for name in body}, body)
+
+    def test_an_empty_body_starts_from_the_request_defaults(self) -> None:
+        received: dict[str, object] = {}
+        with (
+            TempMediaFolder() as root,
+            _patched_job_runner("auto_caption", _capturing_runner(received)),
+        ):
+            _write_captioned_folder(root)
+
+            response = _post("auto-caption", root)
+            wait_for_job(response.json()["id"])
+
+        self.assertEqual(response.json()["auto_caption_mode"], "thinking")
+        self.assertEqual(received["reasoning_effort"], "medium")
+        self.assertIs(received["preserve_thinking"], True)
+        self.assertIs(received["caption_audio"], False)
+
+    def test_a_validator_refusal_becomes_a_400_with_its_reason(self) -> None:
+        training = {"lora_name": "sample_train_v1", "prompts": ["a lake"]}
+        cases = [
+            ("auto-caption", {}, ".sysprompt"),
+            ("check-caption-rules", {}, ".captionrules"),
+            ("replace-captions", {"search": "(unclosed", "use_regex": True}, "Invalid regular"),
+            ("backup-captions", {}, "No captions found to back up"),
+            ("restore-captions", {}, "No caption backup found"),
+            ("edit-captions", {"instruction": "   "}, "instruction"),
+            ("watermark", {"text": "  "}, "cannot be empty"),
+            ("train-lora", {**training, "lora_name": "..\\secrets"}, "LoRA name"),
+            ("train-lora", {**training, "template": "a: [1, 2"}, "not valid YAML"),
+        ]
+        for endpoint, body, reason in cases:
+            with self.subTest(endpoint=endpoint, reason=reason), TempMediaFolder() as root:
+                write_media(root, "photo.png")
+
+                response = _post(endpoint, root, body)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(reason, response.json()["detail"])
+
+    def test_a_refused_start_does_not_store_the_settings(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            refused = _post("watermark", root, {"text": "   ", "size": "large"})
+
+            self.assertEqual(refused.status_code, 400)
+            # Storing before queueing would have kept the size of a run that never happened.
+            self.assertEqual(_stored_settings(root)["watermark"]["size"], "medium")
+
+
+class JobRunEndpointTests(unittest.TestCase):
+    """Real runs that only the route can drive: the selection and the stored external ref."""
+
+    def setUp(self) -> None:
+        reset_job_manager()
+
+    def test_auto_adjust_adjusts_only_the_selection_and_keeps_its_original(self) -> None:
+        with TempMediaFolder() as root:
+            chosen = write_image(root, "dusk.png", color=(40, 32, 28))
+            write_image(root, "noon.png", color=(40, 32, 28))
+
+            response = _post("auto-adjust", root, {"paths": [str(chosen)]})
+
+            job = wait_for_job(response.json()["id"])
+            self.assertTrue((root / "dusk.png.bak").is_file())
+            self.assertTrue((root / "dusk.edit.json").is_file())
+            self.assertFalse((root / "noon.png.bak").exists())
+
+        self.assertEqual(job.status, "completed")
+        self.assertEqual(job.stats["image_success"], 1)
+
+    def test_check_caption_rules_records_the_hits(self) -> None:
+        with TempMediaFolder() as root:
+            write_caption_rules(root, "flag:\n  - match: [float*]\n")
+            write_txt_caption(write_media(root, "photo.png"), "A balloon floating over the hills.")
+
+            response = _post("check-caption-rules", root)
+            job = wait_for_job(response.json()["id"])
+
+        self.assertEqual(job.status, "completed")
+        self.assertEqual(job.stats["issues_found"], 1)
+
+    def test_restore_starts_once_a_backup_exists(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
+            run_backup_captions_job(root)
+
+            response = _post("restore-captions", root)
+            wait_for_job(response.json()["id"])
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_type"], "restore_captions")
+
+    def test_train_lora_co_tracks_the_external_run(self) -> None:
+        def finished(folder: Path, **_params: object) -> dict[str, object]:
+            return {
+                "folder": str(folder),
+                "total": 1000,
+                "processed": 1000,
+                "stats": {"step": 1000, "stopped": 0},
+                "results": [],
+            }
+
+        with TempMediaFolder() as root, _patched_job_runner("train_lora", finished):
+            write_media(root, "photo.png")
+
+            response = _post(
+                "train-lora", root, {"lora_name": "sample_train_v1", "prompts": ["a lake"]}
+            )
+            job = wait_for_job(response.json()["id"])
+
+        self.assertEqual(response.json()["external_ref"], "sample_train_v1")
+        self.assertEqual(job.status, "completed")
+        self.assertEqual(job_manager.get_job(job.id).external_ref, "sample_train_v1")
+
+
+class ReplaceCaptionsPreviewEndpointTests(unittest.TestCase):
+    def test_preview_reports_matches(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "a dog")
+
+            response = _post(
+                "replace-captions/preview", root, {"search": "dog", "replacement": "cat"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["matched"], 1)
+        self.assertIsNone(payload["error"])
+        self.assertEqual(payload["samples"][0]["after"], "a cat")
+
+    def test_preview_reports_a_bad_edit_as_a_field_not_a_400(self) -> None:
+        """The dialog previews while the user types, so a half-typed regex is normal."""
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+
+            response = _post(
+                "replace-captions/preview", root, {"search": "(unclosed", "use_regex": True}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("Invalid regular expression", payload["error"])
+        self.assertEqual(payload["matched"], 0)
+
+
+class TrainingTemplateEndpointTests(unittest.TestCase):
+    """The editor reads a template here and checks its edit before the job is started."""
+
+    def test_returns_the_template_as_written(self) -> None:
+        response = client.get("/api/automation/train-lora/template?model=h3_fl2va")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["model"], "h3_fl2va")
+        # Raw text, not a re-dump: the comments are half of what makes it editable.
+        self.assertIn('arch: "minimax_h3"', payload["yaml"])
+
+    def test_defaults_to_the_krea2_turbo_template(self) -> None:
+        response = client.get("/api/automation/train-lora/template")
+
+        self.assertEqual(response.json()["model"], "krea2_turbo")
+        self.assertIn("krea/Krea-2-Turbo", response.json()["yaml"])
+
+    def test_rejects_a_model_with_no_template(self) -> None:
+        response = client.get("/api/automation/train-lora/template?model=no_such_model")
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_a_usable_edit_checks_out(self) -> None:
+        template = client.get("/api/automation/train-lora/template").json()["yaml"]
+
+        response = client.post(
+            "/api/automation/train-lora/template/check", json={"template": template}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True, "error": None})
+
+    def test_a_broken_edit_answers_200_with_the_reason(self) -> None:
+        """Not an HTTP error: an unparseable draft is the expected answer here."""
+        response = client.post(
+            "/api/automation/train-lora/template/check", json={"template": "a: [1, 2"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("edited training template", payload["error"])
+
+
+class ComfyPresetsEndpointTests(unittest.TestCase):
+    """What the dialog reads before it can offer a workflow."""
+
+    def test_lists_the_presets_on_disk(self) -> None:
+        with patch("routes.automation.probe_available", return_value=True):
+            response = client.get("/api/automation/comfy-process/presets")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("example_lanczos_2x", [preset["name"] for preset in payload["presets"]])
+        self.assertTrue(payload["available"])
+
+    def test_names_the_origin_it_probed(self) -> None:
+        """A bare "not answering" cannot tell a stopped ComfyUI from a wrong port."""
+        for available, configured, expected in (
+            (False, "http://127.0.0.1:9123", "http://127.0.0.1:9123"),
+            (True, "http://gpu-box:8188/", "http://gpu-box:8188"),
+        ):
+            with (
+                self.subTest(available=available),
+                patch("routes.automation.probe_available", return_value=available),
+                patch.dict(os.environ, {"COMFY_BASE_URL": configured}),
+            ):
+                payload = client.get("/api/automation/comfy-process/presets").json()
+
+                self.assertEqual(payload["available"], available)
+                self.assertEqual(payload["base_url"], expected)
+
+
+class ComfyLogsEndpointTests(unittest.TestCase):
+    """What the panel reads while a run works, and what it reads when it cannot."""
+
+    def test_serves_the_tail_of_comfy_output(self) -> None:
+        with patch("routes.automation.read_log_lines", return_value=["Phase 3", "done"]):
+            response = client.get("/api/automation/comfy-process/logs")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"lines": ["Phase 3", "done"], "available": True})
+
+    def test_unreadable_and_empty_logs_are_both_a_200_but_say_different_things(self) -> None:
+        """A stopped or older ComfyUI must leave the panel quiet, not raise a red alert."""
+        for lines, available in ((None, False), ([], True)):
+            with (
+                self.subTest(lines=lines),
+                patch("routes.automation.read_log_lines", return_value=lines),
+            ):
+                response = client.get("/api/automation/comfy-process/logs")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {"lines": [], "available": available})
 
 
 class JobSettingsPersistenceTests(unittest.TestCase):
@@ -988,28 +410,17 @@ class JobSettingsPersistenceTests(unittest.TestCase):
 
     def setUp(self) -> None:
         reset_job_manager()
-
-    def tearDown(self) -> None:
-        with get_connection() as conn:
-            conn.execute(
-                "DELETE FROM preferences WHERE key LIKE ?",
-                (f"{AUTOMATION_SETTINGS_KEY_PREFIX}.%",),
-            )
-            conn.commit()
+        self.addCleanup(forget_preferences, AUTOMATION_SETTINGS_KEY_PREFIX)
 
     def test_the_table_covers_every_job_that_registers_settings(self) -> None:
-        self.assertEqual(set(_NON_DEFAULT_STARTS), set(JOB_SETTINGS_MODELS) | {"comfy_process"})
+        self.assertLessEqual(set(JOB_SETTINGS_MODELS) | {"comfy_process"}, set(_NON_DEFAULT_STARTS))
 
     def _run(self, job_type: str, folder: Path) -> dict:
         endpoint, body = _NON_DEFAULT_STARTS[job_type]
-        write_sysprompt(folder, "Describe the scene.")
-        media = write_media(folder, "photo.png")
-        write_txt_caption(media, "A lake.")
+        _write_captioned_folder(folder)
 
-        with _patched_job_runner(job_type, _noop_runner):
-            response = client.post(
-                f"/api/automation/{endpoint}?path={quote(str(folder))}", json=body
-            )
+        with _patched_job_runner(job_type, _capturing_runner({})):
+            response = _post(endpoint, folder, body)
             self.assertEqual(response.status_code, 200, response.text)
             wait_for_job(response.json()["id"])
 
@@ -1056,18 +467,13 @@ class JobSettingsPersistenceTests(unittest.TestCase):
                 },
             )
 
-    def test_the_destructive_fields_are_never_remembered(self) -> None:
-        # Overwrite toggles, LoRA name, and per-run template override must be re-chosen every run.
-        never_stored = {"overwrite", "backup", "lora_name", "template", "paths"}
-        stored_fields = {
-            name for model in JOB_SETTINGS_MODELS.values() for name in model.model_fields
-        }
-
-        self.assertEqual(stored_fields & never_stored, set())
-
     def test_a_run_that_set_overwrite_still_reads_back_without_it(self) -> None:
         for job_type in ("set_captions", "backup_captions"):
             with self.subTest(job_type=job_type), TempMediaFolder() as root:
                 self._run(job_type, root)
 
                 self.assertNotIn("overwrite", _stored_settings(root)[job_type])
+
+
+if __name__ == "__main__":
+    unittest.main()

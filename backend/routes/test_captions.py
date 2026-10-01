@@ -9,7 +9,7 @@ from constants import CAPTION_BACKUP_DIR_NAME
 from routes._test_client import client
 from testing_fixtures import (
     TempMediaFolder,
-    make_png_ztxt_bytes,
+    make_png_bytes,
     write_gif,
     write_issue_sidecar,
     write_media,
@@ -44,7 +44,7 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
             workflow = json.dumps({"nodes": [], "links": []})
             media = root / "comfy.png"
             media.write_bytes(
-                make_png_ztxt_bytes(text_chunks={"workflow": workflow}),
+                make_png_bytes(text_chunks={"workflow": workflow}, compressed_text=True),
             )
 
             response = client.get(f"/api/comfy-workflow?path={quote(str(media))}")

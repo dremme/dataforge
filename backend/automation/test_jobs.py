@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-from automation.jobs import Job, _resolve_verify_captions_status, job_manager
+from automation import jobs_store
+from automation.jobs import JOB_SPECS, Job, job_manager
 from automation.jobs_store import get_job as get_job_from_store
 from notifications_store import (
     clear_notifications_for_tests,
@@ -78,10 +80,66 @@ class JobManagerQueueTests(unittest.TestCase):
             assert found is not None
             self.assertEqual(found.id, "active-1")
 
+    def test_the_latest_job_for_a_folder_is_the_newer_of_memory_and_store(self) -> None:
+        with TempMediaFolder() as root:
+            folder = str(root.resolve())
+            older = Job(id="older", folder=folder, created_at="2026-01-01T00:00:00+00:00")
+            newer = Job(id="newer", folder=folder, created_at="2026-01-02T00:00:00+00:00")
+            jobs_store.save_job(older.to_dict())
+
+            stored_only = job_manager.get_latest_job_for_folder(folder)
+            jobs_store.save_job(newer.to_dict())
+            with job_manager._lock:
+                job_manager._jobs[older.id] = older
+            store_is_newer = job_manager.get_latest_job_for_folder(folder)
+
+        self.assertEqual(getattr(stored_only, "id", None), "older")
+        self.assertEqual(getattr(store_is_newer, "id", None), "newer")
+
+
+def _with_runner(job_type: str, run):
+    return patch.dict(JOB_SPECS, {job_type: replace(JOB_SPECS[job_type], run=run)})
+
 
 class JobManagerExecutionTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_job_manager()
+
+    def test_a_runner_that_raises_fails_the_job_with_its_message(self) -> None:
+        def boom(_folder, **_params):
+            raise RuntimeError("AI-Toolkit refused the job")
+
+        with TempMediaFolder() as root, _with_runner("strip_metadata", boom):
+            write_media(root, "photo.png")
+
+            finished = wait_for_job(job_manager.queue_job("strip_metadata", root).id)
+
+        self.assertEqual(finished.status, "failed")
+        self.assertEqual(finished.error, "AI-Toolkit refused the job")
+
+    def test_startup_reattaches_to_a_training_run_left_active(self) -> None:
+        received: dict[str, object] = {}
+
+        def attach(folder, **params):
+            received.update(params)
+            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+        with TempMediaFolder() as root, _with_runner("train_lora", attach):
+            left = Job(
+                id="left-running",
+                folder=str(root.resolve()),
+                status="running",
+                job_type="train_lora",
+                external_ref="sample_train_v1",
+            )
+            jobs_store.save_job(left.to_dict())
+
+            job_manager.initialize()
+            finished = wait_for_job(left.id)
+
+        self.assertEqual(finished.status, "completed")
+        self.assertEqual(received["lora_name"], "sample_train_v1")
+        self.assertIs(received["attach_only"], True)
 
     def test_auto_caption_api_errors_mark_job_failed(self) -> None:
         with TempMediaFolder() as root:
@@ -147,35 +205,6 @@ class JobManagerExecutionTests(unittest.TestCase):
             self.assertEqual(
                 second.with_suffix(".txt").read_text(encoding="utf-8").strip(),
                 "Shared caption.",
-            )
-
-    def test_verify_captions_job_writes_issue_sidecar(self) -> None:
-        import json
-
-        from captions import issue_file_path
-
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "A blue car.")
-
-            response = json.dumps(
-                {
-                    "correct": False,
-                    "issues": 'Replace "blue" with "red". Remove "in the rain".',
-                }
-            )
-
-            with patch("automation.verify_captions.verify_caption", return_value=response):
-                job = job_manager.queue_job("verify_captions", root, mode="instruct", context="")
-                finished = wait_for_job(job.id)
-
-            self.assertEqual(finished.status, "completed")
-            self.assertEqual(finished.stats.get("issues_found"), 1)
-            issue_path = issue_file_path(media)
-            self.assertTrue(issue_path.is_file())
-            self.assertEqual(
-                json.loads(issue_path.read_text(encoding="utf-8")),
-                {"fixes": ['Replace "blue" with "red".', 'Remove "in the rain".']},
             )
 
 
@@ -291,23 +320,6 @@ class JobOutcomeNotificationTests(unittest.TestCase):
             self._publish("completed")
 
         self.assertEqual(list_notifications(), [])
-
-
-class VerifyCaptionsFailureMessageTests(unittest.TestCase):
-    def test_resolve_verify_captions_status_marks_parse_errors_failed(self) -> None:
-        job = Job(
-            id="job-1",
-            folder="/tmp/folder",
-            job_type="verify_captions",
-            stats={"parse_error": 3},
-        )
-
-        status, error = _resolve_verify_captions_status(job, cancelled=False)
-
-        self.assertEqual(status, "failed")
-        self.assertIsNotNone(error)
-        assert error is not None
-        self.assertIn("not valid JSON", error)
 
 
 if __name__ == "__main__":

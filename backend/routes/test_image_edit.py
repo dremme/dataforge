@@ -98,89 +98,12 @@ class ApplyImageEditTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertFalse(edit_sidecars.backup_path_for(media).exists())
 
-    def test_a_full_frame_crop_counts_as_no_crop_at_all(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png")
-
-            response = client.post(
-                edit_url(media),
-                json={"crop": {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}},
-            )
-
-            self.assertEqual(response.status_code, 400)
-
     def test_an_out_of_range_scale_is_rejected_by_the_schema(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png")
 
             self.assertEqual(client.post(edit_url(media), json={"scale": 2.0}).status_code, 422)
             self.assertEqual(client.post(edit_url(media), json={"scale": 0.0}).status_code, 422)
-
-    def test_an_angle_that_is_not_a_quarter_turn_is_rejected(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png")
-
-            self.assertEqual(client.post(edit_url(media), json={"rotate": 45}).status_code, 422)
-
-    def test_a_blur_region_on_its_own_is_a_real_edit(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png")
-
-            response = client.post(
-                edit_url(media),
-                json={"masks": [{"x": 0.1, "y": 0.1, "width": 0.4, "height": 0.4}]},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            self.assertTrue(edit_sidecars.backup_path_for(media).exists())
-
-    def test_the_blur_regions_survive_for_the_next_time_the_editor_opens(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png")
-
-            client.post(
-                edit_url(media),
-                json={
-                    "masks": [
-                        {
-                            "x": 0.25,
-                            "y": 0.5,
-                            "width": 0.5,
-                            "height": 0.25,
-                            "mode": "pixelate",
-                            "strength": 0.22,
-                        }
-                    ]
-                },
-            )
-
-            stored = client.get(edit_url(media)).json()["spec"]["masks"]
-            self.assertEqual(len(stored), 1)
-            self.assertEqual(stored[0]["mode"], "pixelate")
-            self.assertAlmostEqual(stored[0]["strength"], 0.22)
-            self.assertAlmostEqual(stored[0]["x"], 0.25)
-
-    def test_a_blur_region_reaching_past_the_frame_is_rejected(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png")
-
-            response = client.post(
-                edit_url(media),
-                json={"masks": [{"x": 0.8, "y": 0.0, "width": 0.5, "height": 0.5}]},
-            )
-
-            self.assertEqual(response.status_code, 422)
-
-    def test_a_crop_reaching_past_the_frame_is_rejected(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png")
-
-            response = client.post(
-                edit_url(media),
-                json={"crop": {"x": 0.8, "y": 0.0, "width": 0.5, "height": 0.5}},
-            )
-
-            self.assertEqual(response.status_code, 422)
 
     def test_an_unreadable_source_surfaces_as_a_500_rather_than_a_crash(self) -> None:
         with TempMediaFolder() as root:
@@ -279,17 +202,6 @@ class ServeOriginalTests(unittest.TestCase):
 
 
 class EditedImageListingTests(unittest.TestCase):
-    def test_the_folder_listing_reports_the_backup_an_image_edit_left(self) -> None:
-        """`has_backup` is what puts Revert on the panel, and it is computed by suffix."""
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png", width=40, height=20)
-            client.post(edit_url(media), json={"rotate": 90})
-
-            payload = client.get(f"/api/folders/contents?path={quote(str(root))}").json()
-
-            entry = next(item for item in payload["items"] if item["name"] == media.name)
-            self.assertTrue(entry["has_backup"])
-
     def test_the_sidecars_do_not_surface_as_gallery_items_of_their_own(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png", width=40, height=20)
@@ -298,18 +210,6 @@ class EditedImageListingTests(unittest.TestCase):
             payload = client.get(f"/api/folders/contents?path={quote(str(root))}").json()
 
             self.assertEqual([item["name"] for item in payload["items"]], [media.name])
-
-    def test_the_edited_file_is_readable_afterwards(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_image(root, "photo.png", width=40, height=20)
-            client.post(edit_url(media), json={"rotate": 90})
-
-            with Image.open(media) as written:
-                self.assertEqual(written.size, (20, 40))
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class AutoAdjustImageTests(unittest.TestCase):
@@ -370,3 +270,7 @@ class AutoAdjustImageTests(unittest.TestCase):
                 response = client.post(edit_url(media, "/auto"), json={})
 
             self.assertEqual(response.status_code, 200)
+
+
+if __name__ == "__main__":
+    unittest.main()

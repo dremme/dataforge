@@ -21,6 +21,17 @@ class FileOutcome:
     fields: dict[str, object] = field(default_factory=dict)
     stop: bool = False
 
+    @classmethod
+    def counted(cls, status: str, message: object = None, **fields: object) -> FileOutcome:
+        """One file under its own ``status`` counter; ``message`` is kept only when non-empty."""
+        if message:
+            fields["message"] = str(message)
+        return cls(status=status, stats={status: 1}, fields=fields)
+
+    @classmethod
+    def cancelled(cls) -> FileOutcome:
+        return cls(status=CANCELLED, stats={CANCELLED: 1}, stop=True)
+
 
 ProcessFile = Callable[[Path], FileOutcome]
 

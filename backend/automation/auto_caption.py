@@ -1,18 +1,17 @@
-"""Vision-model auto-captioning adapted from re-caption_gguf.py."""
+"""Vision-model auto-captioning."""
 
 from __future__ import annotations
 
-import logging
 import textwrap
-from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import get_args
 
 from PIL import Image
 
 from app_settings import effective_settings
 from automation.audio import AUDIO_MAX_SECONDS, extract_audio_wav
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.llm import (
     ModelOutcome,
     call_with_retries,
@@ -31,25 +30,20 @@ from automation.vision import (
     request_vision_text,
 )
 from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
-from constants import IMAGE_EXTENSIONS, MOTION_EXTENSIONS, SYSPROMPT_FILENAME
+from constants import MEDIA_EXTENSIONS, SYSPROMPT_FILENAME
 from ffmpeg_bin import ffmpeg_path
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
-    get_max_tokens,
     get_openai_model,
 )
 from sysprompt import load_sysprompt
-
-logger = logging.getLogger(__name__)
 
 
 def get_draft_caption_threshold() -> int:
     """Longer reference captions are left alone; generated captions this short or shorter are retried."""
     return effective_settings().draft_caption_threshold
 
-
-AUTO_CAPTION_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
 # Missing audio on an audio run: counted, not failed; the file is still captioned as silent.
 AUDIO_ERROR = "audio_error"
@@ -64,16 +58,6 @@ PROCESSED_STAT_KEYS = (
     "skipped_long",
     "write_error",
 )
-
-NON_SUCCESS_STATUSES = frozenset(
-    {NO_CAPTION_STATUS, "read_error", "api_error", "frame_error", "too_short", "skipped_long"}
-)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-
-
-MEDIA_KINDS: tuple[MediaKind, ...] = ("image", "video")
-
 
 # Without this a walking subject is captioned as standing.
 MOTION_OBJECTIVE_SENTENCE = (
@@ -149,12 +133,12 @@ def build_system_prompt(
 def build_system_prompts(folder: Path, *, caption_audio: bool = False) -> dict[MediaKind, str]:
     return {
         kind: build_system_prompt(folder, media_kind=kind, caption_audio=caption_audio)
-        for kind in MEDIA_KINDS
+        for kind in get_args(MediaKind)
     }
 
 
 def list_auto_caption_media(folder: Path) -> list[Path]:
-    return list_folder_media(folder, AUTO_CAPTION_EXTENSIONS, order="mtime")
+    return list_folder_media(folder, MEDIA_EXTENSIONS, order="mtime")
 
 
 def _build_user_text(
@@ -174,7 +158,7 @@ def _build_user_text(
 
             {keyframe_sentence(frame_count, seconds)}{audio_note}
 
-            Use the provided description as **very close guidance** — keep its overall meaning and wording style as much as possible.
+            Use the provided description as **very close guidance** â€” keep its overall meaning and wording style as much as possible.
             Follow **all** rules from the system instructions exactly.
 
             User description:
@@ -186,7 +170,7 @@ def _build_user_text(
         f"""
         Caption the image for LoRA training.
 
-        Use the provided description as **very close guidance** — keep its overall meaning and wording style as much as possible.
+        Use the provided description as **very close guidance** â€” keep its overall meaning and wording style as much as possible.
         Follow **all** rules from the system instructions exactly.
 
         User description:
@@ -213,6 +197,7 @@ def complete_caption(
 ) -> str | None:
     """Caption already-loaded ``images``; ``attempt`` is for the JPEG re-encode workaround."""
     media_kind = media_kind_for(media_path)
+    seconds = timestamps[-1] if timestamps else None
     return request_vision_text(
         client,
         system_prompt,
@@ -222,11 +207,9 @@ def complete_caption(
             media_kind,
             len(images),
             has_audio=audio_wav is not None,
-            seconds=timestamps[-1] if timestamps else None,
+            seconds=seconds,
         ),
-        max_pixels=media_kind_max_pixels(
-            media_kind, seconds=timestamps[-1] if timestamps else None
-        ),
+        max_pixels=media_kind_max_pixels(media_kind, seconds=seconds),
         mode=mode,
         effort=effort,
         preserve_thinking=preserve_thinking,
@@ -260,19 +243,17 @@ def process_media(
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     caption_audio: bool = False,
-    should_cancel: Callable[[], bool] | None = None,
-) -> tuple[Path, str | None, str, str | None, bool]:
+    should_cancel: ShouldCancel | None = None,
+) -> tuple[str | None, str, str | None, bool]:
     """Caption one file; the trailing flag is True only for motion media missing audio on an audio run."""
-    resolved_model = model if model is not None else get_openai_model()
-    resolved_max_tokens = max_tokens if max_tokens is not None else get_max_tokens()
     ref_caption, status = _read_draft_caption(media_path)
     if status != "ok" or ref_caption is None:
-        return media_path, None, status, None, False
+        return None, status, None, False
 
     media_kind = media_kind_for(media_path)
     frames = load_media_images(media_path)
     if isinstance(frames, MediaLoadError):
-        return media_path, None, frames.status, frames.message, False
+        return None, frames.status, frames.message, False
 
     # Extracted once so retries re-send the same bytes instead of decoding the clip three times.
     audio_wav = extract_audio_wav(media_path) if caption_audio and media_kind == "video" else None
@@ -285,8 +266,8 @@ def process_media(
             system_prompts[media_kind],
             ref_caption,
             images=frames.images,
-            model=resolved_model,
-            max_tokens=resolved_max_tokens,
+            model=model,
+            max_tokens=max_tokens,
             mode=mode,
             effort=effort,
             preserve_thinking=preserve_thinking,
@@ -309,7 +290,7 @@ def process_media(
         should_cancel=should_cancel,
         on_abandon=lambda: close_model_client(client),
     )
-    return media_path, outcome.value, outcome.status, outcome.message, audio_missing
+    return outcome.value, outcome.status, outcome.message, audio_missing
 
 
 def validate_auto_caption_folder(folder: Path, *, caption_audio: bool = False) -> None:
@@ -343,44 +324,28 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     }
 
 
-def _failure_outcome(status: str, message: str | None) -> FileOutcome:
-    return FileOutcome(
-        status=status,
-        stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
-        fields={"message": message} if message else {},
-    )
-
-
 def _caption_outcome(
     media_path: Path,
     clean_text: str | None,
     status: str,
     message: str | None,
-    should_cancel: Callable[[], bool] | None,
+    should_cancel: ShouldCancel | None,
 ) -> FileOutcome:
     if status == "cancelled":
-        return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+        return FileOutcome.cancelled()
 
     if status == "success" and clean_text:
         if should_cancel and should_cancel():
-            return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+            return FileOutcome.cancelled()
 
         try:
             save_caption(media_path, clean_text, trailing_newline=False)
         except (OSError, ValueError) as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
-        return FileOutcome(
-            status="success",
-            stats={"success": 1},
-            fields={"description": clean_text},
-        )
+        return FileOutcome.counted("success", description=clean_text)
 
-    return _failure_outcome(status, message)
+    return FileOutcome.counted(status, message)
 
 
 def run_auto_caption_job(
@@ -392,7 +357,7 @@ def run_auto_caption_job(
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     caption_audio: bool = False,
     on_progress: ProgressCallback | None = None,
-    should_cancel: Callable[[], bool] | None = None,
+    should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     validate_auto_caption_folder(folder, caption_audio=caption_audio)
@@ -404,7 +369,7 @@ def run_auto_caption_job(
     with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
-            _path, clean_text, status, message, audio_missing = process_media(
+            clean_text, status, message, audio_missing = process_media(
                 client,
                 media_path,
                 system_prompts,

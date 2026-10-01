@@ -87,9 +87,7 @@ def _no_audio_warning(count: int) -> str | None:
 
 
 def shows_warning_state(job_type: str, status: str, stats: dict[str, int]) -> bool:
-    if shows_error_state(job_type, status, stats) or is_cancelled(job_type, status, stats):
-        return False
-    if status != "completed":
+    if status != "completed" or effective_status(job_type, status, stats) != "completed":
         return False
 
     known = _known_job_type(job_type)

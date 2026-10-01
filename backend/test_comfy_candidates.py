@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PIL import Image
 
+from candidate_pairing import candidate_path_for
 from comfy_candidates import (
     CandidateBusyError,
     NoCandidateError,
@@ -21,7 +22,6 @@ from comfy_candidates import (
     has_candidate,
     read_candidate_sidecar,
     reject_candidate,
-    resolve_candidate,
     settle_slot,
     staging_dir,
     sweep_comfy_temp_files,
@@ -105,7 +105,7 @@ class CandidatePathTests(unittest.TestCase):
             media = write_image(folder / "photo.jpg", (32, 32), "red")
             staged = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
 
-            self.assertEqual(resolve_candidate(media), staged)
+            self.assertEqual(candidate_path_for(media), staged)
             self.assertTrue(has_candidate(media))
 
     def test_a_sibling_of_the_staged_name_keeps_its_own_candidate(self) -> None:
@@ -116,8 +116,8 @@ class CandidatePathTests(unittest.TestCase):
             png = write_image(folder / "photo.png", (32, 32), "green")
             staged = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
 
-            self.assertEqual(resolve_candidate(png), staged)
-            self.assertIsNone(resolve_candidate(jpeg))
+            self.assertEqual(candidate_path_for(png), staged)
+            self.assertIsNone(candidate_path_for(jpeg))
 
     def test_a_candidate_named_exactly_like_the_source_still_pairs(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -125,7 +125,7 @@ class CandidatePathTests(unittest.TestCase):
             media = write_image(folder / "photo.jpg", (32, 32), "red")
             staged = write_image(folder / STAGING_DIR_NAME / "photo.jpg", (64, 64), "blue")
 
-            self.assertEqual(resolve_candidate(media), staged)
+            self.assertEqual(candidate_path_for(media), staged)
 
     def test_accepting_replaces_a_jpeg_source_with_the_png_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -191,7 +191,7 @@ class VideoCandidateTests(unittest.TestCase):
             staging.mkdir()
             candidate = write_mp4_video(staging, "clip.mp4")
 
-            self.assertEqual(resolve_candidate(source), candidate)
+            self.assertEqual(candidate_path_for(source), candidate)
             self.assertTrue(has_candidate(source))
 
     def test_accepting_a_clip_publishes_it_under_the_candidates_container(self) -> None:

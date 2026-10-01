@@ -139,41 +139,11 @@ class ApplyVideoEditTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             runner.assert_not_called()
 
-    def test_a_full_frame_crop_counts_as_no_crop_at_all(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-
-            response = client.post(
-                edit_url(media),
-                json={"crop": {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}},
-            )
-
-            self.assertEqual(response.status_code, 400)
-
     def test_an_out_of_range_speed_is_rejected_by_the_schema(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
 
             self.assertEqual(client.post(edit_url(media), json={"speed": 10}).status_code, 422)
-
-    def test_a_crop_reaching_past_the_frame_is_rejected(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-
-            response = client.post(
-                edit_url(media),
-                json={"crop": {"x": 0.6, "y": 0.0, "width": 0.5, "height": 1.0}},
-            )
-
-            self.assertEqual(response.status_code, 422)
-
-    def test_a_backwards_trim_is_rejected(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-
-            response = client.post(edit_url(media), json={"trim_start": 4.0, "trim_end": 1.0})
-
-            self.assertEqual(response.status_code, 422)
 
     def test_a_missing_ffmpeg_is_a_503(self) -> None:
         with TempMediaFolder() as root:
@@ -354,43 +324,6 @@ class RevertVideoEditTests(unittest.TestCase):
             self.assertEqual(response.json()["detail"], edit_sidecars.NO_BACKUP_MESSAGE)
 
 
-class ServeOriginalTests(unittest.TestCase):
-    def test_the_original_flag_serves_the_backup(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            media.write_bytes(b"edited-bytes")
-            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
-
-            response = client.get(f"/api/media?path={quote(str(media))}&original=1")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.content, b"pristine-original")
-            self.assertEqual(response.headers["content-type"], "video/mp4")
-
-    def test_the_original_flag_falls_back_to_the_file_itself(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            media.write_bytes(b"never-edited")
-
-            response = client.get(f"/api/media?path={quote(str(media))}&original=1")
-
-            self.assertEqual(response.content, b"never-edited")
-
-    def test_without_the_flag_the_edited_file_is_served(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_mp4_video(root, "clip.mp4")
-            media.write_bytes(b"edited-bytes")
-            edit_sidecars.backup_path_for(media).write_bytes(b"pristine-original")
-
-            response = client.get(f"/api/media?path={quote(str(media))}")
-
-            self.assertEqual(response.content, b"edited-bytes")
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
 class AutoAdjustVideoTests(unittest.TestCase):
     def test_the_trim_and_crop_of_the_draft_are_read_from_the_original(self) -> None:
         with TempMediaFolder() as root:
@@ -427,3 +360,7 @@ class AutoAdjustVideoTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertGreater(response.json()["suggestion"]["exposure"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

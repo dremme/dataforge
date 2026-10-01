@@ -56,6 +56,7 @@ class EffectiveSettings(BaseModel):
     instruct_repeat_penalty: float = 1.0
     image_max_pixels: int = 1_500_000
     video_keyframes_per_second: int = 2
+    # Every frame is inlined; 2 * 20s + 2 endpoints is as long as current vision models take.
     video_max_keyframes: int = 42
     video_frame_max_pixels: int = 500_000
     # Qwen's 512 x 512 floor: below it both sides floor and a 16:9 frame comes out square.

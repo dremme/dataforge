@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -52,21 +51,19 @@ from schemas import (
 
 router = APIRouter()
 
+FOLDER_QUERY = Query(..., description="Absolute path to the folder the job runs on")
 
-def _start_job(
-    job_type: JobType,
-    folder: Path,
-    body: JobSelectionRequest,
-    **params: object,
-) -> JobResponse:
-    """Resolve the selection, queue ``job_type``, and remember what it ran with."""
+
+def _start_job(job_type: JobType, path: str, body: JobSelectionRequest) -> JobResponse:
+    """Queue ``job_type`` with every field of ``body``, and remember what it ran with."""
+    folder = resolve_folder(path)
     try:
         selected_paths = resolve_selected_media(folder, body.paths)
         job = job_manager.queue_job(
             job_type,
             folder,
             selected_paths=selected_paths,
-            **params,
+            **body.model_dump(exclude={"paths"}),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -78,54 +75,28 @@ def _start_job(
 
 @router.post("/automation/auto-caption", response_model=JobResponse)
 def start_auto_caption(
-    path: str = Query(..., description="Absolute path to folder with media files"),
-    body: AutoCaptionStartRequest = AutoCaptionStartRequest(),
+    path: str = FOLDER_QUERY, body: AutoCaptionStartRequest = AutoCaptionStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "auto_caption",
-        resolve_folder(path),
-        body,
-        mode=body.mode,
-        reasoning_effort=body.reasoning_effort,
-        preserve_thinking=body.preserve_thinking,
-        caption_audio=body.caption_audio,
-    )
+    return _start_job("auto_caption", path, body)
 
 
 @router.post("/automation/set-captions", response_model=JobResponse)
 def start_set_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: SetCaptionsStartRequest = SetCaptionsStartRequest(),
+    path: str = FOLDER_QUERY, body: SetCaptionsStartRequest = SetCaptionsStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "set_captions",
-        resolve_folder(path),
-        body,
-        caption=body.caption,
-        overwrite=body.overwrite,
-    )
+    return _start_job("set_captions", path, body)
 
 
 @router.post("/automation/replace-captions", response_model=JobResponse)
 def start_replace_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: ReplaceCaptionsStartRequest = ReplaceCaptionsStartRequest(),
+    path: str = FOLDER_QUERY, body: ReplaceCaptionsStartRequest = ReplaceCaptionsStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "replace_captions",
-        resolve_folder(path),
-        body,
-        mode=body.mode,
-        search=body.search,
-        replacement=body.replacement,
-        use_regex=body.use_regex,
-        case_sensitive=body.case_sensitive,
-    )
+    return _start_job("replace_captions", path, body)
 
 
 @router.post("/automation/replace-captions/preview", response_model=ReplaceCaptionsPreviewResponse)
 def preview_replace_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
+    path: str = FOLDER_QUERY,
     body: ReplaceCaptionsPreviewRequest = ReplaceCaptionsPreviewRequest(),
 ) -> ReplaceCaptionsPreviewResponse:
     """Count the captions the edit would change. POST despite being read-only: regex can be long."""
@@ -146,151 +117,84 @@ def preview_replace_captions_job(
         # An unusable edit is the normal state while typing, so it is a body field, not a 400.
         return ReplaceCaptionsPreviewResponse(folder=str(folder), error=str(exc))
 
-    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
-    return ReplaceCaptionsPreviewResponse(**preview)  # ty: ignore[invalid-argument-type]
+    return ReplaceCaptionsPreviewResponse.model_validate(preview)
 
 
 @router.post("/automation/find-duplicates", response_model=JobResponse)
 def start_find_duplicates_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: FindDuplicatesStartRequest = FindDuplicatesStartRequest(),
+    path: str = FOLDER_QUERY, body: FindDuplicatesStartRequest = FindDuplicatesStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "find_duplicates",
-        resolve_folder(path),
-        body,
-        threshold=body.threshold,
-    )
+    return _start_job("find_duplicates", path, body)
 
 
 @router.post("/automation/check-caption-rules", response_model=JobResponse)
 def start_check_caption_rules_job(
-    path: str = Query(..., description="Absolute path to folder with media files"),
-    body: CheckCaptionRulesStartRequest = CheckCaptionRulesStartRequest(),
+    path: str = FOLDER_QUERY, body: CheckCaptionRulesStartRequest = CheckCaptionRulesStartRequest()
 ) -> JobResponse:
-    return _start_job("check_caption_rules", resolve_folder(path), body)
+    return _start_job("check_caption_rules", path, body)
 
 
 @router.post("/automation/strip-metadata", response_model=JobResponse)
 def start_strip_metadata_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: StripMetadataStartRequest = StripMetadataStartRequest(),
+    path: str = FOLDER_QUERY, body: StripMetadataStartRequest = StripMetadataStartRequest()
 ) -> JobResponse:
-    return _start_job("strip_metadata", resolve_folder(path), body)
+    return _start_job("strip_metadata", path, body)
 
 
 @router.post("/automation/batch-rename", response_model=JobResponse)
 def start_batch_rename_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: BatchRenameStartRequest = BatchRenameStartRequest(),
+    path: str = FOLDER_QUERY, body: BatchRenameStartRequest = BatchRenameStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "batch_rename",
-        resolve_folder(path),
-        body,
-        stem=body.stem,
-        start_number=body.start_number,
-    )
+    return _start_job("batch_rename", path, body)
 
 
 @router.post("/automation/backup-captions", response_model=JobResponse)
 def start_backup_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: BackupCaptionsStartRequest = BackupCaptionsStartRequest(),
+    path: str = FOLDER_QUERY, body: BackupCaptionsStartRequest = BackupCaptionsStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "backup_captions",
-        resolve_folder(path),
-        body,
-        overwrite=body.overwrite,
-    )
+    return _start_job("backup_captions", path, body)
 
 
 @router.post("/automation/auto-adjust", response_model=JobResponse)
 def start_auto_adjust_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: AutoAdjustStartRequest = AutoAdjustStartRequest(),
+    path: str = FOLDER_QUERY, body: AutoAdjustStartRequest = AutoAdjustStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "auto_adjust",
-        resolve_folder(path),
-        body,
-        replace_adjustments=body.replace_adjustments,
-    )
+    return _start_job("auto_adjust", path, body)
 
 
 @router.post("/automation/restore-captions", response_model=JobResponse)
 def start_restore_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: RestoreCaptionsStartRequest = RestoreCaptionsStartRequest(),
+    path: str = FOLDER_QUERY, body: RestoreCaptionsStartRequest = RestoreCaptionsStartRequest()
 ) -> JobResponse:
-    return _start_job("restore_captions", resolve_folder(path), body)
+    return _start_job("restore_captions", path, body)
 
 
 @router.post("/automation/verify-captions", response_model=JobResponse)
 def start_verify_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images"),
-    body: VerifyCaptionsStartRequest = VerifyCaptionsStartRequest(),
+    path: str = FOLDER_QUERY, body: VerifyCaptionsStartRequest = VerifyCaptionsStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "verify_captions",
-        resolve_folder(path),
-        body,
-        mode=body.mode,
-        reasoning_effort=body.reasoning_effort,
-        preserve_thinking=body.preserve_thinking,
-        context=body.context,
-    )
+    return _start_job("verify_captions", path, body)
 
 
 @router.post("/automation/edit-captions", response_model=JobResponse)
 def start_edit_captions_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: EditCaptionsStartRequest = EditCaptionsStartRequest(),
+    path: str = FOLDER_QUERY, body: EditCaptionsStartRequest = EditCaptionsStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "edit_captions",
-        resolve_folder(path),
-        body,
-        instruction=body.instruction,
-        backup=body.backup,
-        mode=body.mode,
-        reasoning_effort=body.reasoning_effort,
-        preserve_thinking=body.preserve_thinking,
-    )
+    return _start_job("edit_captions", path, body)
 
 
 @router.post("/automation/watermark", response_model=JobResponse)
 def start_watermark_job(
-    path: str = Query(..., description="Absolute path to folder with images and videos"),
-    body: WatermarkStartRequest = WatermarkStartRequest(),
+    path: str = FOLDER_QUERY, body: WatermarkStartRequest = WatermarkStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "watermark",
-        resolve_folder(path),
-        body,
-        text=body.text,
-        size=body.size,
-        opacity=body.opacity,
-        position=body.position,
-        strip_metadata=body.strip_metadata,
-    )
+    return _start_job("watermark", path, body)
 
 
 @router.post("/automation/comfy-process", response_model=JobResponse)
 def start_comfy_process_job(
-    path: str = Query(..., description="Absolute path to folder with images"),
-    body: ComfyProcessStartRequest = ComfyProcessStartRequest(),
+    path: str = FOLDER_QUERY, body: ComfyProcessStartRequest = ComfyProcessStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "comfy_process",
-        resolve_folder(path),
-        body,
-        preset=body.preset,
-        seed=body.seed,
-        prompt_text=body.prompt_text,
-        overwrite_candidates=body.overwrite_candidates,
-    )
+    return _start_job("comfy_process", path, body)
 
 
 @router.get("/automation/comfy-process/presets", response_model=ComfyPresetsResponse)
@@ -313,10 +217,7 @@ def list_comfy_process_presets() -> ComfyPresetsResponse:
 
 @router.get("/automation/comfy-process/logs", response_model=ComfyLogsResponse)
 def get_comfy_process_logs() -> ComfyLogsResponse:
-    """The tail of ComfyUI's own console, for the panel to show while a run works.
-
-    Always a 200: a stopped ComfyUI, and one too old to expose its log, are both just unavailable.
-    """
+    """Always a 200: a stopped ComfyUI and one too old to expose its log are both unavailable."""
     lines = read_log_lines()
     if lines is None:
         return ComfyLogsResponse(available=False)
@@ -335,19 +236,9 @@ def get_comfy_process_preset(name: str) -> ComfyPresetTextResponse:
 
 @router.post("/automation/train-lora", response_model=JobResponse)
 def start_train_lora_job(
-    path: str = Query(..., description="Absolute path to the folder to train on"),
-    body: TrainLoraStartRequest = TrainLoraStartRequest(),
+    path: str = FOLDER_QUERY, body: TrainLoraStartRequest = TrainLoraStartRequest()
 ) -> JobResponse:
-    return _start_job(
-        "train_lora",
-        resolve_folder(path),
-        body,
-        lora_name=body.lora_name,
-        trigger_word=body.trigger_word,
-        prompts=body.prompts,
-        model=body.model,
-        template=body.template,
-    )
+    return _start_job("train_lora", path, body)
 
 
 @router.get("/automation/train-lora/template", response_model=TrainingTemplateResponse)

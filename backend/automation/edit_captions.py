@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 import textwrap
-from collections.abc import Callable
 from pathlib import Path
 
 from automation.backup_captions import caption_backup_dir, caption_sidecars
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.llm import (
     ModelOutcome,
     call_with_retries,
@@ -25,19 +23,12 @@ from file_write import copy_file_atomic
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
-    get_max_tokens,
     get_openai_model,
 )
 from schemas import AutomationMode
 
-logger = logging.getLogger(__name__)
-
-EDIT_CAPTIONS_EXTENSIONS = MEDIA_EXTENSIONS
-
 REJECTED = "rejected"
 UNCHANGED = "unchanged"
-
-NON_SUCCESS_STATUSES = frozenset({NO_CAPTION_STATUS, "read_error", "api_error", REJECTED})
 
 # Every terminal per-file status; omitting one stops the progress bar short of ``total``.
 PROCESSED_STAT_KEYS = (
@@ -57,8 +48,6 @@ MAX_EDIT_LENGTH_RATIO = 4.0
 MIN_EDITED_CAPTION_CHARS = 40
 
 _QUOTE_PAIRS = (('"', '"'), ("'", "'"), ("“", "”"))
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 
 def build_edit_system_prompt(instruction: str) -> str:
@@ -146,7 +135,7 @@ def edit_rejection_reason(original: str, edited: str) -> str | None:
 
 
 def list_edit_captions_media(folder: Path) -> list[Path]:
-    return list_folder_media(folder, EDIT_CAPTIONS_EXTENSIONS, order="name")
+    return list_folder_media(folder, MEDIA_EXTENSIONS, order="name")
 
 
 def validate_edit_captions_folder(folder: Path, *, instruction: str = "") -> None:
@@ -181,7 +170,7 @@ def edit_caption(
         effort=effort,
         preserve_thinking=preserve_thinking,
         model=model,
-        max_tokens=max_tokens if max_tokens is not None else get_max_tokens(),
+        max_tokens=max_tokens,
     )
 
 
@@ -194,19 +183,18 @@ def process_media(
     mode: AutomationMode = "instruct",
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
-    should_cancel: Callable[[], bool] | None = None,
-) -> tuple[Path, str | None, str, str | None]:
-    resolved_model = model if model is not None else get_openai_model()
+    should_cancel: ShouldCancel | None = None,
+) -> tuple[str | None, str, str | None]:
     ref_caption, status = load_reference_caption(media_path)
     if status != "ok" or ref_caption is None:
-        return media_path, None, status, None
+        return None, status, None
 
     def attempt(_number: int) -> ModelOutcome[str]:
         raw = edit_caption(
             client,
             system_prompt,
             ref_caption,
-            model=resolved_model,
+            model=model,
             mode=mode,
             effort=effort,
             preserve_thinking=preserve_thinking,
@@ -231,7 +219,7 @@ def process_media(
         should_cancel=should_cancel,
         on_abandon=lambda: close_model_client(client),
     )
-    return media_path, outcome.value, outcome.status, outcome.message
+    return outcome.value, outcome.status, outcome.message
 
 
 def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:
@@ -254,14 +242,6 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     }
 
 
-def _failure_outcome(status: str, message: str | None) -> FileOutcome:
-    return FileOutcome(
-        status=status,
-        stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
-        fields={"message": message} if message else {},
-    )
-
-
 def run_edit_captions_job(
     folder: Path,
     *,
@@ -272,7 +252,7 @@ def run_edit_captions_job(
     reasoning_effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     on_progress: ProgressCallback | None = None,
-    should_cancel: Callable[[], bool] | None = None,
+    should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     validate_edit_captions_folder(folder, instruction=instruction)
@@ -291,7 +271,7 @@ def run_edit_captions_job(
     with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
-            _path, edited, status, message = process_media(
+            edited, status, message = process_media(
                 client,
                 media_path,
                 system_prompt,
@@ -303,47 +283,35 @@ def run_edit_captions_job(
             )
 
             if status == "cancelled":
-                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+                return FileOutcome.cancelled()
 
             if status != "success" or edited is None:
-                return _failure_outcome(status, message)
+                return FileOutcome.counted(status, message)
 
             original, _status = load_reference_caption(media_path)
             if original is not None and edited.strip() == original.strip():
-                return FileOutcome(
-                    status=UNCHANGED,
-                    stats={UNCHANGED: 1},
-                    fields={"message": "The edit did not change this caption"},
+                return FileOutcome.counted(
+                    UNCHANGED, message="The edit did not change this caption"
                 )
 
             if should_cancel and should_cancel():
-                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+                return FileOutcome.cancelled()
 
             if backup:
                 try:
                     back_up_caption_sidecars(media_path, backup_dir)
                 except OSError as exc:
                     # Do not write the edit if backup failed; that would break the restore promise.
-                    return FileOutcome(
-                        status="write_error",
-                        stats={"write_error": 1},
-                        fields={"message": f"Could not back up the caption: {exc}"},
+                    return FileOutcome.counted(
+                        "write_error", f"Could not back up the caption: {exc}"
                     )
 
             try:
                 save_caption(media_path, edited)
             except (OSError, ValueError) as exc:
-                return FileOutcome(
-                    status="write_error",
-                    stats={"write_error": 1},
-                    fields={"message": str(exc)},
-                )
+                return FileOutcome.counted("write_error", exc)
 
-            return FileOutcome(
-                status="success",
-                stats={"success": 1},
-                fields={"description": edited.strip()},
-            )
+            return FileOutcome.counted("success", description=edited.strip())
 
         return run_media_job(
             folder,

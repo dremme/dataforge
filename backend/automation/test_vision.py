@@ -10,28 +10,23 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import numpy
 from PIL import Image
 
-from automation.llm import (
-    API_ERROR,
-    MAX_MODEL_ATTEMPTS,
-    ModelOutcome,
-    call_with_retries,
-)
+from app_settings import SETTING_DEFAULTS
+from automation.llm import MAX_MODEL_ATTEMPTS
 from automation.vision import (
     FRAME_ERROR,
-    IMAGE_MAX_PIXELS,
     JPEG_QUALITY,
-    KEYFRAMES_PER_SECOND,
-    MAX_VIDEO_KEYFRAME_COUNT,
-    MIN_HONORED_MAX_PIXELS,
+    QWEN_MIN_SIDE_PX,
     READ_ERROR,
-    VIDEO_FRAME_MAX_PIXELS,
+    TAIL_SEEK_LIMIT,
     VIDEO_FRAME_SCALE_END_SECONDS,
     VIDEO_FRAME_SCALE_START_SECONDS,
     VIDEO_KEYFRAME_COUNT,
     MediaFrames,
     MediaLoadError,
+    extract_video_keyframes,
     get_image_max_pixels,
     get_keyframes_per_second,
     get_max_video_keyframes,
@@ -51,64 +46,39 @@ from automation.vision import (
     vision_messages,
 )
 from testing_fixtures import (
+    FakeChatClient,
     TempMediaFolder,
+    image_urls,
     write_gif,
     write_media,
+    write_mp4_video,
 )
-
-# Long enough that a test hitting it means cancellation did not drop the request.
-WEDGED_SERVER_SECONDS = 30.0
-# Cancellation polls every 100ms, so a working drop lands far inside this.
-CANCEL_DEADLINE_SECONDS = 5.0
 
 
 class RetryReencodeWorkaroundTests(unittest.TestCase):
     """A retry must not resend the exact bytes that just failed - see ``retry_jpeg_quality``."""
 
-    def test_every_attempt_is_handed_its_own_number(self) -> None:
-        seen: list[int] = []
-
-        def attempt(number: int) -> ModelOutcome[str]:
-            seen.append(number)
-            return ModelOutcome(status=API_ERROR)
-
-        call_with_retries(attempt, job_label="Auto-caption", media_name="clip.mp4")
-
-        self.assertEqual(seen, list(range(1, MAX_MODEL_ATTEMPTS + 1)))
-
-    def test_each_attempt_gets_its_own_quality(self) -> None:
+    def test_each_attempt_gets_its_own_quality_starting_from_the_default(self) -> None:
+        # Only retries differ; a first attempt at another quality would change every request.
         qualities = [retry_jpeg_quality(number) for number in range(1, MAX_MODEL_ATTEMPTS + 1)]
 
+        self.assertEqual(qualities[0], JPEG_QUALITY)
         self.assertEqual(len(set(qualities)), len(qualities))
         self.assertTrue(all(quality > 0 for quality in qualities))
 
     def _sent_images(self, attempt: int) -> list[str]:
         """The base64 payloads one attempt puts on the wire."""
-        captured: dict = {}
-
-        class FakeCompletions:
-            def create(self, **kwargs: object) -> object:
-                parts = kwargs["messages"][1]["content"]
-                captured["images"] = [
-                    part["image_url"]["url"] for part in parts if part["type"] == "image_url"
-                ]
-                message = type("Message", (), {"content": "text", "reasoning_content": None})()
-                choice = type("Choice", (), {"message": message})()
-                return type("Response", (), {"choices": [choice]})()
-
-        client = type(
-            "FakeClient", (), {"chat": type("Chat", (), {"completions": FakeCompletions()})()}
-        )()
+        client = FakeChatClient("text")
         request_vision_text(
             client,
             "System prompt",
             [Image.new("RGB", (64, 64), color="blue")],
             "Caption it.",
-            max_pixels=IMAGE_MAX_PIXELS,
+            max_pixels=SETTING_DEFAULTS.image_max_pixels,
             mode="instruct",
             attempt=attempt,
         )
-        return captured["images"]
+        return image_urls(client.last["messages"])
 
     def test_a_retry_sends_different_bytes_than_the_attempt_that_failed(self) -> None:
         # Byte-identical repeats are short-circuited, so a retry that resends them is not a second attempt.
@@ -117,10 +87,6 @@ class RetryReencodeWorkaroundTests(unittest.TestCase):
 
         self.assertEqual(len(first), len(second))
         self.assertNotEqual(first, second)
-
-    def test_the_first_attempt_is_unchanged_by_the_workaround(self) -> None:
-        # Only retries differ; a first attempt at another quality would change every request.
-        self.assertEqual(retry_jpeg_quality(1), JPEG_QUALITY)
 
 
 class LoadImageRgbTests(unittest.TestCase):
@@ -173,30 +139,18 @@ class LoadImageRgbTests(unittest.TestCase):
             self.assertEqual(images[0].mode, "RGB")
             self.assertEqual(images[0].getpixel((0, 0)), (255, 0, 0))
 
-    def test_reports_a_read_error_without_raising(self) -> None:
-        with TempMediaFolder() as root:
-            broken = root / "broken.png"
-            broken.write_bytes(b"not an image")
-
-            images, error = load_image_rgb(broken)
-
-            self.assertIsNone(images)
-            self.assertIsNotNone(error)
-
 
 class MediaKindTests(unittest.TestCase):
-    def test_stills_are_images(self) -> None:
-        for name in ("photo.png", "photo.JPG", "photo.jpeg"):
-            self.assertEqual(media_kind_for(Path(name)), "image")
-
-    def test_videos_are_video(self) -> None:
-        for name in ("clip.mp4", "CLIP.MOV", "clip.mkv"):
-            self.assertEqual(media_kind_for(Path(name)), "video")
-
-    def test_gifs_are_images(self) -> None:
+    def test_stills_and_gifs_are_images_and_clips_are_video(self) -> None:
         # Gallery still treats a GIF as a gif; only captioning folds it in with stills.
-        for name in ("loop.gif", "LOOP.GIF"):
-            self.assertEqual(media_kind_for(Path(name)), "image")
+        cases = {
+            "image": ("photo.png", "photo.JPG", "photo.jpeg", "loop.gif", "LOOP.GIF"),
+            "video": ("clip.mp4", "CLIP.MOV", "clip.mkv"),
+        }
+        for kind, names in cases.items():
+            for name in names:
+                with self.subTest(name=name):
+                    self.assertEqual(media_kind_for(Path(name)), kind)
 
 
 class KeyframeCountTests(unittest.TestCase):
@@ -222,10 +176,12 @@ class KeyframeCountTests(unittest.TestCase):
 
     def test_a_long_clip_stops_at_the_cap(self) -> None:
         # Uncapped frames are inlined (and retried); 2 * 20s + 2 is the cap.
-        self.assertEqual(keyframe_count_for_seconds(20), MAX_VIDEO_KEYFRAME_COUNT)
-        self.assertEqual(keyframe_count_for_seconds(31), MAX_VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(keyframe_count_for_seconds(20), SETTING_DEFAULTS.video_max_keyframes)
+        self.assertEqual(keyframe_count_for_seconds(31), SETTING_DEFAULTS.video_max_keyframes)
         for seconds in (32, 60, 300):
-            self.assertEqual(keyframe_count_for_seconds(seconds), MAX_VIDEO_KEYFRAME_COUNT)
+            self.assertEqual(
+                keyframe_count_for_seconds(seconds), SETTING_DEFAULTS.video_max_keyframes
+            )
 
     def test_an_unusable_duration_falls_back_to_the_fixed_count(self) -> None:
         for seconds in (None, 0, -5, float("nan"), float("inf")):
@@ -234,15 +190,6 @@ class KeyframeCountTests(unittest.TestCase):
 
 class FrameBudgetEnvTests(unittest.TestCase):
     """The sampling schedule is configurable, and every knob is read per call."""
-
-    def test_the_defaults_are_what_the_pinned_counts_already_assert(self) -> None:
-        # The rest of the suite hard-codes 14/22/42; 42 is also the default cap.
-        self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
-        self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
-        self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
-        self.assertEqual(get_video_frame_min_pixels(), MIN_HONORED_MAX_PIXELS)
-        self.assertEqual(get_qwen_min_side_px(), 512)
-        self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
 
     def test_a_higher_rate_samples_a_clip_more_densely(self) -> None:
         with patch.dict(os.environ, {"VIDEO_KEYFRAMES_PER_SECOND": "4"}):
@@ -267,15 +214,21 @@ class FrameBudgetEnvTests(unittest.TestCase):
         # A cap of zero comes back as a caption of nothing rather than as an error.
         for raw in ("0", "-4", "", "   ", "many", "2.5"):
             with patch.dict(os.environ, {"VIDEO_MAX_KEYFRAMES": raw}):
-                self.assertEqual(get_max_video_keyframes(), MAX_VIDEO_KEYFRAME_COUNT)
+                self.assertEqual(get_max_video_keyframes(), SETTING_DEFAULTS.video_max_keyframes)
             with patch.dict(os.environ, {"VIDEO_KEYFRAMES_PER_SECOND": raw}):
-                self.assertEqual(get_keyframes_per_second(), KEYFRAMES_PER_SECOND)
+                self.assertEqual(
+                    get_keyframes_per_second(), SETTING_DEFAULTS.video_keyframes_per_second
+                )
             with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": raw}):
-                self.assertEqual(get_video_frame_max_pixels(), VIDEO_FRAME_MAX_PIXELS)
+                self.assertEqual(
+                    get_video_frame_max_pixels(), SETTING_DEFAULTS.video_frame_max_pixels
+                )
             with patch.dict(os.environ, {"VIDEO_FRAME_MIN_PIXELS": raw}):
-                self.assertEqual(get_video_frame_min_pixels(), MIN_HONORED_MAX_PIXELS)
+                self.assertEqual(
+                    get_video_frame_min_pixels(), SETTING_DEFAULTS.video_frame_min_pixels
+                )
             with patch.dict(os.environ, {"IMAGE_MAX_PIXELS": raw}):
-                self.assertEqual(get_image_max_pixels(), IMAGE_MAX_PIXELS)
+                self.assertEqual(get_image_max_pixels(), SETTING_DEFAULTS.image_max_pixels)
 
     def test_each_media_kind_reads_its_own_configured_budget(self) -> None:
         # Neither knob may be bound at import.
@@ -289,7 +242,7 @@ class FrameBudgetEnvTests(unittest.TestCase):
     def test_the_two_budgets_are_independent(self) -> None:
         # Setting the video knob must not drag the still one down with it.
         with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "262144"}):
-            self.assertEqual(media_kind_max_pixels("image"), IMAGE_MAX_PIXELS)
+            self.assertEqual(media_kind_max_pixels("image"), SETTING_DEFAULTS.image_max_pixels)
 
 
 class VideoFramePixelScaleTests(unittest.TestCase):
@@ -297,33 +250,42 @@ class VideoFramePixelScaleTests(unittest.TestCase):
 
     def test_a_short_clip_keeps_the_full_budget(self) -> None:
         for seconds in (None, 0.5, 7.0, VIDEO_FRAME_SCALE_START_SECONDS):
-            self.assertEqual(video_frame_max_pixels_for_seconds(seconds), VIDEO_FRAME_MAX_PIXELS)
             self.assertEqual(
-                media_kind_max_pixels("video", seconds=seconds), VIDEO_FRAME_MAX_PIXELS
+                video_frame_max_pixels_for_seconds(seconds), SETTING_DEFAULTS.video_frame_max_pixels
+            )
+            self.assertEqual(
+                media_kind_max_pixels("video", seconds=seconds),
+                SETTING_DEFAULTS.video_frame_max_pixels,
             )
 
     def test_a_twenty_second_clip_is_at_the_resize_floor(self) -> None:
         for seconds in (20.0, VIDEO_FRAME_SCALE_END_SECONDS, 21, 60, 300):
-            self.assertEqual(video_frame_max_pixels_for_seconds(seconds), MIN_HONORED_MAX_PIXELS)
+            self.assertEqual(
+                video_frame_max_pixels_for_seconds(seconds), SETTING_DEFAULTS.video_frame_min_pixels
+            )
 
     def test_the_shrink_is_gradual_between_the_ends(self) -> None:
         ten = video_frame_max_pixels_for_seconds(10)
         self.assertEqual(ten, 445_110)
-        self.assertGreater(ten, MIN_HONORED_MAX_PIXELS)
-        self.assertLess(ten, VIDEO_FRAME_MAX_PIXELS)
+        self.assertGreater(ten, SETTING_DEFAULTS.video_frame_min_pixels)
+        self.assertLess(ten, SETTING_DEFAULTS.video_frame_max_pixels)
         midpoint = video_frame_max_pixels_for_seconds(13.5)
         self.assertLess(midpoint, ten)
-        self.assertGreater(midpoint, MIN_HONORED_MAX_PIXELS)
+        self.assertGreater(midpoint, SETTING_DEFAULTS.video_frame_min_pixels)
         self.assertGreater(ten, video_frame_max_pixels_for_seconds(15))
 
     def test_an_unusable_duration_keeps_the_full_budget(self) -> None:
         for seconds in (0, -5, float("nan"), float("inf")):
-            self.assertEqual(video_frame_max_pixels_for_seconds(seconds), VIDEO_FRAME_MAX_PIXELS)
+            self.assertEqual(
+                video_frame_max_pixels_for_seconds(seconds), SETTING_DEFAULTS.video_frame_max_pixels
+            )
 
     def test_a_configured_budget_is_what_a_short_clip_starts_from(self) -> None:
         with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "400000"}):
             self.assertEqual(video_frame_max_pixels_for_seconds(7), 400_000)
-            self.assertEqual(video_frame_max_pixels_for_seconds(20), MIN_HONORED_MAX_PIXELS)
+            self.assertEqual(
+                video_frame_max_pixels_for_seconds(20), SETTING_DEFAULTS.video_frame_min_pixels
+            )
             self.assertEqual(media_kind_max_pixels("video", seconds=10), 368_187)
 
     def test_a_budget_already_at_the_floor_does_not_grow_for_a_long_clip(self) -> None:
@@ -332,12 +294,16 @@ class VideoFramePixelScaleTests(unittest.TestCase):
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 125_000)
 
     def test_stills_ignore_the_clip_span(self) -> None:
-        self.assertEqual(media_kind_max_pixels("image", seconds=60), IMAGE_MAX_PIXELS)
+        self.assertEqual(
+            media_kind_max_pixels("image", seconds=60), SETTING_DEFAULTS.image_max_pixels
+        )
 
     def test_a_configured_min_is_what_a_long_clip_lands_on(self) -> None:
         with patch.dict(os.environ, {"VIDEO_FRAME_MIN_PIXELS": "300000"}):
             self.assertEqual(get_video_frame_min_pixels(), 300_000)
-            self.assertEqual(video_frame_max_pixels_for_seconds(7), VIDEO_FRAME_MAX_PIXELS)
+            self.assertEqual(
+                video_frame_max_pixels_for_seconds(7), SETTING_DEFAULTS.video_frame_max_pixels
+            )
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 300_000)
             self.assertEqual(media_kind_max_pixels("video", seconds=10), 453_846)
 
@@ -351,6 +317,7 @@ class VideoFramePixelScaleTests(unittest.TestCase):
             self.assertEqual(video_frame_max_pixels_for_seconds(10), 376_923)
 
     def test_a_lowered_min_lets_the_resize_go_below_five_hundred_twelve(self) -> None:
+        self.assertEqual(get_qwen_min_side_px(), QWEN_MIN_SIDE_PX)
         with patch.dict(os.environ, {"VIDEO_FRAME_MIN_PIXELS": "65536"}):
             self.assertEqual(get_qwen_min_side_px(), 256)
             self.assertEqual(video_frame_max_pixels_for_seconds(20), 65_536)
@@ -541,6 +508,331 @@ class LoadMediaImagesTests(unittest.TestCase):
             assert isinstance(error, MediaLoadError)
             self.assertEqual(error.status, FRAME_ERROR)
             self.assertIsNone(error.message)
+
+
+class ExtractVideoKeyframesTests(unittest.TestCase):
+    def test_extract_video_keyframes_returns_none_for_minimal_mp4(self) -> None:
+        try:
+            import cv2  # noqa: F401
+        except ImportError:
+            self.skipTest("opencv-python-headless is not installed")
+
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+            extracted = extract_video_keyframes(video)
+
+        self.assertIsNone(extracted)
+
+    def test_extract_video_keyframes_releases_a_capture_that_never_opened(self) -> None:
+        # An unreleased capture holds the .mp4 open on Windows and locks it.
+        released: list[bool] = []
+
+        class FakeCapture:
+            def isOpened(self) -> bool:  # mirrors the cv2 API
+                return False
+
+            def release(self) -> None:
+                released.append(True)
+
+        fake_cv2 = type("cv2", (), {"VideoCapture": staticmethod(lambda _path: FakeCapture())})
+
+        with TempMediaFolder() as root:
+            video = write_mp4_video(root, "clip.mp4")
+            with patch.dict("sys.modules", {"cv2": fake_cv2}):
+                extracted = extract_video_keyframes(video)
+
+        self.assertIsNone(extracted)
+        self.assertEqual(released, [True])
+
+
+# The real cv2 values, so a capture that is handed the wrong one is still recognisable.
+FAKE_CAP_PROP_POS_FRAMES = 1
+FAKE_CAP_PROP_FPS = 5
+FAKE_CAP_PROP_FRAME_COUNT = 7
+
+
+class FakeCapture:
+    """A capture whose frames are solid greys, so a frame's index is readable back."""
+
+    def __init__(
+        self,
+        decodable: int,
+        reported: int | None = None,
+        *,
+        fps: float = 0.0,
+        width: int = 8,
+        height: int = 8,
+    ) -> None:
+        self.decodable = decodable
+        self.reported = decodable if reported is None else reported
+        self.fps = fps
+        self.width = width
+        self.height = height
+        self.position = 0
+        self.released = False
+        self.seeks: list[int] = []
+
+    def isOpened(self) -> bool:
+        return True
+
+    def get(self, prop: int) -> float:
+        if prop == FAKE_CAP_PROP_FPS:
+            return float(self.fps)
+        return float(self.reported)
+
+    def set(self, _prop: int, value: float) -> bool:
+        self.position = int(value)
+        self.seeks.append(self.position)
+        return True
+
+    def read(self):
+        if self.position >= self.decodable:
+            return False, None
+        # cvtColor is identity, so the shade is the frame index; keep it under 256 for uint8.
+        frame = numpy.full((self.height, self.width, 3), self.position, dtype=numpy.uint8)
+        self.position += 1
+        return True, frame
+
+    def release(self) -> None:
+        self.released = True
+
+
+def _fake_cv2_for(capture: FakeCapture):
+    return type(
+        "cv2",
+        (),
+        {
+            "VideoCapture": staticmethod(lambda _path: capture),
+            "CAP_PROP_FRAME_COUNT": FAKE_CAP_PROP_FRAME_COUNT,
+            "CAP_PROP_POS_FRAMES": FAKE_CAP_PROP_POS_FRAMES,
+            "CAP_PROP_FPS": FAKE_CAP_PROP_FPS,
+            "COLOR_BGR2RGB": 4,
+            "cvtColor": staticmethod(lambda frame, _code: frame),
+        },
+    )
+
+
+def _shades(frames) -> list[int]:
+    """The source index of every extracted frame, in order."""
+    return [frame.getpixel((0, 0))[0] for frame in frames.images]
+
+
+def _extract_from(capture: FakeCapture, count: int | None):
+    with TempMediaFolder() as root:
+        video = write_mp4_video(root, "clip.mp4")
+        with patch.dict("sys.modules", {"cv2": _fake_cv2_for(capture)}):
+            return extract_video_keyframes(video, count)
+
+
+class VideoKeyframeSpanTests(unittest.TestCase):
+    """The clip's opening and closing frames both have to reach the model."""
+
+    def _extract(self, capture: FakeCapture, count: int | None = VIDEO_KEYFRAME_COUNT):
+        """Pins the count these cases were written around; production passes ``None``."""
+        return _extract_from(capture, count)
+
+    def test_spans_the_whole_clip(self) -> None:
+        frames = self._extract(FakeCapture(decodable=120))
+
+        assert frames is not None
+        shades = _shades(frames)
+        self.assertEqual(len(shades), VIDEO_KEYFRAME_COUNT)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 119)
+        self.assertEqual(shades, sorted(shades))
+
+    def test_reaches_the_last_frame_when_the_reported_count_overshoots(self) -> None:
+        # Seeking to the reported end fails; closing frames used to be dropped silently.
+        frames = self._extract(FakeCapture(decodable=100, reported=112))
+
+        assert frames is not None
+        self.assertEqual(_shades(frames)[-1], 99)
+
+    def test_gives_up_on_a_tail_that_is_broken_rather_than_mis_measured(self) -> None:
+        capture = FakeCapture(decodable=40, reported=400)
+        frames = self._extract(capture)
+
+        assert frames is not None
+        # No closing frame is reachable within the walk, so return what was captured.
+        self.assertLessEqual(len(capture.seeks), VIDEO_KEYFRAME_COUNT + TAIL_SEEK_LIMIT)
+
+    def test_reaches_the_last_frame_when_the_container_reports_no_count(self) -> None:
+        # Reported 0 cannot be seeked; used to return opening frames only.
+        frames = self._extract(FakeCapture(decodable=250, reported=0))
+
+        assert frames is not None
+        shades = _shades(frames)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 249)
+        self.assertEqual(shades, sorted(shades))
+        self.assertLessEqual(len(shades), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_short_clip_yields_each_frame_once(self) -> None:
+        # Padding five frames out to twelve would make the keyframe sentence claim twelve.
+        frames = self._extract(FakeCapture(decodable=5))
+
+        assert frames is not None
+        self.assertEqual(_shades(frames), [0, 1, 2, 3, 4])
+
+    def test_a_single_frame_clip_is_not_repeated(self) -> None:
+        frames = self._extract(FakeCapture(decodable=1))
+
+        assert frames is not None
+        self.assertEqual(_shades(frames), [0])
+
+    def test_an_undecodable_capture_reports_nothing(self) -> None:
+        self.assertIsNone(self._extract(FakeCapture(decodable=0, reported=30)))
+        self.assertIsNone(self._extract(FakeCapture(decodable=0, reported=0)))
+
+
+class AdaptiveKeyframeCountTests(unittest.TestCase):
+    """How many frames a clip yields when nobody names a count."""
+
+    def _extract(self, capture: FakeCapture, count: int | None = None):
+        return _extract_from(capture, count)
+
+    def test_a_long_clip_is_sampled_by_its_length(self) -> None:
+        frames = self._extract(FakeCapture(decodable=240, fps=30))
+
+        assert frames is not None
+        shades = _shades(frames)
+        # Eight seconds: two a second plus both endpoints.
+        self.assertEqual(len(shades), 18)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 239)
+        self.assertEqual(shades, sorted(shades))
+
+    def test_a_short_clip_is_not_sampled_more_thinly_than_the_floor(self) -> None:
+        # Two seconds is six frames; the floor keeps a brief clip from being sampled thinner than eight.
+        frames = self._extract(FakeCapture(decodable=120, fps=60))
+
+        assert frames is not None
+        self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_very_long_clip_stops_at_the_cap_and_still_ends_on_its_last_frame(self) -> None:
+        # Fifty seconds asks for 102 inlined frames; the closing frame has to survive the clamp.
+        capture = FakeCapture(decodable=250, fps=5)
+        frames = self._extract(capture)
+
+        assert frames is not None
+        shades = _shades(frames)
+        self.assertEqual(len(shades), SETTING_DEFAULTS.video_max_keyframes)
+        self.assertEqual(shades[0], 0)
+        self.assertEqual(shades[-1], 249)
+        self.assertEqual(len(set(shades)), len(shades))
+
+    def test_a_named_count_is_never_overridden(self) -> None:
+        frames = self._extract(FakeCapture(decodable=250, fps=5), count=VIDEO_KEYFRAME_COUNT)
+
+        assert frames is not None
+        self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_frame_rate_that_cannot_be_trusted_falls_back_to_the_fixed_count(self) -> None:
+        # 90000 is an MPEG timescale reported as fps, which would last a fraction of a second.
+        for fps in (0.0, -30.0, float("nan"), 90_000.0):
+            with self.subTest(fps=fps):
+                frames = self._extract(FakeCapture(decodable=240, fps=fps))
+
+                assert frames is not None
+                self.assertEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
+
+    def test_a_derived_count_still_gives_up_on_a_broken_tail(self) -> None:
+        capture = FakeCapture(decodable=40, reported=400, fps=1)
+        frames = self._extract(capture)
+
+        assert frames is not None
+        self.assertLessEqual(
+            len(capture.seeks), SETTING_DEFAULTS.video_max_keyframes + TAIL_SEEK_LIMIT
+        )
+
+    def test_a_clip_that_reports_no_frame_count_keeps_the_fixed_count(self) -> None:
+        # Streamed decode holds frames during the pass, so this path stays on the smaller budget.
+        frames = self._extract(FakeCapture(decodable=250, reported=0, fps=30))
+
+        assert frames is not None
+        self.assertLessEqual(len(frames.images), VIDEO_KEYFRAME_COUNT)
+
+    def test_frames_carry_the_second_they_were_taken_at(self) -> None:
+        # Labels come from the indices the sampler landed on, even when the tail walk moves one.
+        frames = self._extract(FakeCapture(decodable=240, fps=30))
+
+        assert frames is not None
+        timestamps = frames.timestamps
+        assert timestamps is not None
+        self.assertEqual(len(timestamps), len(frames.images))
+        self.assertEqual(timestamps[0], 0.0)
+        self.assertAlmostEqual(timestamps[-1], 239 / 30)
+        self.assertEqual(timestamps, sorted(timestamps))
+
+    def test_a_clip_with_no_usable_frame_rate_carries_no_timestamps(self) -> None:
+        # Do not label frames from a rate that was rejected.
+        for fps in (0.0, -30.0, float("nan"), 90_000.0):
+            with self.subTest(fps=fps):
+                frames = self._extract(FakeCapture(decodable=240, fps=fps))
+
+                assert frames is not None
+                self.assertIsNone(frames.timestamps)
+
+    def test_a_streamed_clip_carries_no_timestamps(self) -> None:
+        # The halving stride breaks position-in-list vs position-in-clip, so any label is a guess.
+        frames = self._extract(FakeCapture(decodable=250, reported=0, fps=30))
+
+        assert frames is not None
+        self.assertIsNone(frames.timestamps)
+
+    def test_frames_come_back_within_the_multi_frame_pixel_budget(self) -> None:
+        # Frames sit in memory for the whole model call, so they are capped as they are read.
+        frames = self._extract(FakeCapture(decodable=3, width=1200, height=1200))
+
+        assert frames is not None
+        for frame in frames.images:
+            self.assertLessEqual(
+                frame.width * frame.height, SETTING_DEFAULTS.video_frame_max_pixels
+            )
+        # A solid frame survives the resize, so its index is still readable back.
+        self.assertEqual(_shades(frames), [0, 1, 2])
+
+    def test_a_configured_pixel_budget_reaches_the_decoded_frames(self) -> None:
+        # Bound at import, frames come out at the old size. Raised because the floor swallows a lower one.
+        budget = SETTING_DEFAULTS.video_frame_min_pixels * 4
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": str(budget)}):
+            frames = self._extract(FakeCapture(decodable=3, width=4000, height=4000))
+
+        assert frames is not None
+        for frame in frames.images:
+            self.assertLessEqual(frame.width * frame.height, budget)
+            self.assertGreater(frame.width * frame.height, SETTING_DEFAULTS.video_frame_max_pixels)
+
+    def test_a_budget_under_the_resize_floor_cannot_shrink_a_frame(self) -> None:
+        # Below the floor the knob buys no frames and a 16:9 source comes back square.
+        with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "125000"}):
+            frames = self._extract(FakeCapture(decodable=1, width=1920, height=1080))
+
+        assert frames is not None
+        frame = frames.images[0]
+        self.assertEqual(frame.size, (QWEN_MIN_SIDE_PX, QWEN_MIN_SIDE_PX))
+        self.assertEqual(frame.width * frame.height, SETTING_DEFAULTS.video_frame_min_pixels)
+
+    def test_a_seven_second_clip_keeps_the_full_frame_budget(self) -> None:
+        frames = self._extract(FakeCapture(decodable=210, fps=30, width=1200, height=1200))
+
+        assert frames is not None
+        self.assertEqual(len(frames.images), 16)
+        for frame in frames.images:
+            pixels = frame.width * frame.height
+            self.assertLessEqual(pixels, SETTING_DEFAULTS.video_frame_max_pixels)
+            self.assertGreater(pixels, SETTING_DEFAULTS.video_frame_min_pixels)
+
+    def test_a_twenty_second_clip_shrinks_frames_to_the_resize_floor(self) -> None:
+        frames = self._extract(FakeCapture(decodable=100, fps=5, width=1200, height=1200))
+
+        assert frames is not None
+        self.assertEqual(len(frames.images), SETTING_DEFAULTS.video_max_keyframes)
+        for frame in frames.images:
+            self.assertLessEqual(
+                frame.width * frame.height, SETTING_DEFAULTS.video_frame_min_pixels
+            )
+            self.assertGreaterEqual(min(frame.size), QWEN_MIN_SIDE_PX)
 
 
 if __name__ == "__main__":

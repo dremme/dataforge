@@ -149,32 +149,24 @@ def _normalize_folder(folder: str) -> str:
     return str(normalize_user_path(folder))
 
 
-def _decode_json_object(raw: object) -> dict:
-    if not isinstance(raw, str | bytes | bytearray):
-        return {}
-    try:
-        decoded = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    return decoded if isinstance(decoded, dict) else {}
-
-
-def _decode_json_array(raw: object) -> list:
-    if not isinstance(raw, str | bytes | bytearray):
-        return []
-    try:
-        decoded = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    return decoded if isinstance(decoded, list) else []
+def _decode_json[T: (dict, list)](raw: object, shape: type[T]) -> T:
+    """The decoded column, or an empty ``shape`` when it is missing, malformed or another type."""
+    if isinstance(raw, str | bytes | bytearray):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError:
+            return shape()
+        if isinstance(decoded, shape):
+            return decoded
+    return shape()
 
 
 def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> dict[str, object]:
     """Map one row to a job dict. ``results`` is absent (not empty) when ``columns`` omits the blob."""
     values = dict(zip(columns, row, strict=True))
 
-    stats = _decode_json_object(values.pop("stats_json"))
-    results = _decode_json_array(values.pop("results_json")) if "results_json" in values else None
+    stats = _decode_json(values.pop("stats_json"), dict)
+    results = _decode_json(values.pop("results_json"), list) if "results_json" in values else None
 
     job: dict[str, object] = {
         **values,

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import argparse
-import logging
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -16,7 +14,12 @@ from pathlib import Path
 import httpx
 from PIL import Image, UnidentifiedImageError
 
-from automation.job_runner import CANCELLED, FileOutcome, run_media_job
+from automation.job_runner import (
+    FileOutcome,
+    ProgressCallback,
+    ShouldCancel,
+    run_media_job,
+)
 from automation.selection import filter_media_list, list_folder_media
 from comfy_candidates import (
     candidate_write_path,
@@ -65,7 +68,6 @@ from external.comfy_workflows import (
 from file_publish import publish_replacing
 from folder_scan import get_media_type
 from image_io import ImageReadError, load_image_for_edit
-from logging_config import configure_logging, log_job_summary
 from media_dimensions import media_info
 from schemas import ComfyCandidateSidecar
 from video_edit import SourceProbe, probe_source
@@ -75,11 +77,6 @@ from video_frames import (
     source_frame_rate,
     validate_candidate_media,
 )
-
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 # Terminal per-file statuses. Omit ``cancelled`` or a cancelled run looks complete.
 PROCESSED_STAT_KEYS = (
@@ -152,7 +149,6 @@ def validate_comfy_process_folder(
     preset: str = "",
     prompt_text: str = "",
     selected_paths: list[Path] | None = None,
-    **_ignored: object,
 ) -> None:
     """Refuse at queue time what would otherwise fail on the first file. Does not probe ComfyUI."""
     if not folder.is_dir():
@@ -241,14 +237,6 @@ def _await_output(
         time.sleep(COMFY_POLL_INTERVAL_SECONDS)
 
 
-def _publish(temp_path: Path, destination: Path) -> None:
-    try:
-        publish_replacing(temp_path, destination, stale_path_for(destination))
-    finally:
-        with suppress(OSError):
-            temp_path.unlink(missing_ok=True)
-
-
 def _stage_image_candidate(source: Path, temp_path: Path, destination: Path) -> CandidateFacts:
     """Stage ComfyUI's PNG bytes untouched; accept publishes them in that same format."""
     try:
@@ -261,7 +249,7 @@ def _stage_image_candidate(source: Path, temp_path: Path, destination: Path) -> 
 
         original, _, _ = load_image_for_edit(source)
         facts = CandidateFacts(difference_percent=difference_percent(original, produced))
-        _publish(temp_path, destination)
+        publish_replacing(temp_path, destination, stale_path_for(destination))
     finally:
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
@@ -299,11 +287,7 @@ def _has_audio(media: Path, *, suffix: str | None = None) -> bool | None:
 def _measure_video_candidate(
     source: Path, candidate: Path, *, suffix: str | None = None
 ) -> CandidateFacts:
-    """Everything review needs, measured before publishing so a bad clip never becomes a candidate.
-
-    ``suffix`` is the format ComfyUI produced: the file is still named ``.comfy-tmp`` here, which
-    the suffix-gated readers would otherwise take for neither a video nor an image.
-    """
+    """``suffix`` is the produced format: the file is still named ``.comfy-tmp`` here."""
     produced = probe_source(candidate)
     original = probe_source(source)
 
@@ -337,7 +321,7 @@ def _stage_video_candidate(
         except ValueError as error:
             raise ComfyError(str(error)) from error
 
-        _publish(temp_path, destination)
+        publish_replacing(temp_path, destination, stale_path_for(destination))
     finally:
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
@@ -457,11 +441,7 @@ def run_comfy_process_job(
         counter["index"] += 1
 
         if not overwrite_candidates and has_candidate(media_path):
-            return FileOutcome(
-                status="skipped",
-                stats={"skipped": 1},
-                fields={"message": "A candidate is already staged for this file"},
-            )
+            return FileOutcome.counted("skipped", "A candidate is already staged for this file")
 
         try:
             destination = _process_one(
@@ -476,42 +456,20 @@ def run_comfy_process_job(
                 should_cancel=should_cancel,
             )
         except ComfyProcessCancelled:
-            return FileOutcome(status=CANCELLED, stats={"cancelled": 1}, stop=True)
+            return FileOutcome.cancelled()
         except CandidateConflictError as exc:
-            return FileOutcome(
-                status="write_error", stats={"write_error": 1}, fields={"message": str(exc)}
-            )
+            return FileOutcome.counted("write_error", exc)
         except ComfyUnavailableError as exc:
-            return FileOutcome(
-                status="comfy_error",
-                stats={"comfy_error": 1},
-                fields={"message": f"ComfyUI is not reachable: {exc}"},
-            )
-        except ComfyPromptError as exc:
-            return FileOutcome(
-                status="comfy_error",
-                stats={"comfy_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("comfy_error", f"ComfyUI is not reachable: {exc}")
         except ComfyError as exc:
-            return FileOutcome(
-                status="comfy_error", stats={"comfy_error": 1}, fields={"message": str(exc)}
-            )
+            return FileOutcome.counted("comfy_error", exc)
         except ImageReadError as exc:
-            return FileOutcome(
-                status="read_error", stats={"read_error": 1}, fields={"message": str(exc)}
-            )
+            return FileOutcome.counted("read_error", exc)
         except OSError as exc:
-            return FileOutcome(
-                status="write_error", stats={"write_error": 1}, fields={"message": str(exc)}
-            )
+            return FileOutcome.counted("write_error", exc)
 
-        return FileOutcome(
-            status="success",
-            stats={"success": 1},
-            # The destination that was written, not the default: a video candidate is not a PNG.
-            fields={"preview": str(destination)},
-        )
+        # The destination that was written, not the default: a video candidate is not a PNG.
+        return FileOutcome.counted("success", preview=str(destination))
 
     try:
         return run_media_job(
@@ -525,32 +483,3 @@ def run_comfy_process_job(
         )
     finally:
         client.close()
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run a folder's media through a ComfyUI preset")
-    parser.add_argument("folder", type=Path)
-    parser.add_argument("--preset", required=True)
-    parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--overwrite-candidates", action="store_true")
-    args = parser.parse_args(argv)
-
-    configure_logging()
-
-    try:
-        result = run_comfy_process_job(
-            args.folder,
-            preset=args.preset,
-            seed=args.seed,
-            overwrite_candidates=args.overwrite_candidates,
-        )
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    log_job_summary(logger, result, stat_keys=PROCESSED_STAT_KEYS)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

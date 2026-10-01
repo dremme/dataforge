@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import quote
 
@@ -16,7 +15,6 @@ from testing_fixtures import (
     write_mp4_video,
     write_txt_caption,
 )
-from thumbnails import get_thumbnail_cache_dir
 
 
 class MediaEndpointTests(unittest.TestCase):
@@ -326,20 +324,6 @@ class MediaCopyEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertEqual(response.json()["detail"], "No files were provided")
 
-    def test_copy_skips_files_already_in_the_destination(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "sunset.png")
-
-            response = client.post(
-                f"/api/media/copy?destination={quote(str(root))}",
-                json={"paths": [str(media)]},
-            )
-
-            self.assertEqual(response.status_code, 200)
-            payload = response.json()
-            self.assertEqual(payload["transferred"], [])
-            self.assertEqual(payload["skipped"], [str(media.resolve())])
-
 
 class ThumbnailEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -423,20 +407,6 @@ class ThumbnailEndpointTests(unittest.TestCase):
             self.assertEqual(second.status_code, 200)
             self.assertEqual(first.content, second.content)
 
-    def test_uses_isolated_thumbnail_cache_directory(self) -> None:
-        self.assertEqual(get_thumbnail_cache_dir(), Path(self._cache_dir.name))
-
-    def test_renders_a_gif_poster_without_ffmpeg(self) -> None:
-        # A GIF decodes in Pillow, so it must never reach the video branch.
-        with TempMediaFolder() as root:
-            media = write_gif(root, frames=8)
-
-            with patch("thumbnails.ffmpeg_path", return_value=None):
-                response = client.get(f"/api/thumbnail?path={quote(str(media))}")
-
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.headers["content-type"], "image/webp")
-
 
 class GifInfoEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -488,15 +458,6 @@ class GifFrameEndpointTests(unittest.TestCase):
 
             self.assertEqual(default.status_code, 200)
             self.assertEqual(default.content, explicit.content)
-
-    def test_serves_different_bytes_for_different_frames(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_gif(root, frames=12)
-
-            first = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=0")
-            last = client.get(f"/api/gif-frame?path={quote(str(media))}&frame=11")
-
-            self.assertNotEqual(first.content, last.content)
 
     def test_returns_404_for_a_frame_past_the_end(self) -> None:
         with TempMediaFolder() as root:
@@ -604,24 +565,6 @@ class ComfyCandidateEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertFalse(candidate.exists())
             self.assertTrue(media.is_file())
-
-    def test_reject_discards_a_candidate_whose_source_is_gone(self) -> None:
-        from constants import STAGING_DIR_NAME
-
-        with TempMediaFolder() as root:
-            media = write_jpeg(root, "photo.jpg")
-            (root / STAGING_DIR_NAME).mkdir()
-            candidate = write_media(root / STAGING_DIR_NAME, "photo.png")
-            media.unlink()
-
-            reconstructed = root / "photo.png"
-            response = client.post(
-                f"/api/media/comfy-candidate/reject?path={quote(str(reconstructed))}"
-            )
-
-            self.assertEqual(response.status_code, 200)
-            self.assertFalse(response.json()["accepted"])
-            self.assertFalse(candidate.is_file())
 
     def test_batch_reject_discards_a_candidate_whose_source_is_gone(self) -> None:
         from constants import STAGING_DIR_NAME

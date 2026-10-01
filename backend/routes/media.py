@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
 from time import monotonic
@@ -112,8 +112,59 @@ _OPTIONAL_DESCRIPTION = (
 
 
 def _gone() -> Response:
-    """204 for an `optional` request whose file is gone; a 404 on `<img>` cannot be silenced."""
+    """A 404 on `<img>` cannot be silenced, so an `optional` request gets a 204 instead."""
     return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+def _served_file(
+    path: str,
+    optional: bool,
+    required: Callable[[str], Path],
+    when_present: Callable[[str], Path | None],
+) -> Path | None:
+    """The requested file, or ``None`` when an ``optional`` request finds it gone."""
+    return when_present(path) if optional else required(path)
+
+
+def _cache_control(version: str | None) -> str:
+    """A versioned URL can be cached hard; without one, revalidate or browsers keep old bytes."""
+    return "public, max-age=31536000, immutable" if version else "no-cache, must-revalidate"
+
+
+ErrorStatus = int | tuple[int, str]
+
+
+def _http_error(
+    exc: Exception,
+    statuses: Mapping[type[Exception], ErrorStatus],
+    *,
+    missing_tool: str | None = None,
+) -> HTTPException:
+    """The first matching entry wins; ``missing_tool`` is the RuntimeError text that means 503."""
+    if missing_tool is not None and isinstance(exc, RuntimeError) and str(exc) == missing_tool:
+        return HTTPException(status_code=503, detail=str(exc))
+    for kind, status in statuses.items():
+        if isinstance(exc, kind):
+            code, detail = status if isinstance(status, tuple) else (status, str(exc))
+            return HTTPException(status_code=code, detail=detail)
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+_GIF_TO_MP4_ERRORS: dict[type[Exception], ErrorStatus] = {
+    EditBusyError: (409, "This GIF is already being converted"),
+    FfmpegCancelled: (409, "The conversion was cancelled"),
+}
+_VIDEO_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {
+    EditBusyError: 409,
+    FfmpegCancelled: (409, "The edit was cancelled"),
+    ValueError: 400,
+}
+_IMAGE_EDIT_ERRORS: dict[type[Exception], ErrorStatus] = {EditBusyError: 409, ValueError: 400}
+_CANDIDATE_ERRORS: dict[type[Exception], ErrorStatus] = {
+    NoCandidateError: 404,
+    CandidateBusyError: 409,
+    ValueError: 409,
+}
 
 
 @router.get("/media")
@@ -126,23 +177,18 @@ def serve_media(
     optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
     original: bool = Query(False, description=_ORIGINAL_DESCRIPTION),
 ) -> Response:
-    if optional:
-        file_path = resolve_optional_media_file(path)
-        if file_path is None:
-            return _gone()
-    else:
-        file_path = resolve_media_file(path)
+    file_path = _served_file(path, optional, resolve_media_file, resolve_optional_media_file)
+    if file_path is None:
+        return _gone()
 
     # Content type comes from the media path; the backup suffix is deliberately non-media.
     served_path = original_path_for(file_path) if original else file_path
 
-    # A versioned URL can be cached hard; without one, revalidate or browsers keep old bytes.
-    cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
     # MediaFileResponse: share-delete open + cancel on disconnect so Windows cannot lock deletes.
     return MediaFileResponse(
         served_path,
         media_type=MEDIA_MIME_TYPES.get(file_path.suffix.lower()),
-        headers={"Cache-Control": cache_control},
+        headers={"Cache-Control": _cache_control(v)},
     )
 
 
@@ -171,12 +217,10 @@ def delete_media(
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
-    return MediaDeleteResponse(**result)  # ty: ignore[invalid-argument-type]
+    return MediaDeleteResponse.model_validate(result)
 
 
 def _resolve_transfer_sources(paths: list[str]) -> tuple[list[Path], list[dict[str, str]]]:
-    """Split requested paths into files still on disk and ones that have vanished."""
     source_paths: list[Path] = []
     missing: list[dict[str, str]] = []
 
@@ -188,12 +232,6 @@ def _resolve_transfer_sources(paths: list[str]) -> tuple[list[Path], list[dict[s
         source_paths.append(resolved)
 
     return source_paths, missing
-
-
-def _preview_transfer(destination: str, paths: list[str]) -> MediaTransferPreviewResponse:
-    folder = resolve_folder(destination)
-    source_paths, _missing = _resolve_transfer_sources(paths)
-    return MediaTransferPreviewResponse(**preview_media_transfer(folder, source_paths))
 
 
 def _transfer(
@@ -211,16 +249,20 @@ def _transfer(
     source_paths, missing = _resolve_transfer_sources(paths)
     result = transfer_media_batch(folder, source_paths, mode=mode, overwrite=overwrite)
     result["failed"] = [*result["failed"], *missing]
-    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
-    return MediaTransferResponse(**result)  # ty: ignore[invalid-argument-type]
+    return MediaTransferResponse.model_validate(result)
 
 
 @router.post("/media/move/preview", response_model=MediaTransferPreviewResponse)
-def preview_move_media(
+@router.post("/media/copy/preview", response_model=MediaTransferPreviewResponse)
+def preview_transfer_media(
     destination: str = Query(..., description="Absolute path to destination folder"),
     body: MediaTransferPreviewRequest = ...,
 ) -> MediaTransferPreviewResponse:
-    return _preview_transfer(destination, body.paths)
+    """Move and copy collide on the same names, so both previews are one question."""
+    source_paths, _missing = _resolve_transfer_sources(body.paths)
+    return MediaTransferPreviewResponse.model_validate(
+        preview_media_transfer(resolve_folder(destination), source_paths)
+    )
 
 
 @router.post("/media/move", response_model=MediaTransferResponse)
@@ -233,14 +275,6 @@ def move_media(
     body: MediaTransferRequest = ...,
 ) -> MediaTransferResponse:
     return _transfer(destination, body.paths, mode="move", overwrite=overwrite)
-
-
-@router.post("/media/copy/preview", response_model=MediaTransferPreviewResponse)
-def preview_copy_media(
-    destination: str = Query(..., description="Absolute path to destination folder"),
-    body: MediaTransferPreviewRequest = ...,
-) -> MediaTransferPreviewResponse:
-    return _preview_transfer(destination, body.paths)
 
 
 @router.post("/media/copy", response_model=MediaTransferResponse)
@@ -279,12 +313,9 @@ def serve_gif_frame(
     optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
 ) -> Response:
     """One GIF frame as a JPEG; not written to the thumbnail cache."""
-    if optional:
-        file_path = resolve_optional_gif_file(path)
-        if file_path is None:
-            return _gone()
-    else:
-        file_path = resolve_gif_file(path)
+    file_path = _served_file(path, optional, resolve_gif_file, resolve_optional_gif_file)
+    if file_path is None:
+        return _gone()
 
     try:
         data = extract_gif_frame(file_path, frame)
@@ -297,22 +328,9 @@ def serve_gif_frame(
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Failed to extract GIF frame: {exc}") from exc
 
-    cache_control = "public, max-age=31536000, immutable" if v else "no-cache, must-revalidate"
     return Response(
-        content=data,
-        media_type="image/jpeg",
-        headers={"Cache-Control": cache_control},
+        content=data, media_type="image/jpeg", headers={"Cache-Control": _cache_control(v)}
     )
-
-
-def _gif_to_mp4_failure(exc: Exception) -> HTTPException:
-    if isinstance(exc, EditBusyError):
-        return HTTPException(status_code=409, detail="This GIF is already being converted")
-    if isinstance(exc, FfmpegCancelled):
-        return HTTPException(status_code=409, detail="The conversion was cancelled")
-    if isinstance(exc, RuntimeError) and str(exc) == GIF_TO_MP4_FFMPEG_MISSING_MESSAGE:
-        return HTTPException(status_code=503, detail=str(exc))
-    return HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/media/gif-to-mp4", response_model=GifToMp4StateResponse)
@@ -340,7 +358,9 @@ def convert_gif(
         with render_slot(target) as should_cancel:
             return convert_gif_to_mp4(media, should_cancel=should_cancel)
     except (EditBusyError, FfmpegCancelled, RuntimeError, OSError) as exc:
-        raise _gif_to_mp4_failure(exc) from exc
+        raise _http_error(
+            exc, _GIF_TO_MP4_ERRORS, missing_tool=GIF_TO_MP4_FFMPEG_MISSING_MESSAGE
+        ) from exc
 
 
 @router.get("/thumbnail")
@@ -352,20 +372,12 @@ def serve_thumbnail(
         le=MAX_THUMBNAIL_WIDTH,
         description="Maximum thumbnail width in pixels",
     ),
-    v: str | None = Query(
-        None,
-        description="Client cache-busting token derived from file metadata",
-    ),
     optional: bool = Query(False, description=_OPTIONAL_DESCRIPTION),
 ) -> Response:
-    del v
-
-    if optional:
-        file_path = resolve_optional_media_file(path)
-        if file_path is None:
-            return _gone()
-    else:
-        file_path = resolve_media_file(path)
+    """Always cached hard: the cache key already changes with the source file."""
+    file_path = _served_file(path, optional, resolve_media_file, resolve_optional_media_file)
+    if file_path is None:
+        return _gone()
 
     try:
         thumbnail_path = get_or_create_thumbnail(file_path, w)
@@ -394,7 +406,6 @@ VIDEO_EDIT_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
 def _video_edit_progress(media: Path, tab: str, duration: float | None):
-    """A callback that pushes render progress to the one tab waiting on it, or None."""
     if not tab:
         return None
 
@@ -413,18 +424,6 @@ def _video_edit_progress(media: Path, tab: str, duration: float | None):
         )
 
     return publish
-
-
-def _video_edit_failure(exc: Exception) -> HTTPException:
-    if isinstance(exc, EditBusyError):
-        return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, FfmpegCancelled):
-        return HTTPException(status_code=409, detail="The edit was cancelled")
-    if isinstance(exc, ValueError):
-        return HTTPException(status_code=400, detail=str(exc))
-    if isinstance(exc, RuntimeError) and str(exc) == FFMPEG_MISSING_MESSAGE:
-        return HTTPException(status_code=503, detail=str(exc))
-    return HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/media/video-edit", response_model=VideoEditStateResponse)
@@ -467,7 +466,7 @@ def edit_video(
                 media, body, on_progress=on_progress, should_cancel=should_cancel, probe=probe
             )
     except (EditBusyError, FfmpegCancelled, ValueError, RuntimeError, OSError) as exc:
-        raise _video_edit_failure(exc) from exc
+        raise _http_error(exc, _VIDEO_EDIT_ERRORS, missing_tool=FFMPEG_MISSING_MESSAGE) from exc
 
 
 @router.post("/media/video-edit/auto", response_model=AutoAdjustResponse)
@@ -489,7 +488,7 @@ def auto_adjust_video(
         )
         return AutoAdjustResponse(suggestion=suggest_adjust(pixels, weights))
     except (ValueError, OSError) as exc:
-        raise _video_edit_failure(exc) from exc
+        raise _http_error(exc, _VIDEO_EDIT_ERRORS) from exc
 
 
 @router.post("/media/video-edit/cancel", status_code=204)
@@ -512,15 +511,7 @@ def revert_video(
         with render_slot(media):
             return revert_video_edit(media)
     except (EditBusyError, ValueError, OSError) as exc:
-        raise _video_edit_failure(exc) from exc
-
-
-def _image_edit_failure(exc: Exception) -> HTTPException:
-    if isinstance(exc, EditBusyError):
-        return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, ValueError):
-        return HTTPException(status_code=400, detail=str(exc))
-    return HTTPException(status_code=500, detail=str(exc))
+        raise _http_error(exc, _VIDEO_EDIT_ERRORS) from exc
 
 
 @router.get("/media/image-edit", response_model=ImageEditStateResponse)
@@ -552,7 +543,7 @@ def edit_image(
         with render_slot(media):
             return apply_image_edit(media, body)
     except (EditBusyError, ValueError, ImageReadError, OSError) as exc:
-        raise _image_edit_failure(exc) from exc
+        raise _http_error(exc, _IMAGE_EDIT_ERRORS) from exc
 
 
 @router.post("/media/image-edit/auto", response_model=AutoAdjustResponse)
@@ -567,7 +558,7 @@ def auto_adjust_image(
         pixels, weights = image_analysis_pixels(source, body.masks, body.crop)
         return AutoAdjustResponse(suggestion=suggest_adjust(pixels, weights))
     except (ValueError, ImageReadError, OSError) as exc:
-        raise _image_edit_failure(exc) from exc
+        raise _http_error(exc, _IMAGE_EDIT_ERRORS) from exc
 
 
 @router.post("/media/image-edit/revert", response_model=ImageEditResponse)
@@ -580,17 +571,7 @@ def revert_image(
         with render_slot(media):
             return revert_image_edit(media)
     except (EditBusyError, ValueError, OSError) as exc:
-        raise _image_edit_failure(exc) from exc
-
-
-def _candidate_failure(exc: Exception) -> HTTPException:
-    if isinstance(exc, NoCandidateError):
-        return HTTPException(status_code=404, detail=str(exc))
-    if isinstance(exc, CandidateBusyError):
-        return HTTPException(status_code=409, detail=str(exc))
-    if isinstance(exc, ValueError):
-        return HTTPException(status_code=409, detail=str(exc))
-    return HTTPException(status_code=500, detail=str(exc))
+        raise _http_error(exc, _IMAGE_EDIT_ERRORS) from exc
 
 
 # Keyed by the source path, never the staging path.
@@ -603,7 +584,6 @@ _DISCARD_EDIT = Query(
 
 @router.get("/media/comfy-candidate", response_model=ComfyCandidateStateResponse)
 def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResponse:
-    """Whether a candidate is waiting for this file, and what produced it."""
     return describe_candidate_state(resolve_candidate_media(path))
 
 
@@ -617,7 +597,7 @@ def accept_comfy_candidate(
     try:
         return accept_candidate(media, discard_edit=discard_edit)
     except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
-        raise _candidate_failure(exc) from exc
+        raise _http_error(exc, _CANDIDATE_ERRORS) from exc
 
 
 @router.post("/media/comfy-candidate/reject", response_model=ComfyCandidateResponse)
@@ -627,7 +607,7 @@ def reject_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateRespons
     try:
         return reject_candidate(media)
     except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
-        raise _candidate_failure(exc) from exc
+        raise _http_error(exc, _CANDIDATE_ERRORS) from exc
 
 
 def _settle_candidates(
@@ -635,7 +615,6 @@ def _settle_candidates(
     resolve: Callable[[str], Path],
     settle: Callable[[Path], ComfyCandidateResponse],
 ) -> ComfyCandidateBatchResponse:
-    """Settle each path on its own, recording rather than raising what fails."""
     settled: list[str] = []
     skipped: list[str] = []
     failed: list[ComfyCandidateFailure] = []

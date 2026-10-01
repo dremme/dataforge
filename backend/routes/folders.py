@@ -78,5 +78,4 @@ def create_folder(
 ) -> FolderCreateResponse:
     parent = resolve_folder(path)
     created = create_subfolder(parent, name)
-    # Pydantic validates the splat at runtime; the builder's dict cannot say so.
-    return FolderCreateResponse(**created)  # ty: ignore[invalid-argument-type]
+    return FolderCreateResponse.model_validate(created)

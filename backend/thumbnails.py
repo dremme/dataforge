@@ -60,20 +60,11 @@ def normalize_thumbnail_width(width: int) -> int:
     return max(MIN_THUMBNAIL_WIDTH, min(MAX_THUMBNAIL_WIDTH, width))
 
 
-def _source_cache_token(source: Path) -> str:
-    stat = source.stat()
-    return f"{stat.st_mtime_ns}:{stat.st_size}"
-
-
-def thumbnail_cache_digest(source: Path, width: int) -> str:
-    token = _source_cache_token(source)
-    return hashlib.sha256(f"{source.resolve()}|{width}|{token}".encode()).hexdigest()
-
-
 def thumbnail_cache_path(source: Path, width: int) -> Path:
-    cache_dir = get_thumbnail_cache_dir()
-    digest = thumbnail_cache_digest(source, width)
-    return cache_dir / digest[:2] / f"{digest}{THUMBNAIL_SUFFIX}"
+    stat = source.stat()
+    key = f"{source.resolve()}|{width}|{stat.st_mtime_ns}:{stat.st_size}"
+    digest = hashlib.sha256(key.encode()).hexdigest()
+    return get_thumbnail_cache_dir() / digest[:2] / f"{digest}{THUMBNAIL_SUFFIX}"
 
 
 def _generation_lock(cache_key: str) -> threading.Lock:
@@ -85,30 +76,12 @@ def _generation_lock(cache_key: str) -> threading.Lock:
         return lock
 
 
-def _ensure_cache_dir() -> Path:
-    cache_dir = get_thumbnail_cache_dir()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
-
-
-def _publish_temp_thumbnail(temp_path: Path, cached: Path) -> None:
-    cached.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(temp_path, cached)
-
-
 def _prepare_thumbnail_image(image: Image.Image, width: int) -> Image.Image:
     working = image
-    if working.mode in {"RGBA", "LA"}:
-        background = Image.new("RGB", working.size, (24, 24, 24))
-        alpha = working.split()[-1]
-        rgb = working.convert("RGB")
-        background.paste(rgb, mask=alpha)
-        working = background
-    elif working.mode == "P":
-        working = working.convert("RGBA")
-        background = Image.new("RGB", working.size, (24, 24, 24))
-        background.paste(working.convert("RGB"), mask=working.split()[-1])
-        working = background
+    if working.mode in {"RGBA", "LA", "P"}:
+        rgba = working.convert("RGBA")
+        working = Image.new("RGB", rgba.size, (24, 24, 24))
+        working.paste(rgba.convert("RGB"), mask=rgba.split()[-1])
     elif working.mode != "RGB":
         working = working.convert("RGB")
 
@@ -121,7 +94,6 @@ def _prepare_thumbnail_image(image: Image.Image, width: int) -> Image.Image:
 
 def _save_thumbnail_webp(image: Image.Image, destination: Path, width: int) -> None:
     working = _prepare_thumbnail_image(image, width)
-    destination.parent.mkdir(parents=True, exist_ok=True)
     working.save(destination, format="WEBP", quality=WEBP_QUALITY, method=6)
 
 
@@ -137,9 +109,7 @@ def _render_image_thumbnail(source: Path, destination: Path, width: int) -> None
         raise ThumbnailError("Failed to read image for thumbnail generation") from exc
 
 
-def _video_thumbnail_commands(
-    ffmpeg: str, source: Path, destination: Path, width: int
-) -> list[list[str]]:
+def _video_thumbnail_commands(source: Path, destination: Path, width: int) -> list[list[str]]:
     source_arg = str(source)
     destination_arg = str(destination)
     scale_filter = f"scale='min({width},iw)':-2"
@@ -177,14 +147,9 @@ def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None
     if not ffmpeg:
         raise ThumbnailUnavailableError("Video thumbnail requires ffmpeg")
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        destination.unlink()
-
     errors: list[str] = []
-    for command_args in _video_thumbnail_commands(ffmpeg, source, destination, width):
-        if destination.exists():
-            destination.unlink()
+    for command_args in _video_thumbnail_commands(source, destination, width):
+        destination.unlink(missing_ok=True)
 
         command = [
             ffmpeg,
@@ -304,7 +269,6 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
     if suffix not in MEDIA_EXTENSIONS:
         raise ThumbnailError("Unsupported media type for thumbnails")
 
-    _ensure_cache_dir()
     cached = thumbnail_cache_path(source, normalized_width)
     if cached.is_file():
         return cached
@@ -328,11 +292,9 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
                 _render_image_thumbnail(source, temp_path, normalized_width)
             else:
                 _render_video_thumbnail(source, temp_path, normalized_width)
-            _publish_temp_thumbnail(temp_path, cached)
-            temp_path = cached
+            os.replace(temp_path, cached)
         except Exception:
-            if temp_path.exists() and temp_path != cached:
-                temp_path.unlink(missing_ok=True)
+            temp_path.unlink(missing_ok=True)
             raise
 
     _prune_thumbnail_cache_periodically()

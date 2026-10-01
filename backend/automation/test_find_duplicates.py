@@ -17,9 +17,10 @@ from automation.find_duplicates import (
     validate_find_duplicates_folder,
 )
 from captions import load_issue_summary
-from duplicates import duplicate_file_path, group_id_for, load_duplicate_finding
+from duplicates import duplicate_file_path, group_id_for
 from testing_fixtures import (
     TempMediaFolder,
+    load_duplicate_finding,
     write_image,
     write_issue_sidecar,
     write_media,
@@ -165,7 +166,6 @@ class FindDuplicatesJobTests(unittest.TestCase):
             finding = load_duplicate_finding(first)
             assert finding is not None
             self.assertEqual(finding.max_distance, 0)
-            self.assertTrue(finding.exact)
             self.assertEqual(finding.threshold, "loose")
 
     def test_caption_issues_are_untouched(self) -> None:

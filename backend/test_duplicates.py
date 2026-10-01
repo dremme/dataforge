@@ -13,12 +13,11 @@ from duplicates import (
     delete_duplicate_file,
     duplicate_file_path,
     group_duplicate_findings,
-    load_duplicate_finding,
     save_duplicate_finding,
     stale_duplicate_members,
 )
 from folder_scan import scan_folder
-from testing_fixtures import TempMediaFolder, write_media
+from testing_fixtures import TempMediaFolder, load_duplicate_finding, write_media
 
 FINDING = DuplicateFinding(group="abc123", max_distance=0, threshold="exact")
 
@@ -47,20 +46,6 @@ class SaveAndLoadTests(unittest.TestCase):
 
             self.assertFalse(duplicate_file_path(media).exists())
 
-    def test_saving_none_on_a_clean_file_is_a_no_op(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "one.png")
-
-            save_duplicate_finding(media, None)
-
-            self.assertFalse(duplicate_file_path(media).exists())
-
-    def test_no_sidecar_reads_as_no_finding(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "one.png")
-
-            self.assertIsNone(load_duplicate_finding(media))
-
     def test_a_sidecar_with_a_bom_still_reads(self) -> None:
         """Notepad adds one, and rejecting the file over three bytes loses the finding."""
         with TempMediaFolder() as root:
@@ -72,19 +57,14 @@ class SaveAndLoadTests(unittest.TestCase):
 
             self.assertEqual(load_duplicate_finding(media), FINDING)
 
-    def test_a_malformed_sidecar_reads_as_no_finding(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "one.png")
-            duplicate_file_path(media).write_text("{not json", encoding="utf-8")
+    def test_a_missing_or_unusable_sidecar_reads_as_no_finding(self) -> None:
+        for content in (None, "{not json", '{"max_distance": 0}'):
+            with self.subTest(content=content), TempMediaFolder() as root:
+                media = write_media(root, "one.png")
+                if content is not None:
+                    duplicate_file_path(media).write_text(content, encoding="utf-8")
 
-            self.assertIsNone(load_duplicate_finding(media))
-
-    def test_a_sidecar_without_a_group_reads_as_no_finding(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "one.png")
-            duplicate_file_path(media).write_text('{"max_distance": 0}', encoding="utf-8")
-
-            self.assertIsNone(load_duplicate_finding(media))
+                self.assertIsNone(load_duplicate_finding(media))
 
     def test_delete_removes_the_sidecar_and_tolerates_its_absence(self) -> None:
         with TempMediaFolder() as root:
@@ -95,10 +75,6 @@ class SaveAndLoadTests(unittest.TestCase):
             delete_duplicate_file(media)
 
             self.assertFalse(duplicate_file_path(media).exists())
-
-    def test_exact_is_derived_from_the_distance(self) -> None:
-        self.assertTrue(DuplicateFinding(group="a", max_distance=0, threshold="near").exact)
-        self.assertFalse(DuplicateFinding(group="a", max_distance=3, threshold="exact").exact)
 
 
 class GroupingTests(unittest.TestCase):

@@ -17,7 +17,6 @@ from automation.watermark import (
     WATERMARK_SIZES,
     WATERMARK_STALE_MARKER,
     WATERMARK_TEMP_MARKER,
-    WatermarkCancelled,
     build_drawtext_filter,
     escape_drawtext_path,
     escape_drawtext_text,
@@ -30,6 +29,7 @@ from automation.watermark import (
     validate_watermark_folder,
 )
 from constants import WATERMARK_DIR_NAME
+from ffmpeg_run import FfmpegCancelled
 from testing_fixtures import (
     TempMediaFolder,
     write_gif,
@@ -479,7 +479,7 @@ class WatermarkVideoTests(unittest.TestCase):
                 calls["count"] += 1
                 if calls["count"] == 2:
                     destination.write_bytes(b"partial")
-                    raise WatermarkCancelled
+                    raise FfmpegCancelled
                 destination.write_bytes(b"x")
 
             with patch("automation.watermark.watermark_video", side_effect=encode):
@@ -564,9 +564,7 @@ class WatermarkStripMetadataTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
 
-            with patch.object(
-                watermark_module, "strip_file_metadata", side_effect=WatermarkCancelled
-            ):
+            with patch.object(watermark_module, "strip_file_metadata", side_effect=FfmpegCancelled):
                 result = run_watermark_job(root, text="Sample Studio", strip_metadata=True)
 
             stats = result["stats"]

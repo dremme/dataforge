@@ -66,7 +66,6 @@ def normalize_user_path(path: str) -> Path:
         drive_root = re.fullmatch(r"([A-Za-z]:)(?:\\)?", text)
         if drive_root:
             return Path(f"{drive_root.group(1).upper()}\\")
-        return Path(text).expanduser().resolve()
 
     return Path(text).expanduser().resolve()
 
@@ -167,23 +166,14 @@ def list_child_folders(folder: Path) -> list[dict[str, str]]:
 
 
 def sanitize_folder_name(name: str) -> str | None:
-    if name != name.strip():
+    # Surrounding whitespace is refused rather than trimmed, so the folder gets the name typed.
+    if name != name.strip() or name in {"", ".", ".."} or name.endswith("."):
         return None
 
-    cleaned = name.strip()
-    if not cleaned or cleaned in {".", ".."}:
+    if _INVALID_FOLDER_NAME_RE.search(name) or name.upper() in _WINDOWS_RESERVED_NAMES:
         return None
 
-    if _INVALID_FOLDER_NAME_RE.search(cleaned):
-        return None
-
-    if cleaned.endswith((".", " ")):
-        return None
-
-    if cleaned.upper() in _WINDOWS_RESERVED_NAMES:
-        return None
-
-    return cleaned
+    return name
 
 
 def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:

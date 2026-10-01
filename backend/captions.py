@@ -116,17 +116,18 @@ def media_has_caption_text(media_path: Path) -> bool:
 
 
 NO_CAPTION_STATUS = "no_caption"
+CAPTION_READ_ERROR = "read_error"
 
 
 def load_reference_caption(media_path: Path) -> tuple[str | None, str]:
-    """``(text, "ok")`` when the sidecar holds text, else ``(None, status)`` with ``no_caption`` if missing or textless."""
+    """``(text, "ok")``, or ``(None, status)``: ``no_caption`` if missing or textless, else ``read_error``."""
     caption_path = resolve_caption_file(media_path)
     if caption_path is None:
         return None, NO_CAPTION_STATUS
 
     raw = _read_caption_text(caption_path)
     if raw is None:
-        return None, f"read_error: could not read {caption_path.name}"
+        return None, CAPTION_READ_ERROR
 
     text = raw.strip() or None
     if not text:

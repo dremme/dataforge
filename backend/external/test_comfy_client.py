@@ -308,10 +308,6 @@ class ClientTests(unittest.TestCase):
             )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class LogWindowTests(unittest.TestCase):
     def test_the_window_is_read_from_the_internal_path(self) -> None:
         captured: dict = {}
@@ -369,3 +365,7 @@ class ReadLogLinesTests(unittest.TestCase):
 
         with patch("external.comfy_client.fetch_raw_log_entries", return_value=entries):
             self.assertEqual(read_log_lines(), ["phase one"])
+
+
+if __name__ == "__main__":
+    unittest.main()

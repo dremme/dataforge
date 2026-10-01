@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import argparse
-import logging
 import re
-from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,7 +10,7 @@ from typing import Literal
 
 from PIL import Image, ImageDraw, ImageFont
 
-from automation.job_runner import CANCELLED, FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.strip_metadata import strip_file_metadata
 from constants import VIDEO_EXTENSIONS, WATERMARK_DIR_NAME, WATERMARK_EXTENSIONS
@@ -21,11 +18,6 @@ from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
 from image_io import ImageReadError, load_image_for_edit, save_image_preserving_format
-from logging_config import configure_logging, log_job_summary
-
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 WatermarkSizeName = Literal["small", "medium", "large"]
 WatermarkOpacity = Literal[25, 50, 75]
@@ -80,10 +72,6 @@ FONT_MISSING_MESSAGE = (
     "Install a TrueType font such as Arial or DejaVu Sans and try again."
 )
 FFMPEG_MISSING_MESSAGE = "ffmpeg is required to add a watermark to videos"
-
-
-WatermarkCancelled = FfmpegCancelled
-WatermarkReadError = ImageReadError
 
 
 def list_watermark_files(folder: Path) -> list[Path]:
@@ -466,26 +454,14 @@ def run_watermark_job(
                 strip_metadata=strip_metadata,
             )
             return FileOutcome(status="success", stats={"success": 1, f"{kind}_success": 1})
-        except WatermarkCancelled:
-            return FileOutcome(status=CANCELLED, stats={"cancelled": 1}, stop=True)
-        except WatermarkReadError as exc:
-            return FileOutcome(
-                status="read_error",
-                stats={"read_error": 1},
-                fields={"message": str(exc)},
-            )
+        except FfmpegCancelled:
+            return FileOutcome.cancelled()
+        except ImageReadError as exc:
+            return FileOutcome.counted("read_error", exc)
         except RuntimeError as exc:
-            return FileOutcome(
-                status="ffmpeg_error",
-                stats={"ffmpeg_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("ffmpeg_error", exc)
         except OSError as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
     return run_media_job(
         folder,
@@ -506,75 +482,3 @@ def run_watermark_job(
         # image_success and video_success are sub-stats of success and must not be counted.
         processed_stat_keys=("success", "read_error", "write_error", "ffmpeg_error"),
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description="Add a text watermark to the JPG, PNG and MP4 files in a folder.",
-    )
-    parser.add_argument("folder", type=Path, help="Folder containing media files")
-    parser.add_argument("--text", required=True, help="Watermark text")
-    parser.add_argument(
-        "--size",
-        choices=tuple(WATERMARK_SIZES),
-        default=DEFAULT_WATERMARK_SIZE,
-        help="Watermark size relative to the media height",
-    )
-    parser.add_argument(
-        "--opacity",
-        type=int,
-        choices=WATERMARK_OPACITIES,
-        default=DEFAULT_WATERMARK_OPACITY,
-        help="Watermark opacity in percent",
-    )
-    parser.add_argument(
-        "--position",
-        choices=WATERMARK_POSITIONS,
-        default=DEFAULT_WATERMARK_POSITION,
-        help="Watermark position: top-left, center, or bottom-right",
-    )
-    parser.add_argument(
-        "--strip-metadata",
-        action="store_true",
-        help="Remove EXIF and container metadata from the watermarked copies",
-    )
-    args = parser.parse_args(argv)
-
-    folder = args.folder.expanduser().resolve()
-    try:
-        result = run_watermark_job(
-            folder,
-            text=args.text,
-            size=args.size,
-            opacity=args.opacity,
-            position=args.position,
-            strip_metadata=args.strip_metadata,
-        )
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    log_job_summary(
-        logger,
-        result,
-        stat_keys=(
-            "success",
-            "image_success",
-            "video_success",
-            "read_error",
-            "write_error",
-            "ffmpeg_error",
-        ),
-    )
-    stats = result.get("stats") or {}
-    if not isinstance(stats, dict):
-        return 0
-    failures = sum(
-        int(stats.get(key) or 0) for key in ("read_error", "write_error", "ffmpeg_error")
-    )
-    return 1 if failures else 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

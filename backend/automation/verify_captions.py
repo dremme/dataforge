@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 import textwrap
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
 
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.llm import (
     ModelOutcome,
     call_with_retries,
@@ -38,24 +36,13 @@ from captions import (
     normalize_issue_text,
     save_issue_findings,
 )
-from constants import IMAGE_EXTENSIONS, MAX_ISSUE_FIXES, MOTION_EXTENSIONS
+from constants import MAX_ISSUE_FIXES, MEDIA_EXTENSIONS
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
     get_openai_model,
 )
 from schemas import AutomationMode
-
-logger = logging.getLogger(__name__)
-
-VERIFY_CAPTIONS_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
-
-
-NON_SUCCESS_STATUSES = frozenset(
-    {NO_CAPTION_STATUS, "read_error", "api_error", "parse_error", "frame_error"}
-)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 
 @dataclass(frozen=True)
@@ -179,10 +166,6 @@ def parse_verification_response(raw_text: str) -> VerificationResult | None:
         return None
 
     return _parse_verification_payload(data)
-
-
-def should_write_issue_file(verification: VerificationResult) -> bool:
-    return bool(verification.fixes)
 
 
 @dataclass(frozen=True)
@@ -328,7 +311,7 @@ def build_verification_user_text(
 
 
 def list_verify_captions_media(folder: Path) -> list[Path]:
-    return list_folder_media(folder, VERIFY_CAPTIONS_EXTENSIONS, order="name")
+    return list_folder_media(folder, MEDIA_EXTENSIONS, order="name")
 
 
 def verify_caption(
@@ -348,19 +331,13 @@ def verify_caption(
 ) -> str | None:
     """Fact-check ``ref_caption`` against already-loaded ``images``; ``attempt`` is for JPEG retries."""
     media_kind = media_kind_for(media_path)
+    seconds = timestamps[-1] if timestamps else None
     return request_vision_text(
         client,
         system_prompt,
         images,
-        build_verification_user_text(
-            ref_caption,
-            media_kind,
-            len(images),
-            timestamps[-1] if timestamps else None,
-        ),
-        max_pixels=media_kind_max_pixels(
-            media_kind, seconds=timestamps[-1] if timestamps else None
-        ),
+        build_verification_user_text(ref_caption, media_kind, len(images), seconds),
+        max_pixels=media_kind_max_pixels(media_kind, seconds=seconds),
         mode=mode,
         effort=effort,
         preserve_thinking=preserve_thinking,
@@ -380,17 +357,16 @@ def process_media(
     mode: AutomationMode = "thinking",
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
-    should_cancel: Callable[[], bool] | None = None,
-) -> tuple[Path, VerificationResult | None, str, str | None]:
-    resolved_model = model if model is not None else get_openai_model()
+    should_cancel: ShouldCancel | None = None,
+) -> tuple[VerificationResult | None, str, str | None]:
     ref_caption, status = load_reference_caption(media_path)
     if status != "ok" or ref_caption is None:
-        return media_path, None, status, None
+        return None, status, None
 
     media_kind = media_kind_for(media_path)
     frames = load_media_images(media_path)
     if isinstance(frames, MediaLoadError):
-        return media_path, None, frames.status, frames.message
+        return None, frames.status, frames.message
 
     system_prompt = system_prompts[media_kind]
 
@@ -401,7 +377,7 @@ def process_media(
             system_prompt,
             ref_caption,
             images=frames.images,
-            model=resolved_model,
+            model=model,
             mode=mode,
             effort=effort,
             preserve_thinking=preserve_thinking,
@@ -430,7 +406,7 @@ def process_media(
         should_cancel=should_cancel,
         on_abandon=lambda: close_model_client(client),
     )
-    return media_path, outcome.value, outcome.status, outcome.message
+    return outcome.value, outcome.status, outcome.message
 
 
 def validate_verify_captions_folder(folder: Path) -> None:
@@ -456,14 +432,6 @@ def _initial_job_stats(total: int) -> dict[str, int]:
     }
 
 
-def _failure_outcome(status: str, message: str | None) -> FileOutcome:
-    return FileOutcome(
-        status=status,
-        stats={status: 1} if status in NON_SUCCESS_STATUSES else {},
-        fields={"message": message} if message else {},
-    )
-
-
 def run_verify_captions_job(
     folder: Path,
     *,
@@ -473,7 +441,7 @@ def run_verify_captions_job(
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     context: str = "",
     on_progress: ProgressCallback | None = None,
-    should_cancel: Callable[[], bool] | None = None,
+    should_cancel: ShouldCancel | None = None,
     selected_paths: list[Path] | None = None,
 ) -> dict[str, object]:
     validate_verify_captions_folder(folder)
@@ -485,7 +453,7 @@ def run_verify_captions_job(
     with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
-            _path, verification, status, message = process_media(
+            verification, status, message = process_media(
                 client,
                 media_path,
                 system_prompts,
@@ -497,25 +465,21 @@ def run_verify_captions_job(
             )
 
             if status == "cancelled":
-                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+                return FileOutcome.cancelled()
 
             if status != "success" or verification is None:
-                return _failure_outcome(status, message)
+                return FileOutcome.counted(status, message)
 
             if should_cancel and should_cancel():
-                return FileOutcome(status="cancelled", stats={"cancelled": 1}, stop=True)
+                return FileOutcome.cancelled()
 
             try:
                 save_issue_findings(media_path, "fixes", list(verification.fixes))
             except OSError as exc:
-                return FileOutcome(
-                    status="write_error",
-                    stats={"write_error": 1},
-                    fields={"message": str(exc)},
-                )
+                return FileOutcome.counted("write_error", exc)
 
-            if not should_write_issue_file(verification):
-                return FileOutcome(status="success", stats={"success": 1})
+            if not verification.fixes:
+                return FileOutcome.counted("success")
 
             return FileOutcome(
                 status="success",

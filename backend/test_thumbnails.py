@@ -122,12 +122,7 @@ class ThumbnailGenerationTests(CacheFolderTestCase):
                             get_or_create_thumbnail(video, 200)
 
     def test_video_thumbnail_targets_first_frame(self) -> None:
-        commands = _video_thumbnail_commands(
-            "ffmpeg",
-            Path("clip.mp4"),
-            Path("thumb.webp"),
-            200,
-        )
+        commands = _video_thumbnail_commands(Path("clip.mp4"), Path("thumb.webp"), 200)
 
         self.assertEqual(commands[0][:2], ["-i", "clip.mp4"])
         for command in commands:

@@ -2,32 +2,21 @@
 
 from __future__ import annotations
 
-import argparse
-import logging
 from collections.abc import Callable
 from pathlib import Path
 
 from PIL import UnidentifiedImageError
 
-from automation.job_runner import CANCELLED, FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from constants import IMAGE_EXTENSIONS, ISOBMFF_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
 from image_io import JPEG_SUFFIXES
-from logging_config import configure_logging, log_job_summary
 
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-
-STRIP_PNG_SUFFIX = ".png"
-STRIP_WEBP_SUFFIX = ".webp"
 # BMP has no metadata container: it is listed so the job does not skip the file in silence.
 STRIP_BMP_SUFFIX = ".bmp"
-STRIP_IMAGE_EXTENSIONS = IMAGE_EXTENSIONS
-STRIP_VIDEO_EXTENSIONS = ISOBMFF_EXTENSIONS
-STRIP_METADATA_EXTENSIONS = STRIP_IMAGE_EXTENSIONS | STRIP_VIDEO_EXTENSIONS
+STRIP_METADATA_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
 
 # Sits before the suffix so the watermark job's `*.watermark-tmp.*` sweep still reaches it.
 STRIP_TEMP_MARKER = ".strip-meta"
@@ -80,8 +69,7 @@ def _replace_with_bytes(path: Path, data: bytes) -> None:
 
 
 def strip_png_chunks(data: bytes) -> bytes:
-    """Drop the text, EXIF and time chunks. Re-saving through Pillow would re-compress the pixels
-    and discard iCCP/gAMA and any APNG frames along with the metadata."""
+    """Drop the text, EXIF and time chunks; a Pillow re-save would lose iCCP/gAMA and APNG frames."""
     if not data.startswith(_PNG_SIGNATURE):
         raise UnidentifiedImageError("Not a PNG file")
 
@@ -103,14 +91,6 @@ def strip_png_chunks(data: bytes) -> bytes:
             return b"".join(kept)
 
     raise UnidentifiedImageError("PNG ended before the IEND chunk")
-
-
-def strip_png_metadata(path: Path) -> None:
-    try:
-        data = path.read_bytes()
-    except OSError as exc:
-        raise UnidentifiedImageError(str(exc)) from exc
-    _replace_with_bytes(path, strip_png_chunks(data))
 
 
 def strip_jpeg_segments(data: bytes) -> bytes:
@@ -152,14 +132,6 @@ def strip_jpeg_segments(data: bytes) -> bytes:
     raise UnidentifiedImageError("JPEG ended before the image scan")
 
 
-def strip_jpeg_metadata(path: Path) -> None:
-    try:
-        data = path.read_bytes()
-    except OSError as exc:
-        raise UnidentifiedImageError(str(exc)) from exc
-    _replace_with_bytes(path, strip_jpeg_segments(data))
-
-
 def strip_webp_chunks(data: bytes) -> bytes:
     """Drop the EXIF and XMP RIFF chunks. Re-saving through Pillow would re-compress the image."""
     if len(data) < 12 or data[:4] != _RIFF_SIGNATURE or data[8:12] != _WEBP_SIGNATURE:
@@ -194,12 +166,19 @@ def strip_webp_chunks(data: bytes) -> bytes:
     return _RIFF_SIGNATURE + (len(body) + 4).to_bytes(4, "little") + _WEBP_SIGNATURE + body
 
 
-def strip_webp_metadata(path: Path) -> None:
+_IMAGE_STRIPPERS: dict[str, Callable[[bytes], bytes]] = {
+    **dict.fromkeys(JPEG_SUFFIXES, strip_jpeg_segments),
+    ".png": strip_png_chunks,
+    ".webp": strip_webp_chunks,
+}
+
+
+def _strip_image_bytes(path: Path, strip: Callable[[bytes], bytes]) -> None:
     try:
         data = path.read_bytes()
     except OSError as exc:
         raise UnidentifiedImageError(str(exc)) from exc
-    _replace_with_bytes(path, strip_webp_chunks(data))
+    _replace_with_bytes(path, strip(data))
 
 
 def strip_isobmff_metadata(
@@ -254,16 +233,13 @@ def strip_file_metadata(
     """Strip one file in place and return whether it was an ``image`` or a ``video``."""
     suffix = path.suffix.lower()
 
-    if suffix in STRIP_VIDEO_EXTENSIONS:
+    if suffix in ISOBMFF_EXTENSIONS:
         strip_isobmff_metadata(path, ffmpeg=ffmpeg, should_cancel=should_cancel)
         return "video"
 
-    if suffix in JPEG_SUFFIXES:
-        strip_jpeg_metadata(path)
-    elif suffix == STRIP_WEBP_SUFFIX:
-        strip_webp_metadata(path)
-    elif suffix == STRIP_PNG_SUFFIX:
-        strip_png_metadata(path)
+    strip = _IMAGE_STRIPPERS.get(suffix)
+    if strip is not None:
+        _strip_image_bytes(path, strip)
     elif suffix != STRIP_BMP_SUFFIX:
         raise UnidentifiedImageError(f"Cannot strip metadata from {suffix} files")
 
@@ -291,23 +267,14 @@ def run_strip_metadata_job(
             )
             return FileOutcome(status="success", stats={"success": 1, f"{kind}_success": 1})
         except FfmpegCancelled:
-            return FileOutcome(status=CANCELLED, stats={"cancelled": 1}, stop=True)
+            return FileOutcome.cancelled()
         except UnidentifiedImageError as exc:
-            return FileOutcome(
-                status="read_error",
-                stats={"read_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("read_error", exc)
         except RuntimeError as exc:
-            message = str(exc)
-            status = "ffmpeg_error" if "ffmpeg" in message.lower() else "write_error"
-            return FileOutcome(status=status, stats={status: 1}, fields={"message": message})
+            status = "ffmpeg_error" if "ffmpeg" in str(exc).lower() else "write_error"
+            return FileOutcome.counted(status, exc)
         except OSError as exc:
-            return FileOutcome(
-                status="write_error",
-                stats={"write_error": 1},
-                fields={"message": str(exc)},
-            )
+            return FileOutcome.counted("write_error", exc)
 
     return run_media_job(
         folder,
@@ -328,46 +295,3 @@ def run_strip_metadata_job(
         # image_success and video_success are sub-stats of success and must not be counted.
         processed_stat_keys=("success", "read_error", "write_error", "ffmpeg_error"),
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description="Strip metadata from the image and MP4-family files in a folder.",
-    )
-    parser.add_argument(
-        "folder",
-        type=Path,
-        help="Folder containing image and/or MP4-family files",
-    )
-    args = parser.parse_args(argv)
-
-    folder = args.folder.expanduser().resolve()
-    try:
-        result = run_strip_metadata_job(folder)
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    log_job_summary(
-        logger,
-        result,
-        stat_keys=(
-            "success",
-            "image_success",
-            "video_success",
-            "read_error",
-            "write_error",
-            "ffmpeg_error",
-        ),
-    )
-    stats = result.get("stats") or {}
-    if isinstance(stats, dict) and int(stats.get("ffmpeg_error") or 0) > 0:
-        return 1
-    if isinstance(stats, dict) and int(stats.get("write_error") or 0) > 0:
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

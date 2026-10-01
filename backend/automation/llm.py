@@ -205,7 +205,6 @@ def close_model_client(client: object) -> None:
 
 @contextmanager
 def model_client() -> Iterator[Any]:
-    """A model client scoped to one job run."""
     client = create_openai_client()
     try:
         yield client
@@ -248,12 +247,11 @@ def call_with_retries[T](
     media_name: str,
     should_cancel: Callable[[], bool] | None = None,
     on_abandon: Callable[[], None] | None = None,
-    attempts: int = MAX_MODEL_ATTEMPTS,
 ) -> ModelOutcome[T]:
     """Retry ``attempt`` until success, exhaustion, or cancel; ``on_abandon`` runs if an in-flight request is dropped."""
     outcome: ModelOutcome[T] = ModelOutcome(status=API_ERROR)
 
-    for number in range(1, attempts + 1):
+    for number in range(1, MAX_MODEL_ATTEMPTS + 1):
         if should_cancel and should_cancel():
             return ModelOutcome(status=CANCELLED)
 
@@ -278,12 +276,12 @@ def call_with_retries[T](
         if outcome.status == SUCCESS:
             return outcome
 
-        if number < attempts:
+        if number < MAX_MODEL_ATTEMPTS:
             logger.warning(
                 "%s attempt %s/%s failed for %s (%s); retrying",
                 job_label,
                 number,
-                attempts,
+                MAX_MODEL_ATTEMPTS,
                 media_name,
                 outcome.status,
             )

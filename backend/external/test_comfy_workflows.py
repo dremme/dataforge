@@ -512,10 +512,6 @@ class ShippedExampleTests(unittest.TestCase):
         self.assertEqual(workflow.output_node, "3")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PresetRoleTests(unittest.TestCase):
     """The dialog greys out a field the preset cannot take, so listing has to report both roles."""
 
@@ -556,3 +552,7 @@ class PresetRoleTests(unittest.TestCase):
 
     def test_a_missing_preset_reports_unknown(self) -> None:
         self.assertEqual(preset_roles(Path("no-such-preset.json")), (None, None))
+
+
+if __name__ == "__main__":
+    unittest.main()

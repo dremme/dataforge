@@ -125,10 +125,6 @@ def candidate_write_path(media: Path, suffix: str = COMFY_CANDIDATE_SUFFIX) -> P
     return staging_dir(media.parent) / name
 
 
-def resolve_candidate(media: Path) -> Path | None:
-    return candidate_path_for(media)
-
-
 def validate_candidate_destination(media: Path, destination: Path) -> None:
     names = {path.name for path in media.parent.iterdir()}
     staged = {destination.name}
@@ -173,7 +169,7 @@ def stale_path_for(media: Path) -> Path:
 
 
 def has_candidate(media: Path) -> bool:
-    return resolve_candidate(media) is not None
+    return candidate_path_for(media) is not None
 
 
 def sweep_comfy_temp_files(folder: Path) -> None:
@@ -216,7 +212,7 @@ def _describe(media: Path, *, accepted: bool, path: Path | None = None) -> Comfy
 
 
 def describe_candidate_state(media: Path) -> ComfyCandidateStateResponse:
-    candidate = resolve_candidate(media)
+    candidate = candidate_path_for(media)
     present = candidate is not None
     sidecar = read_candidate_sidecar(candidate) if candidate else None
 
@@ -287,7 +283,7 @@ def accept_candidate(media: Path, *, discard_edit: bool = False) -> ComfyCandida
     that file, so publishing over it would have the next edit silently render from pre-ComfyUI
     pixels and throw the accepted pass away.
     """
-    candidate = resolve_candidate(media)
+    candidate = candidate_path_for(media)
     if candidate is None:
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
 
@@ -325,7 +321,7 @@ def accept_candidate(media: Path, *, discard_edit: bool = False) -> ComfyCandida
 
 def reject_candidate(media: Path) -> ComfyCandidateResponse:
     """Discard the staged candidate. The source may already be gone."""
-    candidate = resolve_candidate(media)
+    candidate = candidate_path_for(media)
     if candidate is None:
         raise NoCandidateError(NO_CANDIDATE_MESSAGE)
 

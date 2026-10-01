@@ -46,13 +46,13 @@ from automation.job_messages import (
     find_duplicates_error_message,
     rename_media_error_message,
     replace_captions_error_message,
-    resolve_job_error,
     restore_captions_error_message,
     set_captions_error_message,
     strip_metadata_error_message,
     verify_captions_failure_message,
     watermark_error_message,
 )
+from automation.job_runner import ProgressCallback
 from automation.rename_media import (
     normalize_start_number,
     run_rename_media_job,
@@ -93,41 +93,6 @@ def _utc_now() -> str:
     return datetime.now(tz=UTC).isoformat()
 
 
-def _normalize_folder(folder: str) -> str:
-    return str(normalize_user_path(folder))
-
-
-def _folder_name(folder: str) -> str:
-    return path_leaf_name(folder)
-
-
-def _resolve_verify_captions_status(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
-    if cancelled:
-        return "cancelled", None
-    message = verify_captions_failure_message(job.stats)
-    if message:
-        return "failed", message
-    return "completed", None
-
-
-def _resolve_train_lora_status(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
-    if cancelled or job.stats.get("stopped"):
-        return "cancelled", None
-    return "completed", None
-
-
-def _resolve_stats_errors(message: Callable[[dict[str, int]], str | None]) -> StatusResolver:
-    def resolve(job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
-        if cancelled:
-            return "cancelled", None
-        error_message = message(job.stats)
-        if error_message:
-            return "failed", error_message
-        return "completed", None
-
-    return resolve
-
-
 def _stored_text(data: dict[str, object], key: str) -> str | None:
     value = data.get(key)
     return value if isinstance(value, str) else None
@@ -141,8 +106,7 @@ def _stored_int(data: dict[str, object], key: str) -> int:
 def _stored_literal[T: str](
     data: dict[str, object], key: str, allowed: tuple[T, ...], fallback: T
 ) -> T:
-    """One of ``allowed``, or the fallback. A retired value in an old row must not become a status
-    nothing downstream can render."""
+    """One of ``allowed``, or the fallback, so a retired value in an old row still renders."""
     value = data.get(key)
     # Returns the member itself: a comparison narrows nothing, so `value` stays a plain str.
     for option in allowed:
@@ -172,8 +136,7 @@ class Job:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Job:
-        """Rebuild a job from its stored row. A column of the wrong shape falls back rather than
-        propagating into a field the rest of the app trusts."""
+        """Rebuild a job from its stored row; a column of the wrong shape falls back to its default."""
         stats = data.get("stats") or {}
         results = data.get("results") or []
         return cls(
@@ -200,7 +163,7 @@ class Job:
         return {
             "id": self.id,
             "folder": self.folder,
-            "folder_name": _folder_name(self.folder),
+            "folder_name": path_leaf_name(self.folder),
             "job_type": self.job_type,
             "status": self.status,
             "total": self.total,
@@ -208,11 +171,7 @@ class Job:
             "current_file": self.current_file,
             "current_name": self.current_name,
             "stats": self.stats,
-            "error": resolve_job_error(
-                job_type=self.job_type,
-                stats=self.stats,
-                stored_error=self.error,
-            ),
+            "error": self.error or JOB_SPECS[self.job_type].failure(self.stats),
             "created_at": self.created_at,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -223,10 +182,6 @@ class Job:
     def to_dict(self) -> dict[str, object]:
         """The persistence shape: the summary plus the per-file results."""
         return {**self.to_summary_dict(), "results": self.results}
-
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-StatusResolver = Callable[[Job, bool], tuple[JobStatus, str | None]]
 
 
 def _folder_only(validate: Callable[[Path], None]) -> Callable[..., None]:
@@ -326,105 +281,114 @@ class JobSpec:
 
     thread_prefix: str
     run: Callable[..., dict[str, object]]
-    resolve_status: StatusResolver
     validate: Callable[..., None]
+    failure_message: Callable[[dict[str, int]], str | None] | None = None
     resume: Callable[[Job], dict[str, object] | None] | None = None
     external_ref: Callable[[dict[str, object]], str | None] | None = None
     caption_mode: Callable[[dict[str, object]], str | None] | None = None
+
+    def failure(self, stats: dict[str, int]) -> str | None:
+        return self.failure_message(stats) if self.failure_message else None
+
+    def resolve_status(self, job: Job, cancelled: bool) -> tuple[JobStatus, str | None]:
+        """``stopped`` is a training run the user stopped from AI-Toolkit itself."""
+        if cancelled or job.stats.get("stopped"):
+            return "cancelled", None
+        message = self.failure(job.stats)
+        return ("failed", message) if message else ("completed", None)
 
 
 JOB_SPECS: dict[JobType, JobSpec] = {
     "auto_caption": JobSpec(
         thread_prefix="auto-caption",
         run=run_auto_caption_job,
-        resolve_status=_resolve_stats_errors(auto_caption_failure_message),
+        failure_message=auto_caption_failure_message,
         validate=_validate_auto_caption,
         caption_mode=_auto_caption_mode,
     ),
     "strip_metadata": JobSpec(
         thread_prefix="strip-metadata",
         run=run_strip_metadata_job,
-        resolve_status=_resolve_stats_errors(strip_metadata_error_message),
+        failure_message=strip_metadata_error_message,
         validate=_folder_only(validate_strip_metadata_folder),
     ),
     "set_captions": JobSpec(
         thread_prefix="set-captions",
         run=run_set_captions_job,
-        resolve_status=_resolve_stats_errors(set_captions_error_message),
+        failure_message=set_captions_error_message,
         validate=_folder_only(validate_set_captions_folder),
     ),
     "replace_captions": JobSpec(
         thread_prefix="replace-captions",
         run=run_replace_captions_job,
-        resolve_status=_resolve_stats_errors(replace_captions_error_message),
+        failure_message=replace_captions_error_message,
         validate=_validate_replace_captions,
     ),
     "find_duplicates": JobSpec(
         thread_prefix="find-duplicates",
         run=run_find_duplicates_job,
-        resolve_status=_resolve_stats_errors(find_duplicates_error_message),
+        failure_message=find_duplicates_error_message,
         validate=_validate_find_duplicates,
     ),
     "batch_rename": JobSpec(
         thread_prefix="rename-media",
         run=run_rename_media_job,
-        resolve_status=_resolve_stats_errors(rename_media_error_message),
+        failure_message=rename_media_error_message,
         validate=_validate_rename_media,
     ),
     "backup_captions": JobSpec(
         thread_prefix="backup-captions",
         run=run_backup_captions_job,
-        resolve_status=_resolve_stats_errors(backup_captions_error_message),
+        failure_message=backup_captions_error_message,
         validate=_folder_only(validate_backup_captions_folder),
     ),
     "restore_captions": JobSpec(
         thread_prefix="restore-captions",
         run=run_restore_captions_job,
-        resolve_status=_resolve_stats_errors(restore_captions_error_message),
+        failure_message=restore_captions_error_message,
         validate=_folder_only(validate_restore_captions_folder),
     ),
     "verify_captions": JobSpec(
         thread_prefix="verify-captions",
         run=run_verify_captions_job,
-        resolve_status=_resolve_verify_captions_status,
+        failure_message=verify_captions_failure_message,
         validate=_folder_only(validate_verify_captions_folder),
     ),
     "check_caption_rules": JobSpec(
         thread_prefix="check-caption-rules",
         run=run_check_caption_rules_job,
-        resolve_status=_resolve_stats_errors(check_caption_rules_error_message),
+        failure_message=check_caption_rules_error_message,
         validate=_folder_only(validate_check_caption_rules_folder),
     ),
     "edit_captions": JobSpec(
         thread_prefix="edit-captions",
         run=run_edit_captions_job,
-        resolve_status=_resolve_stats_errors(edit_captions_failure_message),
+        failure_message=edit_captions_failure_message,
         validate=_validate_edit_captions,
         caption_mode=_edit_captions_mode,
     ),
     "watermark": JobSpec(
         thread_prefix="watermark",
         run=run_watermark_job,
-        resolve_status=_resolve_stats_errors(watermark_error_message),
+        failure_message=watermark_error_message,
         validate=_validate_watermark,
     ),
     "auto_adjust": JobSpec(
         thread_prefix="auto-adjust",
         run=run_auto_adjust_job,
-        resolve_status=_resolve_stats_errors(auto_adjust_error_message),
+        failure_message=auto_adjust_error_message,
         validate=_validate_auto_adjust,
     ),
     "comfy_process": JobSpec(
         thread_prefix="comfy-process",
         run=run_comfy_process_job,
-        resolve_status=_resolve_stats_errors(comfy_process_error_message),
+        failure_message=comfy_process_error_message,
         validate=_validate_comfy_process,
         # No resume: prompt ids are never persisted and ComfyUI history is bounded.
     ),
     "train_lora": JobSpec(
         thread_prefix="train-lora",
         run=run_train_lora_job,
-        resolve_status=_resolve_train_lora_status,
         validate=validate_train_lora_folder,
         resume=_resume_train_lora,
         external_ref=_train_lora_external_ref,
@@ -660,8 +624,7 @@ class JobManager:
         job_type: JobType,
         params: dict[str, object],
     ) -> tuple[Job, threading.Event]:
-        """Create the job and persist it. Earlier runs stay in the store as history; only their
-        in-memory copies for the same folder and type are dropped, which keeps memory bounded."""
+        """Earlier runs stay in the store as history; only their in-memory copies are dropped."""
         spec = JOB_SPECS[job_type]
 
         with self._lock:
@@ -715,7 +678,7 @@ class JobManager:
             self._fail_job(job_id, str(exc))
             return
 
-        self._complete_job(job_id, result, cancel_event.is_set(), spec.resolve_status)
+        self._complete_job(job_id, result, cancel_event.is_set(), spec)
 
     def _begin_job(self, job_id: str, cancel_event: threading.Event) -> bool:
         with self._lock:
@@ -767,10 +730,10 @@ class JobManager:
         job_id: str,
         result: dict[str, object],
         cancelled: bool,
-        resolve_status: StatusResolver,
+        spec: JobSpec,
     ) -> None:
         with self._lock:
-            if self._is_deleted(job_id):
+            if job_id in self._deleted_ids:
                 return
             job = self._jobs.get(job_id)
             if job is None:
@@ -786,7 +749,7 @@ class JobManager:
             job.current_name = None
             job.finished_at = _utc_now()
 
-            status, error = resolve_status(job, cancelled)
+            status, error = spec.resolve_status(job, cancelled)
             job.status = status
             job.error = error
             self._save_snapshot(job_id, job.to_dict())
@@ -798,7 +761,7 @@ class JobManager:
         job_type: JobType | None = None,
         active_only: bool = False,
     ) -> Job | None:
-        normalized = _normalize_folder(folder)
+        normalized = str(normalize_user_path(folder))
         for job in reversed(list(self._jobs.values())):
             if job.folder != normalized:
                 continue
@@ -815,11 +778,7 @@ class JobManager:
             return None
         return Job.from_dict(stored)
 
-    def _is_deleted(self, job_id: str) -> bool:
-        return job_id in self._deleted_ids
-
     def _persist(self, job: Job) -> None:
-        """Persist ``job`` if it is still tracked and not deleted."""
         with self._lock:
             self._save_snapshot(job.id, job.to_dict())
 

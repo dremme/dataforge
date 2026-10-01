@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import httpx
 
+from automation.job_runner import ProgressCallback, ShouldCancel
 from automation.selection import list_folder_media
 from constants import MEDIA_EXTENSIONS
 from external.ostris_jobs import (
@@ -38,9 +38,6 @@ from external.ostris_training import (
     training_samples_folder,
     validate_lora_name,
 )
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 
 def _clean_prompts(prompts: list[str] | None) -> list[str]:

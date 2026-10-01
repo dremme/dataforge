@@ -9,6 +9,7 @@ isolate_test_database()
 import subprocess
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from pydantic import ValidationError
@@ -564,26 +565,17 @@ class ProbeSourceTests(unittest.TestCase):
             ProbeSourceTests.CAP_PROP_FRAME_COUNT: frames,
         }
 
-        class FakeCapture:
-            def isOpened(inner) -> bool:  # mirrors the cv2 API
-                return opened
-
-            def get(inner, prop: int) -> float:
-                return properties[prop]
-
-            def release(inner) -> None:
-                released.append(True)
-
-        fake = type(
-            "cv2",
-            (),
-            {
-                "VideoCapture": staticmethod(lambda _path: FakeCapture()),
-                "CAP_PROP_FPS": self.CAP_PROP_FPS,
-                "CAP_PROP_FRAME_WIDTH": self.CAP_PROP_FRAME_WIDTH,
-                "CAP_PROP_FRAME_HEIGHT": self.CAP_PROP_FRAME_HEIGHT,
-                "CAP_PROP_FRAME_COUNT": self.CAP_PROP_FRAME_COUNT,
-            },
+        capture = SimpleNamespace(
+            isOpened=lambda: opened,
+            get=properties.__getitem__,
+            release=lambda: released.append(True),
+        )
+        fake = SimpleNamespace(
+            VideoCapture=lambda _path: capture,
+            CAP_PROP_FPS=self.CAP_PROP_FPS,
+            CAP_PROP_FRAME_WIDTH=self.CAP_PROP_FRAME_WIDTH,
+            CAP_PROP_FRAME_HEIGHT=self.CAP_PROP_FRAME_HEIGHT,
+            CAP_PROP_FRAME_COUNT=self.CAP_PROP_FRAME_COUNT,
         )
         return fake, released
 

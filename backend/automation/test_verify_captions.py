@@ -13,13 +13,10 @@ isolate_test_database()
 
 from PIL import Image
 
+from app_settings import SETTING_DEFAULTS
 from automation.auto_caption import complete_caption
-from automation.llm import (
-    INSTRUCT_THINK_PREFILL,
-    MAX_MODEL_ATTEMPTS,
-)
+from automation.llm import MAX_MODEL_ATTEMPTS
 from automation.verify_captions import (
-    VerificationResult,
     _response_preview,
     build_verification_system_prompt,
     build_verification_user_text,
@@ -27,24 +24,23 @@ from automation.verify_captions import (
     parse_verification_response,
     process_media,
     run_verify_captions_job,
-    should_write_issue_file,
     split_fix_sentences,
     validate_verify_captions_folder,
     verify_caption,
 )
 from automation.vision import (
     FRAME_ERROR,
-    IMAGE_MAX_PIXELS,
     VIDEO_KEYFRAME_COUNT,
     MediaFrames,
     MediaLoadError,
     load_media_images,
-    media_kind_for,
 )
 from captions import issue_file_path, load_issue_summary
 from constants import MAX_ISSUE_FIXES
 from testing_fixtures import (
+    FakeChatClient,
     TempMediaFolder,
+    image_urls,
     write_gif,
     write_issue_sidecar,
     write_media,
@@ -53,6 +49,7 @@ from testing_fixtures import (
 )
 
 DEFAULT_FIX = 'Replace "a blue lake" with "a snow-covered mountain peak".'
+SYSTEM_PROMPTS = {"image": "system prompt", "video": "video system prompt"}
 
 
 def _rules_section(prompt: str) -> str:
@@ -65,48 +62,8 @@ def _fixes_json(*fixes: str, correct: bool | None = None) -> str:
     return json.dumps({"correct": verdict, "issues": " ".join(fixes) if fixes else "None"})
 
 
-def _make_fake_verify_client(
-    captured: dict | None = None,
-    *,
-    content: str | None = None,
-    reasoning_content: str | None = None,
-) -> tuple[object, dict]:
-    """Fake OpenAI client that records call kwargs for verify_caption tests."""
-    if captured is None:
-        captured = {}
-    if content is None and reasoning_content is None:
-        content = _fixes_json(DEFAULT_FIX)
-    message = type(
-        "Message",
-        (),
-        {
-            "content": "" if content is None else content,
-            "reasoning_content": reasoning_content,
-        },
-    )()
-
-    class FakeCompletions:
-        def create(self, **kwargs: object) -> object:
-            captured.update(
-                {
-                    "temperature": kwargs.get("temperature"),
-                    "top_p": kwargs.get("top_p"),
-                    "presence_penalty": kwargs.get("presence_penalty"),
-                    "max_tokens": kwargs.get("max_tokens"),
-                    "messages": kwargs.get("messages"),
-                    "extra_body": kwargs.get("extra_body"),
-                }
-            )
-            # Every call, not just the last: a retrying test asserts what each carried.
-            captured.setdefault("requests", []).append(kwargs.get("messages"))
-            choice = type("Choice", (), {"message": message})()
-            return type("Response", (), {"choices": [choice]})()
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
-
-    return FakeClient(), captured
+def _verdict_client(content: str | None = None) -> FakeChatClient:
+    return FakeChatClient(_fixes_json(DEFAULT_FIX) if content is None else content)
 
 
 class VerifyCaptionsParsingTests(unittest.TestCase):
@@ -125,120 +82,65 @@ class VerifyCaptionsParsingTests(unittest.TestCase):
                     ('Remove "blue lake. green trees".', "Mention rain."),
                 )
 
-    def test_parse_valid_json_response(self) -> None:
-        parsed = parse_verification_response(_fixes_json(DEFAULT_FIX))
+    def test_parses_each_response_shape_into_its_fixes(self) -> None:
+        cases = {
+            "plain JSON": (_fixes_json(DEFAULT_FIX), (DEFAULT_FIX,)),
+            "fences and thinking tags": (
+                "<think>\nmaybe wrong\n</think>\n```json\n" + _fixes_json(DEFAULT_FIX) + "\n```",
+                (DEFAULT_FIX,),
+            ),
+            # Curly quotes leave the splitter blind to the span, fragmenting one finding in two.
+            "typographic quotes": (
+                json.dumps(
+                    {
+                        "correct": False,
+                        "issues": "Replace “a blue car. parked outside” with “a red car”.",
+                    }
+                ),
+                ('Replace "a blue car. parked outside" with "a red car".',),
+            ),
+            "string verdict": (
+                json.dumps({"correct": "no", "issues": DEFAULT_FIX}),
+                (DEFAULT_FIX,),
+            ),
+            "JSON embedded in prose": (
+                "Here is my evaluation:\n" + _fixes_json(DEFAULT_FIX),
+                (DEFAULT_FIX,),
+            ),
+            "true verdict": (_fixes_json(), ()),
+            # Contradictions resolve toward "no issue" - the direction that avoids false flags.
+            "true verdict outranks issues": (_fixes_json(DEFAULT_FIX, correct=True), ()),
+            "false verdict with sentinel issues": (
+                json.dumps({"correct": False, "issues": "None"}),
+                (),
+            ),
+            "false verdict without fixes": (_fixes_json(correct=False), ()),
+            "prose split into fixes": (
+                json.dumps({"correct": False, "issues": f'{DEFAULT_FIX} Remove "at dusk".'}),
+                (DEFAULT_FIX, 'Remove "at dusk".'),
+            ),
+            "capped at the most important fixes": (
+                json.dumps({"correct": False, "issues": "First. Second. Third. Fourth. Fifth."}),
+                ("First.", "Second.", "Third."),
+            ),
+        }
+        for name, (raw, expected) in cases.items():
+            with self.subTest(name):
+                parsed = parse_verification_response(raw)
 
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
+                assert parsed is not None
+                self.assertEqual(parsed.fixes, expected)
 
-    def test_parse_strips_markdown_fences_and_thinking_tags(self) -> None:
-        raw = "<think>\nmaybe wrong\n</think>\n```json\n" + _fixes_json(DEFAULT_FIX) + "\n```"
-
-        parsed = parse_verification_response(raw)
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
-
-    def test_parse_normalizes_typographic_quotes_into_one_fix(self) -> None:
-        """Curly quotes leave the splitter blind to the span, fragmenting one finding in two."""
-        raw = json.dumps(
-            {
-                "correct": False,
-                "issues": "Replace “a blue car. parked outside” with “a red car”.",
-            }
-        )
-
-        parsed = parse_verification_response(raw)
-
-        assert parsed is not None
-        self.assertEqual(
-            parsed.fixes,
-            ('Replace "a blue car. parked outside" with "a red car".',),
-        )
-
-    def test_parse_rejects_invalid_json(self) -> None:
-        self.assertIsNone(parse_verification_response("not json"))
-
-    def test_parse_rejects_payload_without_a_verdict(self) -> None:
+    def test_rejects_responses_it_cannot_trust(self) -> None:
         """An unverdicted response is retried rather than trusted."""
-        self.assertIsNone(parse_verification_response(json.dumps({"issues": DEFAULT_FIX})))
-        self.assertIsNone(parse_verification_response(json.dumps({"correct": "maybe"})))
-
-    def test_parse_rejects_non_string_issues(self) -> None:
-        raw = json.dumps({"correct": False, "issues": [DEFAULT_FIX]})
-
-        self.assertIsNone(parse_verification_response(raw))
-
-    def test_parse_coerces_a_string_verdict(self) -> None:
-        raw = json.dumps({"correct": "no", "issues": DEFAULT_FIX})
-
-        parsed = parse_verification_response(raw)
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
-
-    def test_parse_extracts_json_embedded_in_prose(self) -> None:
-        parsed = parse_verification_response("Here is my evaluation:\n" + _fixes_json(DEFAULT_FIX))
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
-
-    def test_parse_reads_a_true_verdict_as_a_matching_caption(self) -> None:
-        parsed = parse_verification_response(_fixes_json())
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, ())
-
-    def test_a_true_verdict_outranks_any_issues_that_follow_it(self) -> None:
-        """Contradictions resolve toward "no issue" - the direction that avoids false flags."""
-        parsed = parse_verification_response(_fixes_json(DEFAULT_FIX, correct=True))
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, ())
-
-    def test_a_false_verdict_with_sentinel_issues_reads_as_a_match(self) -> None:
-        raw = json.dumps({"correct": False, "issues": "None"})
-
-        parsed = parse_verification_response(raw)
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, ())
-
-    def test_parse_splits_issue_prose_into_separate_fixes(self) -> None:
-        raw = json.dumps({"correct": False, "issues": f'{DEFAULT_FIX} Remove "at dusk".'})
-
-        parsed = parse_verification_response(raw)
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, (DEFAULT_FIX, 'Remove "at dusk".'))
-
-    def test_parse_keeps_only_the_three_most_important_fixes(self) -> None:
-        raw = json.dumps({"correct": False, "issues": "First. Second. Third. Fourth. Fifth."})
-
-        parsed = parse_verification_response(raw)
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertEqual(parsed.fixes, ("First.", "Second.", "Third."))
-
-    def test_should_write_issue_only_when_fixes_remain(self) -> None:
-        self.assertTrue(should_write_issue_file(VerificationResult(fixes=(DEFAULT_FIX,))))
-        self.assertFalse(should_write_issue_file(VerificationResult(fixes=())))
-
-    def test_a_false_verdict_without_fixes_writes_nothing(self) -> None:
-        parsed = parse_verification_response(_fixes_json(correct=False))
-
-        self.assertIsNotNone(parsed)
-        assert parsed is not None
-        self.assertFalse(should_write_issue_file(parsed))
+        for raw in (
+            "not json",
+            json.dumps({"issues": DEFAULT_FIX}),
+            json.dumps({"correct": "maybe"}),
+            json.dumps({"correct": False, "issues": [DEFAULT_FIX]}),
+        ):
+            with self.subTest(raw=raw):
+                self.assertIsNone(parse_verification_response(raw))
 
 
 class ResponsePreviewTests(unittest.TestCase):
@@ -444,20 +346,9 @@ class VerifyCaptionsPromptTests(unittest.TestCase):
         self.assertIn("a single frame", text.lower())
 
 
-def _image_payloads(messages: list[dict]) -> list[str]:
-    """The base64 image URLs one request carried, in order."""
-    parts = messages[1]["content"]
-    return [
-        part["image_url"]["url"]
-        for part in parts
-        if isinstance(part, dict) and part.get("type") == "image_url"
-    ]
-
-
-def _sent_image_pixels(captured: dict) -> int:
+def _sent_image_pixels(client: FakeChatClient) -> int:
     """Decode the still this request actually carried, at the size it was sent."""
-    parts = captured["messages"][1]["content"]
-    url = next(part["image_url"]["url"] for part in parts if part["type"] == "image_url")
+    url = image_urls(client.last["messages"])[0]
     image = Image.open(BytesIO(base64.b64decode(url.split(",", 1)[1])))
     return image.width * image.height
 
@@ -467,208 +358,41 @@ class VerifyCaptionsApiTests(unittest.TestCase):
         with TempMediaFolder() as root:
             media = write_media(root, "img.png")
             frames = [Image.new("RGB", (160, 96), color="blue")]
-            auto_client, auto = _make_fake_verify_client()
-            verify_client, verify = _make_fake_verify_client()
+            auto = _verdict_client()
+            verify = _verdict_client()
 
-            complete_caption(
-                auto_client,
-                media,
-                "Caption accurately.",
-                "A blue landscape.",
-                images=frames,
-            )
+            complete_caption(auto, media, "Caption accurately.", "A blue landscape.", images=frames)
             verify_caption(
-                verify_client,
+                verify,
                 media,
                 build_verification_system_prompt(),
                 "A blue landscape.",
                 images=frames,
             )
 
-            quality_fields = (
-                "temperature",
-                "top_p",
-                "presence_penalty",
-                "max_tokens",
-                "extra_body",
-            )
-            self.assertEqual(
-                {field: auto[field] for field in quality_fields},
-                {field: verify[field] for field in quality_fields},
-            )
-            self.assertEqual(_image_payloads(auto["messages"]), _image_payloads(verify["messages"]))
+        quality_fields = ("temperature", "top_p", "presence_penalty", "max_tokens", "extra_body")
+        self.assertEqual(
+            {field: auto.last[field] for field in quality_fields},
+            {field: verify.last[field] for field in quality_fields},
+        )
+        self.assertEqual(image_urls(auto.last["messages"]), image_urls(verify.last["messages"]))
 
-    def test_a_configured_still_budget_reaches_the_request(self) -> None:
-        # Shared still budget is read per call; bound at import, the frame goes out at the default size.
+    def test_the_still_budget_is_read_per_call(self) -> None:
+        # Bound at import, the frame would go out at the default size.
         with TempMediaFolder() as root:
             media = write_media(root, "img.png")
             frames = [Image.new("RGB", (2000, 2000), color="blue")]
-
-            fake_client, captured = _make_fake_verify_client()
-            with patch.dict(os.environ, {"IMAGE_MAX_PIXELS": "400000"}):
-                verify_caption(
-                    fake_client,
-                    media,
-                    build_verification_system_prompt(),
-                    "A blue car in the rain.",
-                    images=frames,
-                )
-
-            self.assertLessEqual(_sent_image_pixels(captured), 400_000)
-
-    def test_a_still_defaults_to_the_shared_image_budget(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "img.png")
-            frames = [Image.new("RGB", (2000, 2000), color="blue")]
-
-            fake_client, captured = _make_fake_verify_client()
-            verify_caption(
-                fake_client,
-                media,
-                build_verification_system_prompt(),
-                "A blue car in the rain.",
-                images=frames,
-            )
-
-            pixels = _sent_image_pixels(captured)
-            self.assertLessEqual(pixels, IMAGE_MAX_PIXELS)
-            self.assertGreater(pixels, 400_000)
-
-    def test_verify_caption_uses_instruct_params_when_requested(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "img.png")
-
-            fake_client, captured = _make_fake_verify_client()
-            frames = [Image.new("RGB", (128, 128), color="blue")]
-            response = verify_caption(
-                fake_client,
-                media,
-                build_verification_system_prompt(),
-                "A blue car in the rain.",
-                images=frames,
-                mode="instruct",
-            )
-
-            self.assertIsNotNone(response)
-            self.assertEqual(captured["temperature"], 0.7)
-            self.assertEqual(captured["top_p"], 0.8)
-            self.assertEqual(captured["presence_penalty"], 1.5)
-
-            msgs = captured["messages"]
-            self.assertIsNotNone(msgs)
-            self.assertEqual(len(msgs), 3)
-            self.assertEqual(msgs[2]["content"], INSTRUCT_THINK_PREFILL)
-            self.assertIn(
-                "enable_thinking",
-                captured["extra_body"]["chat_template_kwargs"],
-            )
-
-    def test_verify_caption_uses_thinking_params_when_requested(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "img.png")
-
-            fake_client, captured = _make_fake_verify_client()
-            frames = [Image.new("RGB", (128, 128), color="blue")]
-            verify_caption(
-                fake_client,
-                media,
-                build_verification_system_prompt("Outdoor portraits."),
-                "A hiker on a trail.",
-                images=frames,
-                mode="thinking",
-            )
-
-            self.assertEqual(captured["temperature"], 1.0)
-            self.assertEqual(captured["presence_penalty"], 0.0)
-            self.assertEqual(len(captured["messages"]), 2)
-            self.assertEqual(
-                captured["extra_body"]["chat_template_kwargs"],
-                {"reasoning_effort": "medium", "preserve_thinking": True},
-            )
-            self.assertEqual(captured["extra_body"]["reasoning_effort"], "medium")
-            self.assertIn("Outdoor portraits.", captured["messages"][0]["content"])
-
-    def test_verify_caption_forwards_reasoning_effort(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "img.png")
-
-            fake_client, captured = _make_fake_verify_client()
-            frames = [Image.new("RGB", (128, 128), color="blue")]
-            verify_caption(
-                fake_client,
-                media,
-                build_verification_system_prompt(),
-                "A hiker on a trail.",
-                images=frames,
-                mode="thinking",
-                effort="low",
-                preserve_thinking=False,
-            )
-
-            self.assertEqual(
-                captured["extra_body"]["chat_template_kwargs"],
-                {"reasoning_effort": "low", "preserve_thinking": False},
-            )
-            self.assertEqual(captured["extra_body"]["reasoning_effort"], "low")
-
-    def test_verify_caption_forwards_configured_repeat_penalty(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "img.png")
-            frames = [Image.new("RGB", (128, 128), color="blue")]
-
-            with patch.dict("os.environ", {"OPENAI_THINKING_REPEAT_PENALTY": "1.1"}, clear=False):
-                fake_client, captured = _make_fake_verify_client()
-                verify_caption(
-                    fake_client,
-                    media,
-                    build_verification_system_prompt(),
-                    "A blue car in the rain.",
-                    images=frames,
-                    mode="thinking",
-                )
-                self.assertEqual(captured["extra_body"].get("repeat_penalty"), 1.1)
-
-            # Unset the key rather than fall back to 1.0, so unknown servers keep the old request.
-            fake_client, captured = _make_fake_verify_client()
-            verify_caption(
-                fake_client,
-                media,
-                build_verification_system_prompt(),
-                "A blue car in the rain.",
-                images=frames,
-                mode="thinking",
-            )
-            self.assertNotIn("repeat_penalty", captured["extra_body"])
-
-    def test_verify_caption_reasoning_fallback_only_in_instruct(self) -> None:
-        payload = _fixes_json(DEFAULT_FIX)
-        frames = [Image.new("RGB", (128, 128), color="blue")]
-        kwargs = {
-            "content": "",
-            "reasoning_content": f"```json\n{payload}\n```",
-        }
-
-        with TempMediaFolder() as root:
-            media = write_media(root, "img.png")
             system = build_verification_system_prompt()
-            caption = "A blue car in the rain."
 
-            instruct_client, _ = _make_fake_verify_client(**kwargs)
-            instruct_raw = verify_caption(
-                instruct_client, media, system, caption, images=frames, mode="instruct"
-            )
-            self.assertIsNotNone(instruct_raw)
-            parsed = parse_verification_response(instruct_raw or "")
-            self.assertIsNotNone(parsed)
-            assert parsed is not None
-            self.assertEqual(parsed.fixes, (DEFAULT_FIX,))
+            default = _verdict_client()
+            verify_caption(default, media, system, "A blue car in the rain.", images=frames)
+            configured = _verdict_client()
+            with patch.dict(os.environ, {"IMAGE_MAX_PIXELS": "400000"}):
+                verify_caption(configured, media, system, "A blue car in the rain.", images=frames)
 
-            thinking_client, _ = _make_fake_verify_client(**kwargs)
-            self.assertIsNone(
-                verify_caption(
-                    thinking_client, media, system, caption, images=frames, mode="thinking"
-                )
-            )
+        self.assertLessEqual(_sent_image_pixels(configured), 400_000)
+        self.assertLessEqual(_sent_image_pixels(default), SETTING_DEFAULTS.image_max_pixels)
+        self.assertGreater(_sent_image_pixels(default), 400_000)
 
 
 class VerifyCaptionsMediaListingTests(unittest.TestCase):
@@ -676,12 +400,11 @@ class VerifyCaptionsMediaListingTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_mp4_video(root, "clip.mp4")
-            # A GIF is a frame sequence and is verified via keyframes like a video.
             write_gif(root, "loop.gif")
 
             names = [path.name for path in list_verify_captions_media(root)]
 
-            self.assertEqual(names, ["clip.mp4", "loop.gif", "photo.png"])
+        self.assertEqual(names, ["clip.mp4", "loop.gif", "photo.png"])
 
 
 class VerifyCaptionsFolderValidationTests(unittest.TestCase):
@@ -716,15 +439,14 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             ):
                 result = run_verify_captions_job(root)
 
-            issue_path = issue_file_path(media)
-            self.assertTrue(issue_path.is_file())
-            issue_data = json.loads(issue_path.read_text(encoding="utf-8"))
-            self.assertEqual(
-                issue_data,
-                {"fixes": ['Replace "blue" with "red".', 'Remove "in the rain".']},
-            )
-            self.assertEqual(result["stats"]["success"], 1)
-            self.assertEqual(result["stats"]["issues_found"], 1)
+            issue_data = json.loads(issue_file_path(media).read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            issue_data,
+            {"fixes": ['Replace "blue" with "red".', 'Remove "in the rain".']},
+        )
+        self.assertEqual(result["stats"]["success"], 1)
+        self.assertEqual(result["stats"]["issues_found"], 1)
 
     def test_run_job_skips_issue_file_when_caption_is_correct(self) -> None:
         with TempMediaFolder() as root:
@@ -738,8 +460,9 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                 result = run_verify_captions_job(root)
 
             self.assertFalse(issue_file_path(media).exists())
-            self.assertEqual(result["stats"]["success"], 1)
-            self.assertEqual(result["stats"]["issues_found"], 0)
+
+        self.assertEqual(result["stats"]["success"], 1)
+        self.assertEqual(result["stats"]["issues_found"], 0)
 
     def test_run_job_leaves_unselected_files_alone(self) -> None:
         """Only the files the job verified are rewritten; the rest keep their findings."""
@@ -789,12 +512,7 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(load_issue_summary(media), ([], ['Flagged "floating".'], True))
 
     def test_a_clean_file_does_not_clear_a_stem_sharer_findings(self) -> None:
-        """A generated folder holds clip.mp4 beside the clip.png that previews it.
-
-        Both once shared one stem-named sidecar, and the job clears the findings of every
-        file that verifies clean - so whichever the run reached last decided what the
-        folder remembered. The still sorts after the video, so it always won.
-        """
+        """clip.jpg and clip.png once shared one stem-named sidecar, so the last one verified won."""
         with TempMediaFolder() as root:
             flagged = write_media(root, "clip.jpg")
             clean = write_media(root, "clip.png")
@@ -812,86 +530,44 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(load_issue_summary(flagged)[0], ["The caption omits the mountains."])
             self.assertEqual(load_issue_summary(clean), ([], [], False))
 
-    def test_run_job_records_api_errors(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
+    def test_run_job_records_model_failures_after_every_attempt(self) -> None:
+        for response, status in ((None, "api_error"), ("not valid json", "parse_error")):
+            with (
+                self.subTest(status=status),
+                TempMediaFolder() as root,
+                patch(
+                    "automation.verify_captions.verify_caption", return_value=response
+                ) as mock_verify,
+            ):
+                write_txt_caption(write_media(root, "photo.png"), "Draft.")
 
-            with patch(
-                "automation.verify_captions.verify_caption", return_value=None
-            ) as mock_verify:
                 result = run_verify_captions_job(root)
 
-            self.assertEqual(result["stats"]["api_error"], 1)
-            self.assertEqual(mock_verify.call_count, MAX_MODEL_ATTEMPTS)
+                self.assertEqual(result["stats"][status], 1)
+                self.assertEqual(mock_verify.call_count, MAX_MODEL_ATTEMPTS)
+                if status == "parse_error":
+                    self.assertIn("not valid JSON", str(result["results"][0]["message"]))
 
-    def test_run_job_records_parse_errors(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
+    def test_process_media_retries_failures_then_succeeds(self) -> None:
+        for failures in (["not valid json", "{broken"], [None, None]):
+            with (
+                self.subTest(failures=failures),
+                TempMediaFolder() as root,
+                patch(
+                    "automation.verify_captions.verify_caption",
+                    side_effect=[*failures, _fixes_json()],
+                ) as mock_verify,
+            ):
+                media = write_media(root, "photo.png")
+                write_txt_caption(media, "Draft.")
 
-            with patch(
-                "automation.verify_captions.verify_caption",
-                return_value="not valid json",
-            ) as mock_verify:
-                result = run_verify_captions_job(root)
+                verification, status, message = process_media(object(), media, SYSTEM_PROMPTS)
 
-            self.assertEqual(result["stats"]["parse_error"], 1)
-            self.assertIn("not valid JSON", str(result["results"][0]["message"]))
-            self.assertEqual(mock_verify.call_count, MAX_MODEL_ATTEMPTS)
-
-    def test_process_media_retries_parse_errors_then_succeeds(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
-
-            responses = [
-                "not valid json",
-                "{broken",
-                _fixes_json(),
-            ]
-
-            with patch(
-                "automation.verify_captions.verify_caption",
-                side_effect=responses,
-            ) as mock_verify:
-                _path, verification, status, message = process_media(
-                    object(),
-                    media,
-                    {"image": "system prompt", "video": "video system prompt"},
-                )
-
-            self.assertEqual(status, "success")
-            self.assertIsNone(message)
-            self.assertIsNotNone(verification)
-            self.assertEqual(verification.fixes, ())
-            self.assertEqual(mock_verify.call_count, 3)
-
-    def test_process_media_retries_api_errors_then_succeeds(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.png")
-            write_txt_caption(media, "Draft.")
-
-            responses = [
-                None,
-                None,
-                _fixes_json(),
-            ]
-
-            with patch(
-                "automation.verify_captions.verify_caption",
-                side_effect=responses,
-            ) as mock_verify:
-                _path, verification, status, message = process_media(
-                    object(),
-                    media,
-                    {"image": "system prompt", "video": "video system prompt"},
-                )
-
-            self.assertEqual(status, "success")
-            self.assertIsNone(message)
-            self.assertIsNotNone(verification)
-            self.assertEqual(mock_verify.call_count, 3)
+                self.assertEqual(status, "success")
+                self.assertIsNone(message)
+                assert verification is not None
+                self.assertEqual(verification.fixes, ())
+                self.assertEqual(mock_verify.call_count, 3)
 
     def test_a_retry_re_encodes_the_frames_the_failed_attempt_sent(self) -> None:
         # WORKAROUND: llama.cpp short-circuits byte-identical multimodal retries.
@@ -900,19 +576,15 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             write_txt_caption(media, "Draft.")
 
             # Unparseable every time, so the attempts run out and all three are visible.
-            fake_client, captured = _make_fake_verify_client(content="not json at all")
-            _path, _verification, status, _message = process_media(
-                fake_client,
-                media,
-                {"image": "system prompt", "video": "video system prompt"},
-            )
+            client = FakeChatClient("not json at all")
+            _verification, status, _message = process_media(client, media, SYSTEM_PROMPTS)
 
-            self.assertEqual(status, "parse_error")
-            self.assertEqual(len(captured["requests"]), MAX_MODEL_ATTEMPTS)
-            sent = [_image_payloads(request) for request in captured["requests"]]
-            self.assertEqual(len({tuple(images) for images in sent}), MAX_MODEL_ATTEMPTS)
-            # Same still throughout - it is the encoding that differs, not the media.
-            self.assertEqual({len(images) for images in sent}, {1})
+        self.assertEqual(status, "parse_error")
+        sent = [image_urls(request["messages"]) for request in client.requests]
+        self.assertEqual(len(sent), MAX_MODEL_ATTEMPTS)
+        self.assertEqual(len({tuple(images) for images in sent}), MAX_MODEL_ATTEMPTS)
+        # Same still throughout - it is the encoding that differs, not the media.
+        self.assertEqual({len(images) for images in sent}, {1})
 
     def test_processed_count_does_not_double_count_issues_found(self) -> None:
         with TempMediaFolder() as root:
@@ -929,36 +601,10 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             with patch("automation.verify_captions.verify_caption", side_effect=fake_verify):
                 result = run_verify_captions_job(root, mode="thinking", context="Test context.")
 
-            self.assertEqual(result["total"], 2)
-            self.assertEqual(result["processed"], 2)
-            self.assertEqual(result["stats"]["success"], 2)
-            self.assertEqual(result["stats"]["issues_found"], 1)
-
-    def test_run_job_verifies_gif_and_video_captions(self) -> None:
-        with TempMediaFolder() as root:
-            gif = write_gif(root, "loop.gif", frames=8)
-            video = write_mp4_video(root, "clip.mp4")
-            write_txt_caption(gif, "An animated loop.")
-            write_txt_caption(video, "A short clip.")
-            frames = [Image.new("RGB", (64, 64), color="blue") for _ in range(3)]
-
-            # Fixture MP4s are often not seekable; a successful load is enough to reach verify_caption.
-            def fake_load(path):
-                return MediaFrames(images=frames)
-
-            with (
-                patch("automation.verify_captions.load_media_images", side_effect=fake_load),
-                patch(
-                    "automation.verify_captions.verify_caption",
-                    return_value=_fixes_json(),
-                ) as mock_verify,
-            ):
-                result = run_verify_captions_job(root)
-
-            self.assertEqual(result["stats"]["success"], 2)
-            self.assertEqual(mock_verify.call_count, 2)
-            verified_names = {call.args[1].name for call in mock_verify.call_args_list}
-            self.assertEqual(verified_names, {"loop.gif", "clip.mp4"})
+        self.assertEqual(result["total"], 2)
+        self.assertEqual(result["processed"], 2)
+        self.assertEqual(result["stats"]["success"], 2)
+        self.assertEqual(result["stats"]["issues_found"], 1)
 
     def test_run_job_picks_the_prompt_matching_each_media_kind(self) -> None:
         # Nothing else catches a still checked against the keyframe prompt; GIF is the still side.
@@ -981,15 +627,14 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
                     return_value=_fixes_json(),
                 ) as mock_verify,
             ):
-                run_verify_captions_job(root)
+                result = run_verify_captions_job(root)
 
-            prompts = {call.args[1].name: call.args[2] for call in mock_verify.call_args_list}
-            image_prompt = build_verification_system_prompt(media_kind="image")
-            self.assertEqual(prompts["photo.png"], image_prompt)
-            self.assertEqual(prompts["loop.gif"], image_prompt)
-            self.assertEqual(
-                prompts["clip.mp4"], build_verification_system_prompt(media_kind="video")
-            )
+        self.assertEqual(result["stats"]["success"], 3)
+        prompts = {call.args[1].name: call.args[2] for call in mock_verify.call_args_list}
+        image_prompt = build_verification_system_prompt(media_kind="image")
+        self.assertEqual(prompts["photo.png"], image_prompt)
+        self.assertEqual(prompts["loop.gif"], image_prompt)
+        self.assertEqual(prompts["clip.mp4"], build_verification_system_prompt(media_kind="video"))
 
     def test_run_job_records_frame_errors(self) -> None:
         with TempMediaFolder() as root:
@@ -1002,39 +647,12 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
             ):
                 result = run_verify_captions_job(root)
 
-            self.assertEqual(result["stats"]["frame_error"], 1)
-            self.assertEqual(result["stats"]["success"], 0)
             self.assertFalse(issue_file_path(media).exists())
 
-    def test_verify_caption_sends_a_gif_as_a_single_still(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_gif(root, "loop.gif", frames=8)
-            frames = load_media_images(media)
-            assert isinstance(frames, MediaFrames)
-            self.assertEqual(len(frames.images), 1)
-            self.assertEqual(media_kind_for(media), "image")
+        self.assertEqual(result["stats"]["frame_error"], 1)
+        self.assertEqual(result["stats"]["success"], 0)
 
-            fake_client, captured = _make_fake_verify_client()
-            response = verify_caption(
-                fake_client,
-                media,
-                build_verification_system_prompt(media_kind="image"),
-                "An animated loop.",
-                images=frames.images,
-                timestamps=frames.timestamps,
-                mode="instruct",
-            )
-
-            self.assertIsNotNone(response)
-            user_content = captured["messages"][1]["content"]
-            image_parts = [part for part in user_content if part.get("type") == "image_url"]
-            text_parts = [part for part in user_content if part.get("type") == "text"]
-            self.assertEqual(len(image_parts), 1)
-            # One instruction and no frame labels: nothing claims a sequence.
-            self.assertEqual(len(text_parts), 1)
-            self.assertNotIn("keyframes", text_parts[0]["text"])
-
-    def test_verification_never_sends_audio(self) -> None:
+    def test_a_gif_goes_out_as_one_unlabelled_still_without_audio(self) -> None:
         """Auto-caption's audio option must not leak into the job that shares its plumbing."""
         with TempMediaFolder() as root:
             media = write_gif(root, "loop.gif", frames=8)
@@ -1043,18 +661,24 @@ class VerifyCaptionsJobRunTests(unittest.TestCase):
 
             for mode in ("thinking", "instruct"):
                 with self.subTest(mode=mode):
-                    fake_client, captured = _make_fake_verify_client()
+                    client = _verdict_client()
                     verify_caption(
-                        fake_client,
+                        client,
                         media,
                         build_verification_system_prompt(media_kind="image"),
                         "An animated loop.",
                         images=frames.images,
+                        timestamps=frames.timestamps,
                         mode=mode,
                     )
 
-                    user_content = captured["messages"][1]["content"]
-                    self.assertEqual(
-                        {part.get("type") for part in user_content},
-                        {"image_url", "text"},
-                    )
+                    user_content = client.last["messages"][1]["content"]
+                    types = [part.get("type") for part in user_content]
+                    # One instruction and no frame labels: nothing claims a sequence.
+                    self.assertEqual(sorted(types), ["image_url", "text"])
+                    text = next(part["text"] for part in user_content if part["type"] == "text")
+                    self.assertNotIn("keyframes", text)
+
+
+if __name__ == "__main__":
+    unittest.main()

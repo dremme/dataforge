@@ -5,13 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app_settings import NO_API_KEY, SETTING_DEFAULTS, effective_settings
+from app_settings import effective_settings
 from env_file import env_str
-
-DEFAULT_OPENAI_API_KEY = NO_API_KEY
-
-DEFAULT_MAX_TOKENS = SETTING_DEFAULTS.vision_max_tokens
-DEFAULT_TOP_K = SETTING_DEFAULTS.vision_top_k
 
 DEFAULT_TIMEOUT_SECONDS = 600.0
 CONNECT_TIMEOUT_SECONDS = 10.0
@@ -41,10 +36,6 @@ def _profile(settings: object, mode: str) -> SamplingProfile:
         min_p=getattr(settings, f"{mode}_min_p"),
         repeat_penalty=getattr(settings, f"{mode}_repeat_penalty"),
     )
-
-
-THINKING_DEFAULTS = _profile(SETTING_DEFAULTS, "thinking")
-INSTRUCT_DEFAULTS = _profile(SETTING_DEFAULTS, "instruct")
 
 
 def _env_float(name: str, default: float) -> float:

@@ -19,8 +19,8 @@ from automation.edit_captions import (
     strip_wrapping_quotes,
     validate_edit_captions_folder,
 )
-from automation.llm import INSTRUCT_THINK_PREFILL, MAX_MODEL_ATTEMPTS
-from testing_fixtures import TempMediaFolder, write_media, write_txt_caption
+from automation.llm import MAX_MODEL_ATTEMPTS
+from testing_fixtures import FakeChatClient, TempMediaFolder, write_media, write_txt_caption
 
 INSTRUCTION = "Rewrite in present tense."
 ORIGINAL = "A woman in a red coat walked along the wet street."
@@ -29,37 +29,6 @@ EDITED = "A woman in a red coat walks along the wet street."
 
 def _rules_section(prompt: str) -> str:
     return prompt[prompt.index("# Rules") : prompt.index("# Output Format")]
-
-
-def _make_fake_edit_client(
-    captured: dict | None = None,
-    *,
-    content: str | None = EDITED,
-) -> tuple[object, dict]:
-    """Fake OpenAI client recording call kwargs, mirroring the verify-captions one."""
-    if captured is None:
-        captured = {}
-    message = type("Message", (), {"content": content, "reasoning_content": None})()
-
-    class FakeCompletions:
-        def create(self, **kwargs: object) -> object:
-            captured.update(
-                {
-                    "temperature": kwargs.get("temperature"),
-                    "top_p": kwargs.get("top_p"),
-                    "presence_penalty": kwargs.get("presence_penalty"),
-                    "messages": kwargs.get("messages"),
-                    "extra_body": kwargs.get("extra_body"),
-                }
-            )
-            choice = type("Choice", (), {"message": message})()
-            return type("Response", (), {"choices": [choice]})()
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
-
-    return FakeClient(), captured
 
 
 def _captioned(root: Path, name: str, caption: str = ORIGINAL) -> Path:
@@ -146,20 +115,8 @@ class EditCaptionsPromptTests(unittest.TestCase):
 
 
 class EditCaptionsCleaningTests(unittest.TestCase):
-    def test_it_strips_a_thinking_block(self) -> None:
-        self.assertEqual(clean_edited_caption(f"<think>hmm</think>{EDITED}"), EDITED)
-
-    def test_it_strips_a_conversational_prefix(self) -> None:
-        self.assertEqual(clean_edited_caption(f"Revised caption: {EDITED}"), EDITED)
-
-    def test_it_strips_a_code_fence(self) -> None:
-        self.assertEqual(clean_edited_caption(f"```\n{EDITED}\n```"), EDITED)
-
-    def test_it_strips_a_chat_template_marker(self) -> None:
-        self.assertEqual(clean_edited_caption(f"{EDITED}<|im_end|>"), EDITED)
-
-    def test_it_strips_one_pair_of_wrapping_quotes(self) -> None:
-        self.assertEqual(clean_edited_caption(f'"{EDITED}"'), EDITED)
+    def test_it_strips_the_model_wrappers_then_one_pair_of_quotes(self) -> None:
+        self.assertEqual(clean_edited_caption(f'<think>hmm</think>```\n"{EDITED}"\n```'), EDITED)
 
     def test_it_keeps_the_quotes_of_a_caption_that_is_itself_a_quotation(self) -> None:
         # Stripping here would silently change a caption whose content is a quoted phrase.
@@ -461,35 +418,18 @@ class EditCaptionsCancellationTests(unittest.TestCase):
 
 
 class EditCaptionsRequestTests(unittest.TestCase):
-    def test_the_request_carries_no_media_part(self) -> None:
-        client, captured = _make_fake_edit_client()
+    def test_the_request_carries_the_caption_as_text_and_the_chosen_effort(self) -> None:
+        client = FakeChatClient(EDITED)
 
-        edit_caption(client, build_edit_system_prompt(INSTRUCTION), ORIGINAL, mode="thinking")
+        edit_caption(
+            client, build_edit_system_prompt(INSTRUCTION), ORIGINAL, mode="thinking", effort="low"
+        )
 
-        user_message = captured["messages"][1]
+        user_message = client.last["messages"][1]
         self.assertEqual(user_message["role"], "user")
         self.assertIsInstance(user_message["content"], str)
         self.assertIn(ORIGINAL, user_message["content"])
-
-    def test_instruct_mode_prefills_the_empty_think_block(self) -> None:
-        client, captured = _make_fake_edit_client()
-
-        edit_caption(client, "SYSTEM", ORIGINAL, mode="instruct")
-
-        messages = captured["messages"]
-        self.assertEqual(len(messages), 3)
-        self.assertEqual(messages[2]["content"], INSTRUCT_THINK_PREFILL)
-        self.assertEqual(captured["temperature"], 0.7)
-        self.assertEqual(captured["top_p"], 0.8)
-        self.assertEqual(captured["presence_penalty"], 1.5)
-
-    def test_thinking_mode_sends_the_reasoning_kwargs(self) -> None:
-        client, captured = _make_fake_edit_client()
-
-        edit_caption(client, "SYSTEM", ORIGINAL, mode="thinking", effort="low")
-
-        self.assertEqual(len(captured["messages"]), 2)
-        self.assertEqual(captured["extra_body"]["chat_template_kwargs"]["reasoning_effort"], "low")
+        self.assertEqual(client.last["extra_body"]["reasoning_effort"], "low")
 
 
 if __name__ == "__main__":

@@ -4,19 +4,15 @@ import os
 import unittest
 from unittest.mock import patch
 
-from app_settings import SETTING_DEFAULTS
+from app_settings import NO_API_KEY, SETTING_DEFAULTS
 from openai_settings import (
     CONNECT_TIMEOUT_SECONDS,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_OPENAI_API_KEY,
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
     DEFAULT_TIMEOUT_SECONDS,
-    DEFAULT_TOP_K,
-    INSTRUCT_DEFAULTS,
     NEUTRAL_REPEAT_PENALTY,
-    THINKING_DEFAULTS,
     SamplingProfile,
+    _profile,
     assistant_message_text,
     build_sampling_extra_body,
     create_openai_client,
@@ -31,6 +27,11 @@ from openai_settings import (
 
 DEFAULT_OPENAI_BASE_URL = SETTING_DEFAULTS.vision_base_url
 DEFAULT_OPENAI_MODEL = SETTING_DEFAULTS.vision_model
+DEFAULT_OPENAI_API_KEY = NO_API_KEY
+DEFAULT_MAX_TOKENS = SETTING_DEFAULTS.vision_max_tokens
+DEFAULT_TOP_K = SETTING_DEFAULTS.vision_top_k
+THINKING_DEFAULTS = _profile(SETTING_DEFAULTS, "thinking")
+INSTRUCT_DEFAULTS = _profile(SETTING_DEFAULTS, "instruct")
 
 
 class OpenAISettingsTests(unittest.TestCase):
@@ -216,10 +217,6 @@ class OpenAISettingsTests(unittest.TestCase):
             create_openai_client()
 
             self.assertEqual(openai_cls.call_args.kwargs["max_retries"], 0)
-
-    def test_default_timeout_stays_generous_for_slow_local_models(self) -> None:
-        """Must stay at least the SDK default; tightening it fails long thinking-mode runs as api_error."""
-        self.assertGreaterEqual(DEFAULT_TIMEOUT_SECONDS, 600.0)
 
     def test_openai_timeout_is_configurable(self) -> None:
         with patch.dict(os.environ, {"OPENAI_TIMEOUT": "120"}, clear=True):

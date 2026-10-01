@@ -5,6 +5,7 @@ import os
 import re
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -134,22 +135,17 @@ def ostris_job_speed_seconds_per_step(raw_job: dict[str, Any]) -> float | None:
     return seconds if seconds > 0 else None
 
 
-def _folder_name(folder_path: str | None) -> str:
-    if not folder_path:
-        return ""
-    return path_leaf_name(folder_path)
-
-
 def _as_bool(value: Any) -> bool:
     return value is True or value == 1
 
 
 def _is_checkpoint_save_in_progress(job: dict[str, Any]) -> bool:
-    if _as_bool(job.get("save_now")):
-        return True
+    return _as_bool(job.get("save_now")) or job.get("info") == "Saving model"
 
-    info = job.get("info")
-    return info == "Saving model"
+
+def _str_or_none(raw_job: dict[str, Any], key: str) -> str | None:
+    value = raw_job.get(key)
+    return value if isinstance(value, str) else None
 
 
 def resolve_sqlite_db_path(raw_job: dict[str, Any]) -> Path | None:
@@ -182,22 +178,24 @@ def _ostris_job_path(job_id: str) -> str:
     return f"{OSTRIS_JOBS_PATH}/{job_id}"
 
 
-def fetch_ostris_job(client: httpx.Client, job_id: str) -> dict[str, Any] | None:
-    response = client.get(OSTRIS_JOBS_PATH, params={"id": job_id})
+def _get_ok(client: httpx.Client, path: str) -> None:
+    client.get(path).raise_for_status()
+
+
+def _get_dict(client: httpx.Client, path: str, **params: str) -> dict[str, Any]:
+    response = client.get(path, params=params) if params else client.get(path)
     response.raise_for_status()
     payload = response.json()
-    return payload if isinstance(payload, dict) else None
+    return payload if isinstance(payload, dict) else {}
+
+
+def fetch_ostris_job(client: httpx.Client, job_id: str) -> dict[str, Any] | None:
+    return _get_dict(client, OSTRIS_JOBS_PATH, id=job_id) or None
 
 
 def fetch_ostris_job_by_name(client: httpx.Client, name: str) -> dict[str, Any] | None:
     """Look up a job by its unique name, which Ostris enforces on creation."""
-    response = client.get(OSTRIS_JOBS_PATH)
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        return None
-
-    raw_jobs = payload.get("jobs")
+    raw_jobs = _get_dict(client, OSTRIS_JOBS_PATH).get("jobs")
     if not isinstance(raw_jobs, list):
         return None
 
@@ -208,25 +206,13 @@ def fetch_ostris_job_by_name(client: httpx.Client, name: str) -> dict[str, Any] 
 
 
 def fetch_ostris_training_folder(client: httpx.Client) -> str | None:
-    response = client.get(OSTRIS_SETTINGS_PATH)
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        return None
-
-    training_folder = payload.get("TRAINING_FOLDER")
+    training_folder = _get_dict(client, OSTRIS_SETTINGS_PATH).get("TRAINING_FOLDER")
     return training_folder if isinstance(training_folder, str) and training_folder else None
 
 
 def fetch_ostris_gpu_ids(client: httpx.Client) -> str:
     """The GPU the job is queued on. Ostris rewrites this to "mps" on macOS itself."""
-    response = client.get(OSTRIS_GPU_PATH)
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        return DEFAULT_OSTRIS_GPU_IDS
-
-    gpus = payload.get("gpus")
+    gpus = _get_dict(client, OSTRIS_GPU_PATH).get("gpus")
     if not isinstance(gpus, list) or not gpus:
         return DEFAULT_OSTRIS_GPU_IDS
 
@@ -249,47 +235,39 @@ def create_ostris_job(
 
 
 def queue_ostris_job(client: httpx.Client, job_id: str) -> None:
-    response = client.get(f"{_ostris_job_path(job_id)}/start")
-    response.raise_for_status()
+    _get_ok(client, f"{_ostris_job_path(job_id)}/start")
 
 
 def start_ostris_queue(client: httpx.Client, gpu_ids: str) -> None:
     """Queueing a job is not enough; its GPU queue has to be running to pick it up."""
-    response = client.get(f"{OSTRIS_QUEUE_PATH}/{gpu_ids}/start")
-    response.raise_for_status()
+    _get_ok(client, f"{OSTRIS_QUEUE_PATH}/{gpu_ids}/start")
 
 
 def mark_ostris_job_stopped(client: httpx.Client, job_id: str) -> None:
     """Drop a job that is still queued. The checkpoint stop only accepts running jobs."""
-    response = client.get(f"{_ostris_job_path(job_id)}/mark_stopped")
-    response.raise_for_status()
+    _get_ok(client, f"{_ostris_job_path(job_id)}/mark_stopped")
 
 
 def request_save_next_step(client: httpx.Client, job_id: str) -> None:
-    response = client.get(f"{_ostris_job_path(job_id)}/save_now")
-    response.raise_for_status()
+    _get_ok(client, f"{_ostris_job_path(job_id)}/save_now")
 
 
 def wait_for_save_next_step(
     client: httpx.Client,
     job_id: str,
     *,
-    save_was_requested: bool = True,
     poll_interval_seconds: float = OSTRIS_SAVE_POLL_INTERVAL_SECONDS,
     max_wait_seconds: float = OSTRIS_SAVE_MAX_WAIT_SECONDS,
 ) -> dict[str, Any]:
+    """Call only once a save is requested or pending, so a finished save is not awaited again."""
     deadline = time.monotonic() + max_wait_seconds
-    saw_pending_save = save_was_requested
 
     while time.monotonic() < deadline:
         job = fetch_ostris_job(client, job_id)
         if job is None:
             raise OstrisJobStopError("Ostris job not found while waiting for checkpoint save.")
 
-        if _as_bool(job.get("save_now")):
-            saw_pending_save = True
-
-        if saw_pending_save and not _is_checkpoint_save_in_progress(job):
+        if not _is_checkpoint_save_in_progress(job):
             return job
 
         time.sleep(poll_interval_seconds)
@@ -298,8 +276,7 @@ def wait_for_save_next_step(
 
 
 def request_graceful_stop(db_path: Path, job_id: str) -> None:
-    conn = sqlite3.connect(db_path, timeout=10.0)
-    try:
+    with closing(sqlite3.connect(db_path, timeout=10.0)) as conn:
         cursor = conn.execute(
             "UPDATE Job SET stop = 1, info = 'Stopping job...' WHERE id = ?",
             (job_id,),
@@ -307,8 +284,6 @@ def request_graceful_stop(db_path: Path, job_id: str) -> None:
         if cursor.rowcount != 1:
             raise OstrisJobStopError("Failed to request a graceful stop for the Ostris job.")
         conn.commit()
-    finally:
-        conn.close()
 
 
 def wait_for_job_stop(
@@ -349,11 +324,9 @@ def stop_ostris_job_with_checkpoint(job_id: str) -> dict[str, Any]:
         if status != "running":
             raise OstrisJobStopError("Only running or queued Ostris jobs can be stopped.")
 
-        if _as_bool(job.get("save_now")):
-            wait_for_save_next_step(client, job_id, save_was_requested=False)
-        else:
+        if not _as_bool(job.get("save_now")):
             request_save_next_step(client, job_id)
-            wait_for_save_next_step(client, job_id, save_was_requested=True)
+        wait_for_save_next_step(client, job_id)
 
         db_path = resolve_sqlite_db_path(job)
         if db_path is None:
@@ -370,16 +343,12 @@ def _queue_position(raw_job: dict[str, Any]) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
+_STATUS_RANK = {"running": 0, "stopping": 1}
+
+
 def _queue_sort_key(raw_job: dict[str, Any]) -> tuple[int, int]:
     """Match AI-Toolkit: the running job first, then queued jobs by queue_position."""
-    status = raw_job.get("status")
-    if status == "running":
-        rank = 0
-    elif status == "stopping":
-        rank = 1
-    else:
-        rank = 2
-    return (rank, _queue_position(raw_job))
+    return (_STATUS_RANK.get(raw_job.get("status"), 2), _queue_position(raw_job))
 
 
 def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
@@ -398,11 +367,7 @@ def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
     process_config = _first_process_config(job_config)
     dataset_folder = _dataset_folder(process_config)
     model = process_config.get("model")
-    model_name = None
-    if isinstance(model, dict):
-        name_or_path = model.get("name_or_path")
-        if isinstance(name_or_path, str) and name_or_path:
-            model_name = name_or_path
+    model_name = (_str_or_none(model, "name_or_path") or None) if isinstance(model, dict) else None
 
     step = raw_job.get("step")
     normalized_step = step if isinstance(step, int) and step >= 0 else 0
@@ -413,17 +378,13 @@ def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
         "status": status,
         "step": normalized_step,
         "total_steps": ostris_job_total_steps(raw_job),
-        "info": raw_job.get("info") if isinstance(raw_job.get("info"), str) else None,
-        "speed_string": raw_job.get("speed_string")
-        if isinstance(raw_job.get("speed_string"), str)
-        else None,
-        "job_type": raw_job.get("job_type") if isinstance(raw_job.get("job_type"), str) else None,
+        "info": _str_or_none(raw_job, "info"),
+        "speed_string": _str_or_none(raw_job, "speed_string"),
+        "job_type": _str_or_none(raw_job, "job_type"),
         "dataset_folder": dataset_folder,
-        "dataset_folder_name": _folder_name(dataset_folder),
+        "dataset_folder_name": path_leaf_name(dataset_folder or ""),
         "model": model_name,
-        "created_at": raw_job.get("created_at")
-        if isinstance(raw_job.get("created_at"), str)
-        else None,
+        "created_at": _str_or_none(raw_job, "created_at"),
         "save_now": _as_bool(raw_job.get("save_now")),
         "stop_requested": _as_bool(raw_job.get("stop")),
     }
@@ -432,13 +393,11 @@ def normalize_ostris_job(raw_job: dict[str, Any]) -> dict[str, Any] | None:
 def fetch_active_ostris_jobs() -> tuple[list[dict[str, Any]], bool]:
     try:
         with open_ostris_client(OSTRIS_REQUEST_TIMEOUT_SECONDS) as client:
-            response = client.get(OSTRIS_JOBS_PATH)
-            response.raise_for_status()
-            payload = response.json()
-    except (httpx.HTTPError, json.JSONDecodeError, TypeError, ValueError):
+            payload = _get_dict(client, OSTRIS_JOBS_PATH)
+    except (httpx.HTTPError, TypeError, ValueError):
         return [], False
 
-    if not isinstance(payload, dict):
+    if not payload:
         return [], False
 
     raw_jobs = payload.get("jobs")

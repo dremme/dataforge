@@ -2,24 +2,19 @@
 
 from __future__ import annotations
 
-import argparse
 import logging
-from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image
 
-from automation.job_runner import FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.vision import extract_video_keyframes, load_image_rgb, media_kind_for
 from constants import MEDIA_EXTENSIONS
 from duplicates import DuplicateFinding, group_id_for, save_duplicate_finding
-from logging_config import configure_logging, log_job_summary
 
 logger = logging.getLogger(__name__)
 
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
-ShouldCancel = Callable[[], bool]
 
 THRESHOLD_DISTANCES = {"exact": 0, "near": 5, "loose": 10}
 
@@ -128,14 +123,10 @@ def run_find_duplicates_job(
     def process(media_path: Path) -> FileOutcome:
         image, error = _representative_frame(media_path)
         if image is None:
-            return FileOutcome(
-                status="read_error",
-                stats={"read_error": 1},
-                fields={"message": error},
-            )
+            return FileOutcome.counted("read_error", error)
 
         hashes[media_path] = difference_hash(image)
-        return FileOutcome(status="hashed", stats={"hashed": 1})
+        return FileOutcome.counted("hashed")
 
     result = run_media_job(
         folder,
@@ -185,39 +176,3 @@ def run_find_duplicates_job(
     stats["duplicate"] = len(findings)
     stats["group"] = len(groups)
     return result
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description="Find duplicate and near-duplicate media in a folder.",
-    )
-    parser.add_argument("folder", type=Path, help="Folder containing images and/or videos")
-    parser.add_argument(
-        "--threshold",
-        choices=tuple(THRESHOLD_DISTANCES),
-        default=DEFAULT_THRESHOLD,
-        help="How alike two files must be to count as duplicates",
-    )
-    args = parser.parse_args(argv)
-
-    folder = args.folder.expanduser().resolve()
-    try:
-        result = run_find_duplicates_job(folder, threshold=args.threshold)
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    log_job_summary(
-        logger,
-        result,
-        stat_keys=("hashed", "duplicate", "group", "read_error", "write_error", "cancelled"),
-    )
-    stats = result.get("stats") or {}
-    if isinstance(stats, dict) and int(stats.get("write_error") or 0) > 0:
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

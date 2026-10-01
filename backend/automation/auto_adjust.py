@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
-import logging
-from collections.abc import Callable
 from pathlib import Path
 
-from automation.job_runner import CANCELLED, FileOutcome, run_media_job
+from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from color_adjust import IDENTITY_EPSILON
 from color_auto import (
@@ -23,13 +20,8 @@ from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel
 from image_edit import apply_image_edit, read_image_edit_spec
 from image_io import ImageReadError
-from logging_config import configure_logging, log_job_summary
 from schemas import ColorAdjust, ImageEditSpec, VideoEditSpec
 from video_edit import apply_video_edit, probe_source, read_edit_spec
-
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, str, int, int, dict[str, int]], None]
 
 AUTO_ADJUST_EXTENSIONS = IMAGE_EDIT_EXTENSIONS | VIDEO_EDIT_EXTENSIONS
 
@@ -109,18 +101,13 @@ def auto_adjust_file(
     ffmpeg: str | None = None,
     should_cancel: ShouldCancel | None = None,
 ) -> str:
-    """Adjust one file in place and return whether it was an ``image`` or a ``video``. ``replace``
-    starts the Adjust tools over; the rest of an earlier edit is always kept."""
+    """Adjust one file in place, returning ``image`` or ``video``; ``replace`` resets only the Adjust tools."""
     if media.suffix.lower() in VIDEO_EDIT_EXTENSIONS:
         auto_adjust_video(media, replace=replace, ffmpeg=ffmpeg, should_cancel=should_cancel)
         return "video"
 
     auto_adjust_image(media, replace=replace)
     return "image"
-
-
-def _failure(status: str, exc: Exception) -> FileOutcome:
-    return FileOutcome(status=status, stats={status: 1}, fields={"message": str(exc)})
 
 
 def run_auto_adjust_job(
@@ -147,17 +134,17 @@ def run_auto_adjust_job(
             )
             return FileOutcome(status="success", stats={"success": 1, f"{kind}_success": 1})
         except AlreadyAdjustedError:
-            return FileOutcome(status="unchanged", stats={"unchanged": 1})
+            return FileOutcome.counted("unchanged")
         except FfmpegCancelled:
-            return FileOutcome(status=CANCELLED, stats={"cancelled": 1}, stop=True)
+            return FileOutcome.cancelled()
         except (EditBusyError, NothingToAnalyseError) as exc:
-            return _failure("skipped", exc)
+            return FileOutcome.counted("skipped", exc)
         except (ImageReadError, ValueError) as exc:
-            return _failure("read_error", exc)
+            return FileOutcome.counted("read_error", exc)
         except RuntimeError as exc:
-            return _failure("ffmpeg_error", exc)
+            return FileOutcome.counted("ffmpeg_error", exc)
         except OSError as exc:
-            return _failure("write_error", exc)
+            return FileOutcome.counted("write_error", exc)
 
     return run_media_job(
         folder,
@@ -187,37 +174,3 @@ def run_auto_adjust_job(
             "ffmpeg_error",
         ),
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    configure_logging()
-    parser = argparse.ArgumentParser(
-        description="Auto-adjust the images and MP4-family videos in a folder, keeping originals.",
-    )
-    parser.add_argument("folder", type=Path, help="Folder containing images and/or videos")
-    parser.add_argument(
-        "--replace-adjustments",
-        action="store_true",
-        help="Discard earlier Adjust settings so each file gets only the wand's suggestion",
-    )
-    args = parser.parse_args(argv)
-
-    try:
-        result = run_auto_adjust_job(
-            args.folder.expanduser().resolve(), replace_adjustments=args.replace_adjustments
-        )
-    except ValueError as exc:
-        logger.error("%s", exc)
-        return 1
-
-    stat_keys = ("success", "unchanged", "skipped", "read_error", "write_error", "ffmpeg_error")
-    log_job_summary(logger, result, stat_keys=stat_keys)
-    stats = result.get("stats") or {}
-    failed = ("read_error", "write_error", "ffmpeg_error")
-    if isinstance(stats, dict) and any(int(stats.get(key) or 0) for key in failed):
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
