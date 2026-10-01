@@ -10,9 +10,13 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  FFMPEG_VERSION: "7.1.5"
+  FFMPEG_SHA256: "de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f"
+
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     strategy:
@@ -43,6 +47,15 @@ jobs:
           python -m venv backend/.venv
           backend/.venv/bin/python -m pip install --upgrade pip
           backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+
+      - name: Set up pinned FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          version: ${{ env.FFMPEG_VERSION }}
+          sha256: ${{ env.FFMPEG_SHA256 }}
+
+      - name: Verify the application's FFmpeg version
+        run: backend/.venv/bin/python scripts/check_ffmpeg.py "$FFMPEG_VERSION"
 
       - name: Run backend checks
         env:
@@ -93,7 +106,7 @@ jobs:
   # Kept out of run_checks.py, which is the pre-commit hook: this boots two servers
   # and a browser. It runs here and on demand via `npm run test:e2e`.
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -120,6 +133,12 @@ jobs:
           backend/.venv/bin/python -m pip install --upgrade pip
           backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
 
+      - name: Set up pinned FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          version: ${{ env.FFMPEG_VERSION }}
+          sha256: ${{ env.FFMPEG_SHA256 }}
+
       # types.ts is generated and not checked in, so the dev server cannot build without it.
       - name: Generate frontend API types
         env:
@@ -139,6 +158,9 @@ jobs:
       - name: Install Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
+
+      - name: Verify the application's FFmpeg version
+        run: backend/.venv/bin/python scripts/check_ffmpeg.py "$FFMPEG_VERSION"
 
       - name: Run end-to-end tests
         working-directory: frontend

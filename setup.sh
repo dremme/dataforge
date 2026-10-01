@@ -160,6 +160,9 @@ say "Upgrading pip and installing backend dependencies..."
     -r "$DEV_BACKEND/requirements.txt" \
     -r "$DEV_BACKEND/requirements-dev.txt" || fail "Backend dependency installation failed."
 
+say "Verifying FFmpeg 7.1.x..."
+"$DEV_VENV_PY" "$DEV_SCRIPTS/check_ffmpeg.py" || fail "FFmpeg 7.1.x is required. Install a matching binary on PATH and run setup again."
+
 # Dates the install, so check_backend_dependency_drift can warn when a later git pull brings
 # in requirements the venv never saw. Same filename the PowerShell side reads.
 date +%Y-%m-%dT%H:%M:%S%z > "$DEV_DEPS_STAMP"

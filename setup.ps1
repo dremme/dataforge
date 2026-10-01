@@ -217,6 +217,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'pip upgrade failed.' }
     & $VenvPy -m pip install -r (Join-Path $Root 'backend\requirements.txt') -r (Join-Path $Root 'backend\requirements-dev.txt') | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'Backend dependency installation failed.' }
+    Write-Host 'Verifying FFmpeg 7.1.x...'
+    & $VenvPy (Join-Path $Root 'scripts\check_ffmpeg.py') | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'FFmpeg 7.1.x is required. Install a matching binary on PATH and run setup again.' }
     Set-Content -LiteralPath (Join-Path $VenvDir '.dataforge-deps-stamp') -Value ((Get-Date).ToString('o')) -Encoding ASCII
 
     Write-Host ''

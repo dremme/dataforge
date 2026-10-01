@@ -8,14 +8,14 @@ Get the project from the [repository](https://github.com/dremme/dataforge): choo
 
 ### Windows
 
-1. Run `setup.bat` once. It downloads portable Python 3.12 and Node 20 into `.python/` and `.node/`, creates `backend/.venv`, installs dependencies, and generates frontend API files.
+1. Run `setup.bat` once. It downloads portable Python 3.12 and Node 20 into `.python/` and `.node/`, creates `backend/.venv`, installs dependencies including bundled FFmpeg 7.1, and generates frontend API files.
 2. Run `start.bat`. It builds the UI when needed, starts the server, and opens `http://localhost:18081`.
 
 No global Python or Node is needed. Keep the launcher window open while using the app.
 
 ### Linux and macOS
 
-Install Python 3.12+ and Node 20.19.x or later in the 20 series, 22.13.x or later in the 22 series, or 24+, with npm. From the project folder:
+Install Python 3.12+, FFmpeg 7.1.x, and Node 20.19.x or later in the 20 series, 22.13.x or later in the 22 series, or 24+, with npm. Put the FFmpeg binary on PATH. From the project folder:
 
 ```bash
 ./setup.sh
@@ -63,13 +63,15 @@ Do not combine rebuild and no-build. To change the browser port, set `DATAFORGE_
 - **Platform:** Windows 10/11, Linux, or macOS; 64-bit CPU, dual-core or better.
 - **Memory/storage:** allow about 8 GB RAM and 2 GB disk for the app, plus dataset/cache space. A quad-core CPU, 16 GB RAM, and an SSD are practical starting points.
 - **Runtimes:** Python 3.12+; Node `^20.19.0 || ^22.13.0 || >=24` with npm. Windows setup supplies its own.
-- **Media:** Pillow handles images; Python dependencies supply ffmpeg for video work. Browser playback depends on codec support.
+- **Media:** Pillow handles images. Video work requires FFmpeg 7.1.x: DataForge uses a matching binary on PATH or its bundled copy, and rejects other release series. Windows dependencies include FFmpeg 7.1; Linux/macOS may need a separate installation. CI uses exactly 7.1.5. Browser playback depends on codec support.
 
 DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own hardware requirements. Check the chosen model's memory needs, including context and media input; audio captioning also requires an audio-capable model/server.
 
 ## Troubleshooting
 
 **Setup cannot find Python or Node.** Windows setup downloads both; check its reported download error. On Linux/macOS, install supported versions and rerun setup, using `DATAFORGE_PYTHON` if needed.
+
+**Setup cannot find FFmpeg 7.1.x.** Install a 7.1.x build and put its binary folder on PATH, then run setup again. A global 8.x, 9.x, or unversioned development build does not satisfy the pin. Windows setup normally supplies the matching bundled copy. Verify the application's selection with `backend/.venv/Scripts/python scripts/check_ffmpeg.py` on Windows or `backend/.venv/bin/python scripts/check_ffmpeg.py` on Linux/macOS.
 
 **Shell scripts will not execute.** From an extracted ZIP, try `bash setup.sh` and `bash start.sh` if executable permissions were not retained.
 
@@ -86,6 +88,7 @@ Install supported Python and Node versions yourself. From the project root, on L
 ```bash
 python3.12 -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+backend/.venv/bin/python scripts/check_ffmpeg.py
 cd frontend && npm ci && cd ..
 backend/.venv/bin/python scripts/generate_types.py
 cd frontend && npm run build && cd ..
@@ -97,6 +100,7 @@ On Windows, with Python 3.12+ on PATH:
 ```powershell
 python -m venv backend/.venv
 backend/.venv/Scripts/python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+backend/.venv/Scripts/python scripts/check_ffmpeg.py
 cd frontend; npm ci; cd ..
 backend/.venv/Scripts/python scripts/generate_types.py
 cd frontend; npm run build; cd ..

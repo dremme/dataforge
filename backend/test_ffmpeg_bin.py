@@ -18,6 +18,11 @@ from ffmpeg_bin import ffmpeg_path, locate_ffmpeg
 
 
 class FfmpegPathTests(unittest.TestCase):
+    def setUp(self) -> None:
+        version = patch("ffmpeg_bin._is_pinned", return_value=True)
+        version.start()
+        self.addCleanup(version.stop)
+
     def test_prefers_ffmpeg_on_path(self) -> None:
         with patch("ffmpeg_bin.shutil.which", return_value="/usr/bin/ffmpeg") as which:
             self.assertEqual(ffmpeg_path(), "/usr/bin/ffmpeg")
@@ -52,7 +57,6 @@ class FfmpegPathTests(unittest.TestCase):
             self.assertIsNone(ffmpeg_path())
 
     def test_is_resolved_per_call_rather_than_cached(self) -> None:
-        """An ffmpeg installed while the server runs must be picked up without a restart."""
         with patch("ffmpeg_bin.shutil.which", side_effect=[None, "/usr/bin/ffmpeg"]):
             with patch.dict(
                 sys.modules, {"imageio_ffmpeg": SimpleNamespace(get_ffmpeg_exe=lambda: "")}
@@ -70,13 +74,18 @@ class FfmpegVersionTests(unittest.TestCase):
         self.bundled = Path(directory.name) / "ffmpeg-bundled"
         self.bundled.write_bytes(b"")
         ffmpeg_bin._ffmpeg_version.cache_clear()
+        self.addCleanup(ffmpeg_bin._ffmpeg_version.cache_clear)
 
     def _locate(self, banner: str, *, bundled: bool = True) -> tuple[str, str] | None:
         wheel = SimpleNamespace(get_ffmpeg_exe=lambda: str(self.bundled) if bundled else "")
-        completed = subprocess.CompletedProcess([], 0, stdout=banner, stderr="")
+
+        def version(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            output = banner if command[0] == str(self.on_path) else "ffmpeg version 7.1"
+            return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
         with (
             patch("ffmpeg_bin.shutil.which", return_value=str(self.on_path)),
-            patch("ffmpeg_bin.subprocess.run", return_value=completed) as run,
+            patch("ffmpeg_bin.subprocess.run", side_effect=version) as run,
             patch.dict(sys.modules, {"imageio_ffmpeg": wheel}),
         ):
             location = locate_ffmpeg()
@@ -87,25 +96,49 @@ class FfmpegVersionTests(unittest.TestCase):
         banner = "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/"
         self.assertEqual(self._locate(banner), (str(self.bundled), "bundled"))
 
-    def test_an_old_ffmpeg_on_path_still_beats_having_none(self) -> None:
+    def test_an_old_ffmpeg_on_path_is_rejected_when_no_pinned_bundle_is_available(self) -> None:
         banner = "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023"
-        self.assertEqual(self._locate(banner, bundled=False), (str(self.on_path), "path"))
+        self.assertIsNone(self._locate(banner, bundled=False))
 
-    def test_a_current_ffmpeg_on_path_is_preferred(self) -> None:
+    def test_any_7_1_patch_release_on_path_is_preferred(self) -> None:
         for banner in (
             "ffmpeg version 7.1-essentials_build-www.gyan.dev",
-            "ffmpeg version 9.0.1-full_build-www.gyan.dev",
+            "ffmpeg version 7.1.5 Copyright (c) 2000-2026",
             "ffmpeg version n7.1.1 Copyright (c) 2000-2025",
         ):
             ffmpeg_bin._ffmpeg_version.cache_clear()
             self.assertEqual(self._locate(banner), (str(self.on_path), "path"), banner)
 
-    def test_a_build_without_a_release_number_counts_as_current(self) -> None:
+    def test_a_build_without_a_release_number_cannot_override_a_pinned_bundle(self) -> None:
         banner = "ffmpeg version N-118000-g1234abcd Copyright (c) 2000-2026"
-        self.assertEqual(self._locate(banner), (str(self.on_path), "path"))
+        self.assertEqual(self._locate(banner), (str(self.bundled), "bundled"))
+
+    def test_other_release_series_and_malformed_banners_are_rejected_without_a_bundle(self) -> None:
+        for version in (
+            "7.0.2",
+            "7.2",
+            "7.10",
+            "8.0",
+            "9.0.1",
+            "N-118000-g1234abcd",
+            "7.1.5.1",
+            "7.1extra",
+        ):
+            with self.subTest(version=version):
+                ffmpeg_bin._ffmpeg_version.cache_clear()
+                self.assertIsNone(self._locate(f"ffmpeg version {version}", bundled=False))
+
+    def test_a_version_command_failure_cannot_masquerade_as_the_pinned_release(self) -> None:
+        result = subprocess.CompletedProcess([], 1, stdout="ffmpeg version 7.1")
+        with patch("ffmpeg_bin.subprocess.run", return_value=result):
+            self.assertFalse(ffmpeg_bin._is_pinned(str(self.on_path)))
+
+    def test_an_unreadable_binary_does_not_satisfy_the_pin(self) -> None:
+        with patch("ffmpeg_bin.Path.stat", side_effect=OSError):
+            self.assertFalse(ffmpeg_bin._is_pinned(str(self.on_path)))
 
     def test_the_version_is_read_once_per_binary(self) -> None:
-        banner = "ffmpeg version 9.0.1"
+        banner = "ffmpeg version 7.1.5"
         self._locate(banner)
         self._locate(banner)
         self.assertEqual(self.runs, 0)
@@ -115,6 +148,30 @@ class FfmpegVersionTests(unittest.TestCase):
         stat = self.on_path.stat()
         os.utime(self.on_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
         self.assertEqual(self._locate("ffmpeg version 7.1"), (str(self.on_path), "path"))
+
+    def test_a_newer_global_ffmpeg_cannot_override_the_pinned_bundled_release(self) -> None:
+        wheel = SimpleNamespace(get_ffmpeg_exe=lambda: str(self.bundled))
+
+        def version(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            release = "9.0.1" if command[0] == str(self.on_path) else "7.1"
+            return subprocess.CompletedProcess(command, 0, stdout=f"ffmpeg version {release}")
+
+        with (
+            patch("ffmpeg_bin.shutil.which", return_value=str(self.on_path)),
+            patch("ffmpeg_bin.subprocess.run", side_effect=version),
+            patch.dict(sys.modules, {"imageio_ffmpeg": wheel}),
+        ):
+            self.assertEqual(locate_ffmpeg(), (str(self.bundled), "bundled"))
+
+    def test_an_outdated_linux_bundle_cannot_bypass_the_version_pin(self) -> None:
+        wheel = SimpleNamespace(get_ffmpeg_exe=lambda: str(self.bundled))
+        result = subprocess.CompletedProcess([], 0, stdout="ffmpeg version 7.0.2-static")
+        with (
+            patch("ffmpeg_bin.shutil.which", return_value=str(self.on_path)),
+            patch("ffmpeg_bin.subprocess.run", return_value=result),
+            patch.dict(sys.modules, {"imageio_ffmpeg": wheel}),
+        ):
+            self.assertIsNone(locate_ffmpeg())
 
 
 if __name__ == "__main__":

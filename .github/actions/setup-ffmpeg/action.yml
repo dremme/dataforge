@@ -1,0 +1,44 @@
+name: Set up pinned FFmpeg
+description: Build and cache the checksum-verified FFmpeg release used by CI.
+inputs:
+  version:
+    required: true
+    description: Exact FFmpeg release.
+  sha256:
+    required: true
+    description: SHA-256 of the official source archive.
+runs:
+  using: composite
+  steps:
+    - name: Install FFmpeg build and runtime dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y build-essential pkg-config nasm libx264-dev libwebp-dev zlib1g-dev
+
+    - name: Cache pinned FFmpeg
+      id: ffmpeg-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/dataforge-ffmpeg
+        key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-ubuntu-24.04-${{ inputs.version }}-${{ inputs.sha256 }}-${{ hashFiles('.github/actions/setup-ffmpeg/action.yml') }}
+
+    - name: Build pinned FFmpeg
+      if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        FFMPEG_VERSION: ${{ inputs.version }}
+        FFMPEG_SHA256: ${{ inputs.sha256 }}
+      run: |
+        archive="$RUNNER_TEMP/ffmpeg-$FFMPEG_VERSION.tar.xz"
+        curl --fail --location --retry 3 "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz" --output "$archive"
+        echo "$FFMPEG_SHA256  $archive" | sha256sum --check
+        tar -xf "$archive" -C "$RUNNER_TEMP"
+        cd "$RUNNER_TEMP/ffmpeg-$FFMPEG_VERSION"
+        ./configure --prefix="$HOME/.cache/dataforge-ffmpeg" --disable-autodetect --disable-doc --disable-debug --disable-ffplay --enable-gpl --enable-libx264 --enable-libwebp --enable-zlib
+        make -j"$(nproc)"
+        make install
+
+    - name: Add pinned FFmpeg to PATH
+      shell: bash
+      run: echo "$HOME/.cache/dataforge-ffmpeg/bin" >> "$GITHUB_PATH"

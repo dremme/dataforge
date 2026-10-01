@@ -43,6 +43,16 @@ class SetupBatShimTests(unittest.TestCase):
 
 
 class SetupPs1BootstrapTests(unittest.TestCase):
+    def test_checks_the_pinned_ffmpeg_after_installing_backend_dependencies(self) -> None:
+        text = _read(SETUP_PS1)
+        self.assertLess(text.index("requirements.txt"), text.index("check_ffmpeg.py"))
+        self.assertLess(text.index("check_ffmpeg.py"), text.index("generate_types.py"))
+
+    def test_unix_setup_checks_the_pinned_ffmpeg_before_reporting_success(self) -> None:
+        text = _read(SETUP_SH)
+        self.assertLess(text.index("requirements.txt"), text.index("check_ffmpeg.py"))
+        self.assertLess(text.index("check_ffmpeg.py"), text.index("Setup complete."))
+
     def test_setup_ps1_exists(self) -> None:
         self.assertTrue(SETUP_PS1.is_file())
 
