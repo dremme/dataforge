@@ -1,8 +1,17 @@
-import { useCallback, useRef, type CSSProperties, type PointerEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type RefObject,
+} from "react";
 import { exactAspectRatioLabel } from "@/features/gallery/lib/aspectRatio";
 import {
   CROP_HANDLE_NAMES,
   CROP_HANDLES,
+  CROP_READOUT_LINGER_MS,
   UPRIGHT,
   isCornerHandle,
   moveCrop,
@@ -46,6 +55,16 @@ export function CropOverlay({
   const drag = useRectDrag(box, orientation, disabled);
   const cropRef = useRef(crop);
   cropRef.current = crop;
+  // The size readout only shows while a handle is resizing the rect.
+  const [resizing, setResizing] = useState(false);
+  const lingerRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(lingerRef.current), []);
+
+  const hideReadout = useCallback(() => {
+    window.clearTimeout(lingerRef.current);
+    setResizing(false);
+  }, []);
 
   // Aspect is in source pixels; this rect is fractions, so divide by the frame's aspect first.
   const rectRatio =
@@ -56,6 +75,23 @@ export function CropOverlay({
   const startDrag = useCallback(
     (event: PointerEvent<HTMLElement>) => drag.begin(event, cropRef.current),
     [drag],
+  );
+
+  const startResize = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      if (!drag.begin(event, cropRef.current)) return;
+      window.clearTimeout(lingerRef.current);
+      setResizing(true);
+    },
+    [drag],
+  );
+
+  const endResize = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      drag.end(event);
+      hideReadout();
+    },
+    [drag, hideReadout],
   );
 
   const dragHandle = useCallback(
@@ -82,6 +118,10 @@ export function CropOverlay({
 
       event.preventDefault();
       onCropChange(resizeCrop(crop, handle, delta.dx, delta.dy, rectRatio));
+      // A nudge has no release to hide on, so the readout lingers briefly instead.
+      setResizing(true);
+      window.clearTimeout(lingerRef.current);
+      lingerRef.current = window.setTimeout(() => setResizing(false), CROP_READOUT_LINGER_MS);
     },
     [crop, disabled, onCropChange, orientation, rectRatio],
   );
@@ -107,11 +147,12 @@ export function CropOverlay({
     "--crop-y": `${crop.y * 100}%`,
     "--crop-w": `${crop.width * 100}%`,
     "--crop-h": `${crop.height * 100}%`,
-    // Undoes the host turn and pins the readout to the rect's on-screen top-left corner.
+    // Undoes the host turn and pins the readout to the middle of the rect's on-screen top edge.
     "--crop-readout-transform": readoutTransform(
       orientation,
       box.width * crop.width,
       box.height * crop.height,
+      "top-center",
     ),
   } as CSSProperties;
 
@@ -129,9 +170,21 @@ export function CropOverlay({
         onPointerUp={drag.end}
         onPointerCancel={drag.end}
       >
-        <span className="crop-overlay__readout">
-          {pixels.width} × {pixels.height}
-          {ratioLabel && ` · ${ratioLabel}`}
+        <span
+          className={classNames(
+            "crop-overlay__readout",
+            resizing && "crop-overlay__readout--visible",
+          )}
+        >
+          <span className="crop-overlay__size">
+            {pixels.width} × {pixels.height}
+          </span>
+          {ratioLabel && (
+            <>
+              <span className="crop-overlay__separator"> · </span>
+              <span className="crop-overlay__ratio">{ratioLabel}</span>
+            </>
+          )}
         </span>
         {CROP_HANDLES.map((handle) => (
           <button
@@ -141,11 +194,12 @@ export function CropOverlay({
             aria-label={`Crop ${CROP_HANDLE_NAMES[handle]}`}
             // Under a ratio only corners preserve it; an edge drag has no second axis.
             disabled={disabled || (aspectRatio !== null && !isCornerHandle(handle))}
-            onPointerDown={startDrag}
+            onPointerDown={startResize}
             onPointerMove={dragHandle(handle)}
-            onPointerUp={drag.end}
-            onPointerCancel={drag.end}
+            onPointerUp={endResize}
+            onPointerCancel={endResize}
             onKeyDown={nudge(handle)}
+            onBlur={hideReadout}
           />
         ))}
       </div>

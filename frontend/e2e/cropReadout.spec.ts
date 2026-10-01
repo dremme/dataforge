@@ -59,12 +59,16 @@ test("free crop readouts reflect the visible image and video rectangles", async 
   const corner = await page.locator(".crop-overlay__handle--se").boundingBox();
   expect(cropBox).not.toBeNull();
   expect(corner).not.toBeNull();
+  const readout = page.locator(".crop-overlay__readout");
+  await expect(readout).toHaveCSS("opacity", "0");
   await page.mouse.move(corner!.x + corner!.width / 2, corner!.y + corner!.height / 2);
   await page.mouse.down();
   await page.mouse.move(cropBox!.x + cropBox!.width / 4, cropBox!.y + cropBox!.height / 4);
-  await page.mouse.up();
-  await expect(page.locator(".crop-overlay__readout")).toHaveText("160 × 120 · 4:3");
+  await expect(readout).toHaveCSS("opacity", "1");
+  await expect(readout).toHaveText("160 × 120 · 4:3");
   await page.screenshot({ path: testInfo.outputPath("small-crop.png") });
+  await page.mouse.up();
+  await expect(readout).toHaveCSS("opacity", "0");
 
   await page.locator(".gallery-item-modal__close").click();
   await page.getByRole("button", { name: "View landscape.mp4" }).click();

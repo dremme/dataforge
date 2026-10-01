@@ -1,8 +1,13 @@
 import { createRef } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CropOverlay } from "./CropOverlay";
-import { IDENTITY_CROP, type CropRect, type Orientation } from "@/features/gallery/lib/crop";
+import {
+  CROP_READOUT_LINGER_MS,
+  IDENTITY_CROP,
+  type CropRect,
+  type Orientation,
+} from "@/features/gallery/lib/crop";
 
 const SOURCE = { width: 1920, height: 1080 };
 /** The painted box: jsdom has no layout, so the elements report what a test needs. */
@@ -55,6 +60,15 @@ function drag(element: Element, dx: number, dy: number) {
   fireEvent.pointerUp(element, { pointerId: 1 });
 }
 
+/** The readout's parts are styled apart, so its text spans several nodes. */
+function readout() {
+  return document.querySelector(".crop-overlay__readout")!;
+}
+
+function readoutText() {
+  return readout().textContent;
+}
+
 /** jsdom has neither PointerEvent nor pointer capture; without this a drag reads as NaN. */
 class PointerEventPolyfill extends MouseEvent {
   readonly pointerId: number;
@@ -93,19 +107,19 @@ describe("CropOverlay", () => {
   it("shows the output size in source pixels, not painted ones", () => {
     renderOverlay({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } });
 
-    expect(screen.getByText("960 × 540 · 16:9")).toBeInTheDocument();
+    expect(readoutText()).toBe("960 × 540 · 16:9");
   });
 
   it("updates the free-crop label as its rounded dimensions move into and out of a bucket", () => {
     const props = renderOverlay({ crop: { x: 0, y: 0, width: 0.5, height: 0.5 } });
 
-    expect(screen.getByText("960 × 540 · 16:9")).toBeInTheDocument();
+    expect(readoutText()).toBe("960 × 540 · 16:9");
 
     props.rerender(<CropOverlay {...props} crop={{ x: 0, y: 0, width: 0.5, height: 0.55 }} />);
-    expect(screen.getByText("960 × 594")).toBeInTheDocument();
+    expect(readoutText()).toBe("960 × 594");
 
     props.rerender(<CropOverlay {...props} crop={{ x: 0, y: 0, width: 0.5, height: 0.5 }} />);
-    expect(screen.getByText("960 × 540 · 16:9")).toBeInTheDocument();
+    expect(readoutText()).toBe("960 × 540 · 16:9");
   });
 
   it("uses video rounding before matching a bucket", () => {
@@ -116,13 +130,72 @@ describe("CropOverlay", () => {
       round: evenTrunc,
     });
 
-    expect(screen.getByText("100 × 100 · 1:1")).toBeInTheDocument();
+    expect(readoutText()).toBe("100 × 100 · 1:1");
   });
 
   it("hides the ratio while an aspect lock is active", () => {
     renderOverlay({ aspectRatio: 16 / 9 });
 
-    expect(screen.getByText("1920 × 1080")).toBeInTheDocument();
+    expect(readoutText()).toBe("1920 × 1080");
+  });
+
+  describe("the readout", () => {
+    const VISIBLE = "crop-overlay__readout--visible";
+
+    it("stays hidden at rest", () => {
+      renderOverlay();
+
+      expect(readout()).not.toHaveClass(VISIBLE);
+    });
+
+    it("shows while a handle is dragged and hides on release", () => {
+      renderOverlay();
+      const handle = screen.getByRole("button", { name: "Crop bottom-right corner" });
+
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 100, clientY: 100 });
+      expect(readout()).toHaveClass(VISIBLE);
+
+      fireEvent.pointerUp(handle, { pointerId: 1 });
+      expect(readout()).not.toHaveClass(VISIBLE);
+    });
+
+    it("stays hidden while the whole rectangle moves, since its size cannot change", () => {
+      renderOverlay({ crop: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 } });
+      const rect = document.querySelector(".crop-overlay__rect")!;
+
+      fireEvent.pointerDown(rect, { pointerId: 1, clientX: 100, clientY: 100 });
+
+      expect(readout()).not.toHaveClass(VISIBLE);
+    });
+
+    it("stays hidden when a drag is refused", () => {
+      renderOverlay({ disabled: true });
+
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Crop bottom-right corner" }), {
+        pointerId: 1,
+        clientX: 100,
+        clientY: 100,
+      });
+
+      expect(readout()).not.toHaveClass(VISIBLE);
+    });
+
+    it("shows briefly after a keyboard nudge", () => {
+      vi.useFakeTimers();
+      try {
+        renderOverlay({ crop: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 } });
+
+        fireEvent.keyDown(screen.getByRole("button", { name: "Crop right edge" }), {
+          key: "ArrowRight",
+        });
+        expect(readout()).toHaveClass(VISIBLE);
+
+        act(() => vi.advanceTimersByTime(CROP_READOUT_LINGER_MS));
+        expect(readout()).not.toHaveClass(VISIBLE);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it("sits over the painted frame, not over the box it is positioned in", () => {
@@ -291,13 +364,13 @@ describe("CropOverlay", () => {
     it.each([90, 270] as const)("shows visible dimensions and ratio at %i degrees", (rotate) => {
       renderOverlay({ orientation: turned({ rotate }) });
 
-      expect(screen.getByText("1080 × 1920 · 9:16")).toBeInTheDocument();
+      expect(readoutText()).toBe("1080 × 1920 · 9:16");
     });
 
     it("keeps the ratio when the image is mirrored", () => {
       renderOverlay({ orientation: turned({ mirrorH: true, mirrorV: true }) });
 
-      expect(screen.getByText("1920 × 1080 · 16:9")).toBeInTheDocument();
+      expect(readoutText()).toBe("1920 × 1080 · 16:9");
     });
 
     it("reads a rightward drag as downward when the preview is turned clockwise", () => {
@@ -340,20 +413,20 @@ describe("CropOverlay", () => {
       expect(next.height).toBeCloseTo(0.49);
     });
 
-    it("keeps the readout upright and on the rect's on-screen top-left through a turn", () => {
+    it("keeps the readout upright and on the rect's on-screen top edge through a turn", () => {
       renderOverlay({ orientation: turned({ rotate: 90, mirrorH: true }) });
 
       // Turned, so the half extents swap: the rect is painted 450 wide and 800 tall.
       expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
-        "--crop-readout-transform": "scaleX(-1) scaleY(1) rotate(-90deg) translate(-225px, -400px)",
+        "--crop-readout-transform": "scaleX(-1) scaleY(1) rotate(-90deg) translate(0px, -400px)",
       });
     });
 
-    it("pins an upright preview's readout to the same corner", () => {
+    it("pins an upright preview's readout to the middle of the top edge", () => {
       renderOverlay();
 
       expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
-        "--crop-readout-transform": "scaleX(1) scaleY(1) rotate(0deg) translate(-400px, -225px)",
+        "--crop-readout-transform": "scaleX(1) scaleY(1) rotate(0deg) translate(0px, -225px)",
       });
     });
 
@@ -361,7 +434,7 @@ describe("CropOverlay", () => {
       renderOverlay({ crop: { x: 0.1, y: 0.1, width: 0.5, height: 0.4 } });
 
       expect(screen.getByRole("group", { name: "Crop region" })).toHaveStyle({
-        "--crop-readout-transform": "scaleX(1) scaleY(1) rotate(0deg) translate(-200px, -90px)",
+        "--crop-readout-transform": "scaleX(1) scaleY(1) rotate(0deg) translate(0px, -90px)",
       });
     });
   });

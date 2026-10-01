@@ -5,6 +5,8 @@ export const MIN_CROP_FRACTION = 0.05;
 export const MIN_MASK_FRACTION = 0.01;
 export const CROP_NUDGE_FRACTION = 0.01;
 export const CROP_NUDGE_MULTIPLIER = 5;
+/** How long the size readout stays up after a keyboard nudge, which has no release to end on. */
+export const CROP_READOUT_LINGER_MS = 800;
 
 const IDENTITY_EPSILON = 1e-9;
 
@@ -212,24 +214,25 @@ export function screenDeltaToSource(
 }
 
 /**
- * Screen-aligns an overlay readout and pins it to one of the rect's on-screen top corners.
+ * Screen-aligns an overlay readout and pins it to one of the rect's on-screen top anchors.
  * The caller places the readout at the rect's centre and sizes it in painted pixels.
  */
 export function readoutTransform(
   orientation: Orientation,
   rectWidth: number,
   rectHeight: number,
-  corner: "top-left" | "top-right" = "top-left",
+  anchor: "top-left" | "top-center" | "top-right" = "top-left",
 ): string {
   const flipX = orientation.mirrorH ? -1 : 1;
   const flipY = orientation.mirrorV ? -1 : 1;
   const turned = orientation.rotate === 90 || orientation.rotate === 270;
   const halfWidth = (turned ? rectHeight : rectWidth) / 2;
   const halfHeight = (turned ? rectWidth : rectHeight) / 2;
+  const x = anchor === "top-center" ? 0 : anchor === "top-right" ? halfWidth : -halfWidth;
 
   // The host turns before it mirrors, so undoing it has to mirror before it turns back.
   return (
     `scaleX(${flipX}) scaleY(${flipY}) rotate(${-orientation.rotate}deg)` +
-    ` translate(${corner === "top-right" ? halfWidth : -halfWidth}px, ${-halfHeight}px)`
+    ` translate(${x}px, ${-halfHeight}px)`
   );
 }

@@ -66,23 +66,40 @@ $handle-size: 0.75rem;
   &__readout {
     @include tabular-nums;
     position: absolute;
-    // Placed at the rect's centre; the transform carries it out to the on-screen top-left.
+    // Placed at the rect's centre; the transform carries it out to the on-screen top edge.
     left: 50%;
     top: 50%;
-    padding: 0.125rem 0.375rem;
+    padding: 0.25rem 0.625rem;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-tooltip);
     color: var(--text);
-    font-size: var(--text-2xs);
+    font-size: var(--text-sm);
     font-weight: var(--font-semibold);
+    letter-spacing: 0.01em;
     // Stated rather than inherited: a host that collapses line-height leaves the background behind nothing but padding.
     line-height: normal;
     white-space: nowrap;
     pointer-events: none;
-    // Screen-aligns the readout, then lifts it clear of the corner it now sits on.
-    transform: var(--crop-readout-transform, none) translate(0, calc(-100% - 0.25rem));
+    opacity: 0;
+    transition: opacity $transition-fast;
+    // Screen-aligns the readout, centres it, then drops it below the top edge's middle handle.
+    transform: var(--crop-readout-transform, none) translate(-50%, $handle-size);
     transform-origin: 0 0;
+  }
+
+  &__readout--visible {
+    opacity: 1;
+  }
+
+  &__separator,
+  &__ratio {
+    color: var(--text-muted);
+  }
+
+  &__ratio {
+    font-weight: normal;
   }
 
   &__handle {

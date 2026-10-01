@@ -270,6 +270,15 @@ describe("readoutTransform", () => {
     );
   });
 
+  it("centres on the on-screen top edge on request", () => {
+    expect(readoutTransform(upright, 100, 50, "top-center")).toBe(
+      "scaleX(1) scaleY(1) rotate(0deg) translate(0px, -25px)",
+    );
+    expect(
+      readoutTransform({ rotate: 90, mirrorH: true, mirrorV: false }, 100, 50, "top-center"),
+    ).toBe("scaleX(-1) scaleY(1) rotate(-90deg) translate(0px, -50px)");
+  });
+
   it("swaps the half extents on a quarter turn, where the rect is painted on its side", () => {
     expect(readoutTransform({ ...upright, rotate: 90 }, 100, 50)).toBe(
       "scaleX(1) scaleY(1) rotate(-90deg) translate(-25px, -50px)",
