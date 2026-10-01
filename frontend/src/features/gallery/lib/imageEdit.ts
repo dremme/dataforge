@@ -1,5 +1,4 @@
 import {
-  clampCrop,
   IDENTITY_CROP,
   isIdentityCrop,
   type CropRect,
@@ -10,14 +9,17 @@ import {
 import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
 import { autoAdjustEqual } from "./autoAdjust";
 import { RESTING_ADJUST, adjustEqual, clampAdjust, isAdjustIdentity } from "./colorAdjust";
-import type { AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec } from "@/shared/types";
+import {
+  IDENTITY_EPSILON,
+  MIN_SCALE,
+  clamp,
+  cropFromSpec,
+  sameNumber,
+  specCropsEqual,
+} from "./editSpec";
+import type { AutoAdjust, ColorAdjust, ImageEditSpec } from "@/shared/types";
 
-/** Order matches backend/image_edit.py: mask, crop, mirror, rotate, scale, adjust. Sizes round. */
-export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
-
-export const MIN_SCALE = 0.05;
-
-const IDENTITY_EPSILON = 1e-9;
+// Order matches backend/image_edit.py: mask, crop, mirror, rotate, scale, adjust. Sizes round.
 
 const QUARTER_TURNS: readonly RotationDegrees[] = [0, 90, 180, 270];
 
@@ -31,10 +33,6 @@ export interface ImageEditDraft {
   adjust: ColorAdjust;
   /** The wand's last reading, so its dial can rescale it; never rendered. */
   autoAdjust: AutoAdjust | null;
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
 }
 
 export function emptyDraft(): ImageEditDraft {
@@ -145,7 +143,7 @@ export function draftFromSpec(spec: ImageEditSpec | null): ImageEditDraft {
 
   return {
     masks: maskDraftsFromSpec(spec.masks),
-    crop: spec.crop ? clampCrop(toCropRect(spec.crop)) : IDENTITY_CROP,
+    crop: cropFromSpec(spec.crop),
     mirrorH: spec.mirror_h,
     mirrorV: spec.mirror_v,
     rotate: spec.rotate,
@@ -155,29 +153,11 @@ export function draftFromSpec(spec: ImageEditSpec | null): ImageEditDraft {
   };
 }
 
-function toCropRect(crop: EditCropRect): CropRect {
-  return { x: crop.x, y: crop.y, width: crop.width, height: crop.height };
-}
-
-function sameNumber(a: number, b: number): boolean {
-  return Math.abs(a - b) < IDENTITY_EPSILON;
-}
-
-function sameCrop(a: EditCropRect | null, b: EditCropRect | null): boolean {
-  if (a === null || b === null) return a === b;
-  return (
-    sameNumber(a.x, b.x) &&
-    sameNumber(a.y, b.y) &&
-    sameNumber(a.width, b.width) &&
-    sameNumber(a.height, b.height)
-  );
-}
-
 /** Compared as specs, not drafts, because toImageEditSpec already normalizes a whole-frame crop. */
 export function specsEqual(a: ImageEditSpec, b: ImageEditSpec): boolean {
   return (
     masksEqual(a.masks, b.masks) &&
-    sameCrop(a.crop ?? null, b.crop ?? null) &&
+    specCropsEqual(a.crop, b.crop) &&
     a.mirror_h === b.mirror_h &&
     a.mirror_v === b.mirror_v &&
     a.rotate === b.rotate &&
@@ -185,10 +165,6 @@ export function specsEqual(a: ImageEditSpec, b: ImageEditSpec): boolean {
     adjustEqual(a.adjust, b.adjust) &&
     autoAdjustEqual(a.auto_adjust ?? null, b.auto_adjust ?? null)
   );
-}
-
-export function formatScale(scale: number): string {
-  return `${Math.round(scale * 100)}%`;
 }
 
 export function formatRotation(rotate: RotationDegrees): string {

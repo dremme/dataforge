@@ -46,6 +46,17 @@ export type CropHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 export const CROP_HANDLES: readonly CropHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
+export const CROP_HANDLE_NAMES: Record<CropHandle, string> = {
+  nw: "top-left corner",
+  n: "top edge",
+  ne: "top-right corner",
+  e: "right edge",
+  se: "bottom-right corner",
+  s: "bottom edge",
+  sw: "bottom-left corner",
+  w: "left edge",
+};
+
 const CORNER_HANDLES = new Set<CropHandle>(["nw", "ne", "se", "sw"]);
 
 export function isCornerHandle(handle: CropHandle): boolean {

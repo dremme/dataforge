@@ -1,22 +1,26 @@
-import { clampCrop, IDENTITY_CROP, isIdentityCrop, type CropRect, type Size } from "./crop";
+import { IDENTITY_CROP, isIdentityCrop, type CropRect, type Size } from "./crop";
 import { snapToFrame } from "./frameGrid";
 import { maskDraftsFromSpec, masksEqual, toMaskRegions, type MaskDraft } from "./mask";
 import { autoAdjustEqual } from "./autoAdjust";
 import { RESTING_ADJUST, adjustEqual, clampAdjust, isAdjustIdentity } from "./colorAdjust";
-import type { AutoAdjust, ColorAdjust, EditCropRect, VideoEditSpec } from "@/shared/types";
+import {
+  IDENTITY_EPSILON,
+  MIN_SCALE,
+  clamp,
+  cropFromSpec,
+  sameNumber,
+  specCropsEqual,
+} from "./editSpec";
+import type { AutoAdjust, ColorAdjust, VideoEditSpec } from "@/shared/types";
 
-/** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
 export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
-export const SCALE_PRESETS = [1, 0.75, 0.5, 0.25] as const;
 /** 0 mutes; the rest are audio gain, capped at 2x to match backend/schemas.py. */
 export const VOLUME_PRESETS = [0, 0.25, 0.5, 1, 1.5, 2] as const;
 
-export const MIN_SCALE = 0.05;
 export const MIN_TRIM_SECONDS = 0.1;
 
 /** A trim that reaches this close to the end is sent as "run to the end". */
 const TRIM_END_EPSILON = 1e-3;
-const IDENTITY_EPSILON = 1e-9;
 
 export interface VideoEditDraft {
   trimStart: number;
@@ -31,12 +35,9 @@ export interface VideoEditDraft {
   autoAdjust: AutoAdjust | null;
 }
 
+/** Sizes even-truncate to match backend/video_edit.py crop= and scale= filters. */
 export function evenTrunc(value: number): number {
   return Math.trunc(value / 2) * 2;
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
 }
 
 export function emptyDraft(duration: number): VideoEditDraft {
@@ -149,15 +150,6 @@ export function outputTime(seconds: number, speed: number): number {
   return seconds / speed;
 }
 
-export function cropToPixels(crop: CropRect, source: Size): CropRect {
-  return {
-    x: Math.round(source.width * crop.x),
-    y: Math.round(source.height * crop.y),
-    width: evenTrunc(source.width * crop.width),
-    height: evenTrunc(source.height * crop.height),
-  };
-}
-
 export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoEditSpec {
   const runsToTheEnd = draft.trimEnd >= duration - TRIM_END_EPSILON;
   return {
@@ -181,31 +173,13 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
     trimStart: Math.min(spec.trim_start, draft.trimEnd),
     trimEnd: spec.trim_end == null ? draft.trimEnd : Math.min(spec.trim_end, draft.trimEnd),
     masks: maskDraftsFromSpec(spec.masks),
-    crop: spec.crop ? clampCrop(toCropRect(spec.crop)) : IDENTITY_CROP,
+    crop: cropFromSpec(spec.crop),
     speed: spec.speed,
     scale: spec.scale,
     volume: spec.volume,
     adjust: { ...spec.adjust },
     autoAdjust: spec.auto_adjust ?? null,
   };
-}
-
-function toCropRect(crop: EditCropRect): CropRect {
-  return { x: crop.x, y: crop.y, width: crop.width, height: crop.height };
-}
-
-function sameNumber(a: number, b: number): boolean {
-  return Math.abs(a - b) < IDENTITY_EPSILON;
-}
-
-function sameCrop(a: EditCropRect | null, b: EditCropRect | null): boolean {
-  if (a === null || b === null) return a === b;
-  return (
-    sameNumber(a.x, b.x) &&
-    sameNumber(a.y, b.y) &&
-    sameNumber(a.width, b.width) &&
-    sameNumber(a.height, b.height)
-  );
 }
 
 /** Compared as specs, not drafts: toVideoEditSpec normalizes trim-to-end and full crops. */
@@ -216,7 +190,7 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
       ? a.trim_end == b.trim_end
       : sameNumber(a.trim_end, b.trim_end)) &&
     masksEqual(a.masks, b.masks) &&
-    sameCrop(a.crop ?? null, b.crop ?? null) &&
+    specCropsEqual(a.crop, b.crop) &&
     sameNumber(a.speed, b.speed) &&
     sameNumber(a.scale, b.scale) &&
     sameNumber(a.volume, b.volume) &&
@@ -227,10 +201,6 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
 
 export function formatSpeed(speed: number): string {
   return `${Number.isInteger(speed) ? speed : speed.toFixed(2).replace(/0$/, "")}x`;
-}
-
-export function formatScale(scale: number): string {
-  return `${Math.round(scale * 100)}%`;
 }
 
 export function formatVolume(volume: number): string {

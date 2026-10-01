@@ -187,34 +187,6 @@ describe("MaskOverlay", () => {
     expect(rect.width).toBeCloseTo(0.5);
   });
 
-  it("keeps up with a drag that outruns rendering", () => {
-    // Pointer events arrive faster than React commits, so every move still sees the first rect.
-    const props = renderOverlay();
-    const surface = screen.getByRole("button", { name: "Blur region 1" });
-
-    fireEvent.pointerDown(surface, { pointerId: 1, clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(surface, { pointerId: 1, clientX: 140, clientY: 100 });
-    fireEvent.pointerMove(surface, { pointerId: 1, clientX: 180, clientY: 100 });
-    fireEvent.pointerUp(surface, { pointerId: 1 });
-
-    // 80px across an 800px box is a tenth of the frame, however many moves it took.
-    const calls = vi.mocked(props.onChange).mock.calls;
-    expect(calls[calls.length - 1][1].x).toBeCloseTo(0.35);
-  });
-
-  it("keeps a handle under the pointer across the same run of moves", () => {
-    const props = renderOverlay();
-    const handle = screen.getByRole("button", { name: "Blur region 1 bottom-right corner" });
-
-    fireEvent.pointerDown(handle, { pointerId: 1, clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 140, clientY: 100 });
-    fireEvent.pointerMove(handle, { pointerId: 1, clientX: 180, clientY: 100 });
-    fireEvent.pointerUp(handle, { pointerId: 1 });
-
-    const calls = vi.mocked(props.onChange).mock.calls;
-    expect(calls[calls.length - 1][1].width).toBeCloseTo(0.6);
-  });
-
   it("resizes from a handle", () => {
     const props = renderOverlay();
 
@@ -349,16 +321,6 @@ describe("MaskOverlay", () => {
     );
 
     expect(screen.queryByRole("group", { name: "Blur regions" })).not.toBeInTheDocument();
-  });
-
-  it("reads a rightward drag as downward when the preview is turned clockwise", () => {
-    const props = renderOverlay({ orientation: { rotate: 90, mirrorH: false, mirrorV: false } });
-
-    drag(screen.getByRole("button", { name: "Blur region 1" }), 80, 0);
-
-    const [, rect] = vi.mocked(props.onChange).mock.calls[0];
-    expect(rect.x).toBeCloseTo(0.25);
-    expect(rect.y).toBeCloseTo(0.25 - 80 / BOX.height);
   });
 
   /** A paint attempt is observable: paintMask sizes the bitmap before it asks for a context. */

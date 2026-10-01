@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useGlobalShortcut } from "@/shared/hooks/useGlobalShortcut";
-import { getScrollLockDepth } from "@/shared/hooks/useScrollLock";
+import { getScrollLockDepth } from "@/shared/hooks/scrollLockManager";
 import { SHORTCUTS } from "@/shared/lib/shortcuts";
 
 export function useQuickAction() {

@@ -4,7 +4,6 @@ import {
   draftFromSpec,
   emptyDraft,
   formatRotation,
-  formatScale,
   isIdentityEdit,
   orientationOf,
   outputDimensions,
@@ -16,6 +15,7 @@ import {
   toImageEditSpec,
   type ImageEditDraft,
 } from "./imageEdit";
+import { formatScale } from "./editSpec";
 import { newMaskDraft } from "./mask";
 import type { ImageEditSpec, MaskRegion } from "@/shared/types";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";

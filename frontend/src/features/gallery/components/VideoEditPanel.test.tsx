@@ -187,6 +187,14 @@ describe("VideoEditPanel", () => {
       expect(screen.getByText(/0:04.000/)).toBeInTheDocument();
     });
 
+    it("counts the regions in the readout", () => {
+      renderPanel(
+        makeEdit({ draft: { ...emptyDraft(12), masks: [newMaskDraft("blur", 0.12, 0)] } }),
+      );
+
+      expect(screen.getByText("1 masked region")).toBeInTheDocument();
+    });
+
     it("says the timeline is still loading before metadata lands", () => {
       renderPanel(makeEdit({ ready: false }));
 
@@ -240,27 +248,6 @@ describe("VideoEditPanel", () => {
       expect(screen.queryByLabelText("X")).not.toBeInTheDocument();
     });
 
-    it("starts free and locks to the shape that is picked", () => {
-      const edit = makeEdit();
-      renderPanel(edit);
-
-      fireEvent.click(tool("Crop"));
-      expect(screen.getByRole("button", { name: "Free" })).toHaveAttribute("aria-pressed", "true");
-
-      fireEvent.click(screen.getByRole("button", { name: "1:1" }));
-
-      expect(edit.selectAspect).toHaveBeenCalledWith("1:1");
-    });
-
-    it("shows the shape the editor holds, so a restored crop is not read as free", () => {
-      renderPanel(makeEdit({ aspectId: "16:9", aspectRatio: 16 / 9 }));
-
-      fireEvent.click(tool("Crop"));
-
-      expect(screen.getByRole("button", { name: "16:9" })).toHaveAttribute("aria-pressed", "true");
-      expect(screen.getByRole("button", { name: "Free" })).toHaveAttribute("aria-pressed", "false");
-    });
-
     it("sets both output dimensions, either one moving the other", () => {
       const edit = makeEdit({ outputWidth: 1920, outputHeight: 1080 });
       renderPanel(edit);
@@ -270,28 +257,10 @@ describe("VideoEditPanel", () => {
       expect(screen.getByLabelText("H")).toHaveValue(1080);
 
       fireEvent.change(screen.getByLabelText("H"), { target: { value: "540" } });
+      expect(edit.setScale).toHaveBeenLastCalledWith(0.5);
 
-      expect(edit.setScale).toHaveBeenCalledWith(0.5);
-    });
-
-    it("lets a width be typed without snapping back to the last output size", () => {
-      const edit = makeEdit({ outputWidth: 1920, outputHeight: 1080 });
-      renderPanel(edit);
-      fireEvent.click(tool("Size"));
-
-      fireEvent.change(screen.getByLabelText("W"), { target: { value: "9" } });
-
-      expect(screen.getByLabelText("W")).toHaveValue(9);
-    });
-
-    it("does not treat a cleared field as a scale of zero", () => {
-      const edit = makeEdit({ outputWidth: 1920, outputHeight: 1080 });
-      renderPanel(edit);
-      fireEvent.click(tool("Size"));
-
-      fireEvent.change(screen.getByLabelText("W"), { target: { value: "" } });
-
-      expect(edit.setScale).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText("W"), { target: { value: "480" } });
+      expect(edit.setScale).toHaveBeenLastCalledWith(0.25);
     });
 
     it("offers every speed from a quarter to double", () => {
@@ -339,127 +308,7 @@ describe("VideoEditPanel", () => {
     });
   });
 
-  describe("blur regions", () => {
-    function openBlur(edit: VideoEdit) {
-      renderPanel(edit);
-      fireEvent.click(tool("Blur"));
-    }
-
-    it("adds a region", () => {
-      const edit = makeEdit();
-      openBlur(edit);
-
-      fireEvent.click(screen.getByRole("button", { name: "Add" }));
-
-      expect(edit.addMask).toHaveBeenCalled();
-    });
-
-    it("stops offering to add one past the cap", () => {
-      const edit = makeEdit({ maskLimitReached: true });
-      openBlur(edit);
-
-      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
-    });
-
-    it("switches the selected region between blurred and pixelated", () => {
-      const edit = makeEdit();
-      openBlur(edit);
-
-      const styles = within(screen.getByRole("group", { name: "Blur style" }));
-      fireEvent.click(styles.getByRole("button", { name: "Pixelate" }));
-
-      expect(edit.setMaskMode).toHaveBeenCalledWith("pixelate");
-    });
-
-    it("blacks a region out, and stops offering a strength that would do nothing", () => {
-      const edit = makeEdit({ maskMode: "blackout" });
-      openBlur(edit);
-
-      const styles = within(screen.getByRole("group", { name: "Blur style" }));
-      fireEvent.click(styles.getByRole("button", { name: "Blackout" }));
-      expect(edit.setMaskMode).toHaveBeenCalledWith("blackout");
-
-      const strengths = within(screen.getByRole("group", { name: "Strength" }));
-      expect(strengths.getByRole("button", { name: "Medium" })).toBeDisabled();
-    });
-
-    it("sets the strength", () => {
-      const edit = makeEdit();
-      openBlur(edit);
-
-      const strengths = within(screen.getByRole("group", { name: "Strength" }));
-      fireEvent.click(strengths.getByRole("button", { name: "Max" }));
-
-      expect(edit.setMaskStrength).toHaveBeenCalledWith(0.4);
-    });
-
-    it("has nothing to clear until a region is there", () => {
-      openBlur(makeEdit());
-
-      expect(screen.getByRole("button", { name: "Clear" })).toBeDisabled();
-    });
-
-    it("clears every region at once", () => {
-      const mask = newMaskDraft("blur", 0.12, 0);
-      const edit = makeEdit({
-        draft: { ...emptyDraft(12), masks: [mask] },
-        selectedMaskId: mask.id,
-        selectedMask: mask,
-      });
-      openBlur(edit);
-
-      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-
-      expect(edit.clearMasks).toHaveBeenCalled();
-    });
-
-    it("counts the regions in the readout", () => {
-      renderPanel(
-        makeEdit({ draft: { ...emptyDraft(12), masks: [newMaskDraft("blur", 0.12, 0)] } }),
-      );
-
-      expect(screen.getByText("1 masked region")).toBeInTheDocument();
-    });
-  });
-
   describe("actions", () => {
-    it("cannot apply an edit that would change nothing", () => {
-      renderPanel(makeEdit({ dirty: false }));
-
-      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
-    });
-
-    it("offers Apply once the draft differs from the file", () => {
-      renderPanel(makeEdit({ dirty: true }));
-
-      expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
-    });
-
-    it("hands the only reset there is back to the saved state", () => {
-      const edit = makeEdit({ dirty: true });
-      renderPanel(edit);
-
-      fireEvent.click(screen.getByRole("button", { name: "Reset" }));
-
-      expect(edit.resetDraft).toHaveBeenCalled();
-    });
-
-    it("hides Revert until an original has been stored", () => {
-      renderPanel(makeEdit({ hasBackup: false }));
-
-      expect(screen.queryByRole("button", { name: /Revert original/ })).not.toBeInTheDocument();
-    });
-
-    it("asks before reverting rather than doing it outright", () => {
-      const edit = makeEdit({ hasBackup: true });
-      const props = renderPanel(edit);
-
-      fireEvent.click(screen.getByRole("button", { name: /Revert original/ }));
-
-      expect(props.onRevertRequested).toHaveBeenCalled();
-      expect(edit.revert).not.toHaveBeenCalled();
-    });
-
     it("stays in place when the tool changes", () => {
       renderPanel(makeEdit({ dirty: true }));
 

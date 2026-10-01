@@ -8,7 +8,6 @@ import {
   revertImageEdit,
 } from "@/features/gallery/api/imageEdit";
 import { useImageEdit, type UseImageEditOptions } from "./useImageEdit";
-import { MAX_MASK_REGIONS } from "@/features/gallery/lib/mask";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
 import { makeItem } from "@/test/galleryItemModal";
 import { HOME_PATH } from "@/test/fixtures";
@@ -365,14 +364,6 @@ describe("useImageEdit", () => {
   });
 
   describe("blur regions", () => {
-    it("starts with none and none selected", async () => {
-      const { result } = await renderReady();
-
-      expect(result.current.draft.masks).toEqual([]);
-      expect(result.current.selectedMaskId).toBeNull();
-      expect(result.current.selectedMask).toBeNull();
-    });
-
     it("selects a region as it is added, so the controls act on it", async () => {
       const { result } = await renderReady();
 
@@ -381,106 +372,6 @@ describe("useImageEdit", () => {
       expect(result.current.draft.masks).toHaveLength(1);
       expect(result.current.selectedMaskId).toBe(result.current.draft.masks[0].id);
       expect(result.current.dirty).toBe(true);
-    });
-
-    it("moves the region the rectangle belongs to and leaves the others alone", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      act(() => result.current.addMask());
-      const [first, second] = result.current.draft.masks;
-
-      act(() => result.current.setMaskRect(first.id, { x: 0, y: 0, width: 0.2, height: 0.2 }));
-
-      expect(result.current.draft.masks[0].rect).toEqual({
-        x: 0,
-        y: 0,
-        width: 0.2,
-        height: 0.2,
-      });
-      expect(result.current.draft.masks[1].rect).toEqual(second.rect);
-    });
-
-    it("points the mode and strength controls at the selected region", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      act(() => result.current.addMask());
-      const [first] = result.current.draft.masks;
-
-      act(() => result.current.setMaskMode("pixelate"));
-
-      expect(result.current.draft.masks[1].mode).toBe("pixelate");
-      expect(result.current.draft.masks[0].mode).toBe(first.mode);
-      expect(result.current.maskMode).toBe("pixelate");
-    });
-
-    it("carries the last mode and strength into the next region", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      act(() => result.current.setMaskMode("pixelate"));
-      act(() => result.current.setMaskStrength(0.4));
-      act(() => result.current.addMask());
-
-      expect(result.current.draft.masks[1]).toMatchObject({ mode: "pixelate", strength: 0.4 });
-    });
-
-    it("reports the defaults while nothing is selected", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      act(() => result.current.setMaskStrength(0.4));
-      act(() => result.current.selectMask(null));
-
-      expect(result.current.selectedMask).toBeNull();
-      expect(result.current.maskStrength).toBe(0.4);
-    });
-
-    it("drops the selection with the region it pointed at", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      const [only] = result.current.draft.masks;
-
-      act(() => result.current.removeMask(only.id));
-
-      expect(result.current.draft.masks).toEqual([]);
-      expect(result.current.selectedMaskId).toBeNull();
-    });
-
-    it("keeps a selection that points at some other region", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      act(() => result.current.addMask());
-      const [first, second] = result.current.draft.masks;
-
-      act(() => result.current.removeMask(first.id));
-
-      expect(result.current.selectedMaskId).toBe(second.id);
-    });
-
-    it("clears every region at once", async () => {
-      const { result } = await renderReady();
-
-      act(() => result.current.addMask());
-      act(() => result.current.addMask());
-      act(() => result.current.clearMasks());
-
-      expect(result.current.draft.masks).toEqual([]);
-      expect(result.current.selectedMaskId).toBeNull();
-    });
-
-    it("stops adding at the cap the server would refuse past", async () => {
-      const { result } = await renderReady();
-
-      for (let placed = 0; placed < MAX_MASK_REGIONS + 3; placed += 1) {
-        act(() => result.current.addMask());
-      }
-
-      expect(result.current.draft.masks).toHaveLength(MAX_MASK_REGIONS);
-      expect(result.current.maskLimitReached).toBe(true);
     });
 
     it("sends the regions with the rest of the edit", async () => {

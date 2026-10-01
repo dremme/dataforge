@@ -30,7 +30,7 @@
 @use "components/adjust-canvas";
 @use "components/adjust-tools";
 @use "components/gallery-item-modal";
-@use "components/image-edit-panel";
+@use "components/edit-panel";
 @use "components/image-edit-stage";
 @use "components/issue-resolver-modal";
 @use "components/job-file-results";
@@ -51,7 +51,7 @@
 @use "components/tooltip";
 @use "components/training-sample-modal";
 @use "components/training-samples";
-@use "components/video-edit-panel";
+@use "components/video-edit-timeline";
 @use "components/video-frame-bar";
 @use "components/zoomable-image";
 

@@ -122,10 +122,6 @@ export function getScrollLockDepth(): number {
   return entries.length;
 }
 
-export function isNestedOverlay(): boolean {
-  return getScrollLockDepth() > 0;
-}
-
 export function acquireScrollLock(
   lockClass: ScrollLockClass,
   scrollElementOverride?: HTMLElement | null,

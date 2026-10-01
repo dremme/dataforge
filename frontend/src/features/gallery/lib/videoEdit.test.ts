@@ -4,11 +4,9 @@ import {
   MIN_TRIM_SECONDS,
   clampTrimEnd,
   clampTrimStart,
-  cropToPixels,
   draftFromSpec,
   emptyDraft,
   evenTrunc,
-  formatScale,
   formatSpeed,
   formatVolume,
   isIdentityEdit,
@@ -129,14 +127,6 @@ describe("trim snapping", () => {
     // A duration is not on the grid, and rounding it down would read as a trim.
     expect(snapTrimEnd(12, current, 12.01, FRAME)).toBe(12.01);
     expect(snapTrimEnd(99, current, 12.01, FRAME)).toBe(12.01);
-  });
-});
-
-describe("cropToPixels", () => {
-  it("reports the rectangle in source pixels for the overlay readout", () => {
-    const crop: CropRect = { x: 0.25, y: 0.5, width: 0.5, height: 0.25 };
-
-    expect(cropToPixels(crop, HD)).toEqual({ x: 480, y: 540, width: 960, height: 270 });
   });
 });
 
@@ -314,10 +304,9 @@ describe("readouts", () => {
     expect(scaleForTargetHeight(HD, IDENTITY_CROP, 4000)).toBe(1);
   });
 
-  it("labels speeds and scales the way the buttons read", () => {
+  it("labels speeds the way the buttons read", () => {
     expect(formatSpeed(2)).toBe("2x");
     expect(formatSpeed(0.5)).toBe("0.5x");
-    expect(formatScale(0.75)).toBe("75%");
   });
 
   it("labels the volume, and calls a zero gain a mute", () => {

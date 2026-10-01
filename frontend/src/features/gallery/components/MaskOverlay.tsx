@@ -9,15 +9,13 @@ import {
   type RefObject,
 } from "react";
 import {
+  CROP_HANDLE_NAMES,
   CROP_HANDLES,
-  CROP_NUDGE_FRACTION,
-  CROP_NUDGE_MULTIPLIER,
   MIN_MASK_FRACTION,
   UPRIGHT,
   moveCrop,
   readoutTransform,
   resizeCrop,
-  screenDeltaToSource,
   type CropHandle,
   type CropRect,
   type Orientation,
@@ -25,41 +23,12 @@ import {
 } from "@/features/gallery/lib/crop";
 import { blurRadiusPx, modeLabel, pixelBlockPx, type MaskDraft } from "@/features/gallery/lib/mask";
 import { usePaintedBox, type PaintedBox } from "@/features/gallery/hooks/usePaintedBox";
+import { arrowDelta, useRectDrag } from "@/features/gallery/hooks/useRectDrag";
 import { useVideoFrameLoop } from "@/features/gallery/hooks/useVideoFrameLoop";
 import type { AdjustedPicture } from "@/features/gallery/lib/adjustedPicture";
 import { iconX } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
-
-const HANDLE_LABELS: Record<CropHandle, string> = {
-  nw: "top-left corner",
-  n: "top edge",
-  ne: "top-right corner",
-  e: "right edge",
-  se: "bottom-right corner",
-  s: "bottom edge",
-  sw: "bottom-left corner",
-  w: "left edge",
-};
-
-const ARROW_MOVES: Record<string, [number, number]> = {
-  ArrowLeft: [-1, 0],
-  ArrowRight: [1, 0],
-  ArrowUp: [0, -1],
-  ArrowDown: [0, 1],
-};
-
-/** Arrow keys point at the screen; under a quarter-turn the screen's right is not the frame's. */
-function arrowDelta(
-  event: KeyboardEvent<HTMLElement>,
-  orientation: Orientation,
-): { dx: number; dy: number } | null {
-  const move = ARROW_MOVES[event.key];
-  if (!move) return null;
-
-  const step = CROP_NUDGE_FRACTION * (event.shiftKey ? CROP_NUDGE_MULTIPLIER : 1);
-  return screenDeltaToSource(move[0] * step, move[1] * step, orientation);
-}
 
 type MaskMedia = HTMLImageElement | HTMLVideoElement;
 
@@ -106,9 +75,7 @@ export function MaskOverlay({
   onRemove,
 }: MaskOverlayProps) {
   const box = usePaintedBox(mediaRef, sourceWidth, sourceHeight);
-  // Anchored to where the drag began: pointer moves outrun rendering, so a delta applied to the
-  // last rendered rect loses every move that landed inside the same frame.
-  const dragRef = useRef<{ x: number; y: number; rect: CropRect } | null>(null);
+  const drag = useRectDrag(box, orientation, disabled);
   const paintersRef = useRef(new Set<Painter>());
 
   const registerPainter = useCallback((paint: Painter) => {
@@ -131,58 +98,28 @@ export function MaskOverlay({
     [sourceHeight, sourceWidth],
   );
 
-  const fractionDelta = useCallback(
-    (screenDx: number, screenDy: number) => {
-      const { dx, dy } = screenDeltaToSource(screenDx, screenDy, orientation);
-      return {
-        dx: box.width > 0 ? dx / box.width : 0,
-        dy: box.height > 0 ? dy / box.height : 0,
-      };
-    },
-    [box.height, box.width, orientation],
-  );
-
   const startDrag = useCallback(
     (mask: MaskDraft) => (event: PointerEvent<HTMLElement>) => {
-      if (disabled) return;
-      // preventDefault drops the click's focus; take it or unfocused arrows navigate the gallery.
-      event.preventDefault();
-      event.stopPropagation();
-      event.currentTarget.focus();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      dragRef.current = { x: event.clientX, y: event.clientY, rect: mask.rect };
-      onSelect(mask.id);
+      if (drag.begin(event, mask.rect)) onSelect(mask.id);
     },
-    [disabled, onSelect],
+    [drag, onSelect],
   );
-
-  const endDrag = useCallback((event: PointerEvent<HTMLElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    dragRef.current = null;
-  }, []);
 
   const dragSurface = useCallback(
     (mask: MaskDraft) => (event: PointerEvent<HTMLButtonElement>) => {
-      const origin = dragRef.current;
-      if (disabled || !origin || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-
-      const { dx, dy } = fractionDelta(event.clientX - origin.x, event.clientY - origin.y);
-      onChange(mask.id, moveCrop(origin.rect, dx, dy, MIN_MASK_FRACTION));
+      const move = drag.delta(event);
+      if (move) onChange(mask.id, moveCrop(move.rect, move.dx, move.dy, MIN_MASK_FRACTION));
     },
-    [disabled, fractionDelta, onChange],
+    [drag, onChange],
   );
 
   const dragHandle = useCallback(
     (mask: MaskDraft, handle: CropHandle) => (event: PointerEvent<HTMLButtonElement>) => {
-      const origin = dragRef.current;
-      if (disabled || !origin || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-
-      const { dx, dy } = fractionDelta(event.clientX - origin.x, event.clientY - origin.y);
-      onChange(mask.id, resizeCrop(origin.rect, handle, dx, dy, null, MIN_MASK_FRACTION));
+      const move = drag.delta(event);
+      if (!move) return;
+      onChange(mask.id, resizeCrop(move.rect, handle, move.dx, move.dy, null, MIN_MASK_FRACTION));
     },
-    [disabled, fractionDelta, onChange],
+    [drag, onChange],
   );
 
   const surfaceKeys = useCallback(
@@ -289,8 +226,8 @@ export function MaskOverlay({
                 onFocus={() => onSelect(mask.id)}
                 onPointerDown={startDrag(mask)}
                 onPointerMove={dragSurface(mask)}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
+                onPointerUp={drag.end}
+                onPointerCancel={drag.end}
                 onKeyDown={surfaceKeys(mask)}
               />
             )}
@@ -319,13 +256,13 @@ export function MaskOverlay({
                       "mask-overlay__handle",
                       `mask-overlay__handle--${handle}`,
                     )}
-                    aria-label={`${name} ${HANDLE_LABELS[handle]}`}
+                    aria-label={`${name} ${CROP_HANDLE_NAMES[handle]}`}
                     disabled={disabled}
                     tabIndex={-1}
                     onPointerDown={startDrag(mask)}
                     onPointerMove={dragHandle(mask, handle)}
-                    onPointerUp={endDrag}
-                    onPointerCancel={endDrag}
+                    onPointerUp={drag.end}
+                    onPointerCancel={drag.end}
                     onKeyDown={handleKeys(mask, handle)}
                   />
                 ))}

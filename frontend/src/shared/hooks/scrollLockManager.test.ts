@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   acquireScrollLock,
   getScrollLockDepth,
-  isNestedOverlay,
   releaseScrollLock,
   resetScrollLockManagerForTests,
   updateScrollLockClass,
@@ -15,20 +14,17 @@ describe("scrollLockManager", () => {
     document.body.style.paddingRight = "";
   });
 
-  it("tracks depth and nested overlay state", () => {
+  it("tracks depth", () => {
     expect(getScrollLockDepth()).toBe(0);
-    expect(isNestedOverlay()).toBe(false);
 
     const first = acquireScrollLock("gallery-item-modal-open");
     expect(getScrollLockDepth()).toBe(1);
-    expect(isNestedOverlay()).toBe(true);
 
     const second = acquireScrollLock("confirm-dialog-open");
     expect(getScrollLockDepth()).toBe(2);
 
     releaseScrollLock(second);
     expect(getScrollLockDepth()).toBe(1);
-    expect(isNestedOverlay()).toBe(true);
 
     releaseScrollLock(first);
     expect(getScrollLockDepth()).toBe(0);

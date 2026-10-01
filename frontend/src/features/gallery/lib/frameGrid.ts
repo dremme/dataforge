@@ -26,8 +26,3 @@ export function snapToFrame(time: number, fd: number): number {
   if (!Number.isFinite(time)) return 0;
   return Math.round(time / fd) * fd;
 }
-
-/** Seek target for a given frame: browsers disagree about which frame a boundary shows. */
-export function midFrameTime(index: number, fd: number): number {
-  return (index + 0.5) * fd;
-}

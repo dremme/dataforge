@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { CROP_ASPECTS, isIdentityCrop } from "@/features/gallery/lib/crop";
+import { useEffect, useMemo, useState } from "react";
+import { isIdentityCrop } from "@/features/gallery/lib/crop";
 import { isAdjustIdentity } from "@/features/gallery/lib/colorAdjust";
 import {
-  SCALE_PRESETS,
   SPEED_PRESETS,
   VOLUME_PRESETS,
-  formatScale,
   formatSpeed,
   formatVolume,
   scaleForTargetHeight,
   scaleForTargetWidth,
 } from "@/features/gallery/lib/videoEdit";
-import { MASK_MODES, MASK_STRENGTHS, describeMasks } from "@/features/gallery/lib/mask";
+import { describeMasks } from "@/features/gallery/lib/mask";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
 import {
   iconCrop,
@@ -19,24 +17,29 @@ import {
   iconGauge,
   iconLoader2,
   iconMaximize2,
-  iconPlus,
   iconScissors,
   iconSliders,
-  iconTrash2,
-  iconUndo2,
   iconVolume2,
 } from "@/shared/icons";
-import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
-import { AdjustTools } from "./AdjustTools";
-import { VideoEditTimeline } from "./VideoEditTimeline";
-import { SizeNumberField } from "./SizeNumberField";
-import type { AppIcon } from "@/shared/icons";
 import type { VideoEdit } from "@/features/gallery/hooks/useVideoEdit";
+import { AdjustTools } from "./AdjustTools";
+import {
+  AspectTools,
+  BlurTools,
+  EditActions,
+  OutputChange,
+  OutputPart,
+  PresetChoices,
+  SizeTools,
+  ToolTabs,
+  type EditTool,
+} from "./EditPanelParts";
+import { VideoEditTimeline } from "./VideoEditTimeline";
 
 type ToolId = "trim" | "crop" | "blur" | "speed" | "size" | "volume" | "adjust";
 
-const TOOLS: ReadonlyArray<{ id: ToolId; label: string; icon: AppIcon }> = [
+const TOOLS: ReadonlyArray<EditTool<ToolId>> = [
   { id: "trim", label: "Trim", icon: iconScissors },
   { id: "speed", label: "Speed", icon: iconGauge },
   { id: "volume", label: "Volume", icon: iconVolume2 },
@@ -81,7 +84,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
   }, [activeTool, setAdjustActive, setCropActive, setMaskActive]);
 
   return (
-    <div className="video-edit-panel" role="group" aria-label="Video editing">
+    <div className="edit-panel" role="group" aria-label="Video editing">
       <VideoEditTimeline
         duration={edit.duration}
         trimStart={edit.draft.trimStart}
@@ -101,77 +104,54 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
         onToggleMuted={edit.toggleMuted}
       />
 
-      <div className="video-edit-panel__bar video-edit-panel__bar--tabs">
-        <div className="video-edit-panel__tools" role="group" aria-label="Editing tool">
-          {TOOLS.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              className={classNames(
-                "video-edit-panel__tool",
-                activeTool === tool.id && "video-edit-panel__tool--active",
-                modified[tool.id] && "video-edit-panel__tool--modified",
-              )}
-              aria-pressed={activeTool === tool.id}
-              aria-label={modified[tool.id] ? `${tool.label}, changed` : tool.label}
-              disabled={locked}
-              onClick={() => setActiveTool(tool.id)}
-            >
-              <Icon icon={tool.icon} />
-              {tool.label}
-            </button>
-          ))}
-        </div>
+      <div className="edit-panel__bar edit-panel__bar--tabs">
+        <ToolTabs
+          tools={TOOLS}
+          activeTool={activeTool}
+          modified={modified}
+          disabled={locked}
+          onSelect={setActiveTool}
+        />
 
-        <p className="video-edit-panel__output">
+        <p className="edit-panel__output">
           {edit.ready ? (
             <>
-              <span className="video-edit-panel__output-part">
-                {edit.sourceWidth} x {edit.sourceHeight}
-                <span className="video-edit-panel__output-arrow"> to </span>
-                <strong>
-                  {edit.outputWidth} x {edit.outputHeight}
-                </strong>
-              </span>
-              {modified.blur && (
-                <span className="video-edit-panel__output-part">
-                  {describeMasks(edit.draft.masks.length)}
-                </span>
-              )}
+              <OutputChange
+                from={`${edit.sourceWidth} x ${edit.sourceHeight}`}
+                to={`${edit.outputWidth} x ${edit.outputHeight}`}
+              />
+              {modified.blur && <OutputPart>{describeMasks(edit.draft.masks.length)}</OutputPart>}
               {modified.volume && (
-                <span className="video-edit-panel__output-part">
+                <OutputPart>
                   {edit.draft.volume === 0 ? "Muted" : `Volume ${formatVolume(edit.draft.volume)}`}
-                </span>
+                </OutputPart>
               )}
               {modified.adjust && (
-                <span className="video-edit-panel__output-part">
+                <OutputPart>
                   {edit.adjust.previewAvailable
                     ? "Adjusted"
                     : "Adjusted, no live preview in this browser"}
-                </span>
+                </OutputPart>
               )}
-              <span className="video-edit-panel__output-part">
-                {formatFrameTime(edit.duration)}
-                <span className="video-edit-panel__output-arrow"> to </span>
-                <strong>{formatFrameTime(edit.outputSeconds)}</strong>
-              </span>
+              <OutputChange
+                from={formatFrameTime(edit.duration)}
+                to={formatFrameTime(edit.outputSeconds)}
+              />
             </>
           ) : (
-            <span className="video-edit-panel__output-part">
-              The timeline loads with the video.
-            </span>
+            <OutputPart>The timeline loads with the video.</OutputPart>
           )}
         </p>
       </div>
 
-      <div className="video-edit-panel__bar video-edit-panel__bar--tool">
-        <div className="video-edit-panel__tool-controls">
+      <div className="edit-panel__bar edit-panel__bar--tool">
+        <div className="edit-panel__tool-controls">
           {activeTool === "trim" && (
             <>
-              <div className="video-edit-panel__tool-actions">
+              <div className="edit-panel__tool-actions">
                 <button
                   type="button"
-                  className="video-edit-panel__control"
+                  className="edit-panel__control"
                   disabled={locked}
                   onClick={edit.setTrimStartAtPlayhead}
                 >
@@ -179,166 +159,73 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
                 </button>
                 <button
                   type="button"
-                  className="video-edit-panel__control"
+                  className="edit-panel__control"
                   disabled={locked}
                   onClick={edit.setTrimEndAtPlayhead}
                 >
                   Set out
                 </button>
               </div>
-              <span className="video-edit-panel__hint">
+              <span className="edit-panel__hint">
                 Both follow the playhead. Drag a handle, or nudge it with the arrow keys.
               </span>
             </>
           )}
 
           {activeTool === "speed" && (
-            <ToolPresets label="Playback">
-              {SPEED_PRESETS.map((speed) => (
-                <PresetButton
-                  key={speed}
-                  active={edit.draft.speed === speed}
-                  disabled={locked}
-                  onClick={() => edit.setSpeed(speed)}
-                >
-                  {formatSpeed(speed)}
-                </PresetButton>
-              ))}
-            </ToolPresets>
+            <PresetChoices
+              label="Playback"
+              values={SPEED_PRESETS}
+              current={edit.draft.speed}
+              format={formatSpeed}
+              disabled={locked}
+              onSelect={edit.setSpeed}
+            />
           )}
 
           {activeTool === "volume" && (
-            <>
-              <ToolPresets label="Volume">
-                {VOLUME_PRESETS.map((volume) => (
-                  <PresetButton
-                    key={volume}
-                    active={edit.draft.volume === volume}
-                    disabled={locked}
-                    onClick={() => edit.setVolume(volume)}
-                  >
-                    {formatVolume(volume)}
-                  </PresetButton>
-                ))}
-              </ToolPresets>
-            </>
+            <PresetChoices
+              label="Volume"
+              values={VOLUME_PRESETS}
+              current={edit.draft.volume}
+              format={formatVolume}
+              disabled={locked}
+              onSelect={edit.setVolume}
+            />
           )}
 
           {activeTool === "adjust" && <AdjustTools controls={edit.adjust} disabled={locked} />}
 
           {activeTool === "crop" && (
-            <>
-              <ToolPresets label="Aspect">
-                {CROP_ASPECTS.map((aspect) => (
-                  <PresetButton
-                    key={aspect.id}
-                    active={edit.aspectId === aspect.id}
-                    disabled={locked}
-                    onClick={() => edit.selectAspect(aspect.id)}
-                  >
-                    {aspect.label}
-                  </PresetButton>
-                ))}
-              </ToolPresets>
-            </>
+            <AspectTools aspectId={edit.aspectId} disabled={locked} onSelect={edit.selectAspect} />
           )}
 
           {activeTool === "size" && (
-            <>
-              <ToolPresets label="Scale">
-                {SCALE_PRESETS.map((scale) => (
-                  <PresetButton
-                    key={scale}
-                    active={edit.draft.scale === scale}
-                    disabled={locked}
-                    onClick={() => edit.setScale(scale)}
-                  >
-                    {formatScale(scale)}
-                  </PresetButton>
-                ))}
-              </ToolPresets>
-              <div className="video-edit-panel__fields">
-                <SizeNumberField
-                  label="W"
-                  className="video-edit-panel__field"
-                  value={edit.outputWidth}
-                  min={2}
-                  step={2}
-                  disabled={locked}
-                  onCommit={(width) =>
-                    edit.setScale(scaleForTargetWidth(source, edit.draft.crop, width))
-                  }
-                />
-                <SizeNumberField
-                  label="H"
-                  className="video-edit-panel__field"
-                  value={edit.outputHeight}
-                  min={2}
-                  step={2}
-                  disabled={locked}
-                  onCommit={(height) =>
-                    edit.setScale(scaleForTargetHeight(source, edit.draft.crop, height))
-                  }
-                />
-              </div>
-            </>
+            <SizeTools
+              scale={edit.draft.scale}
+              width={edit.outputWidth}
+              height={edit.outputHeight}
+              step={2}
+              disabled={locked}
+              onScale={edit.setScale}
+              onWidth={(width) =>
+                edit.setScale(scaleForTargetWidth(source, edit.draft.crop, width))
+              }
+              onHeight={(height) =>
+                edit.setScale(scaleForTargetHeight(source, edit.draft.crop, height))
+              }
+            />
           )}
 
           {activeTool === "blur" && (
-            <>
-              <div className="video-edit-panel__tool-actions">
-                <button
-                  type="button"
-                  className="video-edit-panel__control"
-                  disabled={locked || edit.maskLimitReached}
-                  onClick={edit.addMask}
-                >
-                  <Icon icon={iconPlus} />
-                  Add
-                </button>
-                <button
-                  type="button"
-                  className="video-edit-panel__control"
-                  disabled={locked || !modified.blur}
-                  onClick={edit.clearMasks}
-                >
-                  <Icon icon={iconTrash2} />
-                  Clear
-                </button>
-              </div>
-              <ToolPresets label="Blur style">
-                {MASK_MODES.map((mode) => (
-                  <PresetButton
-                    key={mode.id}
-                    active={edit.maskMode === mode.id}
-                    disabled={locked}
-                    onClick={() => edit.setMaskMode(mode.id)}
-                  >
-                    {mode.label}
-                  </PresetButton>
-                ))}
-              </ToolPresets>
-              <ToolPresets label="Strength">
-                {MASK_STRENGTHS.map((strength) => (
-                  <PresetButton
-                    key={strength.id}
-                    active={edit.maskStrength === strength.value}
-                    // A blackout has nothing to measure, so its strength would go nowhere.
-                    disabled={locked || edit.maskMode === "blackout"}
-                    onClick={() => edit.setMaskStrength(strength.value)}
-                  >
-                    {strength.label}
-                  </PresetButton>
-                ))}
-              </ToolPresets>
-            </>
+            <BlurTools masks={edit} hasRegions={modified.blur} disabled={locked} />
           )}
         </div>
 
         {edit.applying ? (
-          <div className="video-edit-panel__actions">
+          <div className="edit-panel__actions">
             <span
-              className="video-edit-panel__rendering"
+              className="edit-panel__rendering"
               role="progressbar"
               aria-label="Rendering"
               aria-valuemin={0}
@@ -348,77 +235,14 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
               <Icon icon={iconLoader2} spin />
               {edit.progress == null ? "Rendering" : `${Math.round(edit.progress * 100)}%`}
             </span>
-            <button type="button" className="video-edit-panel__control" onClick={edit.cancel}>
+            <button type="button" className="edit-panel__control" onClick={edit.cancel}>
               Cancel
             </button>
           </div>
         ) : (
-          <div className="video-edit-panel__actions">
-            {edit.hasBackup && (
-              <button
-                type="button"
-                className="video-edit-panel__control video-edit-panel__control--revert"
-                disabled={locked}
-                onClick={onRevertRequested}
-              >
-                <Icon icon={iconUndo2} />
-                Revert original
-              </button>
-            )}
-            <button
-              type="button"
-              className="video-edit-panel__control"
-              disabled={locked || (!edit.dirty && !edit.adjust.autoPending)}
-              onClick={edit.resetDraft}
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              className="video-edit-panel__apply"
-              disabled={locked || !edit.dirty || edit.adjust.autoPending}
-              onClick={edit.apply}
-            >
-              Apply
-            </button>
-          </div>
+          <EditActions edit={edit} disabled={locked} onRevertRequested={onRevertRequested} />
         )}
       </div>
     </div>
-  );
-}
-
-function ToolPresets({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="video-edit-panel__presets" role="group" aria-label={label}>
-      {children}
-    </div>
-  );
-}
-
-function PresetButton({
-  active,
-  disabled,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  disabled: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={classNames(
-        "video-edit-panel__preset",
-        active && "video-edit-panel__preset--active",
-      )}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   );
 }

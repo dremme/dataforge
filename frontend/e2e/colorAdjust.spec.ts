@@ -182,7 +182,7 @@ test("the adjust preview matches the image Apply writes", async ({ page }) => {
       .getByRole("button", { name: new RegExp(`^${tool}`) })
       .first()
       .click();
-    heights.add((await page.locator(".image-edit-panel").boundingBox())?.height ?? -1);
+    heights.add((await page.locator(".edit-panel").boundingBox())?.height ?? -1);
   }
   expect(heights.size).toBe(1);
 

@@ -1,32 +1,20 @@
 import { useCallback, useRef, type CSSProperties, type PointerEvent, type RefObject } from "react";
 import { exactAspectRatioLabel } from "@/features/gallery/lib/aspectRatio";
 import {
+  CROP_HANDLE_NAMES,
   CROP_HANDLES,
-  CROP_NUDGE_FRACTION,
-  CROP_NUDGE_MULTIPLIER,
   UPRIGHT,
   isCornerHandle,
   moveCrop,
   readoutTransform,
   resizeCrop,
-  screenDeltaToSource,
   type CropHandle,
   type CropRect,
   type Orientation,
 } from "@/features/gallery/lib/crop";
 import { usePaintedBox } from "@/features/gallery/hooks/usePaintedBox";
+import { arrowDelta, useRectDrag } from "@/features/gallery/hooks/useRectDrag";
 import { classNames } from "@/shared/lib/classNames";
-
-const HANDLE_LABELS: Record<CropHandle, string> = {
-  nw: "Crop top-left corner",
-  n: "Crop top edge",
-  ne: "Crop top-right corner",
-  e: "Crop right edge",
-  se: "Crop bottom-right corner",
-  s: "Crop bottom edge",
-  sw: "Crop bottom-left corner",
-  w: "Crop left edge",
-};
 
 interface CropOverlayProps {
   mediaRef: RefObject<HTMLElement | null>;
@@ -55,9 +43,7 @@ export function CropOverlay({
   onCropChange,
 }: CropOverlayProps) {
   const box = usePaintedBox(mediaRef, sourceWidth, sourceHeight);
-  // Anchored to where the drag began: pointer moves outrun rendering, so a delta applied to the
-  // last rendered rect loses every move that landed inside the same frame.
-  const dragRef = useRef<{ x: number; y: number; rect: CropRect } | null>(null);
+  const drag = useRectDrag(box, orientation, disabled);
   const cropRef = useRef(crop);
   cropRef.current = crop;
 
@@ -67,76 +53,35 @@ export function CropOverlay({
       ? aspectRatio / (sourceWidth / sourceHeight)
       : null;
 
-  const fractionDelta = useCallback(
-    (screenDx: number, screenDy: number) => {
-      const { dx, dy } = screenDeltaToSource(screenDx, screenDy, orientation);
-      return {
-        dx: box.width > 0 ? dx / box.width : 0,
-        dy: box.height > 0 ? dy / box.height : 0,
-      };
-    },
-    [box.height, box.width, orientation],
-  );
-
   const startDrag = useCallback(
-    (event: PointerEvent<HTMLElement>) => {
-      if (disabled) return;
-      // preventDefault drops the click's focus; take it or unfocused arrows navigate the gallery.
-      event.preventDefault();
-      event.stopPropagation();
-      event.currentTarget.focus();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      dragRef.current = { x: event.clientX, y: event.clientY, rect: cropRef.current };
-    },
-    [disabled],
+    (event: PointerEvent<HTMLElement>) => drag.begin(event, cropRef.current),
+    [drag],
   );
-
-  const endDrag = useCallback((event: PointerEvent<HTMLElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    dragRef.current = null;
-  }, []);
 
   const dragHandle = useCallback(
     (handle: CropHandle) => (event: PointerEvent<HTMLButtonElement>) => {
-      const origin = dragRef.current;
-      if (disabled || !origin || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-
-      const { dx, dy } = fractionDelta(event.clientX - origin.x, event.clientY - origin.y);
-      onCropChange(resizeCrop(origin.rect, handle, dx, dy, rectRatio));
+      const move = drag.delta(event);
+      if (move) onCropChange(resizeCrop(move.rect, handle, move.dx, move.dy, rectRatio));
     },
-    [disabled, fractionDelta, onCropChange, rectRatio],
+    [drag, onCropChange, rectRatio],
   );
 
   const dragRect = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      const origin = dragRef.current;
-      if (disabled || !origin || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-
-      const { dx, dy } = fractionDelta(event.clientX - origin.x, event.clientY - origin.y);
-      onCropChange(moveCrop(origin.rect, dx, dy));
+      const move = drag.delta(event);
+      if (move) onCropChange(moveCrop(move.rect, move.dx, move.dy));
     },
-    [disabled, fractionDelta, onCropChange],
+    [drag, onCropChange],
   );
 
   const nudge = useCallback(
     (handle: CropHandle) => (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (disabled) return;
-      const step = CROP_NUDGE_FRACTION * (event.shiftKey ? CROP_NUDGE_MULTIPLIER : 1);
-      const moves: Record<string, [number, number]> = {
-        ArrowLeft: [-step, 0],
-        ArrowRight: [step, 0],
-        ArrowUp: [0, -step],
-        ArrowDown: [0, step],
-      };
-      const move = moves[event.key];
-      if (!move) return;
+      const delta = arrowDelta(event, orientation);
+      if (!delta) return;
 
       event.preventDefault();
-      // Arrow keys point at the screen; under a quarter-turn the screen's right is not the frame's.
-      const { dx, dy } = screenDeltaToSource(move[0], move[1], orientation);
-      onCropChange(resizeCrop(crop, handle, dx, dy, rectRatio));
+      onCropChange(resizeCrop(crop, handle, delta.dx, delta.dy, rectRatio));
     },
     [crop, disabled, onCropChange, orientation, rectRatio],
   );
@@ -181,8 +126,8 @@ export function CropOverlay({
         className="crop-overlay__rect"
         onPointerDown={startDrag}
         onPointerMove={dragRect}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerUp={drag.end}
+        onPointerCancel={drag.end}
       >
         <span className="crop-overlay__readout">
           {pixels.width} × {pixels.height}
@@ -193,13 +138,13 @@ export function CropOverlay({
             key={handle}
             type="button"
             className={classNames("crop-overlay__handle", `crop-overlay__handle--${handle}`)}
-            aria-label={HANDLE_LABELS[handle]}
+            aria-label={`Crop ${CROP_HANDLE_NAMES[handle]}`}
             // Under a ratio only corners preserve it; an edge drag has no second axis.
             disabled={disabled || (aspectRatio !== null && !isCornerHandle(handle))}
             onPointerDown={startDrag}
             onPointerMove={dragHandle(handle)}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
+            onPointerUp={drag.end}
+            onPointerCancel={drag.end}
             onKeyDown={nudge(handle)}
           />
         ))}
