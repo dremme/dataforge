@@ -4,12 +4,17 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from ffmpeg_bin import ffmpeg_path
+import ffmpeg_bin
+from ffmpeg_bin import ffmpeg_path, locate_ffmpeg
 
 
 class FfmpegPathTests(unittest.TestCase):
@@ -54,6 +59,62 @@ class FfmpegPathTests(unittest.TestCase):
             ):
                 self.assertIsNone(ffmpeg_path())
             self.assertEqual(ffmpeg_path(), "/usr/bin/ffmpeg")
+
+
+class FfmpegVersionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.on_path = Path(directory.name) / "ffmpeg"
+        self.on_path.write_bytes(b"")
+        self.bundled = Path(directory.name) / "ffmpeg-bundled"
+        self.bundled.write_bytes(b"")
+        ffmpeg_bin._ffmpeg_version.cache_clear()
+
+    def _locate(self, banner: str, *, bundled: bool = True) -> tuple[str, str] | None:
+        wheel = SimpleNamespace(get_ffmpeg_exe=lambda: str(self.bundled) if bundled else "")
+        completed = subprocess.CompletedProcess([], 0, stdout=banner, stderr="")
+        with (
+            patch("ffmpeg_bin.shutil.which", return_value=str(self.on_path)),
+            patch("ffmpeg_bin.subprocess.run", return_value=completed) as run,
+            patch.dict(sys.modules, {"imageio_ffmpeg": wheel}),
+        ):
+            location = locate_ffmpeg()
+        self.runs = run.call_count
+        return location
+
+    def test_an_ffmpeg_older_than_7_1_on_path_yields_to_the_bundled_one(self) -> None:
+        banner = "ffmpeg version 7.0.2-static https://johnvansickle.com/ffmpeg/"
+        self.assertEqual(self._locate(banner), (str(self.bundled), "bundled"))
+
+    def test_an_old_ffmpeg_on_path_still_beats_having_none(self) -> None:
+        banner = "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023"
+        self.assertEqual(self._locate(banner, bundled=False), (str(self.on_path), "path"))
+
+    def test_a_current_ffmpeg_on_path_is_preferred(self) -> None:
+        for banner in (
+            "ffmpeg version 7.1-essentials_build-www.gyan.dev",
+            "ffmpeg version 9.0.1-full_build-www.gyan.dev",
+            "ffmpeg version n7.1.1 Copyright (c) 2000-2025",
+        ):
+            ffmpeg_bin._ffmpeg_version.cache_clear()
+            self.assertEqual(self._locate(banner), (str(self.on_path), "path"), banner)
+
+    def test_a_build_without_a_release_number_counts_as_current(self) -> None:
+        banner = "ffmpeg version N-118000-g1234abcd Copyright (c) 2000-2026"
+        self.assertEqual(self._locate(banner), (str(self.on_path), "path"))
+
+    def test_the_version_is_read_once_per_binary(self) -> None:
+        banner = "ffmpeg version 9.0.1"
+        self._locate(banner)
+        self._locate(banner)
+        self.assertEqual(self.runs, 0)
+
+    def test_an_upgraded_binary_is_read_again(self) -> None:
+        self._locate("ffmpeg version 7.0.2")
+        stat = self.on_path.stat()
+        os.utime(self.on_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+        self.assertEqual(self._locate("ffmpeg version 7.1"), (str(self.on_path), "path"))
 
 
 if __name__ == "__main__":
