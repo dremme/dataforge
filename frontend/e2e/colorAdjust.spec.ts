@@ -73,15 +73,30 @@ async function blocks(page: Page, source: { file: string } | "preview"): Promise
   );
 }
 
-function difference(a: number[], b: number[]): { mean: number; worst: number } {
+interface Difference {
+  mean: number;
+  worst: number;
+  /** Where the worst gap sits, so a failure names the block and both colors. */
+  where: string;
+}
+
+function difference(a: number[], b: number[]): Difference {
   let total = 0;
   let worst = 0;
+  let worstIndex = 0;
   a.forEach((value, index) => {
     const gap = Math.abs(value - b[index]);
     total += gap;
-    worst = Math.max(worst, gap);
+    if (gap > worst) [worst, worstIndex] = [gap, index];
   });
-  return { mean: total / a.length, worst };
+  const block = Math.floor(worstIndex / 3);
+  const rgb = (values: number[]) =>
+    values
+      .slice(block * 3, block * 3 + 3)
+      .map((value) => value.toFixed(1))
+      .join(", ");
+  const where = `block ${block % 32},${Math.floor(block / 32)}: rgb(${rgb(a)}) vs rgb(${rgb(b)})`;
+  return { mean: total / a.length, worst, where };
 }
 
 /** A workspace file with no saved edit, so a retry opens the editor as the first attempt did. */
@@ -94,13 +109,22 @@ function freshMedia(name: string): string {
   return media;
 }
 
-function stillVideo(name: string): string {
+function ffmpegPath(): string {
   const ffmpeg = execFileSync(
     python,
     ["-c", "from ffmpeg_bin import ffmpeg_path; print(ffmpeg_path() or '')"],
     { cwd: path.join(projectRoot, "backend"), encoding: "utf8" },
   ).trim();
   expect(ffmpeg).not.toBe("");
+  return ffmpeg;
+}
+
+function ffmpegVersion(): string {
+  return execFileSync(ffmpegPath(), ["-version"], { encoding: "utf8" }).split("\n")[0];
+}
+
+function stillVideo(name: string): string {
+  const ffmpeg = ffmpegPath();
   // Still content, so whichever frame each side lands on shows the same picture. Limited range,
   // like nearly every camera file: headless Chromium reads a full-range stream as limited.
   execFileSync(ffmpeg, [
@@ -212,23 +236,39 @@ test("the unadjusted video preview matches the video itself", async ({ page }) =
   expect(worst).toBeLessThan(8);
 });
 
-test("the adjust preview matches the video Apply writes", async ({ page }) => {
-  stillVideo("still.mp4");
-  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
-  await page.getByRole("button", { name: "View still.mp4" }).click();
-  await page.getByRole("button", { name: "Edit still.mp4" }).click();
-  await page.getByRole("button", { name: "Adjust", exact: true }).click();
+const videoAdjustments: { label: string; tools: [string, string, number][] }[] = [
+  { label: "exposure", tools: [["Exposure", "Shift+ArrowRight", 3]] },
+  { label: "vibrance", tools: [["Vibrance", "Shift+ArrowRight", 5]] },
+  { label: "definition", tools: [["Definition", "End", 1]] },
+  {
+    label: "all three",
+    tools: [
+      ["Exposure", "Shift+ArrowRight", 3],
+      ["Vibrance", "Shift+ArrowRight", 5],
+      ["Definition", "End", 1],
+    ],
+  },
+];
 
-  await setTool(page, "Exposure", "Shift+ArrowRight", 3);
-  await setTool(page, "Vibrance", "Shift+ArrowRight", 5);
-  await setTool(page, "Definition", "End");
-  await expect(page.getByRole("tab", { name: "Exposure, +30" })).toBeVisible();
+for (const [index, { label, tools }] of videoAdjustments.entries()) {
+  test(`the adjust preview matches the video Apply writes: ${label}`, async ({ page }) => {
+    const version = ffmpegVersion();
+    const name = stillVideo(`still-${index}.mp4`);
+    await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+    await page.getByRole("button", { name: `View ${name}` }).click();
+    await page.getByRole("button", { name: `Edit ${name}` }).click();
+    await page.getByRole("button", { name: "Adjust", exact: true }).click();
 
-  const preview = await blocks(page, "preview");
-  await applyAndWait(page);
-  const written = await blocks(page, { file: "still.mp4" });
+    for (const [tool, key, presses] of tools) await setTool(page, tool, key, presses);
+    const [firstTool] = tools[0];
+    await expect(page.getByRole("tab", { name: new RegExp(`^${firstTool}, `) })).toBeVisible();
 
-  const { mean, worst } = difference(preview, written);
-  expect(mean).toBeLessThan(1.5);
-  expect(worst).toBeLessThan(8);
-});
+    const preview = await blocks(page, "preview");
+    await applyAndWait(page);
+    const written = await blocks(page, { file: name });
+
+    const { mean, worst, where } = difference(preview, written);
+    expect(mean, `mean gap with ${version}`).toBeLessThan(1.5);
+    expect(worst, `worst gap at ${where} with ${version}`).toBeLessThan(8);
+  });
+}
