@@ -2,109 +2,116 @@
 
 [Documentation](README.md)
 
-Run a folder of images or videos through a ComfyUI workflow, such as an upscale, restoration, or interpolation. Nothing changes your dataset until you accept each result.
+Run images or videos through workflows such as upscaling, restoration, or interpolation. DataForge stages each result for review; processing does not change the source. ComfyUI is installed and run separately.
 
 ## Connect ComfyUI
 
-DataForge expects ComfyUI at `http://127.0.0.1:9000`, the ComfyUI Desktop default. Change the address under **ComfyUI URL** in **Settings**, which applies immediately. Everything else, and the address too if you prefer, is set in `.env`, followed by a restart:
+Start ComfyUI, then open **Settings > Integrations**. Enter its origin in **ComfyUI URL**, use **Test connection**, and **Save**. The default is `http://127.0.0.1:9000`. Use the service address, not a page URL.
 
-| Variable              | Default                 | Purpose                                                                          |
-| --------------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| `COMFY_BASE_URL`      | `http://127.0.0.1:9000` | ComfyUI's origin, with or without a trailing slash; not a page URL               |
-| `COMFY_WORKFLOWS_DIR` | `comfy_workflows/`      | Folder of workflow presets                                                       |
-| `COMFY_IMAGE_TIMEOUT` | `900`                   | Seconds to wait for one image. Values under 30 use the default                   |
-| `COMFY_VIDEO_TIMEOUT` | `7200`                  | Seconds to wait for one GIF or video, since upscaling plus interpolation can take many minutes per clip. Values under 60 use the default |
+You can also configure the connection in `.env`; environment changes require a restart. A saved Settings value takes precedence.
 
-**Process with ComfyUI** appears in the automation menu whenever a preset exists, even if ComfyUI is stopped, and its dialog shows whether ComfyUI is reachable. DataForge uploads each source to ComfyUI's `input/dataforge/` folder. ComfyUI offers no way to clean that folder remotely, so empty it by hand now and then. Before pointing DataForge at a ComfyUI on another machine, see [what gets sent](configuration.md#data-sent-to-integrations).
+| Variable              | Default                 | Effect                                                                     |
+| --------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| `COMFY_BASE_URL`      | `http://127.0.0.1:9000` | HTTP(S) origin; also available in Settings                                 |
+| `COMFY_WORKFLOWS_DIR` | `comfy_workflows/`      | Directory of API-format JSON presets                                       |
+| `COMFY_IMAGE_TIMEOUT` | `900`                   | Seconds per image; values below 30 or malformed values use the default     |
+| `COMFY_VIDEO_TIMEOUT` | `7200`                  | Seconds per GIF/video; values below 60 or malformed values use the default |
+
+Remote ComfyUI receives source media and workflow inputs. Prefer absolute custom paths; relative overrides resolve against the server working directory, normally `backend/`.
+
+The processing menu appears when presets exist, even if ComfyUI is stopped. The dialog reports availability. Uploaded sources accumulate in ComfyUI's `input/dataforge/` directory; ComfyUI has no remote cleanup endpoint, so clear old uploads there manually.
 
 ## Try it
 
-[`comfy_workflows/example_lanczos_2x.json`](../comfy_workflows/example_lanczos_2x.json) is a plain 2× resize that uses only core nodes and needs no downloads. It is a good first test.
-
-To see the review step without running anything, open [`sample_images/`](../sample_images/) and choose **Review candidates**. One result is already waiting there.
+The bundled [`example_lanczos_2x.json`](../comfy_workflows/example_lanczos_2x.json) resizes images 2× using core nodes, without model downloads. To try review without a run, open [`sample_images/`](../sample_images/) and choose **Review candidates**.
 
 ## Run a folder
 
-1. Open the dataset folder itself, not its `staging/` subfolder.
-2. Choose **Process with ComfyUI** and pick a preset.
-3. Optionally set a prompt or seed. These fields are enabled only if the preset has the matching [titled node](#optional-nodes).
-4. Choose whether to overwrite results already staged for the same sources, then start.
+1. Open the dataset itself, rather than `staging/`.
+2. Select files to limit the run, or leave nothing selected to process the whole folder. Filters alone do not limit it.
+3. Choose **Process with ComfyUI** and a preset suitable for those files.
+4. Optionally enter Prompt or Seed; fields are enabled only when the workflow has the corresponding titled node.
+5. Choose whether to overwrite previously staged results, then start.
 
-DataForge uploads one file at a time, points the workflow's input at it, and stages the output in whatever format the workflow produced, next to a `.comfy.json` record of the run. Every image, GIF, and video in the scope is sent. A file the workflow can't read fails with ComfyUI's own error, and the run carries on, so point image workflows at images and video workflows at videos.
+DataForge uploads one file at a time and stages the workflow output with a `.comfy.json` run record. Existing candidates are skipped unless overwrite is enabled. Same-stem collisions are refused even with overwrite; rename those sources first. Results must decode before staging and again before acceptance; bad outputs do not replace sources or earlier candidates. Video validation needs ffmpeg.
 
-- Sources that already have a staged result are skipped unless you chose to overwrite.
-- A result whose name would collide with another source's is refused, even with overwrite. Rename files that share a stem, such as `a.jpg` and `a.png`, first.
-- A result must decode before it is staged, and is checked again on accept. An invalid result never replaces a staged one or the source. Checking videos needs ffmpeg.
-
-While the job runs, the panel shows ComfyUI's console, which is the only sign of life during a long render. It is the whole console, so output from anything else running in ComfyUI appears too. Cancelling removes DataForge's prompt from ComfyUI's queue, or interrupts it if it is already running. Source files are never modified during a run.
+The workflow decides which inputs it supports. An unsupported or failed file is reported, and processing continues. The panel shows ComfyUI's console, including output from other work on that server. Cancelling removes the queued prompt or interrupts the running prompt; already staged results remain.
 
 ## Review candidates
 
-**Review candidates** shows each source and its result side by side, with dimensions, megapixels, file sizes, resolution gain, and a difference score. The score is the percentage of perceptual-hash bits that differ. Videos play in both panes; when both sides are videos, they play, pause, and seek together, muted. GIFs play as images. While a video player has focus, the arrow keys seek in it instead of moving through the queue.
+Open **Review candidates** for side-by-side comparison, or use the item's review control in the detail viewer. The comparison includes dimensions, sizes, resolution gain, and perceptual difference. Videos synchronize playback, pause, and seeking when both sides are video; they are muted. GIFs play as images.
 
-- **Accept** (`Ctrl+Enter`) replaces the source with the result, in the result's format. A JPEG, WebP, or BMP source becomes a PNG, and a MOV or MKV source becomes an MP4, with the same stem. The caption keeps working, and issue and duplicate findings are renamed to follow. **No copy of the source is kept.**
-- **Reject** deletes the result and its `.comfy.json`. The source is never touched.
-- **Skip**, **Back**, and the arrow keys move through the queue without deciding.
+- **Accept** (`Ctrl+Enter`) replaces the source in the result's format, retaining the stem and caption and updating issue/duplicate file names. **No source backup is kept; acceptance has no undo.**
+- **Reject** (`Ctrl+Backspace`) removes the candidate and its run record, leaving the source unchanged.
+- **Skip**, **Back**, arrows, and Home/End navigate without a decision.
 
-If the source has an edit, **Accept** asks first. Confirming discards the edit and its original, and the result becomes the new original; the old edit can't be re-applied. Cancelling leaves both files unchanged.
+If the source has an edit, accepting asks before discarding its settings and retained original. The candidate becomes the new original. Cancelling that confirmation leaves both versions unchanged.
 
-For videos, review compares frame rate and duration and warns if the result runs a different length or has lost the source's audio. These are warnings, not refusals, so read them before accepting. The difference score for video compares only the first frame and says nothing about motion, so watch the result play.
+For videos, review warns about duration differences and lost audio. The difference score compares only the first frame; watch playback before accepting. An orphan whose source was moved/deleted outside DataForge can only be rejected.
+
+### Bulk acceptance and deletion
+
+In Quick actions (`Ctrl+P`), use **Accept all staged candidates** or **Delete all staged candidates**. With a selection, the labels become **Accept selected candidates** and **Delete selected candidates**; only those sources' candidates are included. Filters alone do not limit these commands.
+
+Bulk acceptance asks for confirmation but skips individual comparisons. It discards any source edit/original and retains no backup. Bulk deletion keeps sources and sends candidates to the Recycle Bin on Windows. Each command reports failures; unsuccessful candidates remain available for review.
 
 ### How results pair with sources
 
-A result pairs with its source by stem: `photo.jpg` pairs with `staging/photo.png`, `staging/photo.mp4`, and so on. If `photo.jpg` and `photo.png` both exist, `staging/photo.png` belongs to the PNG. A result named exactly like its source, such as `staging/photo.jpg` from older versions, still pairs.
+A result is staged under the source's stem, in the format produced by the workflow: `photo.jpg` can pair with `staging/photo.png` or `staging/photo.mp4`. If both `photo.jpg` and `photo.png` exist, `staging/photo.png` belongs to the PNG. Results named exactly like their source, including older `staging/photo.jpg` results, still pair.
 
-Moving, copying, renaming, or deleting a source inside DataForge takes its result along. If the source is moved or deleted outside DataForge, its result stays in the queue as an orphan that can only be rejected.
+Processing refuses output names that would collide with another source's candidate, even with overwrite enabled. Give same-stem sources unique names before processing.
 
-The `.comfy.json` file records the workflow, the run details, and the difference score. Results staged before scores existed are scored when first reviewed.
+Each result has a `<result-name>.comfy.json` record of the workflow, run details, and perceptual difference score. Older results without scores are scored when reviewed.
+
+The difference score is the percentage of bits that differ in a perceptual hash, a compact representation of a frame's appearance. It helps spot large visual changes; it is not a measure of quality.
 
 ## Write a preset
 
-Every `.json` file in the workflow folder is a preset, named after the file: `upscale-2x.json` appears as `upscale-2x`.
+1. Build a workflow in ComfyUI and test it on one file.
+2. Export it with **Save (API Format)**. A regular workflow save is not accepted.
+3. Put the `.json` file in `comfy_workflows/`, or the directory set by `COMFY_WORKFLOWS_DIR`.
+4. Reopen **Process with ComfyUI** to load it.
 
-1. Build the workflow in ComfyUI and test it on one file.
-2. Export it with **Save (API Format)**. A regular save won't work.
-3. Put the file in the workflow folder. Only the example preset is tracked by git; your own are ignored.
-4. Reopen the dialog to see it.
+The file name becomes the preset name: `upscale-2x.json` appears as `upscale-2x`. Only the bundled example preset is tracked by Git; user presets in the default directory are ignored.
 
 ### Input and output nodes
 
-A workflow with exactly one loader and one saver works as-is: `LoadImage`/`SaveImage` for images, `VHS_LoadVideo`/`VHS_VideoCombine` for video. If there are more, which is common in video workflows because a preview node counts as a saver, set these **node titles** so DataForge knows which to use:
+A workflow with one loader and one saver can work without titles: `LoadImage`/`SaveImage` for images, or `VHS_LoadVideo`/`VHS_VideoCombine` for video. If there are multiple candidates, assign these **node titles** (not node types):
 
-| Node title         | Put it on                  | DataForge sets                                                            |
-| ------------------ | -------------------------- | ------------------------------------------------------------------------- |
-| `DataForge Input`  | The load node for sources  | Its `image` or `video` input, to the uploaded file                        |
-| `DataForge Output` | The save node for results  | Its `filename_prefix`, or `filename` for nodes that write the file directly |
+| Node title         | Node          | Input DataForge changes                                  |
+| ------------------ | ------------- | -------------------------------------------------------- |
+| `DataForge Input`  | Source loader | `image` or `video`, set to the uploaded file name        |
+| `DataForge Output` | Result saver  | `filename_prefix`, or `filename` for direct file writers |
 
-DataForge refuses ambiguous workflows rather than guessing. If the `DataForge Output` node produces no file, that file fails; another node's output is never used instead.
+A video preview node can count as another saver. DataForge refuses ambiguous workflows. If the designated output produces no file, processing that source fails; output from another node is not substituted.
 
-Two kinds of workflow are refused:
+The following are unsupported:
 
-- **Loaders that take a filesystem path**, such as `VHS_LoadVideoPath`. DataForge can only supply an uploaded file name.
-- **`VHS_BatchManager` workflows.** Their follow-up prompts can't be tracked or cancelled as one run. Use shorter clips, or a workflow that processes frames in chunks within one prompt.
+- Filesystem-path loaders such as `VHS_LoadVideoPath`: DataForge supplies uploaded file names, not paths on the ComfyUI machine.
+- `VHS_BatchManager`: its follow-up prompts cannot be tracked and cancelled as one run. Use shorter clips or process chunks within one prompt.
 
 ### Optional nodes
 
-| Node title         | DataForge sets                                                              |
-| ------------------ | --------------------------------------------------------------------------- |
-| `DataForge Prompt` | The node's own `text` input, when you enter a prompt                        |
-| `DataForge Seed`   | The node's `seed` or `noise_seed`, when you enter a seed                    |
-| `DataForge FPS`    | The node's own number, set to each source's measured frame rate             |
+| Node title         | Input DataForge changes                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| `DataForge Prompt` | The node's own `text` value, if a prompt is entered                   |
+| `DataForge Seed`   | `seed` or `noise_seed`, if a seed is entered                          |
+| `DataForge FPS`    | The node's own numeric value, set to the source's measured frame rate |
 
-Without these nodes, or when you leave a field empty, the workflow runs with its saved values. The dialog disables **Prompt** or **Seed** when the preset lacks the node. The prompt node needs its own `text` value, not one wired in from another node; if it has none, DataForge refuses a run with a prompt.
+Without these nodes, or with optional fields left empty, the workflow uses its saved values. The dialog disables Prompt or Seed when the matching node is absent. A prompt/FPS value must belong to the titled node, rather than be wired from another node; an unusable prompt node causes a supplied prompt to be refused.
 
-**Interpolation:** the output frame rate must be the source rate times the interpolation factor. Doubling 24 fps footage must write 48 fps, or the clip comes back twice as long, in slow motion. A `DataForge FPS` node gives the workflow each source's real rate to multiply. If the math is off, review flags the length mismatch.
+For interpolation, multiply the source rate by the interpolation factor: doubling 24 fps footage requires 48 fps output to retain its duration. Use `DataForge FPS` as the source-rate input to that calculation. The review warns about duration mismatches.
 
 ## Inspect embedded workflows
 
-PNG, MP4, MOV, and M4V files made by ComfyUI usually carry their workflow. Click the **ComfyUI** badge in the detail view to see its prompts, LoRAs, settings, and output paths. This works for any such file, not just ones DataForge processed.
+Click the **ComfyUI** badge in a file's detail view to inspect embedded prompts, LoRAs, settings, and output paths. This supports PNG, MP4, MOV, and M4V, including files made outside DataForge. Stripping metadata removes the embedded workflow.
 
 ## Troubleshooting
 
-**The preset is missing.** Check that `COMFY_WORKFLOWS_DIR` exists and that the preset is a `.json` file exported in API format. Reopen the dialog after adding it.
+**Preset missing.** Check the preset directory and `.json` extension. Export API format, then reopen the dialog.
 
-**ComfyUI shows as unavailable.** Start it, and check that the **ComfyUI URL** in **Settings** is its origin, such as `http://127.0.0.1:9000`, not a page within it.
+**ComfyUI unavailable.** Start it, check its origin in Settings, and test the connection before saving.
 
-**The workflow is refused as ambiguous, or the prompt is refused.** Add `DataForge Input` and `DataForge Output` titles, and put `DataForge Prompt` and `DataForge FPS` only on nodes that own their value. Export in API format again.
+**Ambiguous workflow or refused prompt.** Set `DataForge Input` and `DataForge Output` titles. Optional prompt/FPS nodes must own their values, not receive them through a connection. Export again.
 
-**Runs time out.** Raise `COMFY_IMAGE_TIMEOUT`, or `COMFY_VIDEO_TIMEOUT` for GIFs and videos, and check ComfyUI's queue and history for workflow errors.
+**Timeout or failed output.** Inspect ComfyUI's queue/history and DataForge's per-file result. Increase `COMFY_IMAGE_TIMEOUT` or `COMFY_VIDEO_TIMEOUT` for slow renders. GIFs use the video timeout; video validation needs ffmpeg.

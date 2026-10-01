@@ -1,6 +1,6 @@
 [project]
 name = "dataforge-backend"
-version = "0.2.11"
+version = "0.2.12"
 requires-python = ">=3.12"
 
 [tool.ruff]
@@ -37,6 +37,16 @@ ignore = [
 ]
 
 # First-party modules are detected from `src` above, so they need no explicit list.
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/test_*.py",
+    "*/_test_client.py",
+    "*/testing_fixtures.py",
+    "*/.venv/*",
+    "*/data/*",
+]
 
 [tool.ruff.format]
 quote-style = "double"

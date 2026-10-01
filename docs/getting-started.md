@@ -4,78 +4,84 @@
 
 ## Install and run
 
+Get the project from the [repository](https://github.com/dremme/dataforge): choose **Code > Download ZIP** and extract it to a writable folder, or clone it with Git. Open the extracted/cloned project folder before running the commands below.
+
 ### Windows
 
-1. Run `setup.bat` once. It downloads Python 3.12 and Node 20 into the project (`.python/`, `.node/`), creates `backend/.venv`, installs all dependencies, and generates the frontend's API files.
+1. Run `setup.bat` once. It downloads portable Python 3.12 and Node 20 into `.python/` and `.node/`, creates `backend/.venv`, installs dependencies, and generates frontend API files.
 2. Run `start.bat`. It builds the UI when needed, starts the server, and opens `http://localhost:18081`.
 
-No global Python or Node is needed.
+No global Python or Node is needed. Keep the launcher window open while using the app.
 
 ### Linux and macOS
 
-Install Python 3.12+ and Node 20.19+, 22.13+, or 24+ with npm, then:
+Install Python 3.12+ and Node 20.19.x or later in the 20 series, 22.13.x or later in the 22 series, or 24+, with npm. From the project folder:
 
 ```bash
 ./setup.sh
 ./start.sh
 ```
 
-If the right Python is not on `PATH`, point setup at it: `DATAFORGE_PYTHON=/path/to/python3.12 ./setup.sh`.
-
-The first start takes a minute or two while the UI builds. Later starts reuse the build and take seconds.
+To select another Python interpreter, use `DATAFORGE_PYTHON=/path/to/python3.12 ./setup.sh`. The first start builds the UI; later starts reuse it unless sources or dependencies have changed.
 
 ## Open your first dataset
 
-Open any folder from the app, or start with [`sample_images/`](../sample_images/). It has captioned and uncaptioned images, a flagged caption, an example `.sysprompt`, and a ComfyUI result waiting for review.
+Use **Open folder** (`Ctrl+O`) to choose a dataset, or try [`sample_images/`](../sample_images/). It includes captioned and uncaptioned media, flagged captions, folder instructions, caption rules, and a ComfyUI result ready for review.
 
-A typical first pass:
+1. Browse the gallery. Filters and statistics show missing captions and review work.
+2. Open a file and write a caption; it autosaves as `.txt` beside the media.
+3. For local quality checks, edit **Caption rules** through **Create instructions** or **Edit instructions**, then run **Lint captions**.
+4. For AI jobs, [connect a model in Settings](configuration.md#connect-a-vision-model). Auto-caption also needs a **System prompt** in the folder or a parent.
+5. Select files before starting a job to limit its scope. With no selection, most jobs use the whole open folder; filters alone do not limit them. Training always uses the whole folder.
+6. Review flagged captions, duplicate groups, or staged ComfyUI results.
 
-1. Look through the gallery. Filters and the statistics drawer show what still needs work.
-2. Write captions in the detail view, or write a system prompt with **Create instructions** if you plan to auto-caption.
-3. [Connect a vision model](configuration.md#connect-a-vision-model) only if you want **Auto-caption**, **Verify captions**, or **Edit captions**.
-4. Select files to limit a job to them, or select nothing to run it on the whole folder.
-5. Review the results and resolve any flagged captions, duplicates, or ComfyUI results.
-
-The [user guide](user-guide.md) covers each step.
+The [user guide](user-guide.md) explains these workflows. On macOS, use `⌘` instead of `Ctrl` for shortcuts.
 
 ## Stop, restart, and update
 
-The launcher stays open while DataForge runs. To stop, press a key in it, close it, or press `Ctrl+C`.
+Stop by pressing a key in the launcher, closing it, or pressing `Ctrl+C`. Use `stop.bat` or `./stop.sh` for a detached server or one left behind after its console closed; stop the supervising launcher first if it is still running.
 
-`stop.bat` and `./stop.sh` are only for a server nothing is supervising: one started with `-Detach`/`--detach`, or one left behind after its console was closed.
+To update a Git clone, stop the app, pull changes, then start it again. For a ZIP installation, extract a new copy and transfer your local `.env`, custom presets, and `backend/data/` if you want to keep settings/history/cache; keep datasets in their existing folders. Run setup in the new copy.
 
-After pulling changes, just run `start.bat` or `./start.sh`. It notices dependency changes and rebuilds the UI when needed. Re-run setup after a runtime upgrade, or when the launcher asks you to.
+The launcher detects dependency changes and rebuilds the UI when needed. Re-run setup after a runtime upgrade or when asked.
 
 ### Launcher options
 
-The production launcher serves the built UI and the API from one process, without hot reload. `start.bat` passes its flags to `start.ps1`.
+The production launcher serves the built UI and API together, without hot reload. `start.bat` forwards flags to `start.ps1`.
 
-| Windows      | Linux and macOS | Effect                                                           |
-| ------------ | --------------- | ---------------------------------------------------------------- |
-| `-Rebuild`   | `--rebuild`     | Rebuild the UI even if it looks current                          |
-| `-NoBuild`   | `--no-build`    | Serve the existing build; fails if there is none                 |
-| `-NoBrowser` | `--no-browser`  | Do not open a browser                                            |
-| `-Detach`    | `--detach`      | Exit once the server is ready; stop it later with `stop.bat`/`./stop.sh` |
+| Windows      | Linux and macOS | Effect                                                     |
+| ------------ | --------------- | ---------------------------------------------------------- |
+| `-Rebuild`   | `--rebuild`     | Force a UI rebuild                                         |
+| `-NoBuild`   | `--no-build`    | Use the existing build; fails if none exists               |
+| `-NoBrowser` | `--no-browser`  | Do not open a browser                                      |
+| `-Detach`    | `--detach`      | Exit once ready; stop later with `stop.bat` or `./stop.sh` |
 
-Don't combine the rebuild and no-build flags. To change the port, set `DATAFORGE_UI_PORT` in `.env`; see [Configuration](configuration.md#server-storage-and-logging). To work on DataForge itself, use the hot-reload launcher in [Development](development.md).
+Do not combine rebuild and no-build. To change the browser port, set `DATAFORGE_UI_PORT` in `.env` and restart; see [server settings](configuration.md#server-storage-and-logging). For hot reload, see [Development](development.md).
 
 ## Requirements
 
-The app itself needs no GPU: a 64-bit dual-core CPU (quad-core recommended), 8 GB of memory (16 GB recommended), about 2 GB of disk for the app, and an SSD with room for your datasets and thumbnails. Windows 10/11, Linux, and macOS are supported. Image work uses Pillow; video work uses the ffmpeg bundled with the Python dependencies.
+- **Platform:** Windows 10/11, Linux, or macOS; 64-bit CPU, dual-core or better.
+- **Memory/storage:** allow about 8 GB RAM and 2 GB disk for the app, plus dataset/cache space. A quad-core CPU, 16 GB RAM, and an SSD are practical starting points.
+- **Runtimes:** Python 3.12+; Node `^20.19.0 || ^22.13.0 || >=24` with npm. Windows setup supplies its own.
+- **Media:** Pillow handles images; Python dependencies supply ffmpeg for video work. Browser playback depends on codec support.
 
-AI jobs run on whatever model server you choose, and that server sets the hardware bar:
+DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own hardware requirements. Check the chosen model's memory needs, including context and media input; audio captioning also requires an audio-capable model/server.
 
-|                | Smaller models                  | Recommended models                        |
-| -------------- | ------------------------------- | ----------------------------------------- |
-| GPU            | NVIDIA, 8–12 GB VRAM            | NVIDIA, 24 GB VRAM (RTX 3090 or 4090)     |
-| System memory  | 16 GB                           | 32 GB or more                             |
-| Storage        | SSD with room for model weights | NVMe SSD                                  |
+## Troubleshooting
 
-Captioning audio needs an omni model and a server that accepts audio input.
+**Setup cannot find Python or Node.** Windows setup downloads both; check its reported download error. On Linux/macOS, install supported versions and rerun setup, using `DATAFORGE_PYTHON` if needed.
+
+**Shell scripts will not execute.** From an extracted ZIP, try `bash setup.sh` and `bash start.sh` if executable permissions were not retained.
+
+**No build with `--no-build`.** Start once without that option, or build with `cd frontend && npm run build` after setup.
+
+**A port is in use.** Close an earlier launcher or stop an unsupervised DataForge server. The launcher refuses to kill a foreign process; choose another `DATAFORGE_UI_PORT` if necessary.
+
+**The server never becomes ready.** Read the server output for incomplete setup, a missing build, or a port conflict. Correct the reported problem before restarting. For problems after startup, see [configuration troubleshooting](configuration.md#troubleshooting).
 
 ## Run without the launchers
 
-From the project root, on Linux and macOS:
+Install supported Python and Node versions yourself. From the project root, on Linux/macOS:
 
 ```bash
 python3.12 -m venv backend/.venv
@@ -86,7 +92,7 @@ cd frontend && npm run build && cd ..
 backend/.venv/bin/python scripts/prod_server.py
 ```
 
-On Windows:
+On Windows, with Python 3.12+ on PATH:
 
 ```powershell
 python -m venv backend/.venv
@@ -97,14 +103,4 @@ cd frontend; npm run build; cd ..
 backend/.venv/Scripts/python scripts/prod_server.py
 ```
 
-Then open `http://localhost:18081`. Rebuild the UI after changing frontend sources.
-
-## Troubleshooting
-
-**Setup cannot find Python or Node.** Windows setup downloads its own. On Linux and macOS, install a supported version and re-run `./setup.sh`, setting `DATAFORGE_PYTHON` if Python lives elsewhere.
-
-**`--no-build` says there is no build.** It only serves an existing build. Start once without it, or run `cd frontend && npm run build`.
-
-**A port is in use.** Close the earlier launcher, or run `stop.bat`/`./stop.sh` to clear a leftover DataForge server. The launcher never kills a process that isn't DataForge's; if something else owns the port, pick another with `DATAFORGE_UI_PORT`.
-
-**The server never becomes ready.** Read the server console the launcher left open. The usual causes are unfinished setup, a missing build, or a port conflict. Fix it and run setup again. For problems once the app is up, see [configuration troubleshooting](configuration.md#troubleshooting).
+Open `http://localhost:18081`. Rebuild after frontend changes. Ctrl+C stops this directly started server.

@@ -2,180 +2,247 @@
 
 [Documentation](README.md)
 
-A dataset in DataForge is just a folder. `scene.jpg` is captioned by `scene.txt` beside it, and DataForge reads and writes those files in place. A folder can also hold a `.sysprompt`: Markdown instructions that tell the AI how to caption that folder, which travel with the dataset.
-
-DataForge shows the media in the open folder only, not in subfolders, and skips its own backup folder and common development and cache folders. Files added, changed, or removed outside the app appear without a refresh.
+A dataset is a folder: `scene.jpg` uses `scene.txt` beside it. DataForge reads and writes those files directly. The gallery shows the open folder's media, not its subfolders, and updates when files change outside the app.
 
 ## Browse and organize
 
-Open a folder or drive from the folder picker. Breadcrumbs, recent folders, and favorites get you around. You can copy the current path, and on Windows open it in File Explorer.
+Open a folder with the folder picker (`Ctrl+O`). Breadcrumbs, recent folders, and favorites help you navigate. You can copy the current path and, on Windows, open it in File Explorer.
 
-- **Search** matches file names, folder names, and captions, with an optional regex mode (`Ctrl+K`).
-- **Filters** narrow by media type (images, or videos and GIFs), caption state (captioned, missing, with issues), and file state (edited, duplicates, ComfyUI results). Each filter is also in the quick action bar. **Reset all filters** clears the filters but not the search.
-- **Sort** by name, modified date, caption length, megapixels, or duration, in either direction. The sort is remembered across sessions.
+- **Search** (`Ctrl+F` or `/`) matches file names, folder names, and captions. Enable regex to use regular expressions.
+- **Filters** narrow by media type, caption state, issues, edits, duplicates, or ComfyUI results. **Reset all filters** keeps your search text.
+- **Sort** by name, modification date, caption length, megapixels, or duration, in either direction. The sort is remembered across sessions.
 - **View** as large cards, small cards, or a list. Each folder remembers its view.
 
-Cards and the detail view show whether a file has no caption, an empty caption, or text, and whether it has an issue, a duplicate finding, a ComfyUI result, or an edit.
+Cards and the detail view distinguish missing, empty, and populated captions, and show badges for findings, candidates, and edits. The **statistics** drawer describes the whole folder, regardless of filters: caption coverage and lengths, frequent words, issues, duplicate groups, formats, durations, megapixels, aspect ratios, and unreadable dimensions/durations.
+
+Press `Ctrl+P` for **Quick actions**: search for jobs, commands, filters, and folders, then select an action and press Enter. Press `?` to see the shortcut list in the app.
 
 ### Select, copy, move, rename, delete
 
-**Select** (or `Ctrl+A`) selects every file the current search and filters show. From there you can invert, clear, copy, move, or delete (`Delete`). **Rename** gives files sequential numbered names; it is refused for a file whose edit is still rendering or whose ComfyUI result is being accepted. You can also create subfolders and drag files in to import them.
+**Select** or `Ctrl+A` selects every media file shown by the current search and filters. `Ctrl+click` toggles one file. In selection mode you can invert or clear the selection, copy, move, or delete it. Copy and move preview conflicts and ask before overwriting destination files.
 
-Every file operation carries the related files along with the media: caption, findings, edit original, caption backup, and any staged ComfyUI result. Deleting goes to the Recycle Bin on Windows. On other platforms the confirmation lists every file first, and the delete is permanent.
+**Rename** assigns sequential numbered names and has no undo. Files being rendered or having a ComfyUI result accepted cannot be renamed. You can also create subfolders and drag supported media and `.txt` captions into the app to import them.
+
+File operations in DataForge carry captions, findings, edit originals, caption backups, and staged ComfyUI results with their media. Folder instructions stay with the folder. On Windows, deletion uses the Recycle Bin; on other platforms it is permanent after confirmation.
+
+Drag-and-drop imports accept only the media and `.txt` files you choose; they do not collect other related files automatically. Transfers attempt to restore previous destination files if an overwrite fails. Check reported failures before deleting source copies.
 
 ## Captions
 
-Open a file to edit its caption. Captions **autosave**, trimmed of surrounding whitespace, and a failed save shows **Retry**. **Revert** returns to the text you opened with, and **Restore backup** loads the copy in `.backup/`. Type two characters, or press `Ctrl+Space`, to get completions from words already used in the folder.
+Open a file and edit its caption. Captions **autosave**, with surrounding whitespace trimmed; a failed save shows **Retry**. **Revert** restores the text you opened with. **Restore backup** loads its saved caption from `.backup/`.
 
-**Create instructions** or **Edit instructions** in the automation panel opens the folder instructions. The **System prompt** tab edits `.sysprompt`, which sets the voice, required details, or format of AI captions; **Auto-caption** stays disabled until one applies. The **Caption rules** tab edits `.captionrules`, which [Lint captions](#caption-rules) checks against.
+Type two characters or press `Ctrl+Space` for word completions from the folder's captions. `Ctrl+Enter` saves and moves to the next item. The token count marked `~` is an estimate from text length, not a model tokenizer.
 
-Both files cover their folder and every subfolder without a file of its own. The editor only ever writes the current folder's file, never a parent's, and says which file applies; **Copy from parent** starts from the one the folder inherits. Saving a tab empty deletes the folder's file, so the parent's applies again. Neither tab autosaves: **Save** writes whatever changed, **Reset** discards the changes in the open tab, and closing with unsaved changes asks first.
+### Folder instructions
 
-The caption, issue, and `.sysprompt` editors show an approximate token count (`~`), estimated from text length rather than a real tokenizer.
+Choose **Create instructions** or **Edit instructions** in the automation panel:
+
+- **System prompt** sets the voice, required details, or format for Auto-caption, in `.sysprompt`. Auto-caption requires instructions in this folder or an ancestor.
+- **Caption rules** defines checks for **Lint captions**, in `.captionrules`. Use **Use template** to start when no rules apply.
+
+Each file applies to descendants without their own file. The editor identifies inherited instructions; **Copy from parent** makes a local copy. **Save** writes changed tabs to the current folder, and **Reset** discards the open tab's changes. These tabs do not autosave; closing with unsaved changes asks first.
+
+The two files inherit independently from the nearest ancestor and replace its contents as a whole; they are never merged. Saving a tab empty removes its local file so inheritance resumes. An empty file created outside the app still blocks inheritance. Invalid inherited rules are reported rather than skipped.
 
 ### Caption issues
 
-**Verify captions** has the model compare each caption with the image, the GIF's first frame, or the video's keyframes. It writes a `.issue.json` beside each file it flags and leaves other findings alone.
+1. Run **Verify captions** for a model check against the media, or **Lint captions** for a local rule check.
+2. Open **Resolve caption issues** to step through findings.
+3. Correct the caption, mark it resolved (`Ctrl+Enter`), and continue with the arrow keys.
 
-**Resolve caption issues** steps through the flagged files. Fix the caption, mark it resolved (`Ctrl+Enter`), and move on with the arrow keys. Still images can be zoomed, and on Windows opened in the system viewer. **Delete all .issue.json files** in the quick action bar clears every finding in the folder without touching captions or media.
+Both checks write `.issue.json` findings and leave captions unchanged. Model and rule findings are kept separately; rerunning one check replaces only its findings. Still images can be zoomed and, on Windows, opened in the system viewer. **Delete all .issue.json files** in Quick actions clears findings without changing captions or media.
 
 ### Caption rules
 
-**Lint captions** checks every caption against the folder's caption rules, without a model, and records each hit in `.issue.json`. Hits show up under **With issues** and in the resolver, apart from the model's suggested changes, and neither job clears the other's findings.
+Linting needs no model. Edit the rules in the folder-instructions dialog, run **Lint captions**, then use **With issues** or the resolver to inspect hits. Try the rules supplied in [`sample_images/`](../sample_images/).
 
-Rules live in `.captionrules`, which is edited and inherited like the [system prompt](#captions). In a folder with no rules anywhere above it, **Use template** fills in an example.
+Example `.captionrules`:
 
 ```yaml
-trigger: sample_style        # the caption must start with this word
-words: { min: 8, max: 120 }  # allowed word count
-repeated_phrases: 4          # flag any phrase of 4 or more words that appears twice
+trigger: sample_style
+words:
+  min: 8
+  max: 120
+repeated_phrases: 4
 flag:
   - match: [float*, hover*, suspended]
     note: check the subject is really off the ground
-  - match: [in the background]
+  - match: in the background
 ```
 
-Every setting is optional, but a file needs at least one. Terms in `match` ignore case and match whole words, a trailing `*` also matches longer words (`float*` catches "floating"), and a phrase matches across line breaks. Each file keeps up to five rule hits, and the last one sums up any beyond that. Try it on [`sample_images/`](../sample_images/), which ships with a small rule file.
+All settings are optional, but at least one active rule is required. The file must contain YAML key/value pairs as shown above. Unknown keys are rejected, including keys inside `words` and `flag` entries.
+
+| Setting                   | Accepted value                                   | Check                                                                                                           |
+| ------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `trigger`                 | Nonempty text                                    | Caption must start with this term or phrase, case-sensitive and at a word boundary                              |
+| `words.min` / `words.max` | Integers ≥ 1; at least one bound, with min ≤ max | Inclusive limits on whitespace-separated words                                                                  |
+| `repeated_phrases`        | Integer ≥ 2                                      | Flags non-overlapping repeated phrases of at least this many words, ignoring case and punctuation between words |
+| `flag`                    | List of rule mappings                            | Each entry contains `match` and optional `note`                                                                 |
+| `flag[].match`            | One term or a nonempty list of terms             | Case-insensitive whole-word or phrase matches; any listed term can produce a finding                            |
+| `flag[].note`             | Optional text                                    | Explanation included in that rule's finding                                                                     |
+
+Terms are literal text, not regular expressions. A trailing `*` also matches a word suffix: `float*` catches `floating`. Phrases match across whitespace, including line breaks. A `match` term must contain text besides the wildcard. Repeated-phrase checks treat contractions as words and count repeated occurrences without overlap.
+
+Lint captions skips missing caption files; an existing empty caption is checked. Each media file keeps at most five rule findings. If there are more, the fifth summarizes the remaining hits.
 
 ### Duplicates
 
-**Find duplicates** groups visually similar files by perceptual hash, with exact, near, or loose matching, and writes `.duplicate.json` findings. The resolver shows each group side by side and suggests a keeper, usually the one with the highest resolution. Keep one and delete the rest, or dismiss the group to keep them all. **Delete all .duplicate.json files** clears every finding at once without deleting media.
+**Find duplicates** groups visually similar files using perceptual hashes (compact representations of appearance), with exact, near, or loose matching. The resolver compares each group and suggests a keeper, usually the highest-resolution file. Keep one and delete the others, or dismiss the group to keep them all. **Delete all .duplicate.json files** clears findings without deleting media.
 
 ### Caption backups
 
-**Backup captions** copies `.txt` files into `.backup/` and keeps existing backups unless you choose to overwrite them. **Restore captions** copies them back, overwriting current captions, which is why it asks first. It skips backups whose media no longer exists. Neither job touches `.issue.json` findings. Back up before any bulk rewrite you might want to undo.
+Back up before a bulk rewrite you may want to undo. **Backup captions** copies `.txt` files into `.backup/`, keeping existing backups unless overwrite is enabled. **Restore captions** asks before overwriting current captions, skips files whose media is gone, and keeps the backup files. Neither job changes issue findings.
 
 ## Edit media
 
-Every edit is rendered in one pass from the original, which is kept beside the file as `<name>.bak` together with the edit settings in `<stem>.edit.json`. Changing an edit later never re-encodes an already-edited copy, and **Revert original** restores the original and removes both files.
+Open a file's editor, make changes, then **Apply**. Editor changes render from the original, retained beside the media as a `.bak`, with edit settings in `.edit.json`. Later edits use that original again. **Revert original** restores it and removes the edit files.
 
-- **Images** (JPG, PNG, WebP, BMP): crop to preset ratios, rotate in quarter turns, mirror, resize by scale or to exact dimensions, and enhance the picture in **Adjust**.
-- **Videos** (MP4, MOV, M4V): trim on the timeline, crop, resize, change speed or volume or mute, and use the same **Adjust** tools. Rendering shows progress and can be cancelled.
-- **Both**: add any number of blur, pixelate, or blackout regions to hide parts of the frame.
-- **Frames**: **Save frame as JPG** writes the current frame of a video or GIF beside the source. Names include the video timestamp or the GIF frame number, and the source is not re-encoded.
-- **GIF to MP4**: converts a GIF at 24 fps, and asks before overwriting an MP4 of the same name.
+- **Images:** crop to preset ratios or a free crop, rotate by quarter turns, mirror, resize by scale or exact dimensions, and use Adjust.
+- **Videos:** trim on the timeline, crop, resize, change speed or volume, mute, and use Adjust. Rendering shows progress and can be cancelled.
+- **Masks:** add blur, pixelate, or blackout regions to images or videos.
+- **Frames:** **Save frame as JPG** writes a video/GIF frame beside the source, named with its timestamp or frame number.
+- **GIF to MP4:** converts at 24 fps and asks before overwriting an MP4 of the same name.
 
-**Adjust** offers Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Select a round tool, then drag or click its slider, or use arrow keys for small steps and Shift+arrow for larger steps. The marked tick is where the tool rests; double-click the slider to return to it. When the tools do not all fit, scroll the row with the mouse wheel.
+Image editing supports JPG/JPEG, PNG, WebP, and BMP; video editing supports MP4, MOV, and M4V when the browser can decode them. See [supported formats](#supported-formats).
 
-The **Auto** wand reads the original inside the crop, excluding masked regions, and moves the tools toward a natural look: it corrects exposure, softens harsh contrast, tones down oversaturated color, lifts dull color, and balances color casts. Footage that already looks natural is left mostly unchanged. For videos it samples the trimmed range. Its slider controls the amount; click the selected wand again to turn Auto off. Hold the compare button to see the original. Click the preview to inspect at output resolution when it is larger than the displayed picture, and move the pointer to pan. Live preview needs WebGL 2; saving adjustments still works when preview is unavailable.
+### Adjust in the editor
+
+Adjust provides Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Choose a tool, then drag/click its slider or use arrow keys; Shift makes larger steps. Double-click the slider to return to its marked resting value. Scroll the tool row with the mouse wheel when it does not fit.
+
+The **Auto** wand analyzes the original inside the crop, excluding masks; videos are sampled within the trimmed range. It adjusts exposure, contrast, color intensity, and color casts toward a natural look. Its slider sets the amount; click the selected wand again to turn it off.
+
+Hold the compare button to see the original. Click the preview to inspect at output resolution when it exceeds the displayed size, then move the pointer to pan. Live preview needs WebGL 2; saving still works if preview is unavailable.
+
+### Auto-adjust a batch
+
+Run **Auto-adjust** to apply the wand and save each eligible image/video. Crops, masks, trims, and other edits are kept. Existing manual Adjust values remain, while an earlier Auto result is replaced rather than stacked.
+
+**Replace earlier adjustments** resets all Adjust tools before applying Auto, discarding manual adjustments. It starts off each run. Unchanged files and files currently being saved in the editor are skipped. Originals are retained: open the editor to tune the result or revert it. Cancelling keeps completed files.
 
 ## Jobs
 
-Jobs run in the background. The automation panel and jobs drawer show progress, warnings, cancellation, history, and per-file results. **Retry N failed** reruns only the failures, and **Run again** reruns on the whole folder.
+**Scope:** selected files limit most jobs; with no selection, the job uses the whole open folder. Filters alone do not limit a job: select the filtered files first. **Quick LoRA training** always uses the whole folder.
 
-**Scope:** if files are selected, a job runs on those. Otherwise it runs on the whole folder. Filters alone don't narrow a job; select the filtered files if that's what you want. **Quick LoRA training** always uses the whole folder.
+Jobs run in the background. The automation panel and jobs drawer show progress, cancellation, warnings, history, and per-file results. **Retry N failed** retries failures; **Run again** uses the whole folder. Cancelling keeps completed writes. A new job replaces the previous history entry for the same job type and folder.
 
-Cancelling stops the run but keeps whatever it already wrote. Starting a job replaces the history entry of the previous job of that type in the same folder.
+| Job                                        | Result / important option                                                                                                                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auto-caption**                           | Generates `.txt` captions from media and folder instructions; needs a [model connection](configuration.md#connect-a-vision-model), skips finished captions, and retries short results according to the [draft threshold](configuration.md#vision-model-settings) |
+| **Verify captions** / **Lint captions**    | Write issue findings; captions stay unchanged                                                                                                                                                                                                                    |
+| **Edit captions**                          | AI text rewrite; the model sees no media. **Back up captions first** starts on each run                                                                                                                                                                          |
+| **Set captions**                           | Writes one caption to all files; existing captions need overwrite permission                                                                                                                                                                                     |
+| **Find & replace**                         | Replaces text/regex or adds a prefix/suffix; previews counts and examples before writing                                                                                                                                                                         |
+| **Find duplicates**                        | Writes groups for review; deletes media only when confirmed in the resolver                                                                                                                                                                                      |
+| **Backup captions** / **Restore captions** | Copy captions to/from `.backup/`; restore overwrites current text                                                                                                                                                                                                |
+| **Rename**                                 | Sequential file names with related files; no undo                                                                                                                                                                                                                |
+| **Watermark**                              | Text on copies in `watermarked/`, optionally stripping metadata; captions are not copied                                                                                                                                                                         |
+| **Strip metadata**                         | Removes embedded provenance in place; no edit backup or built-in undo                                                                                                                                                                                            |
+| **Auto-adjust**                            | Saves Auto adjustments while retaining originals; see [batch behavior](#auto-adjust-a-batch)                                                                                                                                                                     |
+| **Process with ComfyUI**                   | Stages results for review; [acceptance replaces sources without a backup](comfyui.md#review-candidates)                                                                                                                                                          |
+| **Quick LoRA training**                    | Starts and monitors a run in [AI-Toolkit](ai-toolkit.md)                                                                                                                                                                                                         |
 
-| Job                      | What it does                                                         | What it writes                                                                         |
-| ------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Auto-caption**         | Captions media with a vision model, optionally hearing the video's audio | `.txt`. Needs a `.sysprompt`, the folder's or a parent's, and a [model](configuration.md#connect-a-vision-model); skips captions already longer than [the threshold](configuration.md#vision-model-settings) |
-| **Verify captions**      | Checks each caption against its media                                | `.issue.json` for problems; captions are untouched                                     |
-| **Lint captions**        | Checks each caption against the nearest `.captionrules`, no model    | `.issue.json` for rule hits; captions are untouched                                    |
-| **Edit captions**        | Rewrites captions from an instruction; the model sees text, not media | `.txt`, backing up to `.backup/` first unless you opt out                              |
-| **Set captions**         | Writes the same text to every file                                   | `.txt`; overwrites existing captions only if you allow it                              |
-| **Find & replace**       | Replaces text or regex matches, or adds text at the start or end     | `.txt`; the dialog previews the count and examples first                               |
-| **Find duplicates**      | Groups visually similar files                                        | `.duplicate.json`; media is deleted only when you confirm it in the resolver           |
-| **Backup captions**      | Copies captions to `.backup/`                                        | `.backup/*.txt`                                                                        |
-| **Restore captions**     | Copies captions back from `.backup/`                                 | Overwrites `.txt`                                                                      |
-| **Rename**               | Renames files in sequence                                            | Renames media and its related files; no undo                                           |
-| **Watermark**            | Stamps text onto copies, optionally stripping their metadata          | Copies in `watermarked/`, without captions                                             |
-| **Strip metadata**       | Removes provenance metadata; see below                               | Rewrites media in place; captions are untouched                                        |
-| **Auto-adjust**          | Applies the Adjust **Auto** wand to images and videos; see below     | Rewrites media in place, keeping the original to revert in the editor                  |
-| **Process with ComfyUI** | Runs media through a workflow                                        | Results in `staging/` for review; see [ComfyUI](comfyui.md)                            |
-| **Quick LoRA training**  | Starts an AI-Toolkit training run                                    | Nothing in the folder; see [AI-Toolkit](ai-toolkit.md)                                 |
-
-**Auto-adjust** does what the **Auto** wand and **Apply** do in the editor, file by file. It keeps a file's earlier edits, such as a crop or a mask, and replaces an earlier wand result rather than stacking on it. Adjustments made by hand, such as exposure, color or Definition, stay and the wand's result is added on top; tick **Replace earlier adjustments** to set every Adjust tool back to zero first, so each file gets only the wand's result. Files the wand would leave as they are, and files being saved from the editor at that moment, are skipped. Open a file in the editor to tune the result with the wand's slider or to revert it.
-
-**Strip metadata**, and the same option in **Watermark**, never changes how a file looks or sounds. On images it removes EXIF, XMP, and text chunks, including embedded ComfyUI workflows, and keeps the color profile and color and density information. On videos it removes container tags and chapters and remuxes without re-encoding, keeping every audio and video stream.
-
-The **statistics** drawer always describes the whole folder, whatever the filters show. It covers caption coverage, missing captions, issues, duplicate files and groups, shortest, median, and longest captions, frequent words, file types, video durations, megapixel and aspect-ratio distributions, and files whose size or duration couldn't be read.
+Strip metadata keeps image color/density information and video/audio streams; it removes EXIF, XMP, text/workflow metadata, video tags, and chapters. Video is remuxed without re-encoding. Watermark's stripping option affects its copies.
 
 ## Settings
 
-Open **Settings** with the gear at the end of the toolbar, `Ctrl+,`, or the quick action bar. Changes apply when you select **Save**, with no restart. A dot on a section marks unsaved changes, and **Cancel** discards them.
+Open the toolbar gear or press `Ctrl+,` to change appearance, model connections and input budgets, integration URLs, cache limits, and history retention. **Save** applies field changes; **Reset**, then Save, returns a field to its environment/default value. **Clear** actions take effect immediately, even if you cancel the dialog.
 
-- **Appearance**: a light or dark color scheme, or **System** to follow your OS. The choice is previewed as you pick it. The quick action bar can also switch it directly.
-- **Vision model**, in three tabs:
-  - **Server**: the server URL, API key and model for the AI caption jobs, the response limits, and the draft threshold for **Auto-caption**. **Test connection** tries the address and key as typed, and lists the server's models to pick from. The key is never shown once saved.
-  - **Sampling**: temperature, top-p, min-p and the penalties, for **Reasoning** and **Instruct** mode side by side.
-  - **Media input**: how many pixels and frames of each file reach the model. Shrink these first if a model runs out of memory.
-- **Integrations**: where ComfyUI and AI-Toolkit answer, each with **Test connection**.
-- **Storage**: the thumbnail cache's size and limit, and **Clear cache**, which deletes every cached thumbnail so they are recreated as you browse. **Clear thumbnail cache** in the quick action bar does the same.
-- **Data & history**: how many days to keep finished jobs and notifications, and **Clear** for recent folders, recent quick actions, and the job options and display modes remembered per folder.
-- **About**: the version, Python, ffmpeg, GPU, and where the database, cache, workflows and `.env` file are. **Copy diagnostics** puts all of it on the clipboard for a bug report, without the API key.
-
-Each field says whether its value is the default, comes from `.env` or the environment, or was saved here. A saved value overrides `.env`; **Reset** removes it. A job that is already running keeps the server it started with. See [Configuration](configuration.md#how-settings-are-loaded) for how the sources combine.
+For model recommendations, setup, all variables, and troubleshooting, see [Configuration](configuration.md).
 
 ## Supported formats
 
-Every format below appears in the gallery with a thumbnail, takes `.txt` captions, and can be used for training and ComfyUI processing. Editing and metadata tools support fewer video containers, only those DataForge can read and rewrite safely.
+All listed formats appear in the gallery, take `.txt` captions, and can be sent to AI caption jobs or ComfyUI. The chosen workflow or training model must support the actual media; gallery support does not guarantee integration compatibility.
 
-| Format                | In the app                          | Editing        | Strip metadata   | Watermark | Embedded ComfyUI workflow |
-| --------------------- | ----------------------------------- | -------------- | ---------------- | --------- | ------------------------- |
-| JPG / JPEG, WebP      | Image                               | Image          | Yes              | Yes       | —                         |
-| PNG                   | Image                               | Image          | Yes              | Yes       | Yes                       |
-| BMP                   | Image                               | Image          | Nothing to strip | Yes       | —                         |
-| GIF                   | Animated; frame capture             | Convert to MP4 | —                | —         | —                         |
-| MP4, MOV, M4V         | Playback, if your browser supports the codec; frame capture | Video | Yes  | Yes       | Yes                       |
-| AVI, MKV, WMV, FLV    | Thumbnail only, no playback         | —              | —                | —         | —                         |
+| Format             | Gallery                                                       | Editing / Auto-adjust | Strip metadata   | Watermark | Embedded ComfyUI workflow |
+| ------------------ | ------------------------------------------------------------- | --------------------- | ---------------- | --------- | ------------------------- |
+| JPG / JPEG, WebP   | Image                                                         | Image                 | Yes              | Yes       | —                         |
+| PNG                | Image                                                         | Image                 | Yes              | Yes       | Yes                       |
+| BMP                | Image                                                         | Image                 | Nothing to strip | Yes       | —                         |
+| GIF                | Animation and frame capture                                   | Convert to MP4 first  | —                | —         | —                         |
+| MP4, MOV, M4V      | Playback and frame capture, if the browser supports the codec | Video                 | Yes              | Yes       | Yes                       |
+| AVI, MKV, WMV, FLV | Thumbnail only                                                | —                     | —                | —         | —                         |
+
+GIF captioning and verification use its first frame. Video caption jobs sample frames across the clip, even for containers without browser playback. GIF-to-MP4 conversion uses 24 fps and asks before overwriting an existing MP4.
 
 ## Files DataForge creates
 
-| File                                 | Where                 | Created by                                   | Removed when                          |
-| ------------------------------------ | --------------------- | -------------------------------------------- | ------------------------------------- |
-| `<stem>.txt`                         | Beside the media      | You, or any caption job                      | You delete it                         |
-| `.sysprompt`                         | Dataset or any parent | You, in **Edit instructions**                | Saved empty, or you delete it         |
-| `.captionrules`                      | Dataset or any parent | You, in **Edit instructions**                | Saved empty, or you delete it         |
-| `<name>.issue.json`                  | Beside the media      | **Verify captions**, **Lint captions**       | Resolved or cleared                   |
-| `<name>.duplicate.json`              | Beside the media      | **Find duplicates**                          | Group resolved, dismissed, or cleared |
-| `<name>.bak`, `<stem>.edit.json`     | Beside the media      | A media edit, **Auto-adjust**                | **Revert original**                   |
-| `<stem>.txt`                         | `.backup/`            | **Backup captions**                          | You delete it                         |
-| Watermarked copies                   | `watermarked/`        | **Watermark**                                | You delete them                       |
-| ComfyUI result and its `.comfy.json` | `staging/`            | **Process with ComfyUI**                     | Accepted or rejected                  |
-| Settings, job history, thumbnails    | `backend/data/`       | The app                                      | —                                     |
+`<stem>` excludes the extension (`scene`); `<name>` includes it (`scene.jpg`). Sidecar files accompany media but are not gallery items. Output media in `watermarked/` or `staging/` can be browsed as files.
 
-`<stem>` is the file name without its extension (`scene`), and `<name>` is the full file name (`scene.jpg`), as in `scene.jpg.issue.json`. None of these appear as items in the gallery. Moving, copying, renaming, or deleting media in DataForge carries these files along. Changes made outside DataForge leave them behind; see [ComfyUI](comfyui.md#review-candidates) for orphaned results.
+Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption and edit-settings path. Use distinct stems when they need different captions, edits, or processing results.
+
+| File                                  | Location                   | Created by / lifecycle                                                                                                                          |
+| ------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<stem>.txt`                          | Beside media               | Manual or automated captioning; remains until deleted or overwritten                                                                            |
+| `.sysprompt`                          | Dataset or parent folder   | System-prompt editor; saving empty removes the current folder's file                                                                            |
+| `.captionrules`                       | Dataset or parent folder   | Caption-rules editor; saving empty removes the current folder's file                                                                            |
+| `<name>.issue.json`                   | Beside media               | Verify captions and Lint captions; removed when findings are resolved or cleared                                                                |
+| `<name>.duplicate.json`               | Beside media               | Find duplicates; removed when the group is resolved, dismissed, or cleared                                                                      |
+| `<name>.bak` and `<stem>.edit.json`   | Beside media               | Editor or Auto-adjust original and edit settings; Revert original removes both. Accepting a ComfyUI result also discards them                   |
+| `<stem>.txt`                          | `.backup/`                 | Caption backup; remains after restoration until deleted or overwritten                                                                          |
+| Watermarked media                     | `watermarked/`             | Watermark copies; captions are not copied                                                                                                       |
+| Result and `<result-name>.comfy.json` | `staging/`                 | ComfyUI processing; removed when accepted, rejected, or deleted                                                                                 |
+| SQLite database and thumbnail cache   | `backend/data/` by default | Settings, preferences, jobs, notifications, and thumbnails; paths and retention are [configurable](configuration.md#server-storage-and-logging) |
+
+For example, `scene.jpg` can have `scene.txt`, `scene.jpg.issue.json`, `scene.jpg.duplicate.json`, `scene.jpg.bak`, and `scene.edit.json`.
+
+The gallery lists only the open folder's media, not descendants. It omits `.backup/` and common repository, environment, system, and cache folders, including `.git`, `node_modules`, `.venv`, `__pycache__`, `_latent_cache`, and `_t_e_cache`. External file changes appear automatically.
 
 ## Keyboard shortcuts
 
-On macOS, use `⌘` instead of `Ctrl`. Plain-key shortcuts such as arrows and `Delete` are ignored while you type in a text field, while a dialog is busy, and when media controls need the same keys.
+Press `?` outside a text field to see the shortcut list in the app. On macOS, use `⌘` for app shortcuts shown with `Ctrl`, and `⌥` for `Alt`. Caption completion keeps `Ctrl+Space` on macOS too.
 
-| Shortcut                     | Where                                      | Action                                                   |
-| ---------------------------- | ------------------------------------------ | -------------------------------------------------------- |
-| `Ctrl+K`                     | Gallery                                    | Focus search                                             |
-| `Ctrl+Space`                 | Anywhere                                   | Open the quick action bar                                |
-| `Ctrl+,`                     | Anywhere                                   | Open **Settings**                                        |
-| `↑` `↓` `Home` `End` `Enter` | Quick action bar                           | Move through actions and run one                         |
-| `Ctrl+A`                     | Gallery                                    | Select every visible file                                |
-| `Delete` / `Backspace`       | With files selected                        | Delete the selection (asks first)                        |
-| `Escape`                     | Selection mode                             | Clear the selection; press again to leave selection mode |
-| `←` / `→`                    | Detail view, issue resolver, result review | Previous / next file                                     |
-| `Ctrl+Enter`                 | Issue resolver                             | Mark resolved                                            |
-| `Ctrl+Enter`                 | Result review                              | Accept the result                                        |
-| `Ctrl+Space`                 | Caption editor                             | Show word completions                                    |
-| `Escape`                     | Caption editor with completions open       | Close the completions only                               |
-| `Enter`                      | Dialogs                                    | Confirm; ignored in multi-line fields and while busy     |
-| `Escape`                     | Dialogs and overlays                       | Close, unless a job in that dialog is still running      |
-| `←` `→` `↑` `↓`              | Video trim handle                          | Move one frame; hold `Shift` for one second              |
-| `Home` / `End`               | Video trim handle                          | Jump to the start / end                                  |
+### Global and folder navigation
+
+| Shortcut        | Action                                                |
+| --------------- | ----------------------------------------------------- |
+| `Ctrl+P`        | Open or close **Quick actions** (the command palette) |
+| `Ctrl+F` or `/` | Focus gallery search                                  |
+| `Ctrl+,`        | Open Settings                                         |
+| `?`             | Show keyboard shortcuts                               |
+| `Ctrl+O`        | Open the folder picker                                |
+| `Alt+↑`         | Go to the parent folder                               |
+| `Alt+Home`      | Go to the home folder                                 |
+| `Alt+N`         | Create a folder                                       |
+| `Enter`         | Confirm a dialog                                      |
+| `Escape`        | Close a dialog or viewer                              |
+
+In Quick actions, use `↑`, `↓`, `Home`, and `End` to choose an action, then `Enter` to run it.
+
+### Gallery and selection
+
+| Shortcut                | Action                                                         |
+| ----------------------- | -------------------------------------------------------------- |
+| `Ctrl+click`            | Toggle an item's selection and enter selection mode            |
+| `Shift+click`           | Select the range from the selection anchor to the clicked item |
+| `Ctrl+A`                | Select every media file in the current view                    |
+| `Delete` or `Backspace` | Delete selected files, after confirmation                      |
+| `Escape`                | Clear selection; press again to leave selection mode           |
+
+### Item viewer and review queues
+
+| Shortcut                | Where / action                                                     |
+| ----------------------- | ------------------------------------------------------------------ |
+| `←` / `→`               | Previous / next item in the viewer or review queue                 |
+| `Home` / `End`          | First / last item in the viewer or review queue                    |
+| `Ctrl+Enter`            | Item viewer: save the caption and go to the next item              |
+| `Delete` or `Backspace` | Item viewer: delete the item, after confirmation                   |
+| `Ctrl+Enter`            | Issue resolver: mark resolved; candidate review: accept the result |
+| `Ctrl+Backspace`        | Candidate review: reject the result                                |
+
+### Editors
+
+| Shortcut             | Action                                                       |
+| -------------------- | ------------------------------------------------------------ |
+| `Ctrl+F`             | Find in the focused text editor                              |
+| `Ctrl+Space`         | Show caption word completions                                |
+| `Escape`             | Close completions before closing the viewer                  |
+| Arrow keys           | Nudge a focused crop, mask, or trim handle, or Adjust slider |
+| `Shift` + arrow keys | Nudge in larger steps                                        |
+| `Delete`             | Remove the focused mask                                      |
+| `Home` / `End`       | Video trim handle: jump to the start / end                   |
+
+Video trim handles move one frame per arrow press, or one second with Shift. Adjust sliders return to their resting value when double-clicked.
+
+### Focus and availability
+
+Shortcuts depend on focus. Text editors keep their own search, selection, deletion, and completion keys. Plain-key navigation is ignored while typing; focused video controls use arrow keys to seek. Enter does not confirm from a multi-line field, and busy dialogs suppress actions that would interrupt their operation. Escape can close a menu or editor overlay before the surrounding dialog.

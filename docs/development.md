@@ -2,120 +2,121 @@
 
 [Documentation](README.md)
 
-How to work on DataForge itself. To just run it, see [Getting started](getting-started.md). Repository rules for contributors and agents are in [AGENTS.md](../AGENTS.md).
+For running the app, see [Getting started](getting-started.md). Contributor and agent rules are in [AGENTS.md](../AGENTS.md).
 
 ## Stack
 
-- **Backend:** Python 3.12+, FastAPI, SQLite, Pillow, ffmpeg, and the OpenAI client
-- **Frontend:** React 19, TypeScript, Vite, SCSS
-- **AI:** any OpenAI-compatible vision endpoint
+- **Backend:** Python 3.12+, FastAPI, SQLite, Pillow, ffmpeg, and the OpenAI client.
+- **Frontend:** React 19, TypeScript, Vite, and SCSS.
+- **Integrations:** OpenAI-compatible model servers, ComfyUI, and AI-Toolkit; see [Configuration](configuration.md).
 
 ## Run with hot reload
 
-Run `dev.bat` (or `.\dev.ps1`) on Windows, or `./dev.sh` on Linux and macOS. It:
+Complete [setup](getting-started.md#install-and-run), then run `dev.bat` (or `.\dev.ps1`) on Windows, or `./dev.sh` on Linux/macOS. The launcher regenerates API files, starts the API at `http://localhost:18080` and Vite at `http://localhost:18081`, waits for both, and opens the browser. Vite proxies `/api` to the backend.
 
-1. Regenerates the [API types](#generated-code)
-2. Starts the API with auto-reload on `http://localhost:18080`
-3. Starts Vite on `http://localhost:18081`, which proxies `/api` to the API
-4. Waits until both answer, opens the browser, and keeps them running until you stop it
+| Windows                          | Linux and macOS                      | Effect                                                                                                        |
+| -------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `-BackendOnly` / `-FrontendOnly` | `--backend-only` / `--frontend-only` | Start one server                                                                                              |
+| `-NoBrowser`                     | `--no-browser`                       | Do not open the browser                                                                                       |
+| `-NoReload`                      | `--no-reload`                        | Disable API reload; use during long jobs, because reload triggers job recovery and restarts resumable workers |
+| `-Detach`                        | `--detach`                           | Exit once ready; stop later with `stop.bat` or `./stop.sh`                                                    |
 
-| Windows                          | Linux and macOS                      | Effect                                                            |
-| -------------------------------- | ------------------------------------ | ----------------------------------------------------------------- |
-| `-BackendOnly` / `-FrontendOnly` | `--backend-only` / `--frontend-only` | Start one server only                                             |
-| `-NoBrowser`                     | `--no-browser`                       | Do not open a browser                                             |
-| `-NoReload`                      | `--no-reload`                        | Turn off API reload. Use it during long jobs: a reload re-runs job recovery and restarts their workers |
-| `-Detach`                        | `--detach`                           | Exit once ready; stop later with `stop.bat` / `./stop.sh`         |
+Windows opens a console per server; Unix uses one terminal with `[api]` and `[ui]` prefixes. Windows also provides `start-backend.ps1` and `start-frontend.ps1` to run one server in the current terminal.
 
-On Windows, each server gets its own console. On Unix, both share one terminal, with output prefixed `[api]` and `[ui]`. On Windows, `start-backend.ps1` and `start-frontend.ps1` also run one dev server in the current terminal.
+Stopping the launcher stops its servers. Use the stop script for detached/directly started servers or leftovers, after stopping any supervising launcher.
 
-Stopping the launcher stops its servers. `stop.bat` / `./stop.sh` frees both ports when nothing is supervising them: after `--detach`, after a console was closed by hand, or for servers you started directly.
-
-The launchers share `scripts/dev-common.ps1` and `scripts/dev-common.sh`. **Those two files mirror each other**: port defaults, `.env` precedence, stamp file names, and the rule that only leftover `python`/`node` processes are ever killed. When you change one, change the other.
+`scripts/dev-common.ps1` and `scripts/dev-common.sh` mirror port defaults, environment precedence, dependency/build stamps, and leftover-process cleanup. Keep both implementations aligned; never kill foreign processes to free a port.
 
 ### Development variables
 
-| Variable                   | Effect                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------ |
-| `DATAFORGE_RELOAD`         | Set to `0` to run `scripts/dev_server.py`, and so the dev launcher, without auto-reload by default |
-| `DATAFORGE_DISABLE_DOTENV` | Set to `1` to ignore every `.env` file. Tests and CI set it so a local `.env` can't leak in       |
-| `DATAFORGE_PYTHON`         | Python interpreter for `./setup.sh`                                                              |
+| Variable                   | Default       | Effect                                                                                       |
+| -------------------------- | ------------- | -------------------------------------------------------------------------------------------- |
+| `DATAFORGE_PYTHON`         | auto-detected | Interpreter override for Unix setup; set in the shell when running `./setup.sh`              |
+| `DATAFORGE_RELOAD`         | on            | Development API reload; `0`, `false`, `no`, `off`, or blank disables it                      |
+| `DATAFORGE_DISABLE_DOTENV` | off           | `1`, `true`, `yes`, or `on` skips `.env` loading in the Python backend; used by tests and CI |
 
-The app's own settings are in [Configuration](configuration.md).
+These are startup settings. Command-line launcher options override reload preferences.
 
 ## Project layout
 
 ```text
-backend/               FastAPI app, jobs, captions, media handling
+backend/               API, media handling, captions, and persistence
   automation/          Job runners
-  routes/              HTTP API
+  routes/              HTTP endpoints
   data/                SQLite and thumbnails (gitignored)
 frontend/              React UI
-  src/shared/          Includes the generated files below (gitignored)
+  src/shared/          Shared modules and generated API files
   dist/                Production build (gitignored)
-scripts/               Servers, launcher helpers, checks, type generation, git hooks
-docs/                  These guides
+scripts/               Launchers, checks, generation, and Git hooks
+docs/                  User and contributor documentation
 comfy_workflows/       ComfyUI presets
 ostris_templates/      AI-Toolkit training templates
-llm_templates/         Chat templates for local model servers
-sample_images/         Small example dataset
-.github/workflows/     CI, which runs run_checks.py and the end-to-end suite
+llm_templates/         Local model chat templates
+sample_images/         Example dataset
+.github/workflows/     Checks and separate end-to-end CI
+.env.example           Commented app environment settings
 setup / start / dev / stop (.bat, .ps1, .sh)   Launchers
-.env.example           Every setting, commented out; copy to .env
 ```
 
 ## Generated code
 
-`backend/schemas.py` and `backend/constants.py` define the API contract. [`scripts/generate_types.py`](../scripts/generate_types.py) turns them into four frontend files, so nothing is mirrored by hand:
+`backend/schemas.py` defines the wire format; `backend/constants.py` supplies shared values. [`scripts/generate_types.py`](../scripts/generate_types.py) generates:
 
-| File                                    | Contains                                                              |
-| --------------------------------------- | --------------------------------------------------------------------- |
-| `frontend/src/shared/types.ts`          | Every request and response type, from the OpenAPI schema              |
-| `frontend/src/shared/constants.ts`      | The values in `constants.SHARED_CONSTANTS`                            |
-| `frontend/src/shared/wireGuards.ts`     | Runtime checks for `schemas.GUARDED_WIRE_MODELS`                      |
-| `frontend/src/test/colorAdjustCases.ts` | `color_adjust` outputs the TS port of the Adjust pipeline is held to  |
+| File                                    | Contents                                                     |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `frontend/src/shared/types.ts`          | Request/response types from OpenAPI                          |
+| `frontend/src/shared/constants.ts`      | `constants.SHARED_CONSTANTS`                                 |
+| `frontend/src/shared/wireGuards.ts`     | Runtime guards for `schemas.GUARDED_WIRE_MODELS`             |
+| `frontend/src/test/colorAdjustCases.ts` | Python Adjust outputs used to verify the TypeScript pipeline |
 
-They are gitignored and **must never be edited by hand**; the next run overwrites them. A fresh clone doesn't have them, and the frontend won't build until they exist. Setup, every launcher, and `run_checks.py` regenerate them, so a branch switch can't leave a stale contract behind. A file is rewritten only if its content changed, so regenerating doesn't trigger a UI rebuild by itself.
-
-If you change `schemas.py` or `constants.py` while the dev servers are running, run the generator yourself. Types used only by the frontend belong in the module that uses them, not in `schemas.py`.
+These files are gitignored and must never be edited by hand. A fresh clone needs generation before the frontend can build. Setup, launchers, and checks regenerate them, writing only changed content. If you change schemas, constants, or the Adjust pipeline during development, rerun generation yourself. Frontend-only types belong with the module using them.
 
 ## Commands
 
-Run from the project root. `<python>` is `backend/.venv/Scripts/python` on Windows and `backend/.venv/bin/python` on Linux and macOS.
+Run from the project root. `<python>` means `backend/.venv/Scripts/python` on Windows or `backend/.venv/bin/python` on Linux/macOS.
 
-**Before you finish any change, run the full suite.** CI runs the same thing:
+Before finishing a change, run:
 
 ```bash
 <python> scripts/run_checks.py --fix
 ```
 
-It runs lint, formatting, comment checks, type checks, and tests for both halves: Ruff and ty for the backend, and ESLint, Prettier, TypeScript, and Vitest for the frontend. A passing step is one line with its duration; a failing step prints everything it wrote, then the run stops. In a terminal the two test steps show a progress bar while they run, which the result line replaces. `--fix` applies lint and formatting fixes; type errors have to be fixed by hand. Add `--lint-only` to skip tests, or `--scope backend` / `--scope frontend` to check one side. Ruff and ty are pinned in `backend/requirements-dev.txt` and configured in `backend/pyproject.toml`.
+This generates API files and runs formatting, lint, type checks, comment/theme/transition checks, and backend/frontend tests. Backend tools include Ruff and ty; frontend tools include ESLint, Prettier, TypeScript, and Vitest. Tool configuration and pins live in the respective project manifests.
 
-| Task                    | Command                                                                      |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| API only, with reload   | `<python> scripts/dev_server.py` (`--no-reload`, `--port`, `--host`)         |
-| Production server       | `<python> scripts/prod_server.py` (`--port`, `--host`, `--access-log`); needs a UI build |
-| Build the UI            | `cd frontend && npm run build`: typechecks, then writes `frontend/dist`      |
-| Regenerate API types    | `<python> scripts/generate_types.py`                                         |
-| Backend lint            | `<python> scripts/run_lint.py`, with `--fix` to apply fixes                  |
-| Backend typecheck       | `<python> scripts/run_typecheck.py`                                          |
-| Backend tests           | `<python> scripts/run_tests.py`, with `-v` to list every test                |
-| Frontend lint / format  | `cd frontend && npm run lint` / `npm run format`                             |
-| Frontend tests          | `cd frontend && npm test`                                                    |
-| End-to-end tests        | `cd frontend && npm run test:e2e`, after `npx playwright install chromium` once |
-| Install git hooks       | `scripts/install-git-hooks.ps1` or `.sh`; the pre-commit hook fixes lint and formatting, then bumps the version |
+`--fix` applies formatting/lint fixes. If it changes files, the runner completes checks but returns a failure requiring review; rerun after reviewing the changes. Failed steps print their output and stop the run; successful steps show a compact result. `--lint-only` skips tests but still checks types. `--scope backend` or `--scope frontend` narrows checks; frontend checks still need the backend venv for generation. CI uses this runner for each side separately.
 
-The end-to-end suite drives Chromium against its own backend on port 18090 and Vite on 18091, with a temporary workspace and a stand-in vision model. It needs no running servers or real model, and currently covers auto-captioning an image and a video. CI runs it separately from `run_checks.py`.
+The tests run under coverage, and the run ends with one line per side (coverage.py and Vitest's v8 provider). `--no-coverage` skips that and makes the tests noticeably faster. While coverage is on, Vitest's per-test timeout is 20s instead of 5s, because instrumentation slows tests enough to time out the heaviest ones; plain `npm test` keeps the 5s budget.
+
+| Task                         | Command                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| API with reload              | `<python> scripts/dev_server.py` (`--reload`, `--no-reload`, `--port`, `--host`)                              |
+| Production server            | `<python> scripts/prod_server.py` (`--port`, `--host`, `--access-log`); needs a UI build                      |
+| UI build                     | `cd frontend && npm run build` (typecheck, then build)                                                        |
+| Generate API files           | `<python> scripts/generate_types.py`                                                                          |
+| Backend lint/typecheck/tests | `<python> scripts/run_lint.py` / `run_typecheck.py` / `run_tests.py`; lint accepts `--fix`, tests accept `-v` |
+| Frontend lint/format         | `cd frontend && npm run lint` / `npm run format`                                                              |
+| Frontend tests               | `cd frontend && npm test`                                                                                     |
+| End-to-end tests             | `cd frontend && npm run test:e2e`; install Chromium once with `npx playwright install chromium`               |
+| Install Git hooks            | `scripts/install-git-hooks.ps1` or `.sh`                                                                      |
+
+### CI and end-to-end tests
+
+Backend CI checks Python 3.12 and 3.13; frontend CI generates files with Python and runs its scoped checks. End-to-end CI runs separately from `run_checks.py` and the pre-commit hook.
+
+The E2E suite drives Chromium against its own backend on 18090 and Vite on 18091, using temporary data and a stand-in vision model. It needs no existing servers or real model and covers image/video auto-captioning. Avoid using those ports for another service during the run.
 
 ## Versioning
 
-The version shown under Settings → About is `version` in `backend/pyproject.toml`, and nothing else carries one. The pre-commit hook bumps its patch number in every commit. For a minor or major release, edit it by hand and stage it: the hook keeps any staged version that differs from the parent commit's, so `--amend` never bumps twice. A version edited in the working tree but left unstaged is never overwritten. After `git commit <paths>`, the post-commit hook stages the bumped version so the index does not fall behind. Commits made with `--no-verify` are not bumped.
+Settings > About reads `version` from `backend/pyproject.toml`. The installed pre-commit hook runs checks and bumps the patch version. For a minor/major release, a contributor can edit and stage the version explicitly; the hook keeps a staged value different from the parent commit, preventing a second bump on amend. An unstaged manual version edit is not overwritten.
+
+After a path-limited commit (`git commit <paths>`), the post-commit hook stages the bumped version to keep the index aligned. Commits using `--no-verify` bypass the bump. Agents must follow AGENTS.md's prohibition on staging changes themselves.
 
 ## Testing Unix launcher changes
 
-PowerShell launchers can be tested on Windows. For the shell launchers, `bash -n` only catches syntax errors, so check these on a real Linux or macOS machine from a clean clone:
+PowerShell launchers can be tested on Windows. `bash -n` checks Unix syntax only; test behavior on Linux/macOS from a clean clone:
 
-- `./setup.sh`, then `./start.sh`. The app loads, and after `Ctrl+C` both ports are free (`./stop.sh` confirms).
-- `./dev.sh`. Hot reload works, and `Ctrl+C` also stops uvicorn's reload child, the most likely orphan. Check that the port is actually free.
-- `./start.sh` right after `./dev.sh`. The leftover Vite listener on the UI port is cleared, not fatal.
-- `./start.sh` twice. The second run prints "Frontend build is up to date". After `touch frontend/src/main.tsx`, the next run rebuilds.
-- `nc -l 18081`, then `./start.sh`. The launcher names the foreign process and refuses to kill it.
+- Setup and production start succeed; stopping frees the port.
+- Development hot reload works; Ctrl+C also stops uvicorn's reload child.
+- Production start clears a leftover DataForge Vite listener.
+- An unchanged build is reused; a frontend source change triggers a rebuild.
+- A foreign process occupying the UI port is identified and left running.

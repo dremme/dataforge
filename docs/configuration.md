@@ -2,183 +2,197 @@
 
 [Documentation](README.md)
 
-DataForge works without any configuration. You only need a `.env` file to connect a vision model, change a port or path, or tune AI jobs. Every variable DataForge reads is listed on this page or, for integrations, in the [ComfyUI](comfyui.md#connect-comfyui) and [AI-Toolkit](ai-toolkit.md#connect-ai-toolkit) guides.
-
-## How settings are loaded
-
-Copy [`.env.example`](../.env.example) to `.env` in the project root, uncomment what you need, and **restart DataForge**. `.env` is read only at startup. It is gitignored; keep keys and machine-specific paths there, never in source.
-
-The most common settings can also be changed in the app, under **Settings** (the gear in the toolbar, or `Ctrl+,`). Those take effect immediately, without a restart:
-
-| In Settings                        | Variables                                                                     |
-| ---------------------------------- | ----------------------------------------------------------------------------- |
-| Vision model > Server              | `OPENAI_API_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_MAX_TOKENS`, `OPENAI_TOP_K`, `DRAFT_CAPTION_THRESHOLD` |
-| Vision model > Sampling            | The ten `OPENAI_THINKING_*` and `OPENAI_INSTRUCT_*` variables                 |
-| Vision model > Media input         | `IMAGE_MAX_PIXELS` and the four `VIDEO_*` budget variables                    |
-| Integrations                       | `COMFY_BASE_URL`, `OSTRIS_BASE_URL`                                           |
-| Storage                            | `DATAFORGE_THUMBNAIL_CACHE_MAX_MB`                                            |
-| Data & history                     | `DATAFORGE_JOB_HISTORY_DAYS`, `DATAFORGE_NOTIFICATION_HISTORY_DAYS`           |
-
-The API key is write-only in Settings: it is saved but never shown again, and **Test connection** uses it without displaying it. `OPENAI_TIMEOUT` and the other variables on this page stay `.env`-only.
-
-A running job keeps the server it started with; the change applies from the next job. **Reset** in Settings removes the saved value, so the variable or the default applies again.
-
-When a setting is defined in more than one place, the highest one wins:
-
-1. A value saved in **Settings**, stored in the database
-2. Environment variables already set in your shell or OS
-3. `.env` in the project root
-4. `backend/.env`, read only if there is no project-root `.env`; the two files are never merged
-5. Built-in defaults
-
-Blank, malformed, or out-of-range values in the environment fall back to their defaults. Settings refuses them instead. For example, a zero or negative number never sets a smaller limit. Relative paths resolve against the server's working directory, so prefer absolute ones.
+Use **Settings** to connect services and tune AI jobs. Browsing, manual captioning, editing, and local checks work without a model or `.env` file. Environment variables cover startup options and provide defaults for Settings. Integration-specific options are in the [ComfyUI](comfyui.md#connect-comfyui) and [AI-Toolkit](ai-toolkit.md#connect-ai-toolkit) guides.
 
 ## Connect a vision model
 
-**Auto-caption**, **Verify captions**, and **Edit captions** use any OpenAI-compatible chat-completions server with a vision model. Start one, then add to `.env`:
+Auto-caption and Verify captions need an OpenAI-compatible chat-completions server that accepts images. Edit captions sends text only. Install and run the model server separately, then:
 
-```dotenv
-OPENAI_API_BASE_URL=http://127.0.0.1:8888/v1
-OPENAI_MODEL=qwen38
-```
+1. Open **Settings > Vision model > Server** (`Ctrl+,`).
+2. Enter the API URL, including `/v1`, and a key if required. The default URL is `http://127.0.0.1:8888/v1`.
+3. Select **Test connection**. It tests the entered address/key and lists model ids reported by the server.
+4. Choose the server's model id, then **Save**. The default `qwen38` is an id, not a model download.
+5. Open your dataset and use **Create instructions** to provide a system prompt, or inherit one from a parent. Run Auto-caption on a small selection first.
 
-Set `OPENAI_MODEL` to the model id the server reports, which is not necessarily the Hugging Face name. Single-model servers often accept any id, but multi-model servers need an exact match.
+Testing checks the server's model-list endpoint; it does not prove vision or audio input works. A saved key is never displayed again. If you leave the key field blank during a connection test, the saved/environment key is used.
 
-llama.cpp's `llama-server` listens on 8080 by default, so start it on 8888 and **always load the multimodal projector**. Without `--mmproj`, the server answers happily but ignores the images:
+For llama.cpp, download the model in GGUF format and its matching multimodal projector, which lets the model process images. Load both:
 
 ```bash
 llama-server --port 8888 -m <model.gguf> --mmproj <mmproj.gguf>
 ```
 
-If you add `--api-key` to the server, set the same key in `OPENAI_API_KEY`.
+Some download-based llama.cpp setups load the projector automatically; see its [multimodal instructions](https://github.com/ggml-org/llama.cpp/blob/master/docs/multimodal.md). Match a server's `--api-key` value in Settings if authentication is enabled.
 
 ### Tested models
 
-| Model                                                                                                         | Notes                                        |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [Qwen3.8 27B](https://huggingface.co/Qwen/Qwen3.8-27B) ([GGUF](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF)) | Recommended; `UD-Q4_K_XL` is a good quant |
-| [Qwen3.8 27B Uncensored](https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF) | Fewer refusals                               |
-| [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)                                                | Recommended MoE                              |
-| [Qwen3.6 35B A3B Uncensored](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive)  | MoE with fewer refusals                      |
-| [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct)                        | Needed to caption audio                      |
-| [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)                                      | Fits smaller GPUs                            |
+**Qwen3.8 27B is the recommended starting point.** For llama.cpp, try the `UD-Q4_K_XL` [GGUF quantization](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF). Quantization reduces the memory needed for model weights; leave room for context and media input as well.
 
-[Gemma 4 31B](https://huggingface.co/google/gemma-4-31B-it) and [Gemma 4 26B A4B](https://huggingface.co/google/gemma-4-26B-A4B-it) also work with some tuning. Use **Instruct** mode, since Gemma has no thinking mode, and set `OPENAI_INSTRUCT_REPEAT_PENALTY=1.1`. Chat templates for these models are in [`llm_templates/`](../llm_templates/).
+| Model                                                                                                                     | When to choose it                                     | Setup notes                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [Qwen3.8 27B](https://huggingface.co/Qwen/Qwen3.8-27B)                                                                    | Default recommendation for image and video captioning | Start in Reasoning; the bundled template supports low, medium, and xhigh effort                                                         |
+| [Qwen3.6 35B A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)                                                            | Recommended mixture-of-experts (MoE) alternative      | Activates about 3B of its 35B parameters per token; memory still needs to accommodate the full weights. Supports Reasoning and Instruct |
+| [Qwen3 VL 8B Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)                                                  | Smaller model for more limited memory                 | Use Instruct; choose a quantization that fits alongside the media/context budget                                                        |
+| [Qwen3-Omni 30B A3B Instruct](https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct)                                    | Caption video audio as well as frames                 | Use Instruct and enable Caption audio; the server must accept `input_audio` parts                                                       |
+| [Gemma 4 31B](https://huggingface.co/google/gemma-4-31B-it) / [26B A4B](https://huggingface.co/google/gemma-4-26B-A4B-it) | Alternative dense / MoE models                        | A project starting point is Instruct with repeat penalty `1.1`. The bundled template also supports thinking, but ignores effort         |
+
+Community variants of [Qwen3.8 27B](https://huggingface.co/HauhauCS/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF) and [Qwen3.6 35B A3B](https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive) aim to reduce refusals. Evaluate their captions on a small representative selection before a full run.
+
+Load the matching projector and a compatible chat template for your model. Templates for Qwen3.8, Qwen3.6, and Gemma 4 are in [`llm_templates/`](../llm_templates/). Hardware needs depend on quantization, context, and media budgets; DataForge itself needs no GPU.
 
 ### Vision model settings
 
-| Variable                  | Default                    | Purpose                                                              |
-| ------------------------- | -------------------------- | -------------------------------------------------------------------- |
-| `OPENAI_API_BASE_URL`     | `http://127.0.0.1:8888/v1` | Server URL, including the `/v1` path                                 |
-| `OPENAI_API_KEY`          | `EMPTY`                    | Only if the server requires a key. `EMPTY` is a placeholder the client needs, not a credential |
-| `OPENAI_MODEL`            | `qwen38`                   | Model id as reported by the server                                   |
-| `OPENAI_MAX_TOKENS`       | `16384`                    | Cap on each response. Lower it if the server's context is smaller; raise it if answers are cut off |
-| `OPENAI_TIMEOUT`          | `600`                      | Seconds to wait for one response. Lower it to detect a dead server sooner |
-| `DRAFT_CAPTION_THRESHOLD` | `256`                      | Caption length in characters that counts as finished. See below      |
+All fields below except `OPENAI_TIMEOUT` are under **Settings > Vision model > Server**.
 
-`DRAFT_CAPTION_THRESHOLD` applies to **Auto-caption** only, in both directions. A caption already longer than the threshold is treated as finished and skipped (`skipped_long` in the results). A generated caption at or below it is retried, and reported as `too_short` if every attempt falls short. Raise it to get longer captions. **Verify captions** and **Edit captions** ignore it, because short edits are fine there.
+| Variable                  | Default                    | Accepted value / effect                                                                                |
+| ------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `OPENAI_API_BASE_URL`     | `http://127.0.0.1:8888/v1` | HTTP(S) URL for the OpenAI-compatible API, including `/v1`                                             |
+| `OPENAI_API_KEY`          | `EMPTY`                    | Nonempty key, at most 500 characters, without whitespace; `EMPTY` is the client placeholder for no key |
+| `OPENAI_MODEL`            | `qwen38`                   | Nonempty model id, at most 200 characters; use the server's id                                         |
+| `OPENAI_MAX_TOKENS`       | `16384`                    | Integer ≥ 1; response cap, including any reasoning the server counts                                   |
+| `OPENAI_TOP_K`            | `20`                       | Integer ≥ 0; server-specific top-k sampling                                                            |
+| `DRAFT_CAPTION_THRESHOLD` | `256`                      | Integer ≥ 1; caption length in characters, for Auto-caption only                                       |
+| `OPENAI_TIMEOUT`          | `600`                      | Positive seconds per response; nonpositive or malformed values use the default                         |
+
+**Auto-caption threshold:** an existing caption longer than the threshold is skipped (`skipped_long`). Generated text at or below the threshold is retried, then reported as `too_short` if all attempts fail. Equal to the threshold is still a draft. Raise it when you require longer captions, and make sure the system prompt asks for enough detail. **Verify captions** and **Edit captions** ignore this threshold. Model calls allow up to three attempts; the client's connection timeout is 10 seconds.
+
+## Save, reset, and clear
+
+**Save** applies edited fields without restarting; section dots mark unsaved changes. **Cancel** discards field changes, including the previewed appearance. Each configurable field identifies whether it uses a saved value, the environment, or its default. **Reset**, then Save, removes a saved override.
+
+| Section            | Controls                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **Appearance**     | Light, dark, or System theme; previewed before saving. Quick actions can switch directly                    |
+| **Vision model**   | Server connection/limits, separate Reasoning and Instruct sampling, image/video input budgets               |
+| **Integrations**   | ComfyUI and AI-Toolkit origins, each with Test connection                                                   |
+| **Storage**        | Thumbnail-cache size/limit and **Clear cache**; thumbnails regenerate as you browse                         |
+| **Data & history** | Job/notification retention; **Clear** for recent folders/actions, per-folder job options, and display modes |
+| **About**          | Version, runtimes, GPU, and storage/config paths; **Copy diagnostics** excludes the API key                 |
+
+**Clear** actions apply immediately and are not undone by Cancel. They clear app history/cache, not dataset media or captions. Finish or cancel a running AI job before retuning: it retains its connection, while other settings can change during processing.
 
 ## Job dialog options
 
-These are set in each job's dialog, not in `.env`. Dialogs remember your choices per folder, and a folder you haven't used yet starts with your most recent choices.
+Choose **Reasoning** to let the model think before answering, or **Instruct** for a direct response. These and the options below are dialog choices, not environment variables. Most are remembered per folder, with the latest choices as the starting point for a new folder.
 
-| Option                 | Jobs                 | Effect                                                                                  |
-| ---------------------- | -------------------- | --------------------------------------------------------------------------------------- |
-| **Mode**               | All three            | **Reasoning** (default for Auto-caption) lets the model think first: slower, often better. **Instruct** (default for the others) answers directly and uses the instruct sampling profile |
-| **Reasoning effort**   | All three            | `low`, `medium` (default), or `xhigh`; Reasoning mode only                              |
-| **Preserve thinking**  | All three            | Keeps earlier reasoning in multi-turn prompts. On by default; no visible effect on today's single-turn jobs |
-| **Caption audio**      | Auto-caption         | Adds the video's audio; see [Audio](#audio). Off by default                             |
-| **Additional context** | Verify captions      | Facts about the dataset that the checker should know                                    |
-| **Edit instruction**   | Edit captions        | How to rewrite the captions; required                                                   |
+| Option                 | Jobs                                         | Default / behavior                                                                                                             |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Mode**               | Auto-caption, Verify captions, Edit captions | Reasoning for Auto-caption and Verify captions; Instruct for Edit captions. Chooses the sampling profile and thinking controls |
+| **Reasoning effort**   | All three                                    | `medium`; also `low` and `xhigh`, in Reasoning mode only                                                                       |
+| **Preserve thinking**  | All three                                    | On; retains earlier reasoning in multi-turn prompts when the template supports it. Current jobs use single-turn prompts        |
+| **Caption audio**      | Auto-caption                                 | Off; sends audio alongside video frames                                                                                        |
+| **Additional context** | Verify captions                              | Optional dataset facts for the checker                                                                                         |
+| **Edit instruction**   | Edit captions                                | Required text describing the rewrite                                                                                           |
 
-**Reasoning effort:** `low` asks for brief thinking and a direct conclusion. `medium` adds no instruction. `xhigh` asks the model to check its assumptions and weigh alternatives. Only these three exist because the shipped Qwen3.8 template rejects other values. The effort is sent both as `reasoning_effort` (read by llama.cpp) and in `chat_template_kwargs` (read by Unsloth- and vLLM-style servers). Only templates that read it change behavior: the Qwen3.8 template does, and the Qwen3.6 and Gemma 4 templates don't.
-
-**Back up captions first** in **Edit captions** is on for every run and never remembered. Overwrite choices in other jobs are never remembered either.
+**Back up captions first** in Edit captions starts enabled every run and is not remembered. Set captions, Backup captions, and Watermark also require overwrite permission anew. Auto-adjust's **Replace earlier adjustments** starts off every run. ComfyUI remembers prompt and seed per preset, its last preset globally, and overwrite permission per folder.
 
 ## Media input budgets
 
-These settings control how much of each file reaches the model. Your files are never resized. Stills are downscaled and sent as JPEG. If requests run out of VRAM or context, shrink the input before touching sampling. If captions miss details, raise only the budget that applies to those files. All five apply to **Auto-caption** and **Verify captions**.
+Tune **Settings > Vision model > Media input** when captions miss detail or requests exceed GPU memory or context (the model's capacity for input and response tokens). Adjust input budgets before sampling: more frames and pixels use more memory and context.
 
-| Variable                     | Default   | Controls                                                         |
-| ---------------------------- | --------- | ---------------------------------------------------------------- |
-| `IMAGE_MAX_PIXELS`           | `1500000` | Pixel budget for a still image, or a GIF's first frame           |
-| `VIDEO_KEYFRAMES_PER_SECOND` | `2`       | Frames sampled per second of video, before the cap               |
-| `VIDEO_MAX_KEYFRAMES`        | `42`      | Most frames sent per video                                       |
-| `VIDEO_FRAME_MAX_PIXELS`     | `500000`  | Pixel budget per frame for clips up to 7 s                       |
-| `VIDEO_FRAME_MIN_PIXELS`     | `262144`  | Pixel budget per frame from 20 s on, and the per-side size floor |
+| Problem                               | Change                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| Images miss fine detail               | Raise **Image pixel budget**                                                   |
+| Short clips exhaust memory            | Lower **Frame pixel budget, short clips**, for example to `262144`             |
+| Long clips still exhaust memory       | Also lower **Frame pixel budget, long clips**, which controls the resize floor |
+| Brief actions disappear in long clips | Raise **Max keyframes**                                                        |
+| Short clips need more samples         | Raise **Keyframes per second**; it helps only below the cap                    |
+| Short clips miss fine detail          | Raise the short-clip frame budget                                              |
 
-A still gets a larger budget than a video frame because it is the only image in its request.
+### Defaults and sampling rules
 
-**How video is sampled.** Frames are spread evenly across the clip, including the first and last. The count is `VIDEO_KEYFRAMES_PER_SECOND × ceil(seconds) + 2`, with a minimum of 8 and a maximum of `VIDEO_MAX_KEYFRAMES`. At the defaults, the cap is reached at 20 seconds, so a two-minute clip also sends 42 frames, about one every three seconds. Each frame costs roughly 640 tokens with Qwen: 42 frames are about 27,000 tokens, and 84 are about 54,000.
+All five are positive integers under **Settings > Vision model > Media input**. They apply to Auto-caption and Verify captions. Originals are unchanged; request images are converted to JPEG.
 
-**How frames are sized.** The per-frame budget falls linearly from the maximum at 7 s to the minimum at 20 s. The minimum also sets a per-side floor on Qwen's 32-pixel grid, 512 × 512 at the default. With that floor, a 1920 × 1080 frame becomes about 928 × 512 at a 500,000 budget, 640 × 512 at 250,000, and 512 × 512 at 125,000. Below the floor, a smaller maximum changes a frame's shape, not its size.
+| Variable                     | Default   | Controls                                                   |
+| ---------------------------- | --------- | ---------------------------------------------------------- |
+| `IMAGE_MAX_PIXELS`           | `1500000` | Pixel budget for a still or a GIF's first frame            |
+| `VIDEO_KEYFRAMES_PER_SECOND` | `2`       | Requested frames per second, before the cap                |
+| `VIDEO_MAX_KEYFRAMES`        | `42`      | Maximum frames sent per video                              |
+| `VIDEO_FRAME_MAX_PIXELS`     | `500000`  | Per-frame pixel budget for clips up to 7 seconds           |
+| `VIDEO_FRAME_MIN_PIXELS`     | `262144`  | Long-clip budget and the basis for the per-side size floor |
 
-| Symptom                                      | Try                                                                  |
-| -------------------------------------------- | -------------------------------------------------------------------- |
-| Empty captions or VRAM errors on short clips | `VIDEO_FRAME_MAX_PIXELS=262144`, leaving the minimum at its default  |
-| The same on long clips                       | Also lower `VIDEO_FRAME_MIN_PIXELS`; the maximum alone can't go below the floor |
-| Short actions missing from long clips        | Raise `VIDEO_MAX_KEYFRAMES`                                          |
-| Short clips sampled too sparsely             | Raise `VIDEO_KEYFRAMES_PER_SECOND`; this only helps below the cap    |
-| Fine detail missing from short clips         | Raise `VIDEO_FRAME_MAX_PIXELS` rather than adding frames             |
-| Fine detail missing from stills              | Raise `IMAGE_MAX_PIXELS`                                             |
+**Frame count:** for a known duration, DataForge requests `min(max(fps × ceil(seconds) + 2, 8), max_keyframes)` evenly spaced frames, including endpoints. The maximum can be set below 8. Unknown duration uses 8 frames. At the defaults, the cap is reached at 20 seconds; a two-minute clip also sends 42 frames. The decoded frame count can further limit sampling.
+
+**Frame size:** the budget falls linearly between 7 and 20 seconds, from the maximum to the smaller of the maximum and minimum settings. For larger images, each resized side is rounded down to a multiple of 32, then clamped to a floor derived from `sqrt(VIDEO_FRAME_MIN_PIXELS)`, rounded down to that grid and bounded to 32–512 pixels. This resize rule also applies to stills. An image already within its pixel budget is sent at its original size.
+
+At the default floor, a 1920 × 1080 frame becomes 928 × 512 with a 500,000-pixel budget, 640 × 512 at 250,000, and 512 × 512 at 125,000. The floor can exceed the requested pixel budget and change the aspect ratio. Lower the minimum as well as the maximum to shrink below that floor. Actual vision-token use depends on the model and server; frame counts alone do not determine it.
 
 ### Audio
 
-Audio has no budget setting. With **Caption audio** on, DataForge sends the first 15 seconds of a video's first audio track as 16 kHz mono WAV, in the same request as the frames.
+**Caption audio** sends the first 15 seconds of a video's first audio track as 16 kHz mono WAV, in the same request as its frames. There is no audio budget setting. The server and model must accept OpenAI `input_audio` parts; a vision-only setup may reject or ignore them.
 
-- The model and server must accept OpenAI `input_audio` parts, which means an omni model such as Qwen3-Omni. Vision-only models ignore the audio.
-- ffmpeg must be available, or the job won't start.
-- Clips without audio are still captioned from their frames, and the finished job reports how many had none.
-- Images and GIFs are unaffected, and **Verify captions** never sends audio.
+The job requires ffmpeg. A video without audio is still captioned from frames, and the result reports that it had no audio. Images, GIFs, and Verify captions never send audio.
 
 ## Sampling
 
-Tune sampling last, once the connection and budgets work. **Reasoning** mode reads the `OPENAI_THINKING_*` variables and **Instruct** mode reads `OPENAI_INSTRUCT_*`. Top-k is shared.
+Tune sampling once the connection and media budgets work. Reasoning and Instruct each use their own profile.
 
-| Reasoning mode                     | Default | Instruct mode                      | Default | What it does                                              |
-| ---------------------------------- | ------- | ---------------------------------- | ------- | --------------------------------------------------------- |
-| `OPENAI_THINKING_TEMPERATURE`      | `1.0`   | `OPENAI_INSTRUCT_TEMPERATURE`      | `0.7`   | Randomness; lower is more predictable                     |
-| `OPENAI_THINKING_TOP_P`            | `0.95`  | `OPENAI_INSTRUCT_TOP_P`            | `0.8`   | Samples only from the most likely tokens that add up to this share |
-| `OPENAI_THINKING_MIN_P`            | `0.0`   | `OPENAI_INSTRUCT_MIN_P`            | `0.0`   | Drops tokens far less likely than the top one; `0` is off |
-| `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0`   | `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5`   | Discourages returning to concepts already mentioned       |
-| `OPENAI_THINKING_REPEAT_PENALTY`   | `1.0`   | `OPENAI_INSTRUCT_REPEAT_PENALTY`   | `1.0`   | Discourages repeated tokens; `1.0` is off and not sent     |
-| `OPENAI_TOP_K`                     | `20`    | `OPENAI_TOP_K`                     | `20`    | Samples only from this many most likely tokens            |
+All sampling fields are available under **Settings > Vision model**: the two profiles in **Sampling**, and top-k in **Server**.
 
-Min-p and top-k are passed as server-specific extras (`extra_body`). The repeat penalty is sent with llama.cpp's name, `repeat_penalty`. Servers that expect `repetition_penalty`, such as vLLM, may reject or ignore it, and DataForge does not rename it.
+| Reasoning variable                 | Default | Instruct variable                  | Default | Range / meaning                                                          |
+| ---------------------------------- | ------- | ---------------------------------- | ------- | ------------------------------------------------------------------------ |
+| `OPENAI_THINKING_TEMPERATURE`      | `1.0`   | `OPENAI_INSTRUCT_TEMPERATURE`      | `0.7`   | 0–2; randomness, with lower values more predictable                      |
+| `OPENAI_THINKING_TOP_P`            | `0.95`  | `OPENAI_INSTRUCT_TOP_P`            | `0.8`   | 0.01–1; probability mass retained for sampling                           |
+| `OPENAI_THINKING_MIN_P`            | `0.0`   | `OPENAI_INSTRUCT_MIN_P`            | `0.0`   | 0–1; removes tokens unlikely relative to the best token; 0 disables it   |
+| `OPENAI_THINKING_PRESENCE_PENALTY` | `0.0`   | `OPENAI_INSTRUCT_PRESENCE_PENALTY` | `1.5`   | −2–2; positive values discourage returning to concepts already mentioned |
+| `OPENAI_THINKING_REPEAT_PENALTY`   | `1.0`   | `OPENAI_INSTRUCT_REPEAT_PENALTY`   | `1.0`   | 0–2; 1 disables it and omits the parameter                               |
+
+Min-p and top-k are sent in `extra_body`. The repeat penalty uses `repeat_penalty`, the llama.cpp parameter name. A server expecting `repetition_penalty` may reject or ignore it; DataForge does not rename it.
+
+Instruct sends `chat_template_kwargs.enable_thinking=false`. Reasoning sends effort both as `reasoning_effort` and in `chat_template_kwargs`, along with `preserve_thinking`. Whether those controls work depends on the server and its chat template.
+
+The [bundled templates](../llm_templates/) format messages and thinking controls for each model. Qwen3.8 accepts only `low`, `medium`, and `xhigh`: low adds instructions for brief thinking, medium adds none, and xhigh adds instructions to check assumptions and alternatives. The Qwen3.6 and Gemma 4 templates support thinking but do not use the effort value.
+
+## How settings are loaded
+
+Copy [`.env.example`](../.env.example) to `.env` in the project root, uncomment the values you need, and restart DataForge. The file is gitignored. Keep keys and machine-specific paths there, never in source.
+
+For settings available in the app, precedence is:
+
+1. A value saved in **Settings**, stored in the database
+2. An environment variable already set in the shell or OS
+3. The project-root `.env`, or `backend/.env` only when the root file does not exist
+4. The built-in default
+
+The two `.env` files are never merged. Environment changes require a restart. To make an environment value apply instead of a saved one, select **Reset**, then **Save**, in Settings.
+
+Settings validates values before saving. Blank, malformed, or out-of-range environment values for those same fields fall back to defaults. Zero is valid where a table below allows it. Environment-only settings have their own parsing rules; ports must be usable TCP ports, and invalid paths or bind addresses can prevent startup.
+
+Default paths are relative to the project location. Explicit relative path overrides resolve against the server's working directory, normally `backend/` with the bundled launchers. Prefer absolute overrides.
 
 ## Server, storage, and logging
 
-| Variable                           | Default                    | Purpose                                                                      |
-| ---------------------------------- | -------------------------- | ---------------------------------------------------------------------------- |
-| `DATAFORGE_UI_PORT`                | `18081`                    | The port you open in the browser. In development, Vite uses it, and the API's CORS allowlist follows it |
-| `DATAFORGE_API_PORT`               | `18080`                    | API port during development only; production serves everything on the UI port |
-| `DATAFORGE_API_HOST`               | `127.0.0.1`                | Interface to bind. Anything else can expose your datasets to the network. The dev proxy always dials loopback |
-| `DATAFORGE_SERVE_UI`               | unset                      | Serves the built UI from the API. The production server sets it; leave it alone |
-| `DATAFORGE_DB_PATH`                | `backend/data/app.db`      | SQLite file for settings and job history                                     |
-| `DATAFORGE_THUMBNAIL_CACHE`        | `backend/data/thumbnails/` | Thumbnail cache folder                                                       |
-| `DATAFORGE_THUMBNAIL_CACHE_MAX_MB` | `2048`                     | Cache size limit, with the least recently used thumbnails removed first; `0` means no limit |
-| `DATAFORGE_JOB_HISTORY_DAYS`       | `30`                       | Days to keep finished jobs; running jobs are never removed. `0` keeps everything |
-| `DATAFORGE_NOTIFICATION_HISTORY_DAYS` | `3`                     | Days to keep notifications, on top of the 50 most recent that the panel shows. `0` keeps everything |
-| `DATAFORGE_LOG_LEVEL`              | `INFO`                     | Console verbosity, any standard level such as `DEBUG` or `WARNING`; unknown names use `INFO` |
+| Variable                              | Default                    | Where / effect                                                                                                                                |
+| ------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATAFORGE_UI_PORT`                   | `18081`                    | Environment-only port, 1–65535; production UI/API, or Vite and the CORS allowlist in development                                              |
+| `DATAFORGE_API_PORT`                  | `18080`                    | Environment-only port, 1–65535; development API only                                                                                          |
+| `DATAFORGE_API_HOST`                  | `127.0.0.1`                | Environment-only bind address. A non-loopback address can expose dataset access to the network; the dev proxy still connects to loopback      |
+| `DATAFORGE_SERVE_UI`                  | unset / off                | Environment-only flag; production sets it automatically to serve `frontend/dist`. Leave unset in development                                  |
+| `DATAFORGE_DB_PATH`                   | `backend/data/app.db`      | Environment-only SQLite path for settings, jobs, and notifications                                                                            |
+| `DATAFORGE_THUMBNAIL_CACHE`           | `backend/data/thumbnails/` | Environment-only thumbnail directory                                                                                                          |
+| `DATAFORGE_THUMBNAIL_CACHE_MAX_MB`    | `2048`                     | Settings > Storage; integer ≥ 0, in units of 1024² bytes; removes least recently used thumbnails above the limit. 0 disables the size limit   |
+| `DATAFORGE_JOB_HISTORY_DAYS`          | `30`                       | Settings > Data & history; integer ≥ 0 days; removes old finished jobs, never running jobs. 0 disables age-based pruning                      |
+| `DATAFORGE_NOTIFICATION_HISTORY_DAYS` | `3`                        | Settings > Data & history; integer ≥ 0 days; removes old notifications. 0 disables age-based pruning; the feed still keeps at most 50 entries |
+| `DATAFORGE_LOG_LEVEL`                 | `INFO`                     | Environment-only standard log level, such as `DEBUG` or `WARNING`; unknown names use `INFO`                                                   |
 
-Folders for the database and cache are created as needed. Launcher and developer variables (`DATAFORGE_PYTHON`, `DATAFORGE_RELOAD`, `DATAFORGE_DISABLE_DOTENV`) are covered in [Getting started](getting-started.md#linux-and-macos) and [Development](development.md#development-variables).
+Database and cache directories are created as needed. History pruning runs at startup, hourly, and after saving a retention change. Clearing thumbnails or remembered data in Settings applies immediately; Cancel does not undo it.
+
+For `DATAFORGE_SERVE_UI`, `0`, `false`, `no`, `off`, or blank means off; other set values mean on. Launcher and test variables are listed in [Development](development.md#development-variables).
 
 ## CPU temperature on Windows
 
-The system specifications panel shows GPU temperature on its own, and CPU temperature on Linux. Windows exposes no CPU temperature that a normal process can read, so on Windows the CPU reading stays hidden until you install a small sensor task. It currently supports AMD Ryzen CPUs only.
+The system specifications panel reads GPU temperature when available and attempts CPU temperature on Linux. On Windows, the optional sensor task currently supports AMD Ryzen only.
 
-1. Install AMD's [Ryzen Master Monitoring SDK](https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html). Its driver can read the CPU, but only for administrators.
-2. Right-click `scripts\install-cpu-temperature-sensor.bat` and choose **Run as administrator**. From a terminal run as administrator, the same works from the project root:
+1. Install AMD's [Ryzen Master Monitoring SDK](https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html).
+2. Right-click `scripts\install-cpu-temperature-sensor.bat` and choose **Run as administrator**, or run it from an administrator terminal at the project root:
 
    ```bat
    scripts\install-cpu-temperature-sensor.bat
    ```
 
-   The script reads the temperature once through AMD's CLI and refuses to install if that fails.
+The installer tests AMD's CLI before registering **DataForge CPU temperature**. The task starts with Windows, runs as SYSTEM, polls every two seconds, and writes `%ProgramData%\DataForge\sensors\cpu_temperature.txt` in an administrator-controlled folder. DataForge reads that file without elevation. Readings older than 10 seconds are hidden.
 
-This registers a scheduled task named **DataForge CPU temperature**. It starts with Windows, runs as SYSTEM, calls AMD's CLI every two seconds, and writes the result to `%ProgramData%\DataForge\sensors\cpu_temperature.txt`. Only administrators can change that folder. DataForge reads the file and keeps running without elevation. If the task stops, the reading disappears from the panel within 10 seconds instead of going stale.
-
-To remove the task and the folder:
+To remove the task and sensor folder, run from an administrator terminal:
 
 ```bat
 scripts\install-cpu-temperature-sensor.bat -Uninstall
@@ -186,33 +200,26 @@ scripts\install-cpu-temperature-sensor.bat -Uninstall
 
 ## Data sent to integrations
 
-Every endpoint defaults to your own machine. If you point one at another machine, the data below leaves yours. Check how that server stores and logs requests first.
+The default endpoints are local. Using a remote endpoint sends the following data to that server; its own storage and logging policies apply.
 
-| Job                      | Sends                                                                           | To                      |
-| ------------------------ | ------------------------------------------------------------------------------- | ----------------------- |
-| **Auto-caption**         | Downscaled image or video frames, the draft caption, `.sysprompt` instructions, and optionally 15 s of audio | `OPENAI_API_BASE_URL` |
-| **Verify captions**      | Downscaled image or video frames, the caption, and any additional context; never audio | `OPENAI_API_BASE_URL` |
-| **Edit captions**        | Caption text and your instruction; no media                                      | `OPENAI_API_BASE_URL`   |
-| **Process with ComfyUI** | The original media file and the workflow inputs                                  | `COMFY_BASE_URL`        |
-| **Quick LoRA training**  | Folder path and training config, including prompts; no media                     | `OSTRIS_BASE_URL`       |
+| Job                  | Sends                                                                                                    | Destination           |
+| -------------------- | -------------------------------------------------------------------------------------------------------- | --------------------- |
+| Auto-caption         | Downscaled image/video frames, draft caption, system-prompt instructions, optionally 15 seconds of audio | `OPENAI_API_BASE_URL` |
+| Verify captions      | Downscaled image/video frames, caption, additional context; no audio                                     | `OPENAI_API_BASE_URL` |
+| Edit captions        | Caption and edit instruction; no media                                                                   | `OPENAI_API_BASE_URL` |
+| Process with ComfyUI | Source media and workflow inputs                                                                         | `COMFY_BASE_URL`      |
+| Quick LoRA training  | Dataset folder path and training configuration, including prompts; no media upload                       | `OSTRIS_BASE_URL`     |
 
-AI-Toolkit reads the dataset from the path it is given, and its config decides where it writes outputs.
+AI-Toolkit must be able to read the supplied dataset path. Its configuration controls output locations; DataForge also needs filesystem access to its state and samples to display them.
 
 ## Troubleshooting
 
-**A change has no effect.**
-1. Open **Settings** and check whether the value is marked **Saved**. A saved value outranks `.env`; use **Reset** to hand control back to it.
-2. Restart DataForge.
-3. Check that a variable of the same name isn't already set in your shell or OS; that value wins over `.env`.
-4. Check that you edited the project-root `.env`. If it exists, `backend/.env` is ignored.
-5. Check the spelling, and remove quotes, comments, or other text after the value.
-6. Remember that mode, effort, audio, and the other dialog options are not environment variables.
-7. For a model change, reload the model server too.
+**The server is unreachable.** Test the connection before saving. Check the server is running, the URL includes `/v1`, the key is accepted, and the selected model id exists. Increase `OPENAI_TIMEOUT` only for a server that connects but responds slowly.
 
-**Captions ignore the image.** The server is running text-only. With llama.cpp, add `--mmproj`. Also check that `OPENAI_MODEL` names a vision model. A successful response only proves the text path works.
+**Captions ignore the image.** Check the server is serving a vision model and has loaded its projector. A successful connection test only checks the model-list endpoint.
 
-**Long videos come back with empty captions.** DataForge logs `api_error`, while the server reports success (`finish_reason=stop`) with zero tokens. The vision encoder ran short of VRAM and silently truncated the request. A prompt-token count far below a successful run of the same file is the telltale sign. Free VRAM with a smaller quant or context, reload the model server, then shrink frames as described in [Media input budgets](#media-input-budgets).
+**Captions are empty, cut off, or fail on long clips.** Check both server logs and per-file job results. Empty content can indicate exhausted GPU memory/context or unsupported thinking output. Shrink media budgets first; adjust response/context limits for truncated answers. Reload the model server if needed.
 
-**The model server is unreachable.** Use **Test connection** under **Settings > Vision model > Server**: it tries the address and key as typed, before you save, and lists the model ids the server reports. Otherwise, check that it is running, that the URL ends in `/v1`, that the key is accepted, and that `OPENAI_MODEL` matches an id the server exposes. Raise `OPENAI_TIMEOUT` only if the server responds but is slow.
+**A setting change has no effect.** Save UI changes. For `.env` changes, restart DataForge and check for a saved override, an OS/shell override, or a root `.env` hiding `backend/.env`. Check spelling and value ranges. Dialog options are separate from environment settings. See [precedence](#how-settings-are-loaded).
 
-For ComfyUI and AI-Toolkit, see [ComfyUI troubleshooting](comfyui.md#troubleshooting) and [AI-Toolkit troubleshooting](ai-toolkit.md#troubleshooting).
+For integration failures, see [ComfyUI](comfyui.md#troubleshooting) or [AI-Toolkit](ai-toolkit.md#troubleshooting).

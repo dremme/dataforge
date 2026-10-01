@@ -13,11 +13,17 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import coverage
 
 BACKEND = Path(__file__).resolve().parent.parent / "backend"
 
 PROGRESS_ENV = "DATAFORGE_PROGRESS"
 PROGRESS_PREFIX = "@progress "
+COVERAGE_ENV = "DATAFORGE_COVERAGE_DIR"
+COVERAGE_FILE = "backend.json"
 
 
 def progress_result(total: int) -> type[unittest.TextTestResult]:
@@ -34,6 +40,21 @@ def progress_result(total: int) -> type[unittest.TextTestResult]:
     return ProgressResult
 
 
+def start_coverage() -> coverage.Coverage | None:
+    if not os.environ.get(COVERAGE_ENV):
+        return None
+    import coverage
+
+    collector = coverage.Coverage(data_file=None)
+    collector.start()
+    return collector
+
+
+def write_coverage(collector: coverage.Coverage) -> None:
+    collector.stop()
+    collector.json_report(outfile=str(Path(os.environ[COVERAGE_ENV]) / COVERAGE_FILE))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-v", "--verbose", action="store_true", help="List every test.")
@@ -41,6 +62,7 @@ if __name__ == "__main__":
 
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
+    collector = start_coverage()
 
     from testing_fixtures import isolate_test_database
 
@@ -59,4 +81,6 @@ if __name__ == "__main__":
     from db import close_all_connections
 
     close_all_connections()
+    if collector is not None:
+        write_coverage(collector)
     sys.exit(0 if result.wasSuccessful() else 1)

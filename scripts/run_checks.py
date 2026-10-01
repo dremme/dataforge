@@ -12,16 +12,18 @@ would otherwise repeat the (version-independent) frontend checks for each one.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import astuple, dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
 # Subprocesses use this interpreter; failing here names the cause, not pytest's SyntaxError.
 from py_version import require_python
@@ -38,6 +40,9 @@ BACKEND_TEST_COUNT = re.compile(r"^Ran (\d+) tests? in", re.MULTILINE)
 FRONTEND_TEST_COUNT = re.compile(r"^\s*Tests\s.*\((\d+)\)\s*$", re.MULTILINE)
 PROGRESS_MARKER = re.compile(r"@progress (\d+)/(\d+)\n?")
 PROGRESS_ENV = "DATAFORGE_PROGRESS"
+COVERAGE_ENV = "DATAFORGE_COVERAGE_DIR"
+BACKEND_COVERAGE_FILE = "backend.json"
+FRONTEND_COVERAGE_FILE = "frontend/coverage-summary.json"
 BAR_WIDTH = 20
 
 AUTO_FIX_LABEL = "Auto-fix"
@@ -83,6 +88,16 @@ class Outcome:
     returncode: int
     output: str
     seconds: float
+
+
+@dataclass(frozen=True)
+class CoverageTotals:
+    covered: int
+    total: int
+
+    @property
+    def percent(self) -> float:
+        return 100 * self.covered / self.total if self.total else 100.0
 
 
 class Console:
@@ -165,6 +180,19 @@ class Console:
         if output:
             self._write(output)
 
+    def coverage(self, results: Mapping[str, CoverageTotals | None]) -> None:
+        self._write("")
+        width = max(map(len, results))
+        for index, (side, totals) in enumerate(results.items()):
+            title = "Coverage" if index == 0 else ""
+            if totals is None:
+                figures = self._paint("no data", DIM)
+            else:
+                percent = self._paint(f"{totals.percent:.1f}%".rjust(6), BOLD)
+                lines = f"{totals.covered:,} of {totals.total:,} lines"
+                figures = f"{percent}  {self._paint(lines, DIM)}"
+            self._write(f"  {title:<8}  {side.ljust(width)}  {figures}")
+
     def message(self, text: str, *styles: str) -> None:
         self._write("")
         self.line(text, *styles)
@@ -217,12 +245,50 @@ def _plural(count: int, noun: str) -> str:
     return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
-def _child_environment(base: Mapping[str, str], *, color: bool, progress: bool) -> dict[str, str]:
-    dropped = ("FORCE_COLOR", "NO_COLOR", PROGRESS_ENV)
+def _backend_totals(report: dict[str, Any]) -> CoverageTotals:
+    totals = report["totals"]
+    return CoverageTotals(totals["covered_lines"], totals["num_statements"])
+
+
+def _frontend_totals(report: dict[str, Any]) -> CoverageTotals:
+    lines = report["total"]["lines"]
+    return CoverageTotals(lines["covered"], lines["total"])
+
+
+def _read_totals(
+    path: Path, extract: Callable[[dict[str, Any]], CoverageTotals]
+) -> CoverageTotals | None:
+    try:
+        return extract(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _collect_coverage(
+    directory: Path, *, backend: bool, frontend: bool
+) -> dict[str, CoverageTotals | None]:
+    results: dict[str, CoverageTotals | None] = {}
+    if backend:
+        results["backend"] = _read_totals(directory / BACKEND_COVERAGE_FILE, _backend_totals)
+    if frontend:
+        results["frontend"] = _read_totals(directory / FRONTEND_COVERAGE_FILE, _frontend_totals)
+    return results
+
+
+def _child_environment(
+    base: Mapping[str, str],
+    *,
+    color: bool,
+    progress: bool,
+    coverage_dir: Path | None = None,
+) -> dict[str, str]:
+    dropped = ("FORCE_COLOR", "NO_COLOR", PROGRESS_ENV, COVERAGE_ENV)
     environ = {key: value for key, value in base.items() if key not in dropped}
     environ["FORCE_COLOR" if color else "NO_COLOR"] = "1"
     if progress:
         environ[PROGRESS_ENV] = "1"
+    if coverage_dir is not None:
+        environ[COVERAGE_ENV] = str(coverage_dir)
     environ["NPM_CONFIG_LOGLEVEL"] = "silent"
     environ["PYTHONIOENCODING"] = "utf-8"
     return environ
@@ -468,6 +534,11 @@ def main() -> int:
         default="all",
         help="Limit the checks to one side of the stack (default: all).",
     )
+    parser.add_argument(
+        "--no-coverage",
+        action="store_true",
+        help="Skip measuring test coverage, which makes the tests run slower.",
+    )
     args = parser.parse_args()
 
     # Backend venv is always needed: frontend API types are generated and not checked in.
@@ -491,30 +562,47 @@ def main() -> int:
     console = Console.detect(sys.stdout, os.environ, label_width=max(map(len, labels)))
     if console.color:
         _enable_windows_ansi()
-    environ = _child_environment(os.environ, color=console.color, progress=console.live)
+    measure_coverage = not (args.lint_only or args.no_coverage)
 
     started = time.monotonic()
     auto_fixed: list[str] = []
-    try:
-        if not _execute(console, generate, environ):
-            return _failed(console)
-        if args.fix:
-            auto_fixed = _auto_fix(console, environ, backend_python, npm)
-        for step in checks:
-            if not _execute(console, step, environ):
-                return _failed(console)
-    except KeyboardInterrupt:
-        console.message("Interrupted.", RED)
-        return 130
-
-    if auto_fixed:
-        console.message(
-            "Auto-fixed formatting/lint issues. Stage the updated files and commit again.",
-            BOLD,
+    with tempfile.TemporaryDirectory(
+        prefix="dataforge-coverage-", ignore_cleanup_errors=True
+    ) as raw:
+        coverage_dir = Path(raw)
+        environ = _child_environment(
+            os.environ,
+            color=console.color,
+            progress=console.live,
+            coverage_dir=coverage_dir if measure_coverage else None,
         )
-        for line in auto_fixed:
-            console.line(f"  {line[3:]}", DIM)
-        return 1
+        try:
+            if not _execute(console, generate, environ):
+                return _failed(console)
+            if args.fix:
+                auto_fixed = _auto_fix(console, environ, backend_python, npm)
+            for step in checks:
+                if not _execute(console, step, environ):
+                    return _failed(console)
+        except KeyboardInterrupt:
+            console.message("Interrupted.", RED)
+            return 130
+
+        if auto_fixed:
+            console.message(
+                "Auto-fixed formatting/lint issues. Stage the updated files and commit again.",
+                BOLD,
+            )
+            for line in auto_fixed:
+                console.line(f"  {line[3:]}", DIM)
+            return 1
+
+        if measure_coverage:
+            console.coverage(
+                _collect_coverage(
+                    coverage_dir, backend=backend_python is not None, frontend=npm is not None
+                )
+            )
 
     scope_label = "" if args.scope == "all" else f" ({args.scope})"
     elapsed = _format_duration(time.monotonic() - started)

@@ -3,7 +3,11 @@ from __future__ import annotations
 import functools
 import importlib.util
 import io
+import json
+import os
+import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -435,6 +439,156 @@ class ProgressProtocolTests(RunChecksTestCase):
             outputs.append(stream.getvalue())
         self.assertIn("@progress 1/1\n", outputs[0])
         self.assertIn("@progress 1/1\n", outputs[1])
+
+
+class CoverageTotalsTests(RunChecksTestCase):
+    def test_the_percentage_is_covered_over_total(self) -> None:
+        totals = self.run_checks.CoverageTotals(covered=1, total=8)
+        self.assertEqual(totals.percent, 12.5)
+
+    def test_a_tree_without_statements_counts_as_fully_covered(self) -> None:
+        self.assertEqual(self.run_checks.CoverageTotals(covered=0, total=0).percent, 100.0)
+
+
+class CoverageConsoleTests(RunChecksTestCase):
+    def _totals(self, covered: int, total: int):
+        return self.run_checks.CoverageTotals(covered=covered, total=total)
+
+    def test_each_side_gets_one_aligned_line_under_one_title(self) -> None:
+        stream = io.StringIO()
+        self._console(stream).coverage(
+            {"backend": self._totals(9_058, 10_000), "frontend": self._totals(27_474, 29_188)}
+        )
+        self.assertEqual(
+            stream.getvalue(),
+            "\n"
+            "  Coverage  backend    90.6%  9,058 of 10,000 lines\n"
+            "            frontend   94.1%  27,474 of 29,188 lines\n",
+        )
+
+    def test_a_single_side_is_a_single_line(self) -> None:
+        stream = io.StringIO()
+        self._console(stream).coverage({"frontend": self._totals(1, 2)})
+        self.assertEqual(len(stream.getvalue().strip("\n").splitlines()), 1)
+
+    def test_a_side_without_a_report_says_so(self) -> None:
+        stream = io.StringIO()
+        self._console(stream).coverage({"backend": None})
+        self.assertEqual(stream.getvalue(), "\n  Coverage  backend  no data\n")
+
+    def test_the_percentage_is_bold_and_the_counts_are_dim(self) -> None:
+        stream = io.StringIO()
+        self._console(stream, color=True).coverage({"backend": self._totals(1, 2)})
+        self.assertIn("\x1b[1m 50.0%\x1b[0m", stream.getvalue())
+        self.assertIn("\x1b[2m1 of 2 lines\x1b[0m", stream.getvalue())
+
+
+class CoverageReportTests(RunChecksTestCase):
+    def _write(self, directory: Path, name: str, payload: object) -> None:
+        path = directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_a_backend_report_yields_its_statement_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            self._write(
+                directory,
+                self.run_checks.BACKEND_COVERAGE_FILE,
+                {"totals": {"covered_lines": 90, "num_statements": 100}},
+            )
+            results = self.run_checks._collect_coverage(directory, backend=True, frontend=False)
+        self.assertEqual(results, {"backend": self.run_checks.CoverageTotals(90, 100)})
+
+    def test_a_frontend_report_yields_its_line_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            self._write(
+                directory,
+                self.run_checks.FRONTEND_COVERAGE_FILE,
+                {"total": {"lines": {"total": 40, "covered": 30, "pct": 75}, "branches": {}}},
+            )
+            results = self.run_checks._collect_coverage(directory, backend=False, frontend=True)
+        self.assertEqual(results, {"frontend": self.run_checks.CoverageTotals(30, 40)})
+
+    def test_only_the_sides_that_ran_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            results = self.run_checks._collect_coverage(Path(raw), backend=True, frontend=True)
+        self.assertEqual(list(results), ["backend", "frontend"])
+
+    def test_a_missing_report_is_no_data_rather_than_a_crash(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            results = self.run_checks._collect_coverage(Path(raw), backend=True, frontend=False)
+        self.assertEqual(results, {"backend": None})
+
+    def test_a_malformed_or_unexpected_report_is_no_data(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            path = directory / self.run_checks.BACKEND_COVERAGE_FILE
+            for content in ("not json", "[]", '{"totals": {}}'):
+                path.write_text(content, encoding="utf-8")
+                results = self.run_checks._collect_coverage(directory, backend=True, frontend=False)
+                self.assertEqual(results, {"backend": None}, content)
+
+    def test_children_are_told_where_to_write_only_when_measuring(self) -> None:
+        directory = Path("scratch")
+        measuring = self.run_checks._child_environment(
+            {}, color=False, progress=False, coverage_dir=directory
+        )
+        self.assertEqual(measuring[self.run_checks.COVERAGE_ENV], str(directory))
+        inherited = {self.run_checks.COVERAGE_ENV: "elsewhere"}
+        skipping = self.run_checks._child_environment(inherited, color=False, progress=False)
+        self.assertNotIn(self.run_checks.COVERAGE_ENV, skipping)
+
+
+class CoverageProtocolTests(RunChecksTestCase):
+    def _run_tests_module(self) -> ModuleType:
+        spec = importlib.util.spec_from_file_location(
+            "dataforge_run_tests_coverage", SCRIPTS / "run_tests.py"
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError("Cannot load run_tests.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_the_backend_runner_writes_where_the_console_reads(self) -> None:
+        run_tests = self._run_tests_module()
+        self.assertEqual(run_tests.COVERAGE_ENV, self.run_checks.COVERAGE_ENV)
+        self.assertEqual(run_tests.COVERAGE_FILE, self.run_checks.BACKEND_COVERAGE_FILE)
+
+    def test_the_vitest_config_writes_where_the_console_reads(self) -> None:
+        source = (ROOT / "frontend" / "vitest.config.ts").read_text(encoding="utf-8")
+        folder, name = self.run_checks.FRONTEND_COVERAGE_FILE.split("/")
+        self.assertIn(f"process.env.{self.run_checks.COVERAGE_ENV}", source)
+        self.assertIn(f'path.join(coverageDir, "{folder}")', source)
+        self.assertIn('reporter: ["json-summary"]', source)
+        self.assertEqual(name, "coverage-summary.json")
+
+    def test_the_backend_runner_produces_a_report_the_console_can_read(self) -> None:
+        script = (
+            "import os, sys; sys.path.insert(0, sys.argv[1]); import run_tests; "
+            "os.chdir(sys.argv[2]); sys.path.insert(0, sys.argv[2]); "
+            "collector = run_tests.start_coverage(); import constants; "
+            "run_tests.write_coverage(collector)"
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            environ = {**os.environ, self.run_checks.COVERAGE_ENV: raw}
+            subprocess.run(
+                [sys.executable, "-c", script, str(SCRIPTS), str(ROOT / "backend")],
+                env=environ,
+                check=True,
+                capture_output=True,
+            )
+            report = json.loads(
+                (Path(raw) / self.run_checks.BACKEND_COVERAGE_FILE).read_text(encoding="utf-8")
+            )
+            totals = self.run_checks._backend_totals(report)
+        self.assertGreater(totals.total, 0)
+        self.assertGreater(totals.covered, 0)
+        measured = [name.replace("\\", "/") for name in report["files"]]
+        self.assertTrue(any(name.endswith("constants.py") for name in measured))
+        self.assertFalse([name for name in measured if "/test_" in "/" + name])
 
 
 class ChangedStatusTests(RunChecksTestCase):

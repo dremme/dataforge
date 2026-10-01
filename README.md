@@ -8,70 +8,72 @@
 [![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](docs/getting-started.md#requirements)
 
-![DataForge gallery showing a local dataset, bulk caption controls, completion status, and generated descriptions beneath media cards.](docs/gallery.png)
+![DataForge gallery showing a local dataset, bulk caption controls, completion status, and descriptions beneath media cards.](docs/gallery.png)
 
-DataForge is for people who curate training data for LoRAs and fine-tunes. Point it at a folder you already have: captions stay plain `.txt` files next to the media, and nothing is imported, uploaded, or locked into a library.
+Browse, caption, review, and edit datasets for LoRA training and fine-tuning. Open an existing folder: captions stay in plain `.txt` files beside the media, without a separate library or required import step.
 
 ## Quick start
 
-**Windows** — run `setup.bat` once, then `start.bat`. Setup downloads its own Python and Node; nothing global is needed.
+[Download and extract the project](docs/getting-started.md#install-and-run), or clone it with Git.
 
-**Linux and macOS** — install Python 3.12+ and Node 20.19+, then:
+- **Windows:** run `setup.bat` once, then `start.bat`. Setup downloads its own Python and Node; no global installation is needed.
+- **Linux and macOS:** install Python 3.12+ and a [supported Node version](docs/getting-started.md#requirements), then run:
 
-```bash
-./setup.sh
-./start.sh
-```
+  ```bash
+  ./setup.sh
+  ./start.sh
+  ```
 
-The app opens at `http://localhost:18081`. Try it on [`sample_images/`](sample_images/), a small dataset with one of everything. More in [Getting started](docs/getting-started.md).
+The app opens at `http://localhost:18081`. Try [`sample_images/`](sample_images/) for an example dataset. See [Getting started](docs/getting-started.md) for updating and troubleshooting.
 
 ## What it does
 
-- **Browse** large folders with live updates, search (including regex), filters, sorting, and card or list views.
-- **Caption** by hand with autosave, backups, and word completion, or in bulk with set, find & replace, and AI rewrite.
-- **Auto-caption** images and video with any OpenAI-compatible vision model, optionally including the audio track.
-- **Review quality**: have the model check captions against the media, check them against your own caption rules, find near-duplicates, and read folder statistics.
-- **Edit media** without losing the original: crop, resize, color, trim, speed, and blur or blackout regions. Watermark copies or strip metadata in bulk.
-- **Process** media through ComfyUI workflows, and review every result before it replaces a source.
-- **Train** a LoRA on the current folder through AI-Toolkit.
+- **Browse and organize:** live folder updates, search and regex, filters, sorting, card/list views, and file operations.
+- **Caption:** manual editing with autosave, backups, and word completion; bulk set, find & replace, and AI rewriting.
+- **Auto-caption:** generate image and video captions with an OpenAI-compatible vision model, optionally including video audio.
+- **Review:** model checks, caption-rule linting, near-duplicate detection, and dataset statistics.
+- **Edit media:** crop, resize, color adjustment, Auto-adjust, video trim/speed/audio, and blur or blackout regions. Editor changes retain originals for reversion.
+- **Process:** run ComfyUI workflows and review results before accepting them individually or in bulk.
+- **Train:** start and monitor LoRA training on the current folder through AI-Toolkit.
 
-AI is optional. Browsing, manual captioning, editing, and most bulk tools work without a model. Each AI feature talks to a separate service you run yourself:
+AI is optional. Browsing, manual captioning, editing, and most bulk tools work without a model. Install and run any services you need separately, then connect them in **Settings**:
 
-| Service                         | Default address            | Setup                                                         |
+| Service                         | Default address            | Guide                                                         |
 | ------------------------------- | -------------------------- | ------------------------------------------------------------- |
-| OpenAI-compatible vision server | `http://127.0.0.1:8888/v1` | [Connect a vision model](docs/configuration.md#connect-a-vision-model) |
-| ComfyUI                         | `http://127.0.0.1:9000`    | [ComfyUI guide](docs/comfyui.md)                              |
-| AI-Toolkit                      | `http://127.0.0.1:8675`    | [AI-Toolkit guide](docs/ai-toolkit.md)                        |
+| OpenAI-compatible vision server | `http://127.0.0.1:8888/v1` | [Configuration](docs/configuration.md#connect-a-vision-model) |
+| ComfyUI                         | `http://127.0.0.1:9000`    | [ComfyUI](docs/comfyui.md)                                    |
+| AI-Toolkit                      | `http://127.0.0.1:8675`    | [LoRA training](docs/ai-toolkit.md)                           |
 
-Each address can be changed in the app under **Settings**, without a restart.
+<a id="your-data-stays-local"></a>
 
-## Your data stays local
+## Data and storage
 
-- Captions, AI instructions (`.sysprompt`), and review findings are small files beside your media.
-- Edits keep the original beside the file, so they can always be reverted.
-- App state and thumbnails live in `backend/data/`.
-- AI and ComfyUI endpoints default to `127.0.0.1`. If you point one at another machine, the media for that job goes there. See [what each job sends](docs/configuration.md#data-sent-to-integrations).
+Captions, instructions, findings, and edit originals live with the dataset; app state and thumbnails default to `backend/data/`. Integrations default to local addresses. A remote endpoint receives that job's inputs; see [data sent to integrations](docs/configuration.md#data-sent-to-integrations).
+
+Accepting a ComfyUI result replaces its source without a backup. Metadata stripping also has no built-in undo. The guides explain these limits beside each operation.
 
 ## Documentation
 
-| Guide                                      | Covers                                                                    |
-| ------------------------------------------ | ------------------------------------------------------------------------- |
-| [Getting started](docs/getting-started.md) | Install, run, update, and troubleshoot startup                            |
-| [User guide](docs/user-guide.md)           | Gallery, captions, jobs, media editing, formats, files, shortcuts         |
-| [Configuration](docs/configuration.md)     | Connect a vision model, tune it, and change ports, paths, and logging     |
-| [ComfyUI](docs/comfyui.md)                 | Process media through workflows and review the results                    |
-| [AI-Toolkit](docs/ai-toolkit.md)           | Start and monitor LoRA training                                           |
-| [Development](docs/development.md)         | Hot reload, project layout, generated code, and checks                    |
+| Guide                                      | Covers                                                                     |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| [Getting started](docs/getting-started.md) | Install, run, update, and troubleshoot startup                             |
+| [User guide](docs/user-guide.md)           | Browse, caption, review, edit, and run jobs; formats, files, and shortcuts |
+| [Configuration](docs/configuration.md)     | Recommended models, Settings, input budgets, and environment variables     |
+| [ComfyUI](docs/comfyui.md)                 | Process media, review results, and create workflow presets                 |
+| [AI-Toolkit](docs/ai-toolkit.md)           | Choose a template, start training, and monitor LoRA runs                   |
+| [Development](docs/development.md)         | Hot reload, generated code, checks, CI, and versioning                     |
+
+The [documentation index](docs/README.md) also links directly to common tasks.
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [Development](docs/development.md) and [AGENTS.md](AGENTS.md), then run the full check suite from the project root before you submit:
+Issues and pull requests are welcome. Read [Development](docs/development.md) and [AGENTS.md](AGENTS.md), then run the full checks from the project root:
 
 ```bash
 backend/.venv/Scripts/python scripts/run_checks.py --fix
 ```
 
-On Linux and macOS, use `backend/.venv/bin/python`. Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
+On Linux and macOS, use `backend/.venv/bin/python`. Report vulnerabilities privately following [SECURITY.md](SECURITY.md).
 
 ## License
 
