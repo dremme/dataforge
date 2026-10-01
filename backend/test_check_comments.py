@@ -1,5 +1,3 @@
-"""The comment check has to fail on its own tree, or it guards nothing."""
-
 from __future__ import annotations
 
 import importlib.util
@@ -31,7 +29,6 @@ class CommentWidthTests(unittest.TestCase):
 
     def test_the_limit_matches_the_formatter(self) -> None:
         self.assertEqual(self.check.MAX_LENGTH, 100)
-        self.assertEqual(self.check.MAX_BLOCK_LINES, 2)
 
     def test_a_comment_at_the_limit_passes(self) -> None:
         self.assertEqual(self._problems("# " + "a" * 98), [])
@@ -51,17 +48,20 @@ class CommentWidthTests(unittest.TestCase):
     def test_a_trailing_comment_is_measured_without_its_code(self) -> None:
         self.assertEqual(self._problems("value = 1  # " + "a" * 95), [])
 
-    def test_a_long_block_fails(self) -> None:
-        over = "\n".join("# line" for _ in range(self.check.MAX_BLOCK_LINES + 1))
-        self.assertEqual(len(self._problems(over)), 1)
+    def test_multiline_python_constraints_are_allowed(self) -> None:
+        source = (
+            "# The provider signs the original request bytes.\n"
+            "# Normalizing whitespace changes the signature.\n"
+            "# Keep the raw payload until verification completes.\n"
+            "# Parse the verified payload afterward."
+        )
+        self.assertEqual(self._problems(source), [])
 
-    def test_a_block_at_the_limit_passes(self) -> None:
-        allowed = "\n".join("# line" for _ in range(self.check.MAX_BLOCK_LINES))
-        self.assertEqual(self._problems(allowed), [])
-
-    def test_separated_blocks_are_counted_apart(self) -> None:
-        pair = "# one\n# two\n\nvalue = 1\n\n# three\n# four"
-        self.assertEqual(self._problems(pair), [])
+    def test_multiline_python_comments_still_enforce_line_width(self) -> None:
+        source = "# first\n# second\n# " + "a" * 99
+        problems = self._problems(source)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("sample.txt:3: comment is 101 characters", problems[0])
 
     def test_a_long_typescript_comment_fails(self) -> None:
         self.assertEqual(len(self._problems("// " + "a" * 98, typescript=True)), 1)
@@ -74,9 +74,22 @@ class CommentWidthTests(unittest.TestCase):
         source = "/**\n * one constraint\n * wrapped once\n */"
         self.assertEqual(self._problems(source, typescript=True), [])
 
-    def test_a_three_line_jsdoc_fails(self) -> None:
-        source = "/**\n * one\n * two\n * three\n */"
-        self.assertEqual(len(self._problems(source, typescript=True)), 1)
+    def test_multiline_jsdoc_constraints_are_allowed(self) -> None:
+        source = (
+            "/**\n"
+            " * The provider signs the original request bytes.\n"
+            " * Normalizing whitespace changes the signature.\n"
+            " * Keep the raw payload until verification completes.\n"
+            " * Parse the verified payload afterward.\n"
+            " */"
+        )
+        self.assertEqual(self._problems(source, typescript=True), [])
+
+    def test_multiline_jsdoc_still_enforces_line_width(self) -> None:
+        source = "/**\n * first\n * second\n * " + "a" * 99 + "\n */"
+        problems = self._problems(source, typescript=True)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("sample.txt:4: comment is 101 characters", problems[0])
 
     def test_a_trailing_typescript_comment_is_measured(self) -> None:
         self.assertEqual(len(self._problems("value = 1; // " + "a" * 98, typescript=True)), 1)

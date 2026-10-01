@@ -75,11 +75,13 @@ These files are gitignored and must never be edited by hand. A fresh clone needs
 
 Run from the project root. `<python>` means `backend/.venv/Scripts/python` on Windows or `backend/.venv/bin/python` on Linux/macOS.
 
-Before finishing a change, run:
+Before finishing code changes, run the checks for the affected scope:
 
 ```bash
 <python> scripts/run_checks.py --fix
 ```
+
+Use `--scope backend` or `--scope frontend` for isolated changes; omit scope for shared tooling or cross-stack changes. Documentation-only changes need a content/diff review. See [AGENTS.md](../AGENTS.md) for verification requirements.
 
 This generates API files and runs formatting, lint, type checks, comment/theme/transition checks, and backend/frontend tests. Backend tools include Ruff and ty; frontend tools include ESLint, Prettier, TypeScript, and Vitest. Tool configuration and pins live in the respective project manifests.
 

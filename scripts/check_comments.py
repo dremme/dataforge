@@ -1,11 +1,4 @@
-"""Check that comments stay short: one wrapped constraint, never a paragraph.
-
-Run from the project root:
-  backend/.venv/Scripts/python scripts/check_comments.py [--scope SCOPE]
-
-Neither formatter reflows a comment, so nothing else bounds one. A rationale that
-outgrows these limits belongs in a test, not beside the code.
-"""
+"""Check comment line widths in backend and frontend sources."""
 
 from __future__ import annotations
 
@@ -20,7 +13,6 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Ruff's line-length, so a comment may not run wider than the code it sits in.
 MAX_LENGTH = 100
-MAX_BLOCK_LINES = 2
 
 PYTHON_ROOTS = ("backend", "scripts")
 TYPESCRIPT_ROOT = Path("frontend") / "src"
@@ -32,10 +24,9 @@ _TRAILING_LINE_COMMENT = re.compile(r"(?<!:)//(.*)$")
 
 
 class Comment:
-    def __init__(self, line: int, text: str, *, own_line: bool) -> None:
+    def __init__(self, line: int, text: str) -> None:
         self.line = line
         self.text = text
-        self.own_line = own_line
 
 
 def _is_generated(source: str) -> bool:
@@ -58,7 +49,7 @@ def _python_comments(source: str) -> list[Comment]:
             continue
         own_line = token.line.strip().startswith("#")
         text = token.line.strip() if own_line else token.string.strip()
-        comments.append(Comment(token.start[0], text, own_line=own_line))
+        comments.append(Comment(token.start[0], text))
     return comments
 
 
@@ -90,18 +81,18 @@ def _typescript_comments(source: str) -> list[Comment]:
             stripped = raw.strip()
             if _block_content_line(raw) is None:
                 continue
-            comments.append(Comment(line_no, stripped, own_line=True))
+            comments.append(Comment(line_no, stripped))
 
     for number, line in enumerate(source.splitlines(), start=1):
         if number in occupied:
             continue
         stripped = line.strip()
         if stripped.startswith("//"):
-            comments.append(Comment(number, stripped, own_line=True))
+            comments.append(Comment(number, stripped))
             continue
         trailing = _TRAILING_LINE_COMMENT.search(line)
         if trailing:
-            comments.append(Comment(number, "//" + trailing.group(1), own_line=False))
+            comments.append(Comment(number, "//" + trailing.group(1)))
 
     comments.sort(key=lambda comment: comment.line)
     return comments
@@ -142,18 +133,6 @@ def _problems(path: Path, comments: list[Comment]) -> list[str]:
             f"{relative}:{comment.line}: comment is {len(comment.text)} characters, "
             f"over the {MAX_LENGTH} allowed"
         )
-
-    block: list[int] = []
-    for comment in [c for c in comments if c.own_line] + [Comment(-1, "", own_line=False)]:
-        if block and comment.line == block[-1] + 1:
-            block.append(comment.line)
-            continue
-        if len(block) > MAX_BLOCK_LINES:
-            found.append(
-                f"{relative}:{block[0]}: comment block runs {len(block)} lines, "
-                f"over the {MAX_BLOCK_LINES} allowed"
-            )
-        block = [comment.line]
 
     return found
 
