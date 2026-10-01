@@ -21,6 +21,37 @@ class WatchRegistryTests(unittest.IsolatedAsyncioTestCase):
         # No live stream: scanning would be work nobody can receive.
         self.assertEqual(folder_watch.watchers_by_folder(), {})
 
+    async def test_a_folder_opened_before_the_stream_connects_is_watched_once_it_does(
+        self,
+    ) -> None:
+        folder_watch.touch("tab-a", "C:\\Photos")
+        folder_watch.watchers_by_folder()
+
+        with _fake_subscriber("tab-a"):
+            self.assertEqual(
+                list(folder_watch.watchers_by_folder().values()),
+                [{"tab-a"}],
+            )
+
+    async def test_a_dropped_stream_resumes_its_watch_on_reconnect(self) -> None:
+        with _fake_subscriber("tab-a"):
+            folder_watch.touch("tab-a", "C:\\Photos")
+        folder_watch.watchers_by_folder()
+
+        with _fake_subscriber("tab-a"):
+            self.assertEqual(
+                list(folder_watch.watchers_by_folder().values()),
+                [{"tab-a"}],
+            )
+
+    async def test_a_disconnected_tab_is_forgotten_once_its_folders_expire(self) -> None:
+        folder_watch.touch("tab-a", "C:\\Photos")
+
+        with patch("folder_watch.WATCH_TTL_SECONDS", -1.0):
+            folder_watch.watchers_by_folder()
+
+        self.assertNotIn("tab-a", folder_watch._watches)
+
     async def test_paths_differing_only_in_case_or_separator_are_one_folder(self) -> None:
         with _fake_subscriber("tab-a"), _fake_subscriber("tab-b"):
             folder_watch.touch("tab-a", "C:\\Photos")

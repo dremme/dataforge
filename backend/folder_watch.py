@@ -67,16 +67,16 @@ def watchers_by_folder() -> dict[str, set[str]]:
     connected = events.connected_tab_ids()
     cutoff = time.monotonic() - WATCH_TTL_SECONDS
 
-    for tab_id in [tab for tab in _watches if tab not in connected]:
-        del _watches[tab_id]
-
     watchers: dict[str, set[str]] = {}
-    for tab_id, folders in _watches.items():
+    for tab_id, folders in list(_watches.items()):
         for folder, seen in list(folders.items()):
             if seen < cutoff:
                 del folders[folder]
-                continue
-            watchers.setdefault(folder, set()).add(tab_id)
+            elif tab_id in connected:
+                watchers.setdefault(folder, set()).add(tab_id)
+
+        if not folders:
+            del _watches[tab_id]
 
     return watchers
 
