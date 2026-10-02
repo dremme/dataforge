@@ -343,6 +343,20 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       });
     }
 
+    if (url.pathname === "/api/folders/review-counts") {
+      const pathKey = normalizeFolderKey(url.searchParams.get("path"));
+      const data = pathKey ? folderResponses[pathKey] : undefined;
+      if (!data) {
+        return jsonResponse({ detail: "Folder not found" }, 404);
+      }
+
+      return jsonResponse({
+        path: data.path,
+        issue_count: data.items.filter((item) => item.has_issue_file).length,
+        candidate_count: data.items.filter((item) => item.has_candidate).length,
+      });
+    }
+
     if (url.pathname === "/api/folders/contents") {
       if (options.folderDelayMs) {
         await new Promise((resolve) => setTimeout(resolve, options.folderDelayMs));

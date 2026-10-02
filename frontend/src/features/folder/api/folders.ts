@@ -4,6 +4,7 @@ import type {
   FolderCreateResponse,
   FolderFavoritesResponse,
   FolderOpenResponse,
+  FolderReviewCountsResponse,
   FolderRootsResponse,
 } from "@/shared/types";
 
@@ -18,6 +19,13 @@ export async function fetchFolderChildren(
 ): Promise<FolderChildrenResponse> {
   const params = new URLSearchParams({ path: folderPath });
   return requestJson<FolderChildrenResponse>(`/api/folders/children?${params}`, { signal });
+}
+
+export async function fetchFolderReviewCounts(
+  folderPath: string,
+): Promise<FolderReviewCountsResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  return requestJson<FolderReviewCountsResponse>(`/api/folders/review-counts?${params}`);
 }
 
 export async function fetchFolderFavorites(): Promise<FolderFavoritesResponse> {

@@ -12,8 +12,10 @@ import {
 } from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
+import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { BreadcrumbCrumbMenu } from "./BreadcrumbCrumbMenu";
 import { Icon } from "@/shared/ui/Icon";
+import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface BreadcrumbBarProps {
@@ -65,16 +67,20 @@ export function BreadcrumbBar({
 
   return (
     <nav className="breadcrumbs" aria-label="Folder path">
-      <button
-        type="button"
-        className="breadcrumbs__picker"
-        onClick={onOpenPicker}
-        title="Open another folder"
-        aria-label="Open folder"
+      <Tooltip
+        content={<ShortcutHint shortcut={SHORTCUTS.openFolder}>Open another folder</ShortcutHint>}
       >
-        <Icon icon={iconFolderOpen} className="breadcrumbs__picker-icon" />
-        Open folder
-      </button>
+        <button
+          type="button"
+          className="breadcrumbs__picker"
+          onClick={onOpenPicker}
+          aria-label="Open folder"
+          aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.openFolder)}
+        >
+          <Icon icon={iconFolderOpen} className="breadcrumbs__picker-icon" />
+          Open folder
+        </button>
+      </Tooltip>
 
       <ol className="breadcrumbs__list">
         {breadcrumbs.map((crumb, index) => {

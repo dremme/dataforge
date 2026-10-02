@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from automation.backup_captions import run_backup_captions_job
 from captions import issue_file_path
-from constants import LAST_FOLDER_KEY
+from constants import LAST_FOLDER_KEY, STAGING_DIR_NAME
 from db import get_preference, set_preference
 from folder_fingerprint import compute_folder_fingerprint
 from media_listing import clear_folder_summary_cache_for_tests
@@ -242,6 +242,33 @@ class FolderContentsEndpointTests(unittest.TestCase):
                 payload = _listing(root)
 
         self.assertEqual(payload["subfolders"][0]["name"], "Album")
+
+
+class FolderReviewCountsEndpointTests(unittest.TestCase):
+    def test_counts_caption_issues_and_staged_candidates(self) -> None:
+        with TempMediaFolder() as root:
+            flagged = write_media(root, "flagged.png")
+            issue_file_path(flagged).write_text('{"correct": false}', encoding="utf-8")
+            write_media(root, "photo.jpg")
+            write_media(root, "plain.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            # Paired by stem, as the listing pairs it; an unpaired staged file is not counted.
+            write_media(root / STAGING_DIR_NAME, "photo.png")
+            write_media(root / STAGING_DIR_NAME, "orphan.png")
+
+            response = client.get(f"/api/folders/review-counts?path={quote(str(root))}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["issue_count"], 1)
+        self.assertEqual(response.json()["candidate_count"], 1)
+
+    def test_returns_404_for_missing_folder(self) -> None:
+        with TempMediaFolder() as root:
+            missing = quote(str(root / "does-not-exist"))
+
+            response = client.get(f"/api/folders/review-counts?path={missing}")
+
+        self.assertEqual(response.status_code, 404)
 
 
 class FolderFingerprintEndpointTests(unittest.TestCase):

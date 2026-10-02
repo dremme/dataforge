@@ -5,7 +5,8 @@ from pathlib import Path
 from time import perf_counter
 
 from automation.backup_captions import has_caption_backup
-from constants import LAST_FOLDER_KEY
+from candidate_pairing import candidate_name_for
+from constants import ISSUE_SIDECAR_SUFFIX, LAST_FOLDER_KEY
 from db import get_preference, set_preference
 from filesystem import build_breadcrumbs, get_home_folder, list_subfolders
 from folder_fingerprint import (
@@ -15,7 +16,13 @@ from folder_fingerprint import (
 )
 from folder_scan import scan_folder
 from media_listing import list_media_from_scan, media_items_named
-from schemas import FolderChangesResponse, FolderResponse, SubfolderStats, SubfolderStatsResponse
+from schemas import (
+    FolderChangesResponse,
+    FolderResponse,
+    FolderReviewCountsResponse,
+    SubfolderStats,
+    SubfolderStatsResponse,
+)
 from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
@@ -101,6 +108,24 @@ def build_folder_changes(folder: Path, since: str) -> FolderChangesResponse:
         fingerprint=signature.fingerprint,
         changed=media_items_named(scan, changed),
         removed=[str(folder / name) for name in removed],
+    )
+
+
+def build_folder_review_counts(folder: Path) -> FolderReviewCountsResponse:
+    """Counts by the listing's own pairing rule, so they match the folder's gallery filters."""
+    scan = scan_folder(folder)
+    if scan is None:
+        return FolderReviewCountsResponse(path=str(folder), issue_count=0, candidate_count=0)
+    return FolderReviewCountsResponse(
+        path=str(folder),
+        issue_count=sum(
+            1 for entry in scan.media if scan.sidecar(entry.name, ISSUE_SIDECAR_SUFFIX) is not None
+        ),
+        candidate_count=sum(
+            1
+            for entry in scan.media
+            if candidate_name_for(entry.name, scan.candidates, scan.files) is not None
+        ),
     )
 
 

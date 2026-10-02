@@ -93,6 +93,14 @@ class SubfolderStats(BaseModel):
     duplicate_count: int = 0
 
 
+class FolderReviewCountsResponse(BaseModel):
+    """Fetched per folder on demand, so listing a folder never pays for its children's staging."""
+
+    path: str
+    issue_count: int
+    candidate_count: int
+
+
 class SubfolderStatsResponse(BaseModel):
     folder: str
     subfolders: list[SubfolderStats]

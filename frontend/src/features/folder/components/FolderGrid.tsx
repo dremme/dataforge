@@ -1,4 +1,5 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import { fetchFolderReviewCounts } from "@/features/folder/api/folders";
 import { clampFolders, folderCardLabel, folderFindings } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
 import {
@@ -10,9 +11,11 @@ import {
   iconImage,
   iconTriangleAlert,
 } from "@/shared/icons";
-import type { Subfolder } from "@/shared/types";
+import { formatCount } from "@/shared/lib/format";
+import type { FolderReviewCountsResponse, Subfolder } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
+import { Tooltip } from "@/shared/ui/Tooltip";
 
 function FolderCardStats({ folder }: { folder: Subfolder }) {
   const { file_count: fileCount, captioned_count: captionedCount } = folder;
@@ -37,6 +40,73 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
         <Icon icon={iconTriangleAlert} className="folder-card__issue-icon" aria-hidden="true" />
       )}
     </span>
+  );
+}
+
+/** Long enough that sweeping the pointer across the grid does not flash a bubble per card. */
+const FOLDER_TOOLTIP_DELAY_MS = 1000;
+
+function countLabel(count: number, singular: string, plural: string): string {
+  if (count === 0) return `No ${plural}`;
+  return `${formatCount(count)} ${count === 1 ? singular : plural}`;
+}
+
+function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: string) => void }) {
+  const [counts, setCounts] = useState<FolderReviewCountsResponse | null>(null);
+  const [failed, setFailed] = useState(false);
+  const loadingRef = useRef(false);
+
+  // Fetched on every hover rather than once, so a job that ran meanwhile is reflected; the
+  // bubble's delay leaves the request time to land before anything shows.
+  const loadCounts = () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    fetchFolderReviewCounts(folder.path)
+      .then(
+        (next) => {
+          setCounts(next);
+          setFailed(false);
+        },
+        () => setFailed(true),
+      )
+      .finally(() => {
+        loadingRef.current = false;
+      });
+  };
+
+  const tooltip = (
+    <span className="folder-card__tip">
+      <span className="folder-card__tip-name">{folder.name}</span>
+      {counts ? (
+        <>
+          <span>{countLabel(counts.issue_count, "caption issue", "caption issues")}</span>
+          <span>{countLabel(counts.candidate_count, "staged candidate", "staged candidates")}</span>
+        </>
+      ) : (
+        <span className="folder-card__tip-pending">
+          {failed ? "Counts unavailable" : "Counting..."}
+        </span>
+      )}
+    </span>
+  );
+
+  return (
+    <Tooltip content={tooltip} delay={FOLDER_TOOLTIP_DELAY_MS} className="folder-grid__cell">
+      <button
+        type="button"
+        className="folder-card"
+        onClick={() => onOpen(folder.path)}
+        onMouseEnter={loadCounts}
+        onFocus={loadCounts}
+        aria-label={folderCardLabel(folder)}
+      >
+        <Icon icon={iconFolder} className="folder-card__icon" />
+        <span className="folder-card__body">
+          <span className="folder-card__name">{folder.name}</span>
+          {folder.file_count !== 0 && <FolderCardStats folder={folder} />}
+        </span>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -98,20 +168,7 @@ export function FolderGrid({
       {folders.length > 0 && (
         <div className="folder-grid" id={gridId}>
           {shown.map((folder) => (
-            <button
-              key={folder.path}
-              type="button"
-              className="folder-card"
-              onClick={() => onOpen(folder.path)}
-              title={folderCardLabel(folder)}
-              aria-label={folderCardLabel(folder)}
-            >
-              <Icon icon={iconFolder} className="folder-card__icon" />
-              <span className="folder-card__body">
-                <span className="folder-card__name">{folder.name}</span>
-                {folder.file_count !== 0 && <FolderCardStats folder={folder} />}
-              </span>
-            </button>
+            <FolderCard key={folder.path} folder={folder} onOpen={onOpen} />
           ))}
         </div>
       )}

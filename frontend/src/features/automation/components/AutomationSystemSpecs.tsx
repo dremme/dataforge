@@ -73,6 +73,7 @@ export function AutomationSystemSpecs({
           type="button"
           className="automation__specs-toggle"
           onClick={onToggle}
+          tabIndex={-1}
           aria-label="Toggle system specifications"
           aria-expanded={open}
           aria-controls={id}

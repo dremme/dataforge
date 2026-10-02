@@ -145,6 +145,7 @@ export function JobFileResults({
         type="button"
         className="job-file-results__toggle"
         onClick={() => setExpanded((current) => !current)}
+        tabIndex={-1}
         aria-expanded={expanded}
         aria-controls={panelId}
       >

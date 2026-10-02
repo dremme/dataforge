@@ -359,11 +359,13 @@ export function Toolbar({
 
         <StatsButton open={statsOpen} onToggle={onToggleStats} />
 
-        <JobsButton />
+        <div className="toolbar__global">
+          <JobsButton />
 
-        <NotificationsButton />
+          <NotificationsButton />
 
-        <SettingsButton onOpen={onOpenSettings} />
+          <SettingsButton onOpen={onOpenSettings} />
+        </div>
       </div>
     </div>
   );

@@ -26,6 +26,15 @@ describe("BreadcrumbBar", () => {
     vi.unstubAllGlobals();
   });
 
+  it("advertises the open folder shortcut on the picker button", () => {
+    renderBar();
+
+    expect(screen.getByRole("button", { name: "Open folder" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+O Meta+O",
+    );
+  });
+
   it("disables path actions when the current folder is missing", () => {
     renderBar({ folderNotFound: true });
 

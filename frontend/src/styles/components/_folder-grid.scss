@@ -34,6 +34,16 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 0.75rem;
+
+  // The card's tooltip wrapper is the grid item, so the card has to fill it.
+  &__cell {
+    align-items: stretch;
+
+    > .folder-card {
+      flex: 1;
+      min-width: 0;
+    }
+  }
 }
 
 .folder-card {
@@ -135,6 +145,25 @@
     flex-shrink: 0;
     @include icon-size-sm;
     color: var(--warning);
+  }
+
+  &__tip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    color: var(--text-muted);
+    font-weight: var(--font-normal);
+    @include tabular-nums;
+  }
+
+  &__tip-name {
+    color: var(--text);
+    font-weight: var(--font-semibold);
+    overflow-wrap: anywhere;
+  }
+
+  &__tip-pending {
+    font-style: italic;
   }
 
   &__skeleton-block {

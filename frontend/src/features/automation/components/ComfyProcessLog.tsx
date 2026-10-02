@@ -37,6 +37,7 @@ export function ComfyProcessLog({ job }: ComfyProcessLogProps) {
         type="button"
         className="comfy-process-log__toggle"
         onClick={() => setExpandedJobId(expanded ? null : (job?.id ?? null))}
+        tabIndex={-1}
         aria-expanded={expanded}
         aria-controls={panelId}
       >

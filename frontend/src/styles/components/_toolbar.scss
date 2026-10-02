@@ -21,10 +21,21 @@ $toolbar-search-width-max: 22rem;
     justify-content: flex-end;
     gap: 0.4375rem;
 
-    > .tooltip {
+    > .tooltip,
+    > .toolbar__global > .tooltip {
       height: var(--toolbar-control-height);
       min-height: var(--toolbar-control-height);
     }
+  }
+
+  // App-wide buttons, divided from the folder controls; the group wraps as one unit.
+  &__global {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
+    margin-left: 0.1875rem;
+    padding-left: 0.625rem;
+    border-left: 1px solid var(--border);
   }
 
   &__search,
@@ -35,7 +46,7 @@ $toolbar-search-width-max: 22rem;
 
   &__controls > .tooltip > .toolbar__search,
   &__controls > .tooltip > .toolbar__sort,
-  &__controls > .tooltip > .jobs-button {
+  &__global > .tooltip > .jobs-button {
     height: 100%;
     min-height: var(--toolbar-control-height);
   }

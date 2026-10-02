@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Subfolder } from "@/shared/types";
 import { FOLDER_CLAMP_LIMIT, FOLDER_CLAMP_MIN_HIDDEN } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
@@ -162,6 +162,58 @@ describe("FolderGrid", () => {
     expect(card.querySelector(".folder-card__stat--pending")).toBeNull();
     expect(card.querySelector(".folder-card__stat")).toHaveClass("folder-card__stat--success");
     expect(card.textContent).toContain("captioned");
+  });
+});
+
+describe("FolderGrid card tooltip", () => {
+  function stubReviewCounts(counts: { issue_count: number; candidate_count: number }) {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input), "http://localhost").searchParams.get("path");
+      return new Response(JSON.stringify({ path, ...counts }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("fetches review counts for the hovered card only, not on load", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubReviewCounts({ issue_count: 0, candidate_count: 0 });
+    render(<FolderGrid folders={makeFolders(3)} onOpen={vi.fn()} />);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.hover(screen.getByRole("button", { name: "Album 1" }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `/api/folders/review-counts?${new URLSearchParams({ path: "C:\\Photos\\1" })}`,
+    );
+  });
+
+  it("shows the full name and counts after a one second hover", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    stubReviewCounts({ issue_count: 0, candidate_count: 1 });
+    const name = "A folder name long enough to be clamped on its card";
+    render(<FolderGrid folders={[makeFolder({ name })]} onOpen={vi.fn()} />);
+
+    await user.hover(screen.getByRole("button", { name }));
+    await act(() => vi.advanceTimersByTimeAsync(900));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent(name);
+    expect(tooltip).toHaveTextContent("No caption issues");
+    expect(tooltip).toHaveTextContent("1 staged candidate");
   });
 });
 

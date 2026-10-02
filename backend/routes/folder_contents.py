@@ -8,6 +8,7 @@ from filesystem import resolve_initial_folder
 from folder_contents import (
     build_folder_changes,
     build_folder_response,
+    build_folder_review_counts,
     build_subfolder_stats_response,
 )
 from folder_fingerprint import compute_folder_fingerprint
@@ -16,6 +17,7 @@ from schemas import (
     FolderChangesResponse,
     FolderFingerprintResponse,
     FolderResponse,
+    FolderReviewCountsResponse,
     SubfolderStatsResponse,
 )
 
@@ -53,6 +55,14 @@ async def read_subfolder_stats(
 ) -> SubfolderStatsResponse:
     folder = resolve_folder(path)
     return await asyncio.to_thread(build_subfolder_stats_response, folder)
+
+
+@router.get("/folders/review-counts", response_model=FolderReviewCountsResponse)
+async def read_folder_review_counts(
+    path: str = Query(..., description="Folder whose caption issues and candidates are counted"),
+) -> FolderReviewCountsResponse:
+    folder = resolve_folder(path)
+    return await asyncio.to_thread(build_folder_review_counts, folder)
 
 
 @router.get("/folders/fingerprint", response_model=FolderFingerprintResponse)
