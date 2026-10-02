@@ -1,5 +1,6 @@
+import type { QueryClient } from "@tanstack/react-query";
+import { folderKey } from "@/features/folder/lib/folderPath";
 import { requestJson } from "@/shared/api/http";
-import { withRetry } from "@/shared/lib/retry";
 import { normalizeFolderPath } from "@/features/folder/lib/folderPath";
 import { DEFAULT_TRAINING_MODEL, TRAINING_MODELS } from "@/features/automation/lib/training";
 import type {
@@ -230,11 +231,20 @@ async function fetchAutomationSettings(folderPath: string): Promise<AutomationSe
   );
 }
 
-/** Never rejects: a preferences outage must not block a job start. Other tabs stale any cache. */
-export async function loadAutomationSettings(folderPath: string): Promise<AutomationSettings> {
-  try {
-    return await withRetry(() => fetchAutomationSettings(folderPath));
-  } catch {
-    return emptyAutomationSettings(folderPath);
-  }
+/**
+ * Never rejects: a preferences outage must not block a job start. Read afresh on every open and
+ * never kept, because other tabs change these settings; the client only lends its retries.
+ */
+export function loadAutomationSettings(
+  folderPath: string,
+  queryClient: QueryClient,
+): Promise<AutomationSettings> {
+  return queryClient
+    .fetchQuery({
+      queryKey: ["automation-settings", folderKey(folderPath)],
+      queryFn: () => fetchAutomationSettings(folderPath),
+      staleTime: 0,
+      gcTime: 0,
+    })
+    .catch(() => emptyAutomationSettings(folderPath));
 }

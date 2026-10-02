@@ -1,33 +1,19 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchGifInfo } from "@/features/gallery/api/media";
 import { deferNonCriticalWork } from "@/shared/lib/defer";
-import { useStaleRequest } from "@/shared/hooks/useStaleRequest";
 
 export function useGifFrameCount(path: string | undefined, enabled: boolean): number | undefined {
-  const [frameCount, setFrameCount] = useState<number | undefined>(undefined);
-  const { next, isCurrent } = useStaleRequest();
+  const ready = Boolean(path) && enabled;
 
-  useEffect(() => {
-    if (!path || !enabled) {
-      setFrameCount(undefined);
-      return;
-    }
+  const { data } = useQuery({
+    queryKey: ["gif-frame-count", path],
+    queryFn: async () => {
+      await new Promise<void>((resolve) => deferNonCriticalWork(resolve));
+      return (await fetchGifInfo(path!)).frame_count;
+    },
+    enabled: ready,
+    retry: false,
+  });
 
-    const requestId = next();
-    setFrameCount(undefined);
-
-    return deferNonCriticalWork(() => {
-      void fetchGifInfo(path)
-        .then((result) => {
-          if (!isCurrent(requestId)) return;
-          setFrameCount(result.frame_count);
-        })
-        .catch(() => {
-          if (!isCurrent(requestId)) return;
-          setFrameCount(undefined);
-        });
-    });
-  }, [enabled, isCurrent, next, path]);
-
-  return frameCount;
+  return ready ? data : undefined;
 }

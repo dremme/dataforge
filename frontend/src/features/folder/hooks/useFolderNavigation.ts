@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchFolderFingerprint } from "@/features/folder/api/folderContents";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { buildBreadcrumbs } from "@/features/folder/lib/breadcrumbs";
-import { evictCachedFolder, readCachedFolder } from "@/features/folder/lib/folderCache";
 import {
   getCurrentEntryKey,
   getEntryKeyFromHistoryEvent,
@@ -10,27 +17,17 @@ import {
   syncFolderHistory,
   type HistoryMode,
 } from "@/features/folder/lib/folderHistory";
-import { getCachedLastFolder, loadFolderContents } from "@/features/folder/lib/folderPreferences";
+import { foldersMatch } from "@/features/folder/lib/folderPath";
+import { getCachedLastFolder, rememberOpenedFolder } from "@/features/folder/lib/folderPreferences";
+import { folderKeys, folderQueryOptions, openFolderQuery } from "@/features/folder/lib/folderQuery";
 import {
   forgetFolderScroll,
   recallFolderScroll,
   rememberFolderScroll,
 } from "@/features/folder/lib/folderScrollMemory";
-import { isAbortError, resolveFolderError, type FolderError } from "@/shared/api/http";
+import { resolveFolderError, type FolderError } from "@/shared/api/http";
 import { getAppScrollElement } from "@/shared/lib/appScroll";
 import type { FolderResponse } from "@/shared/types";
-
-async function isFolderUnchanged(cached: FolderResponse, signal: AbortSignal): Promise<boolean> {
-  if (!cached.fingerprint) return false;
-
-  try {
-    const { fingerprint } = await fetchFolderFingerprint(cached.path, signal);
-    return fingerprint === cached.fingerprint;
-  } catch (error) {
-    if (isAbortError(error)) throw error;
-    return false;
-  }
-}
 
 function applyOptimisticFolder(folder: FolderResponse, folderPath: string): FolderResponse {
   return {
@@ -71,26 +68,77 @@ export type FolderScrollIntent = {
   target: number;
 };
 
-export type LoadFolderOptions = {
-  preserveSelection?: boolean;
-  updateRecent?: boolean;
-  silent?: boolean;
-};
-
-export type ReloadFolderOptions = Pick<LoadFolderOptions, "silent">;
-
 export function useFolderNavigation(onFolderChange?: () => void) {
-  const [folder, setFolder] = useState<FolderResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<FolderError | null>(null);
-  const initialLoadDone = useRef(false);
-  const loadGenerationRef = useRef(0);
-  const inFlightRef = useRef<AbortController | null>(null);
-  const lastRequestedPathRef = useRef<string | undefined>(undefined);
+  const queryClient = useQueryClient();
+  const [requestedPath, setRequestedPath] = useState<string | undefined>(getFolderFromUrl);
   const [scrollIntent, setScrollIntent] = useState<FolderScrollIntent | null>(null);
   const scrollIntentIdRef = useRef(0);
   const currentEntryKeyRef = useRef<string | undefined>(getCurrentEntryKey());
+  const initialHistorySyncedRef = useRef(false);
+  const lastFolderRef = useRef<FolderResponse | null>(null);
+
+  // Live updates (pushes, polling, focus) belong to useFolderChangeDetection, which can
+  // pause them while a job rewrites the folder.
+  const query = useQuery({
+    ...folderQueryOptions(requestedPath),
+    placeholderData: (previous) =>
+      previous && requestedPath ? applyOptimisticFolder(previous, requestedPath) : undefined,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data, error: queryError, isPlaceholderData, isFetching } = query;
+  const error: FolderError | null = query.isError ? resolveFolderError(queryError) : null;
+
+  // The server answers with its own spelling of the path, or names the default folder:
+  // file the listing under that path and make it the one being shown.
+  const settledPath = !isPlaceholderData ? data?.path : undefined;
+  useEffect(() => {
+    if (!settledPath || !data) return;
+
+    const canonical = requestedPath === undefined || !foldersMatch(settledPath, requestedPath);
+    if (canonical) {
+      queryClient.setQueryData(folderKeys.folder(settledPath), data);
+      setRequestedPath(settledPath);
+    }
+    if (canonical || !initialHistorySyncedRef.current) {
+      initialHistorySyncedRef.current = true;
+      currentEntryKeyRef.current = syncFolderHistory(settledPath, "replace");
+    }
+  }, [data, queryClient, requestedPath, settledPath]);
+
+  // Opening a folder, not re-reading it, is what makes it recent.
+  useEffect(() => {
+    if (settledPath) rememberOpenedFolder(settledPath);
+  }, [settledPath]);
+
+  const folder = useMemo((): FolderResponse | null => {
+    if (error?.kind === "folder-not-found") {
+      const path = requestedPath ?? lastFolderRef.current?.path ?? getCachedLastFolder();
+      return path ? createFailedFolderShell(path, lastFolderRef.current) : null;
+    }
+    if (data) return data;
+    if (query.isError) return null;
+    return requestedPath ? createFailedFolderShell(requestedPath, null) : null;
+  }, [data, error?.kind, query.isError, requestedPath]);
+
+  useEffect(() => {
+    if (data && !isPlaceholderData) lastFolderRef.current = data;
+  }, [data, isPlaceholderData]);
+
+  const loading = !query.isError && (!data || isPlaceholderData);
+  const refreshing = isFetching && !loading;
+
+  const openFolder = useCallback(
+    async (path: string | undefined) => {
+      // Started before the view switches over, so the view joins this read, not its own.
+      const read = openFolderQuery(queryClient, path);
+      setRequestedPath(path);
+      await read.catch(() => {
+        // The query's own error state reports this to the view.
+      });
+    },
+    [queryClient],
+  );
 
   const saveOutgoingScroll = useCallback(() => {
     const element = getAppScrollElement();
@@ -98,117 +146,27 @@ export function useFolderNavigation(onFolderChange?: () => void) {
     rememberFolderScroll(currentEntryKeyRef.current, element.scrollTop);
   }, []);
 
-  const loadFolder = useCallback(
-    async (
-      path?: string,
-      { preserveSelection = false, updateRecent = true, silent = false }: LoadFolderOptions = {},
-    ) => {
-      lastRequestedPathRef.current = path;
-      const generation = ++loadGenerationRef.current;
-      setError(null);
-
-      inFlightRef.current?.abort();
-      const controller = new AbortController();
-      inFlightRef.current = controller;
-
-      const cached = silent ? null : readCachedFolder(path);
-      const showSkeleton = !silent && !cached;
-
-      if (cached) {
-        setFolder(cached);
-      }
-
-      if (showSkeleton) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
-
-      if (!silent && !preserveSelection) {
-        onFolderChange?.();
-      }
-
-      try {
-        if (cached && (await isFolderUnchanged(cached, controller.signal))) {
-          return cached;
-        }
-
-        const data = await loadFolderContents(path, { updateRecent, signal: controller.signal });
-        if (generation !== loadGenerationRef.current) {
-          return null;
-        }
-        setFolder(data);
-        return data;
-      } catch (err) {
-        if (generation !== loadGenerationRef.current || isAbortError(err)) {
-          return null;
-        }
-        const resolved = resolveFolderError(err);
-        if (resolved?.kind === "folder-not-found") {
-          evictCachedFolder(path);
-          setFolder((current) => {
-            const folderPath =
-              path ?? current?.path ?? lastRequestedPathRef.current ?? getCachedLastFolder();
-            if (!folderPath) {
-              return null;
-            }
-            return createFailedFolderShell(folderPath, current);
-          });
-        } else if (!silent) {
-          setFolder(null);
-        }
-        setError(resolved);
-        return null;
-      } finally {
-        if (generation === loadGenerationRef.current) {
-          setLoading(false);
-          setRefreshing(false);
-        }
-      }
-    },
-    [onFolderChange],
-  );
-
   const navigateTo = useCallback(
     async (path?: string, historyMode: HistoryMode = "push") => {
-      if (historyMode === "push" && path && folder?.path === path) return;
+      if (historyMode === "push" && path && foldersMatch(folder?.path, path)) return;
 
       if (historyMode === "push") {
         saveOutgoingScroll();
       }
       setScrollIntent({ id: ++scrollIntentIdRef.current, mode: "reset", path, target: 0 });
 
-      if (path) {
-        setFolder((current) =>
-          current ? applyOptimisticFolder(current, path) : createFailedFolderShell(path, null),
-        );
-        if (historyMode !== "none") {
-          currentEntryKeyRef.current = syncFolderHistory(path, historyMode);
-          if (historyMode === "replace") {
-            forgetFolderScroll(currentEntryKeyRef.current);
-          }
+      if (path && historyMode !== "none") {
+        currentEntryKeyRef.current = syncFolderHistory(path, historyMode);
+        if (historyMode === "replace") {
+          forgetFolderScroll(currentEntryKeyRef.current);
         }
       }
 
-      const data = await loadFolder(path);
-      if (data && path && historyMode !== "none" && data.path !== path) {
-        currentEntryKeyRef.current = syncFolderHistory(data.path, "replace");
-      }
+      onFolderChange?.();
+      await openFolder(path);
     },
-    [folder?.path, loadFolder, saveOutgoingScroll],
+    [folder?.path, onFolderChange, openFolder, saveOutgoingScroll],
   );
-
-  useEffect(() => {
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
-
-    const initialPath = getFolderFromUrl();
-    loadFolder(initialPath).then((data) => {
-      if (data) {
-        currentEntryKeyRef.current = syncFolderHistory(data.path, "replace");
-      }
-    });
-  }, [loadFolder]);
 
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
@@ -224,29 +182,29 @@ export function useFolderNavigation(onFolderChange?: () => void) {
         target: recallFolderScroll(entryKey) ?? 0,
       });
 
-      if (path) {
-        setFolder((current) =>
-          current ? applyOptimisticFolder(current, path) : createFailedFolderShell(path, null),
-        );
-      }
-
-      void loadFolder(path);
+      onFolderChange?.();
+      void openFolder(path);
     };
 
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [loadFolder, saveOutgoingScroll]);
+  }, [onFolderChange, openFolder, saveOutgoingScroll]);
 
+  /** Re-reads in place: the listing stays on screen while the changes are fetched. */
   const reloadFolder = useCallback(
-    async ({ silent = true }: ReloadFolderOptions = {}) => {
-      if (!folder?.path) return null;
-      return loadFolder(folder.path, {
-        preserveSelection: true,
-        updateRecent: false,
-        silent,
+    () =>
+      queryClient.invalidateQueries({ queryKey: folderKeys.folder(requestedPath), exact: true }),
+    [queryClient, requestedPath],
+  );
+
+  const setFolder = useCallback<Dispatch<SetStateAction<FolderResponse | null>>>(
+    (update) => {
+      queryClient.setQueryData<FolderResponse>(folderKeys.folder(requestedPath), (current) => {
+        const next = typeof update === "function" ? update(current ?? null) : update;
+        return next ?? current;
       });
     },
-    [folder?.path, loadFolder],
+    [queryClient, requestedPath],
   );
 
   return { folder, loading, refreshing, error, reloadFolder, navigateTo, setFolder, scrollIntent };

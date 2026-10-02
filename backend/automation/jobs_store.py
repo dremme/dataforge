@@ -7,6 +7,7 @@ import sqlite3
 
 from db import get_connection
 from filesystem import normalize_user_path, path_leaf_name
+from revisions import next_revision
 from schemas import JobHistoryStatus
 
 #: The stored statuses each history filter covers.
@@ -35,6 +36,7 @@ _JOB_SCHEMA: tuple[tuple[str, str], ...] = (
     ("finished_at", "TEXT"),
     ("auto_caption_mode", "TEXT"),
     ("external_ref", "TEXT"),
+    ("revision", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 _JOB_COLUMN_NAMES = tuple(name for name, _ in _JOB_SCHEMA)
@@ -131,15 +133,18 @@ def list_active_jobs() -> list[dict[str, object]]:
 
 
 def recover_stale_jobs() -> int:
+    # A fresh revision, or a tab still holding the pre-restart "running" frame would keep it.
     with get_connection() as conn:
         cursor = conn.execute(
             """
             UPDATE jobs
             SET status = 'interrupted',
                 error = COALESCE(error, 'Job interrupted when the server restarted.'),
-                finished_at = COALESCE(finished_at, datetime('now'))
+                finished_at = COALESCE(finished_at, datetime('now')),
+                revision = ?
             WHERE status IN ('queued', 'running')
-            """
+            """,
+            (next_revision(),),
         )
         conn.commit()
         return cursor.rowcount
@@ -174,6 +179,7 @@ def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> di
         "job_type": str(values["job_type"] or "auto_caption"),
         "total": int(values["total"] or 0),
         "processed": int(values["processed"] or 0),
+        "revision": int(values["revision"] or 0),
         "stats": {key: int(value) for key, value in stats.items()},
     }
     if results is not None:
@@ -200,7 +206,7 @@ def _job_column_value(job: dict[str, object], column: str) -> object:
         return _normalize_folder(str(job["folder"]))
     if column == "job_type":
         return job.get("job_type") or "auto_caption"
-    if column in {"total", "processed"}:
+    if column in {"total", "processed", "revision"}:
         value = job.get(column)
         return value if isinstance(value, int) and not isinstance(value, bool) else 0
     if column == "stats_json":
@@ -368,8 +374,9 @@ def prune_finished_jobs(days: int) -> list[str]:
     return [row[0] for row in rows]
 
 
-def delete_all_jobs() -> int:
+def delete_all_jobs() -> list[str]:
+    """Returns the ids removed."""
     with get_connection() as conn:
-        cursor = conn.execute("DELETE FROM jobs")
+        rows = conn.execute("DELETE FROM jobs RETURNING id").fetchall()
         conn.commit()
-        return cursor.rowcount
+    return [row[0] for row in rows]

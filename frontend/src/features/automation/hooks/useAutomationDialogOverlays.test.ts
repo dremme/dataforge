@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { JobType } from "@/shared/types";
 import {
@@ -8,6 +8,7 @@ import {
 import { useAutomationDialogOverlays } from "./useAutomationDialogOverlays";
 
 import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
+import { createTestQueryClient, renderHookWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/automation/preferences/automationPreferences", async (importOriginal) => {
   const actual = await importOriginal<typeof AutomationPreferences>();
@@ -40,7 +41,7 @@ function setupOverlays(
   const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
   const { itemCount = 3, folderItemCount = 3, selectionActive = false } = scope;
 
-  const { result } = renderHook(() =>
+  const { result } = renderHookWithQueryClient(() =>
     useAutomationDialogOverlays({
       folderPath: "C:\\Photos",
       folderLabel: "Photos",
@@ -339,7 +340,7 @@ describe("useAutomationDialogOverlays saved settings", () => {
 
   it("hands every dialog its own block of this folder's settings", async () => {
     const { result } = setupOverlays();
-    const expected = await loadAutomationSettings("C:\\Photos");
+    const expected = await loadAutomationSettings("C:\\Photos", createTestQueryClient());
 
     for (const [dialog, jobType] of DIALOG_JOB_TYPES) {
       await act(async () => {
@@ -359,7 +360,7 @@ describe("useAutomationDialogOverlays saved settings", () => {
     });
 
     expect(loadAutomationSettings).toHaveBeenCalledTimes(1);
-    expect(loadAutomationSettings).toHaveBeenCalledWith("C:\\Photos");
+    expect(loadAutomationSettings).toHaveBeenCalledWith("C:\\Photos", expect.anything());
   });
 
   it("drops the settings again when a dialog is cancelled", async () => {

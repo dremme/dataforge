@@ -1,9 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as FolderInstructionsApi from "@/shared/api/folderInstructions";
 import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
 import { CheckCaptionRulesDialog } from "./CheckCaptionRulesDialog";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const fetchFolderInstructions = vi.fn();
 
@@ -33,7 +34,7 @@ function rulesResponse(rules: Partial<InstructionFileResponse> = {}): FolderInst
 function renderDialog() {
   const onConfirm = vi.fn();
   const onCancel = vi.fn();
-  render(
+  renderWithQueryClient(
     <CheckCaptionRulesDialog
       scope={{ itemCount: 12, folderLabel: "portraits", fromSelection: false }}
       folderPath={FOLDER}

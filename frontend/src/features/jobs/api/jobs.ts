@@ -8,9 +8,12 @@ import type {
   JobsResponse,
 } from "@/shared/types";
 
-export async function fetchLatestFolderJob(folderPath: string): Promise<Job | null> {
+export async function fetchLatestFolderJob(
+  folderPath: string,
+  signal?: AbortSignal,
+): Promise<Job | null> {
   const params = new URLSearchParams({ path: folderPath });
-  return requestJson<Job | null>(`/api/jobs/folder-latest?${params}`);
+  return requestJson<Job | null>(`/api/jobs/folder-latest?${params}`, { signal });
 }
 
 export interface FetchJobsOptions extends JobsQuery {
@@ -36,8 +39,13 @@ export async function fetchJobs({
 }
 
 /** A job's per-file results. Kept off the job list, which is polled while work runs. */
-export async function fetchJobResults(jobId: string): Promise<JobFileResult[]> {
-  const response = await requestJson<JobResultsResponse>(`/api/jobs/${jobId}/results`);
+export async function fetchJobResults(
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<JobFileResult[]> {
+  const response = await requestJson<JobResultsResponse>(`/api/jobs/${jobId}/results`, {
+    signal,
+  });
   return response.results;
 }
 

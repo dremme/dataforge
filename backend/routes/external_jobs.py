@@ -1,13 +1,9 @@
 from fastapi import APIRouter, HTTPException
 
-from external.ostris_jobs import (
-    OstrisJobStopError,
-    fetch_active_ostris_jobs,
-    stop_ostris_job_with_checkpoint,
-)
+from external.ostris_jobs import OstrisJobStopError, stop_ostris_job_with_checkpoint
 from external.ostris_training import fetch_training_samples, validate_lora_name
+from external_jobs_feed import read_external_jobs
 from schemas import (
-    ExternalOstrisJobResponse,
     ExternalOstrisJobsResponse,
     ExternalOstrisJobStopResponse,
     OstrisTrainingSample,
@@ -19,12 +15,7 @@ router = APIRouter()
 
 @router.get("/external/ostris/jobs", response_model=ExternalOstrisJobsResponse)
 def list_active_ostris_jobs() -> ExternalOstrisJobsResponse:
-    jobs, available = fetch_active_ostris_jobs()
-    return ExternalOstrisJobsResponse(
-        jobs=[ExternalOstrisJobResponse.model_validate(job) for job in jobs],
-        active_count=len(jobs),
-        available=available,
-    )
+    return ExternalOstrisJobsResponse.model_validate(read_external_jobs())
 
 
 @router.post("/external/ostris/jobs/{job_id}/stop", response_model=ExternalOstrisJobStopResponse)

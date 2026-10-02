@@ -1,9 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import { fetchJobResults } from "@/features/jobs/api/jobs";
 import type { Job } from "@/shared/types";
 import { JobCard } from "./JobCard";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
   fetchOstrisTrainingSamples: vi.fn(),
@@ -30,6 +31,7 @@ const runningJob: Job = {
   stats: {},
   error: null,
   created_at: "2026-01-01T00:00:00Z",
+  revision: 1,
   started_at: "2026-01-01T00:00:01Z",
   finished_at: null,
 };
@@ -45,7 +47,7 @@ afterEach(() => {
 
 describe("JobCard", () => {
   it.each(["queued", "running"] as const)("shows progress for a %s job", (status) => {
-    render(<JobCard job={{ ...runningJob, status }} />);
+    renderWithQueryClient(<JobCard job={{ ...runningJob, status }} />);
 
     expect(screen.getByRole("progressbar", { name: "Progress for Photos" })).toHaveAttribute(
       "aria-valuenow",
@@ -56,7 +58,7 @@ describe("JobCard", () => {
   it.each(["completed", "failed", "cancelled", "interrupted"] as const)(
     "hides progress when a running job becomes %s",
     (status) => {
-      const { rerender } = render(<JobCard job={runningJob} />);
+      const { rerender } = renderWithQueryClient(<JobCard job={runningJob} />);
       expect(screen.getByRole("progressbar")).toBeInTheDocument();
 
       rerender(<JobCard job={{ ...runningJob, status }} />);
@@ -67,7 +69,9 @@ describe("JobCard", () => {
   );
 
   it("shows a spinner on the cancel button while cancellation is in flight", () => {
-    const { container } = render(<JobCard job={runningJob} onCancel={vi.fn()} cancelling />);
+    const { container } = renderWithQueryClient(
+      <JobCard job={runningJob} onCancel={vi.fn()} cancelling />,
+    );
 
     const cancelButton = screen.getByRole("button", { name: "Cancel job for Photos" });
     expect(cancelButton).toBeDisabled();
@@ -83,7 +87,7 @@ describe("JobCard", () => {
       finished_at: "2026-01-01T00:01:15Z",
     };
 
-    const { container } = render(<JobCard job={cancelledJob} />);
+    const { container } = renderWithQueryClient(<JobCard job={cancelledJob} />);
 
     expect(container.querySelector(".job-card__remaining")).toHaveTextContent("Took 1 min 15s");
   });
@@ -108,7 +112,7 @@ describe("JobCard", () => {
       processed: 1000,
     };
 
-    const { container } = render(<JobCard job={finishedTrainingJob} />);
+    const { container } = renderWithQueryClient(<JobCard job={finishedTrainingJob} />);
 
     expect(await screen.findByAltText("a mountain lake at sunrise")).toBeInTheDocument();
     expect(container.querySelector(".training-samples--compact")).toBeInTheDocument();
@@ -116,7 +120,7 @@ describe("JobCard", () => {
   });
 
   it("shows no samples strip for other job types", () => {
-    const { container } = render(<JobCard job={runningJob} />);
+    const { container } = renderWithQueryClient(<JobCard job={runningJob} />);
 
     expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
     expect(fetchSamples).not.toHaveBeenCalled();

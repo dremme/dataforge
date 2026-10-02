@@ -5,11 +5,19 @@ import { job } from "@/test/fixtures";
 /** Generated guards: a non-job `/api/events` frame must not reach setExternalJobs as undefined. */
 describe("isServerEvent", () => {
   const jobEvent = { type: "job", job: job() };
-  const externalEvent = { type: "external_jobs", jobs: [], active_count: 0, available: true };
+  const externalEvent = {
+    type: "external_jobs",
+    jobs: [],
+    active_count: 0,
+    available: true,
+    revision: 1,
+  };
 
   it("accepts the frames the backend publishes", () => {
     expect(isServerEvent(jobEvent)).toBe(true);
     expect(isServerEvent(externalEvent)).toBe(true);
+    expect(isServerEvent({ type: "jobs_removed", ids: ["job-1"], revision: 2 })).toBe(true);
+    expect(isServerEvent({ type: "resync" })).toBe(true);
   });
 
   it("accepts a nullable field whether it is null or absent", () => {

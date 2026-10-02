@@ -1,8 +1,8 @@
-import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchFolder } from "@/features/folder/api/folderContents";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { ApiError } from "@/shared/api/http";
+import { AppProviders } from "@/test/AppProviders";
 import type { FolderResponse, GalleryItem } from "@/shared/types";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { useCandidateReviewOverlay } from "./useCandidateReviewOverlay";
@@ -26,13 +26,7 @@ function stagingListing(items: GalleryItem[]): FolderResponse {
   } as unknown as FolderResponse;
 }
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 describe("useCandidateReviewOverlay", () => {
   beforeEach(() => {
@@ -92,7 +86,7 @@ describe("useCandidateReviewOverlay", () => {
 
   it("treats a staging folder that was never created as nothing to review", async () => {
     // The ordinary case before any run, not a failure worth an error toast.
-    fetchFolderMock.mockRejectedValue(new Error("Folder not found"));
+    fetchFolderMock.mockRejectedValue(new ApiError(404, "Folder not found", "folder_not_found"));
 
     const { result } = renderHook(() => useCandidateReviewOverlay(), { wrapper });
 

@@ -777,6 +777,7 @@ function job(id: string, folder: string, overrides: Partial<Job> = {}): Job {
     processed: 3,
     stats: { total: 3, success: 3 },
     created_at: "2026-01-01T00:00:00Z",
+    revision: 1,
     ...overrides,
   };
 }

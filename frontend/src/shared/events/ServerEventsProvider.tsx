@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { subscribeToServerEvents } from "@/shared/api/eventStream";
+import { isPushFed } from "@/shared/query/queryClient";
 import type { ServerEvent } from "@/shared/types";
 import {
   HIDDEN_DISCONNECT_MS,
@@ -11,9 +13,20 @@ import {
 const WATCHDOG_TICK_MS = 5_000;
 
 export function ServerEventsProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
   const handlersRef = useRef(new Set<(event: ServerEvent) => void>());
   const lastFrameAtRef = useRef(0);
+
+  // Nothing replays frames sent while the stream was down or dropped, so re-read whatever
+  // pushes keep current, on every (re)connect and on every reported loss.
+  const resync = useCallback(() => {
+    void queryClient.invalidateQueries({ predicate: isPushFed });
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (connected) resync();
+  }, [connected, resync]);
 
   const subscribe = useCallback((handler: (event: ServerEvent) => void) => {
     handlersRef.current.add(handler);
@@ -34,6 +47,7 @@ export function ServerEventsProvider({ children }: { children: ReactNode }) {
       close = subscribeToServerEvents({
         onEvent: (event) => {
           lastFrameAtRef.current = Date.now();
+          if (event.type === "resync") resync();
           for (const handler of handlersRef.current) handler(event);
         },
         onConnectedChange: (value) => {
@@ -84,7 +98,7 @@ export function ServerEventsProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", handleVisibility);
       closeStream();
     };
-  }, []);
+  }, [resync]);
 
   const value = useMemo<ServerEventsContextValue>(
     () => ({ connected, subscribe }),

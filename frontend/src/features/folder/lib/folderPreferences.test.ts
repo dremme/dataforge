@@ -1,27 +1,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
-import { FOLDER_NOT_FOUND_MESSAGE } from "@/shared/api/http";
-import { HOME_PATH, VACATION_PATH } from "@/test/fixtures";
+import { NetworkError } from "@/shared/api/http";
+import { HOME_PATH, VACATION_PATH, homeFolder, vacationFolder } from "@/test/fixtures";
 import {
-  fetchFolderWithRetry,
+  getCachedLastFolder,
   getRecentFoldersForPicker,
-  promoteRecentFolder,
+  loadFolderContents,
   readRecentFolderPaths,
+  rememberOpenedFolder,
   touchRecentFolder,
 } from "./folderPreferences";
 
-describe("fetchFolderWithRetry", () => {
+describe("loadFolderContents", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
   });
 
-  it("does not retry when the folder is not found", async () => {
+  it("leaves the last and recent folders alone: listing is not opening", async () => {
+    vi.spyOn(api, "fetchFolder").mockResolvedValue(vacationFolder);
+
+    await loadFolderContents(VACATION_PATH);
+
+    expect(getCachedLastFolder()).toBeNull();
+    expect(readRecentFolderPaths()).toEqual([]);
+  });
+
+  it("falls back to the last folder when the default cannot be listed", async () => {
+    rememberOpenedFolder(HOME_PATH);
     const fetchFolder = vi
       .spyOn(api, "fetchFolder")
-      .mockRejectedValue(new Error(FOLDER_NOT_FOUND_MESSAGE));
+      .mockRejectedValueOnce(new NetworkError())
+      .mockResolvedValueOnce(homeFolder);
 
-    await expect(fetchFolderWithRetry(HOME_PATH)).rejects.toThrow(FOLDER_NOT_FOUND_MESSAGE);
-    expect(fetchFolder).toHaveBeenCalledTimes(1);
+    await expect(loadFolderContents()).resolves.toBe(homeFolder);
+    expect(fetchFolder).toHaveBeenLastCalledWith(HOME_PATH, {});
+  });
+
+  it("gives up on the default when there is no last folder to fall back to", async () => {
+    vi.spyOn(api, "fetchFolder").mockRejectedValue(new NetworkError());
+
+    await expect(loadFolderContents()).rejects.toBeInstanceOf(NetworkError);
   });
 });
 
@@ -47,15 +66,6 @@ describe("folderPreferences recent folders", () => {
     touchRecentFolder(VACATION_PATH);
 
     expect(readRecentFolderPaths()).toEqual([VACATION_PATH]);
-  });
-
-  it("promotes an unfavorited folder to the top of recent", () => {
-    touchRecentFolder(HOME_PATH);
-    touchRecentFolder(VACATION_PATH);
-
-    promoteRecentFolder(HOME_PATH);
-
-    expect(readRecentFolderPaths()).toEqual([HOME_PATH, VACATION_PATH]);
   });
 
   it("puts the current folder first in the picker when it is not a favorite", () => {

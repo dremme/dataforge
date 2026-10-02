@@ -1,15 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { homeFolder, vacationFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { BreadcrumbBar } from "./BreadcrumbBar";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 type BarProps = ComponentProps<typeof BreadcrumbBar>;
 
 function renderBar(props: Partial<BarProps> = {}) {
-  return render(
+  return renderWithQueryClient(
     <BreadcrumbBar
       breadcrumbs={homeFolder.breadcrumbs}
       currentFolder={homeFolder.path}

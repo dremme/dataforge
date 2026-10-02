@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  loadGalleryDisplayMode,
+  fetchDisplayMode,
   readCachedDisplayMode,
   updateGalleryDisplayMode,
 } from "./galleryDisplayPreferences";
@@ -13,10 +13,6 @@ vi.mock("@/shared/api/http", () => ({
   putJson: (...args: unknown[]) => putJsonMock(...args),
 }));
 
-vi.mock("@/shared/lib/retry", () => ({
-  withRetry: async <T>(fn: () => Promise<T>) => fn(),
-}));
-
 describe("galleryDisplayPreferences", () => {
   afterEach(() => {
     requestJsonMock.mockReset();
@@ -24,15 +20,16 @@ describe("galleryDisplayPreferences", () => {
     localStorage.clear();
   });
 
-  it("loads the mode for a folder from the backend", async () => {
+  it("loads the mode for a folder from the backend and mirrors it locally", async () => {
     requestJsonMock.mockResolvedValue({ mode: "list", folder_path: "C:\\Photos\\Trip" });
 
-    const mode = await loadGalleryDisplayMode("C:\\Photos\\Trip");
+    const mode = await fetchDisplayMode("C:\\Photos\\Trip");
 
     expect(requestJsonMock).toHaveBeenCalledWith(
       expect.stringContaining("/api/preferences/gallery-display?"),
     );
     expect(mode).toBe("list");
+    expect(readCachedDisplayMode("C:\\Photos\\Trip")).toBe("list");
   });
 
   it("persists the mode with folder_path", async () => {
@@ -45,21 +42,6 @@ describe("galleryDisplayPreferences", () => {
       folder_path: "C:\\Photos\\A",
     });
     expect(mode).toBe("small");
-  });
-
-  it("falls back to the cached mode when the backend is unreachable", async () => {
-    putJsonMock.mockResolvedValue({ mode: "list", folder_path: "C:\\Photos\\A" });
-    await updateGalleryDisplayMode("C:\\Photos\\A", "list");
-
-    requestJsonMock.mockRejectedValue(new Error("offline"));
-
-    expect(await loadGalleryDisplayMode("C:\\Photos\\A")).toBe("list");
-  });
-
-  it("falls back to the default for a folder it has never seen", async () => {
-    requestJsonMock.mockRejectedValue(new Error("offline"));
-
-    expect(await loadGalleryDisplayMode("C:\\Photos\\Unseen")).toBe("large");
   });
 
   it("caches under a separator- and case-insensitive key", async () => {

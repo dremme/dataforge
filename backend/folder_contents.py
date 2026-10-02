@@ -36,9 +36,10 @@ def _remember_last_folder(folder: Path) -> None:
     set_preference(LAST_FOLDER_KEY, value)
 
 
-def build_folder_response(folder: Path) -> FolderResponse:
+def build_folder_response(folder: Path, *, remember_last: bool = True) -> FolderResponse:
     started = perf_counter()
-    _remember_last_folder(folder)
+    if remember_last:
+        _remember_last_folder(folder)
 
     parent = folder.parent
     parent_path = None if parent == folder else str(parent.resolve())
@@ -87,8 +88,23 @@ def build_folder_response(folder: Path) -> FolderResponse:
     return response
 
 
-def build_folder_changes(folder: Path, since: str) -> FolderChangesResponse:
+def build_folder_fingerprint(folder: Path) -> str | None:
+    """Remembered like a listing's, so a client adopting it can ask for changes since it."""
+    scan = scan_folder(folder)
+    if scan is None:
+        return None
+
+    signature = folder_signature_from_scan(scan)
+    remember_folder_signature(folder, signature)
+    return signature.fingerprint
+
+
+def build_folder_changes(
+    folder: Path, since: str, *, remember_last: bool = False
+) -> FolderChangesResponse:
     """Answers ``full`` when there is nothing to diff against (unknown baseline, unreadable folder, or a shell change)."""
+    if remember_last:
+        _remember_last_folder(folder)
     scan = scan_folder(folder)
     if scan is None:
         return FolderChangesResponse(full=True, fingerprint="")

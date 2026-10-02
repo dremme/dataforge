@@ -1,10 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/gallery/api/captions";
 import { installMockBackend } from "@/test/mockBackend";
 import type { ComfyOutputBranch, ComfyWorkflowPromptsResponse } from "@/shared/types";
 import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 function makeBranch(overrides: Partial<ComfyOutputBranch> = {}): ComfyOutputBranch {
   return {
@@ -35,7 +36,7 @@ function makeResponse(
 
 function renderDialog(response: ComfyWorkflowPromptsResponse) {
   vi.spyOn(api, "fetchComfyWorkflowPrompts").mockResolvedValue(response);
-  return render(
+  return renderWithQueryClient(
     <ComfyWorkflowDialog
       mediaPath="C:\\Photos\\scenery_00002_.png"
       mediaName="scenery_00002_.png"
@@ -157,7 +158,7 @@ describe("ComfyWorkflowDialog", () => {
   it("surfaces a failed read instead of an empty panel", async () => {
     vi.spyOn(api, "fetchComfyWorkflowPrompts").mockRejectedValue(new Error("Backend unreachable"));
 
-    render(
+    renderWithQueryClient(
       <ComfyWorkflowDialog
         mediaPath="C:\\Photos\\scenery_00002_.png"
         mediaName="scenery_00002_.png"

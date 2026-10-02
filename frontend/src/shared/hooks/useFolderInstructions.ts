@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { folderKey } from "@/features/folder/lib/folderPath";
 import { fetchFolderInstructions, type InstructionKind } from "@/shared/api/folderInstructions";
 import { formatApiError } from "@/shared/api/http";
 import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
@@ -8,37 +10,31 @@ export type FolderInstructionsState =
   | { status: "ready"; instructions: FolderInstructionsResponse }
   | { status: "error"; message: string };
 
+const instructionsKey = (folderPath: string) => ["folder-instructions", folderKey(folderPath)];
+
 /** The folder's instruction files; `setFile` takes the response of a save. */
 export function useFolderInstructions(folderPath: string) {
-  const [state, setState] = useState<FolderInstructionsState>({ status: "loading" });
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const query = useQuery({
+    queryKey: instructionsKey(folderPath),
+    queryFn: ({ signal }) => fetchFolderInstructions(folderPath, signal),
+  });
 
-    fetchFolderInstructions(folderPath, controller.signal).then(
-      (instructions) => {
-        if (!controller.signal.aborted) setState({ status: "ready", instructions });
-      },
-      (caught: unknown) => {
-        if (!controller.signal.aborted) {
-          setState({ status: "error", message: formatApiError(caught) });
-        }
-      },
-    );
+  const state: FolderInstructionsState = query.data
+    ? { status: "ready", instructions: query.data }
+    : query.isError
+      ? { status: "error", message: formatApiError(query.error) }
+      : { status: "loading" };
 
-    return () => controller.abort();
-  }, [folderPath]);
-
-  const instructions = state.status === "ready" ? state.instructions : null;
   const setFile = useCallback(
     (kind: InstructionKind, saved: InstructionFileResponse) =>
-      setState((current) =>
-        current.status === "ready"
-          ? { status: "ready", instructions: { ...current.instructions, [kind]: saved } }
-          : current,
+      queryClient.setQueryData<FolderInstructionsResponse>(
+        instructionsKey(folderPath),
+        (current) => current && { ...current, [kind]: saved },
       ),
-    [],
+    [folderPath, queryClient],
   );
 
-  return { state, instructions, setFile };
+  return { state, instructions: query.data ?? null, setFile };
 }

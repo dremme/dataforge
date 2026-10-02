@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
-import { fetchFolderChildren } from "@/features/folder/api/folders";
+import { useQuery } from "@tanstack/react-query";
+import { useFolderPrefetch } from "@/features/folder/hooks/useFolderPrefetch";
 import { folderPathsEqual } from "@/features/folder/lib/folderPath";
+import { folderChildrenQueryOptions } from "@/features/folder/lib/folderQuery";
 import { formatApiError } from "@/shared/api/http";
 import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { iconChevronRight, iconFolder } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
-import type { FolderChild } from "@/shared/types";
 import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { Icon } from "@/shared/ui/Icon";
 
@@ -19,10 +19,6 @@ interface BreadcrumbCrumbMenuProps {
   onNavigate: (path: string) => void;
 }
 
-function sortChildren(children: FolderChild[]): FolderChild[] {
-  return [...children].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
-}
-
 export function BreadcrumbCrumbMenu({
   folderPath,
   label,
@@ -30,39 +26,13 @@ export function BreadcrumbCrumbMenu({
   onNavigate,
 }: BreadcrumbCrumbMenuProps) {
   const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
-  const [children, setChildren] = useState<FolderChild[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const prefetch = useFolderPrefetch();
 
-  useEffect(() => {
-    if (!open) return;
-
-    const controller = new AbortController();
-    setLoading(true);
-
-    fetchFolderChildren(folderPath, controller.signal)
-      .then((data) => {
-        if (controller.signal.aborted) return;
-        setChildren(sortChildren(data.children));
-        setError(null);
-      })
-      .catch((cause: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(formatApiError(cause));
-      })
-      .finally(() => {
-        if (controller.signal.aborted) return;
-        setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [folderPath, open]);
-
-  // Drop a stale list when the crumb itself changes underneath us.
-  useEffect(() => {
-    setChildren(null);
-    setError(null);
-  }, [folderPath]);
+  // Re-read on every open: folders come and go, and a cached list shows while it loads.
+  const childrenQuery = useQuery({ ...folderChildrenQueryOptions(folderPath), enabled: open });
+  const children = childrenQuery.data ?? null;
+  const error = childrenQuery.isError ? formatApiError(childrenQuery.error) : null;
+  const loading = childrenQuery.isFetching;
 
   const handleSelect = (path: string) => {
     close();
@@ -113,6 +83,7 @@ export function BreadcrumbCrumbMenu({
               aria-current={isActive ? "true" : undefined}
               title={child.path}
               onClick={() => handleSelect(child.path)}
+              {...prefetch(child.path)}
             >
               <Icon icon={iconFolder} className="breadcrumbs__menu-option-icon" />
               <span className="breadcrumbs__menu-option-label">{child.name}</span>

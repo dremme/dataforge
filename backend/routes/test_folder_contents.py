@@ -152,6 +152,34 @@ class FolderContentsEndpointTests(unittest.TestCase):
         self.assertEqual(second.json()["path"], str(root.resolve()))
         self.assertEqual(get_preference(LAST_FOLDER_KEY), str(root.resolve()))
 
+    def test_a_prefetch_is_neither_remembered_nor_watched(self) -> None:
+        with TempMediaFolder() as opened, TempMediaFolder() as hovered:
+            _listing(opened)
+
+            with patch("routes.folder_contents.folder_watch.touch") as touch:
+                response = client.get(
+                    f"/api/folders/contents?path={quote(str(hovered))}&tab=tab-1&prefetch=true"
+                )
+
+            self.assertEqual(response.status_code, 200)
+            # The watch keeps only a few folders per tab; a hover must not push the open one out.
+            touch.assert_not_called()
+            self.assertEqual(get_preference(LAST_FOLDER_KEY), str(opened.resolve()))
+
+    def test_opening_a_folder_by_its_changes_remembers_it(self) -> None:
+        with TempMediaFolder() as first, TempMediaFolder() as second:
+            listed = _listing(second)
+            _listing(first)
+            since = quote(listed["fingerprint"])
+
+            polled = client.get(f"/api/folders/changes?path={quote(str(second))}&since={since}")
+            self.assertEqual(polled.status_code, 200)
+            # A poll is not the user going back there.
+            self.assertEqual(get_preference(LAST_FOLDER_KEY), str(first.resolve()))
+
+            client.get(f"/api/folders/changes?path={quote(str(second))}&since={since}&opened=true")
+            self.assertEqual(get_preference(LAST_FOLDER_KEY), str(second.resolve()))
+
     def test_returns_404_for_missing_folder(self) -> None:
         with TempMediaFolder() as root:
             missing = root / "does-not-exist"
@@ -160,6 +188,9 @@ class FolderContentsEndpointTests(unittest.TestCase):
                 with self.subTest(route=route):
                     response = client.get(f"/api/folders/{route}?path={quote(str(missing))}")
                     self.assertEqual(response.status_code, 404)
+                    self.assertEqual(
+                        response.json(), {"detail": "Folder not found", "code": "folder_not_found"}
+                    )
 
     def test_returns_400_when_path_is_a_file(self) -> None:
         with TempMediaFolder() as root:

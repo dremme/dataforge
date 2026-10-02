@@ -270,12 +270,14 @@ export function Toolbar({
         <Tooltip
           content={`${captionedTooltip} — ${filterHint(captionedFilterActive, "captioned files")}`}
         >
-          <span
+          <button
+            type="button"
             className={classNames(
               `stat stat--${allCaptioned ? "success" : "warning"}`,
               "stat--filter",
             )}
             aria-label={captionedTooltip}
+            aria-pressed={captionedFilterActive}
             onClick={() => onFilterChange(captionedFilterActive ? "all" : "captioned")}
           >
             <Icon icon={iconMessageCheck} className="stat__icon" />
@@ -285,20 +287,22 @@ export function Toolbar({
                 ({captionPercent}%)
               </span>
             )}
-          </span>
+          </button>
         </Tooltip>
         {issueCount > 0 && (
           <Tooltip
             content={`${issueTooltip} — ${filterHint(issueFilterActive, "files with issues")}`}
           >
-            <span
+            <button
+              type="button"
               className="stat stat--warning stat--filter"
               aria-label={issueTooltip}
+              aria-pressed={issueFilterActive}
               onClick={() => onFilterChange(issueFilterActive ? "all" : "issue")}
             >
               <Icon icon={iconMessageWarning} className="stat__icon" />
               <StatValue loading={statsLoading} value={issueCount} />
-            </span>
+            </button>
           </Tooltip>
         )}
         {(hasSysprompt || hasCaptionRules || hasCaptionBackup) && (

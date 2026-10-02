@@ -1,6 +1,6 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as uiPreferences from "@/shared/preferences/uiPreferences";
+import { renderHookWithQueryClient } from "@/test/queryClient";
 import {
   getThemePreference,
   resolveTheme,
@@ -25,6 +25,26 @@ function stubSystemScheme(light: boolean) {
   };
 }
 
+function respond(theme: string) {
+  return new Response(JSON.stringify({ sort: "name-asc", show_automation_specs: false, theme }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** The server's copy of the UI settings, answered when the test says so. */
+function holdServerTheme() {
+  let answer: (theme: string) => void = () => {};
+  const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+    if (init?.method === "PUT") return respond(JSON.parse(init.body as string).theme);
+    return new Promise<Response>((resolve) => {
+      answer = (theme) => resolve(respond(theme));
+    });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return { fetchMock, answer: (theme: string) => answer(theme) };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -42,14 +62,12 @@ describe("theme", () => {
 
   it("adopts the server's choice on start and follows the OS while on System", async () => {
     const system = stubSystemScheme(false);
-    vi.spyOn(uiPreferences, "loadUiSettings").mockResolvedValue({
-      sort: "name-asc",
-      showAutomationSpecs: false,
-      theme: "system",
-    });
+    const server = holdServerTheme();
 
-    renderHook(() => useThemeSync());
+    renderHookWithQueryClient(() => useThemeSync());
+    await act(async () => server.answer("system"));
 
+    await waitFor(() => expect(getThemePreference()).toBe("system"));
     expect(document.documentElement.dataset.theme).toBe("dark");
     act(() => system.change(true));
     expect(document.documentElement.dataset.theme).toBe("light");
@@ -57,8 +75,8 @@ describe("theme", () => {
 
   it("takes a choice made in another tab", () => {
     stubSystemScheme(false);
-    vi.spyOn(uiPreferences, "loadUiSettings").mockReturnValue(new Promise(() => {}));
-    const { result } = renderHook(() => {
+    holdServerTheme();
+    const { result } = renderHookWithQueryClient(() => {
       useThemeSync();
       return useThemePreference();
     });
@@ -73,25 +91,20 @@ describe("theme", () => {
 
   it("a choice made here is applied, cached, persisted, and outranks a late server answer", async () => {
     stubSystemScheme(false);
-    let answer: (settings: uiPreferences.UiSettings) => void = () => {};
-    vi.spyOn(uiPreferences, "loadUiSettings").mockReturnValue(
-      new Promise((resolve) => {
-        answer = resolve;
-      }),
-    );
-    const update = vi.spyOn(uiPreferences, "updateUiSettings").mockResolvedValue({
-      sort: "name-asc",
-      showAutomationSpecs: false,
-      theme: "dark",
-    });
-    renderHook(() => useThemeSync());
+    const server = holdServerTheme();
+    renderHookWithQueryClient(() => useThemeSync());
 
     act(() => setThemePreference("dark"));
-    await act(async () => answer({ sort: "name-asc", showAutomationSpecs: false, theme: "light" }));
+    await act(async () => server.answer("light"));
 
     expect(getThemePreference()).toBe("dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(localStorage.getItem("ui-theme")).toBe("dark");
-    await waitFor(() => expect(update).toHaveBeenCalledWith({ theme: "dark" }));
+    await waitFor(() =>
+      expect(server.fetchMock).toHaveBeenCalledWith(
+        "/api/preferences/ui",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ theme: "dark" }) }),
+      ),
+    );
   });
 });

@@ -1,33 +1,21 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchComfyWorkflow } from "@/features/gallery/api/captions";
 import { supportsComfyWorkflow } from "@/features/gallery/lib/comfyWorkflow";
 import { deferNonCriticalWork } from "@/shared/lib/defer";
-import { useStaleRequest } from "@/shared/hooks/useStaleRequest";
 
 export function useComfyWorkflowFlag(path: string | undefined): boolean {
-  const [hasComfyWorkflow, setHasComfyWorkflow] = useState(false);
-  const { next, isCurrent } = useStaleRequest();
+  const supported = Boolean(path) && supportsComfyWorkflow(path!);
 
-  useEffect(() => {
-    if (!path || !supportsComfyWorkflow(path)) {
-      setHasComfyWorkflow(false);
-      return;
-    }
+  const { data } = useQuery({
+    queryKey: ["comfy-workflow-flag", path],
+    queryFn: async () => {
+      // The badge can wait; the image the modal opened for cannot.
+      await new Promise<void>((resolve) => deferNonCriticalWork(resolve));
+      return (await fetchComfyWorkflow(path!)).has_workflow;
+    },
+    enabled: supported,
+    retry: false,
+  });
 
-    const requestId = next();
-
-    return deferNonCriticalWork(() => {
-      void fetchComfyWorkflow(path)
-        .then((result) => {
-          if (!isCurrent(requestId)) return;
-          setHasComfyWorkflow(result.has_workflow);
-        })
-        .catch(() => {
-          if (!isCurrent(requestId)) return;
-          setHasComfyWorkflow(false);
-        });
-    });
-  }, [isCurrent, next, path]);
-
-  return hasComfyWorkflow;
+  return supported && data === true;
 }

@@ -1,6 +1,8 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { QueryClient } from "@tanstack/react-query";
 import { installFakeEventSource } from "@/test/fakeEventSource";
+import { queryWrapper } from "@/test/queryClient";
 import { ServerEventsProvider } from "./ServerEventsProvider";
 import {
   HIDDEN_DISCONNECT_MS,
@@ -19,7 +21,7 @@ function Probe({ onState }: { onState: (state: { connected: boolean; events: num
   return null;
 }
 
-function renderProvider() {
+function renderProvider(client?: QueryClient) {
   const latest = { current: { connected: false, events: 0 } };
   render(
     <ServerEventsProvider>
@@ -29,8 +31,19 @@ function renderProvider() {
         }}
       />
     </ServerEventsProvider>,
+    { wrapper: queryWrapper(client).wrapper },
   );
   return latest;
+}
+
+function seedQueries(client: QueryClient) {
+  client.setQueryDefaults(["pushed"], { meta: { pushFed: true } });
+  client.setQueryData(["pushed"], 1);
+  client.setQueryData(["plain"], 1);
+}
+
+function isStale(client: QueryClient, key: string): boolean {
+  return client.getQueryState([key])?.isInvalidated ?? false;
 }
 
 let visibility: ReturnType<typeof vi.spyOn>;
@@ -48,6 +61,38 @@ afterEach(() => {
 });
 
 describe("ServerEventsProvider", () => {
+  it("re-reads push-fed queries whenever the stream connects", async () => {
+    const stream = installFakeEventSource();
+    const { client } = queryWrapper();
+    seedQueries(client);
+    renderProvider(client);
+
+    expect(isStale(client, "pushed")).toBe(false);
+    await act(async () => {
+      stream.open();
+    });
+
+    expect(isStale(client, "pushed")).toBe(true);
+    expect(isStale(client, "plain")).toBe(false);
+  });
+
+  it("re-reads push-fed queries when the server reports dropped frames", async () => {
+    const stream = installFakeEventSource();
+    const { client } = queryWrapper();
+    renderProvider(client);
+    await act(async () => {
+      stream.open();
+    });
+    seedQueries(client);
+
+    await act(async () => {
+      stream.push({ type: "resync" });
+    });
+
+    expect(isStale(client, "pushed")).toBe(true);
+    expect(isStale(client, "plain")).toBe(false);
+  });
+
   it("reopens a stream that stays open but stops delivering", async () => {
     const stream = installFakeEventSource();
     renderProvider();

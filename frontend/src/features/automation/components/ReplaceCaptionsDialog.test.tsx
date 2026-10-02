@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { previewCaptionReplacements } from "@/features/automation/api/jobs";
@@ -7,6 +7,7 @@ import {
   emptyAutomationSettings,
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const DEFAULTS: JobSettingsByType["replace_captions"] =
   emptyAutomationSettings("C:/datasets/photos").replace_captions;
@@ -21,7 +22,7 @@ function renderDialog(
   onConfirm = vi.fn(),
   overrides: Partial<JobSettingsByType["replace_captions"]> = {},
 ) {
-  render(
+  renderWithQueryClient(
     <ReplaceCaptionsDialog
       scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
       initialSettings={{ ...DEFAULTS, ...overrides }}

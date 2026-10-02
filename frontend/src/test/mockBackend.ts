@@ -1,5 +1,4 @@
 import { vi } from "vitest";
-import { clearFolderCache } from "@/features/folder/lib/folderCache";
 import { clearFolderScrollMemory } from "@/features/folder/lib/folderScrollMemory";
 import type {
   AppSettingKey,
@@ -39,6 +38,16 @@ function normalizeFolderKey(path: string | null | undefined): string | undefined
   return path.replace(/\//g, "\\");
 }
 
+const FOLDER_NOT_FOUND_BODY = { detail: "Folder not found", code: "folder_not_found" };
+
+let mockRevision = 0;
+
+/** Rises across tests too, like the server's clock-based revisions. */
+function nextMockRevision(): number {
+  mockRevision += 1;
+  return mockRevision;
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -69,6 +78,7 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
     processed: 0,
     stats: {},
     created_at: now,
+    revision: nextMockRevision(),
   };
 }
 
@@ -82,8 +92,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     size_bytes: 48 * 1024 ** 2,
   };
 
-  // Module singletons; leftover payloads from an earlier test would skip this mock.
-  clearFolderCache();
+  // A module singleton; offsets left by an earlier test would scroll this one.
   clearFolderScrollMemory();
 
   const folderByPath = Object.fromEntries(
@@ -181,7 +190,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
       if (method === "POST") {
         if (!favoritePath || !folderExists(favoritePath)) {
-          return jsonResponse({ detail: "Folder not found" }, 404);
+          return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
         }
 
         const paths = [...getFavoritePaths()];
@@ -194,7 +203,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
 
       if (method === "DELETE") {
         if (!favoritePath) {
-          return jsonResponse({ detail: "Folder not found" }, 404);
+          return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
         }
 
         folderFavorites = getFavoritePaths().filter(
@@ -207,7 +216,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/folders/open" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path"));
       if (!folderPath || !folderExists(folderPath)) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       return jsonResponse({ path: folderPath });
@@ -218,7 +227,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const folderName = url.searchParams.get("name")?.trim() ?? "";
 
       if (!parentPath || !folderExists(parentPath)) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       if (!folderName || /[<>:"/\\|?*]/.test(folderName)) {
@@ -228,7 +237,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const createdPath = `${parentPath.replace(/[/\\]+$/, "")}\\${folderName}`;
       const parentFolder = folderResponses[parentPath];
       if (!parentFolder) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       if (
@@ -281,7 +290,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const rawPath = url.searchParams.get("path");
       const pathKey = normalizeFolderKey(rawPath);
       if (!pathKey || !folderExists(pathKey)) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       const data = folderResponses[pathKey];
@@ -298,7 +307,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const data =
         rawPath === null || rawPath === "" ? folderResponses.undefined : folderResponses[pathKey!];
       if (!data) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       return jsonResponse({ fingerprint: data.fingerprint });
@@ -308,7 +317,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const pathKey = normalizeFolderKey(url.searchParams.get("path"));
       const data = pathKey ? folderResponses[pathKey] : undefined;
       if (!pathKey || !data) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       const since = url.searchParams.get("since") ?? "";
@@ -329,7 +338,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const pathKey = normalizeFolderKey(url.searchParams.get("path"));
       const data = pathKey ? folderResponses[pathKey] : undefined;
       if (!data) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       return jsonResponse({
@@ -347,7 +356,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const pathKey = normalizeFolderKey(url.searchParams.get("path"));
       const data = pathKey ? folderResponses[pathKey] : undefined;
       if (!data) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       return jsonResponse({
@@ -363,7 +372,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
 
       if (options.failFolder) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       const rawPath = url.searchParams.get("path");
@@ -371,7 +380,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const data =
         rawPath === null || rawPath === "" ? folderResponses.undefined : folderResponses[pathKey!];
       if (!data) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       return jsonResponse(data);
@@ -641,7 +650,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const paths = Array.isArray(body.paths) ? body.paths : [];
 
       if (!destination || !folderExists(destination)) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       const destinationFolder = folderResponses[destination];
@@ -682,12 +691,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const paths = Array.isArray(body.paths) ? body.paths : [];
 
       if (!destination || !folderExists(destination)) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       const destinationFolder = folderResponses[destination];
       if (!destinationFolder) {
-        return jsonResponse({ detail: "Folder not found" }, 404);
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
       }
 
       const transferred: Array<{ source: string; destination: string; files: string[] }> = [];
@@ -879,7 +888,12 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       const activeCount = jobs.filter(
         (job) => job.status === "queued" || job.status === "running",
       ).length;
-      return jsonResponse({ jobs, active_count: activeCount, total: jobs.length });
+      return jsonResponse({
+        jobs,
+        active_count: activeCount,
+        total: jobs.length,
+        revision: nextMockRevision(),
+      });
     }
 
     if (url.pathname === "/api/jobs/folder-latest") {

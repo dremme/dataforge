@@ -1,12 +1,10 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { focusManager } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as systemApi from "@/features/automation/api/system";
 import type { SystemSpecs } from "@/shared/types";
-import {
-  ACTIVE_REFRESH_INTERVAL_MS,
-  resetSystemSpecsCacheForTests,
-  useSystemSpecs,
-} from "./useSystemSpecs";
+import { queryWrapper } from "@/test/queryClient";
+import { ACTIVE_REFRESH_INTERVAL_MS, useSystemSpecs } from "./useSystemSpecs";
 
 const sampleSpecs: SystemSpecs = {
   cpu_name: "Intel Core i7",
@@ -25,18 +23,14 @@ const sampleSpecs: SystemSpecs = {
 
 describe("useSystemSpecs", () => {
   beforeEach(() => {
-    resetSystemSpecsCacheForTests();
     vi.restoreAllMocks();
   });
 
-  afterEach(() => {
-    resetSystemSpecsCacheForTests();
-  });
-
   it("returns cached specs immediately on remount without waiting for fetch", async () => {
+    const { wrapper } = queryWrapper();
     const fetchMock = vi.spyOn(systemApi, "fetchSystemSpecs").mockResolvedValue(sampleSpecs);
 
-    const first = renderHook(() => useSystemSpecs());
+    const first = renderHook(() => useSystemSpecs(), { wrapper });
     await waitFor(() => {
       expect(first.result.current).toEqual(sampleSpecs);
     });
@@ -46,23 +40,32 @@ describe("useSystemSpecs", () => {
     fetchMock.mockClear();
     fetchMock.mockImplementation(() => new Promise(() => {}));
 
-    const second = renderHook(() => useSystemSpecs());
+    const second = renderHook(() => useSystemSpecs(), { wrapper });
     expect(second.result.current).toEqual(sampleSpecs);
+    await act(async () => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    focusManager.setFocused(undefined);
+    expect(fetchMock).not.toHaveBeenCalled();
     second.unmount();
   });
 
   it("keeps cached specs when a refresh fails", async () => {
+    const { wrapper } = queryWrapper();
     const fetchMock = vi.spyOn(systemApi, "fetchSystemSpecs").mockResolvedValueOnce(sampleSpecs);
 
-    const first = renderHook(() => useSystemSpecs());
+    const first = renderHook(() => useSystemSpecs(), { wrapper });
     await waitFor(() => {
       expect(first.result.current).toEqual(sampleSpecs);
     });
     first.unmount();
 
     fetchMock.mockRejectedValue(new Error("offline"));
+    // A stale remount refreshes; a fresh remount simply shares the cached reading.
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 30_001);
 
-    const second = renderHook(() => useSystemSpecs());
+    const second = renderHook(() => useSystemSpecs(), { wrapper });
     expect(second.result.current).toEqual(sampleSpecs);
 
     await waitFor(() => {
@@ -79,12 +82,14 @@ describe("useSystemSpecs", () => {
 
       const { rerender, unmount } = renderHook(({ live }) => useSystemSpecs(live), {
         initialProps: { live: false },
+        wrapper: queryWrapper().wrapper,
       });
       await vi.advanceTimersByTimeAsync(ACTIVE_REFRESH_INTERVAL_MS * 3);
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
       // Going live refreshes immediately, then keeps up with the job.
       rerender({ live: true });
+      await vi.advanceTimersByTimeAsync(0);
       expect(fetchMock).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(ACTIVE_REFRESH_INTERVAL_MS * 3);
       expect(fetchMock).toHaveBeenCalledTimes(5);

@@ -1,18 +1,12 @@
-import { StrictMode, useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { act, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useColorAdjust, type AdjustDraft } from "./useColorAdjust";
 import { RESTING_ADJUST } from "@/features/gallery/lib/colorAdjust";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { AppProviders } from "@/test/AppProviders";
 import type { ColorAdjust } from "@/shared/types";
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 function renderAdjust() {
   let resolve!: (suggestion: ColorAdjust) => void;

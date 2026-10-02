@@ -20,6 +20,7 @@ const failedJob: Job = {
   stats: { total: 3, success: 2, write_error: 1 },
   error: null,
   created_at: "2026-01-01T00:00:00Z",
+  revision: 1,
   started_at: "2026-01-01T00:00:01Z",
   finished_at: "2026-01-01T00:01:00Z",
 };

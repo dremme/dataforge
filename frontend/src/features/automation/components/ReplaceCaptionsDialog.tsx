@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { previewCaptionReplacements } from "@/features/automation/api/jobs";
 import { diffCaption } from "@/features/automation/lib/captionDiff";
-import { isAbortError } from "@/shared/api/http";
+import { folderKey } from "@/features/folder/lib/folderPath";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { classNames } from "@/shared/lib/classNames";
 import type { CaptionReplaceMode, CaptionReplacePreviewSample } from "@/shared/types";
 import { Dialog, DialogActions } from "@/shared/ui/Dialog";
@@ -58,10 +60,6 @@ export function ReplaceCaptionsDialog({
   const [useRegex, setUseRegex] = useState(initialSettings.use_regex);
   const [caseSensitive, setCaseSensitive] = useState(initialSettings.case_sensitive);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreviewState | null>(null);
-  // The previous answer stays on screen while a new one is in flight, dimmed, so
-  // typing neither blanks the panel nor lets stale counts pass for fresh ones.
-  const [previewPending, setPreviewPending] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const searchId = useId();
@@ -71,49 +69,41 @@ export function ReplaceCaptionsDialog({
   const isReplace = mode === "replace";
 
   // Preview must use Python regex via the API; a JS engine would promise edits the job does not make.
-  useEffect(() => {
-    if (isReplace ? !search : !replacement.trim()) {
-      setPreview(null);
-      setPreviewPending(false);
-      return;
-    }
+  const request = useMemo(
+    () => ({
+      mode,
+      search,
+      replacement,
+      use_regex: useRegex,
+      case_sensitive: caseSensitive,
+      paths: selectedPaths,
+    }),
+    [caseSensitive, mode, replacement, search, selectedPaths, useRegex],
+  );
+  const asked = useDebouncedValue(request, PREVIEW_DEBOUNCE_MS);
+  const previewable = isReplace ? Boolean(search) : Boolean(replacement.trim());
 
-    setPreviewPending(true);
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      previewCaptionReplacements(
-        folderPath,
-        {
-          mode,
-          search,
-          replacement,
-          use_regex: useRegex,
-          case_sensitive: caseSensitive,
-          paths: selectedPaths,
-        },
-        controller.signal,
-      )
-        .then((response) => {
-          setPreview({
-            matched: response.matched,
-            total: response.total,
-            samples: response.samples,
-            error: response.error ?? null,
-          });
-          setPreviewPending(false);
-        })
-        .catch((cause: unknown) => {
-          if (isAbortError(cause)) return;
-          setPreview(null);
-          setPreviewPending(false);
-        });
-    }, PREVIEW_DEBOUNCE_MS);
+  const previewQuery = useQuery({
+    queryKey: ["replace-preview", folderKey(folderPath), asked],
+    queryFn: ({ signal }) => previewCaptionReplacements(folderPath, asked, signal),
+    enabled: previewable,
+    // The previous answer stays on screen while a new one is in flight, dimmed, so
+    // typing neither blanks the panel nor lets stale counts pass for fresh ones.
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
 
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [caseSensitive, folderPath, isReplace, mode, replacement, search, selectedPaths, useRegex]);
+  const answer = previewable && !previewQuery.isError ? previewQuery.data : undefined;
+  const preview: PreviewState | null = answer
+    ? {
+        matched: answer.matched,
+        total: answer.total,
+        samples: answer.samples,
+        error: answer.error ?? null,
+      }
+    : null;
+  const previewPending = previewable && (asked !== request || previewQuery.isFetching);
+  const previewError = preview?.error ?? null;
 
   const handleConfirm = useCallback(() => {
     if (busy) return;
@@ -126,14 +116,24 @@ export function ReplaceCaptionsDialog({
       setError("Enter the text to add.");
       return;
     }
-    if (preview?.error) {
-      setError(preview.error);
+    if (previewError) {
+      setError(previewError);
       return;
     }
 
     setError(null);
     onConfirm({ mode, search, replacement, useRegex, caseSensitive });
-  }, [busy, caseSensitive, isReplace, mode, onConfirm, preview, replacement, search, useRegex]);
+  }, [
+    busy,
+    caseSensitive,
+    isReplace,
+    mode,
+    onConfirm,
+    previewError,
+    replacement,
+    search,
+    useRegex,
+  ]);
 
   const clearError = useCallback(() => setError(null), []);
 

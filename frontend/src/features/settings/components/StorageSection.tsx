@@ -1,17 +1,13 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { formatApiError, isAbortError } from "@/shared/api/http";
+import type { ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatApiError } from "@/shared/api/http";
 import { iconHardDrive, iconTrash2 } from "@/shared/icons";
 import { formatCount, formatFileSize } from "@/shared/lib/format";
 import type { ThumbnailCacheStats } from "@/shared/types";
-import { fetchThumbnailCacheStats } from "../api/settings";
+import { fetchThumbnailCacheStats, settingsKeys } from "../api/settings";
 import { useClearThumbnailCache } from "../hooks/useClearThumbnailCache";
 import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
-
-type StatsState =
-  | { status: "idle" }
-  | { status: "failed"; message: string }
-  | { status: "ready"; stats: ThumbnailCacheStats };
 
 interface StorageSectionProps {
   /** Measuring walks the whole cache, so it waits until the section is first shown. */
@@ -21,30 +17,25 @@ interface StorageSectionProps {
 }
 
 export function StorageSection({ visible, disabled, children }: StorageSectionProps) {
-  const [state, setState] = useState<StatsState>({ status: "idle" });
+  const queryClient = useQueryClient();
   const { clearing, clear } = useClearThumbnailCache();
-  const status = state.status;
 
-  useEffect(() => {
-    if (!visible || status !== "idle") return;
-    const controller = new AbortController();
-    fetchThumbnailCacheStats(controller.signal).then(
-      (stats) => setState({ status: "ready", stats }),
-      (error: unknown) => {
-        if (isAbortError(error)) return;
-        setState({ status: "failed", message: formatApiError(error) });
-      },
-    );
-    return () => controller.abort();
-  }, [visible, status]);
+  const statsQuery = useQuery({
+    queryKey: settingsKeys.thumbnailCache,
+    queryFn: ({ signal }) => fetchThumbnailCacheStats(signal),
+    enabled: visible,
+  });
 
   const handleClear = async () => {
-    if (state.status !== "ready" || !(await clear())) return;
-    setState({ status: "ready", stats: { ...state.stats, file_count: 0, size_bytes: 0 } });
+    if (!statsQuery.data || !(await clear())) return;
+    queryClient.setQueryData<ThumbnailCacheStats>(
+      settingsKeys.thumbnailCache,
+      (current) => current && { ...current, file_count: 0, size_bytes: 0 },
+    );
   };
 
-  const stats = state.status === "ready" ? state.stats : null;
-  const measuring = state.status === "idle" ? "Measuring..." : null;
+  const stats = statsQuery.data ?? null;
+  const measuring = stats ? null : "Measuring...";
 
   return (
     <SettingsGroup
@@ -61,9 +52,9 @@ export function StorageSection({ visible, disabled, children }: StorageSectionPr
         />
       }
     >
-      {state.status === "failed" ? (
+      {statsQuery.isError ? (
         <p className="dialog__error" role="alert">
-          {state.message}
+          {formatApiError(statsQuery.error)}
         </p>
       ) : (
         <dl className="settings-stats" role="status">

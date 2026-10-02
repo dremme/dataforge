@@ -1,10 +1,11 @@
-import { act, renderHook } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readRecentActionIds } from "@/features/quickAction/lib/quickActionHistory";
 import type { GalleryItem } from "@/shared/types";
 import { useAutomationHost } from "./useAutomationHost";
 
 import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
+import { renderHookWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/automation/preferences/automationPreferences", async (importOriginal) => {
   const actual = await importOriginal<typeof AutomationPreferences>();
@@ -36,7 +37,7 @@ function setupHost(
     startJob,
   };
 
-  const { result } = renderHook(() =>
+  const { result } = renderHookWithQueryClient(() =>
     useAutomationHost({
       folder: "C:\\Photos",
       breadcrumbs: [{ name: "Photos", path: "C:\\Photos" }],

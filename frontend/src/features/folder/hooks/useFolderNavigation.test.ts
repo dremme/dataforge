@@ -1,14 +1,19 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as api from "@/features/folder/api/folderContents";
 import * as folderHistory from "@/features/folder/lib/folderHistory";
 import * as folderPreferences from "@/features/folder/lib/folderPreferences";
+import { folderKeys } from "@/features/folder/lib/folderQuery";
 import {
   clearFolderScrollMemory,
   recallFolderScroll,
   rememberFolderScroll,
 } from "@/features/folder/lib/folderScrollMemory";
+import { ApiError, NetworkError } from "@/shared/api/http";
 import { HOME_PATH, homeFolder, vacationFolder, VACATION_PATH } from "@/test/fixtures";
-import type { FolderResponse } from "@/shared/types";
+import { createTestQueryClient, queryWrapper, renderHookWithQueryClient } from "@/test/queryClient";
+import { renderHook } from "@testing-library/react";
+import type { FolderChangesResponse, FolderResponse } from "@/shared/types";
 import { useFolderNavigation } from "./useFolderNavigation";
 
 // Stands in for the real History API: a push mints a key, a replace keeps the
@@ -48,6 +53,41 @@ function mountScrollElement(scrollTop: number): HTMLElement {
   return element;
 }
 
+const folderNotFound = () => new ApiError(404, "Folder not found", "folder_not_found");
+
+function unchanged(folder: FolderResponse): FolderChangesResponse {
+  return { full: false, fingerprint: folder.fingerprint, changed: [], removed: [] };
+}
+
+function changedWholly(fingerprint: string): FolderChangesResponse {
+  return { full: true, fingerprint, changed: [], removed: [] };
+}
+
+/** Full listings held until the test answers them, keyed by the path asked for. */
+function holdListings() {
+  const resolvers = new Map<string | undefined, (value: FolderResponse) => void>();
+  vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(
+    (path) => new Promise<FolderResponse>((resolve) => resolvers.set(path, resolve)),
+  );
+  return resolvers;
+}
+
+async function renderAtHome() {
+  vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(async (path) =>
+    path === VACATION_PATH ? vacationFolder : homeFolder,
+  );
+  vi.spyOn(api, "fetchFolderChanges").mockImplementation(async (path) =>
+    unchanged(path === VACATION_PATH ? vacationFolder : homeFolder),
+  );
+
+  const view = renderHookWithQueryClient(() => useFolderNavigation());
+  await waitFor(() => {
+    expect(view.result.current.folder?.path).toBe(HOME_PATH);
+    expect(view.result.current.loading).toBe(false);
+  });
+  return view;
+}
+
 describe("useFolderNavigation", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -60,36 +100,21 @@ describe("useFolderNavigation", () => {
   });
 
   it("drops stale folder responses when navigation outpaces loading", async () => {
-    const resolvers = new Map<string | undefined, (value: FolderResponse) => void>();
+    const resolvers = holdListings();
+    const { result } = renderHookWithQueryClient(() => useFolderNavigation());
 
-    vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation((path) => {
-      return new Promise<FolderResponse>((resolve) => {
-        resolvers.set(path, resolve);
-      });
-    });
+    await waitFor(() => expect(resolvers.has(undefined)).toBe(true));
 
-    const { result } = renderHook(() => useFolderNavigation());
-
-    await waitFor(() => {
-      expect(resolvers.has(undefined)).toBe(true);
-    });
-
-    await act(async () => {
+    act(() => {
       void result.current.navigateTo(VACATION_PATH);
     });
-
-    await waitFor(() => {
-      expect(resolvers.has(VACATION_PATH)).toBe(true);
-    });
+    await waitFor(() => expect(resolvers.has(VACATION_PATH)).toBe(true));
 
     await act(async () => {
       resolvers.get(VACATION_PATH)?.(vacationFolder);
-      await Promise.resolve();
     });
-
     await act(async () => {
       resolvers.get(undefined)?.(homeFolder);
-      await Promise.resolve();
     });
 
     await waitFor(() => {
@@ -98,19 +123,18 @@ describe("useFolderNavigation", () => {
     });
   });
 
+  it("files the default folder under the path the server named", async () => {
+    const { result, client } = await renderAtHome();
+
+    expect(client.getQueryData(folderKeys.folder(HOME_PATH))).toBe(homeFolder);
+    expect(result.current.folder).toBe(homeFolder);
+    expect(folderHistory.syncFolderHistory).toHaveBeenLastCalledWith(HOME_PATH, "replace");
+  });
+
   it("keeps navigation context when a folder fails to load", async () => {
     const missingPath = `${HOME_PATH}\\Missing`;
-
-    vi.spyOn(folderPreferences, "loadFolderContents")
-      .mockResolvedValueOnce(homeFolder)
-      .mockRejectedValueOnce(new Error("Folder not found"));
-
-    const { result } = renderHook(() => useFolderNavigation());
-
-    await waitFor(() => {
-      expect(result.current.folder?.path).toBe(HOME_PATH);
-      expect(result.current.loading).toBe(false);
-    });
+    const { result } = await renderAtHome();
+    vi.spyOn(folderPreferences, "loadFolderContents").mockRejectedValue(folderNotFound());
 
     await act(async () => {
       await result.current.navigateTo(missingPath);
@@ -125,17 +149,14 @@ describe("useFolderNavigation", () => {
     });
   });
 
-  it("clears folder state when the backend is unreachable", async () => {
+  it("clears folder state once retries for an unreachable backend are spent", async () => {
     vi.spyOn(folderPreferences, "loadFolderContents")
       .mockResolvedValueOnce(homeFolder)
-      .mockRejectedValueOnce(new Error("Request failed (502)"));
+      .mockRejectedValue(new NetworkError());
 
-    const { result } = renderHook(() => useFolderNavigation());
-
-    await waitFor(() => {
-      expect(result.current.folder?.path).toBe(HOME_PATH);
-      expect(result.current.loading).toBe(false);
-    });
+    const { wrapper } = queryWrapper(createTestQueryClient({ retry: false }));
+    const { result } = renderHook(() => useFolderNavigation(), { wrapper });
+    await waitFor(() => expect(result.current.folder?.path).toBe(HOME_PATH));
 
     await act(async () => {
       await result.current.navigateTo(VACATION_PATH);
@@ -148,74 +169,118 @@ describe("useFolderNavigation", () => {
     });
   });
 
-  it("settles both flags when a silent reload supersedes an uncached navigation", async () => {
-    const resolvers = new Map<string | undefined, (value: FolderResponse) => void>();
-    vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(
-      (path) => new Promise<FolderResponse>((resolve) => resolvers.set(path, resolve)),
-    );
+  it("revisits a cached folder by asking what changed since the listing it holds", async () => {
+    const { result } = await renderAtHome();
+    await act(async () => {
+      await result.current.navigateTo(VACATION_PATH);
+    });
+    const listings = vi.mocked(folderPreferences.loadFolderContents).mock.calls.length;
 
-    const { result } = renderHook(() => useFolderNavigation());
+    await act(async () => {
+      await result.current.navigateTo(HOME_PATH);
+    });
+
+    expect(result.current.folder).toBe(homeFolder);
+    expect(result.current.loading).toBe(false);
+    expect(api.fetchFolderChanges).toHaveBeenLastCalledWith(
+      HOME_PATH,
+      homeFolder.fingerprint,
+      expect.any(AbortSignal),
+      // Opening it, so the server makes it the folder to start in next time.
+      true,
+    );
+    expect(folderPreferences.loadFolderContents).toHaveBeenCalledTimes(listings);
+  });
+
+  it("applies a delta to the cached listing instead of relisting", async () => {
+    const { result } = await renderAtHome();
+    const [first] = homeFolder.items;
+    const renamed = { ...first, name: "renamed.png", path: `${HOME_PATH}\\renamed.png` };
+    vi.spyOn(api, "fetchFolderChanges").mockResolvedValue({
+      full: false,
+      fingerprint: "fp-home-2",
+      changed: [renamed],
+      removed: [first.path],
+    });
+    const listings = vi.mocked(folderPreferences.loadFolderContents).mock.calls.length;
+
+    await act(async () => {
+      await result.current.reloadFolder();
+    });
+
+    await waitFor(() => expect(result.current.folder?.fingerprint).toBe("fp-home-2"));
+    const paths = result.current.folder?.items.map((item) => item.path);
+    expect(paths).toContain(renamed.path);
+    expect(paths).not.toContain(first.path);
+    expect(folderPreferences.loadFolderContents).toHaveBeenCalledTimes(listings);
+  });
+
+  it("lists the folder again when the server cannot describe the change", async () => {
+    const { result } = await renderAtHome();
+    vi.spyOn(api, "fetchFolderChanges").mockResolvedValue(changedWholly("fp-home-2"));
+    const relisted = { ...homeFolder, fingerprint: "fp-home-2" };
+    vi.spyOn(folderPreferences, "loadFolderContents").mockResolvedValue(relisted);
+
+    await act(async () => {
+      await result.current.reloadFolder();
+    });
+
+    await waitFor(() => expect(result.current.folder).toEqual(relisted));
+  });
+
+  it("settles both flags when a reload supersedes an uncached navigation", async () => {
+    const resolvers = holdListings();
+    vi.spyOn(api, "fetchFolderChanges").mockResolvedValue(changedWholly("fp-new"));
+    const { result } = renderHookWithQueryClient(() => useFolderNavigation());
 
     await waitFor(() => expect(resolvers.has(undefined)).toBe(true));
     await act(async () => {
       resolvers.get(undefined)?.(homeFolder);
-      await Promise.resolve();
     });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // An uncached destination blanks the grid, so this load owns `loading`.
+    // An uncached destination blanks the grid, so this load owns the loading flag.
     act(() => {
       void result.current.navigateTo(VACATION_PATH);
     });
     await waitFor(() => expect(result.current.loading).toBe(true));
 
-    // A background reload lands mid-navigation and takes over the generation,
-    // leaving the navigation's `finally` unreachable.
     act(() => {
-      void result.current.reloadFolder({ silent: true });
+      void result.current.reloadFolder();
     });
-    expect(result.current.refreshing).toBe(true);
 
     await act(async () => {
       resolvers.get(VACATION_PATH)?.(vacationFolder);
-      await Promise.resolve();
     });
 
     await waitFor(() => {
       expect(result.current.folder?.path).toBe(VACATION_PATH);
       expect(result.current.refreshing).toBe(false);
-      // Used to stick on, pinning the folder behind a skeleton that never cleared.
       expect(result.current.loading).toBe(false);
     });
   });
 
-  it("settles both flags when an uncached navigation supersedes a silent reload", async () => {
-    const resolvers = new Map<string | undefined, (value: FolderResponse) => void>();
-    vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(
-      (path) => new Promise<FolderResponse>((resolve) => resolvers.set(path, resolve)),
-    );
-
-    const { result } = renderHook(() => useFolderNavigation());
+  it("settles both flags when an uncached navigation supersedes a reload", async () => {
+    const resolvers = holdListings();
+    vi.spyOn(api, "fetchFolderChanges").mockResolvedValue(changedWholly("fp-new"));
+    const { result } = renderHookWithQueryClient(() => useFolderNavigation());
 
     await waitFor(() => expect(resolvers.has(undefined)).toBe(true));
     await act(async () => {
       resolvers.get(undefined)?.(homeFolder);
-      await Promise.resolve();
     });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
-      void result.current.reloadFolder({ silent: true });
+      void result.current.reloadFolder();
     });
-    expect(result.current.refreshing).toBe(true);
+    await waitFor(() => expect(result.current.refreshing).toBe(true));
 
     act(() => {
       void result.current.navigateTo(VACATION_PATH);
     });
-
     await act(async () => {
       resolvers.get(VACATION_PATH)?.(vacationFolder);
-      await Promise.resolve();
     });
 
     await waitFor(() => {
@@ -225,99 +290,58 @@ describe("useFolderNavigation", () => {
     });
   });
 
-  it("shows folder not found after a silent reload discovers the folder is missing", async () => {
-    const missingPath = `${HOME_PATH}\\Missing`;
+  it("shows folder not found when a reload discovers the folder is gone", async () => {
+    const { result } = await renderAtHome();
+    vi.spyOn(api, "fetchFolderChanges").mockRejectedValue(folderNotFound());
 
-    vi.spyOn(folderPreferences, "loadFolderContents")
-      .mockResolvedValueOnce(homeFolder)
-      .mockRejectedValueOnce(new Error("Folder not found"));
-
-    const { result } = renderHook(() => useFolderNavigation());
+    await act(async () => {
+      await result.current.reloadFolder();
+    });
 
     await waitFor(() => {
+      expect(result.current.error).toEqual({ kind: "folder-not-found" });
       expect(result.current.folder?.path).toBe(HOME_PATH);
-      expect(result.current.loading).toBe(false);
-    });
-
-    await act(async () => {
-      await result.current.navigateTo(missingPath);
-    });
-
-    await waitFor(() => {
-      expect(result.current.error).toEqual({ kind: "folder-not-found" });
-      expect(result.current.folder?.path).toBe(missingPath);
-    });
-
-    vi.spyOn(folderPreferences, "loadFolderContents").mockRejectedValueOnce(
-      new Error("Folder not found"),
-    );
-
-    await act(async () => {
-      await result.current.reloadFolder({ silent: true });
-    });
-
-    await waitFor(() => {
-      expect(result.current.error).toEqual({ kind: "folder-not-found" });
-      expect(result.current.folder?.path).toBe(missingPath);
       expect(result.current.folder?.items).toEqual([]);
       expect(result.current.loading).toBe(false);
       expect(result.current.refreshing).toBe(false);
     });
   });
 
-  it("keeps folder content mounted during silent reloads", async () => {
-    const loadFolderContents = vi
-      .spyOn(folderPreferences, "loadFolderContents")
-      .mockResolvedValue(homeFolder);
+  it("keeps folder content mounted during reloads", async () => {
+    const { result } = await renderAtHome();
 
-    const { result } = renderHook(() => useFolderNavigation());
-
-    await waitFor(() => {
-      expect(result.current.folder?.path).toBe(homeFolder.path);
-      expect(result.current.loading).toBe(false);
-    });
-
-    let resolveReload: ((value: FolderResponse) => void) | undefined;
-    loadFolderContents.mockImplementation(
-      () =>
-        new Promise<FolderResponse>((resolve) => {
-          resolveReload = resolve;
-        }),
+    let answer: ((value: FolderChangesResponse) => void) | undefined;
+    vi.spyOn(api, "fetchFolderChanges").mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
     );
 
     act(() => {
-      void result.current.reloadFolder({ silent: true });
+      void result.current.reloadFolder();
     });
 
+    await waitFor(() => expect(result.current.refreshing).toBe(true));
     expect(result.current.loading).toBe(false);
-    expect(result.current.refreshing).toBe(true);
-    expect(result.current.folder?.path).toBe(homeFolder.path);
+    expect(result.current.folder?.path).toBe(HOME_PATH);
 
     await act(async () => {
-      resolveReload?.(vacationFolder);
-      await Promise.resolve();
+      answer?.(unchanged(homeFolder));
     });
 
-    await waitFor(() => {
-      expect(result.current.refreshing).toBe(false);
-      expect(result.current.folder?.path).toBe(VACATION_PATH);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
+    expect(result.current.folder).toBe(homeFolder);
+  });
+
+  it("patches the listing it shows through setFolder", async () => {
+    const { result } = await renderAtHome();
+
+    act(() => {
+      result.current.setFolder((current) => current && { ...current, has_caption_rules: true });
     });
+
+    await waitFor(() => expect(result.current.folder?.has_caption_rules).toBe(true));
   });
 
   describe("scroll intents", () => {
-    async function renderAtHome() {
-      vi.spyOn(folderPreferences, "loadFolderContents").mockImplementation(async (path) =>
-        path === VACATION_PATH ? vacationFolder : homeFolder,
-      );
-
-      const view = renderHook(() => useFolderNavigation());
-      await waitFor(() => {
-        expect(view.result.current.folder?.path).toBe(HOME_PATH);
-        expect(view.result.current.loading).toBe(false);
-      });
-      return view;
-    }
-
     it("remembers where the outgoing folder was left and asks for the top", async () => {
       const { result } = await renderAtHome();
       const element = mountScrollElement(900);
@@ -354,7 +378,6 @@ describe("useFolderNavigation", () => {
             state: { folderPath: HOME_PATH, entryKey: "entry-1" },
           }),
         );
-        await Promise.resolve();
       });
 
       // The entry we just left keeps its own offset for a later Forward.
@@ -377,13 +400,12 @@ describe("useFolderNavigation", () => {
             state: { folderPath: VACATION_PATH, entryKey: "entry-from-a-previous-page-load" },
           }),
         );
-        await Promise.resolve();
       });
 
       expect(result.current.scrollIntent).toMatchObject({ mode: "restore", target: 0 });
     });
 
-    it("emits nothing for a silent reload", async () => {
+    it("emits nothing for a reload", async () => {
       const { result } = await renderAtHome();
       mountScrollElement(900);
 
@@ -393,7 +415,7 @@ describe("useFolderNavigation", () => {
       const afterNavigation = result.current.scrollIntent;
 
       await act(async () => {
-        await result.current.reloadFolder({ silent: true });
+        await result.current.reloadFolder();
       });
 
       expect(result.current.scrollIntent).toBe(afterNavigation);

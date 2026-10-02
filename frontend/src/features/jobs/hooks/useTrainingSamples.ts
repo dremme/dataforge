@@ -1,96 +1,56 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import { fetchJobResults } from "@/features/jobs/api/jobs";
 import { isActiveExternalJobStatus } from "@/features/jobs/lib/externalJobs";
+import { jobKeys } from "@/features/jobs/lib/jobQueries";
 import { isActiveJobStatus } from "@/features/jobs/lib/jobs";
 import type { ExternalOstrisJob, Job, OstrisTrainingSample } from "@/shared/types";
 
 /** Samples only appear every 200 steps, so a slow poll is plenty. */
 const POLL_MS = 10000;
 
+const NO_SAMPLES: OstrisTrainingSample[] = [];
+
 /** Samples for one AI-Toolkit run. A null name disables the fetch; `poll` only repeats it. */
 export function useOstrisTrainingSamples(
   trainingName: string | null,
   options: { poll: boolean },
 ): OstrisTrainingSample[] {
-  const [samples, setSamples] = useState<OstrisTrainingSample[]>([]);
-  const { poll } = options;
+  const { data } = useQuery({
+    queryKey: jobKeys.samples(trainingName ?? ""),
+    queryFn: async ({ signal }) =>
+      (await fetchOstrisTrainingSamples(trainingName!, signal)).samples,
+    enabled: Boolean(trainingName),
+    refetchInterval: options.poll ? POLL_MS : false,
+    refetchIntervalInBackground: true,
+    // A missing AI-Toolkit just means no samples to show yet.
+    retry: false,
+  });
 
-  useEffect(() => {
-    setSamples([]);
-  }, [trainingName]);
-
-  useEffect(() => {
-    if (!trainingName) return;
-
-    let cancelled = false;
-
-    const load = () => {
-      fetchOstrisTrainingSamples(trainingName)
-        .then((response) => {
-          if (!cancelled) setSamples(response.samples);
-        })
-        .catch(() => {
-          // A missing AI-Toolkit just means no samples to show yet.
-        });
-    };
-
-    load();
-
-    if (!poll) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const timer = window.setInterval(load, POLL_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [poll, trainingName]);
-
-  return samples;
+  return (trainingName && data) || NO_SAMPLES;
 }
 
 function useFinishedRunSamples(job: Job | null, enabled: boolean): OstrisTrainingSample[] {
-  const [samples, setSamples] = useState<OstrisTrainingSample[]>([]);
-  const jobId = job?.id ?? null;
+  const jobId = job?.id ?? "";
   const step = job?.processed ?? 0;
 
-  useEffect(() => {
-    if (!enabled || !jobId) {
-      setSamples([]);
-      return;
-    }
+  const { data } = useQuery({
+    queryKey: jobKeys.finishedSamples(jobId, step),
+    queryFn: async ({ signal }) =>
+      (await fetchJobResults(jobId, signal))
+        .filter((result) => result.status === "sample")
+        .map((result) => ({
+          path: result.path,
+          name: result.name,
+          step,
+          prompt: result.description ?? "",
+        })),
+    enabled: enabled && Boolean(jobId),
+    // A job whose history has been pruned simply has no samples left to show.
+    retry: false,
+  });
 
-    let cancelled = false;
-
-    fetchJobResults(jobId)
-      .then((results) => {
-        if (cancelled) return;
-        setSamples(
-          results
-            .filter((result) => result.status === "sample")
-            .map((result) => ({
-              path: result.path,
-              name: result.name,
-              step,
-              prompt: result.description ?? "",
-            })),
-        );
-      })
-      .catch(() => {
-        // A job whose history has been pruned simply has no samples left to show.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, jobId, step]);
-
-  return samples;
+  return (enabled && data) || NO_SAMPLES;
 }
 
 /** The sample images from a training job's most recent step. */
@@ -101,7 +61,7 @@ export function useTrainingSamples(job: Job | null): OstrisTrainingSample[] {
   const polled = useOstrisTrainingSamples(active ? trainingName : null, { poll: true });
   const finished = useFinishedRunSamples(job, Boolean(trainingName) && !active);
 
-  if (!trainingName) return [];
+  if (!trainingName) return NO_SAMPLES;
   return active ? polled : finished;
 }
 

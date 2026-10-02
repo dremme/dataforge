@@ -26,7 +26,7 @@ async def import_files(
     overwrite: bool = Query(False, description="Replace files that already exist in the folder"),
     files: list[UploadFile] = File(..., description="Files to copy into the folder"),
 ) -> FileImportResponse:
-    folder = resolve_folder(path)
+    folder = await asyncio.to_thread(resolve_folder, path)
 
     if not files:
         raise HTTPException(status_code=400, detail="No files were provided")

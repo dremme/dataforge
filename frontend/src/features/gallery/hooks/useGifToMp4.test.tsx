@@ -1,9 +1,8 @@
-import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { convertGifToMp4, fetchGifToMp4State } from "@/features/gallery/api/gifToMp4";
 import { useGifToMp4, type UseGifToMp4Options } from "./useGifToMp4";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { AppProviders } from "@/test/AppProviders";
 import { makeItem } from "@/test/galleryItemModal";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GifToMp4Response } from "@/shared/types";
@@ -26,13 +25,7 @@ const CONVERTED: GifToMp4Response = {
   frame_rate: 24,
 };
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 function renderConversion(overrides: Partial<UseGifToMp4Options> = {}) {
   const onConverted = vi.fn();

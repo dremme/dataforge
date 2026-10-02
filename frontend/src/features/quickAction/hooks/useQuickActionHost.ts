@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AutomationPanelProps } from "@/features/automation/components/AutomationPanel";
-import {
-  getCachedFolderFavorites,
-  refreshFolderFavoritesInBackground,
-} from "@/features/folder/lib/folderFavorites";
+import { useFolderFavorites } from "@/features/folder/hooks/useFolderFavorites";
 import type { SettleAllCandidatesActions } from "@/features/gallery/hooks/useSettleAllCandidates";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSweep";
@@ -13,7 +10,7 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import { resolveTheme, setThemePreference, useThemePreference } from "@/shared/theme/theme";
-import type { FolderFavorite, FolderResponse } from "@/shared/types";
+import type { FolderResponse } from "@/shared/types";
 import {
   buildCommandItems,
   buildFavoriteItems,
@@ -80,7 +77,8 @@ export function useQuickActionHost({
   const notify = useNotify();
   const themePreference = useThemePreference();
 
-  const [favorites, setFavorites] = useState<FolderFavorite[]>(() => getCachedFolderFavorites());
+  // Re-read whenever the palette opens; the cached list shows meanwhile.
+  const favorites = useFolderFavorites({ enabled: open }).data;
   const [recentFolderPaths, setRecentFolderPaths] = useState<string[]>([]);
   const [recentActionIds, setRecentActionIds] = useState<string[]>([]);
 
@@ -89,8 +87,6 @@ export function useQuickActionHost({
 
     setRecentFolderPaths(readRecentFolderPaths());
     setRecentActionIds(readRecentActionIds());
-
-    refreshFolderFavoritesInBackground(setFavorites);
   }, [open]);
 
   const goTo = useCallback(

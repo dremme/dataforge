@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { formatApiError, isAbortError } from "@/shared/api/http";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { VISION_MODEL_QUERY_KEY } from "@/features/automation/api/visionLlm";
+import { formatApiError } from "@/shared/api/http";
 import { useTabList } from "@/shared/hooks/useTabList";
 import {
   iconAiToolkit,
@@ -32,7 +34,7 @@ import { DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
-import { fetchAppSettings, probeService, saveAppSettings } from "../api/settings";
+import { fetchAppSettings, probeService, saveAppSettings, settingsKeys } from "../api/settings";
 import {
   buildSettingsUpdate,
   draftFromSettings,
@@ -269,10 +271,15 @@ const PROBE_OF: Partial<Record<AppSettingKey, ProbedService>> = {
   ai_toolkit_base_url: "ai_toolkit",
 };
 
+interface LoadedSettings {
+  settings: AppSettingsResponse;
+  draft: SettingsDraft;
+}
+
 type LoadState =
   | { status: "loading" }
   | { status: "failed"; message: string }
-  | { status: "ready"; settings: AppSettingsResponse; draft: SettingsDraft };
+  | ({ status: "ready" } & LoadedSettings);
 
 interface SaveError {
   key?: AppSettingKey;
@@ -284,12 +291,42 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const queryClient = useQueryClient();
+  // Each opening waits for fresh settings; the draft keeps that response as its baseline.
+  const settingsQuery = useQuery({
+    queryKey: settingsKeys.app,
+    queryFn: ({ signal }) => fetchAppSettings(signal),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  });
+  const [loaded, setLoaded] = useState<LoadedSettings | null>(null);
+  if (
+    !loaded &&
+    settingsQuery.isFetchedAfterMount &&
+    !settingsQuery.isError &&
+    settingsQuery.data
+  ) {
+    setLoaded({ settings: settingsQuery.data, draft: draftFromSettings(settingsQuery.data) });
+  }
+  const state: LoadState = loaded
+    ? { status: "ready", ...loaded }
+    : settingsQuery.isError
+      ? { status: "failed", message: formatApiError(settingsQuery.error) }
+      : { status: "loading" };
+
+  const save = useMutation({
+    mutationFn: saveAppSettings,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(settingsKeys.app, saved);
+      // The badge names the configured model, which this save may just have changed.
+      void queryClient.invalidateQueries({ queryKey: VISION_MODEL_QUERY_KEY });
+    },
+  });
+  const saving = save.isPending;
   const savedTheme = useThemePreference();
   const [theme, setTheme] = useState(savedTheme);
   const [section, setSection] = useState<SectionId>("appearance");
   const [openPages, setOpenPages] = useState<Partial<Record<SectionId, PageId>>>({});
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<SaveError | null>(null);
   const [probes, setProbes] = useState<Partial<Record<ProbedService, ProbeState>>>({});
   const tabs = useTabList(SECTION_IDS, section, setSection, "vertical");
@@ -298,18 +335,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     entry.pages.find((page) => page.id === openPages[entry.id]) ?? entry.pages[0];
   const showPage = (entry: SectionId, page: PageId) =>
     setOpenPages((current) => ({ ...current, [entry]: page }));
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchAppSettings(controller.signal).then(
-      (settings) => setState({ status: "ready", settings, draft: draftFromSettings(settings) }),
-      (loadError: unknown) => {
-        if (isAbortError(loadError)) return;
-        setState({ status: "failed", message: formatApiError(loadError) });
-      },
-    );
-    return () => controller.abort();
-  }, []);
 
   const themeEdited = theme !== savedTheme;
 
@@ -324,8 +349,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     page.id === "appearance" ? themeEdited : keysOf(page).some((key) => editedKeys.includes(key));
   const isSectionEdited = (entry: Section) => entry.pages.some(isPageEdited);
 
-  const updateDraft = (draft: SettingsDraft) => {
-    setState((current) => (current.status === "ready" ? { ...current, draft } : current));
+  const updateDraft = (next: SettingsDraft) => {
+    setLoaded((current) => current && { ...current, draft: next });
     setError(null);
   };
 
@@ -372,15 +397,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       return;
     }
 
-    setSaving(true);
     setError(null);
     try {
-      if (Object.keys(built.update).length > 0) await saveAppSettings(built.update);
+      if (Object.keys(built.update).length > 0) await save.mutateAsync(built.update);
       if (themeEdited) setThemePreference(theme);
       onClose();
     } catch (saveError) {
       setError({ message: formatApiError(saveError) });
-      setSaving(false);
     }
   };
 

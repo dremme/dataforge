@@ -1,10 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Subfolder } from "@/shared/types";
 import { FOLDER_CLAMP_LIMIT, FOLDER_CLAMP_MIN_HIDDEN } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
 import { FolderGrid } from "./FolderGrid";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 function makeFolder(overrides: Partial<Subfolder> = {}): Subfolder {
   return {
@@ -19,7 +20,7 @@ function makeFolder(overrides: Partial<Subfolder> = {}): Subfolder {
 
 describe("FolderGrid", () => {
   it("keeps the header with a count when there are no folders", () => {
-    render(<FolderGrid folders={[]} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={[]} onOpen={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Folders" })).toBeInTheDocument();
     expect(document.querySelector(".folder-section__count")).toHaveTextContent("0");
@@ -27,13 +28,13 @@ describe("FolderGrid", () => {
   });
 
   it("reports matches against the unfiltered total", () => {
-    render(<FolderGrid folders={[makeFolder()]} totalCount={4} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={[makeFolder()]} totalCount={4} onOpen={vi.fn()} />);
 
     expect(screen.getByLabelText("1 of 4")).toHaveClass("folder-section__count");
   });
 
   it("shows a warning triangle when a folder has issue files", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[
           makeFolder({ name: "Clean", path: "C:\\Photos\\Clean" }),
@@ -63,7 +64,7 @@ describe("FolderGrid", () => {
   });
 
   it("warns about duplicates on their own, with no caption issues", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[makeFolder({ issue_count: 0, duplicate_count: 2 })]}
         onOpen={vi.fn()}
@@ -78,7 +79,7 @@ describe("FolderGrid", () => {
   it("names caption issues and duplicates separately rather than as a total", () => {
     // The two counts come from separate sidecars and one file can carry both, so a
     // 2-file folder can hold 2 issues and 2 duplicates without contradicting itself.
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[makeFolder({ issue_count: 2, duplicate_count: 2 })]}
         onOpen={vi.fn()}
@@ -91,7 +92,7 @@ describe("FolderGrid", () => {
   });
 
   it("puts a lone issue and a lone duplicate in the singular", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[makeFolder({ issue_count: 1, duplicate_count: 1 })]}
         onOpen={vi.fn()}
@@ -106,7 +107,7 @@ describe("FolderGrid", () => {
   // duplicate_count arrives from a separate stats call and is optional, so gating the
   // warning on both counts being present would silently drop it.
   it("still warns about caption issues while the duplicate count is missing", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[makeFolder({ issue_count: 3, duplicate_count: null })]}
         onOpen={vi.fn()}
@@ -119,7 +120,7 @@ describe("FolderGrid", () => {
   });
 
   it("leaves a folder with no findings unlabelled and unmarked", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[makeFolder({ issue_count: 0, duplicate_count: 0 })]}
         onOpen={vi.fn()}
@@ -132,7 +133,7 @@ describe("FolderGrid", () => {
   });
 
   it("holds the stat slot with a placeholder until counts arrive", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={[
           makeFolder({
@@ -153,7 +154,7 @@ describe("FolderGrid", () => {
   });
 
   it("renders counts once they replace the placeholder", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid folders={[makeFolder({ file_count: 5, captioned_count: 5 })]} onOpen={vi.fn()} />,
     );
 
@@ -186,7 +187,7 @@ describe("FolderGrid card tooltip", () => {
   it("fetches review counts for the hovered card only, not on load", async () => {
     const user = userEvent.setup();
     const fetchMock = stubReviewCounts({ issue_count: 0, candidate_count: 0 });
-    render(<FolderGrid folders={makeFolders(3)} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={makeFolders(3)} onOpen={vi.fn()} />);
 
     expect(fetchMock).not.toHaveBeenCalled();
 
@@ -203,7 +204,7 @@ describe("FolderGrid card tooltip", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     stubReviewCounts({ issue_count: 0, candidate_count: 1 });
     const name = "A folder name long enough to be clamped on its card";
-    render(<FolderGrid folders={[makeFolder({ name })]} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={[makeFolder({ name })]} onOpen={vi.fn()} />);
 
     await user.hover(screen.getByRole("button", { name }));
     await act(() => vi.advanceTimersByTimeAsync(900));
@@ -236,14 +237,14 @@ describe("FolderGrid clamping", () => {
   it("shows a short list whole, with no expander", () => {
     const total = FOLDER_CLAMP_LIMIT + FOLDER_CLAMP_MIN_HIDDEN - 1;
 
-    render(<FolderGrid folders={makeFolders(total)} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={makeFolders(total)} onOpen={vi.fn()} />);
 
     expect(cards()).toHaveLength(total);
     expect(screen.queryByRole("button", { name: /more folders/ })).toBeNull();
   });
 
   it("holds a long list back behind a button naming the remainder", () => {
-    render(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
 
     expect(cards()).toHaveLength(FOLDER_CLAMP_LIMIT);
     const toggle = screen.getByRole("button", { name: SHOW_MORE });
@@ -253,7 +254,7 @@ describe("FolderGrid clamping", () => {
 
   it("reveals the rest and offers the way back", async () => {
     const user = userEvent.setup();
-    render(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: SHOW_MORE }));
 
@@ -272,7 +273,7 @@ describe("FolderGrid clamping", () => {
       flagged.includes(index) ? { issue_count: 2 } : {},
     );
 
-    render(<FolderGrid folders={folders} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={folders} onOpen={vi.fn()} />);
 
     expect(screen.getByRole("button", { name: new RegExp(SHOW_MORE) }).textContent).toContain(
       "2 need review",
@@ -280,7 +281,7 @@ describe("FolderGrid clamping", () => {
   });
 
   it("leaves the badge off when nothing hidden is flagged", () => {
-    render(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
 
     expect(document.querySelector(".folder-more__findings")).toBeNull();
   });
@@ -290,7 +291,7 @@ describe("FolderGrid clamping", () => {
     const folders = makeFolders(CLAMPED_TOTAL, (index) =>
       index === FOLDER_CLAMP_LIMIT ? { issue_count: 2 } : {},
     );
-    render(<FolderGrid folders={folders} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={folders} onOpen={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: new RegExp(SHOW_MORE) }));
 
@@ -298,7 +299,7 @@ describe("FolderGrid clamping", () => {
   });
 
   it("keeps the header count on the whole list, not the visible slice", () => {
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={makeFolders(CLAMPED_TOTAL)}
         totalCount={CLAMPED_TOTAL}
@@ -317,7 +318,7 @@ describe("FolderGrid expansion memory", () => {
 
   it("saves the expansion against the folder it was made in", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithQueryClient(
       <FolderGrid folders={makeFolders(CLAMPED_TOTAL)} folderPath={FOLDER} onOpen={vi.fn()} />,
     );
 
@@ -329,7 +330,7 @@ describe("FolderGrid expansion memory", () => {
   it("opens expanded when that folder was left expanded", () => {
     writeFolderExpanded(FOLDER, true);
 
-    render(
+    renderWithQueryClient(
       <FolderGrid folders={makeFolders(CLAMPED_TOTAL)} folderPath={FOLDER} onOpen={vi.fn()} />,
     );
 
@@ -340,13 +341,13 @@ describe("FolderGrid expansion memory", () => {
   it("opens clamped again once the folder is collapsed", async () => {
     const user = userEvent.setup();
     writeFolderExpanded(FOLDER, true);
-    const { unmount } = render(
+    const { unmount } = renderWithQueryClient(
       <FolderGrid folders={makeFolders(CLAMPED_TOTAL)} folderPath={FOLDER} onOpen={vi.fn()} />,
     );
 
     await user.click(screen.getByRole("button", { name: "Show fewer folders" }));
     unmount();
-    render(
+    renderWithQueryClient(
       <FolderGrid folders={makeFolders(CLAMPED_TOTAL)} folderPath={FOLDER} onOpen={vi.fn()} />,
     );
 
@@ -356,7 +357,7 @@ describe("FolderGrid expansion memory", () => {
   it("leaves a different folder clamped", () => {
     writeFolderExpanded(FOLDER, true);
 
-    render(
+    renderWithQueryClient(
       <FolderGrid
         folders={makeFolders(CLAMPED_TOTAL)}
         folderPath="C:\\Elsewhere"
@@ -369,7 +370,7 @@ describe("FolderGrid expansion memory", () => {
 
   it("still expands for a caller that names no folder", async () => {
     const user = userEvent.setup();
-    render(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
+    renderWithQueryClient(<FolderGrid folders={makeFolders(CLAMPED_TOTAL)} onOpen={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: SHOW_MORE }));
 

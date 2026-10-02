@@ -1,7 +1,9 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NotificationRecord, ServerEvent } from "@/shared/types";
 import { ServerEventsContext } from "@/shared/events/serverEvents";
+import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
+import { installFakeEventSource } from "@/test/fakeEventSource";
 import * as notificationsApi from "@/shared/api/notifications";
 import {
   MAX_VISIBLE_TOASTS,
@@ -10,6 +12,7 @@ import {
   useNotify,
 } from "./notifications";
 import { NotificationsProvider } from "./NotificationsProvider";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/shared/api/notifications", () => ({
   fetchNotifications: vi.fn(),
@@ -60,7 +63,7 @@ function renderProvider(children: React.ReactNode) {
     for (const handler of handlers) handler(event);
   };
 
-  return render(
+  return renderWithQueryClient(
     <ServerEventsContext.Provider
       value={{
         connected: true,
@@ -90,7 +93,7 @@ function renderWithStream(connected: boolean) {
     </ServerEventsContext.Provider>
   );
 
-  const view = render(tree(connected));
+  const view = renderWithQueryClient(tree(connected));
   return { setConnected: (value: boolean) => view.rerender(tree(value)) };
 }
 
@@ -107,7 +110,7 @@ describe("NotificationsProvider", () => {
   });
 
   it("shows a dismissible notification that auto-dismisses with exit animation", () => {
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <NotifyButton message="Move failed" />
       </NotificationsProvider>,
@@ -145,7 +148,7 @@ describe("NotificationsProvider", () => {
   });
 
   it("pauses auto-dismiss while the pointer is over the notification", () => {
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <NotifyButton message="Could not delete sunset.png: Permission denied" />
       </NotificationsProvider>,
@@ -194,7 +197,7 @@ describe("NotificationsProvider", () => {
   });
 
   it("collapses an immediate repeat into a count and restarts its countdown", () => {
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <NotifyButton message="Could not read the folder." />
       </NotificationsProvider>,
@@ -224,7 +227,7 @@ describe("NotificationsProvider", () => {
   it("caps the visible stack so a burst cannot cover the screen", () => {
     const messages = ["First.", "Second.", "Third.", "Fourth."];
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         {messages.map((message) => (
           <NotifyButton key={message} message={message} />
@@ -257,7 +260,7 @@ describe("NotificationsProvider", () => {
   it("keeps the toast on screen when recording it in the feed fails", () => {
     postNotification.mockRejectedValue(new Error("Backend unreachable"));
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <NotifyButton message="Could not reach the server." />
       </NotificationsProvider>,
@@ -293,30 +296,49 @@ describe("NotificationsProvider", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("re-reads the feed when the stream reconnects", () => {
-    const { setConnected } = renderWithStream(false);
+  it("re-reads the feed when the stream connects", async () => {
+    const stream = installFakeEventSource();
+    renderWithQueryClient(
+      <ServerEventsProvider>
+        <NotificationsProvider>{null}</NotificationsProvider>
+      </ServerEventsProvider>,
+    );
     expect(fetchNotifications).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
 
-    act(() => setConnected(true));
+    act(() => stream.open());
 
     expect(fetchNotifications).toHaveBeenCalledTimes(2);
   });
 
-  it("does not re-read the feed when the stream merely drops", () => {
-    const { setConnected } = renderWithStream(true);
-    expect(fetchNotifications).toHaveBeenCalledTimes(1);
+  it("does not re-read the feed when the stream merely drops", async () => {
+    const stream = installFakeEventSource();
+    renderWithQueryClient(
+      <ServerEventsProvider>
+        <NotificationsProvider>{null}</NotificationsProvider>
+      </ServerEventsProvider>,
+    );
+    act(() => stream.open());
+    const calls = fetchNotifications.mock.calls.length;
 
-    act(() => setConnected(false));
+    act(() => stream.source().onerror?.());
 
-    expect(fetchNotifications).toHaveBeenCalledTimes(1);
+    expect(fetchNotifications).toHaveBeenCalledTimes(calls);
   });
 
-  it("re-reads the feed when the tab is looked at again", () => {
+  it("re-reads the feed when the tab is looked at again", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     renderWithStream(true);
     expect(fetchNotifications).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
 
-    act(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => {
+      // Bubbles, as the browser's does: the query client listens on window.
+      document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     });
 
     expect(fetchNotifications).toHaveBeenCalledTimes(2);

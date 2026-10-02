@@ -66,11 +66,22 @@ describe("folder API", () => {
     );
   });
 
+  it("lists speculatively without asking the server to watch or remember it", async () => {
+    requestJsonMock.mockResolvedValue({ folder: "C:\\Photos", items: [] });
+
+    await fetchFolder("C:\\Photos", { prefetch: true });
+
+    expect(requestJsonMock).toHaveBeenCalledWith(
+      `/api/folders/contents?path=C%3A%5CPhotos&${tab()}&prefetch=true`,
+      { signal: undefined },
+    );
+  });
+
   it("passes an abort signal through to the request", async () => {
     const controller = new AbortController();
     requestJsonMock.mockResolvedValue({ folder: "C:\\Photos", items: [] });
 
-    await fetchFolder("C:\\Photos", controller.signal);
+    await fetchFolder("C:\\Photos", { signal: controller.signal });
 
     expect(requestJsonMock).toHaveBeenCalledWith(
       `/api/folders/contents?path=C%3A%5CPhotos&${tab()}`,

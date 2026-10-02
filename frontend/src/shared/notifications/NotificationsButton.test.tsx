@@ -1,10 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NotificationRecord } from "@/shared/types";
 import * as notificationsApi from "@/shared/api/notifications";
 import { NotificationsButton } from "./NotificationsButton";
 import { NotificationsProvider } from "./NotificationsProvider";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/shared/api/notifications", () => ({
   fetchNotifications: vi.fn(),
@@ -40,7 +41,7 @@ function renderButton(feed: NotificationRecord[]) {
     feed.map((entry) => ({ ...entry, read_at: entry.read_at ?? READ_AT })),
   );
 
-  return render(
+  return renderWithQueryClient(
     <NotificationsProvider>
       <NotificationsButton />
     </NotificationsProvider>,

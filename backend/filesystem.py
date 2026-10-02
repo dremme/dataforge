@@ -8,6 +8,7 @@ from pathlib import Path, PureWindowsPath
 
 from fastapi import HTTPException
 
+from api_errors import folder_not_found
 from constants import LAST_FOLDER_KEY
 from db import get_preference
 from folder_scan import scan_folder
@@ -122,7 +123,7 @@ def folder_display_name(path: str | Path) -> str:
 def resolve_folder(path: str) -> Path:
     folder = normalize_user_path(path)
     if not folder.exists():
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise folder_not_found()
     if not folder.is_dir():
         raise HTTPException(status_code=400, detail="Path is not a directory")
     return folder.resolve()

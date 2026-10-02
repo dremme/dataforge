@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -11,6 +11,7 @@ import { NotificationsProvider } from "@/shared/notifications/NotificationsProvi
 import type { GalleryItem } from "@/shared/types";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { CandidateReviewModal } from "./CandidateReviewModal";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/gallery/api/comfyCandidates", () => ({
   acceptCandidate: vi.fn(),
@@ -71,7 +72,7 @@ function videoEntries(names: string[] = ["clip.mp4"]) {
 
 function renderEntries(queue: ReturnType<typeof entries>) {
   const onIndexChange = vi.fn();
-  render(
+  renderWithQueryClient(
     <NotificationsProvider>
       <CandidateReviewModal
         entries={queue}
@@ -90,7 +91,7 @@ function renderModal(names = ["a.png", "b.png"], overrides: Partial<{ index: num
   const onIndexChange = vi.fn();
   const onResolved = vi.fn();
 
-  render(
+  renderWithQueryClient(
     <NotificationsProvider>
       <CandidateReviewModal
         entries={entries(names)}
@@ -132,7 +133,7 @@ describe("CandidateReviewModal", () => {
       mediaItem("a.png", STAGING_PATH, { width: 1920, height: 1080, size: 4000 }),
     ];
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <CandidateReviewModal
           entries={buildCandidateReviewQueue(HOME_PATH, sources, candidates)}
@@ -172,7 +173,7 @@ describe("CandidateReviewModal", () => {
       mediaItem("a.png", STAGING_PATH, { width: 1920, height: 1080, size: 4000 }),
     ];
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <CandidateReviewModal
           entries={buildCandidateReviewQueue(HOME_PATH, sources, candidates)}
@@ -217,7 +218,7 @@ describe("CandidateReviewModal", () => {
   it("does not ask for the state of a candidate whose source is gone", () => {
     const candidates = [mediaItem("a.png", STAGING_PATH, { width: 800, height: 600 })];
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <CandidateReviewModal
           entries={buildCandidateReviewQueue(HOME_PATH, [], candidates)}
@@ -282,7 +283,7 @@ describe("CandidateReviewModal", () => {
     const user = userEvent.setup();
     const orphan = buildCandidateReviewQueue(HOME_PATH, [], [mediaItem("gone.png", STAGING_PATH)]);
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <CandidateReviewModal
           entries={orphan}
@@ -310,7 +311,7 @@ describe("CandidateReviewModal", () => {
     const onResolved = vi.fn();
     const onClose = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <NotificationsProvider>
         <CandidateReviewModal
           entries={orphan}
@@ -569,7 +570,7 @@ describe("CandidateReviewModal", () => {
 
     function renderEntriesWithClose(queue: ReturnType<typeof entries>) {
       const onClose = vi.fn();
-      render(
+      renderWithQueryClient(
         <NotificationsProvider>
           <CandidateReviewModal
             entries={queue}

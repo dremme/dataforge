@@ -1,9 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as jobsApi from "@/features/automation/api/jobs";
 import { advanceFakeClock } from "@/test/timers";
 import { job } from "@/test/fixtures";
 import { COMFY_LOG_POLL_MS as POLL_MS, useComfyProcessLogs } from "./useComfyProcessLogs";
+import { renderHookWithQueryClient } from "@/test/queryClient";
 
 function logs(lines: string[]) {
   return { lines, available: true };
@@ -37,7 +38,7 @@ describe("useComfyProcessLogs", () => {
 
   it("reads ComfyUI's output while its own job runs", async () => {
     const fetchMock = vi.spyOn(jobsApi, "fetchComfyLogs").mockResolvedValue(logs(["Phase 3"]));
-    const { result } = renderHook(() => useComfyProcessLogs(comfyJob()));
+    const { result } = renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob()));
 
     await waitFor(() => expect(result.current?.lines).toEqual(["Phase 3"]));
     expect(fetchMock).toHaveBeenCalled();
@@ -45,7 +46,9 @@ describe("useComfyProcessLogs", () => {
 
   it("stays quiet for a job ComfyUI is not running", async () => {
     const fetchMock = vi.spyOn(jobsApi, "fetchComfyLogs").mockResolvedValue(logs(["x"]));
-    const { result } = renderHook(() => useComfyProcessLogs(job({ job_type: "train_lora" })));
+    const { result } = renderHookWithQueryClient(() =>
+      useComfyProcessLogs(job({ job_type: "train_lora" })),
+    );
 
     await advanceFakeClock(POLL_MS * 2);
 
@@ -55,7 +58,7 @@ describe("useComfyProcessLogs", () => {
 
   it("stops once the job is no longer active", async () => {
     const fetchMock = vi.spyOn(jobsApi, "fetchComfyLogs").mockResolvedValue(logs(["x"]));
-    renderHook(() => useComfyProcessLogs(comfyJob({ status: "completed" })));
+    renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob({ status: "completed" })));
 
     await advanceFakeClock(POLL_MS * 2);
 
@@ -65,7 +68,7 @@ describe("useComfyProcessLogs", () => {
   it("never runs two reads at once", async () => {
     // Chained off the response, so a slow ComfyUI backs the poll off instead of queueing at it.
     const fetchMock = vi.spyOn(jobsApi, "fetchComfyLogs").mockReturnValue(new Promise(() => {}));
-    renderHook(() => useComfyProcessLogs(comfyJob()));
+    renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob()));
 
     await advanceFakeClock(POLL_MS * 3);
 
@@ -79,8 +82,10 @@ describe("useComfyProcessLogs", () => {
       .mockResolvedValue(logs(["second"]));
 
     await withFakeClock(async (tick) => {
-      const { result } = renderHook(() => useComfyProcessLogs(comfyJob()));
+      const { result } = renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob()));
       await tick(POLL_MS);
+      // The query client hands the new answer to React over a few chained timer ticks.
+      await tick(10);
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(result.current?.lines).toEqual(["second"]);
@@ -91,7 +96,7 @@ describe("useComfyProcessLogs", () => {
     const fetchMock = vi.spyOn(jobsApi, "fetchComfyLogs").mockResolvedValue(logs(["x"]));
 
     await withFakeClock(async (tick) => {
-      renderHook(() => useComfyProcessLogs(comfyJob()));
+      renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob()));
       await tick(POLL_MS * 3);
 
       expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -105,7 +110,7 @@ describe("useComfyProcessLogs", () => {
       .mockRejectedValue(new Error("offline"));
 
     await withFakeClock(async (tick) => {
-      const { result } = renderHook(() => useComfyProcessLogs(comfyJob()));
+      const { result } = renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob()));
       await tick(POLL_MS);
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -116,9 +121,12 @@ describe("useComfyProcessLogs", () => {
   it("drops the previous run's output when the job changes", async () => {
     // Stale text under a fresh job would read as progress.
     vi.spyOn(jobsApi, "fetchComfyLogs").mockReturnValue(new Promise(() => {}));
-    const { result, rerender } = renderHook((current) => useComfyProcessLogs(current), {
-      initialProps: comfyJob({ id: "job-1" }),
-    });
+    const { result, rerender } = renderHookWithQueryClient(
+      (current) => useComfyProcessLogs(current),
+      {
+        initialProps: comfyJob({ id: "job-1" }),
+      },
+    );
 
     rerender(comfyJob({ id: "job-2" }));
 
@@ -129,7 +137,7 @@ describe("useComfyProcessLogs", () => {
     const fetchMock = vi.spyOn(jobsApi, "fetchComfyLogs").mockResolvedValue(logs(["x"]));
 
     await withFakeClock(async (tick) => {
-      const { unmount } = renderHook(() => useComfyProcessLogs(comfyJob()));
+      const { unmount } = renderHookWithQueryClient(() => useComfyProcessLogs(comfyJob()));
       await tick(0);
       expect(fetchMock).toHaveBeenCalledTimes(1);
 

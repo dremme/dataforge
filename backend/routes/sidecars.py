@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
+from api_errors import folder_not_found
 from constants import DUPLICATE_SIDECAR_SUFFIX, ISSUE_SIDECAR_SUFFIX
 from folder_scan import scan_folder
 from media_delete import delete_path, deletes_to_trash
@@ -21,7 +22,7 @@ def delete_sidecars(request: SidecarDeleteRequest) -> SidecarDeleteResponse:
 
     scan = scan_folder(folder_path)
     if scan is None:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise folder_not_found()
 
     suffix = _SUFFIX_BY_KIND[request.kind]
 

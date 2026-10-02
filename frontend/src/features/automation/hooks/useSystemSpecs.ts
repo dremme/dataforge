@@ -1,53 +1,28 @@
-import { useEffect, useState } from "react";
-import { fetchSystemSpecs } from "@/features/automation/api/system";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { systemSpecsQueryOptions } from "@/features/automation/lib/automationQueries";
 import type { SystemSpecs } from "@/shared/types";
 
 const IDLE_REFRESH_INTERVAL_MS = 30_000;
 /** Fast enough to watch a job load the machine; each poll also shells out to nvidia-smi. */
 export const ACTIVE_REFRESH_INTERVAL_MS = 2_000;
 
-/** Survives AutomationPanel remounts when browsing folders. */
-let cachedSpecs: SystemSpecs | null = null;
-
-/** Test helper — clears the module cache. */
-export function resetSystemSpecsCacheForTests(): void {
-  cachedSpecs = null;
-}
-
 /** `live` polls at the fast cadence, e.g. while a job is running. */
 export function useSystemSpecs(live = false): SystemSpecs | null {
-  const [specs, setSpecs] = useState<SystemSpecs | null>(() => cachedSpecs);
+  // Cached across panel remounts, and a failed poll keeps the last known specs.
+  const { data, refetch } = useQuery({
+    ...systemSpecsQueryOptions(),
+    // The polling cadence owns freshness; remounts and focus need no extra reads.
+    staleTime: live ? ACTIVE_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS,
+    refetchOnWindowFocus: false,
+    refetchInterval: live ? ACTIVE_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  });
 
-  const intervalMs = live ? ACTIVE_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS;
-
+  // Going live reads at once rather than at the end of an idle interval.
   useEffect(() => {
-    let cancelled = false;
+    if (live) void refetch();
+  }, [live, refetch]);
 
-    const load = async () => {
-      try {
-        const data = await fetchSystemSpecs();
-        cachedSpecs = data;
-        if (!cancelled) {
-          setSpecs(data);
-        }
-      } catch {
-        // Keep last known specs so folder navigations do not blank the panel.
-        if (!cancelled && cachedSpecs === null) {
-          setSpecs(null);
-        }
-      }
-    };
-
-    void load();
-    const intervalId = window.setInterval(() => {
-      void load();
-    }, intervalMs);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [intervalMs]);
-
-  return specs;
+  return data ?? null;
 }

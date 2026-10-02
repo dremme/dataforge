@@ -1,8 +1,7 @@
-import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { acceptCandidates, rejectCandidates } from "@/features/gallery/api/comfyCandidates";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { AppProviders } from "@/test/AppProviders";
 import type { ComfyCandidateBatchResponse } from "@/shared/types";
 import {
   useSettleAllCandidates,
@@ -21,13 +20,7 @@ const LAKE = "C:\\Photos\\lake.png";
 const RIDGE = "C:\\Photos\\ridge.png";
 const FIELD = "C:\\Photos\\field.png";
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 function batchResult(
   overrides: Partial<ComfyCandidateBatchResponse> = {},

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { openFolderInExplorer } from "@/features/folder/api/folders";
+import { useFolderPrefetch } from "@/features/folder/hooks/useFolderPrefetch";
 import { formatApiError } from "@/shared/api/http";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import {
@@ -35,6 +36,7 @@ export function BreadcrumbBar({
   onNavigate,
   onOpenPicker,
 }: BreadcrumbBarProps) {
+  const prefetch = useFolderPrefetch();
   const [openingInExplorer, setOpeningInExplorer] = useState(false);
   const [explorerError, setExplorerError] = useState<string | null>(null);
   const { copyState, copyLabel, copyText } = useCopyFeedback();
@@ -103,6 +105,7 @@ export function BreadcrumbBar({
                   type="button"
                   className="breadcrumbs__link"
                   onClick={() => onNavigate(crumb.path)}
+                  {...prefetch(crumb.path)}
                   title={crumb.path}
                 >
                   {crumb.name}

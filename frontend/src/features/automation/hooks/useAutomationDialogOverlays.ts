@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { trainLoraBody, type TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
 import type { ComfyProcessSettings } from "@/features/automation/components/ComfyProcessDialog";
@@ -52,6 +53,7 @@ export function useAutomationDialogOverlays({
   // At most one dialog is ever open, so one job type beats a boolean per dialog.
   const [openJobType, setOpenJobType] = useState<JobType | null>(null);
   // This folder's saved settings, loaded before any dialog opens.
+  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<AutomationSettings | null>(null);
 
   const closeDialog = useCallback(() => {
@@ -249,11 +251,11 @@ export function useAutomationDialogOverlays({
     (jobType: JobType) => {
       if (!folderPath) return;
       void (async () => {
-        setSettings(await loadAutomationSettings(folderPath));
+        setSettings(await loadAutomationSettings(folderPath, queryClient));
         setOpenJobType(jobType);
       })();
     },
-    [folderPath],
+    [folderPath, queryClient],
   );
 
   return { dialogs, openDialogForJobType };

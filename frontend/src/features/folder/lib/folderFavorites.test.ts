@@ -1,28 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { FolderFavorite } from "@/shared/types";
-
-const { fetchFolderFavoritesMock } = vi.hoisted(() => ({
-  fetchFolderFavoritesMock: vi.fn(),
-}));
-
-const { addFolderFavoriteMock, removeFolderFavoriteMock } = vi.hoisted(() => ({
-  addFolderFavoriteMock: vi.fn(),
-  removeFolderFavoriteMock: vi.fn(),
-}));
-
-vi.mock("@/features/folder/api/folders", () => ({
-  fetchFolderFavorites: fetchFolderFavoritesMock,
-  addFolderFavorite: addFolderFavoriteMock,
-  removeFolderFavorite: removeFolderFavoriteMock,
-}));
-
 import {
   cacheFolderFavorites,
-  getCachedFolderFavorites,
   optimisticallyAddFavorite,
   optimisticallyRemoveFavorite,
-  refreshFolderFavoritesInBackground,
-  syncAddFolderFavorite,
+  readCachedFolderFavorites,
 } from "./folderFavorites";
 
 const sampleFavorites: FolderFavorite[] = [
@@ -31,11 +13,6 @@ const sampleFavorites: FolderFavorite[] = [
 ];
 
 describe("folderFavorites", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    fetchFolderFavoritesMock.mockReset();
-  });
-
   afterEach(() => {
     localStorage.clear();
   });
@@ -43,25 +20,19 @@ describe("folderFavorites", () => {
   it("reads and writes favorites from localStorage", () => {
     cacheFolderFavorites(sampleFavorites);
 
-    expect(getCachedFolderFavorites()).toEqual(sampleFavorites);
+    expect(readCachedFolderFavorites()).toEqual(sampleFavorites);
     expect(JSON.parse(localStorage.getItem("gallery-folder-favorites") ?? "[]")).toEqual(
       sampleFavorites,
     );
   });
 
-  it("refreshes favorites in the background and updates cache", async () => {
-    cacheFolderFavorites([sampleFavorites[0]]);
-    fetchFolderFavoritesMock.mockResolvedValue({ favorites: sampleFavorites });
+  it("ignores malformed entries in the mirror", () => {
+    localStorage.setItem(
+      "gallery-folder-favorites",
+      JSON.stringify([sampleFavorites[0], { name: 3 }, "C:\\Other"]),
+    );
 
-    const onUpdated = vi.fn();
-
-    refreshFolderFavoritesInBackground(onUpdated);
-
-    await vi.waitFor(() => {
-      expect(onUpdated).toHaveBeenCalledWith(sampleFavorites);
-    });
-
-    expect(getCachedFolderFavorites()).toEqual(sampleFavorites);
+    expect(readCachedFolderFavorites()).toEqual([sampleFavorites[0]]);
   });
 
   it("adds and removes favorites optimistically", () => {
@@ -70,16 +41,5 @@ describe("folderFavorites", () => {
 
     const withoutVacation = optimisticallyRemoveFavorite(withVacation, "C:\\Photos\\Vacation");
     expect(withoutVacation).toEqual([sampleFavorites[0]]);
-  });
-
-  it("syncs favorites with the backend after optimistic cache updates", async () => {
-    cacheFolderFavorites([sampleFavorites[0]]);
-    addFolderFavoriteMock.mockResolvedValue({ favorites: sampleFavorites });
-
-    const synced = await syncAddFolderFavorite("C:\\Photos\\Vacation");
-
-    expect(synced).toEqual(sampleFavorites);
-    expect(getCachedFolderFavorites()).toEqual(sampleFavorites);
-    expect(addFolderFavoriteMock).toHaveBeenCalledWith("C:\\Photos\\Vacation");
   });
 });

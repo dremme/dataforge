@@ -7,6 +7,7 @@ import type {
   SubfolderStatsResponse,
 } from "@/shared/types";
 
+/** The tab id asks the server to watch the folder for this tab. */
 function folderParams(folderPath?: string): URLSearchParams {
   const params = new URLSearchParams();
   if (folderPath) params.set("path", folderPath);
@@ -14,13 +15,22 @@ function folderParams(folderPath?: string): URLSearchParams {
   return params;
 }
 
+export interface FetchFolderOptions {
+  signal?: AbortSignal;
+  /**
+   * A speculative read: the server neither watches it (it keeps only a few folders per tab)
+   * nor remembers it as the folder to start in.
+   */
+  prefetch?: boolean;
+}
+
 export async function fetchFolder(
   folderPath?: string,
-  signal?: AbortSignal,
+  { signal, prefetch = false }: FetchFolderOptions = {},
 ): Promise<FolderResponse> {
-  return requestJson<FolderResponse>(`/api/folders/contents?${folderParams(folderPath)}`, {
-    signal,
-  });
+  const params = folderParams(folderPath);
+  if (prefetch) params.set("prefetch", "true");
+  return requestJson<FolderResponse>(`/api/folders/contents?${params}`, { signal });
 }
 
 export async function fetchFolderFingerprint(
@@ -35,9 +45,12 @@ export async function fetchFolderChanges(
   folderPath: string,
   since: string,
   signal?: AbortSignal,
+  /** The user is opening the folder, so the server remembers it as the one to start in. */
+  opened = false,
 ): Promise<FolderChangesResponse> {
   const params = folderParams(folderPath);
   params.set("since", since);
+  if (opened) params.set("opened", "true");
   return requestJson<FolderChangesResponse>(`/api/folders/changes?${params}`, { signal });
 }
 

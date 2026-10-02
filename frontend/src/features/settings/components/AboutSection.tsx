@@ -1,18 +1,13 @@
-import { useEffect, useState } from "react";
-import { fetchSystemSpecs } from "@/features/automation/api/system";
-import { formatApiError, isAbortError } from "@/shared/api/http";
+import { useQuery } from "@tanstack/react-query";
+import { systemSpecsQueryOptions } from "@/features/automation/lib/automationQueries";
+import { formatApiError } from "@/shared/api/http";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { iconCopy, iconFolder, iconInfo } from "@/shared/icons";
 import { formatFileSize } from "@/shared/lib/format";
 import type { AboutResponse, AppSettingsResponse, SystemSpecs } from "@/shared/types";
-import { fetchAbout } from "../api/settings";
+import { fetchAbout, settingsKeys } from "../api/settings";
 import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
-
-type AboutState =
-  | { status: "idle" }
-  | { status: "failed"; message: string }
-  | { status: "ready"; about: AboutResponse; specs: SystemSpecs | null };
 
 const FFMPEG_SOURCES = { path: "from PATH", bundled: "bundled" } as const;
 
@@ -62,33 +57,28 @@ interface AboutSectionProps {
 }
 
 export function AboutSection({ settings, visible }: AboutSectionProps) {
-  const [state, setState] = useState<AboutState>({ status: "idle" });
   const { copyLabel, copyText } = useCopyFeedback();
-  const status = state.status;
 
-  useEffect(() => {
-    if (!visible || status !== "idle") return;
-    const controller = new AbortController();
-    Promise.all([fetchAbout(controller.signal), fetchSystemSpecs().catch(() => null)]).then(
-      ([about, specs]) => setState({ status: "ready", about, specs }),
-      (error: unknown) => {
-        if (isAbortError(error)) return;
-        setState({ status: "failed", message: formatApiError(error) });
-      },
-    );
-    return () => controller.abort();
-  }, [visible, status]);
+  // An installation does not change while the app runs, so once read it stays read.
+  const aboutQuery = useQuery({
+    queryKey: settingsKeys.about,
+    queryFn: ({ signal }) => fetchAbout(signal),
+    enabled: visible,
+    staleTime: Infinity,
+  });
+  // The same specs the automation panel reads; the GPU line waits when they are missing.
+  const specsQuery = useQuery({ ...systemSpecsQueryOptions(), enabled: visible, retry: false });
 
-  if (state.status === "failed") {
+  if (aboutQuery.isError) {
     return (
       <p className="dialog__error" role="alert">
-        {state.message}
+        {formatApiError(aboutQuery.error)}
       </p>
     );
   }
 
-  const about = state.status === "ready" ? state.about : null;
-  const specs = state.status === "ready" ? state.specs : null;
+  const about: AboutResponse | null = aboutQuery.data ?? null;
+  const specs: SystemSpecs | null = specsQuery.data ?? null;
   const pending = "...";
 
   return (

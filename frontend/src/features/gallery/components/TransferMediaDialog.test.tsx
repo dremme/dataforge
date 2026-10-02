@@ -1,6 +1,8 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as foldersApi from "@/features/folder/api/folders";
+import { ApiError } from "@/shared/api/http";
 import { EMPTY_PATH, HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { stubDialogClock } from "@/test/dialogClock";
 import { installMockBackend } from "@/test/mockBackend";
@@ -145,6 +147,25 @@ describe("TransferMediaDialog", () => {
 
     await waitFor(() => expect(empty).not.toHaveAttribute("aria-expanded"));
     expect(empty).toHaveFocus();
+  });
+
+  it("reports a folder it cannot list once, and shows it as a leaf", async () => {
+    const user = userEvent.setup();
+    const listChildren = foldersApi.fetchFolderChildren;
+    vi.spyOn(foldersApi, "fetchFolderChildren").mockImplementation((path, signal) =>
+      path === EMPTY_PATH
+        ? Promise.reject(new ApiError(403, "Access is denied"))
+        : listChildren(path, signal),
+    );
+    renderDialog();
+    const tree = await openTree();
+    const empty = await focusTreeItem(tree, "Empty");
+
+    await user.keyboard("{ArrowRight}");
+
+    expect(await screen.findByText("Access is denied")).toBeInTheDocument();
+    await waitFor(() => expect(empty).not.toHaveAttribute("aria-expanded"));
+    expect(screen.getAllByText("Access is denied")).toHaveLength(1);
   });
 
   it("does not confirm on Enter before a folder is picked", async () => {

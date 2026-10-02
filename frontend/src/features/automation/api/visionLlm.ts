@@ -1,32 +1,10 @@
 import { requestJson } from "@/shared/api/http";
 import type { VisionLlmInfoResponse } from "@/shared/types";
 
-let cachedModel: string | null = null;
-let inflight: Promise<string> | null = null;
+export const VISION_MODEL_QUERY_KEY = ["vision-model"] as const;
 
-/** Fetch the backend vision model id once; subsequent calls reuse the cache. */
-export async function loadVisionModelId(): Promise<string> {
-  if (cachedModel !== null) return cachedModel;
-  if (inflight) return inflight;
-
-  inflight = requestJson<VisionLlmInfoResponse>("/api/system/vision-llm")
-    .then((data) => {
-      cachedModel = typeof data.model === "string" ? data.model : "";
-      return cachedModel;
-    })
-    .finally(() => {
-      inflight = null;
-    });
-
-  return inflight;
-}
-
-/** Cached model id, or null until the first successful load. */
-export function getCachedVisionModelId(): string | null {
-  return cachedModel;
-}
-
-export function forgetVisionModelId(): void {
-  cachedModel = null;
-  inflight = null;
+/** The vision model id the backend is configured with, or "" when it names none. */
+export async function fetchVisionModelId(): Promise<string> {
+  const data = await requestJson<VisionLlmInfoResponse>("/api/system/vision-llm");
+  return typeof data.model === "string" ? data.model : "";
 }

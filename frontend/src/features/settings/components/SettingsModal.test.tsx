@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +34,35 @@ describe("SettingsModal", () => {
       "Default",
     );
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("reads fresh settings when reopened without marking cached values as edits", async () => {
+    const user = userEvent.setup();
+    function ReopenSettings() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Reopen settings
+          </button>
+          {open && <SettingsModal onClose={() => setOpen(false)} />}
+        </>
+      );
+    }
+    renderWithProviders(<ReopenSettings />);
+    await screen.findByRole("textbox", { name: "Model", hidden: true });
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    const serve = backend.fetchMock.getMockImplementation()!;
+    await serve("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify({ vision_model: "new-model" }),
+    });
+    await user.click(screen.getByRole("button", { name: "Reopen settings" }));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Model", hidden: true })).toHaveValue("new-model"),
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(settingsRequests("PUT")).toHaveLength(0);
   });
 
   it("saves only the edited value and closes", async () => {

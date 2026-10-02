@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchJobResults } from "@/features/jobs/api/jobs";
+import { jobKeys } from "@/features/jobs/lib/jobQueries";
 import { isTerminalJobStatus } from "@/features/jobs/lib/jobs";
 import { sortResultsForDisplay } from "@/features/jobs/lib/jobFileResults";
 import type { Job, JobFileResult } from "@/shared/types";
@@ -10,45 +11,23 @@ export interface JobFileResultsState {
   failed: boolean;
 }
 
+const NO_RESULTS: JobFileResult[] = [];
+
 /** A finished job's per-file results. Fetched on demand: a large run is megabytes. */
 export function useJobFileResults(job: Job, enabled: boolean): JobFileResultsState {
-  const [results, setResults] = useState<JobFileResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  const jobId = job.id;
-  const finishedAt = job.finished_at;
   const ready = enabled && isTerminalJobStatus(job.status);
 
-  useEffect(() => {
-    if (!ready) {
-      setResults([]);
-      setFailed(false);
-      return;
-    }
+  // Keyed by the finish time too: a retried job finishes again with different results.
+  const { data, isFetching, isError } = useQuery({
+    queryKey: jobKeys.results(job.id, job.finished_at),
+    queryFn: async ({ signal }) => sortResultsForDisplay(await fetchJobResults(job.id, signal)),
+    enabled: ready,
+    retry: false,
+  });
 
-    let cancelled = false;
-    setLoading(true);
-    setFailed(false);
-
-    fetchJobResults(jobId)
-      .then((fetched) => {
-        if (cancelled) return;
-        setResults(sortResultsForDisplay(fetched));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setFailed(true);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [finishedAt, jobId, ready]);
-
-  return { results, loading, failed };
+  return {
+    results: (ready && data) || NO_RESULTS,
+    loading: ready && isFetching,
+    failed: ready && isError,
+  };
 }

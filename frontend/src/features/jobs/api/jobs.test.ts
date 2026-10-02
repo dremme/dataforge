@@ -20,7 +20,9 @@ describe("jobs API", () => {
 
     await fetchLatestFolderJob("C:\\Photos");
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/jobs/folder-latest?path=C%3A%5CPhotos");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/jobs/folder-latest?path=C%3A%5CPhotos", {
+      signal: undefined,
+    });
   });
 
   it("fetches jobs with the default limit", async () => {

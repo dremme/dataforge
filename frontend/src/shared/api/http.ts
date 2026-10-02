@@ -1,3 +1,5 @@
+import type { ApiErrorCode } from "@/shared/types";
+
 export const FOLDER_NOT_FOUND = {
   title: "Folder not found",
   description: "The folder may have been moved, renamed, or deleted.",
@@ -8,57 +10,44 @@ export const BACKEND_UNREACHABLE = {
   description: "Start the API server with dev.bat or start-backend.ps1.",
 } as const;
 
-/** Matches the API `detail` field for missing folders. */
-export const FOLDER_NOT_FOUND_MESSAGE = FOLDER_NOT_FOUND.title;
+const BACKEND_UNREACHABLE_MESSAGE = `${BACKEND_UNREACHABLE.title}. ${BACKEND_UNREACHABLE.description}`;
+
+/** The API answered with an error; `code` is set where the client branches on the reason. */
+export class ApiError extends Error {
+  override readonly name = "ApiError";
+
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code: ApiErrorCode | null = null,
+  ) {
+    super(message);
+  }
+}
+
+/** No answer from the API: the request failed, or a gateway replied without a detail. */
+export class NetworkError extends Error {
+  override readonly name = "NetworkError";
+
+  constructor(options?: ErrorOptions) {
+    super(BACKEND_UNREACHABLE_MESSAGE, options);
+  }
+}
 
 export type FolderError =
   | { kind: "folder-not-found" }
   | { kind: "backend-unreachable" }
   | { kind: "other"; message: string };
 
-const GATEWAY_STATUS_RE = /^request failed \((500|502|503|504)\)$/i;
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "";
-}
-
-function isBackendUnreachableMessage(message: string): boolean {
-  const trimmed = message.trim();
-  return (
-    GATEWAY_STATUS_RE.test(trimmed) ||
-    trimmed === BACKEND_UNREACHABLE.description ||
-    trimmed.startsWith(BACKEND_UNREACHABLE.title) ||
-    trimmed.startsWith("The backend is unreachable") ||
-    trimmed === "Failed to fetch"
-  );
-}
-
-function isNetworkFailureHttpResponse(status: number, detail: unknown): boolean {
-  if (typeof detail === "string" && detail.length > 0) {
-    return false;
-  }
-  return status === 500 || status === 502 || status === 503 || status === 504;
-}
-
 export function resolveFolderError(error: unknown): FolderError | null {
   if (error == null) return null;
-
-  const message = errorMessage(error);
-  if (!message) {
-    return { kind: "other", message: "Something went wrong." };
-  }
-
-  if (message === FOLDER_NOT_FOUND_MESSAGE) {
+  if (error instanceof NetworkError) return { kind: "backend-unreachable" };
+  if (error instanceof ApiError && error.code === "folder_not_found") {
     return { kind: "folder-not-found" };
   }
 
-  if (isBackendUnreachableMessage(message)) {
-    return { kind: "backend-unreachable" };
-  }
-
-  return { kind: "other", message };
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return { kind: "other", message: message || "Something went wrong." };
 }
 
 export function isFolderNotFoundError(error: unknown): boolean {
@@ -79,20 +68,23 @@ export function formatApiError(error: unknown): string {
     case "folder-not-found":
       return FOLDER_NOT_FOUND.title;
     case "backend-unreachable":
-      return `${BACKEND_UNREACHABLE.title}. ${BACKEND_UNREACHABLE.description}`;
+      return BACKEND_UNREACHABLE_MESSAGE;
     case "other":
       return resolved.message;
   }
 }
 
-export async function parseApiError(response: Response): Promise<string> {
-  const body = await response.json().catch(() => ({}));
-  const detail = body.detail;
-  if (typeof detail === "string") return detail;
-  if (isNetworkFailureHttpResponse(response.status, detail)) {
-    return BACKEND_UNREACHABLE.description;
+const GATEWAY_STATUSES = new Set([500, 502, 503, 504]);
+
+export async function parseApiError(response: Response): Promise<ApiError | NetworkError> {
+  const body: { detail?: unknown; code?: unknown } = await response.json().catch(() => ({}));
+  if (typeof body.detail === "string") {
+    const code = typeof body.code === "string" ? (body.code as ApiErrorCode) : null;
+    return new ApiError(response.status, body.detail, code);
   }
-  return `Request failed (${response.status})`;
+  // A dev proxy answers 5xx without a body while the API process is down.
+  if (GATEWAY_STATUSES.has(response.status)) return new NetworkError();
+  return new ApiError(response.status, `Request failed (${response.status})`);
 }
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -101,14 +93,14 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   try {
     response = await fetch(url, init);
   } catch (error) {
-    // A cancelled request must stay recognizable as such: wrapping it in a
-    // generic Error would surface a superseded navigation as a backend failure.
+    // A cancelled request must stay recognizable as such: wrapping it would surface a
+    // superseded navigation as a backend failure.
     if (isAbortError(error)) throw error;
-    throw new Error(formatApiError(error), { cause: error });
+    throw new NetworkError({ cause: error });
   }
 
   if (!response.ok) {
-    throw new Error(await parseApiError(response));
+    throw await parseApiError(response);
   }
   return response.json() as Promise<T>;
 }

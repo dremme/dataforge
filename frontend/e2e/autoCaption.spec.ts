@@ -27,10 +27,8 @@ test("auto-captions a still and a clip, and shows both captions back", async ({ 
   await expect(page.locator(".automation__counts")).toContainText("2/2");
 
   // Read back through the listing: proves the sidecar landed and the caption memo let go of it.
-  await expect(page.locator(".card__description")).toHaveCount(2);
-  for (const description of await page.locator(".card__description").allTextContents()) {
-    expect(description).toBe(CAPTION);
-  }
+  // Retried: the listing is re-read once the job reports done, so it lands a moment later.
+  await expect(page.locator(".card__description")).toHaveText([CAPTION, CAPTION]);
 
   // No trailing newline: auto-caption saves with trailing_newline=False.
   expect(readSidecar("photo.txt")).toBe(CAPTION);

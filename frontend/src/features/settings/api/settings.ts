@@ -1,4 +1,3 @@
-import { forgetVisionModelId } from "@/features/automation/api/visionLlm";
 import { postJson, putJson, requestJson } from "@/shared/api/http";
 import type {
   AboutResponse,
@@ -11,14 +10,19 @@ import type {
   ThumbnailCacheStats,
 } from "@/shared/types";
 
+export const settingsKeys = {
+  app: ["app-settings"] as const,
+  about: ["about"] as const,
+  thumbnailCache: ["thumbnail-cache"] as const,
+  remembered: ["remembered-data"] as const,
+};
+
 export function fetchAppSettings(signal?: AbortSignal): Promise<AppSettingsResponse> {
   return requestJson<AppSettingsResponse>("/api/settings", { signal });
 }
 
-export async function saveAppSettings(update: AppSettingsUpdate): Promise<AppSettingsResponse> {
-  const saved = await putJson<AppSettingsResponse>("/api/settings", update);
-  forgetVisionModelId();
-  return saved;
+export function saveAppSettings(update: AppSettingsUpdate): Promise<AppSettingsResponse> {
+  return putJson<AppSettingsResponse>("/api/settings", update);
 }
 
 export function probeService(request: ServiceProbeRequest): Promise<ServiceProbeResponse> {

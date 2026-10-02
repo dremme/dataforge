@@ -1,12 +1,7 @@
 import { normalizeFolderPath } from "@/features/folder/lib/folderPath";
-import {
-  DEFAULT_DISPLAY_MODE,
-  isGalleryDisplayMode,
-  parseDisplayMode,
-} from "@/features/gallery/lib/displayMode";
+import { isGalleryDisplayMode, parseDisplayMode } from "@/features/gallery/lib/displayMode";
 import { putJson, requestJson } from "@/shared/api/http";
 import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
-import { withRetry } from "@/shared/lib/retry";
 import type {
   GalleryDisplayMode,
   GalleryDisplaySettingsResponse,
@@ -59,7 +54,7 @@ function cacheDisplayMode(folderPath: string, mode: GalleryDisplayMode): void {
   writeStoredJson(CACHE_KEY, cache);
 }
 
-async function fetchDisplayMode(folderPath: string): Promise<GalleryDisplayMode> {
+export async function fetchDisplayMode(folderPath: string): Promise<GalleryDisplayMode> {
   const params = new URLSearchParams({ path: folderPath });
   const data = await requestJson<GalleryDisplaySettingsResponse>(
     `/api/preferences/gallery-display?${params}`,
@@ -67,14 +62,6 @@ async function fetchDisplayMode(folderPath: string): Promise<GalleryDisplayMode>
   const mode = parseDisplayMode(data.mode);
   cacheDisplayMode(folderPath, mode);
   return mode;
-}
-
-export async function loadGalleryDisplayMode(folderPath: string): Promise<GalleryDisplayMode> {
-  try {
-    return await withRetry(() => fetchDisplayMode(folderPath));
-  } catch {
-    return readCachedDisplayMode(folderPath) ?? DEFAULT_DISPLAY_MODE;
-  }
 }
 
 export async function updateGalleryDisplayMode(

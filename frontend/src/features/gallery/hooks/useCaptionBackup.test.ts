@@ -1,8 +1,9 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/gallery/api/captions";
 import { HOME_PATH } from "@/test/fixtures";
 import { useCaptionBackup } from "./useCaptionBackup";
+import { renderHookWithQueryClient } from "@/test/queryClient";
 
 const MEDIA_PATH = `${HOME_PATH}\\sunset.png`;
 
@@ -17,7 +18,7 @@ describe("useCaptionBackup", () => {
       description: "Backed up caption.",
     });
 
-    const { result } = renderHook(() => useCaptionBackup(MEDIA_PATH, true));
+    const { result } = renderHookWithQueryClient(() => useCaptionBackup(MEDIA_PATH, true));
 
     await waitFor(() => expect(result.current).toBe("Backed up caption."));
   });
@@ -27,7 +28,7 @@ describe("useCaptionBackup", () => {
       .spyOn(api, "fetchCaptionBackup")
       .mockResolvedValue({ exists: false, description: null });
 
-    const { result } = renderHook(() => useCaptionBackup(MEDIA_PATH, true));
+    const { result } = renderHookWithQueryClient(() => useCaptionBackup(MEDIA_PATH, true));
 
     await waitFor(() => expect(fetchBackup).toHaveBeenCalled());
     expect(result.current).toBeNull();
@@ -36,7 +37,7 @@ describe("useCaptionBackup", () => {
   it("does not ask the server when the folder has no backup at all", () => {
     const fetchBackup = vi.spyOn(api, "fetchCaptionBackup");
 
-    renderHook(() => useCaptionBackup(MEDIA_PATH, false));
+    renderHookWithQueryClient(() => useCaptionBackup(MEDIA_PATH, false));
 
     expect(fetchBackup).not.toHaveBeenCalled();
   });
@@ -47,9 +48,12 @@ describe("useCaptionBackup", () => {
       description: "First caption.",
     });
 
-    const { result, rerender } = renderHook(({ path }) => useCaptionBackup(path, true), {
-      initialProps: { path: MEDIA_PATH },
-    });
+    const { result, rerender } = renderHookWithQueryClient(
+      ({ path }) => useCaptionBackup(path, true),
+      {
+        initialProps: { path: MEDIA_PATH },
+      },
+    );
 
     await waitFor(() => expect(result.current).toBe("First caption."));
 

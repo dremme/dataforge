@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import uuid
 from dataclasses import replace
 from unittest.mock import patch
 
@@ -256,16 +257,136 @@ class JobManagerLifecycleTests(unittest.TestCase):
             self.assertEqual(job_manager.list_jobs(), [])
 
 
+def _revision(record: dict[str, object]) -> int:
+    revision = record["revision"]
+    assert isinstance(revision, int)
+    return revision
+
+
+class JobRevisionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_job_manager()
+        self.job = Job(id=uuid.uuid4().hex, folder=r"C:\Photos")
+        with job_manager._lock:
+            job_manager._jobs[self.job.id] = self.job
+        publish = patch("automation.jobs.events.publish")
+        self.published = publish.start()
+        self.addCleanup(publish.stop)
+
+    def _save(self, **changes: object) -> None:
+        for name, value in changes.items():
+            setattr(self.job, name, value)
+        with job_manager._lock:
+            job_manager._save_snapshot(self.job.id, self.job.to_dict())
+
+    def _pushed(self, event_type: str) -> list[dict[str, object]]:
+        return [
+            call.args[0]
+            for call in self.published.call_args_list
+            if call.args[0]["type"] == event_type
+        ]
+
+    def test_every_save_stamps_a_higher_revision_and_stores_it(self) -> None:
+        self._save(status="queued")
+        first = self.job.revision
+        self._save(status="running")
+
+        self.assertGreater(self.job.revision, first)
+        stored = get_job_from_store(self.job.id)
+        assert stored is not None
+        self.assertEqual(stored["revision"], self.job.revision)
+        self.assertEqual(self._pushed("job")[-1]["job"]["revision"], self.job.revision)
+
+    def test_the_list_snapshot_revision_is_above_every_saved_job(self) -> None:
+        self._save(status="running")
+
+        self.assertGreater(job_manager.snapshot_revision(), self.job.revision)
+
+    def test_thinned_progress_is_neither_stored_nor_pushed_but_listed_from_memory(self) -> None:
+        self._save(status="running", processed=0)
+        pushed_before = len(self._pushed("job"))
+
+        with patch("automation.jobs.JOB_EVENT_MIN_INTERVAL_SECONDS", 60):
+            self._save(processed=5)
+
+        stored = get_job_from_store(self.job.id)
+        assert stored is not None
+        self.assertEqual(stored["processed"], 0)
+        self.assertEqual(len(self._pushed("job")), pushed_before)
+        listed = next(job for job in job_manager.list_jobs() if job.id == self.job.id)
+        self.assertEqual(listed.processed, 5)
+        self.assertGreater(listed.revision, _revision(stored))
+
+    def test_a_status_change_is_stored_inside_the_thinning_interval(self) -> None:
+        self._save(status="running")
+
+        with patch("automation.jobs.JOB_EVENT_MIN_INTERVAL_SECONDS", 60):
+            self._save(status="completed")
+
+        stored = get_job_from_store(self.job.id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "completed")
+        self.assertEqual(self._pushed("job")[-1]["job"]["status"], "completed")
+
+    def test_deleting_a_job_pushes_its_id_with_a_newer_revision(self) -> None:
+        self._save(status="completed")
+
+        self.assertTrue(job_manager.delete_job(self.job.id))
+
+        [removed] = self._pushed("jobs_removed")
+        self.assertEqual(removed["ids"], [self.job.id])
+        self.assertGreater(_revision(removed), self.job.revision)
+
+    def test_deleting_every_job_pushes_every_id(self) -> None:
+        self._save(status="completed")
+        save_job_row = {**self.job.to_dict(), "id": "stored-only", "status": "completed"}
+        jobs_store.save_job(save_job_row)
+
+        job_manager.delete_all_jobs()
+
+        [removed] = self._pushed("jobs_removed")
+        self.assertCountEqual(removed["ids"], [self.job.id, "stored-only"])
+
+    def test_pruning_pushes_the_pruned_ids(self) -> None:
+        self._save(status="completed", finished_at="2000-01-01T00:00:00+00:00")
+
+        self.assertEqual(job_manager.prune_finished(1), 1)
+
+        [removed] = self._pushed("jobs_removed")
+        self.assertEqual(removed["ids"], [self.job.id])
+
+    def test_deleting_nothing_pushes_nothing(self) -> None:
+        with job_manager._lock:
+            job_manager._jobs.clear()
+
+        job_manager.delete_all_jobs()
+        job_manager.prune_finished(1)
+
+        self.assertEqual(self._pushed("jobs_removed"), [])
+
+    def test_recovering_stale_jobs_stamps_a_newer_revision(self) -> None:
+        """A tab holding the pre-restart "running" frame must not outrank the recovered row."""
+        self._save(status="running")
+
+        jobs_store.recover_stale_jobs()
+
+        stored = get_job_from_store(self.job.id)
+        assert stored is not None
+        self.assertEqual(stored["status"], "interrupted")
+        self.assertGreater(_revision(stored), self.job.revision)
+
+
 class JobOutcomeNotificationTests(unittest.TestCase):
     def setUp(self) -> None:
         reset_job_manager()
         init_notifications_table()
         clear_notifications_for_tests()
+        # Deleted ids are never written again, so each test needs a job id of its own.
+        self.job_id = uuid.uuid4().hex
 
-    @staticmethod
-    def _snapshot(status: str) -> dict[str, object]:
+    def _snapshot(self, status: str) -> dict[str, object]:
         return {
-            "id": "job-1",
+            "id": self.job_id,
             "folder": r"C:\Photos",
             "folder_name": "Photos",
             "job_type": "auto_caption",
@@ -278,7 +399,8 @@ class JobOutcomeNotificationTests(unittest.TestCase):
 
     def _publish(self, status: str) -> None:
         with job_manager._lock:
-            job_manager._publish_snapshot("job-1", self._snapshot(status))
+            job_manager._jobs.setdefault(self.job_id, Job(id=self.job_id, folder=r"C:\Photos"))
+            job_manager._save_snapshot(self.job_id, self._snapshot(status))
 
     def test_reaching_a_terminal_status_records_one_notification(self) -> None:
         self._publish("running")
@@ -288,7 +410,7 @@ class JobOutcomeNotificationTests(unittest.TestCase):
         self.assertEqual(len(stored), 1)
         self.assertEqual(stored[0]["message"], 'Auto-caption completed in "Photos".')
         self.assertEqual(stored[0]["source"], "job")
-        self.assertEqual(stored[0]["job_id"], "job-1")
+        self.assertEqual(stored[0]["job_id"], self.job_id)
 
     def test_republishing_the_same_terminal_status_records_nothing_further(self) -> None:
         self._publish("running")

@@ -1,4 +1,3 @@
-import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,7 +7,7 @@ import {
   revertImageEdit,
 } from "@/features/gallery/api/imageEdit";
 import { useImageEdit, type UseImageEditOptions } from "./useImageEdit";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { AppProviders } from "@/test/AppProviders";
 import { makeItem } from "@/test/galleryItemModal";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem, ImageEditResponse, ImageEditSpec } from "@/shared/types";
@@ -40,13 +39,7 @@ const EDITED: ImageEditResponse = {
   has_backup: true,
 };
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
   return {

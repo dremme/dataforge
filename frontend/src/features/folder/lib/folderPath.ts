@@ -15,16 +15,14 @@ export function normalizeFolderPath(path: string): string {
   return trimmed.replace(/\\+$/, "");
 }
 
-function normalizeForMatch(path: string): string {
-  // Canonical form for comparisons: normalized display form, / separators, lowercased.
-  // Handles drive roots etc via normalizeFolderPath.
-  const norm = normalizeFolderPath(path).replace(/\\/g, "/");
-  return norm.toLowerCase();
+/** One spelling per folder, for comparisons and cache keys: `/` separators, lowercased. */
+export function folderKey(path: string): string {
+  return normalizeFolderPath(path).replace(/\\/g, "/").toLowerCase();
 }
 
 export function foldersMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   if (!a || !b) return false;
-  return normalizeForMatch(a) === normalizeForMatch(b);
+  return folderKey(a) === folderKey(b);
 }
 
 export function folderPathsEqual(left: string, right: string): boolean {

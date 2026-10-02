@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchComfyLogs } from "@/features/automation/api/jobs";
 import { isActiveJobStatus } from "@/features/jobs/lib/jobs";
 import type { ComfyLogsResponse, Job } from "@/shared/types";
@@ -12,47 +12,22 @@ export const COMFY_LOG_POLL_MS = 1000;
 /**
  * ComfyUI's console while one of its runs works, or null when there is nothing to show.
  *
- * Nothing is cached between runs: stale output under a fresh job would read as progress.
+ * Keyed by job, so stale output never shows under a fresh run, where it would read as progress.
  */
 export function useComfyProcessLogs(job: Job | null): ComfyLogsResponse | null {
-  const [logs, setLogs] = useState<ComfyLogsResponse | null>(null);
-
-  const jobId = job?.id ?? null;
+  const jobId = job?.id ?? "";
   const enabled = job !== null && job.job_type === "comfy_process" && isActiveJobStatus(job.status);
 
-  useEffect(() => {
-    setLogs(null);
-  }, [jobId]);
+  // A tick never overlaps a request still out, so a ComfyUI busy sampling is not queued at.
+  const { data } = useQuery({
+    queryKey: ["comfy-logs", jobId],
+    queryFn: ({ signal }) => fetchComfyLogs(signal),
+    enabled,
+    refetchInterval: COMFY_LOG_POLL_MS,
+    refetchIntervalInBackground: true,
+    // One dropped poll keeps the last output rather than blanking the log mid-run.
+    retry: false,
+  });
 
-  // Not `job`: every progress frame replaces that object, which would rebuild the timer
-  // several times a second.
-  useEffect(() => {
-    if (!enabled) return;
-
-    let cancelled = false;
-    let timer: number | undefined;
-    const controller = new AbortController();
-
-    // Chained off each settled request rather than an interval: two can never overlap, and a
-    // ComfyUI busy sampling backs the poll off by itself instead of queueing requests at it.
-    const load = async () => {
-      try {
-        const response = await fetchComfyLogs(controller.signal);
-        if (!cancelled) setLogs(response);
-      } catch {
-        // Keep the last output: one dropped poll must not blank the log mid-run.
-      }
-      if (!cancelled) timer = window.setTimeout(load, COMFY_LOG_POLL_MS);
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [enabled, jobId]);
-
-  return logs;
+  return (enabled && data) || null;
 }

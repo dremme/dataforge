@@ -77,7 +77,8 @@ from automation.watermark import (
     validate_watermark_folder,
 )
 from filesystem import normalize_user_path, path_leaf_name
-from schemas import JobEvent, JobHistoryStatus, JobStatus, JobType
+from revisions import next_revision
+from schemas import JobEvent, JobHistoryStatus, JobsRemovedEvent, JobStatus, JobType
 
 ACTIVE_STATUSES = frozenset({"queued", "running"})
 
@@ -85,7 +86,7 @@ ACTIVE_STATUSES = frozenset({"queued", "running"})
 JOB_STATUSES: tuple[JobStatus, ...] = get_args(JobStatus.__value__)
 JOB_TYPES: tuple[JobType, ...] = get_args(JobType.__value__)
 
-# Mid-run frames are thinned to this cadence; a status change always goes out immediately.
+# Mid-run frames are stored and pushed at most this often; a status change always goes out.
 JOB_EVENT_MIN_INTERVAL_SECONDS = 0.25
 
 
@@ -133,6 +134,8 @@ class Job:
     job_type: JobType = "auto_caption"
     auto_caption_mode: str | None = None
     external_ref: str | None = None
+    #: Stamped on every change, so a client can tell which of two copies is newer.
+    revision: int = 0
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> Job:
@@ -156,6 +159,7 @@ class Job:
             job_type=_stored_literal(data, "job_type", JOB_TYPES, "auto_caption"),
             auto_caption_mode=_stored_text(data, "auto_caption_mode"),
             external_ref=_stored_text(data, "external_ref"),
+            revision=_stored_int(data, "revision"),
         )
 
     def to_summary_dict(self) -> dict[str, object]:
@@ -177,6 +181,7 @@ class Job:
             "finished_at": self.finished_at,
             "auto_caption_mode": self.auto_caption_mode,
             "external_ref": self.external_ref,
+            "revision": self.revision,
         }
 
     def to_dict(self) -> dict[str, object]:
@@ -433,6 +438,12 @@ class JobManager:
         results = stored.get("results")
         return list(results) if isinstance(results, list) else []
 
+    def snapshot_revision(self) -> int:
+        """Read before ``list_jobs``: every save stamped below it is already in the store."""
+        # Saves stamp and write under this lock, so none can be half-done while we hold it.
+        with self._lock:
+            return next_revision()
+
     def list_jobs(
         self,
         *,
@@ -540,6 +551,7 @@ class JobManager:
             self._published.pop(job_id, None)
             self._deleted_ids.add(job_id)
             deleted_store = jobs_store.delete_job(job_id)
+            self._publish_removed([job_id])
 
         return deleted_store or had_memory
 
@@ -550,6 +562,8 @@ class JobManager:
                 self._jobs.pop(job_id, None)
                 self._cancel_flags.pop(job_id, None)
                 self._published.pop(job_id, None)
+            if pruned:
+                self._publish_removed(pruned)
         return len(pruned)
 
     def delete_all_jobs(self) -> int:
@@ -563,13 +577,18 @@ class JobManager:
             # Only a live worker can write a row back, and every live worker is in memory.
             for job_id in self._jobs:
                 self._deleted_ids.add(job_id)
+            memory_ids = list(self._jobs)
 
             self._jobs.clear()
             self._cancel_flags.clear()
             self._published.clear()
 
             # Hold the lock so a worker cannot re-insert a ``running`` row after we clear.
-            return jobs_store.delete_all_jobs()
+            stored_ids = jobs_store.delete_all_jobs()
+            removed = list(dict.fromkeys([*stored_ids, *memory_ids]))
+            if removed:
+                self._publish_removed(removed)
+            return len(stored_ids)
 
     def _resumable_jobs(self) -> list[tuple[Job, dict[str, object]]]:
         """Jobs left active by a previous process whose spec knows how to pick them back up."""
@@ -783,31 +802,46 @@ class JobManager:
             self._save_snapshot(job.id, job.to_dict())
 
     def _save_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
-        """Write a snapshot and push it. Caller must hold ``self._lock``."""
-        if job_id in self._deleted_ids or job_id not in self._jobs:
+        """Stamp, write and push a snapshot. Caller must hold ``self._lock``.
+
+        Mid-run progress is thinned for the store and the stream alike; a thinned frame still
+        lives in memory, which ``list_jobs`` reads first.
+        """
+        job = self._jobs.get(job_id)
+        if job_id in self._deleted_ids or job is None:
             return
+
+        job.revision = next_revision()
+        snapshot["revision"] = job.revision
+        if self._is_thinned(job_id, snapshot):
+            return
+
         jobs_store.save_job(snapshot)
         self._publish_snapshot(job_id, snapshot)
 
-    def _publish_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
-        """Push a job snapshot; status changes always go out, progress frames are thinned."""
-        status = str(snapshot.get("status") or "")
-        now = monotonic()
+    def _is_thinned(self, job_id: str, snapshot: dict[str, object]) -> bool:
+        """A status change always goes out; a same-status frame only after the minimum interval."""
         published = self._published.get(job_id)
-
-        if (
+        return (
             published is not None
-            and published[1] == status
-            and now - published[0] < JOB_EVENT_MIN_INTERVAL_SECONDS
-        ):
-            return
+            and published[1] == str(snapshot.get("status") or "")
+            and monotonic() - published[0] < JOB_EVENT_MIN_INTERVAL_SECONDS
+        )
 
+    def _publish_snapshot(self, job_id: str, snapshot: dict[str, object]) -> None:
+        status = str(snapshot.get("status") or "")
+        published = self._published.get(job_id)
         previous_status = published[1] if published is not None else ""
-        self._published[job_id] = (now, status)
+
+        self._published[job_id] = (monotonic(), status)
         events.publish(JobEvent(job=job_outcome.job_response(snapshot)).model_dump())
 
         if previous_status and previous_status != status:
             self._notify_outcome(snapshot)
+
+    def _publish_removed(self, job_ids: list[str]) -> None:
+        """Caller must hold ``self._lock``, so the revision orders against concurrent saves."""
+        events.publish(JobsRemovedEvent(ids=job_ids, revision=next_revision()).model_dump())
 
     def _notify_outcome(self, snapshot: dict[str, object]) -> None:
         outcome = job_outcome.completion_notification(snapshot)

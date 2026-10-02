@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchJobs } from "@/features/jobs/api/jobs";
 import type { JobsQuery } from "@/features/jobs/lib/jobFilters";
 import { job } from "@/test/fixtures";
+import { queryWrapper } from "@/test/queryClient";
 import type { Job, JobsResponse } from "@/shared/types";
 import { JOB_HISTORY_PAGE_SIZE, useJobHistory } from "./useJobHistory";
 
@@ -11,7 +12,7 @@ vi.mock("@/features/jobs/api/jobs", () => ({ fetchJobs: vi.fn() }));
 const fetchJobsMock = vi.mocked(fetchJobs);
 
 function page(jobs: Job[], total: number): JobsResponse {
-  return { jobs, total, active_count: 0 };
+  return { jobs, total, active_count: 0, revision: 1 };
 }
 
 function jobs(prefix: string, count: number): Job[] {
@@ -23,7 +24,10 @@ function renderHistory(
 ) {
   return renderHook(
     ({ query, enabled, refreshKey }) => useJobHistory(query, { enabled, refreshKey }),
-    { initialProps: { query: {}, enabled: true, refreshKey: "", ...initial } },
+    {
+      initialProps: { query: {}, enabled: true, refreshKey: "", ...initial },
+      wrapper: queryWrapper().wrapper,
+    },
   );
 }
 
@@ -91,7 +95,7 @@ describe("useJobHistory", () => {
 
     await act(async () => result.current.reload());
 
-    expect(result.current.jobs).toHaveLength(1);
+    await waitFor(() => expect(result.current.jobs).toHaveLength(1));
     expect(result.current.total).toBe(1);
     expect(fetchJobsMock).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0 }));
   });
@@ -107,6 +111,9 @@ describe("useJobHistory", () => {
     await waitFor(() => expect(result.current.jobs.map((entry) => entry.id)).toEqual(["fresh-0"]));
 
     await act(async () => resolveStale(page(jobs("stale", 3), 3)));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
 
     expect(result.current.jobs.map((entry) => entry.id)).toEqual(["fresh-0"]);
   });

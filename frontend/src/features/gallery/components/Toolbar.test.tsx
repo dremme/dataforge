@@ -363,6 +363,21 @@ describe("Toolbar", () => {
     expect(defaultProps.onFilterChange).toHaveBeenCalledWith("all");
   });
 
+  it("toggles the count filters from the keyboard and says which one is on", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ issueCount: 2, filter: "issue" });
+
+    const captioned = screen.getByRole("button", { name: "2 captioned (67%)" });
+    const issues = screen.getByRole("button", { name: "2 caption issues" });
+    expect(captioned).toHaveAttribute("aria-pressed", "false");
+    expect(issues).toHaveAttribute("aria-pressed", "true");
+
+    captioned.focus();
+    await user.keyboard("{Enter}");
+
+    expect(defaultProps.onFilterChange).toHaveBeenCalledWith("captioned");
+  });
+
   it("names a single caption issue in the singular", () => {
     renderToolbar({ issueCount: 1 });
 

@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearRecentFolders, readRecentFolderPaths } from "@/features/folder/lib/folderPreferences";
+import { ALL_DISPLAY_MODES_KEY } from "@/features/gallery/hooks/useGalleryDisplayMode";
 import { forgetCachedDisplayModes } from "@/features/gallery/preferences/galleryDisplayPreferences";
 import {
   clearRecentActions,
   readRecentActionIds,
 } from "@/features/quickAction/lib/quickActionHistory";
-import { formatApiError, isAbortError } from "@/shared/api/http";
+import { formatApiError } from "@/shared/api/http";
 import { iconEraser } from "@/shared/icons";
 import { formatCount } from "@/shared/lib/format";
 import { useNotify } from "@/shared/notifications/notifications";
 import type { RememberedDataResponse } from "@/shared/types";
-import { fetchRememberedData, forgetRememberedData } from "../api/settings";
+import { fetchRememberedData, forgetRememberedData, settingsKeys } from "../api/settings";
 import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
 
@@ -33,20 +35,25 @@ interface RememberedDataGroupProps {
 
 export function RememberedDataGroup({ visible, disabled }: RememberedDataGroupProps) {
   const notify = useNotify();
-  const [server, setServer] = useState<RememberedDataResponse | null>(null);
+  const queryClient = useQueryClient();
+  const serverQuery = useQuery({
+    queryKey: settingsKeys.remembered,
+    queryFn: ({ signal }) => fetchRememberedData(signal),
+    enabled: visible,
+  });
+  const server = serverQuery.data ?? null;
+  const setServer = (data: RememberedDataResponse) => {
+    queryClient.setQueryData(settingsKeys.remembered, data);
+  };
   const [recentFolders, setRecentFolders] = useState(() => readRecentFolderPaths().length);
   const [recentActions, setRecentActions] = useState(() => readRecentActionIds().length);
   const [clearing, setClearing] = useState<string | null>(null);
-  const loaded = server !== null;
 
+  // The counts would read "Counting..." forever otherwise, so a failure has to be said.
+  const loadError = serverQuery.error;
   useEffect(() => {
-    if (!visible || loaded) return;
-    const controller = new AbortController();
-    fetchRememberedData(controller.signal).then(setServer, (error: unknown) => {
-      if (!isAbortError(error)) notify({ variant: "danger", message: formatApiError(error) });
-    });
-    return () => controller.abort();
-  }, [visible, loaded, notify]);
+    if (loadError) notify({ variant: "danger", message: formatApiError(loadError) });
+  }, [loadError, notify]);
 
   const rows: Row[] = [
     {
@@ -84,6 +91,7 @@ export function RememberedDataGroup({ visible, disabled }: RememberedDataGroupPr
       clear: async () => {
         forgetCachedDisplayModes();
         setServer(await forgetRememberedData("display-modes"));
+        void queryClient.invalidateQueries({ queryKey: ALL_DISPLAY_MODES_KEY });
       },
     },
   ];

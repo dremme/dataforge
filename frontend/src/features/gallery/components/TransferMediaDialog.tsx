@@ -8,7 +8,12 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { fetchFolderChildren, fetchFolderRoots } from "@/features/folder/api/folders";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { folderKey } from "@/features/folder/lib/folderPath";
+import {
+  folderChildrenQueryOptions,
+  folderRootsQueryOptions,
+} from "@/features/folder/lib/folderQuery";
 import {
   folderLeafName,
   folderPathsEqual,
@@ -59,22 +64,12 @@ interface TreeEntry {
   depth: number;
 }
 
-function pathKey(path: string): string {
-  return normalizeFolderPath(path).replace(/\\/g, "/").toLowerCase();
-}
-
 function isStrictDescendant(path: string, ancestor: string): boolean {
-  const child = pathKey(path);
-  const parent = pathKey(ancestor);
+  const child = folderKey(path);
+  const parent = folderKey(ancestor);
   if (child === parent) return false;
   const prefix = parent.endsWith("/") ? parent : `${parent}/`;
   return child.startsWith(prefix);
-}
-
-function sortChildren(entries: FolderChild[]): FolderChild[] {
-  return [...entries].sort((left, right) =>
-    left.name.localeCompare(right.name, "en", { sensitivity: "base" }),
-  );
 }
 
 function dedupeRoots(raw: { name: string; path: string }[]): RootNode[] {
@@ -84,7 +79,7 @@ function dedupeRoots(raw: { name: string; path: string }[]): RootNode[] {
   for (const root of raw) {
     const path = normalizeFolderPath(root.path);
     if (!path) continue;
-    const key = pathKey(path);
+    const key = folderKey(path);
     if (seen.has(key)) continue;
     seen.add(key);
     result.push({ name: root.name, path, key });
@@ -97,7 +92,7 @@ function ancestorPathsToExpand(folder: string, roots: RootNode[]): string[] {
   const target = normalizeFolderPath(folder);
   if (!target) return [];
 
-  const targetKey = pathKey(target);
+  const targetKey = folderKey(target);
   const owningRoot = roots.find(
     (root) => root.key === targetKey || isStrictDescendant(target, root.path),
   );
@@ -128,7 +123,7 @@ function ancestorPathsToExpand(folder: string, roots: RootNode[]): string[] {
 
   // Only expand ancestors that fall under the owning root (inclusive of root).
   return chain.filter(
-    (path) => pathKey(path) === owningRoot.key || isStrictDescendant(path, owningRoot.path),
+    (path) => folderKey(path) === owningRoot.key || isStrictDescendant(path, owningRoot.path),
   );
 }
 
@@ -146,133 +141,88 @@ export function TransferMediaDialog({
   const treeId = useId();
   const notify = useNotify();
   const treeRef = useRef<HTMLDivElement>(null);
-  const loadingKeysRef = useRef(new Set<string>());
-  const childrenByKeyRef = useRef<Record<string, FolderChild[]>>({});
   const didScrollToCurrentRef = useRef(false);
   const treeItemRefs = useRef(new Map<string, HTMLLIElement>());
+  const reportedErrorsRef = useRef(new Set<unknown>());
 
-  const [roots, setRoots] = useState<RootNode[]>([]);
-  const [childrenByKey, setChildrenByKey] = useState<Record<string, FolderChild[]>>({});
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
-  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(() => new Set());
+  // Keyed by folder, each holding the path it was toggled at.
+  const [toggled, setToggled] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [selectedPath, setSelectedPath] = useState("");
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
-  const [rootsLoading, setRootsLoading] = useState(true);
 
-  childrenByKeyRef.current = childrenByKey;
-  const currentKey = pathKey(currentFolder);
+  const currentKey = folderKey(currentFolder);
+  const rootsQuery = useQuery(folderRootsQueryOptions());
+  const rootsData = rootsQuery.data;
+  const roots = useMemo(() => dedupeRoots(rootsData?.roots ?? []), [rootsData]);
 
-  const markLoading = useCallback((key: string, loading: boolean) => {
-    if (loading) {
-      loadingKeysRef.current.add(key);
-    } else {
-      loadingKeysRef.current.delete(key);
+  // The tree opens on the current folder; each toggle flips one folder from that.
+  const defaultExpanded = useMemo(
+    () =>
+      new Map(
+        rootsData
+          ? ancestorPathsToExpand(currentFolder, roots).map((path) => [folderKey(path), path])
+          : [],
+      ),
+    [currentFolder, roots, rootsData],
+  );
+  const expandedPaths = useMemo(() => {
+    const paths = new Map(defaultExpanded);
+    for (const [key, path] of toggled) {
+      if (paths.has(key)) paths.delete(key);
+      else paths.set(key, path);
     }
-    setLoadingKeys(new Set(loadingKeysRef.current));
-  }, []);
+    return paths;
+  }, [defaultExpanded, toggled]);
 
-  const loadChildren = useCallback(
-    async (path: string) => {
-      const displayPath = normalizeFolderPath(path);
-      const key = pathKey(displayPath);
-      if (!displayPath || childrenByKeyRef.current[key] !== undefined) {
-        return;
-      }
-      if (loadingKeysRef.current.has(key)) {
-        return;
-      }
-
-      markLoading(key, true);
-      try {
-        const response = await fetchFolderChildren(displayPath);
-        const children = sortChildren(response.children);
-        setChildrenByKey((current) => ({
-          ...current,
-          [key]: children,
-        }));
-        // Leaf folders: drop expand state so the chevron goes away immediately.
-        if (children.length === 0) {
-          setExpandedKeys((current) => {
-            if (!current.has(key)) return current;
-            const next = new Set(current);
-            next.delete(key);
-            return next;
-          });
-        }
-      } catch (error) {
-        setChildrenByKey((current) => ({
-          ...current,
-          [key]: [],
-        }));
-        setExpandedKeys((current) => {
-          if (!current.has(key)) return current;
-          const next = new Set(current);
-          next.delete(key);
-          return next;
-        });
-        notify({ variant: "danger", message: formatApiError(error) });
-      } finally {
-        markLoading(key, false);
-      }
-    },
-    [markLoading, notify],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      setRootsLoading(true);
-      try {
-        const response = await fetchFolderRoots();
-        if (cancelled) return;
-
-        const nextRoots = dedupeRoots(response.roots);
-        setRoots(nextRoots);
-
-        const toExpand = ancestorPathsToExpand(currentFolder, nextRoots);
-        const expandKeys = new Set(toExpand.map((path) => pathKey(path)));
-        setExpandedKeys(expandKeys);
-
-        // Prefetch every expanded node so the tree opens populated.
-        await Promise.all(toExpand.map((path) => loadChildren(path)));
-      } catch (error) {
-        if (!cancelled) {
-          notify({ variant: "danger", message: formatApiError(error) });
-        }
-      } finally {
-        if (!cancelled) {
-          setRootsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // Intentionally run once on mount for the dialog session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once with initial folder
-  }, []);
-
-  const toggleExpanded = useCallback(
-    (path: string) => {
-      const displayPath = normalizeFolderPath(path);
-      const key = pathKey(displayPath);
-      if (!displayPath) return;
-
-      setExpandedKeys((current) => {
-        const next = new Set(current);
-        if (next.has(key)) {
-          next.delete(key);
+  // Shared with the breadcrumb menu, so a folder listed there opens here at once.
+  const expandedKeyList = [...expandedPaths.keys()];
+  const listed = useQueries({
+    queries: [...expandedPaths.values()].map((path) => folderChildrenQueryOptions(path)),
+    combine: (results) => {
+      const childrenByKey: Record<string, FolderChild[]> = {};
+      const loadingKeys: Record<string, boolean> = {};
+      const errors: unknown[] = [];
+      results.forEach((result, index) => {
+        const key = expandedKeyList[index];
+        if (result.data) {
+          childrenByKey[key] = result.data;
+        } else if (result.isError) {
+          // A folder that cannot be listed shows as a leaf.
+          childrenByKey[key] = [];
+          errors.push(result.error);
         } else {
-          next.add(key);
-          void loadChildren(displayPath);
+          loadingKeys[key] = true;
         }
-        return next;
       });
+      return { childrenByKey, loadingKeys, errors };
     },
-    [loadChildren],
-  );
+  });
+  const { childrenByKey, loadingKeys } = listed;
+  const rootsLoading =
+    rootsQuery.isPending || [...defaultExpanded.keys()].some((key) => loadingKeys[key]);
+
+  const rootsError = rootsQuery.error;
+  const listErrors = listed.errors;
+  useEffect(() => {
+    for (const error of [rootsError, ...listErrors]) {
+      if (!error || reportedErrorsRef.current.has(error)) continue;
+      reportedErrorsRef.current.add(error);
+      notify({ variant: "danger", message: formatApiError(error) });
+    }
+  }, [listErrors, notify, rootsError]);
+
+  const toggleExpanded = useCallback((path: string) => {
+    const displayPath = normalizeFolderPath(path);
+    if (!displayPath) return;
+    const key = folderKey(displayPath);
+
+    setToggled((current) => {
+      const next = new Map(current);
+      if (next.has(key)) next.delete(key);
+      else next.set(key, displayPath);
+      return next;
+    });
+  }, []);
 
   const selectPath = useCallback(
     (path: string) => {
@@ -295,7 +245,7 @@ export function TransferMediaDialog({
 
     const walk = (path: string, name: string, depth: number) => {
       const displayPath = normalizeFolderPath(path);
-      const key = pathKey(displayPath);
+      const key = folderKey(displayPath);
       if (!displayPath || seen.has(key)) {
         return;
       }
@@ -303,7 +253,7 @@ export function TransferMediaDialog({
 
       result.push({ key, path: displayPath, name, depth });
 
-      if (!expandedKeys.has(key)) {
+      if (!expandedPaths.has(key)) {
         return;
       }
 
@@ -322,14 +272,14 @@ export function TransferMediaDialog({
     }
 
     return result;
-  }, [childrenByKey, expandedKeys, roots]);
+  }, [childrenByKey, expandedPaths, roots]);
 
   const handleConfirm = () => {
     if (busy || !selectedPath || isDisabledDestination(selectedPath)) return;
     onSelectDestination(selectedPath);
   };
 
-  const selectedKey = selectedPath ? pathKey(selectedPath) : "";
+  const selectedKey = selectedPath ? folderKey(selectedPath) : "";
   const canTransfer = Boolean(selectedPath) && !isDisabledDestination(selectedPath) && !busy;
 
   const hasEntry = (key: string | null) => entries.some((entry) => entry.key === key);
@@ -337,7 +287,7 @@ export function TransferMediaDialog({
 
   const canExpandEntry = (key: string) => {
     const children = childrenByKey[key];
-    return loadingKeys.has(key) || children === undefined || children.length > 0;
+    return Boolean(loadingKeys[key]) || children === undefined || children.length > 0;
   };
 
   const focusEntry = (entry: TreeEntry) => {
@@ -354,7 +304,7 @@ export function TransferMediaDialog({
     const entry = entries[index];
     if (!entry) return;
 
-    const expanded = expandedKeys.has(entry.key) && canExpandEntry(entry.key);
+    const expanded = expandedPaths.has(entry.key) && canExpandEntry(entry.key);
     let target: TreeEntry | undefined;
 
     switch (event.key) {
@@ -471,8 +421,8 @@ export function TransferMediaDialog({
               onKeyDown={handleTreeKeyDown}
             >
               {entries.map((entry) => {
-                const expanded = expandedKeys.has(entry.key);
-                const loading = loadingKeys.has(entry.key);
+                const expanded = expandedPaths.has(entry.key);
+                const loading = Boolean(loadingKeys[entry.key]);
                 const children = childrenByKey[entry.key];
                 const hasLoadedChildren = children !== undefined;
                 // Show a chevron only before load, while loading, or when subfolders exist.

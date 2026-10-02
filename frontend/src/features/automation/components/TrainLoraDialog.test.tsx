@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TRAINING_PROMPTS } from "@/features/automation/lib/training";
@@ -7,6 +7,7 @@ import {
   emptyAutomationSettings,
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const DEFAULTS: JobSettingsByType["train_lora"] =
   emptyAutomationSettings("C:/datasets/photos").train_lora;
@@ -26,7 +27,7 @@ function renderDialog(
   onConfirm = vi.fn(),
   overrides: Partial<JobSettingsByType["train_lora"]> = {},
 ) {
-  render(
+  renderWithQueryClient(
     <TrainLoraDialog
       scope={{ itemCount: 24, folderLabel: "landscapes", fromSelection: false }}
       initialSettings={{ ...DEFAULTS, ...overrides }}

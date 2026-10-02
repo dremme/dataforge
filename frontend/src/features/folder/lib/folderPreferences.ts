@@ -1,9 +1,7 @@
-import { fetchFolder } from "@/features/folder/api/folderContents";
-import { resolveFolderError } from "@/shared/api/http";
+import { fetchFolder, type FetchFolderOptions } from "@/features/folder/api/folderContents";
+import { isAbortError } from "@/shared/api/http";
 import type { FolderResponse } from "@/shared/types";
-import { writeCachedFolder } from "./folderCache";
 import { folderPathsEqual, normalizeFolderPath } from "./folderPath";
-import { LOAD_RETRY_DELAYS_MS, withRetry } from "@/shared/lib/retry";
 import { readStored, readStoredJson, writeStored, writeStoredJson } from "@/shared/lib/storage";
 
 const FOLDER_CACHE_KEY = "gallery-last-folder";
@@ -100,62 +98,24 @@ export function touchRecentFolder(path: string): void {
   writeRecentFolders(recent);
 }
 
-export function promoteRecentFolder(path: string): void {
-  touchRecentFolder(path);
-}
-
-function cacheFolderPreference(path: string): void {
+/** A folder the user opened: the next start lands here, and it heads the recent list. */
+export function rememberOpenedFolder(path: string): void {
   cacheLastFolder(path);
   touchRecentFolder(path);
 }
 
-interface FolderFetchOptions {
-  updateRecent?: boolean;
-  signal?: AbortSignal;
-}
-
-function shouldRetryFolder(error: unknown): boolean {
-  return resolveFolderError(error)?.kind === "backend-unreachable";
-}
-
-export async function fetchFolderWithRetry(
-  folderPath?: string,
-  { updateRecent = true, signal }: FolderFetchOptions = {},
-): Promise<FolderResponse> {
-  return withRetry(
-    async () => {
-      const data = await fetchFolder(folderPath, signal);
-      if (updateRecent) {
-        cacheFolderPreference(data.path);
-      } else {
-        cacheLastFolder(data.path);
-      }
-      writeCachedFolder(data);
-      return data;
-    },
-    LOAD_RETRY_DELAYS_MS,
-    shouldRetryFolder,
-  );
-}
-
-async function loadDefaultFolder(options: FolderFetchOptions = {}): Promise<FolderResponse> {
-  try {
-    return await fetchFolderWithRetry(undefined, options);
-  } catch (firstError) {
-    const cached = getCachedLastFolder();
-    if (!cached) {
-      throw firstError;
-    }
-    return fetchFolderWithRetry(cached, options);
-  }
-}
-
+/** A full listing; with no path, the server's default, else the last folder opened. */
 export async function loadFolderContents(
   folderPath?: string,
-  options: FolderFetchOptions = {},
+  options: FetchFolderOptions = {},
 ): Promise<FolderResponse> {
-  if (folderPath !== undefined) {
-    return fetchFolderWithRetry(folderPath, options);
+  if (folderPath !== undefined) return fetchFolder(folderPath, options);
+
+  try {
+    return await fetchFolder(undefined, options);
+  } catch (firstError) {
+    const cached = getCachedLastFolder();
+    if (!cached || isAbortError(firstError)) throw firstError;
+    return fetchFolder(cached, options);
   }
-  return loadDefaultFolder(options);
 }

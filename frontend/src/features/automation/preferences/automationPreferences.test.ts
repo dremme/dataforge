@@ -1,20 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requestJson } from "@/shared/api/http";
 import { TRAINING_MODELS } from "@/features/automation/lib/training";
-import { emptyAutomationSettings, loadAutomationSettings } from "./automationPreferences";
+import { createTestQueryClient } from "@/test/queryClient";
+import {
+  emptyAutomationSettings,
+  loadAutomationSettings as loadWith,
+} from "./automationPreferences";
 
 vi.mock("@/shared/api/http", () => ({
   requestJson: vi.fn(),
   putJson: vi.fn(),
 }));
 
-vi.mock("@/shared/lib/retry", () => ({
-  withRetry: (run: () => Promise<unknown>) => run(),
-}));
-
 const request = vi.mocked(requestJson);
 
 const FOLDER = "C:\\Photos";
+
+/** A fresh client per read, as an opening dialog would have; no retries for the offline case. */
+const loadAutomationSettings = (folderPath: string) =>
+  loadWith(folderPath, createTestQueryClient({ retry: false }));
 
 function respondWith(overrides: Record<string, unknown>) {
   request.mockResolvedValue({ folder_path: FOLDER, ...overrides });

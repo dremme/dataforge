@@ -3,10 +3,14 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from external_jobs_feed import reset_external_jobs_for_tests
 from routes._test_client import client
 
 
 class ExternalOstrisJobsEndpointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_external_jobs_for_tests()
+
     def test_returns_active_jobs_when_ostris_is_available(self) -> None:
         jobs = [
             {
@@ -27,7 +31,7 @@ class ExternalOstrisJobsEndpointTests(unittest.TestCase):
             }
         ]
 
-        with patch("routes.external_jobs.fetch_active_ostris_jobs", return_value=(jobs, True)):
+        with patch("external_jobs_feed.fetch_active_ostris_jobs", return_value=(jobs, True)):
             response = client.get("/api/external/ostris/jobs")
 
         self.assertEqual(response.status_code, 200)
@@ -37,7 +41,7 @@ class ExternalOstrisJobsEndpointTests(unittest.TestCase):
         self.assertEqual(payload["jobs"][0]["name"], "active_train")
 
     def test_returns_empty_payload_when_ostris_is_unreachable(self) -> None:
-        with patch("routes.external_jobs.fetch_active_ostris_jobs", return_value=([], False)):
+        with patch("external_jobs_feed.fetch_active_ostris_jobs", return_value=([], False)):
             response = client.get("/api/external/ostris/jobs")
 
         self.assertEqual(response.status_code, 200)

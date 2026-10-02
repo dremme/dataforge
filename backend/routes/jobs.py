@@ -24,11 +24,13 @@ def list_jobs(
     folder: str | None = Query(None, description="Only jobs that ran in this folder"),
 ) -> JobsResponse:
     filters = {"job_type": job_type, "status": status, "folder": folder}
+    revision = job_manager.snapshot_revision()
     jobs = job_manager.list_jobs(limit=limit, offset=offset, **filters)
     return JobsResponse(
         jobs=[job_response(job) for job in jobs],
         active_count=jobs_store.count_jobs(status="active"),
         total=jobs_store.count_jobs(**filters),
+        revision=revision,
     )
 
 

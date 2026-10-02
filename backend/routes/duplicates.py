@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
+from api_errors import folder_not_found
 from duplicates import (
     delete_duplicate_file,
     group_duplicate_findings,
@@ -34,7 +35,7 @@ def list_duplicates(
     # One scan feeds both grouping and member metadata so they cannot disagree.
     scan = scan_folder(folder_path)
     if scan is None:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise folder_not_found()
 
     groups: list[DuplicateGroup] = []
     for group_id, members in group_duplicate_findings(scan).items():

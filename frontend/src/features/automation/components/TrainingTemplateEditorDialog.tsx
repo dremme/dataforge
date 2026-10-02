@@ -1,8 +1,9 @@
 import { formatCount } from "@/shared/lib/format";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { checkTrainingTemplate } from "@/features/automation/api/jobs";
 import { trainingModelLabel } from "@/features/automation/lib/training";
-import { formatApiError, isAbortError } from "@/shared/api/http";
+import { formatApiError } from "@/shared/api/http";
 import { iconRotateCcw, iconX } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import type { TrainingModel } from "@/shared/types";
@@ -31,38 +32,29 @@ export function TrainingTemplateEditorDialog({
 }: TrainingTemplateEditorDialogProps) {
   const [draft, setDraft] = useState(initialContent);
   const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // The backend runs the same parse the job start does, so a draft that passes
+  // here cannot fail later for a reason the editor never showed.
+  const { mutateAsync: checkTemplate, isPending: checking } = useMutation({
+    mutationFn: (template: string) => checkTrainingTemplate(template),
+  });
 
   const modelLabel = trainingModelLabel(model);
   const edited = draft !== stockContent;
   const lineCount = useMemo(() => (draft.length === 0 ? 0 : draft.split("\n").length), [draft]);
 
   const handleApply = useCallback(async () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setChecking(true);
     try {
-      // The backend runs the same parse the job start does, so a draft that passes
-      // here cannot fail later for a reason the editor never showed.
-      const result = await checkTrainingTemplate(draft, controller.signal);
+      const result = await checkTemplate(draft);
       if (!result.ok) {
         setError(result.error ?? "This template cannot be used.");
         return;
       }
       onApply(draft === stockContent ? null : draft);
     } catch (cause) {
-      if (isAbortError(cause)) return;
       setError(formatApiError(cause));
-    } finally {
-      if (!controller.signal.aborted) setChecking(false);
     }
-  }, [draft, onApply, stockContent]);
+  }, [checkTemplate, draft, onApply, stockContent]);
 
   const handleReset = useCallback(() => {
     setDraft(stockContent);

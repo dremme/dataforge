@@ -403,8 +403,15 @@ $toolbar-search-width-max: 22rem;
     }
   }
 
+  // Real buttons, so the filters are reachable and togglable from the keyboard.
   &--filter {
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    font-family: inherit;
     cursor: pointer;
+    @include focus-ring;
 
     &:hover {
       .stat__icon {

@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TrainingTemplateEditorDialog } from "./TrainingTemplateEditorDialog";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const checkTrainingTemplate = vi.fn();
 
@@ -14,7 +15,7 @@ const STOCK = "config:\n  process:\n    - train:\n        steps: 1000\n";
 function renderEditor(overrides: { initialContent?: string } = {}) {
   const onApply = vi.fn();
   const onClose = vi.fn();
-  render(
+  renderWithQueryClient(
     <TrainingTemplateEditorDialog
       model="krea2_turbo"
       initialContent={overrides.initialContent ?? STOCK}
@@ -70,7 +71,7 @@ describe("TrainingTemplateEditorDialog", () => {
     await user.click(screen.getByRole("button", { name: "Use for this run" }));
 
     await waitFor(() => expect(onApply).toHaveBeenCalledWith("steps: 250"));
-    expect(checkTrainingTemplate).toHaveBeenCalledWith("steps: 250", expect.anything());
+    expect(checkTrainingTemplate).toHaveBeenCalledWith("steps: 250");
   });
 
   it("shows the backend's reason and keeps the editor open on a bad draft", async () => {

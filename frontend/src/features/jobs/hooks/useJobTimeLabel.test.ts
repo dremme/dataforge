@@ -20,6 +20,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     stats: { success: 2 },
     error: null,
     created_at: "2026-01-01T12:00:00.000Z",
+    revision: 1,
     started_at: "2026-01-01T12:00:00.000Z",
     finished_at: null,
     ...overrides,

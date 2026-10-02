@@ -1,8 +1,7 @@
-import { StrictMode, type ReactNode } from "react";
 import { renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchDuplicateGroups } from "@/features/gallery/api/duplicates";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { AppProviders } from "@/test/AppProviders";
 import type { DuplicateGroup, DuplicateGroupsResponse } from "@/shared/types";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
 import { useDuplicateResolverOverlay } from "./useDuplicateResolverOverlay";
@@ -34,13 +33,7 @@ function listing(overrides: Partial<DuplicateGroupsResponse> = {}): DuplicateGro
   };
 }
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 beforeEach(() => {
   vi.clearAllMocks();

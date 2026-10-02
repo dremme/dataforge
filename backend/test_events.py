@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from typing import cast
 from unittest.mock import patch
 
 import events
-from external_jobs_feed import run_external_jobs_feed
+from external_jobs_feed import (
+    observe_external_jobs,
+    read_external_jobs,
+    reset_external_jobs_for_tests,
+    run_external_jobs_feed,
+)
 
 
 class EventFanOutTests(unittest.IsolatedAsyncioTestCase):
@@ -36,10 +42,27 @@ class EventFanOutTests(unittest.IsolatedAsyncioTestCase):
                 events.publish({"type": "job", "index": index})
             await asyncio.sleep(0.05)
 
+            # The loss is announced first, then the queue resumes at the overflow point.
+            self.assertEqual(await subscriber.next_event(1.0), {"type": "resync"})
             event = await subscriber.next_event(1.0)
             self.assertIsNotNone(event)
-            # The oldest were dropped, so the queue starts at the overflow point.
             self.assertEqual(event["index"], overflow)
+
+    async def test_resync_is_announced_once_per_loss(self) -> None:
+        with events.subscribe() as subscriber:
+            for index in range(events.MAX_QUEUED_EVENTS + 1):
+                events.publish({"type": "job", "index": index})
+            await asyncio.sleep(0.05)
+
+            frames = [await subscriber.next_event(0.1) for _ in range(events.MAX_QUEUED_EVENTS + 1)]
+            self.assertEqual(sum(frame == {"type": "resync"} for frame in frames), 1)
+            self.assertIsNone(await subscriber.next_event(0.01))
+
+    async def test_a_subscriber_that_keeps_up_never_sees_a_resync(self) -> None:
+        with events.subscribe() as subscriber:
+            events.publish({"type": "job", "index": 0})
+            self.assertEqual(await subscriber.next_event(1.0), {"type": "job", "index": 0})
+            self.assertIsNone(await subscriber.next_event(0.01))
 
     async def test_next_event_gives_up_so_the_stream_can_send_a_heartbeat(self) -> None:
         with events.subscribe() as subscriber:
@@ -60,6 +83,7 @@ class EventFanOutTests(unittest.IsolatedAsyncioTestCase):
 class ExternalJobsFeedTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         events.clear_subscribers_for_tests()
+        reset_external_jobs_for_tests()
 
     async def _run_feed(self):
         task = asyncio.create_task(run_external_jobs_feed())
@@ -91,6 +115,48 @@ class ExternalJobsFeedTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.1)
 
             fetch.assert_not_called()
+
+
+class ExternalJobsSnapshotTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        events.clear_subscribers_for_tests()
+        reset_external_jobs_for_tests()
+
+    async def test_the_revision_moves_only_when_the_content_changes(self) -> None:
+        first = observe_external_jobs([], True)
+        same = observe_external_jobs([], True)
+        changed = observe_external_jobs([], False)
+
+        self.assertEqual(same["revision"], first["revision"])
+        self.assertGreater(cast(int, changed["revision"]), cast(int, first["revision"]))
+
+    async def test_a_change_seen_by_a_rest_read_is_pushed_to_listeners(self) -> None:
+        """Otherwise the feed's next poll matches the snapshot and nobody else hears of it."""
+        with (
+            events.subscribe() as subscriber,
+            patch("external_jobs_feed.fetch_active_ostris_jobs", return_value=([], True)),
+        ):
+            snapshot = await asyncio.to_thread(read_external_jobs)
+
+            self.assertEqual(await subscriber.next_event(1.0), snapshot)
+
+    async def test_a_fresh_snapshot_is_served_without_asking_ai_toolkit_again(self) -> None:
+        with patch("external_jobs_feed.fetch_active_ostris_jobs", return_value=([], True)) as fetch:
+            first = read_external_jobs()
+            second = read_external_jobs()
+
+        self.assertEqual(fetch.call_count, 1)
+        self.assertIs(second, first)
+
+    async def test_a_stale_snapshot_is_read_again(self) -> None:
+        with (
+            patch("external_jobs_feed.fetch_active_ostris_jobs", return_value=([], True)) as fetch,
+            patch("external_jobs_feed.POLL_INTERVAL_SECONDS", 0),
+        ):
+            read_external_jobs()
+            read_external_jobs()
+
+        self.assertEqual(fetch.call_count, 2)
 
 
 if __name__ == "__main__":

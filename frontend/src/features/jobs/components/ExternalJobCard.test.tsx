@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import type { ExternalOstrisJob } from "@/shared/types";
 import { ExternalJobCard } from "./ExternalJobCard";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
   fetchOstrisTrainingSamples: vi.fn(),
@@ -43,21 +44,23 @@ afterEach(() => {
 
 describe("ExternalJobCard", () => {
   it("spins the badge while the run is training", () => {
-    const { container } = render(<ExternalJobCard job={runningJob} />);
+    const { container } = renderWithQueryClient(<ExternalJobCard job={runningJob} />);
 
     expect(badgeIcon(container)).toHaveClass("job-card__badge-icon--spin");
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
   it("shows a still badge while the run only waits in the queue", () => {
-    const { container } = render(<ExternalJobCard job={queuedJob} />);
+    const { container } = renderWithQueryClient(<ExternalJobCard job={queuedJob} />);
 
     expect(badgeIcon(container)).not.toHaveClass("job-card__badge-icon--spin");
     expect(screen.getByText("Queued")).toBeInTheDocument();
   });
 
   it("spins again once a stop is in flight for a queued run", () => {
-    const { container } = render(<ExternalJobCard job={queuedJob} onStop={vi.fn()} stopping />);
+    const { container } = renderWithQueryClient(
+      <ExternalJobCard job={queuedJob} onStop={vi.fn()} stopping />,
+    );
 
     expect(badgeIcon(container)).toHaveClass("job-card__badge-icon--spin");
   });
@@ -76,17 +79,17 @@ describe("ExternalJobCard", () => {
       available: true,
     });
 
-    const { container } = render(<ExternalJobCard job={runningJob} />);
+    const { container } = renderWithQueryClient(<ExternalJobCard job={runningJob} />);
 
     await waitFor(() => expect(container.querySelector(".training-samples")).toBeInTheDocument());
     expect(container.querySelector(".training-samples")).toHaveClass("training-samples--compact");
-    expect(fetchSamples).toHaveBeenCalledWith("sample_train_v1");
+    expect(fetchSamples).toHaveBeenCalledWith("sample_train_v1", expect.any(AbortSignal));
   });
 
   it("shows no strip before the run has any samples", async () => {
     fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
 
-    const { container } = render(<ExternalJobCard job={runningJob} />);
+    const { container } = renderWithQueryClient(<ExternalJobCard job={runningJob} />);
 
     await waitFor(() => expect(fetchSamples).toHaveBeenCalled());
     expect(container.querySelector(".training-samples")).not.toBeInTheDocument();

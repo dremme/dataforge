@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   clearNotifications,
   fetchNotifications,
   markNotificationsRead,
   postNotification,
 } from "@/shared/api/notifications";
-import { useOptionalServerEvent, useOptionalStreamConnected } from "@/shared/events/serverEvents";
+import { useOptionalServerEvent } from "@/shared/events/serverEvents";
 import { NotificationContainer } from "./NotificationContainer";
 import {
   MAX_VISIBLE_TOASTS,
@@ -19,6 +20,10 @@ import {
 } from "./notifications";
 import { useToastTimers } from "./useToastTimers";
 
+const HISTORY_QUERY_KEY = ["notifications"] as const;
+
+const NO_HISTORY: NotificationRecord[] = [];
+
 function createToastId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -28,17 +33,33 @@ function createToastId(): string {
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [history, setHistory] = useState<NotificationRecord[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
-  const streamConnected = useOptionalStreamConnected();
+
+  // Nothing replays the frames a disconnected tab missed, so every way back in re-reads the
+  // feed: mount, a reconnect or reported loss (push-fed), the tab being looked at again
+  // (focus), and the panel opening (refreshHistory).
+  const historyQuery = useQuery({
+    queryKey: HISTORY_QUERY_KEY,
+    queryFn: ({ signal }) => fetchNotifications(signal),
+    meta: { pushFed: true },
+  });
+  const history = historyQuery.data ?? NO_HISTORY;
+  const { refetch: refetchHistory } = historyQuery;
+
+  const setHistory = useCallback(
+    (update: (current: NotificationRecord[]) => NotificationRecord[]) =>
+      queryClient.setQueryData<NotificationRecord[]>(HISTORY_QUERY_KEY, (current) =>
+        update(current ?? NO_HISTORY),
+      ),
+    [queryClient],
+  );
 
   // Collapse and cap decisions read committed toasts, never the value inside a state updater.
   const toastsRef = useRef<Toast[]>([]);
   const panelOpenRef = useRef(false);
   panelOpenRef.current = panelOpen;
-  const mountedRef = useRef(false);
-  const refreshAbortRef = useRef<AbortController | null>(null);
 
   const applyToasts = useCallback((next: Toast[]) => {
     toastsRef.current = next;
@@ -117,7 +138,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         .then((record) => setHistory((current) => upsertNotification(current, record)))
         .catch(() => {});
     },
-    [pushToast],
+    [pushToast, setHistory],
   );
 
   useOptionalServerEvent((event) => {
@@ -131,32 +152,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   });
 
   const refreshHistory = useCallback(() => {
-    refreshAbortRef.current?.abort();
-    const controller = new AbortController();
-    refreshAbortRef.current = controller;
-
-    fetchNotifications(controller.signal)
-      .then(setHistory)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => () => refreshAbortRef.current?.abort(), []);
-
-  // Nothing replays the frames a disconnected tab missed, so every way back in re-reads the feed.
-  useEffect(() => {
-    if (mountedRef.current && !streamConnected) return;
-    mountedRef.current = true;
-    refreshHistory();
-  }, [streamConnected, refreshHistory]);
-
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") refreshHistory();
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [refreshHistory]);
+    void refetchHistory();
+  }, [refetchHistory]);
 
   const markAllRead = useCallback(() => {
     setHistory((current) =>
@@ -165,16 +162,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       ),
     );
     void markNotificationsRead()
-      .then(setHistory)
+      .then((saved) => setHistory(() => saved))
       .catch(() => {});
-  }, []);
+  }, [setHistory]);
 
   const clearHistory = useCallback(() => {
-    setHistory([]);
+    setHistory(() => []);
     void clearNotifications()
-      .then(setHistory)
+      .then((saved) => setHistory(() => saved))
       .catch(() => {});
-  }, []);
+  }, [setHistory]);
 
   const unreadCount = useMemo(() => history.filter((entry) => !entry.read_at).length, [history]);
 

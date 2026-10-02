@@ -1,19 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { fetchJobs } from "@/features/jobs/api/jobs";
 import type { JobsQuery } from "@/features/jobs/lib/jobFilters";
+import { jobKeys } from "@/features/jobs/lib/jobQueries";
 import { formatApiError } from "@/shared/api/http";
-import type { Job } from "@/shared/types";
+import type { JobsResponse } from "@/shared/types";
 
 export const JOB_HISTORY_PAGE_SIZE = 50;
-
-interface JobHistoryState {
-  jobs: Job[];
-  total: number;
-  loading: boolean;
-  error: string | null;
-}
-
-const EMPTY_STATE: JobHistoryState = { jobs: [], total: 0, loading: false, error: null };
 
 interface UseJobHistoryOptions {
   enabled: boolean;
@@ -21,56 +19,67 @@ interface UseJobHistoryOptions {
   refreshKey: string;
 }
 
+type HistoryPages = InfiniteData<JobsResponse, number>;
+
 /** Stored job history for the drawer, one page at a time. Live progress comes from the context. */
 export function useJobHistory(query: JobsQuery, { enabled, refreshKey }: UseJobHistoryOptions) {
-  const [state, setState] = useState<JobHistoryState>(EMPTY_STATE);
-  const controllerRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
   const { jobType, status, folder } = query;
-
-  const load = useCallback(
-    async (offset: number) => {
-      controllerRef.current?.abort();
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      setState((current) => ({ ...current, loading: true, error: null }));
-
-      try {
-        const response = await fetchJobs({
-          limit: JOB_HISTORY_PAGE_SIZE,
-          offset,
-          jobType,
-          status,
-          folder,
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) return;
-
-        setState((current) => ({
-          jobs: offset === 0 ? response.jobs : [...current.jobs, ...response.jobs],
-          total: response.total,
-          loading: false,
-          error: null,
-        }));
-      } catch (caught) {
-        if (controller.signal.aborted) return;
-        setState((current) => ({ ...current, loading: false, error: formatApiError(caught) }));
-      }
-    },
+  const queryKey = useMemo(
+    () => jobKeys.historyPage({ jobType, status, folder }),
     [jobType, status, folder],
   );
 
-  useEffect(() => {
-    if (!enabled) return;
+  const history = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam, signal }) =>
+      fetchJobs({
+        limit: JOB_HISTORY_PAGE_SIZE,
+        offset: pageParam,
+        jobType,
+        status,
+        folder,
+        signal,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((count, page) => count + page.jobs.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
+    placeholderData: keepPreviousData,
+    enabled,
+  });
 
-    void load(0);
-    return () => controllerRef.current?.abort();
-  }, [enabled, load, refreshKey]);
+  // Later pages are offsets into a list that just changed, so only the first one is re-read.
+  const reload = useCallback(async () => {
+    queryClient.setQueryData<HistoryPages>(
+      queryKey,
+      (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+    );
+    await queryClient.invalidateQueries({ queryKey, exact: true });
+  }, [queryClient, queryKey]);
+
+  const seenRefreshKey = useRef(refreshKey);
+  useEffect(() => {
+    if (seenRefreshKey.current === refreshKey) return;
+    seenRefreshKey.current = refreshKey;
+    void reload();
+  }, [refreshKey, reload]);
+
+  const { data, isFetching, error, hasNextPage, fetchNextPage } = history;
+  const jobs = useMemo(() => data?.pages.flatMap((page) => page.jobs) ?? [], [data]);
 
   const loadMore = useCallback(() => {
-    if (!state.loading) void load(state.jobs.length);
-  }, [load, state.jobs.length, state.loading]);
+    if (!isFetching) void fetchNextPage();
+  }, [fetchNextPage, isFetching]);
 
-  const reload = useCallback(() => load(0), [load]);
-
-  return { ...state, hasMore: state.jobs.length < state.total, loadMore, reload };
+  return {
+    jobs,
+    total: data?.pages.at(-1)?.total ?? 0,
+    loading: enabled && isFetching,
+    error: error ? formatApiError(error) : null,
+    hasMore: hasNextPage,
+    loadMore,
+    reload,
+  };
 }

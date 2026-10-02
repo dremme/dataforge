@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { startAutomationJob, type JobStartBody } from "@/features/automation/api/jobs";
 import {
   cancelJob,
@@ -20,20 +21,27 @@ import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs
 import { useServerEvent, useStreamConnected } from "@/shared/events/serverEvents";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
-import type { ExternalOstrisJob, Job, JobType, JobsResponse } from "@/shared/types";
+import { mergedRead } from "@/shared/query/queryClient";
+import type { ExternalOstrisJob, ExternalOstrisJobsResponse, Job, JobType } from "@/shared/types";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
+import { isActiveJobStatus, isTerminalJobStatus, selectFolderJob } from "@/features/jobs/lib/jobs";
+import { jobKeys } from "@/features/jobs/lib/jobQueries";
 import {
-  isActiveJobStatus,
-  isTerminalJobStatus,
-  selectFolderJob,
-  upsertJob,
-} from "@/features/jobs/lib/jobs";
-import { clearStartingJobIfMatch, type StartingJob } from "@/features/jobs/lib/jobStartHelpers";
+  EMPTY_LIVE_JOBS,
+  PENDING_REMOVAL_REVISION,
+  externalJobsFromEvent,
+  mergeJobsListing,
+  newerExternalJobs,
+  removeJobs,
+  upsertByRevision,
+  type LiveJobs,
+} from "@/features/jobs/lib/jobsCache";
+import type { StartingJob } from "@/features/jobs/lib/jobStartHelpers";
 
 // Fast poll only when the push stream is down.
 export const DISCONNECTED_ACTIVE_POLL_MS = 1000;
 export const DISCONNECTED_IDLE_POLL_MS = 8000;
-// Slow reconciliation while connected: push misses deleted jobs and dropped terminal frames.
+// Slow reconciliation while connected: a full stream queue can still drop frames.
 export const CONNECTED_ACTIVE_POLL_MS = 15000;
 export const CONNECTED_IDLE_POLL_MS = 60000;
 // Hidden tabs drop the stream on purpose; do not treat that as disconnected (fast poll).
@@ -45,16 +53,20 @@ function jobsPollDelay(streamConnected: boolean, hasActiveJobs: boolean): number
   return hasActiveJobs ? DISCONNECTED_ACTIVE_POLL_MS : DISCONNECTED_IDLE_POLL_MS;
 }
 
-type ExternalJobsSnapshot = {
-  jobs: ExternalOstrisJob[];
-  active_count: number;
-  available: boolean;
+const NO_EXTERNAL_JOBS: ExternalOstrisJobsResponse = {
+  jobs: [],
+  active_count: 0,
+  available: false,
+  revision: 0,
 };
 
-type JobsRefreshResult = {
-  internal: JobsResponse;
-  external: ExternalJobsSnapshot;
-};
+const readLiveJobs = mergedRead((signal) => fetchJobs({ signal }), mergeJobsListing);
+
+const readExternalJobs = mergedRead(
+  // A missing AI-Toolkit is an expected state, not an error to retry.
+  (signal) => fetchOstrisJobs(signal).catch(() => NO_EXTERNAL_JOBS),
+  newerExternalJobs,
+);
 
 interface JobsContextValue {
   jobs: Job[];
@@ -81,251 +93,216 @@ interface JobsContextValue {
 
 const JobsContext = createContext<JobsContextValue | null>(null);
 
-export function JobsProvider({ children }: { children: ReactNode }) {
-  const notify = useNotify();
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [externalJobs, setExternalJobs] = useState<ExternalOstrisJob[]>([]);
-  const [ostrisAvailable, setOstrisAvailable] = useState(false);
-  const streamConnected = useStreamConnected();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [startingJob, setStartingJob] = useState<StartingJob | null>(null);
-  const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
-  const [stoppingOstrisJobId, setStoppingOstrisJobId] = useState<string | null>(null);
-  const refreshGenerationRef = useRef(0);
-  const refreshInFlightRef = useRef<Promise<JobsRefreshResult> | null>(null);
-  const refreshQueuedRef = useRef(false);
-  // Pushes that race an in-flight refresh must be reapplied; the response is older than the push.
-  const pushedDuringRefreshRef = useRef<Map<string, Job>>(new Map());
-  const refreshAllJobsRef = useRef<() => Promise<JobsRefreshResult>>(async () => ({
-    internal: { jobs: [], active_count: 0, total: 0 },
-    external: { jobs: [], active_count: 0, available: false },
-  }));
+interface StartJobVariables {
+  jobType: JobType;
+  folderPath: string;
+  body?: JobStartBody;
+  paths?: string[];
+}
 
-  const refreshAllJobs = useCallback(async (): Promise<JobsRefreshResult> => {
-    refreshQueuedRef.current = true;
+/** The mutation's result, or `fallback` once its `onError` has told the user. */
+async function settle<T>(run: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await run;
+  } catch {
+    return fallback;
+  }
+}
 
-    if (refreshInFlightRef.current) {
-      return refreshInFlightRef.current;
-    }
-
-    const run = async (): Promise<JobsRefreshResult> => {
-      let last: JobsRefreshResult = {
-        internal: { jobs: [], active_count: 0, total: 0 },
-        external: { jobs: [], active_count: 0, available: false },
-      };
-
-      try {
-        while (refreshQueuedRef.current) {
-          refreshQueuedRef.current = false;
-          const generation = ++refreshGenerationRef.current;
-          pushedDuringRefreshRef.current.clear();
-
-          const [internal, external] = await Promise.all([
-            fetchJobs(),
-            fetchOstrisJobs().catch((): ExternalJobsSnapshot => ({
-              jobs: [],
-              active_count: 0,
-              available: false,
-            })),
-          ]);
-
-          last = { internal, external };
-
-          if (generation === refreshGenerationRef.current) {
-            const pushed = [...pushedDuringRefreshRef.current.values()];
-            setJobs(pushed.reduce((merged, job) => upsertJob(merged, job), internal.jobs));
-            setExternalJobs(external.jobs);
-            setOstrisAvailable(external.available);
-          }
-        }
-
-        return last;
-      } finally {
-        refreshInFlightRef.current = null;
-        if (refreshQueuedRef.current) {
-          void refreshAllJobsRef.current();
-        }
-      }
-    };
-
-    const promise = run();
-    refreshInFlightRef.current = promise;
-    return promise;
-  }, []);
-
-  refreshAllJobsRef.current = refreshAllJobs;
-
-  const activeCount = useMemo(
-    () => jobs.filter((job) => isActiveJobStatus(job.status)).length + externalJobs.length,
-    [jobs, externalJobs],
-  );
-
+function useJobPushes(queryClient: QueryClient) {
   useServerEvent((event) => {
     if (event.type === "job") {
-      pushedDuringRefreshRef.current.set(event.job.id, event.job);
-      setJobs((current) => upsertJob(current, event.job));
+      queryClient.setQueryData<LiveJobs>(jobKeys.live, (live) => upsertByRevision(live, event.job));
       return;
     }
 
-    // Unrecognised frames stay inert; as external-jobs they set jobs to undefined and throw.
+    if (event.type === "jobs_removed") {
+      queryClient.setQueryData<LiveJobs>(jobKeys.live, (live) =>
+        removeJobs(live, event.ids, event.revision),
+      );
+      return;
+    }
+
     if (event.type === "external_jobs") {
-      setExternalJobs(event.jobs);
-      setOstrisAvailable(event.available);
+      queryClient.setQueryData<ExternalOstrisJobsResponse>(jobKeys.external, (cached) =>
+        newerExternalJobs(cached, externalJobsFromEvent(event)),
+      );
     }
   });
+}
 
-  useEffect(() => {
-    if (streamConnected) void refreshAllJobs();
-  }, [streamConnected, refreshAllJobs]);
+/** Drops jobs from the live list before the server confirms; the snapshot undoes it. */
+async function removeOptimistically(queryClient: QueryClient, ids: readonly string[]) {
+  await queryClient.cancelQueries({ queryKey: jobKeys.live });
+  const previous = queryClient.getQueryData<LiveJobs>(jobKeys.live);
+  queryClient.setQueryData<LiveJobs>(jobKeys.live, (live) =>
+    removeJobs(live, ids, PENDING_REMOVAL_REVISION),
+  );
+  return { previous };
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    let timeoutId = 0;
+export function JobsProvider({ children }: { children: ReactNode }) {
+  const notify = useNotify();
+  const queryClient = useQueryClient();
+  const streamConnected = useStreamConnected();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-    const poll = async () => {
-      try {
-        const response = await refreshAllJobs();
-        if (cancelled) return;
-        const hasActiveJobs =
-          response.internal.active_count > 0 || response.external.active_count > 0;
-        timeoutId = window.setTimeout(poll, jobsPollDelay(streamConnected, hasActiveJobs));
-      } catch {
-        if (cancelled) return;
-        timeoutId = window.setTimeout(poll, jobsPollDelay(streamConnected, false));
-      }
-    };
+  const liveQuery = useQuery({
+    queryKey: jobKeys.live,
+    queryFn: readLiveJobs,
+    refetchInterval: (query) =>
+      jobsPollDelay(
+        streamConnected,
+        (query.state.data?.jobs ?? []).some((job) => isActiveJobStatus(job.status)),
+      ),
+    refetchIntervalInBackground: true,
+    meta: { pushFed: true },
+  });
 
-    void poll();
+  const externalQuery = useQuery({
+    queryKey: jobKeys.external,
+    queryFn: readExternalJobs,
+    refetchInterval: (query) =>
+      jobsPollDelay(streamConnected, (query.state.data?.active_count ?? 0) > 0),
+    refetchIntervalInBackground: true,
+    meta: { pushFed: true },
+  });
 
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [streamConnected, refreshAllJobs]);
+  useJobPushes(queryClient);
+
+  const jobs = (liveQuery.data ?? EMPTY_LIVE_JOBS).jobs;
+  const external = externalQuery.data ?? NO_EXTERNAL_JOBS;
+  const { refetch: refetchLive } = liveQuery;
+  const { refetch: refetchExternal } = externalQuery;
 
   useEffect(() => {
     if (!drawerOpen) return;
-    void refreshAllJobs();
-  }, [drawerOpen, refreshAllJobs]);
+    void refetchLive();
+    void refetchExternal();
+  }, [drawerOpen, refetchLive, refetchExternal]);
 
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void refreshAllJobs();
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [refreshAllJobs]);
-
-  // Keep "cancelling" until the job leaves queued/running; slow jobs finish the file first.
-  useEffect(() => {
-    if (cancellingJobId) {
-      const cjob = jobs.find((j) => j.id === cancellingJobId);
-      if (cjob && !isActiveJobStatus(cjob.status)) {
-        setCancellingJobId(null);
-      }
-    }
-  }, [jobs, cancellingJobId]);
-
-  useEffect(() => {
-    if (stoppingOstrisJobId) {
-      const externalJob = externalJobs.find((job) => job.id === stoppingOstrisJobId);
-      if (!externalJob) {
-        setStoppingOstrisJobId(null);
-      }
-    }
-  }, [externalJobs, stoppingOstrisJobId]);
-
-  const runJobStart = useCallback(
-    async (
-      folderPath: string,
-      jobType: JobType,
-      startFn: () => Promise<Job>,
-    ): Promise<Job | null> => {
-      setStartingJob({ folder: folderPath, jobType });
-
-      try {
-        const createdJob = await startFn();
-        setJobs((current) => upsertJob(current, createdJob));
-        await refreshAllJobs();
-        return createdJob;
-      } catch (error) {
-        notify({ variant: "danger", message: formatApiError(error) });
-        return null;
-      } finally {
-        setStartingJob((current) => clearStartingJobIfMatch(current, folderPath, jobType));
-      }
-    },
-    [notify, refreshAllJobs],
+  const activeCount = useMemo(
+    () => jobs.filter((job) => isActiveJobStatus(job.status)).length + external.jobs.length,
+    [jobs, external.jobs],
   );
+
+  const refreshLive = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: jobKeys.live }),
+    [queryClient],
+  );
+
+  const reportError = useCallback(
+    (prefix: string, error: unknown) =>
+      notify({ variant: "danger", message: `${prefix}${formatApiError(error)}` }),
+    [notify],
+  );
+
+  const start = useMutation({
+    mutationFn: ({ jobType, folderPath, body, paths }: StartJobVariables) =>
+      startAutomationJob(jobType, folderPath, body, paths),
+    onSuccess: async (created) => {
+      queryClient.setQueryData<LiveJobs>(jobKeys.live, (live) => upsertByRevision(live, created));
+      await refreshLive();
+    },
+    onError: (error) => reportError("", error),
+  });
+
+  const cancel = useMutation({
+    mutationFn: cancelJob,
+    onSuccess: refreshLive,
+    onError: (error) => reportError("", error),
+  });
+
+  const stop = useMutation({
+    mutationFn: stopOstrisJob,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: jobKeys.external }),
+    onError: (error) => reportError("", error),
+  });
+
+  const remove = useMutation({
+    mutationFn: deleteJob,
+    onMutate: (jobId) => removeOptimistically(queryClient, [jobId]),
+    onError: (error, _jobId, context) => {
+      queryClient.setQueryData(jobKeys.live, context?.previous);
+      reportError("Could not delete job: ", error);
+    },
+    onSettled: refreshLive,
+  });
+
+  const removeAll = useMutation({
+    mutationFn: deleteAllJobs,
+    onMutate: () => {
+      const live = queryClient.getQueryData<LiveJobs>(jobKeys.live);
+      return removeOptimistically(
+        queryClient,
+        (live?.jobs ?? []).map((job) => job.id),
+      );
+    },
+    onError: (error, _variables, context) => {
+      queryClient.setQueryData(jobKeys.live, context?.previous);
+      reportError("Could not delete jobs: ", error);
+    },
+    onSettled: refreshLive,
+  });
+
+  const startingFolder = start.isPending ? start.variables?.folderPath : undefined;
+  const startingType = start.isPending ? start.variables?.jobType : undefined;
+  const startingJob = useMemo<StartingJob | null>(
+    () =>
+      startingFolder && startingType ? { folder: startingFolder, jobType: startingType } : null,
+    [startingFolder, startingType],
+  );
+
+  // "Cancelling" lasts until the job leaves queued/running; slow jobs finish the file first.
+  const cancelTarget = cancel.isIdle || cancel.isError ? null : (cancel.variables ?? null);
+  const cancellingJobId =
+    cancelTarget &&
+    (cancel.isPending ||
+      jobs.some((job) => job.id === cancelTarget && isActiveJobStatus(job.status)))
+      ? cancelTarget
+      : null;
+
+  const stoppingOstrisJobId = stop.isPending ? (stop.variables ?? null) : null;
+
+  const { mutateAsync: startAsync } = start;
+  const { mutateAsync: cancelAsync } = cancel;
+  const { mutateAsync: stopAsync } = stop;
+  const { mutateAsync: removeAsync } = remove;
+  const { mutateAsync: removeAllAsync } = removeAll;
 
   const startJob = useCallback(
     (jobType: JobType, folderPath: string, body?: JobStartBody, paths?: string[]) =>
-      runJobStart(folderPath, jobType, () => startAutomationJob(jobType, folderPath, body, paths)),
-    [runJobStart],
+      settle(startAsync({ jobType, folderPath, body, paths }), null),
+    [startAsync],
   );
-
   const cancelJobImpl = useCallback(
-    async (jobId: string) => {
-      setCancellingJobId(jobId);
-
-      try {
-        const job = await cancelJob(jobId);
-        await refreshAllJobs();
-        return job;
-      } catch (error) {
-        notify({ variant: "danger", message: formatApiError(error) });
-        setCancellingJobId(null);
-        return null;
-      }
-    },
-    [notify, refreshAllJobs],
+    (jobId: string) => settle(cancelAsync(jobId), null),
+    [cancelAsync],
   );
-
-  const stopExternalOstrisJobImpl = useCallback(
-    async (jobId: string) => {
-      setStoppingOstrisJobId(jobId);
-
-      try {
-        await stopOstrisJob(jobId);
-        await refreshAllJobs();
-        setStoppingOstrisJobId(null);
-        return true;
-      } catch (error) {
-        notify({ variant: "danger", message: formatApiError(error) });
-        setStoppingOstrisJobId(null);
-        return false;
-      }
-    },
-    [notify, refreshAllJobs],
+  const stopExternalOstrisJob = useCallback(
+    (jobId: string) =>
+      settle(
+        stopAsync(jobId).then(() => true),
+        false,
+      ),
+    [stopAsync],
   );
-
   const deleteJobImpl = useCallback(
-    async (jobId: string) => {
-      try {
-        await deleteJob(jobId);
-        await refreshAllJobs();
-        return true;
-      } catch (error) {
-        notify({ variant: "danger", message: `Could not delete job: ${formatApiError(error)}` });
-        return false;
-      }
-    },
-    [notify, refreshAllJobs],
+    (jobId: string) =>
+      settle(
+        removeAsync(jobId).then(() => true),
+        false,
+      ),
+    [removeAsync],
   );
-
-  const deleteAllJobsImpl = useCallback(async () => {
-    try {
-      await deleteAllJobs();
-      await refreshAllJobs();
-      return true;
-    } catch (error) {
-      notify({ variant: "danger", message: `Could not delete jobs: ${formatApiError(error)}` });
-      return false;
-    }
-  }, [notify, refreshAllJobs]);
+  const deleteAllJobsImpl = useCallback(
+    () =>
+      settle(
+        removeAllAsync().then(() => true),
+        false,
+      ),
+    [removeAllAsync],
+  );
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleDrawer = useCallback(() => setDrawerOpen((current) => !current), []);
@@ -333,8 +310,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<JobsContextValue>(
     () => ({
       jobs,
-      externalJobs,
-      ostrisAvailable,
+      externalJobs: external.jobs,
+      ostrisAvailable: external.available,
       activeCount,
       drawerOpen,
       startingJob,
@@ -344,14 +321,13 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       toggleDrawer,
       startJob,
       cancelJob: cancelJobImpl,
-      stopExternalOstrisJob: stopExternalOstrisJobImpl,
+      stopExternalOstrisJob,
       deleteJob: deleteJobImpl,
       deleteAllJobs: deleteAllJobsImpl,
     }),
     [
       jobs,
-      externalJobs,
-      ostrisAvailable,
+      external,
       activeCount,
       drawerOpen,
       startingJob,
@@ -361,7 +337,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       toggleDrawer,
       startJob,
       cancelJobImpl,
-      stopExternalOstrisJobImpl,
+      stopExternalOstrisJob,
       deleteJobImpl,
       deleteAllJobsImpl,
     ],
@@ -380,38 +356,17 @@ export function useJobs() {
 
 export function useFolderJob(folderPath: string | undefined) {
   const { jobs } = useJobs();
-  const [hydratedJob, setHydratedJob] = useState<Job | null>(null);
 
   const contextJob = useMemo(() => selectFolderJob(jobs, folderPath), [jobs, folderPath]);
 
-  useEffect(() => {
-    if (!folderPath) {
-      setHydratedJob(null);
-      return;
-    }
+  // The live list holds recent jobs only; an older folder's last run is asked for directly.
+  const latestQuery = useQuery({
+    queryKey: jobKeys.folderLatest(folderPath ?? ""),
+    queryFn: ({ signal }) => fetchLatestFolderJob(folderPath!, signal),
+    enabled: Boolean(folderPath) && !contextJob,
+  });
 
-    if (contextJob) {
-      setHydratedJob(contextJob);
-      return;
-    }
-
-    let cancelled = false;
-
-    fetchLatestFolderJob(folderPath)
-      .then((latestJob) => {
-        if (cancelled) return;
-        setHydratedJob(latestJob);
-      })
-      .catch(() => {
-        if (!cancelled) setHydratedJob(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [folderPath, contextJob]);
-
-  const resolvedJob = contextJob ?? hydratedJob;
+  const resolvedJob = contextJob ?? (folderPath ? (latestQuery.data ?? null) : null);
 
   const folderHasActiveJob = useMemo(
     () => jobs.some((job) => foldersMatch(job.folder, folderPath) && isActiveJobStatus(job.status)),

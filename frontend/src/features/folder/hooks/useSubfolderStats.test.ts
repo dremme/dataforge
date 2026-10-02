@@ -1,9 +1,10 @@
-import { act, renderHook } from "@testing-library/react";
-import { useState } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { useQuery } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
-import { clearFolderCache } from "@/features/folder/lib/folderCache";
+import { folderKeys } from "@/features/folder/lib/folderQuery";
 import type { FolderResponse, Subfolder, SubfolderStatsResponse } from "@/shared/types";
+import { queryWrapper } from "@/test/queryClient";
 import { useSubfolderStats } from "./useSubfolderStats";
 
 const FOLDER = "C:\\Photos";
@@ -38,46 +39,66 @@ function makeFolder(subfolders: Subfolder[], fingerprint = "fp-v1"): FolderRespo
   };
 }
 
-function renderWithFolder(initial: FolderResponse) {
-  const view = renderHook(() => {
-    const [folder, setFolder] = useState<FolderResponse | null>(initial);
-    useSubfolderStats(folder?.path, folder?.fingerprint, folder?.subfolders ?? [], setFolder);
-    return { folder, setFolder };
-  });
+function statsWith(fileCount: number): SubfolderStatsResponse {
+  return {
+    folder: FOLDER,
+    subfolders: [
+      {
+        path: ALBUM,
+        file_count: fileCount,
+        captioned_count: 2,
+        issue_count: 1,
+        duplicate_count: 0,
+      },
+    ],
+  };
+}
 
-  const silentReload = async (next: FolderResponse) => {
+/** Reads the listing the way the workspace does: from the folder's cache entry. */
+function renderWithFolder(initial: FolderResponse) {
+  const { client, wrapper } = queryWrapper();
+  client.setQueryData(folderKeys.folder(FOLDER), initial);
+
+  const view = renderHook(
+    () => {
+      const { data: folder } = useQuery<FolderResponse>({
+        queryKey: folderKeys.folder(FOLDER),
+        enabled: false,
+      });
+      useSubfolderStats(folder?.path, folder?.fingerprint, folder?.subfolders ?? []);
+      return folder;
+    },
+    { wrapper },
+  );
+
+  const reload = async (next: FolderResponse) => {
     await act(async () => {
-      view.result.current.setFolder(next);
+      client.setQueryData(folderKeys.folder(FOLDER), next);
     });
   };
 
-  return { view, silentReload };
+  return { view, reload };
 }
 
 describe("useSubfolderStats", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    clearFolderCache();
   });
 
   it("fills in counts for subfolders that arrived without them", async () => {
-    const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue({
-      folder: FOLDER,
-      subfolders: [
-        { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
-      ],
-    });
+    const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue(statsWith(3));
 
     const { view } = renderWithFolder(makeFolder([makeSubfolder()]));
-    await act(async () => {});
 
+    await waitFor(() =>
+      expect(view.result.current?.subfolders[0]).toMatchObject({
+        file_count: 3,
+        captioned_count: 2,
+        issue_count: 1,
+        duplicate_count: 0,
+      }),
+    );
     expect(fetchStats).toHaveBeenCalledTimes(1);
-    expect(view.result.current.folder?.subfolders[0]).toMatchObject({
-      file_count: 3,
-      captioned_count: 2,
-      issue_count: 1,
-      duplicate_count: 0,
-    });
   });
 
   it("does not fetch when there are no subfolders", async () => {
@@ -90,15 +111,10 @@ describe("useSubfolderStats", () => {
   });
 
   it("settles after merging instead of refetching in a loop", async () => {
-    const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue({
-      folder: FOLDER,
-      subfolders: [
-        { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
-      ],
-    });
+    const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue(statsWith(3));
 
     const { view } = renderWithFolder(makeFolder([makeSubfolder()]));
-    await act(async () => {});
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(3));
 
     view.rerender();
     await act(async () => {});
@@ -106,32 +122,33 @@ describe("useSubfolderStats", () => {
     expect(fetchStats).toHaveBeenCalledTimes(1);
   });
 
-  it("refetches when a background reload replaces the payload with blank counts", async () => {
-    // Reload can replace the payload with blank counts while path and subfolder count stay the same.
+  it("keeps the counts through a delta that changes only items", async () => {
+    const fetchStats = vi.spyOn(api, "fetchSubfolderStats").mockResolvedValue(statsWith(3));
+
+    const { view, reload } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(3));
+
+    await reload({ ...view.result.current!, fingerprint: "fp-v2" });
+    await act(async () => {});
+
+    expect(fetchStats).toHaveBeenCalledTimes(1);
+    expect(view.result.current?.subfolders[0].file_count).toBe(3);
+  });
+
+  it("refetches when a reload replaces the listing with blank counts", async () => {
     const fetchStats = vi
       .spyOn(api, "fetchSubfolderStats")
-      .mockResolvedValueOnce({
-        folder: FOLDER,
-        subfolders: [
-          { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
-        ],
-      })
-      .mockResolvedValueOnce({
-        folder: FOLDER,
-        subfolders: [
-          { path: ALBUM, file_count: 5, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
-        ],
-      });
+      .mockResolvedValueOnce(statsWith(3))
+      .mockResolvedValueOnce(statsWith(5));
 
-    const { view, silentReload } = renderWithFolder(makeFolder([makeSubfolder()]));
-    await act(async () => {});
-    expect(view.result.current.folder?.subfolders[0].file_count).toBe(3);
+    const { view, reload } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(3));
 
-    await silentReload(makeFolder([makeSubfolder()]));
-    await act(async () => {});
+    // Same fingerprint: a server that forgot its diff baseline lists the folder again as is.
+    await reload(makeFolder([makeSubfolder()]));
 
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(5));
     expect(fetchStats).toHaveBeenCalledTimes(2);
-    expect(view.result.current.folder?.subfolders[0].file_count).toBe(5);
   });
 
   it("refetches when a reload lands while the stats request is still in flight", async () => {
@@ -143,29 +160,17 @@ describe("useSubfolderStats", () => {
     const fetchStats = vi
       .spyOn(api, "fetchSubfolderStats")
       .mockReturnValueOnce(first)
-      .mockResolvedValueOnce({
-        folder: FOLDER,
-        subfolders: [
-          { path: ALBUM, file_count: 5, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
-        ],
-      });
+      .mockResolvedValueOnce(statsWith(5));
 
-    const { view, silentReload } = renderWithFolder(makeFolder([makeSubfolder()]));
-    await act(async () => {});
-    expect(fetchStats).toHaveBeenCalledTimes(1);
+    const { view, reload } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await waitFor(() => expect(fetchStats).toHaveBeenCalledTimes(1));
 
-    await silentReload(makeFolder([makeSubfolder()], "fp-v2"));
+    await reload(makeFolder([makeSubfolder()], "fp-v2"));
     await act(async () => {
-      settleFirst({
-        folder: FOLDER,
-        subfolders: [
-          { path: ALBUM, file_count: 3, captioned_count: 2, issue_count: 1, duplicate_count: 0 },
-        ],
-      });
+      settleFirst(statsWith(3));
     });
-    await act(async () => {});
 
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(5));
     expect(fetchStats).toHaveBeenCalledTimes(2);
-    expect(view.result.current.folder?.subfolders[0].file_count).toBe(5);
   });
 });

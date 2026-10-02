@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InstructionKind } from "@/shared/api/folderInstructions";
 import { HOME_PATH } from "@/test/fixtures";
 import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
 import { FolderInstructionsModal } from "./FolderInstructionsModal";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const fetchFolderInstructions = vi.fn();
 const saveInstructionFile = vi.fn();
@@ -65,7 +66,7 @@ function renderModal(
     onSaved?: (kind: InstructionKind, saved: InstructionFileResponse) => void;
   } = {},
 ) {
-  return render(
+  return renderWithQueryClient(
     <FolderInstructionsModal
       folderPath={HOME_PATH}
       initialTab={overrides.initialTab}

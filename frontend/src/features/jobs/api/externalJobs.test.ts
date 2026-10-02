@@ -20,7 +20,9 @@ describe("externalJobs API", () => {
 
     await fetchOstrisJobs();
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/external/ostris/jobs");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/external/ostris/jobs", {
+      signal: undefined,
+    });
   });
 
   it("stops an Ostris job with checkpoint save", async () => {
@@ -43,6 +45,7 @@ describe("externalJobs API", () => {
 
     expect(requestJsonMock).toHaveBeenCalledWith(
       "/api/external/ostris/training/sample%20train%20v1/samples",
+      { signal: undefined },
     );
   });
 });

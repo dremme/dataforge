@@ -2,23 +2,17 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
-  cacheFolderFavorites,
-  getCachedFolderFavorites,
-  optimisticallyAddFavorite,
-  optimisticallyRemoveFavorite,
-  refreshFolderFavoritesInBackground,
-  syncAddFolderFavorite,
-  syncRemoveFolderFavorite,
-} from "@/features/folder/lib/folderFavorites";
+  useFolderFavorites,
+  useToggleFolderFavorite,
+} from "@/features/folder/hooks/useFolderFavorites";
 import {
   getRecentFoldersForPicker,
-  promoteRecentFolder,
   readRecentFolderPaths,
   restoreRecentFolders,
+  touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconFolder, iconStar, iconStarPlusIcon, iconX } from "@/shared/icons";
-import type { FolderFavorite } from "@/shared/types";
 import {
   folderLeafName,
   folderPathsEqual,
@@ -101,40 +95,24 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
   const favoritesTitleId = useId();
   const recentTitleId = useId();
   const [draftPath, setDraftPath] = useState(currentFolder);
-  const [favorites, setFavorites] = useState<FolderFavorite[]>(() => getCachedFolderFavorites());
+  const favoritesQuery = useFolderFavorites();
+  const favorites = favoritesQuery.data;
+  const { mutateAsync: toggleFavoriteOnServer } = useToggleFolderFavorite();
   const [recentRevision, setRecentRevision] = useState(0);
   const notify = useNotify();
   const syncingFavoritePathsRef = useRef(new Set<string>());
-  const favoritesEpochRef = useRef(0);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const pathInputRef = useRef<HTMLInputElement>(null);
 
+  // Only worth saying when there is nothing cached to show instead.
+  const favoritesError = favoritesQuery.error;
+  const noFavoritesShown = favorites.length === 0;
   useEffect(() => {
-    setRecentRevision((revision) => revision + 1);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const epochAtStart = favoritesEpochRef.current;
-
-    refreshFolderFavoritesInBackground(
-      (updatedFavorites) => {
-        if (cancelled || favoritesEpochRef.current !== epochAtStart) return;
-        setFavorites(updatedFavorites);
-      },
-      (message) => {
-        if (cancelled) return;
-        if (getCachedFolderFavorites().length === 0) {
-          notify({ variant: "danger", message: formatApiError(new Error(message)) });
-        }
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [notify]);
+    if (favoritesError && noFavoritesShown) {
+      notify({ variant: "danger", message: formatApiError(favoritesError) });
+    }
+  }, [favoritesError, noFavoritesShown, notify]);
 
   const recentFolders = useMemo(
     () =>
@@ -161,34 +139,21 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
     }
 
     syncingFavoritePathsRef.current.add(normalizedPath);
-    favoritesEpochRef.current += 1;
 
-    const previousFavorites = favorites;
     const previousRecent = isFavorite ? readRecentFolderPaths() : null;
-    const optimisticFavorites = isFavorite
-      ? optimisticallyRemoveFavorite(favorites, path)
-      : optimisticallyAddFavorite(favorites, path);
-
-    setFavorites(optimisticFavorites);
-    cacheFolderFavorites(optimisticFavorites);
-
     if (isFavorite) {
-      promoteRecentFolder(path);
+      touchRecentFolder(path);
       setRecentRevision((revision) => revision + 1);
     }
 
-    const request = isFavorite ? syncRemoveFolderFavorite(path) : syncAddFolderFavorite(path);
-
-    void request
-      .then((serverFavorites) => {
-        setFavorites(serverFavorites);
-        cacheFolderFavorites(serverFavorites);
-      })
-      .catch((error) => {
-        setFavorites(previousFavorites);
-        cacheFolderFavorites(previousFavorites);
+    void toggleFavoriteOnServer({ path, isFavorite })
+      .catch((error: unknown) => {
         if (previousRecent) {
-          restoreRecentFolders(previousRecent);
+          // Undo only this promotion; other removed favorites keep their recent shortcuts.
+          const recent = readRecentFolderPaths().filter((entry) => !folderPathsEqual(entry, path));
+          const previousIndex = previousRecent.findIndex((entry) => folderPathsEqual(entry, path));
+          if (previousIndex >= 0) recent.splice(previousIndex, 0, previousRecent[previousIndex]);
+          restoreRecentFolders(recent);
           setRecentRevision((revision) => revision + 1);
         }
         notify({ variant: "danger", message: formatApiError(error) });

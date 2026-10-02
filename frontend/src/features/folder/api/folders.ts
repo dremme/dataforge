@@ -8,8 +8,8 @@ import type {
   FolderRootsResponse,
 } from "@/shared/types";
 
-export async function fetchFolderRoots(): Promise<FolderRootsResponse> {
-  return requestJson<FolderRootsResponse>("/api/folders/roots");
+export async function fetchFolderRoots(signal?: AbortSignal): Promise<FolderRootsResponse> {
+  return requestJson<FolderRootsResponse>("/api/folders/roots", { signal });
 }
 
 /** Immediate child folders only — cheaper than full /api/folders/contents for tree UIs. */
@@ -23,9 +23,12 @@ export async function fetchFolderChildren(
 
 export async function fetchFolderReviewCounts(
   folderPath: string,
+  signal?: AbortSignal,
 ): Promise<FolderReviewCountsResponse> {
   const params = new URLSearchParams({ path: folderPath });
-  return requestJson<FolderReviewCountsResponse>(`/api/folders/review-counts?${params}`);
+  return requestJson<FolderReviewCountsResponse>(`/api/folders/review-counts?${params}`, {
+    signal,
+  });
 }
 
 export async function fetchFolderFavorites(): Promise<FolderFavoritesResponse> {

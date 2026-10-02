@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { countDuplicates } from "@/features/gallery/lib/duplicates";
 import { getFilterEmptyState } from "@/features/gallery/lib/filters";
 import { countCandidates } from "@/features/gallery/lib/candidateReview";
@@ -24,11 +24,7 @@ import {
   type SortOption,
 } from "@/features/gallery/lib/query";
 import type { GalleryItem } from "@/shared/types";
-import {
-  loadUiSettings,
-  readCachedSortPreference,
-  updateUiSettings,
-} from "@/shared/preferences/uiPreferences";
+import { useUiSettings, useUpdateUiSettings } from "@/shared/preferences/uiPreferences";
 
 export function useGalleryQuery(items: GalleryItem[]) {
   const [filter, setFilterState] = useState<ItemFilter>(() => readGallerySessionQuery().filter);
@@ -41,23 +37,11 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const [searchQuery, setSearchQueryState] = useState(() => readGallerySessionQuery().searchQuery);
   const [searchRegex, setSearchRegexState] = useState(() => readGallerySessionQuery().searchRegex);
   const [searchNames, setSearchNamesState] = useState(() => readGallerySessionQuery().searchNames);
-  const [sort, setSortState] = useState<SortOption>(() =>
-    parseSortOption(readCachedSortPreference() ?? DEFAULT_SORT),
-  );
+  const sort = parseSortOption(useUiSettings().sort || DEFAULT_SORT);
+  const updateUiSettings = useUpdateUiSettings();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    loadUiSettings().then((settings) => {
-      if (!cancelled) {
-        setSortState(parseSortOption(settings.sort || DEFAULT_SORT));
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Typing stays responsive in a large folder: the grid catches up with the query.
+  const filterQuery = useDeferredValue(searchQuery);
 
   const setFilter = useCallback((value: ItemFilter) => {
     setFilterState(value);
@@ -97,12 +81,10 @@ export function useGalleryQuery(items: GalleryItem[]) {
     cacheGallerySessionQuery({ searchNames: value });
   }, []);
 
-  const setSort = useCallback((value: SortOption) => {
-    setSortState(value);
-    updateUiSettings({ sort: value }).catch(() => {
-      // UI already reflects the choice; ignore persistence failures.
-    });
-  }, []);
+  const setSort = useCallback(
+    (value: SortOption) => updateUiSettings({ sort: value }),
+    [updateUiSettings],
+  );
 
   const mediaTypeFilteredItems = useMemo(
     () => applyMediaTypeFilter(items, mediaTypeFilter),
@@ -127,12 +109,12 @@ export function useGalleryQuery(items: GalleryItem[]) {
         filter,
         mediaTypeFilter,
         fileFilter,
-        searchQuery,
+        searchQuery: filterQuery,
         searchRegex,
         searchNames,
         sort,
       }),
-    [items, filter, mediaTypeFilter, fileFilter, searchQuery, searchRegex, searchNames, sort],
+    [items, filter, mediaTypeFilter, fileFilter, filterQuery, searchRegex, searchNames, sort],
   );
 
   const hasActiveSearch = searchQuery.trim().length > 0;
@@ -144,28 +126,28 @@ export function useGalleryQuery(items: GalleryItem[]) {
     () =>
       filterBySearch(
         applyFileFilter(mediaTypeFilteredItems, fileFilter),
-        searchQuery,
+        filterQuery,
         searchRegex,
         searchNames,
       ),
-    [mediaTypeFilteredItems, fileFilter, searchQuery, searchRegex, searchNames],
+    [mediaTypeFilteredItems, fileFilter, filterQuery, searchRegex, searchNames],
   );
 
   const mediaTypeFilterCountItems = useMemo(
     () =>
       filterBySearch(
         applyFileFilter(captionScopedItems, fileFilter),
-        searchQuery,
+        filterQuery,
         searchRegex,
         searchNames,
       ),
-    [captionScopedItems, fileFilter, searchQuery, searchRegex, searchNames],
+    [captionScopedItems, fileFilter, filterQuery, searchRegex, searchNames],
   );
 
   // Files-option counts: this axis off, the others on, so each number is what it leaves.
   const fileFilterCountItems = useMemo(
-    () => filterBySearch(captionFilteredItems, searchQuery, searchRegex, searchNames),
-    [captionFilteredItems, searchQuery, searchRegex, searchNames],
+    () => filterBySearch(captionFilteredItems, filterQuery, searchRegex, searchNames),
+    [captionFilteredItems, filterQuery, searchRegex, searchNames],
   );
 
   const filterCounts = useMemo(() => {
@@ -206,12 +188,12 @@ export function useGalleryQuery(items: GalleryItem[]) {
         filter,
         mediaTypeFilter,
         fileFilter,
-        searchQuery,
+        searchQuery: filterQuery,
         hasFilterMatches: filterMatchedItems.length > 0,
         imageCount: countMediaType(items, "image"),
         videoCount: countMediaType(items, "video"),
       }),
-    [filterMatchedItems.length, filter, items, mediaTypeFilter, fileFilter, searchQuery],
+    [filterMatchedItems.length, filter, items, mediaTypeFilter, fileFilter, filterQuery],
   );
 
   return {

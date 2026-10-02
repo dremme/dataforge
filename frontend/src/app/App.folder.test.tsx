@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { EMPTY_PATH, HOME_PATH, VACATION_PATH } from "@/test/fixtures";
+import { EMPTY_PATH, HOME_PATH, VACATION_PATH, homeFolder } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -28,7 +28,7 @@ describe("App: folder navigation", () => {
     removeFolder(HOME_PATH);
 
     // Same path as the poll; waiting out the real interval would cost seconds.
-    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
 
     await waitFor(() => {
       expect(screen.getAllByRole("alert")).toHaveLength(1);
@@ -49,7 +49,7 @@ describe("App: folder navigation", () => {
     expect(screen.getByLabelText("2 of 3")).toHaveClass("gallery-section__count");
 
     renameItem(HOME_PATH, "sunset.png", "sunrise.png");
-    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Select sunrise.png" })).toBeInTheDocument();
@@ -152,12 +152,17 @@ describe("App: folder navigation", () => {
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
     expect(document.querySelector(".folder-card--skeleton")).toBeNull();
 
+    // Revalidated by asking what changed since the cached listing, not by listing again.
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(([input]) => {
           const requestUrl =
             typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-          return new URL(requestUrl, "http://localhost").pathname === "/api/folders/fingerprint";
+          const parsed = new URL(requestUrl, "http://localhost");
+          return (
+            parsed.pathname === "/api/folders/changes" &&
+            parsed.searchParams.get("since") === homeFolder.fingerprint
+          );
         }),
       ).toBe(true);
     });
@@ -315,7 +320,7 @@ describe("App: folder navigation", () => {
     });
 
     const main = stubMainScroll(640);
-    document.dispatchEvent(new Event("visibilitychange"));
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();

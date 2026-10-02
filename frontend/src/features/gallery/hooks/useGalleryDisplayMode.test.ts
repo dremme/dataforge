@@ -1,13 +1,14 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useGalleryDisplayMode } from "./useGalleryDisplayMode";
+import { renderHookWithQueryClient } from "@/test/queryClient";
+import { displayModeKey, useGalleryDisplayMode } from "./useGalleryDisplayMode";
 
 const loadMock = vi.fn();
 const updateMock = vi.fn();
 const readCachedMock = vi.fn();
 
 vi.mock("@/features/gallery/preferences/galleryDisplayPreferences", () => ({
-  loadGalleryDisplayMode: (...args: unknown[]) => loadMock(...args),
+  fetchDisplayMode: (...args: unknown[]) => loadMock(...args),
   updateGalleryDisplayMode: (...args: unknown[]) => updateMock(...args),
   readCachedDisplayMode: (...args: unknown[]) => readCachedMock(...args),
 }));
@@ -23,7 +24,7 @@ describe("useGalleryDisplayMode", () => {
     readCachedMock.mockReturnValue(null);
     loadMock.mockResolvedValue("list");
 
-    const { result } = renderHook(() => useGalleryDisplayMode("C:\\Photos\\A"));
+    const { result } = renderHookWithQueryClient(() => useGalleryDisplayMode("C:\\Photos\\A"));
 
     expect(result.current.displayMode).toBe("large");
     await waitFor(() => expect(result.current.displayMode).toBe("list"));
@@ -34,7 +35,7 @@ describe("useGalleryDisplayMode", () => {
     readCachedMock.mockReturnValue("small");
     loadMock.mockReturnValue(new Promise(() => {}));
 
-    const { result } = renderHook(() => useGalleryDisplayMode("C:\\Photos\\A"));
+    const { result } = renderHookWithQueryClient(() => useGalleryDisplayMode("C:\\Photos\\A"));
 
     expect(result.current.displayMode).toBe("small");
   });
@@ -43,7 +44,7 @@ describe("useGalleryDisplayMode", () => {
     readCachedMock.mockReturnValue(null);
     loadMock.mockResolvedValue("list");
 
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHookWithQueryClient(
       ({ folder }: { folder: string }) => useGalleryDisplayMode(folder),
       { initialProps: { folder: "C:\\Photos\\A" } },
     );
@@ -61,13 +62,41 @@ describe("useGalleryDisplayMode", () => {
     loadMock.mockResolvedValue("large");
     updateMock.mockResolvedValue("small");
 
-    const { result } = renderHook(() => useGalleryDisplayMode("C:\\Photos\\A"));
+    const { result } = renderHookWithQueryClient(() => useGalleryDisplayMode("C:\\Photos\\A"));
     await waitFor(() => expect(loadMock).toHaveBeenCalled());
 
     act(() => result.current.setDisplayMode("small"));
 
-    expect(result.current.displayMode).toBe("small");
+    await waitFor(() => expect(result.current.displayMode).toBe("small"));
     expect(updateMock).toHaveBeenCalledWith("C:\\Photos\\A", "small");
+  });
+
+  it("keeps a pending save attached to the folder where it started", async () => {
+    readCachedMock.mockReturnValue(null);
+    loadMock.mockResolvedValue("large");
+    let finishSave!: (mode: string) => void;
+    const saving = new Promise<string>((resolve) => {
+      finishSave = resolve;
+    });
+    updateMock.mockReturnValue(saving);
+    const first = "C:\\Photos\\A";
+    const second = "C:\\Photos\\B";
+    const { result, rerender, client } = renderHookWithQueryClient(
+      ({ folder }: { folder: string }) => useGalleryDisplayMode(folder),
+      { initialProps: { folder: first } },
+    );
+    await waitFor(() => expect(result.current.displayMode).toBe("large"));
+    act(() => result.current.setDisplayMode("small"));
+    await waitFor(() => expect(updateMock).toHaveBeenCalledWith(first, "small"));
+    rerender({ folder: second });
+    await waitFor(() => expect(client.getQueryData(displayModeKey(second))).toBe("large"));
+    await act(async () => {
+      finishSave("small");
+      await saving;
+    });
+    expect(result.current.displayMode).toBe("large");
+    expect(client.getQueryData(displayModeKey(first))).toBe("small");
+    expect(client.getQueryData(displayModeKey(second))).toBe("large");
   });
 
   it("keeps the choice when persistence fails", async () => {
@@ -75,23 +104,34 @@ describe("useGalleryDisplayMode", () => {
     loadMock.mockResolvedValue("large");
     updateMock.mockRejectedValue(new Error("offline"));
 
-    const { result } = renderHook(() => useGalleryDisplayMode("C:\\Photos\\A"));
+    const { result } = renderHookWithQueryClient(() => useGalleryDisplayMode("C:\\Photos\\A"));
     await waitFor(() => expect(loadMock).toHaveBeenCalled());
 
     act(() => result.current.setDisplayMode("list"));
 
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    expect(result.current.displayMode).toBe("list");
+  });
+
+  it("keeps the cached mode when the backend cannot be reached", async () => {
+    readCachedMock.mockReturnValue("list");
+    loadMock.mockRejectedValue(new Error("offline"));
+
+    const { result } = renderHookWithQueryClient(() => useGalleryDisplayMode("C:\\Photos\\A"));
+
+    await waitFor(() => expect(loadMock).toHaveBeenCalled());
     expect(result.current.displayMode).toBe("list");
   });
 
   it("does not call the backend without an open folder", () => {
     readCachedMock.mockReturnValue(null);
 
-    const { result } = renderHook(() => useGalleryDisplayMode(undefined));
+    const { result } = renderHookWithQueryClient(() => useGalleryDisplayMode(undefined));
 
     act(() => result.current.setDisplayMode("list"));
 
     expect(loadMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();
-    expect(result.current.displayMode).toBe("list");
+    expect(result.current.displayMode).toBe("large");
   });
 });

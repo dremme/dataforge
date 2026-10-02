@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getCachedVisionModelId, loadVisionModelId, forgetVisionModelId } from "./visionLlm";
+import { fetchVisionModelId } from "./visionLlm";
 
 const requestJsonMock = vi.fn();
 
@@ -7,36 +7,21 @@ vi.mock("@/shared/api/http", () => ({
   requestJson: (...args: unknown[]) => requestJsonMock(...args),
 }));
 
-describe("visionLlm", () => {
+describe("fetchVisionModelId", () => {
   afterEach(() => {
-    forgetVisionModelId();
     requestJsonMock.mockReset();
   });
 
-  it("fetches the model id once and reuses the cache", async () => {
+  it("reads the configured model id", async () => {
     requestJsonMock.mockResolvedValue({ model: "qwen38" });
 
-    await expect(loadVisionModelId()).resolves.toBe("qwen38");
-    await expect(loadVisionModelId()).resolves.toBe("qwen38");
-
-    expect(requestJsonMock).toHaveBeenCalledTimes(1);
+    await expect(fetchVisionModelId()).resolves.toBe("qwen38");
     expect(requestJsonMock).toHaveBeenCalledWith("/api/system/vision-llm");
-    expect(getCachedVisionModelId()).toBe("qwen38");
   });
 
-  it("dedupes concurrent loads", async () => {
-    let resolveRequest: (value: { model: string }) => void = () => undefined;
-    requestJsonMock.mockReturnValue(
-      new Promise<{ model: string }>((resolve) => {
-        resolveRequest = resolve;
-      }),
-    );
+  it("answers an empty id when the backend names no model", async () => {
+    requestJsonMock.mockResolvedValue({ model: null });
 
-    const first = loadVisionModelId();
-    const second = loadVisionModelId();
-    resolveRequest({ model: "gemma-4" });
-
-    await expect(Promise.all([first, second])).resolves.toEqual(["gemma-4", "gemma-4"]);
-    expect(requestJsonMock).toHaveBeenCalledTimes(1);
+    await expect(fetchVisionModelId()).resolves.toBe("");
   });
 });

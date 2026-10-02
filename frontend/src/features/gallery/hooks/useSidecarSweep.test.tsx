@@ -1,8 +1,7 @@
-import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { deleteSidecars } from "@/features/gallery/api/sidecars";
-import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
+import { AppProviders } from "@/test/AppProviders";
 import type { SidecarDeleteResponse } from "@/shared/types";
 import { useSidecarSweep } from "./useSidecarSweep";
 
@@ -12,13 +11,7 @@ vi.mock("@/features/gallery/api/sidecars", () => ({
 
 const deleteSidecarsMock = vi.mocked(deleteSidecars);
 
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <StrictMode>
-      <NotificationsProvider>{children}</NotificationsProvider>
-    </StrictMode>
-  );
-}
+const wrapper = AppProviders;
 
 function sweepResult(overrides: Partial<SidecarDeleteResponse> = {}): SidecarDeleteResponse {
   return {

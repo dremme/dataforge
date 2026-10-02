@@ -1,9 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchJobResults } from "@/features/jobs/api/jobs";
 import type { Job, JobFileResult } from "@/shared/types";
 import { JobFileResults } from "./JobFileResults";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/jobs", () => ({
   fetchJobResults: vi.fn(),
@@ -25,6 +26,7 @@ const finishedJob: Job = {
   stats: { total: 3, success: 1, write_error: 1, skipped: 1 },
   error: null,
   created_at: "2026-01-01T00:00:00Z",
+  revision: 1,
   started_at: "2026-01-01T00:00:01Z",
   finished_at: "2026-01-01T00:01:00Z",
 };
@@ -63,13 +65,15 @@ afterEach(() => {
 
 describe("JobFileResults", () => {
   it("shows nothing while the job is still running", () => {
-    const { container } = render(<JobFileResults job={{ ...finishedJob, status: "running" }} />);
+    const { container } = renderWithQueryClient(
+      <JobFileResults job={{ ...finishedJob, status: "running" }} />,
+    );
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("names the failure count without fetching the list", () => {
-    render(<JobFileResults job={finishedJob} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} />);
 
     expect(screen.getByRole("button", { name: /1 failed/ })).toBeInTheDocument();
     expect(fetchResults).not.toHaveBeenCalled();
@@ -77,11 +81,13 @@ describe("JobFileResults", () => {
 
   it("fetches the list only when expanded, failures first", async () => {
     const user = userEvent.setup();
-    render(<JobFileResults job={finishedJob} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
 
-    await waitFor(() => expect(fetchResults).toHaveBeenCalledWith("job-1"));
+    await waitFor(() =>
+      expect(fetchResults).toHaveBeenCalledWith("job-1", expect.any(AbortSignal)),
+    );
     const rows = await screen.findAllByRole("listitem");
     expect(rows.map((row) => within(row).getByTitle(/Photos/).textContent)).toEqual([
       "broken.png",
@@ -95,7 +101,7 @@ describe("JobFileResults", () => {
   it("displays failed, cancelled, completed, then skipped files", async () => {
     const user = userEvent.setup();
     fetchResults.mockResolvedValue([...results, makeResult("interrupted.png", "cancelled")]);
-    render(<JobFileResults job={cancelledJob} />);
+    renderWithQueryClient(<JobFileResults job={cancelledJob} />);
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
@@ -111,7 +117,9 @@ describe("JobFileResults", () => {
   it("names no group for an outcome the job never produced", async () => {
     const user = userEvent.setup();
     fetchResults.mockResolvedValue([results[0]]);
-    render(<JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />);
+    renderWithQueryClient(
+      <JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />,
+    );
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
@@ -122,7 +130,7 @@ describe("JobFileResults", () => {
 
   it("states the breakdown in words beside the proportion bar", async () => {
     const user = userEvent.setup();
-    render(<JobFileResults job={finishedJob} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
 
@@ -133,7 +141,9 @@ describe("JobFileResults", () => {
   it("draws no proportion bar when every file succeeded", async () => {
     const user = userEvent.setup();
     fetchResults.mockResolvedValue([results[0]]);
-    render(<JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />);
+    renderWithQueryClient(
+      <JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />,
+    );
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
@@ -144,7 +154,9 @@ describe("JobFileResults", () => {
   it("still draws the bar when a run only skipped files", async () => {
     const user = userEvent.setup();
     fetchResults.mockResolvedValue([results[1]]);
-    render(<JobFileResults job={{ ...finishedJob, stats: { total: 1, skipped: 1 } }} />);
+    renderWithQueryClient(
+      <JobFileResults job={{ ...finishedJob, stats: { total: 1, skipped: 1 } }} />,
+    );
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
@@ -153,7 +165,7 @@ describe("JobFileResults", () => {
 
   it("still shows a file and its status when rows cannot be opened", async () => {
     const user = userEvent.setup();
-    render(<JobFileResults job={finishedJob} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
 
@@ -166,7 +178,7 @@ describe("JobFileResults", () => {
   it("retries only the files that failed", async () => {
     const user = userEvent.setup();
     const onRetryFailed = vi.fn();
-    render(<JobFileResults job={finishedJob} onRetryFailed={onRetryFailed} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} onRetryFailed={onRetryFailed} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "Retry 1 failed" }));
@@ -177,7 +189,7 @@ describe("JobFileResults", () => {
   it("offers no retry when nothing failed", async () => {
     const user = userEvent.setup();
     fetchResults.mockResolvedValue([results[0]]);
-    render(
+    renderWithQueryClient(
       <JobFileResults
         job={{ ...finishedJob, stats: { total: 1, success: 1 } }}
         onRetryFailed={vi.fn()}
@@ -194,7 +206,7 @@ describe("JobFileResults", () => {
   it("opens a file from its row", async () => {
     const user = userEvent.setup();
     const onOpenItem = vi.fn();
-    render(<JobFileResults job={finishedJob} onOpenItem={onOpenItem} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} onOpenItem={onOpenItem} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "broken.png" }));
@@ -208,7 +220,7 @@ describe("JobFileResults", () => {
       makeResult(`done-${index}.png`, "success"),
     );
     fetchResults.mockResolvedValue([...done, makeResult("interrupted.png", "cancelled")]);
-    render(<JobFileResults job={cancelledJob} />);
+    renderWithQueryClient(<JobFileResults job={cancelledJob} />);
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
@@ -222,7 +234,9 @@ describe("JobFileResults", () => {
   it("names the unrun files when the cancel landed between them", async () => {
     const user = userEvent.setup();
     fetchResults.mockResolvedValue([]);
-    render(<JobFileResults job={{ ...cancelledJob, stats: { total: 189, cancelled: 189 } }} />);
+    renderWithQueryClient(
+      <JobFileResults job={{ ...cancelledJob, stats: { total: 189, cancelled: 189 } }} />,
+    );
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
@@ -233,7 +247,7 @@ describe("JobFileResults", () => {
   it("says so when a job's results are gone", async () => {
     const user = userEvent.setup();
     fetchResults.mockRejectedValue(new Error("Job not found"));
-    render(<JobFileResults job={finishedJob} />);
+    renderWithQueryClient(<JobFileResults job={finishedJob} />);
 
     await user.click(screen.getByRole("button", { name: /1 failed/ }));
 

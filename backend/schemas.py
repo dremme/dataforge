@@ -828,6 +828,8 @@ class JobResponse(BaseModel):
         default=None,
         description="The external job this one co-tracks (the AI-Toolkit training name).",
     )
+    #: Of two copies of this job, the one with the higher revision is newer.
+    revision: int = 0
 
 
 class JobResultsResponse(BaseModel):
@@ -843,6 +845,9 @@ class JobsResponse(BaseModel):
     active_count: int = 0
     #: Jobs matching the filter, across all pages.
     total: int = 0
+    #: Every change stamped below this is reflected in ``jobs``; a job missing from the list
+    #: with a lower revision was deleted, one with a higher revision is newer than the list.
+    revision: int = 0
 
 
 class JobDeleteResponse(BaseModel):
@@ -870,6 +875,8 @@ class ExternalOstrisJobsResponse(BaseModel):
     jobs: list[ExternalOstrisJobResponse] = Field(default_factory=list)
     active_count: int = 0
     available: bool = False
+    #: Shared with ``ExternalJobsEvent``: the snapshot with the higher revision is newer.
+    revision: int = 0
 
 
 class ExternalOstrisJobStopResponse(BaseModel):
@@ -1364,17 +1371,32 @@ class JobEvent(BaseModel):
     job: JobResponse
 
 
+class JobsRemovedEvent(BaseModel):
+    """Deleted or pruned jobs; a listing older than ``revision`` that still holds them is stale."""
+
+    type: Literal["jobs_removed"] = "jobs_removed"
+    ids: list[str] = Field(default_factory=list)
+    revision: int = 0
+
+
 class ExternalJobsEvent(BaseModel):
     type: Literal["external_jobs"] = "external_jobs"
     jobs: list[ExternalOstrisJobResponse] = Field(default_factory=list)
     active_count: int = 0
     available: bool = False
+    revision: int = 0
 
 
 class HeartbeatEvent(BaseModel):
     """A real event rather than an SSE comment, so a quiet stream still reaches ``onmessage``."""
 
     type: Literal["heartbeat"] = "heartbeat"
+
+
+class ResyncEvent(BaseModel):
+    """Frames were dropped for this stream; anything kept current by pushes must be re-read."""
+
+    type: Literal["resync"] = "resync"
 
 
 class FolderEvent(BaseModel):
@@ -1426,18 +1448,29 @@ class NotificationEvent(BaseModel):
     notification: NotificationRecord
 
 
+#: Machine-readable reasons the client branches on; every other error carries ``detail`` only.
+type ApiErrorCode = Literal["folder_not_found"]
+
+
+class ApiErrorResponse(BaseModel):
+    detail: str
+    code: ApiErrorCode | None = None
+
+
 type ServerEvent = Annotated[
     JobEvent
+    | JobsRemovedEvent
     | ExternalJobsEvent
     | HeartbeatEvent
     | FolderEvent
     | VideoEditEvent
-    | NotificationEvent,
+    | NotificationEvent
+    | ResyncEvent,
     Field(discriminator="type"),
 ]
 
 #: Types no route mentions, so generate_types.py merges them in by hand.
-EXTRA_WIRE_MODELS = (ServerEvent, JobType, JobStatus)
+EXTRA_WIRE_MODELS = (ServerEvent, JobType, JobStatus, ApiErrorResponse)
 
 #: Runtime-checked on the client. Only unvalidated arrivals belong here; event frames are pushed.
 GUARDED_WIRE_MODELS = (ServerEvent,)

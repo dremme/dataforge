@@ -4,7 +4,6 @@ import { useComfyPresetsAvailable } from "@/features/automation/hooks/useComfyPr
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useCreateFolderDialog } from "@/features/folder/hooks/useCreateFolderDialog";
 import { useFolderChangeDetection } from "@/features/folder/hooks/useFolderChangeDetection";
-import { applyFolderDelta } from "@/features/folder/lib/applyFolderDelta";
 import { useFolderFileDrop } from "@/features/folder/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/folder/hooks/useFolderNavigation";
 import { useFolderScrollPosition } from "@/features/folder/hooks/useFolderScrollPosition";
@@ -25,7 +24,7 @@ import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionHost";
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
-import type { FolderChangesResponse, GalleryItem, JobType } from "@/shared/types";
+import type { GalleryItem, JobType } from "@/shared/types";
 
 export function useAppWorkspace() {
   const mainRef = useRef<HTMLElement>(null);
@@ -33,10 +32,17 @@ export function useAppWorkspace() {
   const { ostrisAvailable } = useJobs();
   const comfyPresetsAvailable = useComfyPresetsAvailable();
 
-  const { folder, loading, refreshing, error, navigateTo, setFolder, reloadFolder, scrollIntent } =
-    useFolderNavigation(selection.clearSelection);
+  const {
+    folder,
+    loading,
+    refreshing,
+    error,
+    navigateTo,
+    setFolder,
+    reloadFolder: refreshFolder,
+    scrollIntent,
+  } = useFolderNavigation(selection.clearSelection);
 
-  const reloadFolderSilently = useCallback(() => reloadFolder({ silent: true }), [reloadFolder]);
   const folderNotFound = error?.kind === "folder-not-found";
 
   useFolderScrollPosition({
@@ -48,30 +54,12 @@ export function useAppWorkspace() {
   const folderLabel =
     folder?.breadcrumbs[folder.breadcrumbs.length - 1]?.name ?? folder?.path ?? "this folder";
 
-  const folderAutomation = useFolderAutomation(folder?.path, reloadFolderSilently);
+  const folderAutomation = useFolderAutomation(folder?.path, refreshFolder);
 
-  const applyDelta = useCallback(
-    (delta: FolderChangesResponse) => {
-      setFolder((current) => (current ? applyFolderDelta(current, delta) : current));
-    },
-    [setFolder],
-  );
-
-  const { syncBaseline } = useFolderChangeDetection(
-    folder?.path,
-    folder?.fingerprint,
-    reloadFolderSilently,
-    {
-      suspendReloads: folderAutomation.folderHasActiveJob,
-      enabled: !folderNotFound,
-      applyDelta,
-    },
-  );
-
-  const refreshFolder = useCallback(async () => {
-    await reloadFolderSilently();
-    await syncBaseline();
-  }, [reloadFolderSilently, syncBaseline]);
+  const { syncBaseline } = useFolderChangeDetection(folder?.path, {
+    suspendReloads: folderAutomation.folderHasActiveJob,
+    enabled: !folderNotFound,
+  });
 
   const createFolder = useCreateFolderDialog({
     parentFolder: folder?.path,
@@ -92,7 +80,7 @@ export function useAppWorkspace() {
   const subfolders = useMemo(() => folder?.subfolders ?? [], [folder?.subfolders]);
   const items = useMemo(() => folder?.items ?? [], [folder?.items]);
 
-  useSubfolderStats(folder?.path, folder?.fingerprint, subfolders, setFolder, !folderNotFound);
+  useSubfolderStats(folder?.path, folder?.fingerprint, subfolders, !folderNotFound);
 
   useDocumentTitle(folder?.path, folder?.breadcrumbs ?? []);
 

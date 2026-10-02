@@ -173,6 +173,22 @@ class FolderChangesTests(unittest.TestCase):
             self.assertFalse(second["full"])
             self.assertEqual(second["changed"], [])
 
+    def test_an_adopted_fingerprint_is_a_baseline_too(self) -> None:
+        """A client that saved a file itself adopts the fingerprint rather than relisting."""
+        with TempMediaFolder() as root:
+            edited = write_media(root, "photo.png")
+            write_media(root, "other.png")
+            self._listing(root)
+
+            write_txt_caption(edited, "A caption this client wrote and already shows.")
+            adopted = client.get(f"/api/folders/fingerprint?path={quote(str(root))}").json()
+            write_txt_caption(edited, "A later caption from somewhere else.")
+
+            changes = self._changes(root, adopted["fingerprint"])
+
+            self.assertFalse(changes["full"])
+            self.assertEqual([item["name"] for item in changes["changed"]], ["photo.png"])
+
     def test_a_missing_folder_is_a_404_like_every_other_folder_route(self) -> None:
         response = client.get("/api/folders/changes?path=" + quote(r"C:\datasets\does-not-exist"))
         self.assertEqual(response.status_code, 404)

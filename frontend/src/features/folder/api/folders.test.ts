@@ -28,7 +28,7 @@ describe("folders API", () => {
 
     await fetchFolderRoots();
 
-    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/roots");
+    expect(requestJsonMock).toHaveBeenCalledWith("/api/folders/roots", { signal: undefined });
   });
 
   it("fetches child folders for a path", async () => {

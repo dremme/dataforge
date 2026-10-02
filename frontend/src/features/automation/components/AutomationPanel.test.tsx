@@ -1,9 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchJobResults } from "@/features/jobs/api/jobs";
 import type { GalleryItem, Job, SystemSpecs } from "@/shared/types";
 import { AutomationPanel } from "./AutomationPanel";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/jobs", () => ({
   fetchJobResults: vi.fn(),
@@ -29,6 +30,7 @@ const finishedJob: Job = {
   stats: { success: 10 },
   error: null,
   created_at: "2026-01-01T12:00:00.000Z",
+  revision: 1,
   started_at: "2026-01-01T12:00:00.000Z",
   finished_at: "2026-01-01T12:02:30.000Z",
 };
@@ -106,7 +108,7 @@ const baseProps = {
 
 describe("AutomationPanel", () => {
   it("keeps review tasks and details outside the sticky controls", () => {
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         job={finishedJob}
@@ -137,7 +139,7 @@ describe("AutomationPanel", () => {
   });
 
   it("keeps progress and cancellation in the sticky controls while running", () => {
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         job={{ ...finishedJob, status: "running", processed: 4, current_name: "sunset.png" }}
@@ -155,7 +157,7 @@ describe("AutomationPanel", () => {
 
   it("renders the panel even when no jobs can be started", () => {
     mockShowSpecs = false;
-    render(<AutomationPanel {...baseProps} />);
+    renderWithQueryClient(<AutomationPanel {...baseProps} />);
 
     expect(screen.getByLabelText("Automation")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create instructions" })).toBeInTheDocument();
@@ -163,7 +165,7 @@ describe("AutomationPanel", () => {
 
   it("starts auto-captioning on a system prompt inherited from a parent folder", () => {
     mockShowSpecs = false;
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -179,21 +181,23 @@ describe("AutomationPanel", () => {
 
   it("keeps auto-captioning off until a system prompt reaches the folder", () => {
     mockShowSpecs = false;
-    render(<AutomationPanel {...baseProps} canStart filteredItems={[galleryItem]} />);
+    renderWithQueryClient(
+      <AutomationPanel {...baseProps} canStart filteredItems={[galleryItem]} />,
+    );
 
     expect(screen.getByRole("button", { name: /Auto-caption/ })).toBeDisabled();
   });
 
   it("offers to edit the instructions when only caption rules exist", () => {
     mockShowSpecs = false;
-    render(<AutomationPanel {...baseProps} hasCaptionRulesFile />);
+    renderWithQueryClient(<AutomationPanel {...baseProps} hasCaptionRulesFile />);
 
     expect(screen.getByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
   });
 
   it("offers to edit the instructions when only a system prompt exists", () => {
     mockShowSpecs = false;
-    render(<AutomationPanel {...baseProps} hasSyspromptFile />);
+    renderWithQueryClient(<AutomationPanel {...baseProps} hasSyspromptFile />);
 
     expect(screen.getByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
   });
@@ -203,7 +207,9 @@ describe("AutomationPanel", () => {
     const user = userEvent.setup();
     const onResolveIssues = vi.fn();
 
-    render(<AutomationPanel {...baseProps} issueCount={3} onResolveIssues={onResolveIssues} />);
+    renderWithQueryClient(
+      <AutomationPanel {...baseProps} issueCount={3} onResolveIssues={onResolveIssues} />,
+    );
 
     const button = screen.getByRole("button", { name: "Resolve 3 caption issues" });
     expect(button).toHaveClass("automation__resolve-issues");
@@ -214,7 +220,9 @@ describe("AutomationPanel", () => {
 
   it("hides the resolve button when there are no issues", () => {
     mockShowSpecs = false;
-    render(<AutomationPanel {...baseProps} issueCount={0} onResolveIssues={vi.fn()} />);
+    renderWithQueryClient(
+      <AutomationPanel {...baseProps} issueCount={0} onResolveIssues={vi.fn()} />,
+    );
 
     expect(screen.queryByRole("button", { name: /Resolve/i })).not.toBeInTheDocument();
   });
@@ -224,7 +232,7 @@ describe("AutomationPanel", () => {
     const user = userEvent.setup();
     const onReviewCandidates = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel {...baseProps} candidateCount={2} onReviewCandidates={onReviewCandidates} />,
     );
 
@@ -237,14 +245,18 @@ describe("AutomationPanel", () => {
 
   it("hides the review button when there are no candidates", () => {
     mockShowSpecs = false;
-    render(<AutomationPanel {...baseProps} candidateCount={0} onReviewCandidates={vi.fn()} />);
+    renderWithQueryClient(
+      <AutomationPanel {...baseProps} candidateCount={0} onReviewCandidates={vi.fn()} />,
+    );
 
     expect(screen.queryByRole("button", { name: /candidate/i })).not.toBeInTheDocument();
   });
 
   it("shows how long a finished job took next to the counts", () => {
     mockShowSpecs = false;
-    const { container } = render(<AutomationPanel {...baseProps} job={finishedJob} />);
+    const { container } = renderWithQueryClient(
+      <AutomationPanel {...baseProps} job={finishedJob} />,
+    );
 
     const counts = container.querySelector(".automation__counts");
     expect(counts).toHaveTextContent("10/10");
@@ -262,7 +274,9 @@ describe("AutomationPanel", () => {
       finished_at: "2026-01-01T12:00:20.000Z",
     };
 
-    const { container } = render(<AutomationPanel {...baseProps} job={cancelledJob} />);
+    const { container } = renderWithQueryClient(
+      <AutomationPanel {...baseProps} job={cancelledJob} />,
+    );
 
     expect(container.querySelector(".automation__remaining")).toHaveTextContent("Took 20s");
   });
@@ -271,7 +285,7 @@ describe("AutomationPanel", () => {
     mockShowSpecs = false;
     const user = userEvent.setup();
 
-    const { rerender } = render(<AutomationPanel {...baseProps} />);
+    const { rerender } = renderWithQueryClient(<AutomationPanel {...baseProps} />);
 
     const button = screen.getByLabelText("Toggle system specifications");
     const panelId = button.getAttribute("aria-controls");
@@ -301,7 +315,7 @@ describe("AutomationPanel", () => {
     const user = userEvent.setup();
     const onRequestStart = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -348,7 +362,7 @@ describe("AutomationPanel", () => {
       } as DOMRect;
     });
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -375,7 +389,7 @@ describe("AutomationPanel", () => {
     mockShowSpecs = false;
     const user = userEvent.setup();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -411,7 +425,7 @@ describe("AutomationPanel", () => {
     mockShowSpecs = false;
     const user = userEvent.setup();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -443,7 +457,7 @@ describe("AutomationPanel", () => {
     const user = userEvent.setup();
     const onRequestStart = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -471,7 +485,7 @@ describe("AutomationPanel", () => {
     const user = userEvent.setup();
     const onRequestStart = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -496,7 +510,7 @@ describe("AutomationPanel", () => {
     const user = userEvent.setup();
     const onRequestStart = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AutomationPanel
         {...baseProps}
         canStart
@@ -539,7 +553,9 @@ describe("AutomationPanel", () => {
       stats: { step: 1000, stopped: 0 },
     };
 
-    const { container } = render(<AutomationPanel {...baseProps} job={trainingJob} />);
+    const { container } = renderWithQueryClient(
+      <AutomationPanel {...baseProps} job={trainingJob} />,
+    );
 
     expect(await screen.findByAltText("a mountain lake at sunrise")).toBeInTheDocument();
     const samples = container.querySelector<HTMLElement>(".training-samples");
@@ -552,7 +568,9 @@ describe("AutomationPanel", () => {
 
   it("shows no samples strip for other job types", () => {
     mockShowSpecs = false;
-    const { container } = render(<AutomationPanel {...baseProps} job={finishedJob} />);
+    const { container } = renderWithQueryClient(
+      <AutomationPanel {...baseProps} job={finishedJob} />,
+    );
 
     expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
   });

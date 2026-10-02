@@ -1,7 +1,9 @@
-import { useId, useMemo, useRef, useState } from "react";
-import { fetchFolderReviewCounts } from "@/features/folder/api/folders";
+import { useId, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useFolderPrefetch } from "@/features/folder/hooks/useFolderPrefetch";
 import { clampFolders, folderCardLabel, folderFindings } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
+import { folderReviewCountsQueryOptions } from "@/features/folder/lib/folderQuery";
 import {
   iconChevronDown,
   iconChevronUp,
@@ -12,7 +14,7 @@ import {
   iconTriangleAlert,
 } from "@/shared/icons";
 import { formatCount } from "@/shared/lib/format";
-import type { FolderReviewCountsResponse, Subfolder } from "@/shared/types";
+import type { Subfolder } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -52,27 +54,15 @@ function countLabel(count: number, singular: string, plural: string): string {
 }
 
 function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: string) => void }) {
-  const [counts, setCounts] = useState<FolderReviewCountsResponse | null>(null);
-  const [failed, setFailed] = useState(false);
-  const loadingRef = useRef(false);
-
-  // Fetched on every hover rather than once, so a job that ran meanwhile is reflected; the
+  const prefetch = useFolderPrefetch();
+  // Read on every hover rather than once, so a job that ran meanwhile is reflected; the
   // bubble's delay leaves the request time to land before anything shows.
-  const loadCounts = () => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    fetchFolderReviewCounts(folder.path)
-      .then(
-        (next) => {
-          setCounts(next);
-          setFailed(false);
-        },
-        () => setFailed(true),
-      )
-      .finally(() => {
-        loadingRef.current = false;
-      });
-  };
+  const {
+    data: counts,
+    isError: failed,
+    refetch,
+  } = useQuery({ ...folderReviewCountsQueryOptions(folder.path), enabled: false });
+  const loadCounts = () => void refetch({ cancelRefetch: false });
 
   const tooltip = (
     <span className="folder-card__tip">
@@ -96,6 +86,7 @@ function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: stri
         type="button"
         className="folder-card"
         onClick={() => onOpen(folder.path)}
+        {...prefetch(folder.path)}
         onMouseEnter={loadCounts}
         onFocus={loadCounts}
         aria-label={folderCardLabel(folder)}

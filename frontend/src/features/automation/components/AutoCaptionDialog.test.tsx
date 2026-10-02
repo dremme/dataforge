@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as FolderInstructionsApi from "@/shared/api/folderInstructions";
@@ -8,6 +8,7 @@ import {
   emptyAutomationSettings,
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const FOLDER = "C:/datasets/photos";
 
@@ -50,7 +51,7 @@ function renderDialog(
   onConfirm = vi.fn(),
   overrides: Partial<JobSettingsByType["auto_caption"]> = {},
 ) {
-  render(
+  renderWithQueryClient(
     <AutoCaptionDialog
       scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
       folderPath={FOLDER}

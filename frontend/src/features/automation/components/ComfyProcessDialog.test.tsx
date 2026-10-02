@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchComfyPresets } from "@/features/automation/api/jobs";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import type { ComfyPresetSettings, ComfyPresetsResponse } from "@/shared/types";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/automation/api/jobs", () => ({
   fetchComfyPresets: vi.fn(),
@@ -48,7 +49,7 @@ function renderDialog(initialSettings = settings()) {
   const onConfirm = vi.fn();
   const onCancel = vi.fn();
 
-  render(
+  renderWithQueryClient(
     <ComfyProcessDialog
       scope={SCOPE}
       initialSettings={initialSettings}

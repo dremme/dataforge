@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createStoredStore, useStoredStore } from "@/shared/lib/storedStore";
 import {
-  loadUiSettings,
   parseThemePreference,
   THEME_CACHE_KEY,
+  uiSettingsQueryOptions,
   updateUiSettings,
 } from "@/shared/preferences/uiPreferences";
 import type { ThemePreference } from "@/shared/types";
@@ -45,26 +46,33 @@ export function previewThemePreference(next: ThemePreference | null): void {
   applyTheme();
 }
 
-/** Follows the OS scheme and the server's copy. Mount once at the root. */
+/** Follows the OS scheme and the server's copy. Mount once, under the query client. */
 export function useThemeSync(): void {
+  const supersededRef = useRef(false);
+  const { data, isFetched, isError } = useQuery(uiSettingsQueryOptions());
+  // The seed is this tab's own cache; only an answer from the server can bring news.
+  const serverTheme = isFetched && !isError ? data.theme : null;
+
   useEffect(() => {
     applyTheme();
 
-    let superseded = false;
+    // A choice made here before the server answers wins over the server's older copy.
     const unsubscribe = saved.subscribe(() => {
-      superseded = true;
-    });
-    loadUiSettings().then((settings) => {
-      if (!superseded) saved.set(settings.theme);
+      supersededRef.current = true;
     });
 
     const media = window.matchMedia?.(LIGHT_QUERY);
     media?.addEventListener("change", applyTheme);
 
     return () => {
-      superseded = true;
       unsubscribe();
       media?.removeEventListener("change", applyTheme);
     };
   }, []);
+
+  useEffect(() => {
+    if (serverTheme === null || supersededRef.current) return;
+    supersededRef.current = true;
+    saved.set(serverTheme);
+  }, [serverTheme]);
 }

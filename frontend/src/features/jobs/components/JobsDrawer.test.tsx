@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
@@ -7,6 +7,7 @@ import type * as JobsApi from "@/features/jobs/api/jobs";
 import { resetScrollLockManagerForTests } from "@/shared/hooks/scrollLockManager";
 import type { ExternalOstrisJob, Job } from "@/shared/types";
 import { JobsDrawer } from "./JobsDrawer";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 vi.mock("@/features/jobs/api/externalJobs", () => ({
   fetchOstrisTrainingSamples: vi.fn(),
@@ -32,6 +33,7 @@ const trainingJob: Job = {
   processed: 500,
   stats: { step: 500 },
   created_at: "2026-01-01T00:00:00.000Z",
+  revision: 1,
   started_at: "2026-01-01T00:00:01.000Z",
 };
 
@@ -82,13 +84,15 @@ vi.mock("@/features/jobs/context/JobsContext", () => ({
 function renderDrawer(jobs: Job[], externalJobs: ExternalOstrisJob[] = []) {
   jobsContext.jobs = jobs;
   jobsContext.externalJobs = externalJobs;
-  return render(<JobsDrawer currentFolder="C:\\datasets\\landscapes" onOpenFolder={vi.fn()} />);
+  return renderWithQueryClient(
+    <JobsDrawer currentFolder="C:\\datasets\\landscapes" onOpenFolder={vi.fn()} />,
+  );
 }
 
 beforeEach(() => {
   jobsContext.drawerOpen = true;
   fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
-  fetchJobsMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
+  fetchJobsMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0, revision: 1 });
 });
 
 afterEach(() => {
@@ -114,7 +118,12 @@ describe("JobsDrawer", () => {
     };
 
     it("lists stored runs the live list no longer carries", async () => {
-      fetchJobsMock.mockResolvedValue({ jobs: [olderWatermark], active_count: 0, total: 1 });
+      fetchJobsMock.mockResolvedValue({
+        jobs: [olderWatermark],
+        active_count: 0,
+        total: 1,
+        revision: 1,
+      });
 
       renderDrawer([finishedCaption]);
 
@@ -125,8 +134,8 @@ describe("JobsDrawer", () => {
     it("drops a stored run once it is deleted, though the live list never carried it", async () => {
       const user = userEvent.setup();
       fetchJobsMock
-        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 1 })
-        .mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
+        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 1, revision: 1 })
+        .mockResolvedValue({ jobs: [], active_count: 0, total: 0, revision: 1 });
       jobsContext.deleteJob.mockResolvedValue(true);
 
       renderDrawer([]);
@@ -141,8 +150,8 @@ describe("JobsDrawer", () => {
     it("drops a stored run the server no longer has when its delete fails", async () => {
       const user = userEvent.setup();
       fetchJobsMock
-        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 1 })
-        .mockResolvedValue({ jobs: [], active_count: 0, total: 0 });
+        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 1, revision: 1 })
+        .mockResolvedValue({ jobs: [], active_count: 0, total: 0, revision: 1 });
       jobsContext.deleteJob.mockResolvedValue(false);
 
       renderDrawer([]);
@@ -241,8 +250,8 @@ describe("JobsDrawer", () => {
         id: `page-1-${index}`,
       }));
       fetchJobsMock
-        .mockResolvedValueOnce({ jobs: firstPage, active_count: 0, total: 51 })
-        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 51 });
+        .mockResolvedValueOnce({ jobs: firstPage, active_count: 0, total: 51, revision: 1 })
+        .mockResolvedValueOnce({ jobs: [olderWatermark], active_count: 0, total: 51, revision: 1 });
 
       renderDrawer([finishedCaption]);
 

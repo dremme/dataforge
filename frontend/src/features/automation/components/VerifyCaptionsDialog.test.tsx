@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -6,6 +6,7 @@ import {
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
+import { renderWithQueryClient } from "@/test/queryClient";
 
 const DEFAULTS: JobSettingsByType["verify_captions"] =
   emptyAutomationSettings("C:/datasets/photos").verify_captions;
@@ -14,7 +15,7 @@ function renderDialog(
   overrides: Partial<JobSettingsByType["verify_captions"]> = {},
   onConfirm = vi.fn(),
 ) {
-  render(
+  renderWithQueryClient(
     <VerifyCaptionsDialog
       scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
       initialSettings={{ ...DEFAULTS, ...overrides }}

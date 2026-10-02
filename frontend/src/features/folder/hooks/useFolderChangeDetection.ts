@@ -1,266 +1,125 @@
-import { useCallback, useEffect, useRef } from "react";
-import { fetchFolderChanges, fetchFolderFingerprint } from "@/features/folder/api/folderContents";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchFolderFingerprint } from "@/features/folder/api/folderContents";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
+import { folderKeys, folderQueryOptions } from "@/features/folder/lib/folderQuery";
 import { isFolderNotFoundError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
-import type { FolderChangesResponse } from "@/shared/types";
+import type { FolderResponse } from "@/shared/types";
 
 export const VISIBLE_POLL_MS = 30000;
 export const HIDDEN_POLL_MS = 60000;
-export const RELOAD_DEBOUNCE_MS = 1500;
+/** Pushed changes re-read the folder at most this often; the last one in a burst always lands. */
+export const RELOAD_THROTTLE_MS = 1500;
 
 export type UseFolderChangeDetectionOptions = {
+  /** While a job rewrites the folder; its end re-reads the folder once instead. */
   suspendReloads?: boolean;
   enabled?: boolean;
-  applyDelta?: (delta: FolderChangesResponse) => void;
 };
 
-export function useFolderChangeDetection(
-  folderPath: string | undefined,
-  knownFingerprint: string | undefined,
-  reloadFolder: () => Promise<unknown>,
-  { suspendReloads = false, enabled = true, applyDelta }: UseFolderChangeDetectionOptions = {},
-) {
-  const fingerprintRef = useRef<string | null>(null);
-  const reloadInFlightRef = useRef(false);
-  const reloadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingFingerprintRef = useRef<string | null>(null);
-  const missingFolderHandledRef = useRef(false);
-  const checkInFlightRef = useRef(false);
-  const checkAgainRef = useRef(false);
+/** Leading and trailing: the first call runs at once, later ones fold into one at the end. */
+function useThrottled(run: () => void, intervalMs: number) {
+  const lastRunRef = useRef(0);
+  const timerRef = useRef<number | null>(null);
+  const runRef = useRef(run);
+  runRef.current = run;
 
-  useEffect(() => {
-    if (knownFingerprint) {
-      fingerprintRef.current = knownFingerprint;
-    }
-  }, [knownFingerprint]);
-
-  const clearPendingReload = useCallback(() => {
-    if (reloadDebounceRef.current != null) {
-      clearTimeout(reloadDebounceRef.current);
-      reloadDebounceRef.current = null;
-    }
-    pendingFingerprintRef.current = null;
+  const cancel = useCallback(() => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
   }, []);
 
-  const reportMissingFolder = useCallback(() => {
-    if (missingFolderHandledRef.current) {
+  const schedule = useCallback(() => {
+    const wait = lastRunRef.current + intervalMs - Date.now();
+    if (wait <= 0) {
+      lastRunRef.current = Date.now();
+      runRef.current();
       return;
     }
+    timerRef.current ??= window.setTimeout(() => {
+      timerRef.current = null;
+      lastRunRef.current = Date.now();
+      runRef.current();
+    }, wait);
+  }, [intervalMs]);
 
-    missingFolderHandledRef.current = true;
-    void reloadFolder();
-  }, [reloadFolder]);
+  useEffect(() => cancel, [cancel]);
 
+  return { schedule, cancel };
+}
+
+/**
+ * Keeps the open folder's listing current: server pushes, a slow poll as a safety net, and a
+ * check when the tab comes back. Each re-read asks for changes since the listing it holds.
+ */
+export function useFolderChangeDetection(
+  folderPath: string | undefined,
+  { suspendReloads = false, enabled = true }: UseFolderChangeDetectionOptions = {},
+) {
+  const queryClient = useQueryClient();
+  const live = enabled && !suspendReloads && Boolean(folderPath);
+  const key = useMemo(() => folderKeys.folder(folderPath), [folderPath]);
+
+  const { data } = useQuery({
+    ...folderQueryOptions(folderPath),
+    enabled: live,
+    refetchInterval: () =>
+      document.visibilityState === "visible" ? VISIBLE_POLL_MS : HIDDEN_POLL_MS,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: "always",
+    notifyOnChangeProps: ["data"],
+  });
+
+  const refresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: key, exact: true });
+  }, [queryClient, key]);
+
+  const { schedule, cancel } = useThrottled(refresh, RELOAD_THROTTLE_MS);
+
+  // A push that lands while the first listing is still in flight is checked once it arrives.
+  const pendingFingerprintRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    pendingFingerprintRef.current = null;
+    cancel();
+  }, [cancel, folderPath, live]);
+
+  const heldFingerprint = data?.fingerprint;
+  useEffect(() => {
+    const pending = pendingFingerprintRef.current;
+    if (!pending || heldFingerprint === undefined) return;
+    pendingFingerprintRef.current = null;
+    if (pending !== heldFingerprint) schedule();
+  }, [heldFingerprint, schedule]);
+
+  useServerEvent((event) => {
+    if (event.type !== "folder" || !folderPath || !live) return;
+    // Watcher keys are folded; a just-navigated tab can still get an event for the old folder.
+    if (!foldersMatch(event.path, folderPath)) return;
+
+    const held = queryClient.getQueryData<FolderResponse>(key);
+    if (!held) {
+      pendingFingerprintRef.current = event.fingerprint;
+      return;
+    }
+    if (event.fingerprint !== held.fingerprint) schedule();
+  });
+
+  /** After writing to the folder itself: adopt the server's fingerprint instead of re-reading. */
   const syncBaseline = useCallback(async () => {
     if (!folderPath || !enabled) return;
 
     try {
       const { fingerprint } = await fetchFolderFingerprint(folderPath);
-      fingerprintRef.current = fingerprint;
+      queryClient.setQueryData<FolderResponse>(
+        key,
+        (current) => current && { ...current, fingerprint },
+      );
     } catch (error) {
-      if (isFolderNotFoundError(error)) {
-        reportMissingFolder();
-      }
+      if (isFolderNotFoundError(error)) refresh();
     }
-  }, [enabled, folderPath, reportMissingFolder]);
-
-  const runReload = useCallback(async () => {
-    if (!folderPath || reloadInFlightRef.current) {
-      return;
-    }
-
-    const nextFingerprint = pendingFingerprintRef.current;
-    pendingFingerprintRef.current = null;
-    reloadDebounceRef.current = null;
-
-    if (!nextFingerprint || nextFingerprint === fingerprintRef.current) {
-      return;
-    }
-
-    fingerprintRef.current = nextFingerprint;
-    reloadInFlightRef.current = true;
-
-    try {
-      await reloadFolder();
-    } finally {
-      reloadInFlightRef.current = false;
-    }
-  }, [folderPath, reloadFolder]);
-
-  const scheduleReload = useCallback(
-    (fingerprint: string) => {
-      pendingFingerprintRef.current = fingerprint;
-      if (reloadDebounceRef.current != null) {
-        clearTimeout(reloadDebounceRef.current);
-      }
-
-      reloadDebounceRef.current = setTimeout(() => {
-        void runReload();
-      }, RELOAD_DEBOUNCE_MS);
-    },
-    [runReload],
-  );
-
-  const fetchChangeReport = useCallback(
-    async (path: string, previous: string | null): Promise<FolderChangesResponse> => {
-      if (previous && applyDelta) {
-        return fetchFolderChanges(path, previous);
-      }
-
-      const { fingerprint } = await fetchFolderFingerprint(path);
-      return { full: true, fingerprint, changed: [], removed: [] };
-    },
-    [applyDelta],
-  );
-
-  const checkForChanges = useCallback(async () => {
-    if (!folderPath || !enabled) return;
-
-    // `previous` is the server's diff baseline; adopting the new fingerprint first would force `full`.
-    const previous = fingerprintRef.current;
-
-    try {
-      const report = await fetchChangeReport(folderPath, previous);
-
-      if (!previous) {
-        fingerprintRef.current = report.fingerprint;
-        return;
-      }
-
-      if (report.fingerprint === previous) {
-        return;
-      }
-
-      if (suspendReloads) {
-        fingerprintRef.current = report.fingerprint;
-        return;
-      }
-
-      if (reloadInFlightRef.current) {
-        pendingFingerprintRef.current = report.fingerprint;
-        return;
-      }
-
-      if (!report.full && applyDelta) {
-        fingerprintRef.current = report.fingerprint;
-        applyDelta(report);
-        return;
-      }
-
-      scheduleReload(report.fingerprint);
-    } catch (error) {
-      if (isFolderNotFoundError(error)) {
-        reportMissingFolder();
-      }
-    }
-  }, [
-    applyDelta,
-    enabled,
-    fetchChangeReport,
-    folderPath,
-    reportMissingFolder,
-    scheduleReload,
-    suspendReloads,
-  ]);
-
-  const runCheck = useCallback(async () => {
-    checkInFlightRef.current = true;
-    try {
-      do {
-        checkAgainRef.current = false;
-        await checkForChanges();
-      } while (checkAgainRef.current);
-    } finally {
-      checkInFlightRef.current = false;
-    }
-  }, [checkForChanges]);
-
-  useServerEvent((event) => {
-    if (event.type !== "folder" || !folderPath || !enabled) return;
-    // Watcher keys are folded; a just-navigated tab can still get an event for the old folder.
-    if (!foldersMatch(event.path, folderPath)) return;
-
-    if (event.fingerprint === fingerprintRef.current) return;
-
-    if (suspendReloads) {
-      fingerprintRef.current = event.fingerprint;
-      return;
-    }
-
-    if (checkInFlightRef.current) {
-      checkAgainRef.current = true;
-      return;
-    }
-
-    void runCheck();
-  });
-
-  useEffect(() => {
-    missingFolderHandledRef.current = false;
-  }, [folderPath]);
-
-  useEffect(() => {
-    return () => {
-      clearPendingReload();
-    };
-  }, [clearPendingReload, folderPath]);
-
-  useEffect(() => {
-    if (!suspendReloads) {
-      return;
-    }
-
-    clearPendingReload();
-  }, [clearPendingReload, suspendReloads]);
-
-  useEffect(() => {
-    if (!folderPath || !enabled) return;
-
-    let cancelled = false;
-    let timeoutId = 0;
-
-    const scheduleNext = (delayMs: number) => {
-      window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        void tick();
-      }, delayMs);
-    };
-
-    const tick = async () => {
-      if (cancelled) return;
-
-      await checkForChanges();
-      if (cancelled) return;
-
-      scheduleNext(document.visibilityState === "visible" ? VISIBLE_POLL_MS : HIDDEN_POLL_MS);
-    };
-
-    scheduleNext(VISIBLE_POLL_MS);
-
-    const handleVisibilityChange = () => {
-      if (cancelled) return;
-
-      if (document.visibilityState === "visible") {
-        void checkForChanges().finally(() => {
-          if (!cancelled) {
-            scheduleNext(VISIBLE_POLL_MS);
-          }
-        });
-        return;
-      }
-
-      scheduleNext(HIDDEN_POLL_MS);
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [enabled, folderPath, checkForChanges]);
+  }, [enabled, folderPath, key, queryClient, refresh]);
 
   return { syncBaseline };
 }

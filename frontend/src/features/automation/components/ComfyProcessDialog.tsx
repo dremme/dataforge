@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useState } from "react";
-import { fetchComfyPresets } from "@/features/automation/api/jobs";
+import { useCallback, useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { comfyPresetsQueryOptions } from "@/features/automation/lib/automationQueries";
 import type { JobSettingsByType } from "@/features/automation/preferences/automationPreferences";
 import { formatApiError } from "@/shared/api/http";
 import { iconLoader2, iconTriangleAlert } from "@/shared/icons";
@@ -52,8 +53,24 @@ export function ComfyProcessDialog({
   onConfirm,
   onCancel,
 }: ComfyProcessDialogProps) {
-  const [state, setState] = useState<PresetsState>({ status: "loading" });
-  const [preset, setPreset] = useState(initialSettings.preset);
+  const presetsQuery = useQuery(comfyPresetsQueryOptions());
+  const state: PresetsState = presetsQuery.data
+    ? {
+        status: "ready",
+        presets: presetsQuery.data.presets,
+        available: presetsQuery.data.available,
+        baseUrl: presetsQuery.data.base_url,
+      }
+    : presetsQuery.isError
+      ? { status: "error", message: formatApiError(presetsQuery.error) }
+      : { status: "loading" };
+  const [chosenPreset, setChosenPreset] = useState(initialSettings.preset);
+  // Honour a stored name only once the list is known, or the select shows a missing option.
+  const loadedPresets = presetsQuery.data?.presets;
+  const preset =
+    loadedPresets && !loadedPresets.some((entry) => entry.name === chosenPreset)
+      ? (loadedPresets[0]?.name ?? "")
+      : chosenPreset;
   // One draft per preset, so switching workflows never loses what was typed for another.
   const [drafts, setDrafts] = useState<Record<string, PresetDraft>>(() =>
     Object.fromEntries(
@@ -72,35 +89,6 @@ export function ComfyProcessDialog({
   const [overwrite, setOverwrite] = useState(initialSettings.overwrite_candidates);
   const overwriteId = useId();
   const errorId = useId();
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void (async () => {
-      try {
-        const response = await fetchComfyPresets(controller.signal);
-        if (controller.signal.aborted) return;
-
-        setState({
-          status: "ready",
-          presets: response.presets,
-          available: response.available,
-          baseUrl: response.base_url,
-        });
-        // Honour a stored name only once the list is known, or the select shows a missing option.
-        setPreset((current) =>
-          response.presets.some((entry) => entry.name === current)
-            ? current
-            : (response.presets[0]?.name ?? ""),
-        );
-      } catch (caught) {
-        if (controller.signal.aborted) return;
-        setState({ status: "error", message: formatApiError(caught) });
-      }
-    })();
-
-    return () => controller.abort();
-  }, []);
 
   const selected = state.status === "ready" ? state.presets.find((e) => e.name === preset) : null;
   // Only false blocks: a preset that could not be parsed reports null and keeps both fields live.
@@ -187,7 +175,7 @@ export function ComfyProcessDialog({
           options={state.presets.map((entry) => ({ value: entry.name, title: entry.name }))}
           disabled={busy}
           onChange={(value) => {
-            setPreset(value);
+            setChosenPreset(value);
             setError(null);
           }}
         />

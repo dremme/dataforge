@@ -50,6 +50,16 @@ class JobsEndpointTests(unittest.TestCase):
             # Global active count must ignore this finished job and any stale rows.
             self.assertEqual(payload["active_count"], 0)
 
+    def test_the_list_revision_is_above_every_listed_job(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            started = client.post(f"/api/automation/strip-metadata?path={quote(str(root))}")
+            wait_for_job(started.json()["id"])
+
+        payload = client.get("/api/jobs").json()
+        self.assertTrue(payload["jobs"])
+        self.assertTrue(all(job["revision"] < payload["revision"] for job in payload["jobs"]))
+
     def test_job_list_omits_per_file_results(self) -> None:
         """Results ride ``/jobs/{id}/results``, never the polled list."""
         with TempMediaFolder() as root:

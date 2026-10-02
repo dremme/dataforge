@@ -1,4 +1,7 @@
-"""SSE fan-out from worker threads. Queues are bounded; a full queue drops the oldest event."""
+"""SSE fan-out from worker threads. Queues are bounded; a full queue drops the oldest event.
+
+A subscriber that lost events is told so with a ``resync`` frame before the next one it reads.
+"""
 
 from __future__ import annotations
 
@@ -11,11 +14,14 @@ MAX_QUEUED_EVENTS = 100
 
 Event = dict[str, object]
 
+RESYNC_EVENT: Event = {"type": "resync"}
+
 
 class Subscriber:
     def __init__(self, loop: asyncio.AbstractEventLoop, tab_id: str = "") -> None:
         self._loop = loop
         self._queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=MAX_QUEUED_EVENTS)
+        self._dropped = False
         self.tab_id = tab_id
 
     def offer(self, event: Event) -> None:
@@ -28,10 +34,14 @@ class Subscriber:
         if self._queue.full():
             with suppress(asyncio.QueueEmpty):
                 self._queue.get_nowait()
+                self._dropped = True
         with suppress(asyncio.QueueFull):
             self._queue.put_nowait(event)
 
     async def next_event(self, timeout: float) -> Event | None:
+        if self._dropped:
+            self._dropped = False
+            return dict(RESYNC_EVENT)
         try:
             return await asyncio.wait_for(self._queue.get(), timeout=timeout)
         except TimeoutError:

@@ -1,45 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  loadUiSettings,
-  readCachedAutomationSpecsPreference,
-  updateUiSettings,
-} from "@/shared/preferences/uiPreferences";
+import { useCallback } from "react";
+import { useUiSettings, useUpdateUiSettings } from "@/shared/preferences/uiPreferences";
 
 export function useAutomationSpecsVisible() {
-  const [showSpecs, setShowSpecsState] = useState(
-    () => readCachedAutomationSpecsPreference() ?? false,
+  const showSpecs = useUiSettings().showAutomationSpecs;
+  const updateUiSettings = useUpdateUiSettings();
+
+  const setShowSpecs = useCallback(
+    (value: boolean) => updateUiSettings({ showAutomationSpecs: value }),
+    [updateUiSettings],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-
-    loadUiSettings().then((settings) => {
-      if (!cancelled) {
-        setShowSpecsState(settings.showAutomationSpecs);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const setShowSpecs = useCallback((value: boolean) => {
-    setShowSpecsState(value);
-    updateUiSettings({ showAutomationSpecs: value }).catch(() => {
-      // UI already reflects the choice; ignore persistence failures.
-    });
-  }, []);
-
-  const toggleSpecs = useCallback(() => {
-    setShowSpecsState((current) => {
-      const next = !current;
-      updateUiSettings({ showAutomationSpecs: next }).catch(() => {
-        // UI already reflects the choice; ignore persistence failures.
-      });
-      return next;
-    });
-  }, []);
+  const toggleSpecs = useCallback(
+    () => updateUiSettings({ showAutomationSpecs: !showSpecs }),
+    [showSpecs, updateUiSettings],
+  );
 
   return { showSpecs, setShowSpecs, toggleSpecs };
 }

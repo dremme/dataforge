@@ -74,6 +74,7 @@ for (const width of [1024, 1440]) {
               created_at: "2026-01-01T00:00:00.000Z",
               started_at: "2026-01-01T00:00:00.000Z",
               finished_at: active ? null : "2026-01-01T00:02:30.000Z",
+              revision: 1,
             };
       const results: JobFileResult[] = Array.from({ length: 24 }, (_, index) => ({
         path: path.join(WORKSPACE, `landscape-${index}.png`),
@@ -107,7 +108,7 @@ for (const width of [1024, 1440]) {
       });
       await page.route("**/api/system/specs", (route) => route.fulfill({ json: specs }));
       await page.route("**/api/external/ostris/jobs", (route) =>
-        route.fulfill({ json: { jobs: [], available: true } }),
+        route.fulfill({ json: { jobs: [], active_count: 0, available: true, revision: 1 } }),
       );
       await page.route("**/api/preferences/ui", (route) =>
         route.fulfill({
@@ -120,6 +121,7 @@ for (const width of [1024, 1440]) {
             jobs: currentJob ? [currentJob] : [],
             active_count: active ? 1 : 0,
             total: currentJob ? 1 : 0,
+            revision: 2,
           },
         }),
       );

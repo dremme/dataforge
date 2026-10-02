@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchCandidateState } from "@/features/gallery/api/comfyCandidates";
 import type { CandidateReviewEntry } from "@/features/gallery/lib/candidateReview";
 import type { ComfyCandidateStateResponse } from "@/shared/types";
@@ -7,27 +7,14 @@ import type { ComfyCandidateStateResponse } from "@/shared/types";
 export function useCandidateDetails(
   entry: CandidateReviewEntry | undefined,
 ): ComfyCandidateStateResponse | null {
-  const [details, setDetails] = useState<ComfyCandidateStateResponse | null>(null);
-
   const path = entry && entry.source !== null ? entry.path : null;
 
-  useEffect(() => {
-    setDetails(null);
-    if (path === null) return;
+  const { data } = useQuery({
+    queryKey: ["candidate-state", path],
+    queryFn: ({ signal }) => fetchCandidateState(path!, signal),
+    enabled: path !== null,
+    retry: false,
+  });
 
-    const controller = new AbortController();
-
-    void (async () => {
-      try {
-        const state = await fetchCandidateState(path, controller.signal);
-        if (!controller.signal.aborted) setDetails(state);
-      } catch {
-        if (!controller.signal.aborted) setDetails(null);
-      }
-    })();
-
-    return () => controller.abort();
-  }, [path]);
-
-  return details;
+  return (path !== null && data) || null;
 }
