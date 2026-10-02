@@ -221,10 +221,8 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
       setDraft(emptyDraft(video.duration));
 
-      // Sticky mode remounts a fresh `<video autoPlay>`; pause so playback stays off the timeline.
+      // Sticky mode remounts a fresh `<video autoPlay>` that would start with the muted attribute.
       if (optionsRef.current.editMode) {
-        video.pause();
-        video.currentTime = 0;
         video.muted = mutedRef.current;
         syncFrom(video);
       }

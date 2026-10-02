@@ -550,6 +550,7 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
             className="candidate-review-modal__stage-video"
             src={src}
             controls
+            autoPlay
             muted
             playsInline
             loop

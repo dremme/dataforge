@@ -305,6 +305,8 @@ function MemberCard({
           <video
             className="duplicate-resolver-modal__card-media"
             src={galleryItemMediaUrl(member)}
+            autoPlay
+            loop
             muted
             playsInline
             preload="metadata"

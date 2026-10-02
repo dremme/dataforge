@@ -618,7 +618,9 @@ export function GalleryItemModal({
                   src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
                   // Native timeline would seek behind the capture slider or trim handles.
                   controls={!frameCapture.frameMode && !editMode}
-                  autoPlay={!editMode}
+                  autoPlay
+                  // Editing loops the trim band itself, and needs `ended` to reach the band's end.
+                  loop={!editMode}
                   muted
                   playsInline
                   onLoadedMetadata={(event) => {

@@ -144,6 +144,25 @@ describe("GalleryItemModal", () => {
       expect(dialog.querySelector("video")).not.toHaveAttribute("controls");
     });
 
+    it("autoplays the preview muted, looping the trim band rather than the file", async () => {
+      const user = userEvent.setup();
+      renderModal(videoItem());
+      const dialog = await screen.findByRole("dialog", { name: "Viewing clip.mp4" });
+      expect(dialog.querySelector("video")).toHaveAttribute("loop");
+      fireEvent.loadedMetadata(dialog.querySelector("video")!);
+
+      await user.click(within(dialog).getByRole("button", { name: "Edit clip.mp4" }));
+      const video = dialog.querySelector("video")!;
+      const pause = vi.spyOn(video, "pause");
+      fireEvent.loadedMetadata(video);
+
+      expect(video).toHaveAttribute("autoplay");
+      expect(video).not.toHaveAttribute("loop");
+      // React never reflects muted to an attribute.
+      expect(video.muted).toBe(true);
+      expect(pause).not.toHaveBeenCalled();
+    });
+
     it("puts the caption and metadata away, and brings them back on exit", async () => {
       const user = userEvent.setup();
       renderModal(videoItem());
