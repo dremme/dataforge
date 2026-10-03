@@ -67,6 +67,14 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         read_back = client.get("/api/preferences/ui")
         self.assertTrue(read_back.json()["show_automation_specs"])
 
+    def test_candidate_metadata_is_kept_by_default_and_remembered(self) -> None:
+        self.assertTrue(client.get("/api/preferences/ui").json()["keep_candidate_metadata"])
+
+        client.put("/api/preferences/ui", json={"keep_candidate_metadata": False})
+
+        read_back = client.get("/api/preferences/ui").json()
+        self.assertFalse(read_back["keep_candidate_metadata"])
+
     def test_the_theme_follows_the_system_by_default(self) -> None:
         self.assertEqual(client.get("/api/preferences/ui").json()["theme"], "system")
 

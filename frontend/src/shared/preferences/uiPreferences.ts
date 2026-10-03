@@ -8,10 +8,12 @@ export interface UiSettings {
   sort: string;
   showAutomationSpecs: boolean;
   theme: ThemePreference;
+  keepCandidateMetadata: boolean;
 }
 
 const SORT_CACHE_KEY = "gallery-sort";
 const AUTOMATION_SPECS_CACHE_KEY = "automation-specs-visible";
+const KEEP_CANDIDATE_METADATA_CACHE_KEY = "keep-candidate-metadata";
 /** `index.html` reads this key before first paint; rename both together. */
 export const THEME_CACHE_KEY = "ui-theme";
 
@@ -32,13 +34,22 @@ function readCachedUiSettings(): UiSettings {
     sort: readStored(SORT_CACHE_KEY) ?? "",
     showAutomationSpecs: readStored(AUTOMATION_SPECS_CACHE_KEY) === "true",
     theme: parseThemePreference(readStored(THEME_CACHE_KEY)),
+    // On unless turned off: accepting without it loses the original's metadata.
+    keepCandidateMetadata: readStored(KEEP_CANDIDATE_METADATA_CACHE_KEY) !== "false",
   };
 }
 
-function cacheUiSettings({ sort, showAutomationSpecs }: Partial<UiSettings>): void {
+function cacheUiSettings({
+  sort,
+  showAutomationSpecs,
+  keepCandidateMetadata,
+}: Partial<UiSettings>): void {
   if (sort !== undefined) writeStored(SORT_CACHE_KEY, sort);
   if (showAutomationSpecs !== undefined) {
     writeStored(AUTOMATION_SPECS_CACHE_KEY, String(showAutomationSpecs));
+  }
+  if (keepCandidateMetadata !== undefined) {
+    writeStored(KEEP_CANDIDATE_METADATA_CACHE_KEY, String(keepCandidateMetadata));
   }
 }
 
@@ -47,6 +58,7 @@ function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
     sort: data.sort,
     showAutomationSpecs: Boolean(data.show_automation_specs),
     theme: data.theme,
+    keepCandidateMetadata: data.keep_candidate_metadata,
   };
 }
 
@@ -73,6 +85,9 @@ export function updateUiSettings(partial: Partial<UiSettings>): Promise<UiSettin
     body.show_automation_specs = partial.showAutomationSpecs;
   }
   if (partial.theme !== undefined) body.theme = partial.theme;
+  if (partial.keepCandidateMetadata !== undefined) {
+    body.keep_candidate_metadata = partial.keepCandidateMetadata;
+  }
 
   const save = pendingUiSave.then(async () =>
     parseUiSettingsResponse(await putJson<UiSettingsResponse>("/api/preferences/ui", body)),

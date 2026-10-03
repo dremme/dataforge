@@ -243,9 +243,24 @@ describe("CandidateReviewModal", () => {
 
     await user.click(screen.getByRole("button", { name: "Accept" }));
 
-    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false));
+    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false, true));
     expect(onResolved).toHaveBeenCalled();
     expect(onIndexChange).toHaveBeenCalledWith(1);
+  });
+
+  it("accepts without the original metadata once unticked, and remembers that", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    const keep = screen.getByRole("checkbox", { name: "Keep original metadata" });
+    expect(keep).toBeChecked();
+    await user.click(keep);
+    await user.click(screen.getByRole("button", { name: "Accept" }));
+
+    await waitFor(() =>
+      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false, false),
+    );
+    expect(localStorage.getItem("keep-candidate-metadata")).toBe("false");
   });
 
   it("rejects without touching the dataset image", async () => {
@@ -354,7 +369,7 @@ describe("CandidateReviewModal", () => {
 
     await user.keyboard("{Control>}{Enter}{/Control}");
 
-    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false));
+    await waitFor(() => expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false, true));
     expect(onResolved).toHaveBeenCalled();
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
@@ -601,7 +616,7 @@ describe("CandidateReviewModal", () => {
       await user.click(screen.getByRole("button", { name: "Accept" }));
       await user.click(screen.getByRole("button", { name: "Discard edit and accept" }));
 
-      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, true);
+      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, true, true);
     });
 
     it("leaves the file alone when the question is declined", async () => {
@@ -654,7 +669,7 @@ describe("CandidateReviewModal", () => {
 
       await user.click(screen.getByRole("button", { name: "Accept" }));
 
-      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false);
+      expect(acceptOne).toHaveBeenCalledWith(`${HOME_PATH}\\a.png`, false, true);
     });
   });
 });

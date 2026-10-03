@@ -1,4 +1,4 @@
-import { act, renderHook, screen } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { acceptCandidates, rejectCandidates } from "@/features/gallery/api/comfyCandidates";
 import { AppProviders } from "@/test/AppProviders";
@@ -80,7 +80,21 @@ describe("useSettleAllCandidates", () => {
 
       await confirm(result);
 
-      expect(acceptCandidatesMock).toHaveBeenCalledWith([LAKE, RIDGE]);
+      expect(acceptCandidatesMock).toHaveBeenCalledWith([LAKE, RIDGE], true);
+    });
+
+    it("accepts without the original metadata once that is turned off", async () => {
+      acceptCandidatesMock.mockResolvedValue(batchResult());
+      const { result } = renderSettleAll();
+
+      act(() => result.current.openConfirm("accept"));
+      act(() => result.current.overlay.onKeepMetadataChange(false));
+      await waitFor(() => expect(result.current.overlay.keepMetadata).toBe(false));
+      await act(async () => {
+        await result.current.overlay.onConfirm();
+      });
+
+      expect(acceptCandidatesMock).toHaveBeenCalledWith([LAKE, RIDGE], false);
     });
   });
 
@@ -94,7 +108,7 @@ describe("useSettleAllCandidates", () => {
 
       await confirm(result);
 
-      expect(acceptCandidatesMock).toHaveBeenCalledWith([RIDGE]);
+      expect(acceptCandidatesMock).toHaveBeenCalledWith([RIDGE], true);
     });
 
     it("scopes the selection, not the folder", () => {
@@ -157,7 +171,7 @@ describe("useSettleAllCandidates", () => {
       await result.current.overlay.onConfirm();
     });
 
-    expect(acceptCandidatesMock).toHaveBeenCalledWith([LAKE]);
+    expect(acceptCandidatesMock).toHaveBeenCalledWith([LAKE], true);
   });
 
   it("ignores cancel while the batch is in flight", async () => {

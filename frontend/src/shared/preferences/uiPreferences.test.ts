@@ -19,7 +19,12 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-const serverCopy = { sort: "name-asc", show_automation_specs: true, theme: "dark" };
+const serverCopy = {
+  sort: "name-asc",
+  show_automation_specs: true,
+  theme: "dark",
+  keep_candidate_metadata: false,
+};
 
 function respond(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -47,10 +52,21 @@ describe("useUiSettings", () => {
         sort: "name-asc",
         showAutomationSpecs: true,
         theme: "dark",
+        keepCandidateMetadata: false,
       }),
     );
     expect(localStorage.getItem("gallery-sort")).toBe("name-asc");
     expect(localStorage.getItem("automation-specs-visible")).toBe("true");
+    expect(localStorage.getItem("keep-candidate-metadata")).toBe("false");
+  });
+
+  it("keeps candidate metadata until it is turned off", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const { wrapper } = queryWrapper(createTestQueryClient({ retry: false }));
+
+    const { result } = renderHook(() => useUiSettings(), { wrapper });
+
+    expect(result.current.keepCandidateMetadata).toBe(true);
   });
 
   it("keeps the local copy when the backend cannot be reached", async () => {

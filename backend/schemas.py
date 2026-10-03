@@ -265,6 +265,8 @@ class UiSettingsResponse(BaseModel):
     sort: GallerySort = "name-asc"
     show_automation_specs: bool = False
     theme: ThemePreference = "system"
+    #: On by default: accepting a ComfyUI candidate would otherwise lose the original's metadata.
+    keep_candidate_metadata: bool = True
 
 
 class UiSettingsUpdate(BaseModel):
@@ -272,6 +274,7 @@ class UiSettingsUpdate(BaseModel):
     sort: str | None = None
     show_automation_specs: bool | None = None
     theme: ThemePreference | None = None
+    keep_candidate_metadata: bool | None = None
 
 
 type AppSettingKey = Literal[
@@ -1350,6 +1353,10 @@ class ComfyCandidateResponse(BaseModel):
 
 class ComfyCandidateBatchRequest(BaseModel):
     paths: list[str] = Field(default_factory=list)
+    keep_metadata: bool = Field(
+        default=False,
+        description="Accept only: give each file its original's metadata instead of ComfyUI's.",
+    )
 
 
 class ComfyCandidateFailure(BaseModel):

@@ -581,6 +581,10 @@ _DISCARD_EDIT = Query(
     False, description="Recycle the file's edit backup and spec so the candidate becomes the base"
 )
 
+_KEEP_METADATA = Query(
+    False, description="Give the published file the original's metadata instead of ComfyUI's"
+)
+
 
 @router.get("/media/comfy-candidate", response_model=ComfyCandidateStateResponse)
 def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResponse:
@@ -591,11 +595,12 @@ def read_comfy_candidate(path: str = _CANDIDATE_PATH) -> ComfyCandidateStateResp
 def accept_comfy_candidate(
     path: str = _CANDIDATE_PATH,
     discard_edit: bool = _DISCARD_EDIT,
+    keep_metadata: bool = _KEEP_METADATA,
 ) -> ComfyCandidateResponse:
     media = resolve_candidate_media(path)
 
     try:
-        return accept_candidate(media, discard_edit=discard_edit)
+        return accept_candidate(media, discard_edit=discard_edit, keep_metadata=keep_metadata)
     except (CandidateBusyError, NoCandidateError, ValueError, OSError) as exc:
         raise _http_error(exc, _CANDIDATE_ERRORS) from exc
 
@@ -643,7 +648,7 @@ def accept_comfy_candidates(body: ComfyCandidateBatchRequest) -> ComfyCandidateB
     return _settle_candidates(
         body.paths,
         resolve_candidate_media,
-        partial(accept_candidate, discard_edit=True),
+        partial(accept_candidate, discard_edit=True, keep_metadata=body.keep_metadata),
     )
 
 

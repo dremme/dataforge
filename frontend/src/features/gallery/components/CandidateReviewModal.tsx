@@ -19,6 +19,7 @@ import {
   type CandidateReviewEntry,
 } from "@/features/gallery/lib/candidateReview";
 import { useCandidateDetails } from "@/features/gallery/hooks/useCandidateDetails";
+import { useKeepCandidateMetadata } from "@/features/gallery/hooks/useKeepCandidateMetadata";
 import { formatApiError } from "@/shared/api/http";
 import { classNames } from "@/shared/lib/classNames";
 import {
@@ -68,6 +69,7 @@ export function CandidateReviewModal({
   const [settledPaths, setSettledPaths] = useState<ReadonlySet<string>>(() => new Set());
 
   const details = useCandidateDetails(entry);
+  const { keepMetadata, setKeepMetadata } = useKeepCandidateMetadata();
   const busy = pending !== null;
   const settled = entry ? settledPaths.has(entry.path) : false;
   const orphaned = entry ? isOrphanedCandidate(entry) : false;
@@ -117,7 +119,7 @@ export function CandidateReviewModal({
 
       try {
         if (action === "accept") {
-          await acceptCandidate(entry.path, discardEdit);
+          await acceptCandidate(entry.path, discardEdit, keepMetadata);
         } else {
           await rejectCandidate(entry.path);
         }
@@ -128,7 +130,7 @@ export function CandidateReviewModal({
         setPending(null);
       }
     },
-    [advance, busy, entry, orphaned, settled],
+    [advance, busy, entry, keepMetadata, orphaned, settled],
   );
 
   const requestAccept = useCallback(() => {
@@ -224,6 +226,17 @@ export function CandidateReviewModal({
         </div>
 
         <footer className="candidate-review-modal__footer">
+          <label className="dialog__checkbox candidate-review-modal__keep-metadata">
+            <input
+              type="checkbox"
+              className="dialog__checkbox-input"
+              checked={keepMetadata}
+              onChange={(event) => setKeepMetadata(event.target.checked)}
+              disabled={busy}
+            />
+            <span className="dialog__checkbox-box" aria-hidden="true" />
+            <span className="dialog__checkbox-label">Keep original metadata</span>
+          </label>
           <DialogButton
             label="Back"
             variant="secondary"

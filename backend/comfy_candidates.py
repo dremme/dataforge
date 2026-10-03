@@ -15,6 +15,7 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from automation.find_duplicates import difference_hash, hamming_distance
+from candidate_metadata import write_with_source_metadata
 from candidate_pairing import candidate_name_for, candidate_path_for, candidate_sidecar_path
 from captions import issue_file_path
 from constants import (
@@ -276,8 +277,13 @@ def _discard_edit(media: Path) -> None:
             raise ValueError(f"Could not discard the edit of {media.name}: {error}") from error
 
 
-def accept_candidate(media: Path, *, discard_edit: bool = False) -> ComfyCandidateResponse:
+def accept_candidate(
+    media: Path, *, discard_edit: bool = False, keep_metadata: bool = False
+) -> ComfyCandidateResponse:
     """Publish the candidate in its own format, replacing the source whatever the source's extension.
+
+    With ``keep_metadata`` the source's metadata replaces what ComfyUI wrote; a failure to carry
+    it over refuses the accept rather than publishing without it.
 
     Refused while a ``.bak`` exists unless ``discard_edit``: the editors render every change from
     that file, so publishing over it would have the next edit silently render from pre-ComfyUI
@@ -303,7 +309,10 @@ def accept_candidate(media: Path, *, discard_edit: bool = False) -> ComfyCandida
 
         temp_path = temp_path_for(target)
         try:
-            shutil.copy2(candidate, temp_path)
+            if keep_metadata:
+                write_with_source_metadata(media, candidate, temp_path)
+            else:
+                shutil.copy2(candidate, temp_path)
             publish_replacing(temp_path, target, stale_path_for(target))
         finally:
             with suppress(OSError):

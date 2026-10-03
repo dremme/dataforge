@@ -29,9 +29,11 @@ def update_ui_settings(
     sort: str | None = None,
     show_automation_specs: bool | None = None,
     theme: ThemePreference | None = None,
+    keep_candidate_metadata: bool | None = None,
 ) -> UiSettingsResponse:
     return _settings.update(
         sort=_normalized_sort(sort),
         show_automation_specs=show_automation_specs,
         theme=theme,
+        keep_candidate_metadata=keep_candidate_metadata,
     )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from PIL import UnidentifiedImageError
@@ -38,11 +38,11 @@ _WEBP_VP8X_CHUNK = b"VP8X"
 # Feature flags in the first payload byte of VP8X; ICC (0x20) is kept for the reason above.
 _WEBP_VP8X_METADATA_FLAGS = 0x08 | 0x04
 
-_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _PNG_IEND = b"IEND"
 # Text, EXIF and modification time identify the source; iCCP/gAMA/cHRM/sRGB/pHYs/tRNS and the
 # animation chunks all change how the image renders, so only the provenance chunks are dropped.
-_PNG_DROPPED_CHUNKS = frozenset({b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME"})
+PNG_PROVENANCE_CHUNKS = frozenset({b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME"})
 
 
 def list_strip_metadata_files(folder: Path) -> list[Path]:
@@ -68,29 +68,37 @@ def _replace_with_bytes(path: Path, data: bytes) -> None:
         raise
 
 
-def strip_png_chunks(data: bytes) -> bytes:
-    """Drop the text, EXIF and time chunks; a Pillow re-save would lose iCCP/gAMA and APNG frames."""
-    if not data.startswith(_PNG_SIGNATURE):
+def iter_png_chunks(data: bytes) -> Iterator[tuple[bytes, bytes]]:
+    """Yield ``(type, whole chunk)`` up to and including IEND; whole chunks keep their CRC valid."""
+    if not data.startswith(PNG_SIGNATURE):
         raise UnidentifiedImageError("Not a PNG file")
 
-    kept = [_PNG_SIGNATURE]
-    index = len(_PNG_SIGNATURE)
+    index = len(PNG_SIGNATURE)
     while index + 8 <= len(data):
         length = int.from_bytes(data[index : index + 4], "big")
         chunk_type = data[index + 4 : index + 8]
-        # Length, type, payload and the 4-byte CRC; copying whole chunks keeps their CRC valid.
+        # Length, type, payload and the 4-byte CRC.
         end = index + 12 + length
         if end > len(data):
             raise UnidentifiedImageError("Truncated PNG chunk")
 
-        if chunk_type not in _PNG_DROPPED_CHUNKS:
-            kept.append(data[index:end])
+        yield chunk_type, data[index:end]
         index = end
 
         if chunk_type == _PNG_IEND:
-            return b"".join(kept)
+            return
 
     raise UnidentifiedImageError("PNG ended before the IEND chunk")
+
+
+def strip_png_chunks(data: bytes) -> bytes:
+    """Drop the text, EXIF and time chunks; a Pillow re-save would lose iCCP/gAMA and APNG frames."""
+    kept = [
+        chunk
+        for chunk_type, chunk in iter_png_chunks(data)
+        if chunk_type not in PNG_PROVENANCE_CHUNKS
+    ]
+    return PNG_SIGNATURE + b"".join(kept)
 
 
 def strip_jpeg_segments(data: bytes) -> bytes:

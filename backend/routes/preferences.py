@@ -31,6 +31,7 @@ def write_ui_settings(body: UiSettingsUpdate) -> UiSettingsResponse:
         sort=body.sort,
         show_automation_specs=body.show_automation_specs,
         theme=body.theme,
+        keep_candidate_metadata=body.keep_candidate_metadata,
     )
 
 

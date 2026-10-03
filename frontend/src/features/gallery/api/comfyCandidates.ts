@@ -24,9 +24,12 @@ export async function acceptCandidate(
   mediaPath: string,
   /** Recycles the file's edit backup and spec, making the candidate the new base. */
   discardEdit = false,
+  /** Gives the published file the original's metadata instead of ComfyUI's. */
+  keepMetadata = false,
 ): Promise<ComfyCandidateResponse> {
   const params = candidateParams(mediaPath);
   if (discardEdit) params.set("discard_edit", "true");
+  if (keepMetadata) params.set("keep_metadata", "true");
 
   return postJson<ComfyCandidateResponse>(`/api/media/comfy-candidate/accept?${params}`, undefined);
 }
@@ -39,8 +42,14 @@ export async function rejectCandidate(mediaPath: string): Promise<ComfyCandidate
 }
 
 /** Discards unreverted edits, so each candidate becomes its file's new original. */
-export async function acceptCandidates(paths: string[]): Promise<ComfyCandidateBatchResponse> {
-  return postJson<ComfyCandidateBatchResponse>("/api/media/comfy-candidates/accept", { paths });
+export async function acceptCandidates(
+  paths: string[],
+  keepMetadata = false,
+): Promise<ComfyCandidateBatchResponse> {
+  return postJson<ComfyCandidateBatchResponse>("/api/media/comfy-candidates/accept", {
+    paths,
+    keep_metadata: keepMetadata,
+  });
 }
 
 export async function rejectCandidates(paths: string[]): Promise<ComfyCandidateBatchResponse> {

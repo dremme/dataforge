@@ -35,7 +35,7 @@ from constants import (
 )
 from edit_sidecars import backup_path_for, edit_spec_path
 from schemas import ComfyCandidateSidecar
-from testing_fixtures import playable_video_bytes, write_mp4_video
+from testing_fixtures import make_png_bytes, playable_video_bytes, write_jpeg, write_mp4_video
 
 
 def write_image(path: Path, size: tuple[int, int], colour: str) -> Path:
@@ -173,6 +173,54 @@ class CandidatePathTests(unittest.TestCase):
             self.assertTrue((folder / "photo.png.duplicate.json").is_file())
             self.assertFalse((folder / "photo.jpg.issue.json").exists())
             self.assertFalse((folder / "photo.jpg.duplicate.json").exists())
+
+    def test_accepting_with_keep_metadata_publishes_the_originals_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            exif = Image.Exif()
+            exif[0x010E] = "A lake at dawn"
+            media = folder / "photo.jpg"
+            Image.new("RGB", (32, 32), "red").save(media, "JPEG", exif=exif)
+            staging = staging_dir(folder)
+            staging.mkdir()
+            (staging / "photo.png").write_bytes(
+                make_png_bytes(text_chunks={"prompt": '{"1": {"class_type": "Upscale"}}'})
+            )
+
+            accept_candidate(media, keep_metadata=True)
+
+            with Image.open(folder / "photo.png") as opened:
+                self.assertEqual(opened.getexif()[0x010E], "A lake at dawn")
+                self.assertNotIn("prompt", opened.info)
+
+    def test_accepting_without_keep_metadata_publishes_the_candidate_verbatim(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            write_jpeg(folder, orientation=6)
+            staging = staging_dir(folder)
+            staging.mkdir()
+            candidate = staging / "photo.png"
+            candidate.write_bytes(make_png_bytes(text_chunks={"prompt": "{}"}))
+            expected = candidate.read_bytes()
+
+            accept_candidate(folder / "photo.jpg")
+
+            self.assertEqual((folder / "photo.png").read_bytes(), expected)
+
+    def test_a_failed_metadata_transfer_leaves_source_and_candidate_in_place(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            media = folder / "photo.jpg"
+            media.write_bytes(b"not really a jpeg")
+            candidate = write_image(folder / STAGING_DIR_NAME / "photo.png", (64, 64), "blue")
+
+            with self.assertRaisesRegex(ValueError, "Keep original metadata"):
+                accept_candidate(media, keep_metadata=True)
+
+            self.assertEqual(media.read_bytes(), b"not really a jpeg")
+            self.assertTrue(candidate.is_file())
+            self.assertFalse((folder / "photo.png").exists())
+            self.assertFalse(list(folder.glob(f"*{COMFY_TEMP_SUFFIX}")))
 
     def test_none_of_the_markers_end_in_a_media_suffix(self) -> None:
         # A marker whose last suffix is a media one would surface as a phantom gallery

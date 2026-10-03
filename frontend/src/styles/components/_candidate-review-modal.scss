@@ -198,4 +198,9 @@
     // Five actions; wrap so a narrow panel does not push Back off the edge.
     flex-wrap: wrap;
   }
+
+  // Sits with the actions, a little apart so it does not read as a fifth button.
+  &__keep-metadata {
+    margin-right: 0.5rem;
+  }
 }

@@ -660,6 +660,46 @@ class ComfyCandidateEndpointTests(unittest.TestCase):
             )
             self.assertTrue(candidate.is_file())
 
+    def test_accept_keeps_the_originals_metadata_when_asked(self) -> None:
+        from comfy_metadata import read_media_metadata_values
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png", text_chunks={"parameters": "a lake"})
+            (root / STAGING_DIR_NAME).mkdir()
+            write_media(root / STAGING_DIR_NAME, "photo.png", text_chunks={"prompt": "{}"})
+
+            response = client.post(
+                f"/api/media/comfy-candidate/accept?path={quote(str(media))}&keep_metadata=true"
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(read_media_metadata_values(media), {"parameters": "a lake"})
+
+    def test_batch_accept_keeps_metadata_and_fails_a_file_it_cannot_carry_over(self) -> None:
+        from comfy_metadata import read_media_metadata_values
+        from constants import STAGING_DIR_NAME
+
+        with TempMediaFolder() as root:
+            kept = write_media(root, "kept.png", text_chunks={"parameters": "a lake"})
+            broken = root / "broken.jpg"
+            broken.write_bytes(b"not really a jpeg")
+            (root / STAGING_DIR_NAME).mkdir()
+            write_media(root / STAGING_DIR_NAME, "kept.png", text_chunks={"prompt": "{}"})
+            write_media(root / STAGING_DIR_NAME, "broken.png")
+
+            response = client.post(
+                "/api/media/comfy-candidates/accept",
+                json={"paths": [str(kept), str(broken)], "keep_metadata": True},
+            )
+
+            self.assertEqual(response.json()["settled"], [str(kept)])
+            self.assertEqual(
+                [failure["path"] for failure in response.json()["failed"]], [str(broken)]
+            )
+            self.assertEqual(read_media_metadata_values(kept), {"parameters": "a lake"})
+            self.assertTrue((root / STAGING_DIR_NAME / "broken.png").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

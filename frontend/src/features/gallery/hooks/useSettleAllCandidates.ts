@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { acceptCandidates, rejectCandidates } from "@/features/gallery/api/comfyCandidates";
+import { useKeepCandidateMetadata } from "@/features/gallery/hooks/useKeepCandidateMetadata";
 import {
   settleAllCandidatesOutcome,
   type SettleAllCandidatesAction,
@@ -27,10 +28,10 @@ interface PendingSettle {
 
 const SETTLE_REQUESTS: Record<
   SettleAllCandidatesAction,
-  (paths: string[]) => Promise<ComfyCandidateBatchResponse>
+  (paths: string[], keepMetadata: boolean) => Promise<ComfyCandidateBatchResponse>
 > = {
   accept: acceptCandidates,
-  delete: rejectCandidates,
+  delete: (paths) => rejectCandidates(paths),
 };
 
 export function useSettleAllCandidates({
@@ -41,6 +42,7 @@ export function useSettleAllCandidates({
   onSettled,
 }: UseSettleAllCandidatesOptions) {
   const notify = useNotify();
+  const { keepMetadata, setKeepMetadata } = useKeepCandidateMetadata();
   // Snapshotted on open, so a candidate staged while the dialog is up is not settled unseen.
   const [pending, setPending] = useState<PendingSettle | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,7 +88,7 @@ export function useSettleAllCandidates({
     setBusy(true);
 
     try {
-      const result = await SETTLE_REQUESTS[pending.action]([...pending.paths]);
+      const result = await SETTLE_REQUESTS[pending.action]([...pending.paths], keepMetadata);
       setPending(null);
       await onSettled();
       notify(settleAllCandidatesOutcome(pending.action, result));
@@ -96,7 +98,7 @@ export function useSettleAllCandidates({
     } finally {
       setBusy(false);
     }
-  }, [busy, notify, onSettled, pending]);
+  }, [busy, keepMetadata, notify, onSettled, pending]);
 
   return useMemo(
     () => ({
@@ -108,11 +110,24 @@ export function useSettleAllCandidates({
         action: pending?.action ?? null,
         scope: pending?.scope ?? scope,
         busy,
+        keepMetadata,
+        onKeepMetadataChange: setKeepMetadata,
         onConfirm: confirm,
         onCancel: cancelConfirm,
       },
     }),
-    [busy, cancelConfirm, confirm, fromSelection, openConfirm, pending, scope, scopedPaths.length],
+    [
+      busy,
+      cancelConfirm,
+      confirm,
+      fromSelection,
+      keepMetadata,
+      openConfirm,
+      pending,
+      scope,
+      scopedPaths.length,
+      setKeepMetadata,
+    ],
   );
 }
 

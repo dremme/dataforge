@@ -17,6 +17,8 @@ function renderDialog(overrides: Partial<SettleAllCandidatesDialogProps> = {}) {
       note: "3 of them have a staged candidate.",
     },
     busy: false,
+    keepMetadata: true,
+    onKeepMetadataChange: vi.fn(),
     onConfirm: vi.fn(),
     onCancel: vi.fn(),
     ...overrides,
@@ -75,6 +77,17 @@ describe("SettleAllCandidatesDialog", () => {
     );
   });
 
+  it("offers to keep the original metadata and reports a change", async () => {
+    const user = userEvent.setup();
+    const { props } = renderDialog();
+
+    const keep = screen.getByRole("checkbox", { name: "Keep original metadata" });
+    expect(keep).toBeChecked();
+    await user.click(keep);
+
+    expect(props.onKeepMetadataChange).toHaveBeenCalledWith(false);
+  });
+
   it("shows progress while accepting", () => {
     renderDialog({ busy: true });
 
@@ -112,6 +125,12 @@ describe("SettleAllCandidatesDialog", () => {
 
       await user.click(deleteButton);
       expect(props.onConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    it("has no metadata choice, since nothing is published", () => {
+      renderDialog({ action: "delete" });
+
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     });
 
     it("shows progress while deleting", () => {
