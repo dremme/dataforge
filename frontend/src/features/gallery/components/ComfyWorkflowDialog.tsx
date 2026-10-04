@@ -13,14 +13,9 @@ interface ComfyWorkflowDialogProps {
   onClose: () => void;
 }
 
-const SNIPPET_LENGTH = 70;
-
-function branchSnippet(branch: ComfyOutputBranch): string {
-  const positive = branch.prompts.find((prompt) => prompt.role === "positive");
-  const text = positive?.text.replace(/\s+/g, " ").trim();
-  if (!text) return "No prompt on this path";
-  return text.length > SNIPPET_LENGTH ? `${text.slice(0, SNIPPET_LENGTH)}…` : text;
-}
+const LIKELY_OUTPUT_LABEL = "Likely output — matched by filename";
+// Model files get full-width rows; their names are too long for a settings tile.
+const MODEL_FILE_PATTERN = /\.(safetensors|gguf|ckpt|pth?|bin|sft)$/i;
 
 function describe(
   branches: ComfyOutputBranch[],
@@ -31,7 +26,8 @@ function describe(
   if (matchedNodeId) {
     return (
       <>
-        <strong>{mediaName}</strong> was written by one output; its prompts are below.
+        One output matches the filename of <strong>{mediaName}</strong>. This identifies a likely
+        output, but the embedded workflow does not confirm which node wrote the file.
       </>
     );
   }
@@ -40,33 +36,52 @@ function describe(
   if (claiming > 1) {
     return (
       <>
-        {claiming} outputs write under the same filename, so ComfyUI's metadata cannot say which one
-        made <strong>{mediaName}</strong>. Compare them below.
+        {claiming} outputs share a naming pattern matching <strong>{mediaName}</strong>. The
+        embedded workflow cannot identify which one wrote this file.
       </>
     );
   }
 
   return (
     <>
-      No output records a filename matching <strong>{mediaName}</strong>. Every path through the
-      workflow is listed below.
+      The saved names do not identify which output wrote <strong>{mediaName}</strong>. The file may
+      have been renamed or the workflow may use a dynamic name.
     </>
+  );
+}
+
+/** Splits the backend's `folder/name.safetensors (strength)` display string for styling. */
+function splitLora(lora: string): { folder: string; name: string; strength: string | null } {
+  const match = /^(.*?) \(([^()]+)\)$/.exec(lora);
+  const path = match ? match[1] : lora;
+  const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")) + 1;
+  return { folder: path.slice(0, cut), name: path.slice(cut), strength: match ? match[2] : null };
+}
+
+function OutputIdentity({ branch }: { branch: ComfyOutputBranch }) {
+  return (
+    <span className="comfy-workflow-dialog__identity">
+      <span>
+        Node #{branch.node_id} · {branch.class_type}
+      </span>
+      {branch.filename && <span>Filename: {branch.filename}</span>}
+      {branch.filename_prefix && <span>Filename prefix: {branch.filename_prefix}</span>}
+      {!branch.filename && !branch.filename_prefix && <span>Saved name not recorded</span>}
+    </span>
   );
 }
 
 function BranchList({
   branches,
   selectedId,
+  matchedNodeId,
   onSelect,
 }: {
   branches: ComfyOutputBranch[];
   selectedId: string;
+  matchedNodeId: string | null | undefined;
   onSelect: (nodeId: string) => void;
 }) {
-  // With every row claiming the filename the chip stops telling them apart; the header says it once.
-  const matching = branches.filter((branch) => branch.matches_filename).length;
-  const flagMatches = matching > 0 && matching < branches.length;
-
   return (
     <div className="dialog__field comfy-workflow-dialog__outputs-field">
       <div className="dialog__label">Outputs ({branches.length})</div>
@@ -82,18 +97,22 @@ function BranchList({
               onClick={() => onSelect(branch.node_id)}
               aria-current={branch.node_id === selectedId}
             >
-              <span className="comfy-workflow-dialog__output-head">
-                <span className="comfy-workflow-dialog__output-label">{branch.label}</span>
-                {flagMatches && branch.matches_filename && (
-                  <span className="comfy-workflow-dialog__output-flag">matches name</span>
-                )}
-                {branch.is_preview && (
-                  <span className="comfy-workflow-dialog__output-flag comfy-workflow-dialog__output-flag--muted">
-                    preview
-                  </span>
-                )}
-              </span>
-              <span className="comfy-workflow-dialog__output-snippet">{branchSnippet(branch)}</span>
+              <span className="comfy-workflow-dialog__output-label">{branch.label}</span>
+              {(branch.matches_filename || branch.is_preview) && (
+                <span className="comfy-workflow-dialog__output-flags">
+                  {branch.matches_filename && (
+                    <span className="comfy-workflow-dialog__output-flag">
+                      {branch.node_id === matchedNodeId ? LIKELY_OUTPUT_LABEL : "Matches filename"}
+                    </span>
+                  )}
+                  {branch.is_preview && (
+                    <span className="comfy-workflow-dialog__output-flag comfy-workflow-dialog__output-flag--muted">
+                      preview
+                    </span>
+                  )}
+                </span>
+              )}
+              <OutputIdentity branch={branch} />
             </button>
           </li>
         ))}
@@ -102,9 +121,19 @@ function BranchList({
   );
 }
 
-function BranchDetails({ branch }: { branch: ComfyOutputBranch }) {
+function BranchDetails({
+  branch,
+  matchedNodeId,
+  onlyOutput,
+}: {
+  branch: ComfyOutputBranch;
+  matchedNodeId: string | null | undefined;
+  onlyOutput: boolean;
+}) {
   const { copyState, copyLabel, copyText } = useCopyFeedback();
   const allPrompts = branch.prompts.map((prompt) => prompt.text).join("\n\n");
+  const models = branch.parameters.filter((parameter) => MODEL_FILE_PATTERN.test(parameter.value));
+  const settings = branch.parameters.filter((parameter) => !models.includes(parameter));
 
   return (
     <div className="dialog__field comfy-workflow-dialog__details-field">
@@ -128,6 +157,26 @@ function BranchDetails({ branch }: { branch: ComfyOutputBranch }) {
       </div>
 
       <div className="comfy-workflow-dialog__details" role="group" aria-label="Prompts">
+        <div
+          className="comfy-workflow-dialog__selected-output"
+          role="group"
+          aria-label="Selected output"
+        >
+          <strong className="comfy-workflow-dialog__selected-label">{branch.label}</strong>
+          <OutputIdentity branch={branch} />
+          <p
+            className={classNames(
+              "comfy-workflow-dialog__source-status",
+              branch.node_id === matchedNodeId && "comfy-workflow-dialog__source-status--matched",
+            )}
+          >
+            {branch.node_id === matchedNodeId
+              ? LIKELY_OUTPUT_LABEL
+              : onlyOutput
+                ? "Only output in embedded workflow — filename unverified"
+                : "Selected for inspection — source unverified"}
+          </p>
+        </div>
         {branch.prompts.length === 0 && (
           <p className="comfy-workflow-dialog__empty">
             Nothing on this path carries text - it renders from an image, not a prompt.
@@ -152,22 +201,49 @@ function BranchDetails({ branch }: { branch: ComfyOutputBranch }) {
           </div>
         ))}
 
+        {models.length > 0 && (
+          <div className="comfy-workflow-dialog__group">
+            <span className="comfy-workflow-dialog__group-label">Models</span>
+            <dl className="comfy-workflow-dialog__models">
+              {models.map((parameter) => (
+                <div key={`${parameter.label}-${parameter.value}`}>
+                  <dt>{parameter.label}</dt>
+                  <dd>{parameter.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
         {branch.loras.length > 0 && (
           <div className="comfy-workflow-dialog__group">
             <span className="comfy-workflow-dialog__group-label">LoRAs</span>
             <ul className="comfy-workflow-dialog__loras">
-              {branch.loras.map((lora) => (
-                <li key={lora}>{lora}</li>
-              ))}
+              {branch.loras.map((lora) => {
+                const { folder, name, strength } = splitLora(lora);
+                return (
+                  <li key={lora} className="comfy-workflow-dialog__lora">
+                    <span className="comfy-workflow-dialog__lora-path">
+                      {folder && (
+                        <span className="comfy-workflow-dialog__lora-folder">{folder}</span>
+                      )}
+                      {name}
+                    </span>
+                    {strength && (
+                      <span className="comfy-workflow-dialog__lora-strength">{strength}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
 
-        {branch.parameters.length > 0 && (
+        {settings.length > 0 && (
           <div className="comfy-workflow-dialog__group">
             <span className="comfy-workflow-dialog__group-label">Settings</span>
             <dl className="comfy-workflow-dialog__parameters">
-              {branch.parameters.map((parameter) => (
+              {settings.map((parameter) => (
                 <div key={`${parameter.label}-${parameter.value}`}>
                   <dt>{parameter.label}</dt>
                   <dd>{parameter.value}</dd>
@@ -187,11 +263,16 @@ export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWork
 
   const branches = useMemo(() => data?.branches ?? [], [data]);
 
+  // A pick belongs to one file's workflow; another file starts from its own default.
   useEffect(() => {
-    setSelectedId(data?.matched_node_id ?? branches[0]?.node_id ?? null);
-  }, [branches, data]);
+    setSelectedId(null);
+  }, [data, mediaPath]);
 
-  const selected = branches.find((branch) => branch.node_id === selectedId) ?? branches[0];
+  // Something is always shown: the pick, else the filename match, else the first output.
+  const selected =
+    branches.find((branch) => branch.node_id === selectedId) ??
+    branches.find((branch) => branch.node_id === data?.matched_node_id) ??
+    branches[0];
 
   const description = loading
     ? "Reading the workflow embedded in this file..."
@@ -219,16 +300,22 @@ export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWork
 
       {error && <p className="comfy-workflow-dialog__status">{error}</p>}
 
-      {selected && (
+      {!loading && !error && selected && (
         <div className="comfy-workflow-dialog__body">
           {branches.length > 1 && (
             <BranchList
               branches={branches}
               selectedId={selected.node_id}
+              matchedNodeId={data?.matched_node_id}
               onSelect={setSelectedId}
             />
           )}
-          <BranchDetails branch={selected} />
+          <BranchDetails
+            key={selected.node_id}
+            branch={selected}
+            matchedNodeId={data?.matched_node_id}
+            onlyOutput={branches.length === 1}
+          />
         </div>
       )}
     </Dialog>

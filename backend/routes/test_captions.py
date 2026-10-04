@@ -19,6 +19,25 @@ from testing_fixtures import (
 
 
 class ComfyWorkflowEndpointTests(unittest.TestCase):
+    def test_prompt_response_exposes_full_filename_and_output_identity(self) -> None:
+        graph = {
+            "7": {
+                "class_type": "SwiftVRRestoreVideo",
+                "_meta": {"title": "Restored video"},
+                "inputs": {"filename": "renders/scene.mp4"},
+            }
+        }
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "scene.mp4", metadata={"prompt": json.dumps(graph)})
+            response = client.get(f"/api/comfy-workflow/prompts?path={quote(str(media))}")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["matched_node_id"], "7")
+        self.assertEqual(payload["branches"][0]["filename"], "renders/scene.mp4")
+        self.assertIsNone(payload["branches"][0]["filename_prefix"])
+        self.assertEqual(payload["branches"][0]["class_type"], "SwiftVRRestoreVideo")
+        self.assertEqual(payload["branches"][0]["label"], "Restored video")
+
     def test_detects_comfy_workflow_metadata_in_png(self) -> None:
         with TempMediaFolder() as root:
             workflow = json.dumps({"nodes": [], "links": [], "last_node_id": 0})

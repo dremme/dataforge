@@ -963,12 +963,13 @@ class ComfyParameter(BaseModel):
 
 
 class ComfyOutputBranch(BaseModel):
-    """One saved result of the workflow, named by the subgraph that fed it."""
+    """One possible workflow output, named by the subgraph that fed it."""
 
     node_id: str
     class_type: str
     label: str
     filename_prefix: str | None = None
+    filename: str | None = None
     is_preview: bool = False
     matches_filename: bool = False
     prompts: list[ComfyPromptText] = Field(default_factory=list)
@@ -977,7 +978,7 @@ class ComfyOutputBranch(BaseModel):
 
 
 class ComfyWorkflowPromptsResponse(BaseModel):
-    """``matched_node_id`` is set only when exactly one branch claims the filename."""
+    """``matched_node_id`` identifies a unique filename match, not confirmed provenance."""
 
     has_workflow: bool
     branches: list[ComfyOutputBranch] = Field(default_factory=list)

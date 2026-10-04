@@ -80,6 +80,7 @@ def read_comfy_workflow_prompts(
                 class_type=branch.class_type,
                 label=branch.label,
                 filename_prefix=branch.filename_prefix,
+                filename=branch.filename,
                 is_preview=branch.is_preview,
                 matches_filename=branch.matches_filename,
                 prompts=[_prompt_text(prompt) for prompt in branch.prompts],
