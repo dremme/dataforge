@@ -6,6 +6,22 @@ import subprocess
 import sys
 from pathlib import Path
 
+#: Filters that need optional libraries; a minimal build compiles without them and fails per job.
+REQUIRED_FILTERS = ("drawtext",)
+
+
+def missing_filters(executable: str) -> list[str]:
+    result = subprocess.run(
+        [executable, "-hide_banner", "-filters"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+    # Rows are "<flags> <name> <pads> <description>"; the flag column's width varies by build.
+    available = {fields[1] for line in result.stdout.splitlines() if len(fields := line.split()) > 1}
+    return [name for name in REQUIRED_FILTERS if name not in available]
+
 
 def verify_ffmpeg(expected_version: str | None = None) -> str:
     from ffmpeg_bin import PINNED_VERSION, ffmpeg_path
@@ -32,6 +48,12 @@ def verify_ffmpeg(expected_version: str | None = None) -> str:
         raise RuntimeError(
             f"Expected FFmpeg {expected}, but the application selected {executable}: "
             f"{banner or 'no version banner'}"
+        )
+    missing = missing_filters(executable)
+    if missing:
+        raise RuntimeError(
+            f"FFmpeg at {executable} lacks the {', '.join(missing)} filter that watermarking "
+            "needs. Use a build configured with libfreetype and libharfbuzz."
         )
     return f"{executable}\n{banner}"
 

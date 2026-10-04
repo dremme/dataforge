@@ -59,15 +59,31 @@ class CiFfmpegTests(unittest.TestCase):
                 self.assertLess(installation, verification)
 
 
+FILTER_LISTING = """Filters:
+  T.. = Timeline support
+  ------
+ ... palettegen        V->V       Find the optimal palette for a given stream.
+ T.C drawtext          V->V       Draw text on top of video frames using libfreetype library.
+"""
+
+
 class CheckFfmpegTests(unittest.TestCase):
-    def _verify(self, banner: str, expected_version: str | None = "7.1.5") -> str:
-        result = subprocess.CompletedProcess([], 0, stdout=banner, stderr="")
+    def _verify(
+        self,
+        banner: str,
+        expected_version: str | None = "7.1.5",
+        filters: str = FILTER_LISTING,
+    ) -> str:
+        def run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            stdout = banner if command[1:] == ["-version"] else filters
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
         with (
             patch("ffmpeg_bin.ffmpeg_path", return_value="/tools/ffmpeg"),
-            patch("check_ffmpeg.subprocess.run", return_value=result) as run,
+            patch("check_ffmpeg.subprocess.run", side_effect=run) as fake,
         ):
             output = check_ffmpeg.verify_ffmpeg(expected_version)
-        self.assertEqual(run.call_args.args[0], ["/tools/ffmpeg", "-version"])
+        self.assertEqual(fake.call_args_list[0].args[0], ["/tools/ffmpeg", "-version"])
         return output
 
     def test_accepts_the_exact_pinned_release_and_reports_the_selected_binary(self) -> None:
@@ -106,6 +122,16 @@ class CheckFfmpegTests(unittest.TestCase):
         for banner in ("ffmpeg version N-118000-g1234abcd", ""):
             with self.subTest(banner=banner), self.assertRaises(RuntimeError):
                 self._verify(banner)
+
+    def test_rejects_a_build_without_drawtext(self) -> None:
+        without = FILTER_LISTING.replace("drawtext", "drawbox")
+        with self.assertRaisesRegex(RuntimeError, r"/tools/ffmpeg lacks the drawtext filter"):
+            self._verify("ffmpeg version 7.1.5", filters=without)
+
+    def test_reads_filter_names_whatever_the_flag_column_width(self) -> None:
+        for row in (" T.C drawtext  V->V  Draw text", " T. drawtext  V->V  Draw text"):
+            with self.subTest(row=row):
+                self._verify("ffmpeg version 7.1.5", filters=row)
 
     def test_rejects_a_missing_binary(self) -> None:
         with (

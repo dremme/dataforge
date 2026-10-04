@@ -290,10 +290,16 @@ describe("JobsProvider", () => {
         revision: 9,
       });
     });
+    // Query observers notify on a timer, so wait for the push to render before racing it.
+    await waitFor(() => expect(latest.current?.ostrisAvailable).toBe(true));
     await act(async () => {
       held.resolve(externalSnapshot(4, false));
     });
 
+    // Give the stale read every chance to land before checking it did not.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     expect(latest.current?.ostrisAvailable).toBe(true);
   });
 

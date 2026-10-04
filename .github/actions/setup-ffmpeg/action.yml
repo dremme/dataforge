@@ -14,7 +14,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install --no-install-recommends -y build-essential pkg-config nasm libx264-dev libwebp-dev zlib1g-dev
+        sudo apt-get install --no-install-recommends -y build-essential pkg-config nasm libx264-dev libwebp-dev zlib1g-dev libfreetype-dev libharfbuzz-dev
 
     - name: Cache pinned FFmpeg
       id: ffmpeg-cache
@@ -35,7 +35,8 @@ runs:
         echo "$FFMPEG_SHA256  $archive" | sha256sum --check
         tar -xf "$archive" -C "$RUNNER_TEMP"
         cd "$RUNNER_TEMP/ffmpeg-$FFMPEG_VERSION"
-        ./configure --prefix="$HOME/.cache/dataforge-ffmpeg" --disable-autodetect --disable-doc --disable-debug --disable-ffplay --enable-gpl --enable-libx264 --enable-libwebp --enable-zlib
+        # The watermark's drawtext filter needs freetype and harfbuzz.
+        ./configure --prefix="$HOME/.cache/dataforge-ffmpeg" --disable-autodetect --disable-doc --disable-debug --disable-ffplay --enable-gpl --enable-libx264 --enable-libwebp --enable-zlib --enable-libfreetype --enable-libharfbuzz
         make -j"$(nproc)"
         make install
 

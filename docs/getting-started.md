@@ -73,7 +73,7 @@ DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own har
 
 **Python is outside the supported 3.13.x series.** Run `setup.bat` on Windows. On Linux/macOS, install any final Python 3.13.x release and rerun `./setup.sh`. Other release series and prereleases are rejected; setup recreates an incompatible backend virtual environment.
 
-**Setup cannot find FFmpeg 7.1.x.** Install a 7.1.x build and put its binary folder on PATH, then run setup again. A global 8.x, 9.x, or unversioned development build does not satisfy the pin. Windows setup normally supplies the matching bundled copy. Verify the application's selection with `backend/.venv/Scripts/python scripts/check_ffmpeg.py` on Windows or `backend/.venv/bin/python scripts/check_ffmpeg.py` on Linux/macOS.
+**Setup cannot find FFmpeg 7.1.x.** Install a 7.1.x build and put its binary folder on PATH, then run setup again. A global 8.x, 9.x, or unversioned development build does not satisfy the pin. Windows setup normally supplies the matching bundled copy. The build must include the `drawtext` filter (libfreetype and libharfbuzz), which watermarking uses. Verify the application's selection with `backend/.venv/Scripts/python scripts/check_ffmpeg.py` on Windows or `backend/.venv/bin/python scripts/check_ffmpeg.py` on Linux/macOS.
 
 **Shell scripts will not execute.** From an extracted ZIP, try `bash setup.sh` and `bash start.sh` if executable permissions were not retained.
 
