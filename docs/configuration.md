@@ -84,7 +84,11 @@ Choose **Reasoning** to let the model think before answering, or **Instruct** fo
 | **Additional context** | Verify captions                              | Optional dataset facts for the checker                                                                                         |
 | **Edit instruction**   | Edit captions                                | Required text describing the rewrite                                                                                           |
 
-**Back up captions first** in Edit captions starts enabled every run and is not remembered. Set captions, Backup captions, and Watermark also require overwrite permission anew. Auto-adjust's **Replace earlier adjustments** starts off every run. ComfyUI remembers prompt and seed per preset, its last preset globally, and overwrite permission per folder.
+**Back up captions first** in Edit captions starts enabled every run and is not remembered. Set captions, Backup captions, and Watermark also require overwrite permission anew.
+
+Auto-adjust's **Replace earlier adjustments** and **Reset all color adjustments to zero** start off every run.
+
+ComfyUI remembers prompt and seed per preset, its last preset globally, and overwrite permission per folder. **Keep original metadata** is remembered across individual and bulk candidate acceptance and is on by default. See [candidate review](comfyui.md#review-candidates) for supported formats.
 
 ## Media input budgets
 

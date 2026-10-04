@@ -8,7 +8,7 @@
 [![Node](https://img.shields.io/badge/node-20.19%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](docs/getting-started.md#requirements)
 
-![DataForge gallery showing a local dataset, bulk caption controls, completion status, and descriptions beneath media cards.](docs/gallery.png)
+![DataForge gallery showing sample media, caption coverage, review queues, and captions beneath image and video cards.](docs/gallery.png)
 
 Browse, caption, review, and edit datasets for LoRA training and fine-tuning. Open an existing folder: captions stay in plain `.txt` files beside the media, without a separate library or required import step.
 

@@ -31,11 +31,11 @@ class MediaExtensionInvariantTests(unittest.TestCase):
     def test_isobmff_is_a_subset_of_video(self) -> None:
         self.assertLessEqual(ISOBMFF_EXTENSIONS, VIDEO_EXTENSIONS)
 
-    def test_watermark_covers_images_and_only_the_mp4_family(self) -> None:
-        # `-movflags` and `-c:a copy` are MP4-family shaped, and GIF's palette
-        # cannot express a translucent mark without banding.
-        self.assertEqual(WATERMARK_EXTENSIONS, IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS)
-        self.assertNotIn(GIF_EXTENSION, WATERMARK_EXTENSIONS)
+    def test_watermark_covers_images_gifs_and_only_the_mp4_family(self) -> None:
+        # `-movflags` and `-c:a copy` are MP4-family shaped; GIFs have their own encode path.
+        self.assertEqual(
+            WATERMARK_EXTENSIONS, IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS | {GIF_EXTENSION}
+        )
 
     def test_comfy_workflow_extensions_are_png_plus_isobmff(self) -> None:
         self.assertEqual(COMFY_WORKFLOW_EXTENSIONS, {".png"} | ISOBMFF_EXTENSIONS)

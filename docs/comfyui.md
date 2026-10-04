@@ -39,11 +39,15 @@ The workflow decides which inputs it supports. An unsupported or failed file is 
 
 ## Review candidates
 
-Open **Review candidates** for side-by-side comparison, or use the item's review control in the detail viewer. The comparison includes dimensions, sizes, resolution gain, and perceptual difference. Videos synchronize playback, pause, and seeking when both sides are video; they are muted. GIFs play as images.
+Open **Review candidates** for side-by-side comparison, or use the item's review control in the detail viewer. The comparison includes dimensions, sizes, resolution gain, and perceptual difference. Videos start muted and loop; playback, pause, and seeking synchronize when both sides are video. GIFs play as images.
 
 - **Accept** (`Ctrl+Enter`) replaces the source in the result's format, retaining the stem and caption and updating issue/duplicate file names. **No source backup is kept; acceptance has no undo.**
 - **Reject** (`Ctrl+Backspace`) removes the candidate and its run record, leaving the source unchanged.
 - **Skip**, **Back**, arrows, and Home/End navigate without a decision.
+
+**Keep original metadata** is on by default and remembered for individual and bulk acceptance. It replaces the result's EXIF, XMP, and text/workflow metadata with the source's metadata. Turn it off to keep the result's own metadata instead.
+
+Metadata transfer supports image sources with PNG results and video sources with MP4 or MOV results. Other pairings keep the result's metadata. If a supported transfer fails, the result stays staged and the source is unchanged.
 
 If the source has an edit, accepting asks before discarding its settings and retained original. The candidate becomes the new original. Cancelling that confirmation leaves both versions unchanged.
 
@@ -53,7 +57,7 @@ For videos, review warns about duration differences and lost audio. The differen
 
 In Quick actions (`Ctrl+P`), use **Accept all staged candidates** or **Delete all staged candidates**. With a selection, the labels become **Accept selected candidates** and **Delete selected candidates**; only those sources' candidates are included. Filters alone do not limit these commands.
 
-Bulk acceptance asks for confirmation but skips individual comparisons. It discards any source edit/original and retains no backup. Bulk deletion keeps sources and sends candidates to the Recycle Bin on Windows. Each command reports failures; unsuccessful candidates remain available for review.
+Bulk acceptance asks for confirmation, includes **Keep original metadata**, and skips individual comparisons. It discards any source edit/original and retains no backup. Bulk deletion keeps sources and sends candidates to the Recycle Bin on Windows. Each command reports failures; unsuccessful candidates remain available for review.
 
 ### How results pair with sources
 
@@ -104,7 +108,11 @@ For interpolation, multiply the source rate by the interpolation factor: doublin
 
 ## Inspect embedded workflows
 
-Click the **ComfyUI** badge in a file's detail view to inspect embedded prompts, LoRAs, settings, and output paths. This supports PNG, MP4, MOV, and M4V, including files made outside DataForge. Stripping metadata removes the embedded workflow.
+Click the **ComfyUI** badge in a file's detail view to inspect embedded prompts, models, LoRAs, settings, and saved output names. This supports PNG, MP4, MOV, and M4V, including files made outside DataForge. Stripping metadata removes the embedded workflow.
+
+When a workflow has several outputs, select one to inspect its details. DataForge shows the generation stage feeding that output, rather than combining settings from earlier stages.
+
+A filename match is marked as a **Likely output**. This is a hint: the embedded workflow cannot confirm which node wrote the file. If several outputs match, or the file was renamed, compare the listed outputs yourself.
 
 ## Troubleshooting
 

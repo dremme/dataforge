@@ -13,8 +13,8 @@ ISOBMFF_EXTENSIONS = {".mp4", ".mov", ".m4v"}
 
 COMFY_WORKFLOW_EXTENSIONS = {".png"} | ISOBMFF_EXTENSIONS
 
-# GIF palette cannot hold burned text; `-movflags`/`-c:a copy` only work on the MP4 family.
-WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS
+# `-movflags`/`-c:a copy` only work on the MP4 family; GIFs take their own palette-rebuild path.
+WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS | {GIF_EXTENSION}
 
 # Browser-decodable only: the editor reads size from `<video>`. Muxers here all accept `-movflags`.
 VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS

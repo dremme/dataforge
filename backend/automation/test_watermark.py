@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 import automation.watermark as watermark_module
 from automation.watermark import (
@@ -29,6 +29,7 @@ from automation.watermark import (
     validate_watermark_folder,
 )
 from constants import WATERMARK_DIR_NAME
+from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled
 from testing_fixtures import (
     TempMediaFolder,
@@ -149,7 +150,7 @@ class DrawtextFilterTests(unittest.TestCase):
 
 
 class WatermarkValidationTests(unittest.TestCase):
-    def test_lists_every_image_and_the_mp4_family(self) -> None:
+    def test_lists_every_image_gifs_and_the_mp4_family(self) -> None:
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_jpeg(root, "beach.jpg")
@@ -175,6 +176,7 @@ class WatermarkValidationTests(unittest.TestCase):
                     "clip.mp4",
                     "clip.mov",
                     "clip.m4v",
+                    "loop.gif",
                 },
             )
 
@@ -224,9 +226,9 @@ class WatermarkValidationTests(unittest.TestCase):
 
     def test_requires_supported_media(self) -> None:
         with TempMediaFolder() as root:
-            write_gif(root, "loop.gif")
+            write_mp4_video(root, "clip.mkv")
 
-            with self.assertRaisesRegex(ValueError, "No JPG, PNG, WebP, BMP, MP4, MOV or M4V"):
+            with self.assertRaisesRegex(ValueError, "No JPG, PNG, WebP, BMP, GIF, MP4, MOV or M4V"):
                 validate_watermark_folder(root, text="Sample")
 
     def test_refuses_to_run_inside_the_output_folder(self) -> None:
@@ -686,6 +688,159 @@ class WatermarkOutputFolderTests(unittest.TestCase):
                 sorted(path.name for path in (root / WATERMARK_DIR_NAME).iterdir()),
                 ["a_photo.png"],
             )
+
+
+def write_flat_gif(
+    root: Path,
+    name: str,
+    *,
+    colours: list[tuple[int, int, int]],
+    durations: list[int],
+    loop: int | None = 0,
+    transparent: bool = False,
+    comment: str | None = None,
+) -> Path:
+    """One flat colour per frame; ``transparent`` clears the left half of every frame."""
+    frames = []
+    for colour in colours:
+        frame = Image.new("P", (160, 120), 1)
+        frame.putpalette([0, 0, 0, *colour])
+        if transparent:
+            ImageDraw.Draw(frame).rectangle((0, 0, 79, 119), fill=0)
+        frames.append(frame)
+
+    options: dict[str, object] = {}
+    if loop is not None:
+        options["loop"] = loop
+    if transparent:
+        options["transparency"] = 0
+    if comment is not None:
+        options["comment"] = comment
+
+    media = root / name
+    frames[0].save(
+        media, save_all=True, append_images=frames[1:], duration=durations, disposal=2, **options
+    )
+    return media
+
+
+def read_gif(path: Path) -> tuple[list[Image.Image], list[int], dict]:
+    """Composited frames, per-frame delays, and the header info of frame zero."""
+    with Image.open(path) as opened:
+        info = dict(opened.info)
+        frames: list[Image.Image] = []
+        delays: list[int] = []
+        for index in range(opened.n_frames):
+            opened.seek(index)
+            frames.append(opened.convert("RGBA"))
+            delays.append(opened.info["duration"])
+    return frames, delays, info
+
+
+class WatermarkGifTests(unittest.TestCase):
+    def test_an_unreadable_gif_is_a_read_error(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "broken.gif").write_bytes(b"not a gif")
+
+            result = run_watermark_job(root, text="Sample Studio", ffmpeg="ffmpeg")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["read_error"], 1)
+            self.assertFalse(watermarked(root, "broken.gif").exists())
+
+
+@unittest.skipUnless(ffmpeg_path(), "ffmpeg is not installed")
+class WatermarkGifEncodeTests(unittest.TestCase):
+    """Real encodes: the muxer's delay rounding and palette loss only show in the output."""
+
+    def test_marks_every_frame_and_keeps_the_timing_and_loop_count(self) -> None:
+        with TempMediaFolder() as root:
+            source = write_flat_gif(
+                root,
+                "loop.gif",
+                colours=[(20, 20, 20), (30, 20, 20), (20, 30, 20)],
+                durations=[100, 250, 400],
+                loop=3,
+            )
+            original = source.read_bytes()
+
+            result = run_watermark_job(root, text="Sample Studio")
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["success"], 1)
+            self.assertEqual(stats["video_success"], 1)
+            self.assertEqual(source.read_bytes(), original)
+
+            frames, delays, info = read_gif(watermarked(root, "loop.gif"))
+            self.assertEqual(delays, [100, 250, 400])
+            self.assertEqual(info.get("loop"), 3)
+            for frame in frames:
+                # Frames are near-black and distinct, since Pillow merges identical frames.
+                marked = bottom_right(frame).convert("L").point(lambda value: value > 100 and 255)
+                self.assertIsNotNone(marked.getbbox())
+
+    def test_a_gif_that_plays_once_still_plays_once(self) -> None:
+        with TempMediaFolder() as root:
+            write_flat_gif(
+                root,
+                "once.gif",
+                colours=[(20, 20, 20), (40, 40, 40)],
+                durations=[100, 100],
+                loop=None,
+            )
+
+            run_watermark_job(root, text="Sample Studio")
+
+            _, _, info = read_gif(watermarked(root, "once.gif"))
+            self.assertNotIn("loop", info)
+
+    def test_keeps_colours_that_only_appear_in_later_frames(self) -> None:
+        with TempMediaFolder() as root:
+            write_flat_gif(
+                root, "flash.gif", colours=[(255, 0, 0), (0, 0, 255)], durations=[100, 100]
+            )
+
+            run_watermark_job(root, text="Sample Studio")
+
+            frames, _, _ = read_gif(watermarked(root, "flash.gif"))
+            self.assertEqual(
+                [frame.getpixel((5, 5)) for frame in frames], [(255, 0, 0, 255), (0, 0, 255, 255)]
+            )
+
+    def test_keeps_transparency(self) -> None:
+        with TempMediaFolder() as root:
+            write_flat_gif(
+                root,
+                "clear.gif",
+                colours=[(255, 0, 0), (0, 0, 255)],
+                durations=[100, 100],
+                transparent=True,
+            )
+
+            run_watermark_job(root, text="Sample Studio")
+
+            frames, _, _ = read_gif(watermarked(root, "clear.gif"))
+            self.assertEqual([frame.getpixel((5, 5))[3] for frame in frames], [0, 0])
+
+    def test_stripping_metadata_succeeds_and_the_copy_carries_no_comment(self) -> None:
+        with TempMediaFolder() as root:
+            write_flat_gif(
+                root,
+                "tagged.gif",
+                colours=[(20, 20, 20), (40, 40, 40)],
+                durations=[100, 100],
+                comment="Sample Author",
+            )
+
+            result = run_watermark_job(root, text="Sample Studio", strip_metadata=True)
+
+            stats = result["stats"]
+            assert isinstance(stats, dict)
+            self.assertEqual(stats["success"], 1)
+            _, _, info = read_gif(watermarked(root, "tagged.gif"))
+            self.assertNotIn("comment", info)
 
 
 if __name__ == "__main__":

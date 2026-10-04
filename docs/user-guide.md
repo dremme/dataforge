@@ -15,6 +15,10 @@ Open a folder with the folder picker (`Ctrl+O`). Breadcrumbs, recent folders, an
 
 Cards and the detail view distinguish missing, empty, and populated captions, and show badges for findings, candidates, and edits. The **statistics** drawer describes the whole folder, regardless of filters: caption coverage and lengths, frequent words, issues, duplicate groups, formats, durations, megapixels, aspect ratios, and unreadable dimensions/durations.
 
+Folder cards show caption coverage; hover over one to see its caption issue and staged candidate counts. Click the toolbar's captioned or issue count to filter those files; click it again to clear that filter. The automation panel's **Ready to review** buttons open caption issues, duplicate groups, and ComfyUI candidates.
+
+Videos start muted and loop in the viewer and review queues. In the video editor, playback loops within the selected trim range.
+
 Press `Ctrl+P` for **Quick actions**: search for jobs, commands, filters, and folders, then select an action and press Enter. Press `?` to see the shortcut list in the app.
 
 ### Select, copy, move, rename, delete
@@ -105,6 +109,8 @@ Open a file's editor, make changes, then **Apply**. Editor changes render from t
 
 Image editing supports JPG/JPEG, PNG, WebP, and BMP; video editing supports MP4, MOV, and M4V when the browser can decode them. See [supported formats](#supported-formats).
 
+While resizing a crop, the preview shows its pixel dimensions. Free crops also show their aspect ratio.
+
 ### Adjust in the editor
 
 Adjust provides Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Choose a tool, then drag/click its slider or use arrow keys; Shift makes larger steps. Double-click the slider to return to its marked resting value. Scroll the tool row with the mouse wheel when it does not fit.
@@ -118,6 +124,8 @@ Hold the compare button to see the original. Click the preview to inspect at out
 Run **Auto-adjust** to apply the wand and save each eligible image/video. Crops, masks, trims, and other edits are kept. Existing manual Adjust values remain, while an earlier Auto result is replaced rather than stacked.
 
 **Replace earlier adjustments** resets all Adjust tools before applying Auto, discarding manual adjustments. It starts off each run. Unchanged files and files currently being saved in the editor are skipped. Originals are retained: open the editor to tune the result or revert it. Cancelling keeps completed files.
+
+To remove color changes from a batch, open **Auto-adjust** and select **Reset all color adjustments to zero**. This clears manual and automatic color adjustments without applying Auto. Crops, masks, trims, and other edits stay in place. This option also starts off each run.
 
 ## Jobs
 
@@ -158,11 +166,11 @@ All listed formats appear in the gallery, take `.txt` captions, and can be sent 
 | JPG / JPEG, WebP   | Image                                                         | Image                 | Yes              | Yes       | —                         |
 | PNG                | Image                                                         | Image                 | Yes              | Yes       | Yes                       |
 | BMP                | Image                                                         | Image                 | Nothing to strip | Yes       | —                         |
-| GIF                | Animation and frame capture                                   | Convert to MP4 first  | —                | —         | —                         |
+| GIF                | Animation and frame capture                                   | Convert to MP4 first  | —                | Yes       | —                         |
 | MP4, MOV, M4V      | Playback and frame capture, if the browser supports the codec | Video                 | Yes              | Yes       | Yes                       |
 | AVI, MKV, WMV, FLV | Thumbnail only                                                | —                     | —                | —         | —                         |
 
-GIF captioning and verification use its first frame. Video caption jobs sample frames across the clip, even for containers without browser playback. GIF-to-MP4 conversion uses 24 fps and asks before overwriting an existing MP4.
+GIF captioning and verification use its first frame. Video caption jobs sample frames across the clip, even for containers without browser playback. GIF-to-MP4 conversion uses 24 fps and asks before overwriting an existing MP4. A watermarked GIF stays an animated GIF with the original frame timing, loop count, and transparency.
 
 ## Files DataForge creates
 

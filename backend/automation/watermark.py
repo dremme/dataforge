@@ -1,4 +1,4 @@
-"""Burn a text watermark into images and videos; originals stay untouched."""
+"""Burn a text watermark into images, GIFs and videos; originals stay untouched."""
 
 from __future__ import annotations
 
@@ -8,12 +8,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 
 from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
 from automation.strip_metadata import strip_file_metadata
-from constants import VIDEO_EXTENSIONS, WATERMARK_DIR_NAME, WATERMARK_EXTENSIONS
+from constants import (
+    GIF_EXTENSION,
+    VIDEO_EXTENSIONS,
+    WATERMARK_DIR_NAME,
+    WATERMARK_EXTENSIONS,
+)
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
@@ -71,7 +76,7 @@ FONT_MISSING_MESSAGE = (
     "No usable system font was found for the watermark text. "
     "Install a TrueType font such as Arial or DejaVu Sans and try again."
 )
-FFMPEG_MISSING_MESSAGE = "ffmpeg is required to add a watermark to videos"
+FFMPEG_MISSING_MESSAGE = "ffmpeg is required to add a watermark to videos and GIFs"
 
 
 def list_watermark_files(folder: Path) -> list[Path]:
@@ -172,7 +177,7 @@ def validate_watermark_folder(
     resolve_watermark_position(position)
 
     if not filter_media_list(list_watermark_files(folder), selected_paths):
-        raise ValueError("No JPG, PNG, WebP, BMP, MP4, MOV or M4V files found in folder")
+        raise ValueError("No JPG, PNG, WebP, BMP, GIF, MP4, MOV or M4V files found in folder")
 
     output_dir = folder / WATERMARK_DIR_NAME
     if output_dir.exists() and not output_dir.is_dir():
@@ -334,6 +339,81 @@ def watermark_video(
     run_ffmpeg(command, should_cancel=should_cancel)
 
 
+def gif_loop_argument(source: Path) -> str:
+    """ffmpeg's ``-loop`` for the source's loop count; the GIF demuxer does not carry it over."""
+    try:
+        with Image.open(source) as opened:
+            loop = opened.info.get("loop")
+    except (OSError, UnidentifiedImageError) as exc:
+        raise ImageReadError(str(exc)) from exc
+    # No NETSCAPE block means play once, which the muxer spells -1; 0 is forever in both.
+    return "-1" if loop is None else str(loop)
+
+
+def build_gif_watermark_command(
+    source: Path,
+    destination: Path,
+    *,
+    executable: str,
+    drawtext: str,
+    loop: str,
+) -> list[str]:
+    """Rebuild each frame's palette after drawing; one shared palette drops colours that only
+    appear in later frames. Without the timing flags the muxer rounds per-frame delays."""
+    return [
+        executable,
+        "-nostdin",
+        "-hide_banner",
+        "-nostats",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(source),
+        "-filter_complex",
+        f"[0:v]{drawtext},split[frames][stats];"
+        "[stats]palettegen=stats_mode=single[palette];"
+        "[frames][palette]paletteuse=new=1",
+        "-fps_mode",
+        "passthrough",
+        "-enc_time_base",
+        "demux",
+        "-loop",
+        loop,
+        "-f",
+        "gif",
+        str(destination),
+    ]
+
+
+def watermark_gif(
+    source: Path,
+    destination: Path,
+    *,
+    text: str,
+    font_path: Path,
+    size: WatermarkSize,
+    alpha: float,
+    position: WatermarkPosition,
+    ffmpeg: str | None = None,
+    should_cancel: ShouldCancel | None = None,
+) -> None:
+    executable = ffmpeg or ffmpeg_path()
+    if not executable:
+        raise RuntimeError(FFMPEG_MISSING_MESSAGE)
+
+    command = build_gif_watermark_command(
+        source,
+        destination,
+        executable=executable,
+        drawtext=build_drawtext_filter(
+            text=text, font_path=font_path, size=size, alpha=alpha, position=position
+        ),
+        loop=gif_loop_argument(source),
+    )
+    run_ffmpeg(command, should_cancel=should_cancel)
+
+
 def _stale_path(final_path: Path) -> Path:
     return final_path.with_name(f"{final_path.stem}{WATERMARK_STALE_MARKER}{final_path.suffix}")
 
@@ -360,9 +440,24 @@ def _watermark_file(
 ) -> str:
     """Write one watermarked copy and return whether it was an ``image`` or a ``video``."""
     temp_path = output_dir / f"{media_path.stem}{WATERMARK_TEMP_MARKER}{media_path.suffix}"
+    is_gif = media_path.suffix.lower() == GIF_EXTENSION
 
     try:
-        if media_path.suffix.lower() in VIDEO_EXTENSIONS:
+        if is_gif:
+            watermark_gif(
+                media_path,
+                temp_path,
+                text=text,
+                font_path=font_path,
+                size=size,
+                alpha=alpha,
+                position=position,
+                ffmpeg=ffmpeg,
+                should_cancel=should_cancel,
+            )
+            # An ffmpeg encode per frame, so it paces the job like a video.
+            kind = "video"
+        elif media_path.suffix.lower() in VIDEO_EXTENSIONS:
             watermark_video(
                 media_path,
                 temp_path,
@@ -387,7 +482,8 @@ def _watermark_file(
             )
             kind = "image"
 
-        if strip_metadata:
+        # ffmpeg's GIF muxer writes no comment or XMP blocks, so a GIF copy has nothing to strip.
+        if strip_metadata and not is_gif:
             # On the temp, not the published copy: a failed strip must not leave a marked
             # file behind that still carries the metadata the user asked to remove.
             strip_file_metadata(temp_path, ffmpeg=ffmpeg, should_cancel=should_cancel)
