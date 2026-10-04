@@ -185,6 +185,45 @@ class OutputNodeTests(unittest.TestCase):
         self.assertEqual(len(result.branches), 1)
         self.assertTrue(result.branches[0].is_preview)
 
+    def test_a_preview_override_feeding_the_sampler_is_not_an_output(self) -> None:
+        sampler = _sampler("2", "3")
+        sampler["inputs"]["model"] = ["6", 0]
+        graph = {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": sampler,
+            "5": _save("4", "harbour"),
+            "6": {
+                "class_type": "ModelPreviewOverrideKJ",
+                "inputs": {"model": ["1", 0], "preview_fps": 8},
+            },
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual([branch.class_type for branch in result.branches], ["SaveImage"])
+
+    def test_a_passthrough_preview_is_still_a_branch(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            # The editor can give PreviewImage an output that hands its images to the next stage.
+            "5": {"class_type": "PreviewImage", "inputs": {"images": ["4", 0]}},
+            "6": {"class_type": "ImageScale", "inputs": {"image": ["5", 0]}},
+            "7": _save("6", "harbour"),
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual(
+            sorted(branch.class_type for branch in result.branches), ["PreviewImage", "SaveImage"]
+        )
+
     def test_a_video_muxer_is_an_output_wherever_it_sits(self) -> None:
         graph = {
             "1": LOADER,

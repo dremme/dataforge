@@ -13,6 +13,7 @@ _MAX_PROMPT_CHARS = 20000
 
 _SAVE_CLASS_MARKERS = ("save", "videocombine", "output")
 _PREVIEW_CLASS_MARKERS = ("preview",)
+_PREVIEW_MEDIA_INPUTS = frozenset({"images", "image", "video", "audio"})
 #: Lowercased classes that write their own file but carry no save marker in the name.
 _EXTRA_OUTPUT_CLASSES = frozenset({"swiftvrrestorevideo"})
 
@@ -164,7 +165,9 @@ def _ancestors(graph: dict[str, dict], root: str) -> list[str]:
     return order
 
 
-def _generation_stages(graph: dict[str, dict]) -> tuple[set[str], set[str], set[str]]:
+def _generation_stages(
+    graph: dict[str, dict], outputs: set[str]
+) -> tuple[set[str], set[str], set[str]]:
     """Samplers, generators, and the nodes that only carry an earlier sampler's result on.
 
     A generator is a sampler or a node carrying its own prompt, such as an image-to-video node,
@@ -189,7 +192,7 @@ def _generation_stages(graph: dict[str, dict]) -> tuple[set[str], set[str], set[
     generators -= {
         node_id
         for node_id in generators
-        if _is_output_node(graph[node_id])
+        if node_id in outputs
         or any(marker in _node_class(graph[node_id]).lower() for marker in _REFINER_CLASS_MARKERS)
     }
 
@@ -557,12 +560,33 @@ def _matches_filename(
     return re.fullmatch(re.escape(basename) + suffix, file_path.stem, re.IGNORECASE) is not None
 
 
-def _is_output_node(node: object) -> bool:
-    """Named by class, not by having no consumer: a graph is full of dead ends that write nothing."""
-    lowered = _node_class(node).lower()
-    return lowered in _EXTRA_OUTPUT_CLASSES or any(
-        marker in lowered for marker in _SAVE_CLASS_MARKERS + _PREVIEW_CLASS_MARKERS
-    )
+def _output_nodes(graph: dict[str, dict]) -> set[str]:
+    """Nodes named by class, not by having no consumer: a graph is full of dead ends.
+
+    A preview name alone is weak evidence. A consumed one that reads no media, such as
+    ModelPreviewOverrideKJ, patches a model's sampling preview; a PreviewImage given a
+    passthrough output in the editor still shows its images. A save node stays an output when
+    its filenames are linked onward.
+    """
+    consumed = {
+        source
+        for node in graph.values()
+        for value in _node_inputs(node).values()
+        if (source := _link_target(value)) is not None
+    }
+    outputs: set[str] = set()
+    for node_id, node in graph.items():
+        lowered = _node_class(node).lower()
+        if (
+            lowered in _EXTRA_OUTPUT_CLASSES
+            or any(marker in lowered for marker in _SAVE_CLASS_MARKERS)
+            or (
+                any(marker in lowered for marker in _PREVIEW_CLASS_MARKERS)
+                and (node_id not in consumed or _PREVIEW_MEDIA_INPUTS & _node_inputs(node).keys())
+            )
+        ):
+            outputs.add(node_id)
+    return outputs
 
 
 def _instance_id(node_id: str) -> str:
@@ -713,11 +737,12 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
 
     branches: list[OutputBranch] = []
     covered: set[str] = set()
-    stages = _generation_stages(graph)
+    outputs = _output_nodes(graph)
+    stages = _generation_stages(graph, outputs)
 
     for node_id, node in graph.items():
         class_type = _node_class(node)
-        if not _is_output_node(node):
+        if node_id not in outputs:
             continue
 
         # Earlier stages are excluded from the branch but still feed it, so they are no orphans.
