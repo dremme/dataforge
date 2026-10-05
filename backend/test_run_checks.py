@@ -268,6 +268,14 @@ class ConsoleTests(RunChecksTestCase):
         self._console(stream).failure(step, outcome)
         self.assertEqual(stream.getvalue(), "\n  $ python lint.py  (exit 1)\n\n")
 
+    def test_failure_output_the_console_cannot_encode_is_replaced(self) -> None:
+        stream = TerminalStream(tty=False, encoding="cp1252")
+        step = self.run_checks.Step("Lint", ["python", "lint.py"])
+        outcome = self.run_checks.Outcome(returncode=1, output="error\n└── a.py:1", seconds=1)
+        self._console(stream).failure(step, outcome)
+        shown = stream.buffer.getvalue().decode("cp1252").replace(os.linesep, "\n")
+        self.assertEqual(shown, "\n  $ python lint.py  (exit 1)\n\nerror\n??? a.py:1\n")
+
 
 class DetailTests(RunChecksTestCase):
     def _detail(self, pattern, output: str) -> str:

@@ -110,6 +110,10 @@ class Console:
         glyphs: Glyphs,
         label_width: int,
     ) -> None:
+        # Step output is arbitrary text; a cp1252 console must not crash before showing it.
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
         self._stream = stream
         self.color = color
         self.live = live
