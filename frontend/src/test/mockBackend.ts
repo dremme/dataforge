@@ -626,6 +626,8 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         branches: [],
         matched_node_id: null,
         orphan_prompts: [],
+        has_editor_workflow: false,
+        matched_by_size: false,
       });
     }
 

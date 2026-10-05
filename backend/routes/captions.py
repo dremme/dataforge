@@ -3,14 +3,16 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 
 from captions import build_caption_response, load_backup_caption, save_caption
+from comfy_editor_workflow import workflow_for_output
 from comfy_metadata import media_has_comfy_workflow
-from comfy_prompts import PromptText, extract_workflow_prompts
+from comfy_prompts import PromptText, extract_workflow_prompts, read_editor_workflow
 from constants import COMFY_WORKFLOW_EXTENSIONS
 from routes._helpers import resolve_media_file
 from schemas import (
     CaptionBackupResponse,
     CaptionSaveResponse,
     CaptionUpdate,
+    ComfyEditorWorkflowResponse,
     ComfyOutputBranch,
     ComfyParameter,
     ComfyPromptText,
@@ -94,7 +96,28 @@ def read_comfy_workflow_prompts(
         ],
         matched_node_id=extracted.matched_node_id,
         orphan_prompts=[_prompt_text(prompt) for prompt in extracted.orphan_prompts],
+        has_editor_workflow=extracted.has_editor_workflow,
+        matched_by_size=extracted.matched_by_size,
     )
+
+
+@router.get("/comfy-workflow/editor", response_model=ComfyEditorWorkflowResponse)
+def read_comfy_editor_workflow(
+    path: str = Query(..., description="Absolute path to image or video file"),
+    node_id: str = Query(..., description="Output node the workflow is trimmed to"),
+) -> ComfyEditorWorkflowResponse:
+    raw = read_editor_workflow(_resolve_comfy_media(path))
+    if raw is None:
+        raise HTTPException(
+            status_code=404,
+            detail="This file carries no editor workflow that ComfyUI can load from a paste",
+        )
+    workflow = workflow_for_output(raw, node_id)
+    if workflow is None:
+        raise HTTPException(
+            status_code=404, detail=f"Output node {node_id} is not in the editor workflow"
+        )
+    return ComfyEditorWorkflowResponse(workflow=workflow)
 
 
 @router.put("/caption", response_model=CaptionSaveResponse)

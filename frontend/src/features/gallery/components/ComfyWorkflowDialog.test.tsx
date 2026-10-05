@@ -30,6 +30,8 @@ function makeResponse(
     branches: [],
     matched_node_id: null,
     orphan_prompts: [],
+    has_editor_workflow: false,
+    matched_by_size: false,
     ...overrides,
   };
 }
@@ -88,14 +90,14 @@ describe("ComfyWorkflowDialog", () => {
       }),
     );
 
-    const shown = within(await screen.findByRole("group", { name: "Prompts" }));
+    const shown = within(await screen.findByRole("group", { name: "Details" }));
     expect(shown.getByText("a harbour at night")).toBeInTheDocument();
     expect(shown.queryByText("a forest path in fog")).not.toBeInTheDocument();
     expect(shown.getByText("Node #8 · SaveImage")).toBeInTheDocument();
     expect(shown.getByText("Filename prefix: scenery")).toBeInTheDocument();
     expect(shown.getByText("Likely output — matched by filename")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Upscale/ }));
-    const comparison = within(screen.getByRole("group", { name: "Prompts" }));
+    const comparison = within(screen.getByRole("group", { name: "Details" }));
     expect(comparison.getByText("a forest path in fog")).toBeInTheDocument();
     expect(comparison.getByText("Selected for inspection — source unverified")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Text to Image/ })).toHaveTextContent(
@@ -140,7 +142,7 @@ describe("ComfyWorkflowDialog", () => {
 
     // Without a filename match the first output is still shown, never an empty pane.
     expect(
-      within(await screen.findByRole("group", { name: "Prompts" })).getByText("a harbour at night"),
+      within(await screen.findByRole("group", { name: "Details" })).getByText("a harbour at night"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Harbour shot/ })).toHaveAttribute(
       "aria-current",
@@ -150,7 +152,7 @@ describe("ComfyWorkflowDialog", () => {
 
     await user.click(screen.getByRole("button", { name: /Forest shot/ }));
 
-    const shown = within(screen.getByRole("group", { name: "Prompts" }));
+    const shown = within(screen.getByRole("group", { name: "Details" }));
     expect(shown.getByText("a forest path in fog")).toBeInTheDocument();
     expect(shown.queryByText("a harbour at night")).not.toBeInTheDocument();
   });
@@ -166,7 +168,7 @@ describe("ComfyWorkflowDialog", () => {
     );
 
     expect(await screen.findByText(/2 outputs share a naming pattern/)).toBeInTheDocument();
-    const shown = within(screen.getByRole("group", { name: "Prompts" }));
+    const shown = within(screen.getByRole("group", { name: "Details" }));
     expect(shown.getByText("Node #8 · SaveImage")).toBeInTheDocument();
     expect(shown.getByText("Selected for inspection — source unverified")).toBeInTheDocument();
   });
@@ -245,6 +247,67 @@ describe("ComfyWorkflowDialog", () => {
     renderDialog(makeResponse({ has_workflow: false }));
 
     expect(await screen.findByText(/carries no ComfyUI workflow/)).toBeInTheDocument();
+  });
+
+  it("says when the output size decided between same-named outputs", async () => {
+    renderDialog(
+      makeResponse({
+        matched_node_id: "9",
+        matched_by_size: true,
+        branches: [
+          makeBranch({ matches_filename: true }),
+          makeBranch({ node_id: "9", label: "Upscale", matches_filename: true }),
+        ],
+      }),
+    );
+
+    expect(await screen.findByText(/only\s+one is set to render at its size/)).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Likely output — matched by filename and size").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("copies the workflow of the selected output for pasting into ComfyUI", async () => {
+    const user = userEvent.setup();
+    const workflow = '{"version": 0.4, "nodes": [], "extra": {}}';
+    const fetchWorkflow = vi.spyOn(api, "fetchComfyEditorWorkflow").mockResolvedValue(workflow);
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    renderDialog(
+      makeResponse({
+        branches: [makeBranch(), makeBranch({ node_id: "9", label: "Upscale" })],
+        has_editor_workflow: true,
+      }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Upscale/ }));
+    await user.click(screen.getByRole("button", { name: "Copy workflow" }));
+
+    expect(fetchWorkflow).toHaveBeenCalledWith(expect.stringMatching(/scenery_00002_\.png$/), "9");
+    expect(writeText).toHaveBeenCalledWith(workflow);
+    expect(await screen.findByRole("button", { name: "Copied!" })).toHaveClass(
+      "comfy-workflow-dialog__copy--copied",
+    );
+  });
+
+  it("reports a workflow that could not be fetched as a failed copy", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "fetchComfyEditorWorkflow").mockRejectedValue(new Error("Not found"));
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    renderDialog(makeResponse({ branches: [makeBranch()], has_editor_workflow: true }));
+
+    await user.click(await screen.findByRole("button", { name: "Copy workflow" }));
+
+    expect(await screen.findByRole("button", { name: "Failed!" })).toHaveClass(
+      "comfy-workflow-dialog__copy--error",
+    );
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("offers no workflow copy when ComfyUI could not paste what the file carries", async () => {
+    renderDialog(makeResponse({ branches: [makeBranch()] }));
+
+    expect(await screen.findByText("Filename prefix: scenery")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy workflow" })).not.toBeInTheDocument();
   });
 
   it("surfaces a failed read instead of an empty panel", async () => {

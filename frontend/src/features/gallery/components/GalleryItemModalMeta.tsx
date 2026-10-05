@@ -73,7 +73,7 @@ export function GalleryItemModalMeta({
               type="button"
               className="gallery-item-modal__meta-badge gallery-item-modal__meta-badge--action"
               onClick={onInspectComfyWorkflow}
-              title="Show the prompts in the embedded ComfyUI workflow"
+              title="Inspect the embedded ComfyUI workflow"
             >
               <Icon icon={iconComfyUi} className="gallery-item-modal__meta-badge-icon" />
               ComfyUI

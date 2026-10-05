@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { fetchComfyEditorWorkflow } from "@/features/gallery/api/captions";
 import { useComfyWorkflowPrompts } from "@/features/gallery/hooks/useComfyWorkflowPrompts";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { iconCopy, iconLoader2 } from "@/shared/icons";
@@ -14,15 +15,27 @@ interface ComfyWorkflowDialogProps {
 }
 
 const LIKELY_OUTPUT_LABEL = "Likely output — matched by filename";
+const LIKELY_BY_SIZE_LABEL = "Likely output — matched by filename and size";
 // Model files get full-width rows; their names are too long for a settings tile.
 const MODEL_FILE_PATTERN = /\.(safetensors|gguf|ckpt|pth?|bin|sft)$/i;
 
 function describe(
   branches: ComfyOutputBranch[],
   matchedNodeId: string | null | undefined,
+  matchedBySize: boolean,
   mediaName: string,
 ): ReactNode {
   if (branches.length === 0) return "This workflow has no output node to trace prompts from.";
+  if (matchedNodeId && matchedBySize) {
+    const claiming = branches.filter((branch) => branch.matches_filename).length;
+    return (
+      <>
+        {claiming} outputs share a naming pattern matching <strong>{mediaName}</strong>, and only
+        one is set to render at its size. This identifies a likely output, but the embedded workflow
+        does not confirm which node wrote the file.
+      </>
+    );
+  }
   if (matchedNodeId) {
     return (
       <>
@@ -75,11 +88,13 @@ function BranchList({
   branches,
   selectedId,
   matchedNodeId,
+  likelyLabel,
   onSelect,
 }: {
   branches: ComfyOutputBranch[];
   selectedId: string;
   matchedNodeId: string | null | undefined;
+  likelyLabel: string;
   onSelect: (nodeId: string) => void;
 }) {
   return (
@@ -102,7 +117,7 @@ function BranchList({
                 <span className="comfy-workflow-dialog__output-flags">
                   {branch.matches_filename && (
                     <span className="comfy-workflow-dialog__output-flag">
-                      {branch.node_id === matchedNodeId ? LIKELY_OUTPUT_LABEL : "Matches filename"}
+                      {branch.node_id === matchedNodeId ? likelyLabel : "Matches filename"}
                     </span>
                   )}
                   {branch.is_preview && (
@@ -121,42 +136,65 @@ function BranchList({
   );
 }
 
+/** Copies the part of the workflow that leads to one output, for pasting into ComfyUI. */
+function CopyWorkflowButton({ mediaPath, nodeId }: { mediaPath: string; nodeId: string }) {
+  const { copyState, copyText } = useCopyFeedback();
+  const [busy, setBusy] = useState(false);
+  const label =
+    copyState === "copied" ? "Copied!" : copyState === "error" ? "Failed!" : "Copy workflow";
+
+  return (
+    <button
+      type="button"
+      className={classNames(
+        "comfy-workflow-dialog__copy",
+        copyState === "copied" && "comfy-workflow-dialog__copy--copied",
+        copyState === "error" && "comfy-workflow-dialog__copy--error",
+      )}
+      disabled={busy}
+      aria-busy={busy || undefined}
+      onClick={() => {
+        setBusy(true);
+        // Fetched on demand: a workflow can run to megabytes, and most opens never copy it.
+        void copyText(fetchComfyEditorWorkflow(mediaPath, nodeId)).finally(() => setBusy(false));
+      }}
+    >
+      <Icon
+        icon={busy ? iconLoader2 : iconCopy}
+        spin={busy}
+        className="comfy-workflow-dialog__copy-icon"
+      />
+      {label}
+    </button>
+  );
+}
+
 function BranchDetails({
   branch,
   matchedNodeId,
+  likelyLabel,
   onlyOutput,
+  mediaPath,
+  canCopyWorkflow,
 }: {
   branch: ComfyOutputBranch;
   matchedNodeId: string | null | undefined;
+  likelyLabel: string;
   onlyOutput: boolean;
+  mediaPath: string;
+  canCopyWorkflow: boolean;
 }) {
-  const { copyState, copyLabel, copyText } = useCopyFeedback();
-  const allPrompts = branch.prompts.map((prompt) => prompt.text).join("\n\n");
   const models = branch.parameters.filter((parameter) => MODEL_FILE_PATTERN.test(parameter.value));
   const settings = branch.parameters.filter((parameter) => !models.includes(parameter));
 
   return (
     <div className="dialog__field comfy-workflow-dialog__details-field">
-      <div className="dialog__label comfy-workflow-dialog__details-label">
-        Prompts
-        <button
-          type="button"
-          className={classNames(
-            "comfy-workflow-dialog__copy",
-            copyState === "copied" && "comfy-workflow-dialog__copy--copied",
-            copyState === "error" && "comfy-workflow-dialog__copy--error",
-          )}
-          onClick={() => {
-            void copyText(allPrompts);
-          }}
-          disabled={allPrompts.length === 0}
-        >
-          <Icon icon={iconCopy} className="comfy-workflow-dialog__copy-icon" />
-          {copyLabel}
-        </button>
+      <div className="dialog__label">
+        Details
+        {canCopyWorkflow && <CopyWorkflowButton mediaPath={mediaPath} nodeId={branch.node_id} />}
       </div>
 
-      <div className="comfy-workflow-dialog__details" role="group" aria-label="Prompts">
+      <div className="comfy-workflow-dialog__details" role="group" aria-label="Details">
         <div
           className="comfy-workflow-dialog__selected-output"
           role="group"
@@ -171,7 +209,7 @@ function BranchDetails({
             )}
           >
             {branch.node_id === matchedNodeId
-              ? LIKELY_OUTPUT_LABEL
+              ? likelyLabel
               : onlyOutput
                 ? "Only output in embedded workflow — filename unverified"
                 : "Selected for inspection — source unverified"}
@@ -280,11 +318,12 @@ export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWork
       ? null
       : data?.has_workflow === false
         ? "This file carries no ComfyUI workflow."
-        : describe(branches, data?.matched_node_id, mediaName);
+        : describe(branches, data?.matched_node_id, data?.matched_by_size === true, mediaName);
+  const likelyLabel = data?.matched_by_size ? LIKELY_BY_SIZE_LABEL : LIKELY_OUTPUT_LABEL;
 
   return (
     <Dialog
-      title="ComfyUI prompts"
+      title="ComfyUI workflow"
       role="dialog"
       panelClassName="comfy-workflow-dialog"
       description={description}
@@ -307,14 +346,18 @@ export function ComfyWorkflowDialog({ mediaPath, mediaName, onClose }: ComfyWork
               branches={branches}
               selectedId={selected.node_id}
               matchedNodeId={data?.matched_node_id}
+              likelyLabel={likelyLabel}
               onSelect={setSelectedId}
             />
           )}
           <BranchDetails
-            key={selected.node_id}
+            key={`${mediaPath}|${selected.node_id}`}
             branch={selected}
             matchedNodeId={data?.matched_node_id}
+            likelyLabel={likelyLabel}
             onlyOutput={branches.length === 1}
+            mediaPath={mediaPath}
+            canCopyWorkflow={data?.has_editor_workflow === true}
           />
         </div>
       )}

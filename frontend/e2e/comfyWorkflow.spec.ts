@@ -70,10 +70,10 @@ for (const viewport of [
     await page.goto(`/?path=${encodeURIComponent(folder)}`);
     await page.getByRole("button", { name: `View ${name}`, exact: true }).click();
     await page.getByRole("button", { name: /ComfyUI/ }).click();
-    const dialog = page.getByRole("dialog", { name: "ComfyUI prompts" });
+    const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
     await expect(dialog.getByText(/2 outputs share a naming pattern/)).toBeVisible();
     // No filename match, so the first output is shown rather than an empty pane.
-    const prompts = dialog.getByRole("group", { name: "Prompts", exact: true });
+    const prompts = dialog.getByRole("group", { name: "Details", exact: true });
     await expect(prompts.getByText("a quiet lake at sunrise", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("button", { name: /Landscape render/ })).toHaveAttribute(
       "aria-current",
@@ -155,7 +155,7 @@ test("linked GetNode settings are displayed for the likely output", async ({ pag
   const response = await responsePromise;
   const payload = (await response.json()) as ComfyWorkflowPromptsResponse;
   expect(payload.matched_node_id).toBe("8");
-  const dialog = page.getByRole("dialog", { name: "ComfyUI prompts" });
+  const dialog = page.getByRole("dialog", { name: "ComfyUI workflow" });
   await expect(dialog.getByText("Likely output — matched by filename")).toBeVisible();
   for (const [label, value] of [
     ["Sampler", "euler"],

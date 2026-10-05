@@ -17,6 +17,8 @@ it("parses once while open and reads changed file metadata when reopened", async
     branches: [],
     matched_node_id: null,
     orphan_prompts: [],
+    has_editor_workflow: false,
+    matched_by_size: false,
   };
   const changed = { ...initial, has_workflow: false };
   const fetchMock = vi.spyOn(api, "fetchComfyWorkflowPrompts").mockResolvedValue(initial);

@@ -984,6 +984,16 @@ class ComfyWorkflowPromptsResponse(BaseModel):
     branches: list[ComfyOutputBranch] = Field(default_factory=list)
     matched_node_id: str | None = None
     orphan_prompts: list[ComfyPromptText] = Field(default_factory=list)
+    #: Whether ``/comfy-workflow/editor`` has a workflow ComfyUI would load from a paste.
+    has_editor_workflow: bool = False
+    #: Several outputs match the filename; ``matched_node_id`` is the one set to the file's size.
+    matched_by_size: bool = False
+
+
+class ComfyEditorWorkflowResponse(BaseModel):
+    """The editor-format workflow trimmed to one output, JSON text ready for the clipboard."""
+
+    workflow: str
 
 
 class GifInfoResponse(BaseModel):

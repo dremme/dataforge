@@ -76,6 +76,8 @@ describe("GalleryItemModal", () => {
       has_workflow: true,
       matched_node_id: "7",
       orphan_prompts: [],
+      has_editor_workflow: false,
+      matched_by_size: false,
       branches: [
         {
           node_id: "7",
@@ -112,7 +114,7 @@ describe("GalleryItemModal", () => {
 
     await user.click(await screen.findByRole("button", { name: /ComfyUI/ }));
 
-    const prompts = await screen.findByRole("dialog", { name: "ComfyUI prompts" });
+    const prompts = await screen.findByRole("dialog", { name: "ComfyUI workflow" });
     expect(within(prompts).getByText("a mountain lake at sunrise")).toBeInTheDocument();
   });
 

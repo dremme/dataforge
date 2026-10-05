@@ -14,9 +14,10 @@ export function useCopyFeedback(feedbackMs = DEFAULT_FEEDBACK_MS) {
     };
   }, []);
 
+  /** Copies `text`; a pending text, such as a fetch, reports its failure like a clipboard one. */
   const copyText = useCallback(
-    async (text: string) => {
-      if (text.length === 0) return false;
+    async (text: string | Promise<string>) => {
+      if (text === "") return false;
 
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -24,7 +25,7 @@ export function useCopyFeedback(feedbackMs = DEFAULT_FEEDBACK_MS) {
       }
 
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(await text);
         setCopyState("copied");
       } catch {
         setCopyState("error");

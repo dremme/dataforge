@@ -205,6 +205,27 @@ class OutputNodeTests(unittest.TestCase):
 
         self.assertEqual([branch.class_type for branch in result.branches], ["SaveImage"])
 
+    def test_a_save_or_preview_node_that_takes_no_media_is_not_an_output(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a harbour at dawn"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": _save("4", "harbour"),
+            "6": {
+                "class_type": "Save Text File",
+                "inputs": {"text": ["7", 0], "path": "./output", "filename_prefix": "harbour"},
+            },
+            "7": {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "a harbour"}},
+            "8": {"class_type": "PM LoRA Save", "inputs": {"lora": ["1", 0], "file_name": "x"}},
+            "9": {"class_type": "PreviewAny", "inputs": {"source": ["7", 0]}},
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001_.png", graph))
+
+        self.assertEqual([branch.class_type for branch in result.branches], ["SaveImage"])
+
     def test_a_passthrough_preview_is_still_a_branch(self) -> None:
         graph = {
             "1": LOADER,
@@ -837,7 +858,10 @@ class FilenameMatchingTests(unittest.TestCase):
             with self.subTest(name=name, prefix=prefix), TempMediaFolder() as root:
                 graph = {
                     "2": _encode("scene"),
-                    "7": {"class_type": "SaveImage", "inputs": {"filename_prefix": prefix}},
+                    "7": {
+                        "class_type": "SaveImage",
+                        "inputs": {"filename_prefix": prefix, "images": ["2", 0]},
+                    },
                 }
                 result = extract_workflow_prompts(_write(root, name, graph))
                 self.assertIsNone(result.matched_node_id)
@@ -866,7 +890,10 @@ class FilenameMatchingTests(unittest.TestCase):
 
     def test_exact_full_filename_does_not_override_another_matching_prefix(self) -> None:
         graph = {
-            "7": {"class_type": "SaveImage", "inputs": {"filename": "scene_00001_.png"}},
+            "7": {
+                "class_type": "SaveImage",
+                "inputs": {"filename": "scene_00001_.png", "images": ["2", 0]},
+            },
             "8": _save("2", "scene"),
         }
         with TempMediaFolder() as root:
@@ -877,7 +904,12 @@ class FilenameMatchingTests(unittest.TestCase):
     def test_full_filename_requires_the_extension_and_has_no_counter_expansion(self) -> None:
         for name in ("scene.mov", "scene_00001.mp4"):
             with self.subTest(name=name), TempMediaFolder() as root:
-                graph = {"7": {"class_type": "SaveVideo", "inputs": {"filename": "scene.mp4"}}}
+                graph = {
+                    "7": {
+                        "class_type": "SaveVideo",
+                        "inputs": {"filename": "scene.mp4", "video": ["2", 0]},
+                    }
+                }
                 result = extract_workflow_prompts(_write_muxed(root, name, graph))
                 self.assertIsNone(result.matched_node_id)
 
@@ -887,13 +919,111 @@ class FilenameMatchingTests(unittest.TestCase):
             ("VHS_VideoCombine", "scene_00001-audio.png"),
         ):
             with self.subTest(class_type=class_type, name=name), TempMediaFolder() as root:
-                graph = {"7": {"class_type": class_type, "inputs": {"filename_prefix": "scene"}}}
+                media_key = "video" if class_type == "SaveVideo" else "images"
+                inputs = {"filename_prefix": "scene", media_key: ["2", 0]}
+                graph = {"7": {"class_type": class_type, "inputs": inputs}}
                 media = (
                     _write(root, name, graph)
                     if name.endswith(".png")
                     else _write_muxed(root, name, graph)
                 )
                 self.assertIsNone(extract_workflow_prompts(media).matched_node_id)
+
+
+def _video_stage(prompt: str, size: object, length: object, prefix: str) -> dict:
+    """An image-to-video stage whose size and length are linked in, as MiniMax H3 takes them."""
+    return {
+        "11": {
+            "class_type": "MiniMaxH3ImageToVideo",
+            "inputs": {"prompt": prompt, "width": size[0], "height": size[1], "length": length},
+        },
+        "12": {
+            "class_type": "VHS_VideoCombine",
+            "inputs": {"images": ["11", 0], "filename_prefix": prefix},
+        },
+    }
+
+
+def _renumbered(graph: dict, offset: int) -> dict:
+    def shift(value: object) -> object:
+        if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
+            return [str(int(value[0]) + offset), value[1]]
+        return value
+
+    return {
+        str(int(node_id) + offset): {
+            **node,
+            "inputs": {key: shift(value) for key, value in node["inputs"].items()},
+        }
+        for node_id, node in graph.items()
+    }
+
+
+class ComputedValueTests(unittest.TestCase):
+    def test_size_and_length_computed_by_core_nodes_are_shown(self) -> None:
+        graph = {
+            "1": {
+                "class_type": "ResolutionSelector",
+                "inputs": {
+                    "aspect_ratio": "3:4 (Portrait Standard)",
+                    "megapixels": 0.4,
+                    "multiple": 32,
+                },
+            },
+            "2": {"class_type": "PrimitiveFloat", "inputs": {"value": 3.4}},
+            "3": {
+                "class_type": "ComfyMathExpression",
+                "inputs": {
+                    "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+                    "values.a": ["2", 0],
+                },
+            },
+            **_video_stage("a harbour", (["1", 0], ["1", 1]), ["3", 1], "harbour"),
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "harbour_00001.png", graph))
+
+        shown = {parameter.label: parameter.value for parameter in result.branches[0].parameters}
+        self.assertEqual((shown["Width"], shown["Height"], shown["Frames"]), ("576", "736", "90"))
+
+
+class SizeTiebreakTests(unittest.TestCase):
+    """Same-named outputs are told apart by the size each stage renders at, never by length."""
+
+    def _graph(self, first: tuple[int, int], second: tuple[int, int]) -> dict:
+        return {
+            **_video_stage("a harbour", first, 81, "renders/scene"),
+            **_renumbered(_video_stage("a forest", second, 81, "renders/scene"), 10),
+        }
+
+    def test_the_one_output_set_to_the_file_size_is_the_likely_output(self) -> None:
+        with TempMediaFolder() as root:
+            # The PNG fixture is 64x48.
+            result = extract_workflow_prompts(
+                _write(root, "scene_00001.png", self._graph((128, 96), (64, 48)))
+            )
+
+        self.assertEqual(result.matched_node_id, "22")
+        self.assertTrue(result.matched_by_size)
+
+    def test_no_pick_when_the_size_fits_several_or_none(self) -> None:
+        for first, second in (((64, 48), (64, 48)), ((128, 96), (32, 24))):
+            with self.subTest(first=first, second=second), TempMediaFolder() as root:
+                result = extract_workflow_prompts(
+                    _write(root, "scene_00001.png", self._graph(first, second))
+                )
+                self.assertIsNone(result.matched_node_id)
+                self.assertFalse(result.matched_by_size)
+
+    def test_a_stage_of_unknown_size_is_never_ruled_out(self) -> None:
+        graph = self._graph((128, 96), (64, 48))
+        graph["11"]["inputs"]["width"] = ["99", 0]
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "scene_00001.png", graph))
+
+        self.assertIsNone(result.matched_node_id)
 
 
 if __name__ == "__main__":

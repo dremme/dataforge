@@ -38,6 +38,66 @@ class ComfyWorkflowEndpointTests(unittest.TestCase):
         self.assertEqual(payload["branches"][0]["class_type"], "SwiftVRRestoreVideo")
         self.assertEqual(payload["branches"][0]["label"], "Restored video")
 
+    def test_editor_workflow_is_trimmed_to_the_requested_output(self) -> None:
+        prompt = json.dumps(
+            {
+                "3": {"class_type": "SaveImage", "inputs": {}},
+                "4": {"class_type": "PreviewImage", "inputs": {}},
+            }
+        )
+        workflow = json.dumps(
+            {
+                "version": 0.4,
+                "nodes": [{"id": 3, "type": "SaveImage"}, {"id": 4, "type": "PreviewImage"}],
+                "links": [],
+                "extra": {"ds": {}},
+            }
+        )
+        with TempMediaFolder() as root:
+            media = write_media(
+                root, "comfy.png", text_chunks={"prompt": prompt, "workflow": workflow}
+            )
+            path = quote(str(media))
+            prompts = client.get(f"/api/comfy-workflow/prompts?path={path}")
+            editor = client.get(f"/api/comfy-workflow/editor?path={path}&node_id=4")
+            missing = client.get(f"/api/comfy-workflow/editor?path={path}&node_id=9")
+
+        self.assertTrue(prompts.json()["has_editor_workflow"])
+        self.assertEqual(editor.status_code, 200)
+        trimmed = json.loads(editor.json()["workflow"])
+        self.assertEqual([node["type"] for node in trimmed["nodes"]], ["PreviewImage"])
+        self.assertEqual(trimmed["extra"], {"ds": {}})
+        self.assertEqual(missing.status_code, 404)
+
+    def test_editor_workflow_is_unwrapped_from_a_video_comment(self) -> None:
+        workflow = {"version": 0.4, "nodes": [{"id": 3}], "links": [], "extra": {"ds": {}}}
+        comment = json.dumps({"prompt": "{}", "workflow": workflow})
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root, "comfy.mp4", metadata={"comment": comment})
+            path = quote(str(media))
+            response = client.get(f"/api/comfy-workflow/editor?path={path}&node_id=3")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.json()["workflow"]), {**workflow, "groups": []})
+
+    def test_a_workflow_comfyui_would_not_paste_is_not_offered(self) -> None:
+        prompt = json.dumps({"3": {"class_type": "PreviewImage", "inputs": {}}})
+        # No ``extra``: ComfyUI's paste handler treats this text as nothing to load.
+        unpasteable = json.dumps({"version": 0.4, "nodes": [{"id": 3}]})
+        with TempMediaFolder() as root:
+            cases = {
+                "api.png": {"prompt": prompt},
+                "partial.png": {"prompt": prompt, "workflow": unpasteable},
+            }
+            for name, chunks in cases.items():
+                media = write_media(root, name, text_chunks=chunks)
+                with self.subTest(name):
+                    path = quote(str(media))
+                    prompts = client.get(f"/api/comfy-workflow/prompts?path={path}")
+                    editor = client.get(f"/api/comfy-workflow/editor?path={path}&node_id=3")
+                    self.assertFalse(prompts.json()["has_editor_workflow"])
+                    self.assertEqual(editor.status_code, 404)
+
     def test_detects_comfy_workflow_metadata_in_png(self) -> None:
         with TempMediaFolder() as root:
             workflow = json.dumps({"nodes": [], "links": [], "last_node_id": 0})

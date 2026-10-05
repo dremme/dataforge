@@ -108,7 +108,7 @@ For interpolation, multiply the source rate by the interpolation factor: doublin
 
 ## Inspect embedded workflows
 
-Click the **ComfyUI** badge in a file's detail view to inspect embedded prompts, models, LoRAs, settings, and saved output names. This supports PNG, MP4, MOV, and M4V, including files made outside DataForge. Stripping metadata removes the embedded workflow.
+Click the **ComfyUI** badge in a file's detail view to inspect embedded prompts, models, LoRAs, settings, and saved output names. **Copy workflow** copies the part of the workflow that leads to the selected output; paste it onto the ComfyUI canvas to load it, which replaces the open tab's graph. It needs the editor workflow ComfyUI embeds alongside the prompt, so it is missing for files that carry only the API format. This supports PNG, MP4, MOV, and M4V, including files made outside DataForge. Stripping metadata removes the embedded workflow.
 
 When a workflow has several outputs, select one to inspect its details. DataForge shows the generation stage feeding that output, rather than combining settings from earlier stages.
 

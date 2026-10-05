@@ -5,7 +5,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from comfy_computed import math_expression, math_expression_output, resolution_selector
 from comfy_metadata import read_media_metadata_values
+from media_dimensions import media_dimensions
 from schemas import ComfyPromptRole
 
 _MAX_VALUE_HOPS = 12
@@ -13,7 +15,7 @@ _MAX_PROMPT_CHARS = 20000
 
 _SAVE_CLASS_MARKERS = ("save", "videocombine", "output")
 _PREVIEW_CLASS_MARKERS = ("preview",)
-_PREVIEW_MEDIA_INPUTS = frozenset({"images", "image", "video", "audio"})
+_MEDIA_INPUTS = frozenset({"images", "image", "video", "audio"})
 #: Lowercased classes that write their own file but carry no save marker in the name.
 _EXTRA_OUTPUT_CLASSES = frozenset({"swiftvrrestorevideo"})
 
@@ -39,6 +41,7 @@ _SCALAR_INPUT_KEYS = {
 }
 
 _ROUTE_CLASSES = frozenset({"GetNode", "SetNode", "Reroute"})
+_RESOLUTION_INPUT_KEYS = ("aspect_ratio", "megapixels", "multiple")
 #: Impact Pack detailers and Ultimate SD Upscale re-sample the image their own stage made.
 _REFINER_CLASS_MARKERS = ("detailer", "ultimatesdupscale")
 _NAME_INPUT_KEYS = ("filename_prefix", "filename")
@@ -95,6 +98,9 @@ class OutputBranch:
     prompts: list[PromptText] = field(default_factory=list)
     parameters: list[Parameter] = field(default_factory=list)
     loras: list[str] = field(default_factory=list)
+    #: Widths and heights the stage was set to render at, for telling same-named outputs apart.
+    widths: frozenset[int] = frozenset()
+    heights: frozenset[int] = frozenset()
 
 
 @dataclass
@@ -104,6 +110,9 @@ class WorkflowPrompts:
     branches: list[OutputBranch]
     matched_node_id: str | None
     orphan_prompts: list[PromptText]
+    has_editor_workflow: bool = False
+    #: The filename matched several outputs, and only the matched one renders at the file's size.
+    matched_by_size: bool = False
 
 
 def _link_reference(value: object) -> tuple[str, int] | None:
@@ -351,13 +360,40 @@ def _forwarded_input(node: object) -> object | None:
     return None
 
 
+def _computed_output(
+    graph: dict[str, dict], node: object, slot: int, hops: int
+) -> ScalarValue | None:
+    """An output of a core node that computes numbers, such as the frame count of a video."""
+    inputs = _node_inputs(node)
+    class_type = _node_class(node)
+    if class_type == "ResolutionSelector" and slot in (0, 1):
+        size = resolution_selector(
+            *(_scalar_at(graph, inputs.get(key), hops + 1) for key in _RESOLUTION_INPUT_KEYS)
+        )
+        return size[slot] if size else None
+    if class_type == "ComfyMathExpression":
+        values = {
+            key.removeprefix("values."): _scalar_at(graph, value, hops + 1)
+            for key, value in inputs.items()
+            if key.startswith("values.")
+        }
+        if any(value is None for value in values.values()):
+            return None
+        result = math_expression(_scalar_at(graph, inputs.get("expression"), hops + 1), values)
+        return math_expression_output(result, slot) if result is not None else None
+    return None
+
+
 def _scalar_at(graph: dict[str, dict], value: object, hops: int = 0) -> ScalarValue | None:
     if isinstance(value, (str, int, float, bool)):
         return value
     reference = _link_reference(value)
-    if reference is None or reference[1] != 0 or hops >= _MAX_VALUE_HOPS:
+    if reference is None or hops >= _MAX_VALUE_HOPS:
         return None
     node = graph.get(reference[0])
+    computed = _computed_output(graph, node, reference[1], hops)
+    if computed is not None or reference[1] != 0:
+        return computed
     resolved = _scalar_at(graph, _forwarded_input(node), hops + 1)
     if _node_class(node) == "FloatConstant" and isinstance(resolved, (int, float)):
         return round(resolved, 6)
@@ -561,29 +597,18 @@ def _matches_filename(
 
 
 def _output_nodes(graph: dict[str, dict]) -> set[str]:
-    """Nodes named by class, not by having no consumer: a graph is full of dead ends.
+    """Save and preview nodes that take media; named by class, since a graph is full of dead ends.
 
-    A preview name alone is weak evidence. A consumed one that reads no media, such as
-    ModelPreviewOverrideKJ, patches a model's sampling preview; a PreviewImage given a
-    passthrough output in the editor still shows its images. A save node stays an output when
-    its filenames are linked onward.
+    The name alone is weak evidence: Save Text File writes text, a LoRA saver writes a model,
+    and ModelPreviewOverrideKJ patches a model's sampling preview. Whether the node is consumed
+    does not matter: the editor can give PreviewImage a passthrough output.
     """
-    consumed = {
-        source
-        for node in graph.values()
-        for value in _node_inputs(node).values()
-        if (source := _link_target(value)) is not None
-    }
     outputs: set[str] = set()
     for node_id, node in graph.items():
         lowered = _node_class(node).lower()
-        if (
-            lowered in _EXTRA_OUTPUT_CLASSES
-            or any(marker in lowered for marker in _SAVE_CLASS_MARKERS)
-            or (
-                any(marker in lowered for marker in _PREVIEW_CLASS_MARKERS)
-                and (node_id not in consumed or _PREVIEW_MEDIA_INPUTS & _node_inputs(node).keys())
-            )
+        named = any(marker in lowered for marker in _SAVE_CLASS_MARKERS + _PREVIEW_CLASS_MARKERS)
+        if lowered in _EXTRA_OUTPUT_CLASSES or (
+            named and _MEDIA_INPUTS & _node_inputs(node).keys()
         ):
             outputs.add(node_id)
     return outputs
@@ -687,6 +712,69 @@ def _nested_values(values: dict[str, str]) -> dict[str, str]:
     return nested
 
 
+def _metadata_values(file_path: Path) -> dict[str, str]:
+    values = read_media_metadata_values(file_path)
+    # Top level wins: a PNG names its chunks, and only a container that cannot needs unwrapping.
+    return {**_nested_values(values), **values} if values else {}
+
+
+def _editor_workflow(values: dict[str, str]) -> str | None:
+    """The editor-format workflow as stored, if ComfyUI would load it from a paste.
+
+    ComfyUI's paste handler loads plain text only when it carries ``version``, ``nodes`` and
+    ``extra``; the API-format ``prompt`` is pasted as nothing.
+    """
+    for key in ("workflow", "Workflow", "WORKFLOW"):
+        raw = values.get(key)
+        workflow = _parse_workflow(raw or "")
+        if workflow:
+            pasteable = all(workflow.get(field) for field in ("version", "nodes", "extra"))
+            return raw if pasteable else None
+    return None
+
+
+def read_editor_workflow(file_path: Path) -> str | None:
+    return _editor_workflow(_metadata_values(file_path))
+
+
+def _declared_sizes(graph: dict[str, dict], ancestry: list[str], key: str) -> frozenset[int]:
+    values = (_scalar_at(graph, _node_inputs(graph.get(node_id)).get(key)) for node_id in ancestry)
+    return frozenset(
+        int(value)
+        for value in values
+        if isinstance(value, int | float) and not isinstance(value, bool) and value > 0
+    )
+
+
+def _media_size(file_path: Path) -> tuple[int, int] | None:
+    try:
+        stat = file_path.stat()
+    except OSError:
+        return None
+    media_type = "image" if file_path.suffix.lower() == ".png" else "video"
+    return media_dimensions(file_path, media_type, stat.st_mtime_ns, stat.st_size)
+
+
+def _size_tiebreak(candidates: list[OutputBranch], file_path: Path) -> OutputBranch | None:
+    """The one same-named output set to render at the file's size, or None.
+
+    A stage without a readable size is never ruled out. The frame count is no help: frame
+    interpolation and chained segments multiply it, so the generated length rarely matches.
+    """
+    if len(candidates) < 2 or not any(branch.widths and branch.heights for branch in candidates):
+        return None
+    size = _media_size(file_path)
+    if size is None:
+        return None
+    fitting = [
+        branch
+        for branch in candidates
+        if not (branch.widths and branch.heights)
+        or (size[0] in branch.widths and size[1] in branch.heights)
+    ]
+    return fitting[0] if len(fitting) == 1 else None
+
+
 def _sort_branches(branches: list[OutputBranch]) -> list[OutputBranch]:
     return sorted(
         branches,
@@ -710,12 +798,9 @@ def _empty() -> WorkflowPrompts:
 
 
 def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
-    values = read_media_metadata_values(file_path)
+    values = _metadata_values(file_path)
     if not values:
         return _empty()
-
-    # Top level wins: a PNG names its chunks, and only a container that cannot needs unwrapping.
-    values = {**_nested_values(values), **values}
 
     graph = None
     for key in ("prompt", "Prompt", "PROMPT"):
@@ -764,16 +849,22 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
                 prompts=_collect_prompts(graph, ancestry),
                 parameters=parameters,
                 loras=loras,
+                widths=_declared_sizes(graph, ancestry, "width"),
+                heights=_declared_sizes(graph, ancestry, "height"),
             )
         )
 
-    matched = [branch.node_id for branch in branches if branch.matches_filename]
+    claimants = [branch for branch in branches if branch.matches_filename]
+    by_size = _size_tiebreak(claimants, file_path)
+    matched = claimants[0] if len(claimants) == 1 else by_size
     orphans = _collect_prompts(graph, [node_id for node_id in graph if node_id not in covered])
 
     return WorkflowPrompts(
         has_workflow=True,
         source="prompt",
         branches=_sort_branches(branches),
-        matched_node_id=matched[0] if len(matched) == 1 else None,
+        matched_node_id=matched.node_id if matched else None,
         orphan_prompts=orphans,
+        has_editor_workflow=_editor_workflow(values) is not None,
+        matched_by_size=by_size is not None,
     )

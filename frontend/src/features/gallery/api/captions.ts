@@ -3,6 +3,7 @@ import type {
   CaptionBackupResponse,
   CaptionSaveResponse,
   CaptionUpdate,
+  ComfyEditorWorkflowResponse,
   ComfyWorkflowPromptsResponse,
   PngWorkflowResponse,
 } from "@/shared/types";
@@ -30,6 +31,15 @@ export async function fetchComfyWorkflowPrompts(
   return requestJson<ComfyWorkflowPromptsResponse>(`/api/comfy-workflow/prompts?${params}`, {
     signal,
   });
+}
+
+/** The editor workflow trimmed to one output; it loads in ComfyUI when pasted onto the canvas. */
+export async function fetchComfyEditorWorkflow(mediaPath: string, nodeId: string): Promise<string> {
+  const params = new URLSearchParams({ path: mediaPath, node_id: nodeId });
+  const response = await requestJson<ComfyEditorWorkflowResponse>(
+    `/api/comfy-workflow/editor?${params}`,
+  );
+  return response.workflow;
 }
 
 export async function saveCaption(
