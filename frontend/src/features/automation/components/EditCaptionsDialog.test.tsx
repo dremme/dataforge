@@ -1,6 +1,7 @@
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { previewCaptionEdits } from "@/features/automation/api/jobs";
 import {
   emptyAutomationSettings,
   type JobSettingsByType,
@@ -8,17 +9,22 @@ import {
 import { EditCaptionsDialog } from "./EditCaptionsDialog";
 import { renderWithQueryClient } from "@/test/queryClient";
 
+vi.mock("@/features/automation/api/jobs", () => ({ previewCaptionEdits: vi.fn() }));
+
 const DEFAULTS: JobSettingsByType["edit_captions"] =
   emptyAutomationSettings("C:/datasets/photos").edit_captions;
 
 function renderDialog(
   overrides: Partial<JobSettingsByType["edit_captions"]> = {},
   onConfirm = vi.fn(),
+  selectedPaths?: string[],
 ) {
   renderWithQueryClient(
     <EditCaptionsDialog
       scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
+      folderPath="C:/datasets/photos"
+      selectedPaths={selectedPaths}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
     />,
@@ -40,6 +46,129 @@ function confirm(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("EditCaptionsDialog", () => {
+  beforeEach(() => {
+    vi.mocked(previewCaptionEdits).mockReset();
+  });
+
+  it("only previews on request with the current selection and model settings", async () => {
+    const user = userEvent.setup();
+    vi.mocked(previewCaptionEdits).mockResolvedValue({
+      samples: [
+        { name: "one.png", before: "a dog", after: "a cat", error: null },
+        { name: "two.png", before: "a lake", after: "a lake", error: null },
+      ],
+    });
+    const paths = ["C:/datasets/photos/one.png", "C:/datasets/photos/two.png"];
+    const onConfirm = renderDialog(
+      {
+        instruction: "  Replace dog with cat.  ",
+        mode: "thinking",
+        reasoning_effort: "low",
+        preserve_thinking: false,
+      },
+      vi.fn(),
+      paths,
+    );
+    expect(previewCaptionEdits).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Dry run" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("one.png"));
+    expect(screen.getByText("dog").tagName).toBe("DEL");
+    expect(screen.getByText("cat").tagName).toBe("INS");
+    expect(screen.getByRole("status")).toHaveTextContent("Unchanged:");
+    expect(previewCaptionEdits).toHaveBeenCalledWith(
+      "C:/datasets/photos",
+      {
+        instruction: "Replace dog with cat.",
+        mode: "thinking",
+        reasoning_effort: "low",
+        preserve_thinking: false,
+        paths,
+      },
+      expect.any(AbortSignal),
+    );
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.clear(instructionField());
+    await user.type(instructionField(), "Drop colours.");
+    expect(screen.queryByText("one.png")).not.toBeInTheDocument();
+    expect(previewCaptionEdits).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks starting a job while previewing and clears results when model settings change", async () => {
+    const user = userEvent.setup();
+    let finish!: (value: Awaited<ReturnType<typeof previewCaptionEdits>>) => void;
+    vi.mocked(previewCaptionEdits).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const onConfirm = renderDialog({ instruction: "Drop colours." });
+    await user.click(screen.getByRole("button", { name: "Dry run" }));
+    expect(screen.getByRole("button", { name: "Start edit captions" })).toBeDisabled();
+    expect(instructionField()).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(onConfirm).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({ samples: [{ name: "one.png", before: "a red dog", after: "a dog", error: null }] });
+    });
+    expect(await screen.findByText("one.png")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /Reasoning/ }));
+    expect(screen.queryByText("one.png")).not.toBeInTheDocument();
+  });
+
+  it("shows request failures, per-caption errors, and empty previews with a retry action", async () => {
+    const user = userEvent.setup();
+    vi.mocked(previewCaptionEdits)
+      .mockRejectedValueOnce(new Error("Model unavailable."))
+      .mockResolvedValueOnce({
+        samples: [
+          {
+            name: "one.png",
+            before: "a dog",
+            after: null,
+            error: "The model returned too little text.",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ samples: [] });
+    renderDialog({ instruction: "Drop colours." });
+    const previewButton = () => screen.getByRole("button", { name: "Dry run" });
+    await user.click(previewButton());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Model unavailable."));
+    await user.click(previewButton());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("too little text"));
+    await user.click(previewButton());
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "No readable captions found in this scope.",
+      ),
+    );
+  });
+
+  it("refuses to preview a blank instruction", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByRole("button", { name: "Dry run" }));
+    expect(previewCaptionEdits).not.toHaveBeenCalled();
+    expect(instructionField()).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter an instruction for the edit.");
+  });
+
+  it("uses Enter on the dry run button to preview without starting the job", async () => {
+    const user = userEvent.setup();
+    vi.mocked(previewCaptionEdits).mockResolvedValue({ samples: [] });
+    const onConfirm = renderDialog({ instruction: "Drop colours." });
+    const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now() + 1000);
+    try {
+      screen.getByRole("button", { name: "Dry run" }).focus();
+      await user.keyboard("{Enter}");
+      await waitFor(() => expect(previewCaptionEdits).toHaveBeenCalledTimes(1));
+      expect(onConfirm).not.toHaveBeenCalled();
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("starts from the settings the last run used", () => {
     renderDialog({
       mode: "thinking",

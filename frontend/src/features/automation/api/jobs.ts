@@ -6,6 +6,8 @@ import type {
   ComfyPresetsResponse,
   Job,
   JobType,
+  EditCaptionsPreviewRequest,
+  EditCaptionsPreviewResponse,
   ReplaceCaptionsPreviewRequest,
   ReplaceCaptionsPreviewResponse,
   TrainingModel,
@@ -46,6 +48,19 @@ export async function previewCaptionReplacements(
   const params = new URLSearchParams({ path: folderPath });
   return postJson<ReplaceCaptionsPreviewResponse>(
     `/api/automation/replace-captions/preview?${params}`,
+    body,
+    { signal },
+  );
+}
+
+export async function previewCaptionEdits(
+  folderPath: string,
+  body: EditCaptionsPreviewRequest,
+  signal?: AbortSignal,
+): Promise<EditCaptionsPreviewResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  return postJson<EditCaptionsPreviewResponse>(
+    `/api/automation/edit-captions/preview?${params}`,
     body,
     { signal },
   );

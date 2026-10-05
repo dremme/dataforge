@@ -338,6 +338,114 @@ class ReplaceCaptionsPreviewEndpointTests(unittest.TestCase):
         self.assertEqual(payload["matched"], 0)
 
 
+class EditCaptionsPreviewEndpointTests(unittest.TestCase):
+    def test_previews_three_readable_captions_without_writing_or_starting_a_job(self) -> None:
+        original = "A person walked along a quiet street beside a stone wall."
+        edited = "A person walks along a quiet street beside a stone wall."
+        with TempMediaFolder() as root:
+            write_media(root, "a-uncaptioned.png")
+            for name in ("b.png", "c.png", "d.png", "e.png"):
+                write_txt_caption(write_media(root, name), original)
+            before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in root.iterdir()}
+            preferences = _stored_settings(root)
+            with (
+                patch("automation.edit_captions.edit_caption", return_value=edited) as model,
+                patch.object(job_manager, "queue_job") as queue,
+            ):
+                response = _post(
+                    "edit-captions/preview",
+                    root,
+                    {
+                        "instruction": "  Rewrite in present tense.  ",
+                        "mode": "thinking",
+                        "reasoning_effort": "low",
+                        "preserve_thinking": False,
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200, response.text)
+            samples = response.json()["samples"]
+            self.assertEqual([sample["name"] for sample in samples], ["b.png", "c.png", "d.png"])
+            self.assertTrue(all(sample["before"] == original for sample in samples))
+            self.assertTrue(all(sample["after"] == edited for sample in samples))
+            self.assertEqual(model.call_count, 3)
+            self.assertEqual(model.call_args.kwargs["mode"], "thinking")
+            self.assertEqual(model.call_args.kwargs["effort"], "low")
+            self.assertFalse(model.call_args.kwargs["preserve_thinking"])
+            self.assertIn("# Edit to apply\nRewrite in present tense.", model.call_args.args[1])
+            queue.assert_not_called()
+            self.assertEqual(_stored_settings(root), preferences)
+            self.assertEqual(
+                {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in root.iterdir()},
+                before,
+            )
+
+    def test_honours_selection_and_reports_unchanged_captions(self) -> None:
+        with TempMediaFolder() as root:
+            first = _write_captioned_folder(root)
+            second = write_media(root, "second.png")
+            write_txt_caption(second, "A river.")
+            with patch("automation.edit_captions.edit_caption", return_value="A river.") as model:
+                response = _post(
+                    "edit-captions/preview",
+                    root,
+                    {
+                        "instruction": "Rewrite in present tense.",
+                        "paths": [str(second)],
+                    },
+                )
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(
+                response.json()["samples"],
+                [
+                    {
+                        "name": "second.png",
+                        "before": "A river.",
+                        "after": "A river.",
+                        "error": None,
+                    }
+                ],
+            )
+            self.assertEqual(model.call_count, 1)
+            self.assertTrue(first.with_suffix(".txt").exists())
+
+    def test_failed_model_outputs_are_reported_without_becoming_proposed_edits(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(
+                write_media(root, "photo.png"),
+                "A person walked along a quiet street beside a stone wall.",
+            )
+            for reply, message in (("Yes.", "too little text"), (None, "Model request failed")):
+                with (
+                    self.subTest(reply=reply),
+                    patch(
+                        "automation.edit_captions.edit_caption",
+                        return_value=reply,
+                    ),
+                ):
+                    response = _post(
+                        "edit-captions/preview",
+                        root,
+                        {
+                            "instruction": "Rewrite in present tense.",
+                        },
+                    )
+                    self.assertEqual(response.status_code, 200, response.text)
+                    sample = response.json()["samples"][0]
+                    self.assertIsNone(sample["after"])
+                    self.assertIn(message, sample["error"])
+
+    def test_requires_an_instruction_and_handles_a_folder_without_captions(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            with patch("automation.edit_captions.edit_caption") as model:
+                self.assertEqual(_post("edit-captions/preview", root, {}).status_code, 400)
+                response = _post("edit-captions/preview", root, {"instruction": "Drop colours."})
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["samples"], [])
+                model.assert_not_called()
+
+
 class TrainingTemplateEndpointTests(unittest.TestCase):
     """The editor reads a template here and checks its edit before the job is started."""
 

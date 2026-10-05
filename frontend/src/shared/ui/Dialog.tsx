@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  type RefObject,
+  type KeyboardEventHandler,
+} from "react";
 import { iconLoader2, iconX } from "@/shared/icons";
 import { DialogScope, type DialogScopeInfo } from "./DialogScope";
 import { Icon } from "./Icon";
@@ -125,6 +133,7 @@ interface DialogButtonProps {
   busy?: boolean;
   disabled?: boolean;
   onClick: () => void;
+  onKeyDown?: KeyboardEventHandler<HTMLButtonElement>;
 }
 
 export function DialogButton({
@@ -134,6 +143,7 @@ export function DialogButton({
   busy = false,
   disabled = false,
   onClick,
+  onKeyDown,
 }: DialogButtonProps) {
   const displayIcon = busy ? iconLoader2 : icon;
 
@@ -142,6 +152,7 @@ export function DialogButton({
       type="button"
       className={`confirm-dialog__btn confirm-dialog__btn--${variant}`}
       onClick={onClick}
+      onKeyDown={onKeyDown}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
     >

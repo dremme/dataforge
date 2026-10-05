@@ -97,6 +97,13 @@ Lint captions skips missing caption files; an existing empty caption is checked.
 
 Back up before a bulk rewrite you may want to undo. **Backup captions** copies `.txt` files into `.backup/`, keeping existing backups unless overwrite is enabled. **Restore captions** asks before overwriting current captions, skips files whose media is gone, and keeps the backup files. Neither job changes issue findings.
 
+In **Edit captions**, enter an instruction and click **Dry run** in the dialog actions to test it before
+starting the job. The preview uses up to three readable captions in filename order from the
+current folder or selection, with the same model settings as the job. It highlights removed and
+added text, marks unchanged captions, and reports model failures without changing files or
+backups. Changing the instruction or model controls clears the preview. The full job generates
+fresh results, so its wording may differ from the samples.
+
 ## Edit media
 
 Open a file's editor, make changes, then **Apply**. Editor changes render from the original, retained beside the media as a `.bak`, with edit settings in `.edit.json`. Later edits use that original again. **Revert original** restores it and removes the edit files.

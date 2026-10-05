@@ -1,7 +1,7 @@
 import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { previewCaptionReplacements } from "@/features/automation/api/jobs";
-import { diffCaption } from "@/features/automation/lib/captionDiff";
+import { CaptionPreviewSample } from "@/features/automation/components/CaptionPreviewSample";
 import { folderKey } from "@/features/folder/lib/folderPath";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { classNames } from "@/shared/lib/classNames";
@@ -330,7 +330,7 @@ function ReplacePreviewBody({ preview, hidden }: { preview: PreviewState | null;
       {preview.samples.length > 0 && (
         <ul className="replace-captions-dialog__samples">
           {preview.samples.map((sample) => (
-            <ReplaceSample key={sample.name} sample={sample} />
+            <CaptionPreviewSample key={sample.name} {...sample} />
           ))}
           {hidden > 0 && (
             <li className="replace-captions-dialog__samples-more">and {hidden} more</li>
@@ -338,23 +338,5 @@ function ReplacePreviewBody({ preview, hidden }: { preview: PreviewState | null;
         </ul>
       )}
     </>
-  );
-}
-
-function ReplaceSample({ sample }: { sample: CaptionReplacePreviewSample }) {
-  const { prefix, removed, added, suffix } = diffCaption(sample.before, sample.after);
-
-  return (
-    <li className="replace-captions-dialog__sample">
-      <span className="replace-captions-dialog__sample-name" title={sample.name}>
-        {sample.name}
-      </span>
-      <p className="replace-captions-dialog__sample-text">
-        {prefix}
-        {removed && <del className="replace-captions-dialog__removed">{removed}</del>}
-        {added && <ins className="replace-captions-dialog__added">{added}</ins>}
-        {suffix}
-      </p>
-    </li>
   );
 }

@@ -743,6 +743,21 @@ class EditCaptionsStartRequest(JobSelectionRequest, EditCaptionsJobSettings):
     )
 
 
+class EditCaptionsPreviewRequest(JobSelectionRequest, EditCaptionsJobSettings):
+    pass
+
+
+class CaptionEditPreviewSample(BaseModel):
+    name: str
+    before: str
+    after: str | None = None
+    error: str | None = None
+
+
+class EditCaptionsPreviewResponse(BaseModel):
+    samples: list[CaptionEditPreviewSample] = Field(default_factory=list)
+
+
 class TrainLoraJobSettings(BaseModel):
     trigger_word: str = ""
     prompts: list[str] = Field(default_factory=list)

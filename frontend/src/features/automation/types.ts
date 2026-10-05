@@ -68,7 +68,10 @@ export type AutomationDialogsState = {
       backup: boolean,
     ) => void,
     JobSettingsByType["edit_captions"]
-  >;
+  > & {
+    folderPath: string;
+    selectedPaths?: string[];
+  };
   findDuplicates: FolderBusyDialogState<
     (threshold: DuplicateThreshold) => void,
     JobSettingsByType["find_duplicates"]

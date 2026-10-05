@@ -353,12 +353,55 @@
   width: min(38rem, 100%);
 }
 
+.confirm-dialog__panel.edit-captions-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  overflow: hidden;
+}
+
 .edit-captions-dialog {
-  // Side by side so this extra control still fits a 720px viewport without a scrollbar.
+  &__dry-run-action {
+    margin-right: auto;
+  }
+
+  &__dry-run-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.375rem;
+  }
+
+  &__dry-run-hint-icon {
+    @include icon-size-sm;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+
+  &__body {
+    @include app-scrollbar;
+    flex: 1;
+    min-height: 0;
+    margin: 0 (-$focus-ring-space);
+    padding: 0 $focus-ring-space;
+    overflow-y: auto;
+  }
+
   &__toggles {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
+  }
+
+  &__samples {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin: 0.75rem 0 0;
+    padding: 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+    list-style: none;
   }
 }
 
@@ -529,21 +572,26 @@
     list-style: none;
   }
 
-  &__sample {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    min-width: 0;
+  &__samples-more {
+    font-size: var(--text-2xs);
+    color: var(--text-subtle);
   }
+}
 
-  &__sample-name {
+.caption-preview-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+
+  &__name {
     @include truncate;
     font-size: var(--text-2xs);
     color: var(--text-subtle);
     letter-spacing: var(--tracking-caps);
   }
 
-  &__sample-text {
+  &__text {
     margin: 0;
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
@@ -575,11 +623,6 @@
   // Only a swap needs the seam; a pure insertion sits flush with its prefix.
   &__removed + &__added {
     margin-left: 0.1875rem;
-  }
-
-  &__samples-more {
-    font-size: var(--text-2xs);
-    color: var(--text-subtle);
   }
 }
 

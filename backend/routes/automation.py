@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from automation.edit_captions import preview_caption_edits
 from automation.jobs import JobType, job_manager
 from automation.replace_captions import preview_caption_replacements
 from automation.selection import resolve_selected_media
@@ -30,6 +31,8 @@ from schemas import (
     ComfyPresetSummary,
     ComfyPresetTextResponse,
     ComfyProcessStartRequest,
+    EditCaptionsPreviewRequest,
+    EditCaptionsPreviewResponse,
     EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
     JobResponse,
@@ -181,6 +184,23 @@ def start_edit_captions_job(
     path: str = FOLDER_QUERY, body: EditCaptionsStartRequest = EditCaptionsStartRequest()
 ) -> JobResponse:
     return _start_job("edit_captions", path, body)
+
+
+@router.post("/automation/edit-captions/preview", response_model=EditCaptionsPreviewResponse)
+def preview_edit_captions(
+    path: str = FOLDER_QUERY,
+    body: EditCaptionsPreviewRequest = EditCaptionsPreviewRequest(),
+) -> EditCaptionsPreviewResponse:
+    folder = resolve_folder(path)
+    try:
+        selected_paths = resolve_selected_media(folder, body.paths)
+        return preview_caption_edits(
+            folder,
+            selected_paths=selected_paths,
+            **body.model_dump(exclude={"paths"}),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/automation/watermark", response_model=JobResponse)

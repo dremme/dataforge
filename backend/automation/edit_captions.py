@@ -18,14 +18,14 @@ from automation.llm import (
 )
 from automation.selection import filter_media_list, list_folder_media
 from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
-from constants import MEDIA_EXTENSIONS
+from constants import CAPTION_EDIT_PREVIEW_LIMIT, MEDIA_EXTENSIONS
 from file_write import copy_file_atomic
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
     get_openai_model,
 )
-from schemas import AutomationMode
+from schemas import AutomationMode, CaptionEditPreviewSample, EditCaptionsPreviewResponse
 
 REJECTED = "rejected"
 UNCHANGED = "unchanged"
@@ -184,10 +184,13 @@ def process_media(
     effort: str = DEFAULT_REASONING_EFFORT,
     preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
     should_cancel: ShouldCancel | None = None,
+    reference_caption: str | None = None,
 ) -> tuple[str | None, str, str | None]:
-    ref_caption, status = load_reference_caption(media_path)
-    if status != "ok" or ref_caption is None:
-        return None, status, None
+    ref_caption = reference_caption
+    if ref_caption is None:
+        ref_caption, status = load_reference_caption(media_path)
+        if status != "ok" or ref_caption is None:
+            return None, status, None
 
     def attempt(_number: int) -> ModelOutcome[str]:
         raw = edit_caption(
@@ -220,6 +223,53 @@ def process_media(
         on_abandon=lambda: close_model_client(client),
     )
     return outcome.value, outcome.status, outcome.message
+
+
+def preview_caption_edits(
+    folder: Path,
+    *,
+    instruction: str = "",
+    mode: AutomationMode = "instruct",
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    preserve_thinking: bool = DEFAULT_PRESERVE_THINKING,
+    selected_paths: list[Path] | None = None,
+) -> EditCaptionsPreviewResponse:
+    """Try the job's edit on up to three readable captions without writing sidecars."""
+    validate_edit_captions_folder(folder, instruction=instruction)
+    media_files = filter_media_list(list_edit_captions_media(folder), selected_paths)
+    system_prompt = build_edit_system_prompt(instruction)
+    resolved_model = get_openai_model()
+    samples: list[CaptionEditPreviewSample] = []
+
+    with model_client() as client:
+        for media_path in media_files:
+            original, status = load_reference_caption(media_path)
+            if status != "ok" or original is None:
+                continue
+            edited, status, message = process_media(
+                client,
+                media_path,
+                system_prompt,
+                model=resolved_model,
+                mode=mode,
+                effort=reasoning_effort,
+                preserve_thinking=preserve_thinking,
+                reference_caption=original,
+            )
+            samples.append(
+                CaptionEditPreviewSample(
+                    name=media_path.name,
+                    before=original,
+                    after=edited if status == "success" else None,
+                    error=None
+                    if status == "success"
+                    else message or "Could not preview this caption.",
+                )
+            )
+            if len(samples) >= CAPTION_EDIT_PREVIEW_LIMIT:
+                break
+
+    return EditCaptionsPreviewResponse(samples=samples)
 
 
 def back_up_caption_sidecars(media_path: Path, backup_dir: Path) -> None:

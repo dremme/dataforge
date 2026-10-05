@@ -92,6 +92,8 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
       {editCaptions.open && editCaptions.initialSettings && (
         <EditCaptionsDialog
           scope={editCaptions.scope}
+          folderPath={editCaptions.folderPath}
+          selectedPaths={editCaptions.selectedPaths}
           initialSettings={editCaptions.initialSettings}
           busy={editCaptions.busy}
           onConfirm={editCaptions.onConfirm}

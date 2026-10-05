@@ -156,6 +156,8 @@ export function useAutomationDialogOverlays({
       },
       editCaptions: {
         ...shared("edit_captions"),
+        folderPath: folderPath ?? "",
+        selectedPaths: getJobPaths?.(),
         onConfirm: (
           mode: VerifyCaptionsMode,
           instruction: string,
