@@ -12,6 +12,7 @@ export {
   iconAdjustContrast,
   iconAdjustBrightness,
   iconAdjustBlackPoint,
+  iconAdjustWhitePoint,
   iconAdjustSaturation,
   iconAdjustVibrance,
   iconAdjustWarmth,

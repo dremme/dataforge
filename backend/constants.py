@@ -159,6 +159,8 @@ COLOR_ADJUST: dict[str, float] = {
     "brightness_gain": 0.9,
     "black_point_level": 0.2,
     "black_point_lift": 0.15,
+    "white_point_level": 0.2,
+    "white_point_dim": 0.15,
     "brilliance_shadows": 0.6,
     "brilliance_highlights": 0.6,
     "brilliance_contrast": 0.25,

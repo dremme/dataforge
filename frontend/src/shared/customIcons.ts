@@ -135,6 +135,27 @@ export const iconAdjustBlackPoint = createLucideIcon("adjust-black-point", [
   ],
 ]);
 
+export const iconAdjustWhitePoint = createLucideIcon("adjust-white-point", [
+  [
+    "circle",
+    {
+      cx: 12,
+      cy: 12,
+      r: 9,
+      key: "outline",
+    },
+  ],
+  [
+    "circle",
+    {
+      cx: 12,
+      cy: 12,
+      r: 4,
+      key: "white-point",
+    },
+  ],
+]);
+
 export const iconAdjustSaturation = createLucideIcon("adjust-saturation", [
   [
     "path",

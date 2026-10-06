@@ -408,6 +408,7 @@ COLOR_CASE_SETTINGS: tuple[dict[str, float], ...] = (
             "contrast",
             "brightness",
             "black_point",
+            "white_point",
             "saturation",
             "vibrance",
             "warmth",
@@ -420,6 +421,7 @@ COLOR_CASE_SETTINGS: tuple[dict[str, float], ...] = (
     {"hue": 180.0},
     {"exposure": 0.3, "shadows": 0.4, "contrast": 0.2, "warmth": 0.25, "vibrance": 0.3},
     {"exposure": -0.2, "highlights": -0.6, "black_point": 0.3, "saturation": -0.3, "tint": 0.4},
+    {"shadows": -0.3, "black_point": 0.4, "white_point": 0.6, "vibrance": 0.5},
     {"brilliance": 0.8, "brightness": -0.5, "black_point": -0.6, "hue": 90.0, "vibrance": -0.7},
     {"exposure": 1.0, "saturation": 1.0, "warmth": 1.0},
 )

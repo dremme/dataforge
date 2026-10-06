@@ -122,6 +122,13 @@ class DirectionTests(unittest.TestCase):
         np.testing.assert_allclose(adjusted(near_black, black_point=1.0), np.zeros(3), atol=1e-9)
         self.assertGreater(adjusted(np.zeros(3), black_point=-1.0)[0], 0.1)
 
+    def test_white_point_stretches_or_dims_the_lights(self) -> None:
+        near_white = np.array([0.85, 0.85, 0.85])
+
+        np.testing.assert_allclose(adjusted(near_white, white_point=1.0), np.ones(3), atol=1e-9)
+        self.assertLess(adjusted(np.ones(3), white_point=-1.0)[0], 0.9)
+        self.assertGreater(adjusted(LIGHT_GREY, white_point=0.5)[0], LIGHT_GREY[0])
+
     def test_brilliance_opens_shadows_and_holds_back_highlights(self) -> None:
         self.assertGreater(adjusted(DARK_GREY, brilliance=1.0)[0], DARK_GREY[0])
         self.assertLess(adjusted(LIGHT_GREY, brilliance=1.0)[0], LIGHT_GREY[0])

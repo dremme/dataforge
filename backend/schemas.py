@@ -1190,6 +1190,7 @@ class ColorAdjust(BaseModel):
     contrast: AdjustTone = 0.0
     brightness: AdjustTone = 0.0
     black_point: AdjustTone = 0.0
+    white_point: AdjustTone = 0.0
     saturation: AdjustTone = 0.0
     vibrance: AdjustTone = 0.0
     warmth: AdjustTone = 0.0

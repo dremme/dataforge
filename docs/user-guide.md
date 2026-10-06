@@ -120,7 +120,7 @@ While resizing a crop, the preview shows its pixel dimensions. Free crops also s
 
 ### Adjust in the editor
 
-Adjust provides Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Choose a tool, then drag/click its slider or use arrow keys; Shift makes larger steps. Double-click the slider to return to its marked resting value. Scroll the tool row with the mouse wheel when it does not fit.
+Adjust provides Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point, White Point, Saturation, Vibrance, Warmth, Tint, Hue, Definition, and Noise Reduction. Choose a tool, then drag/click its slider or use arrow keys; Shift makes larger steps. Double-click the slider to return to its marked resting value. Scroll the tool row with the mouse wheel when it does not fit.
 
 The **Auto** wand analyzes the original inside the crop, excluding masks; videos are sampled within the trimmed range. It adjusts exposure, contrast, color intensity, and color casts toward a natural look. Its slider sets the amount; click the selected wand again to turn it off.
 

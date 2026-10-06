@@ -28,7 +28,7 @@ def scene(seed: int = 7, size: int = 96) -> np.ndarray:
     grey = 0.98 * (0.6 * x + 0.4 * y)
     rgb = np.repeat(grey[..., None], 3, axis=-1)
     rgb[: size // 2, : size // 2] *= [1.0, 0.45, 0.25]
-    rgb[-size // 3 :, -size // 2 :] *= [0.3, 0.6, 0.95]
+    rgb[-size // 3 :, size // 4 : -size // 4] *= [0.3, 0.6, 0.95]
     return np.clip(rgb + rng.normal(0, 0.01, rgb.shape), 0, 1)
 
 
@@ -48,12 +48,30 @@ class SuggestionTests(unittest.TestCase):
     def test_an_underexposed_frame_is_brightened(self) -> None:
         self.assertGreater(suggest(scene() * 0.45).exposure, 0.1)
 
-    def test_an_overexposed_frame_is_darkened(self) -> None:
+    def test_a_frame_a_stop_under_is_brightened(self) -> None:
+        self.assertGreater(suggest(scene() * 0.7).exposure, 0.1)
+
+    def test_an_overexposed_frame_is_darkened_and_keeps_its_white(self) -> None:
         bright = 1 - (1 - scene()) * 0.35
-        self.assertLess(suggest(bright).exposure, -0.05)
+        adjust = suggest(bright)
+
+        self.assertLess(adjust.brightness, -0.05)
+        self.assertAlmostEqual(float(adjust_pixels(np.ones(3), adjust)[0]), 1.0)
 
     def test_haze_gets_a_black_point(self) -> None:
         self.assertGreater(suggest(0.3 + scene() * 0.65).black_point, 0.2)
+
+    def test_a_floor_just_past_the_haze_line_is_barely_touched(self) -> None:
+        self.assertLess(suggest(0.075 + scene() * 0.925).black_point, 0.1)
+
+    def test_a_murky_dark_frame_is_brightened_not_cleared(self) -> None:
+        adjust = suggest(0.12 + scene() * 0.1)
+
+        self.assertEqual(adjust.black_point, 0.0)
+        self.assertGreater(adjust.exposure, 0.1)
+
+    def test_dull_whites_get_a_white_point(self) -> None:
+        self.assertGreater(suggest(scene() * 0.85).white_point, 0.2)
 
     def test_a_blue_cast_is_warmed(self) -> None:
         cast = np.clip(scene() * [0.85, 0.95, 1.15], 0, 1)
@@ -73,7 +91,7 @@ class SuggestionTests(unittest.TestCase):
         self.assertGreater(suggest(dull).vibrance, 0.1)
 
     def test_a_dim_but_well_exposed_frame_keeps_its_exposure(self) -> None:
-        self.assertEqual(suggest(scene() * 0.7).exposure, 0.0)
+        self.assertEqual(suggest(scene() * 0.9).exposure, 0.0)
 
     def test_brightening_stops_short_of_blowing_the_highlights(self) -> None:
         dark = scene() * 0.35
@@ -95,12 +113,21 @@ class SuggestionTests(unittest.TestCase):
         adjust = suggest(harsh)
 
         self.assertLess(adjust.contrast, -0.1)
-        self.assertGreater(adjust.shadows, 0.0)
+
+    def test_pure_black_and_white_are_not_asked_to_recover(self) -> None:
+        backdrop = scene()
+        backdrop[:, :24] = 1.0
+        backdrop[:, -24:] = 0.0
+        adjust = suggest(backdrop)
+
+        self.assertEqual(adjust.highlights, 0.0)
+        self.assertEqual(adjust.shadows, 0.0)
 
     def test_the_wand_on_its_own_result_suggests_less(self) -> None:
         for label, faulty in (
             ("dark", scene() * 0.45),
             ("hazy", 0.2 + scene() * 0.75),
+            ("dull", scene() * 0.85),
             ("blue", np.clip(scene() * [0.88, 0.96, 1.12], 0, 1)),
         ):
             with self.subTest(label):

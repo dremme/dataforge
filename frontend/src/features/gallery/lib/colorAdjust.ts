@@ -18,6 +18,7 @@ export const RESTING_ADJUST: Readonly<ColorAdjust> = {
   contrast: 0,
   brightness: 0,
   black_point: 0,
+  white_point: 0,
   saturation: 0,
   vibrance: 0,
   warmth: 0,
@@ -113,6 +114,15 @@ function blackPoint(p: number, amount: number): number {
   return lift + (1 - lift) * p;
 }
 
+/** Black point's mirror: positive stretches a dull white up to white, negative dims it. */
+function whitePoint(p: number, amount: number): number {
+  if (amount > 0) {
+    const level = COLOR_ADJUST.white_point_level * amount;
+    return Math.min(1, p / (1 - level));
+  }
+  return (1 + COLOR_ADJUST.white_point_dim * amount) * p;
+}
+
 /** Linear luminance in and out; every stage is monotonic and exactly identity at 0. */
 export function toneCurve(luminance: number, adjust: ColorAdjust): number {
   let p = linearToSrgb(exposed(luminance, adjust.exposure));
@@ -127,6 +137,7 @@ export function toneCurve(luminance: number, adjust: ColorAdjust): number {
   p = contrast(p, adjust.contrast);
   p = brightness(p, adjust.brightness);
   p = blackPoint(p, adjust.black_point);
+  p = whitePoint(p, adjust.white_point);
   return srgbToLinear(Math.min(1, Math.max(0, p)));
 }
 

@@ -29,6 +29,7 @@ GLOBAL_TOOLS = (
     "contrast",
     "brightness",
     "black_point",
+    "white_point",
     "saturation",
     "vibrance",
     "warmth",
@@ -98,6 +99,14 @@ def _black_point(p: np.ndarray, amount: float) -> np.ndarray:
     return lift + (1.0 - lift) * p
 
 
+def _white_point(p: np.ndarray, amount: float) -> np.ndarray:
+    """Black point's mirror: positive stretches a dull white up to white, negative dims it."""
+    if amount > 0:
+        level = COLOR_ADJUST["white_point_level"] * amount
+        return np.minimum(1.0, p / (1.0 - level))
+    return (1.0 + COLOR_ADJUST["white_point_dim"] * amount) * p
+
+
 def _clamp_unit(value: float) -> float:
     return max(-1.0, min(1.0, value))
 
@@ -116,6 +125,7 @@ def tone_curve(luminance: np.ndarray, adjust: ColorAdjust) -> np.ndarray:
     p = _contrast(p, adjust.contrast)
     p = _brightness(p, adjust.brightness)
     p = _black_point(p, adjust.black_point)
+    p = _white_point(p, adjust.white_point)
     return srgb_to_linear(np.clip(p, 0.0, 1.0))
 
 

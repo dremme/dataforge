@@ -32,11 +32,12 @@ ANALYSIS_SIDE = 512
 VIDEO_ANALYSIS_SIDE = 256
 VIDEO_SAMPLE_FRAMES = 8
 
-#: Well-exposed footage keeps its median anywhere in this band of encoded luminance, so a scene
-#: inside it is left alone; outside it the wand moves the median only to the nearer target.
-DARK_MEDIAN = 0.22
-BRIGHT_MEDIAN = 0.6
-DARK_TARGET = 0.3
+#: Well-exposed footage keeps its median anywhere in this band of encoded luminance. Outside it
+#: the wand closes a share of the gap past the edge, so the move grows from nothing at the edge.
+DARK_MEDIAN = 0.34
+BRIGHT_MEDIAN = 0.62
+MEDIAN_GAP_GAIN = 1.5
+DARK_TARGET = 0.42
 BRIGHT_TARGET = 0.52
 #: Brightening stops where the brightest percentile would land, so it never blows highlights.
 HEADROOM_PERCENTILE = 99.0
@@ -59,8 +60,14 @@ MAX_TINT = 0.15
 #: Below this a suggestion is noise, and a tool the user did not ask about should stay at 0.
 DEAD_ZONE = 0.03
 
+#: A floor above this reads as haze; the correction ramps in over the next stretch, so a floor
+#: just past it is barely touched.
 HAZE_FLOOR = 0.08
+HAZE_RAMP = 0.05
 BLACK_TARGET = 0.01
+#: Whites short of this get a white point; a dull white is the bright end's haze.
+WHITE_PERCENTILE = 99.5
+WHITE_TARGET = 0.95
 CLIPPED_LEVEL = 0.97
 CLIPPED_ALLOWANCE = 0.01
 DEEP_SHADOW_LEVEL = 0.1
@@ -71,6 +78,9 @@ EXTREME_LOW = 0.04
 EXTREME_HIGH = 0.96
 HARSH_EXTREMES = 0.08
 HARSH_GAIN = 1.5
+#: Pure black and white in the source; no tone tool moves them, so they count as neither clipped
+#: nor deep in shadow, or the wand would keep asking for what it cannot do.
+PINNED_MARGIN = 1.5 / 255
 #: Oversaturation pins a channel at 0 or 1 in pixels that are neither dark nor white; natural
 #: colour almost never does. Dark pixels are left out: a night sky pins its red channel honestly.
 PINNED_LOW = 0.35
@@ -118,31 +128,58 @@ def _encoded(luminance: np.ndarray, adjust: ColorAdjust) -> np.ndarray:
     return linear_to_srgb(tone_curve(luminance, adjust))
 
 
-def _solve_exposure(encoded: float, target: float, black_point: float) -> float:
-    """Bisection: the tone curve is monotonic in exposure, so the target has one crossing."""
+def _solve(encoded: float, target: float, tool: str, fixed: ColorAdjust) -> float:
+    """Bisection over one tone tool: every stage is monotonic, so the target has one crossing."""
     low, high = -1.0, 1.0
     luminance = srgb_to_linear(np.array([encoded]))
     for _ in range(40):
         middle = (low + high) / 2
-        landed = float(
-            _encoded(luminance, ColorAdjust(exposure=middle, black_point=black_point))[0]
-        )
+        landed = float(_encoded(luminance, fixed.model_copy(update={tool: middle}))[0])
         low, high = (middle, high) if landed < target else (low, middle)
     return (low + high) / 2
 
 
-def _exposure(encoded_luma: np.ndarray, weights: np.ndarray, black_point: float) -> float:
+def _midtones(
+    encoded_luma: np.ndarray, weights: np.ndarray, levels: ColorAdjust
+) -> tuple[float, float]:
+    """Exposure and brightness, judged on where the median lands after ``levels``. Brightening
+    uses exposure, which rolls off before white; darkening uses brightness, which keeps white
+    where a plain gain would grey it."""
     median = _weighted_percentile(encoded_luma, weights, 50.0)
-    if median > BRIGHT_MEDIAN:
-        return _clamp(_solve_exposure(median, BRIGHT_TARGET, black_point), MAX_EXPOSURE)
-    if median >= DARK_MEDIAN:
-        return 0.0
+    landed = float(_encoded(srgb_to_linear(np.array([median])), levels)[0])
+    if landed > BRIGHT_MEDIAN:
+        target = max(BRIGHT_TARGET, landed - MEDIAN_GAP_GAIN * (landed - BRIGHT_MEDIAN))
+        return 0.0, _clamp(min(0.0, _solve(median, target, "brightness", levels)), MAX_EXPOSURE)
+    if landed >= DARK_MEDIAN:
+        return 0.0, 0.0
+    target = min(DARK_TARGET, landed + MEDIAN_GAP_GAIN * (DARK_MEDIAN - landed))
     brightest = _weighted_percentile(encoded_luma, weights, HEADROOM_PERCENTILE)
     lift = min(
-        _solve_exposure(median, DARK_TARGET, black_point),
-        _solve_exposure(brightest, HEADROOM_TARGET, black_point),
+        _solve(median, target, "exposure", levels),
+        _solve(brightest, HEADROOM_TARGET, "exposure", levels),
     )
-    return _clamp(max(0.0, lift), MAX_EXPOSURE)
+    return _clamp(max(0.0, lift), MAX_EXPOSURE), 0.0
+
+
+def _levels(toned: np.ndarray, weights: np.ndarray) -> ColorAdjust:
+    """Black and white point, read after the midtone move, which shifts both ends. The black
+    point never sinks the median into the dark band: in a low-contrast frame the floor sits
+    close to the median, and clearing it would clear the subject."""
+    floor = _weighted_percentile(toned, weights, 0.5)
+    median = _weighted_percentile(toned, weights, 50.0)
+    haze = min(1.0, max(0.0, (floor - HAZE_FLOOR) / HAZE_RAMP))
+    black_level = min(
+        CORRECTION_SHARE * haze * (floor - BLACK_TARGET),
+        max(0.0, (median - DARK_MEDIAN) / (1.0 - DARK_MEDIAN)),
+    )
+    black_point = _clamp(black_level / COLOR_ADJUST["black_point_level"])
+    black_level = COLOR_ADJUST["black_point_level"] * black_point
+    ceiling = (_weighted_percentile(toned, weights, WHITE_PERCENTILE) - black_level) / (
+        1.0 - black_level
+    )
+    white_level = CORRECTION_SHARE * max(0.0, 1.0 - ceiling / WHITE_TARGET)
+    white_point = _clamp(white_level / COLOR_ADJUST["white_point_level"])
+    return ColorAdjust(black_point=black_point, white_point=white_point)
 
 
 def _contrast(levelled: np.ndarray, weights: np.ndarray, deep: float) -> float:
@@ -241,17 +278,17 @@ def suggest_adjust(rgb: np.ndarray, weights: np.ndarray) -> ColorAdjust:
     luminance = linear @ LUMA
     encoded_luma = linear_to_srgb(luminance)
 
-    floor = _weighted_percentile(encoded_luma, weights, 0.5)
-    black_point = 0.0
-    if floor > HAZE_FLOOR:
-        black_point = (floor - BLACK_TARGET) / COLOR_ADJUST["black_point_level"]
-    black_point = _clamp(black_point)
+    exposure, brightness = _midtones(encoded_luma, weights, ColorAdjust())
+    levels = _levels(
+        _encoded(luminance, ColorAdjust(exposure=exposure, brightness=brightness)), weights
+    )
+    exposure, brightness = _midtones(encoded_luma, weights, levels)
+    levels = levels.model_copy(update={"exposure": exposure, "brightness": brightness})
 
-    exposure = _exposure(encoded_luma, weights, black_point)
-
-    levelled = _encoded(luminance, ColorAdjust(exposure=exposure, black_point=black_point))
-    clipped = _weighted_share(levelled > CLIPPED_LEVEL, weights)
-    deep = _weighted_share(levelled < DEEP_SHADOW_LEVEL, weights)
+    levelled = _encoded(luminance, levels)
+    movable = (encoded_luma > PINNED_MARGIN) & (encoded_luma < 1 - PINNED_MARGIN)
+    clipped = _weighted_share(movable & (levelled > CLIPPED_LEVEL), weights)
+    deep = _weighted_share(movable & (levelled < DEEP_SHADOW_LEVEL), weights)
     highlights = (
         _clamp(-(clipped - CLIPPED_ALLOWANCE) * 8.0) if clipped > CLIPPED_ALLOWANCE else 0.0
     )
@@ -263,7 +300,9 @@ def suggest_adjust(rgb: np.ndarray, weights: np.ndarray) -> ColorAdjust:
 
     return ColorAdjust(
         exposure=exposure,
-        black_point=black_point,
+        brightness=brightness,
+        black_point=levels.black_point,
+        white_point=levels.white_point,
         highlights=highlights,
         shadows=shadows,
         contrast=contrast,
