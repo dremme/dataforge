@@ -134,11 +134,20 @@
   }
 
   &__video-backdrop {
+    display: grid;
     width: 100%;
     max-height: $modal-media-max-height;
     overflow: hidden;
     border-radius: var(--radius-sm);
     background: var(--video-bg);
+
+    > video {
+      grid-area: 1 / 1;
+    }
+  }
+
+  &__video--standby {
+    pointer-events: none;
   }
 
   &__footer {

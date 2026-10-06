@@ -73,6 +73,43 @@ afterEach(() => {
 });
 
 describe("AdjustCanvas", () => {
+  it("keeps its renderer and published picture when playback switches to another decoder", () => {
+    const view = preview();
+    const next = document.createElement("video");
+    Object.defineProperties(next, {
+      videoWidth: { value: 640 },
+      videoHeight: { value: 360 },
+      readyState: { value: 2 },
+    });
+    const picture = view.onPictureChange.mock.calls.at(-1)![0];
+    const creations = gpu.create.mock.calls.length;
+    const disposals = gpu.renderer.dispose.mock.calls.length;
+    gpu.renderer.setSource.mockClear();
+    view.rerender(
+      <StrictMode>
+        <AdjustCanvas
+          mediaRef={{ current: next }}
+          sourceWidth={640}
+          sourceHeight={360}
+          crop={IDENTITY_CROP}
+          scale={1}
+          controls={view.controls}
+          onPictureChange={view.onPictureChange}
+          onShowingChange={view.onShowingChange}
+        />
+      </StrictMode>,
+    );
+    expect(gpu.renderer.setSource).toHaveBeenCalledWith(next, 640, 360, true);
+    expect(gpu.create).toHaveBeenCalledTimes(creations);
+    expect(gpu.renderer.dispose).toHaveBeenCalledTimes(disposals);
+    expect(view.onPictureChange.mock.calls.at(-1)![0]).toBe(picture);
+    gpu.renderer.setSource.mockClear();
+    fireEvent.seeked(view.video);
+    expect(gpu.renderer.setSource).not.toHaveBeenCalled();
+    fireEvent.seeked(next);
+    expect(gpu.renderer.setSource).toHaveBeenCalledWith(next, 640, 360, true);
+  });
+
   it("uploads an already paused video and later seeks without waiting for playback", () => {
     const { video, unmount } = preview();
     expect(gpu.renderer.setSource).toHaveBeenCalledWith(video, 640, 360, true);

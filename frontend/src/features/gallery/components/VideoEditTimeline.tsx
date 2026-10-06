@@ -17,7 +17,7 @@ interface VideoEditTimelineProps {
   /** Seconds a source frame occupies; one arrow press moves a handle by exactly this. */
   frameDuration: number;
   playheadTime: number;
-  /** Playback drives the marker through this node, so a lap does not re-render the panel. */
+  /** Playback drives the marker through this node without a React render per frame. */
   playheadRef?: RefObject<HTMLDivElement | null>;
   playing: boolean;
   muted: boolean;

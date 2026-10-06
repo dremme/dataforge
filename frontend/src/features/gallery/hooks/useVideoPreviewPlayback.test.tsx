@@ -20,6 +20,15 @@ function fakeVideo() {
     currentTime: 0,
     paused: true,
     duration: DURATION,
+    muted: true,
+    volume: 1,
+    playbackRate: 1,
+    readyState: 4,
+    HAVE_METADATA: 1,
+    HAVE_CURRENT_DATA: 2,
+    HAVE_FUTURE_DATA: 3,
+    seeking: false,
+    style: document.createElement("video").style,
     play() {
       video.paused = false;
       emit("play");
@@ -92,10 +101,81 @@ function renderPlayback(initial: Overrides = {}) {
     { initialProps: initial },
   );
 
-  return { ...view, video, fire, frames };
+  return { ...view, video, videoRef, fire, frames };
 }
 
 describe("useVideoPreviewPlayback", () => {
+  it("routes playback and seeking through the active decoder after a handoff", async () => {
+    const standby = fakeVideo();
+    const standbyVideoRef = { current: standby.video as unknown as HTMLVideoElement };
+    const { result, video, frames } = renderPlayback({ standbyVideoRef });
+    act(() => standby.fire("seeked"));
+    act(() => result.current.togglePlay());
+    video.currentTime = RANGE.end;
+    await act(async () => frames.tick());
+    expect(result.current.activeMediaRef).toBe(standbyVideoRef);
+    expect(result.current.playing).toBe(true);
+    act(() => result.current.seekTo(4));
+    expect(standby.video.currentTime).toBe(4);
+    expect(video.currentTime).toBe(RANGE.start);
+    act(() => result.current.togglePlay());
+    expect(standby.video.paused).toBe(true);
+    expect(video.paused).toBe(true);
+    expect(result.current.playing).toBe(false);
+  });
+
+  it("keeps the prepared standby through manual seeks and pauses", async () => {
+    const standby = fakeVideo();
+    const standbyVideoRef = { current: standby.video as unknown as HTMLVideoElement };
+    const { result, video, frames } = renderPlayback({ standbyVideoRef });
+    act(() => standby.fire("seeked"));
+    // A standby prepared again from here could not finish before the lap.
+    standby.video.readyState = 0;
+    act(() => result.current.seekTo(4));
+    act(() => result.current.togglePlay());
+    act(() => result.current.togglePlay());
+    act(() => result.current.togglePlay());
+    standby.video.readyState = 4;
+    video.currentTime = RANGE.end;
+    await act(async () => frames.tick());
+    expect(result.current.activeMediaRef).toBe(standbyVideoRef);
+  });
+
+  it("does not resume or switch decoders if paused during a pending handoff", async () => {
+    const standby = fakeVideo();
+    const standbyVideoRef = { current: standby.video as unknown as HTMLVideoElement };
+    const { result, video, videoRef, frames } = renderPlayback({ standbyVideoRef });
+    act(() => standby.fire("seeked"));
+    act(() => result.current.togglePlay());
+    video.currentTime = RANGE.end;
+    frames.tick();
+    await act(async () => result.current.togglePlay());
+    expect(result.current.activeMediaRef).toBe(videoRef);
+    expect(result.current.playing).toBe(false);
+    expect(video.paused).toBe(true);
+    expect(standby.video.paused).toBe(true);
+  });
+
+  it("discards a handoff and rebinds to the primary player when the item changes", async () => {
+    const standby = fakeVideo();
+    const standbyVideoRef = { current: standby.video as unknown as HTMLVideoElement };
+    const view = renderPlayback({ standbyVideoRef });
+    act(() => standby.fire("seeked"));
+    act(() => view.result.current.togglePlay());
+    view.video.currentTime = RANGE.end;
+    view.frames.tick();
+    const next = fakeVideo();
+    const nextStandby = fakeVideo();
+    view.videoRef.current = next.video as unknown as HTMLVideoElement;
+    standbyVideoRef.current = nextStandby.video as unknown as HTMLVideoElement;
+    await act(async () => view.rerender({ standbyVideoRef, itemPath: "next.mp4" }));
+    expect(view.result.current.activeMediaRef).toBe(view.videoRef);
+    expect(view.video.paused).toBe(true);
+    expect(standby.video.paused).toBe(true);
+    expect(next.video.paused).toBe(true);
+    expect(nextStandby.video.paused).toBe(true);
+  });
+
   it("laps back to the in point within a frame of the out point", () => {
     const { result, video, frames } = renderPlayback();
 

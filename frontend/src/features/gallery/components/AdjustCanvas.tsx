@@ -62,6 +62,8 @@ export function AdjustCanvas({
 }: AdjustCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<AdjustRenderer | null>(null);
+  const mediaRefRef = useRef(mediaRef);
+  mediaRefRef.current = mediaRef;
   const frameRef = useRef(0);
   const lutKeyRef = useRef("");
   const originRef = useRef({ x: 0.5, y: 0.5 });
@@ -146,7 +148,7 @@ export function AdjustCanvas({
 
   const upload = useCallback(async () => {
     const renderer = rendererRef.current;
-    const media = mediaRef.current;
+    const media = mediaRefRef.current.current;
     if (!renderer || !media || !mediaReady(media)) return;
 
     if (media instanceof HTMLVideoElement) {
@@ -167,7 +169,7 @@ export function AdjustCanvas({
     renderer.setSource(bitmap, bitmap.width, bitmap.height, true);
     bitmap.close();
     scheduleRender();
-  }, [mediaRef, renderNow, scheduleRender]);
+  }, [renderNow, scheduleRender]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -217,7 +219,7 @@ export function AdjustCanvas({
 
   useEffect(() => {
     if (live) void upload();
-  }, [live, upload]);
+  }, [live, mediaRef, upload]);
 
   useVideoFrameLoop(mediaRef, () => void upload(), live);
 

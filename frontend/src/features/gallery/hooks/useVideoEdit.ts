@@ -41,8 +41,9 @@ import type { GalleryItem, VideoEditSpec } from "@/shared/types";
 
 export interface UseVideoEditOptions {
   item: GalleryItem | undefined;
-  /** Shared with frame capture: one `<video>`, one active mode. */
+  /** The primary player is shared with frame capture outside editing. */
   videoRef: RefObject<HTMLVideoElement | null>;
+  standbyVideoRef?: RefObject<HTMLVideoElement | null>;
   onEdited?: () => void | Promise<void>;
   /** Owned by the modal so the mode sticks across next/prev. */
   editMode: boolean;
@@ -50,6 +51,7 @@ export interface UseVideoEditOptions {
 }
 
 export interface VideoEdit extends MaskRegionControls {
+  activeMediaRef: RefObject<HTMLVideoElement | null>;
   editMode: boolean;
   ready: boolean;
   applying: boolean;
@@ -99,7 +101,7 @@ export interface VideoEdit extends MaskRegionControls {
 
 export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   const notify = useNotify();
-  const { item, videoRef, editMode, setEditMode } = options;
+  const { item, videoRef, standbyVideoRef, editMode, setEditMode } = options;
 
   // Ref so callbacks stay dependency-free; an apply outliving a swap keeps its starting values.
   const optionsRef = useRef(options);
@@ -158,9 +160,10 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     [],
   );
 
-  const { playing, playheadTime, playheadRef, seekTo, togglePlay, syncFrom } =
+  const { activeMediaRef, playing, playheadTime, playheadRef, seekTo, togglePlay, syncFrom } =
     useVideoPreviewPlayback({
       videoRef,
+      standbyVideoRef,
       active: editMode,
       itemPath: path,
       duration,
@@ -274,24 +277,16 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   // Preview plays every source frame at the chosen rate; setpts drops frames instead.
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !editMode) return;
-    video.playbackRate = draft.speed;
-  }, [draft.speed, editMode, videoRef]);
-
-  // Editing only; elsewhere the muted attribute and native controls own volume.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !editMode) return;
-    video.muted = muted;
-  }, [editMode, muted, videoRef]);
-
-  // Previews the edit's gain. Clamped to 1: the element cannot amplify, so a boost shows as 100%.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !editMode) return;
-    video.volume = Math.min(1, Math.max(0, draft.volume));
-  }, [draft.volume, editMode, videoRef]);
+    if (!editMode) return;
+    for (const ref of [videoRef, standbyVideoRef]) {
+      const video = ref?.current;
+      if (!video) continue;
+      video.playbackRate = draft.speed;
+      // Native media volume cannot amplify; only the rendered output supports a boost.
+      video.volume = Math.min(1, Math.max(0, draft.volume));
+      video.muted = video === activeMediaRef.current ? muted : true;
+    }
+  }, [activeMediaRef, draft.speed, draft.volume, editMode, muted, path, standbyVideoRef, videoRef]);
 
   const toggleMuted = useCallback(() => {
     setMuted((current) => !current);
@@ -321,18 +316,18 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
 
   // The frame on screen becomes the first kept one, or the last: a boundary either side of it.
   const setTrimStartAtPlayhead = useCallback(() => {
-    const video = videoRef.current;
+    const video = activeMediaRef.current;
     if (!video) return;
     const frame = frameSecondsRef.current;
     setTrimStart(frameIndexAt(video.currentTime, frame) * frame);
-  }, [setTrimStart, videoRef]);
+  }, [activeMediaRef, setTrimStart]);
 
   const setTrimEndAtPlayhead = useCallback(() => {
-    const video = videoRef.current;
+    const video = activeMediaRef.current;
     if (!video) return;
     const frame = frameSecondsRef.current;
     setTrimEnd((frameIndexAt(video.currentTime, frame) + 1) * frame);
-  }, [setTrimEnd, videoRef]);
+  }, [activeMediaRef, setTrimEnd]);
 
   const setCrop = useCallback((crop: CropRect) => {
     setDraft((current) => ({ ...current, crop }));
@@ -518,6 +513,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   );
 
   return {
+    activeMediaRef,
     editMode,
     ready,
     applying,

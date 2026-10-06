@@ -15,6 +15,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
   const draft: VideoEditDraft = overrides.draft ?? emptyDraft(12);
 
   return {
+    activeMediaRef: { current: null },
     editMode: true,
     ready: true,
     applying: false,

@@ -203,10 +203,11 @@ export function GalleryItemModal({
   });
   const frameCapture: FrameCapture = itemIsGif ? gifCapture : videoCapture;
 
+  const standbyVideoRef = useRef<HTMLVideoElement | null>(null);
   const videoEdit = useVideoEdit({
     item,
-    // Capture already owns the one `<video>` ref; only one mode can be on, so they share it.
     videoRef: videoCapture.videoRef,
+    standbyVideoRef,
     onEdited: onCopied,
     editMode,
     setEditMode,
@@ -615,6 +616,10 @@ export function GalleryItemModal({
                   key={editMode ? `${item.path}#original` : item.path}
                   ref={videoCapture.videoRef}
                   className="gallery-item-modal__video"
+                  style={{
+                    opacity: !editMode || videoEdit.activeMediaRef !== standbyVideoRef ? 1 : 0,
+                  }}
+                  aria-hidden={editMode && videoEdit.activeMediaRef === standbyVideoRef}
                   src={editMode ? videoOriginalUrl(item.path) : galleryItemMediaUrl(item)}
                   // Native timeline would seek behind the capture slider or trim handles.
                   controls={!frameCapture.frameMode && !editMode}
@@ -635,11 +640,24 @@ export function GalleryItemModal({
                     videoEdit.handleLoadedMetadata(event.currentTarget);
                   }}
                 />
+                {editMode && canEditVideoItem && (
+                  <video
+                    key={`${item.path}#standby`}
+                    ref={standbyVideoRef}
+                    className="gallery-item-modal__video gallery-item-modal__video--standby"
+                    style={{ opacity: videoEdit.activeMediaRef === standbyVideoRef ? 1 : 0 }}
+                    aria-hidden={videoEdit.activeMediaRef !== standbyVideoRef}
+                    src={videoOriginalUrl(item.path)}
+                    preload="auto"
+                    muted
+                    playsInline
+                  />
+                )}
               </div>
               {editMode && canEditVideoItem && (
                 <AdjustCanvas
                   key={item.path}
-                  mediaRef={videoCapture.videoRef}
+                  mediaRef={videoEdit.activeMediaRef}
                   sourceWidth={videoEdit.sourceWidth}
                   sourceHeight={videoEdit.sourceHeight}
                   crop={videoEdit.draft.crop}
@@ -650,7 +668,7 @@ export function GalleryItemModal({
               )}
               {editMode && videoEdit.draft.masks.length > 0 && !videoEdit.adjust.zoomed && (
                 <MaskOverlay
-                  mediaRef={videoCapture.videoRef}
+                  mediaRef={videoEdit.activeMediaRef}
                   src={videoOriginalUrl(item.path)}
                   masks={videoEdit.draft.masks}
                   selectedId={videoEdit.selectedMaskId}
@@ -666,7 +684,7 @@ export function GalleryItemModal({
               )}
               {editMode && videoEdit.cropActive && (
                 <CropOverlay
-                  mediaRef={videoCapture.videoRef}
+                  mediaRef={videoEdit.activeMediaRef}
                   crop={videoEdit.draft.crop}
                   sourceWidth={videoEdit.sourceWidth}
                   sourceHeight={videoEdit.sourceHeight}
