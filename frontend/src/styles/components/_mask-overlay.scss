@@ -11,6 +11,7 @@ $remove-size: 1.125rem;
   position: absolute;
   z-index: 1;
   pointer-events: none;
+  user-select: none;
 
   &--interactive {
     pointer-events: auto;

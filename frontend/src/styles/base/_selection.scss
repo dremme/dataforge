@@ -1,0 +1,33 @@
+// Controls and media are chrome, not content: a double-click or a drag across them should never
+// paint a selection. Prose, captions, paths, logs and messages stay selectable for copying.
+button,
+label,
+select,
+summary,
+kbd,
+img,
+svg,
+video,
+canvas,
+[role="button"],
+[role="tab"],
+[role="tablist"],
+[role="menu"],
+[role="menuitem"],
+[role="menuitemradio"],
+[role="menuitemcheckbox"],
+[role="listbox"],
+[role="option"],
+[role="radio"],
+[role="slider"],
+[role="treeitem"],
+[role="tooltip"] {
+  user-select: none;
+}
+
+// Editable text must stay selectable even inside a non-selectable label or row.
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]) {
+  user-select: text;
+}

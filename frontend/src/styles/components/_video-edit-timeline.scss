@@ -29,6 +29,7 @@ $handle-height: 1.5rem;
     min-width: 0;
     height: $handle-height;
     cursor: pointer;
+    user-select: none;
 
     &::before {
       content: "";

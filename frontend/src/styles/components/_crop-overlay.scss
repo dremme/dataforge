@@ -7,6 +7,7 @@ $handle-size: 0.75rem;
 .crop-overlay {
   position: absolute;
   z-index: 1;
+  user-select: none;
 
   &__scrim {
     position: absolute;
