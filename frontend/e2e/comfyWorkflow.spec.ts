@@ -74,7 +74,12 @@ for (const viewport of [
     await expect(dialog.getByText(/2 outputs share a naming pattern/)).toBeVisible();
     // No filename match, so the first output is shown rather than an empty pane.
     const prompts = dialog.getByRole("group", { name: "Details", exact: true });
-    await expect(prompts.getByText("a quiet lake at sunrise", { exact: true })).toBeVisible();
+    // The workflow map repeats prompt text in its boxes; these checks are about the prompt cards.
+    const promptCard = (text: string) =>
+      prompts
+        .getByText(text, { exact: true })
+        .and(page.locator(":not(.comfy-workflow-dialog__map *)"));
+    await expect(promptCard("a quiet lake at sunrise")).toBeVisible();
     await expect(dialog.getByRole("button", { name: /Landscape render/ })).toHaveAttribute(
       "aria-current",
       "true",
@@ -82,22 +87,22 @@ for (const viewport of [
     // Layout height, not the bounding box: the opening animation scales the panel.
     const panelHeight = () => dialog.evaluate((element: HTMLElement) => element.offsetHeight);
     const firstHeight = await panelHeight();
-    await expect(prompts.getByText("a forest path in fog", { exact: true })).toHaveCount(0);
+    await expect(promptCard("a forest path in fog")).toHaveCount(0);
     await expect(prompts.getByText(`Node #${outputId} · SaveImage`)).toBeVisible();
     await expect(prompts.getByText(`Filename prefix: renders/${prefix}`)).toBeVisible();
     await expect(prompts.getByText("Selected for inspection — source unverified")).toBeVisible();
     expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
       true,
     );
-    await prompts.getByText("a quiet lake at sunrise", { exact: true }).scrollIntoViewIfNeeded();
+    await promptCard("a quiet lake at sunrise").scrollIntoViewIfNeeded();
     await page.screenshot({
       path: testInfo.outputPath(`selected-${viewport.name}.png`),
       animations: "disabled",
     });
 
     await dialog.getByRole("button", { name: /Forest render/ }).click();
-    await expect(prompts.getByText("a forest path in fog", { exact: true })).toBeVisible();
-    await expect(prompts.getByText("a quiet lake at sunrise", { exact: true })).toHaveCount(0);
+    await expect(promptCard("a forest path in fog")).toBeVisible();
+    await expect(promptCard("a quiet lake at sunrise")).toHaveCount(0);
     // Picking an output must not resize the panel under the pointer.
     expect(await panelHeight()).toBe(firstHeight);
   });

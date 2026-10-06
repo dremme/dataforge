@@ -1006,6 +1006,8 @@ class SizeTiebreakTests(unittest.TestCase):
 
         self.assertEqual(result.matched_node_id, "22")
         self.assertTrue(result.matched_by_size)
+        # The likely output opens selected, so it leads the list.
+        self.assertEqual(result.branches[0].node_id, "22")
 
     def test_no_pick_when_the_size_fits_several_or_none(self) -> None:
         for first, second in (((64, 48), (64, 48)), ((128, 96), (32, 24))):
@@ -1024,6 +1026,444 @@ class SizeTiebreakTests(unittest.TestCase):
             result = extract_workflow_prompts(_write(root, "scene_00001.png", graph))
 
         self.assertIsNone(result.matched_node_id)
+
+    def test_a_size_behind_a_switched_off_input_is_not_a_rendered_size(self) -> None:
+        graph = self._graph((128, 96), (64, 48))
+        graph["12"]["inputs"]["images"] = ["13", 0]
+        graph["13"] = {
+            "class_type": "ComfySwitchNode",
+            "inputs": {"switch": False, "on_false": ["11", 0], "on_true": ["14", 0]},
+        }
+        graph["14"] = {
+            "class_type": "ImageScale",
+            "inputs": {"image": ["11", 0], "width": 64, "height": 48},
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "scene_00001.png", graph))
+
+        self.assertEqual(result.matched_node_id, "22")
+
+
+def _pairs(parameters: list) -> set[tuple[str, str]]:
+    return {(parameter.label, parameter.value) for parameter in parameters}
+
+
+def _map_edges(branch) -> set[tuple[str, str]]:
+    return {(node.id, target) for node in branch.map for target in node.feeds}
+
+
+def _map_status(branch) -> dict[str, str]:
+    return {node.id: node.status for node in branch.map}
+
+
+def _two_pass_graph(switch: object) -> dict:
+    """A base pass, then a refining pass that a switch can route around."""
+    return {
+        "1": LOADER,
+        "2": _encode("a lighthouse in a storm"),
+        "3": _encode("blurry"),
+        "4": {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["1", 0],
+                "positive": ["2", 0],
+                "negative": ["3", 0],
+                "seed": 7,
+                "steps": 30,
+                "denoise": 1.0,
+                "sampler_name": "euler",
+            },
+        },
+        "5": {"class_type": "LatentUpscaleBy", "inputs": {"samples": ["4", 0], "scale_by": 2}},
+        "6": {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"lora_name": "detail.safetensors", "strength_model": 0.8, "model": ["1", 0]},
+        },
+        "7": {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["6", 0],
+                "positive": ["2", 0],
+                "negative": ["3", 0],
+                "latent_image": ["5", 0],
+                "seed": 7,
+                "steps": 6,
+                "denoise": 0.35,
+                "sampler_name": "dpmpp_2m",
+            },
+        },
+        "8": {
+            "class_type": "ComfySwitchNode",
+            "inputs": {"switch": switch, "on_false": ["4", 0], "on_true": ["7", 0]},
+        },
+        "9": {"class_type": "VAEDecode", "inputs": {"samples": ["8", 0], "vae": ["1", 2]}},
+        "10": _save("9", "storm"),
+    }
+
+
+class SamplingPassTests(unittest.TestCase):
+    """Each sampling pass keeps its own settings, and a pass a switch routes around is skipped."""
+
+    def _branch(self, graph: dict, workflow: dict | None = None):
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "storm_00001_.png", graph, workflow))
+        return result.branches[0]
+
+    def test_a_switched_off_pass_is_reported_as_skipped_with_its_own_settings(self) -> None:
+        branch = self._branch(_two_pass_graph(False))
+
+        self.assertEqual([stage.node_id for stage in branch.stages], ["4", "7"])
+        self.assertEqual([stage.status for stage in branch.stages], ["ran", "switched_off"])
+        base, refine = branch.stages
+        self.assertLessEqual({("Steps", "30"), ("Sampler", "euler")}, _pairs(base.parameters))
+        self.assertLessEqual(
+            {("Steps", "6"), ("Denoise", "0.35"), ("Sampler", "dpmpp_2m")},
+            _pairs(refine.parameters),
+        )
+        self.assertNotIn(("Steps", "6"), _pairs(base.parameters))
+        self.assertEqual(refine.loras, ["detail.safetensors (0.8)"])
+        self.assertEqual(base.loras, [])
+
+    def test_settings_feeding_several_passes_are_shared(self) -> None:
+        branch = self._branch(_two_pass_graph(False))
+
+        self.assertIn(("Checkpoint", "landscape.safetensors"), _pairs(branch.parameters))
+        self.assertFalse({"Steps", "Sampler", "Denoise"} & {p.label for p in branch.parameters})
+        for stage in branch.stages:
+            self.assertNotIn("Checkpoint", {parameter.label for parameter in stage.parameters})
+
+    def test_a_switched_on_pass_runs_after_the_pass_it_refines(self) -> None:
+        branch = self._branch(_two_pass_graph(True))
+
+        self.assertEqual([stage.node_id for stage in branch.stages], ["4", "7"])
+        self.assertEqual([stage.status for stage in branch.stages], ["ran", "ran"])
+
+    def test_a_selector_that_cannot_be_read_skips_nothing(self) -> None:
+        branch = self._branch(_two_pass_graph(["99", 0]))
+
+        self.assertEqual([stage.status for stage in branch.stages], ["ran", "ran"])
+
+    def test_an_indexed_switch_skips_every_input_but_the_selected_one(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a forest path in fog"),
+            "3": _encode("a harbour at night"),
+            "4": _sampler("2", "2", seed=1),
+            "5": _sampler("3", "3", seed=2),
+            "6": {
+                "class_type": "ImpactSwitch",
+                "inputs": {"select": 2, "input1": ["4", 0], "input2": ["5", 0]},
+            },
+            "7": _save("6", "storm"),
+        }
+
+        branch = self._branch(graph)
+
+        self.assertEqual(
+            {stage.node_id: stage.status for stage in branch.stages},
+            {"4": "switched_off", "5": "ran"},
+        )
+        self.assertEqual([prompt.text for prompt in branch.prompts], ["a harbour at night"])
+        self.assertLessEqual(
+            {("4", "7"), ("5", "7"), ("prompt:3:positive", "5")}, _map_edges(branch)
+        )
+        self.assertEqual(_map_status(branch)["4"], "switched_off")
+
+    def test_a_pass_is_grouped_by_its_innermost_subgraph(self) -> None:
+        graph = _two_pass_graph(False)
+        graph["9:4"] = graph.pop("4")
+        graph["9:20:7"] = graph.pop("7")
+        graph["8"]["inputs"].update(on_false=["9:4", 0], on_true=["9:20:7", 0])
+        graph["5"]["inputs"]["samples"] = ["9:4", 0]
+        workflow = {
+            "nodes": [{"id": 9, "type": "outer"}],
+            "definitions": {
+                "subgraphs": [
+                    {
+                        "id": "outer",
+                        "name": "Text to Image",
+                        "nodes": [{"id": 20, "type": "inner"}],
+                    },
+                    {"id": "inner", "name": "Refine", "nodes": [{"id": 7, "type": "KSampler"}]},
+                ]
+            },
+        }
+
+        branch = self._branch(graph, workflow)
+
+        self.assertEqual(
+            [(stage.label, stage.group) for stage in branch.stages],
+            [("KSampler", "Text to Image"), ("KSampler", "Refine")],
+        )
+
+    def test_the_map_links_models_loras_and_prompts_to_the_passes_they_feed(self) -> None:
+        branch = self._branch(_two_pass_graph(False))
+
+        kinds = {node.id: node.kind for node in branch.map}
+        self.assertEqual(
+            kinds,
+            {
+                "1": "model",
+                "6": "loras",
+                "4": "pass",
+                "7": "pass",
+                "prompt:2:positive": "prompt",
+                "prompt:3:negative": "prompt",
+                "10": "output",
+            },
+        )
+        self.assertEqual(
+            _map_edges(branch),
+            {
+                ("1", "4"),
+                ("1", "6"),
+                # A model-only LoRA leaves CLIP alone: pass 7's prompt still reads the checkpoint's.
+                ("1", "7"),
+                ("6", "7"),
+                ("prompt:2:positive", "4"),
+                ("prompt:2:positive", "7"),
+                ("prompt:3:negative", "4"),
+                ("prompt:3:negative", "7"),
+                ("4", "7"),
+                ("4", "10"),
+                ("7", "10"),
+            },
+        )
+        self.assertEqual(
+            {key: _map_status(branch)[key] for key in ("1", "6", "7")},
+            {"1": "ran", "6": "switched_off", "7": "switched_off"},
+        )
+        # Every box comes after the boxes that feed it.
+        order = [node.id for node in branch.map]
+        self.assertTrue(all(order.index(a) < order.index(b) for a, b in _map_edges(branch)))
+
+    def test_a_chain_of_lora_loaders_is_one_box(self) -> None:
+        graph = _two_pass_graph(True)
+        graph["11"] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {"lora_name": "grain.safetensors", "strength_model": 0.5, "model": ["6", 0]},
+        }
+        graph["7"]["inputs"]["model"] = ["11", 0]
+
+        branch = self._branch(graph)
+
+        loras = [node for node in branch.map if node.kind == "loras"]
+        self.assertEqual(
+            [(node.label, node.detail) for node in loras],
+            [("2 LoRAs", ["detail.safetensors (0.8)", "grain.safetensors (0.5)"])],
+        )
+        self.assertIn((loras[0].id, "7"), _map_edges(branch))
+
+    def test_a_single_pass_keeps_every_setting_on_the_branch(self) -> None:
+        graph = {key: _two_pass_graph(False)[key] for key in ("1", "2", "3", "9", "10")}
+        graph["8"] = _sampler("2", "3")
+
+        branch = self._branch(graph)
+
+        self.assertEqual(branch.stages, [])
+        self.assertIn(("Checkpoint", "landscape.safetensors"), _pairs(branch.parameters))
+        self.assertIn(("Seed", "42"), _pairs(branch.parameters))
+        # One pass still gets a map: what fed it matters as much as how many passes ran.
+        self.assertEqual([node.kind for node in branch.map][-2:], ["pass", "output"])
+
+
+def _reference_graph() -> dict:
+    """An image stage whose result, with a loaded voice clip, guides a video stage."""
+    reference = _sampler("2", "3")
+    reference["_meta"] = {"title": "Reference image"}
+    video = _sampler("7", "7", seed=7)
+    video["inputs"].update(negative=["7", 1], latent_image=["7", 2])
+    return {
+        "1": LOADER,
+        "2": _encode("a  red bicycle\nagainst a brick wall"),
+        "3": _encode("blurry"),
+        "4": reference,
+        "5": {"class_type": "VAEDecode", "inputs": {"samples": ["4", 0], "vae": ["1", 2]}},
+        "6": _encode("the bicycle rolls down the street"),
+        "7": {
+            "class_type": "WanSoundImageToVideo",
+            "inputs": {
+                "positive": ["6", 0],
+                "negative": ["3", 0],
+                "vae": ["1", 2],
+                "ref_image": ["5", 0],
+                "audio_encoder_output": ["12", 0],
+            },
+        },
+        "8": video,
+        "9": {"class_type": "VAEDecode", "inputs": {"samples": ["8", 0], "vae": ["1", 2]}},
+        "10": _save("9", "bicycle"),
+        "11": {"class_type": "LoadAudio", "inputs": {"audio": "voice.wav"}},
+        "12": {"class_type": "AudioEncoderEncode", "inputs": {"audio": ["11", 0]}},
+    }
+
+
+class MapInputTests(unittest.TestCase):
+    """Media coming into an output's stage: loaded files and earlier stages' results."""
+
+    def _branch(self, graph: dict):
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write(root, "bicycle_00001_.png", graph))
+        return next(branch for branch in result.branches if branch.node_id == "10")
+
+    def test_an_earlier_stage_result_is_an_input_named_by_its_prompt_and_stage(self) -> None:
+        branch = self._branch(_reference_graph())
+
+        inputs = {node.id: node for node in branch.map if node.kind == "input"}
+        generated = inputs["5"]
+        self.assertEqual(
+            (generated.label, generated.media, generated.source),
+            ("a red bicycle against a brick wall", "image", "Reference image"),
+        )
+        self.assertEqual(generated.detail, ["a  red bicycle\nagainst a brick wall"])
+        self.assertIn(("5", "8"), _map_edges(branch))
+        # The earlier stage's own boxes stay off this output's map.
+        self.assertNotIn("4", {node.id for node in branch.map})
+
+    def test_a_loaded_audio_file_is_an_audio_input(self) -> None:
+        branch = self._branch(_reference_graph())
+
+        audio = next(node for node in branch.map if node.id == "11")
+        self.assertEqual(
+            (audio.kind, audio.label, audio.media, audio.source), ("input", "voice", "audio", None)
+        )
+        self.assertIn(("11", "8"), _map_edges(branch))
+
+    def test_a_latent_handed_on_from_an_earlier_pass_is_no_input(self) -> None:
+        graph = _reference_graph()
+        graph["8"]["inputs"]["latent_image"] = ["4", 0]
+
+        branch = self._branch(graph)
+
+        self.assertNotIn("4", {node.id for node in branch.map if node.kind == "input"})
+        self.assertEqual(
+            {node.media for node in branch.map if node.kind == "input"}, {"image", "audio"}
+        )
+
+
+def _one_pass_graph() -> dict:
+    """What the prompt keeps of a pass followed by a bypassed one: the save reads the decode."""
+    return {
+        "1": LOADER,
+        "2": _encode("a dancer on a stage"),
+        "3": _encode("blurry"),
+        "4": _sampler("2", "3"),
+        "5": {"class_type": "VAEDecode", "inputs": {"samples": ["4", 0], "vae": ["1", 2]}},
+        "7": _save("5", "dancer"),
+    }
+
+
+class BypassedPassTests(unittest.TestCase):
+    """The prompt drops a bypassed node; the editor workflow still has it, with its links."""
+
+    def _branch(self, workflow: dict):
+        with TempMediaFolder() as root:
+            media = _write(root, "dancer_00001_.png", _one_pass_graph(), workflow)
+            return extract_workflow_prompts(media).branches[0]
+
+    def test_a_bypassed_detailer_is_a_bypassed_pass_with_its_widget_settings(self) -> None:
+        workflow = {
+            "nodes": [
+                {
+                    "id": 6,
+                    "type": "FaceDetailer",
+                    "mode": 4,
+                    "inputs": [{"name": "image", "link": 1}, {"name": "model", "link": 2}],
+                    "widgets_values_named": {"seed": 9, "steps": 8, "denoise": 0.4},
+                },
+                {
+                    "id": 7,
+                    "type": "SaveImage",
+                    "mode": 0,
+                    "inputs": [{"name": "images", "link": 3}],
+                },
+            ],
+            "links": [[1, 5, 0, 6, 0, "IMAGE"], [2, 1, 0, 6, 1, "MODEL"], [3, 6, 0, 7, 0, "IMAGE"]],
+        }
+
+        branch = self._branch(workflow)
+
+        self.assertEqual(
+            [(stage.node_id, stage.status) for stage in branch.stages],
+            [("4", "ran"), ("6", "bypassed")],
+        )
+        base, detailer = branch.stages
+        self.assertEqual(detailer.label, "FaceDetailer")
+        self.assertEqual(
+            _pairs(detailer.parameters), {("Seed", "9"), ("Steps", "8"), ("Denoise", "0.4")}
+        )
+        self.assertIn(("Steps", "20"), _pairs(base.parameters))
+        # The prompt links around the bypassed detailer, so the base pass also feeds the output.
+        self.assertLessEqual({("4", "6"), ("4", "7"), ("6", "7"), ("1", "6")}, _map_edges(branch))
+        self.assertEqual(_map_status(branch)["6"], "bypassed")
+        self.assertIn(("Checkpoint", "landscape.safetensors"), _pairs(branch.parameters))
+        self.assertEqual(
+            [prompt.text for prompt in branch.prompts], ["a dancer on a stage", "blurry"]
+        )
+
+    def test_a_pass_inside_a_bypassed_subgraph_resolves_through_its_boundary(self) -> None:
+        workflow = {
+            "nodes": [
+                {"id": 9, "type": "refine", "mode": 4, "inputs": [{"name": "latent", "link": 1}]},
+                {
+                    "id": 5,
+                    "type": "VAEDecode",
+                    "mode": 0,
+                    "inputs": [{"name": "samples", "link": 2}],
+                },
+            ],
+            "links": [[1, 4, 0, 9, 0, "LATENT"], [2, 9, 0, 5, 0, "LATENT"]],
+            "definitions": {
+                "subgraphs": [
+                    {
+                        "id": "refine",
+                        "name": "Refine",
+                        "inputs": [{"name": "latent"}],
+                        "nodes": [
+                            {
+                                "id": 3,
+                                "type": "KSampler",
+                                "mode": 0,
+                                "inputs": [{"name": "latent_image", "link": 10}],
+                                "widgets_values_named": {"steps": 6, "sampler_name": "dpmpp_2m"},
+                            }
+                        ],
+                        "links": [
+                            {
+                                "id": 10,
+                                "origin_id": -10,
+                                "origin_slot": 0,
+                                "target_id": 3,
+                                "target_slot": 0,
+                            },
+                            {
+                                "id": 11,
+                                "origin_id": 3,
+                                "origin_slot": 0,
+                                "target_id": -20,
+                                "target_slot": 0,
+                            },
+                        ],
+                    }
+                ]
+            },
+        }
+
+        branch = self._branch(workflow)
+
+        self.assertEqual(
+            [(stage.node_id, stage.status, stage.group) for stage in branch.stages],
+            [("4", "ran", None), ("9:3", "bypassed", "Refine")],
+        )
+        self.assertEqual(
+            _pairs(branch.stages[1].parameters), {("Steps", "6"), ("Sampler", "dpmpp_2m")}
+        )
+
+    def test_a_workflow_without_bypassed_nodes_changes_nothing(self) -> None:
+        workflow = {"nodes": [{"id": 7, "type": "SaveImage", "mode": 0}], "links": []}
+
+        self.assertEqual(self._branch(workflow).stages, [])
 
 
 if __name__ == "__main__":

@@ -5,7 +5,14 @@ from fastapi import APIRouter, HTTPException, Query
 from captions import build_caption_response, load_backup_caption, save_caption
 from comfy_editor_workflow import workflow_for_output
 from comfy_metadata import media_has_comfy_workflow
-from comfy_prompts import PromptText, extract_workflow_prompts, read_editor_workflow
+from comfy_prompts import (
+    MapNode,
+    Parameter,
+    PromptText,
+    SamplingStage,
+    extract_workflow_prompts,
+    read_editor_workflow,
+)
 from constants import COMFY_WORKFLOW_EXTENSIONS
 from routes._helpers import resolve_media_file
 from schemas import (
@@ -13,9 +20,11 @@ from schemas import (
     CaptionSaveResponse,
     CaptionUpdate,
     ComfyEditorWorkflowResponse,
+    ComfyMapNode,
     ComfyOutputBranch,
     ComfyParameter,
     ComfyPromptText,
+    ComfySamplingStage,
     ComfyWorkflowPromptsResponse,
     PngWorkflowResponse,
 )
@@ -40,6 +49,37 @@ def _prompt_text(prompt: PromptText) -> ComfyPromptText:
         node_id=prompt.node_id,
         node_title=prompt.node_title,
         input_name=prompt.input_name,
+    )
+
+
+def _parameters(parameters: list[Parameter]) -> list[ComfyParameter]:
+    return [
+        ComfyParameter(label=parameter.label, value=parameter.value) for parameter in parameters
+    ]
+
+
+def _map_node(node: MapNode) -> ComfyMapNode:
+    return ComfyMapNode(
+        id=node.id,
+        kind=node.kind,
+        label=node.label,
+        detail=node.detail,
+        status=node.status,
+        feeds=node.feeds,
+        role=node.role,
+        media=node.media,
+        source=node.source,
+    )
+
+
+def _sampling_stage(stage: SamplingStage) -> ComfySamplingStage:
+    return ComfySamplingStage(
+        node_id=stage.node_id,
+        label=stage.label,
+        group=stage.group,
+        status=stage.status,
+        parameters=_parameters(stage.parameters),
+        loras=stage.loras,
     )
 
 
@@ -86,11 +126,10 @@ def read_comfy_workflow_prompts(
                 is_preview=branch.is_preview,
                 matches_filename=branch.matches_filename,
                 prompts=[_prompt_text(prompt) for prompt in branch.prompts],
-                parameters=[
-                    ComfyParameter(label=parameter.label, value=parameter.value)
-                    for parameter in branch.parameters
-                ],
+                parameters=_parameters(branch.parameters),
                 loras=branch.loras,
+                stages=[_sampling_stage(stage) for stage in branch.stages],
+                map=[_map_node(node) for node in branch.map],
             )
             for branch in extracted.branches
         ],

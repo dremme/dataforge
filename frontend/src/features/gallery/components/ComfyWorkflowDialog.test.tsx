@@ -18,6 +18,8 @@ function makeBranch(overrides: Partial<ComfyOutputBranch> = {}): ComfyOutputBran
     prompts: [],
     parameters: [],
     loras: [],
+    stages: [],
+    map: [],
     ...overrides,
   };
 }
@@ -223,14 +225,165 @@ describe("ComfyWorkflowDialog", () => {
       }),
     );
     const models = (await screen.findByText("Models")).parentElement!;
-    expect(within(models).getByText("base_model.safetensors")).toBeInTheDocument();
+    // Long names truncate; the title carries the full one.
+    expect(within(models).getByText("base_model.safetensors")).toHaveAttribute(
+      "title",
+      "base_model.safetensors",
+    );
     const settings = screen.getByText("Settings").parentElement!;
     expect(within(settings).getByText("12")).toBeInTheDocument();
     expect(within(settings).queryByText("base_model.safetensors")).not.toBeInTheDocument();
     const loras = within(screen.getByText("LoRAs").parentElement!).getAllByRole("listitem");
     expect(loras[0]).toHaveTextContent(/^styles\\soft_light\.safetensors0\.6$/);
     expect(within(loras[0]).getByText("0.6")).toBeInTheDocument();
+    expect(within(loras[0]).getByTitle("styles\\soft_light.safetensors")).toBeInTheDocument();
     expect(loras[1]).toHaveTextContent(/^detail\.safetensors$/);
+  });
+
+  it("shows a single-pass output's settings without pass headings", async () => {
+    renderDialog(
+      makeResponse({
+        branches: [makeBranch({ parameters: [{ label: "Steps", value: "20" }] })],
+      }),
+    );
+    expect(await screen.findByText("20")).toBeInTheDocument();
+    expect(screen.queryByText(/^Pass \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Shared")).not.toBeInTheDocument();
+  });
+
+  it("groups settings by sampling pass and marks a switched-off pass as skipped", async () => {
+    renderDialog(
+      makeResponse({
+        branches: [
+          makeBranch({
+            node_id: "10",
+            parameters: [{ label: "Model", value: "base_model.safetensors" }],
+            stages: [
+              {
+                node_id: "4",
+                label: "KSampler",
+                group: "Text to Image",
+                status: "ran",
+                parameters: [{ label: "Steps", value: "30" }],
+                loras: [],
+              },
+              {
+                node_id: "7",
+                label: "High-res pass",
+                group: null,
+                status: "switched_off",
+                parameters: [{ label: "Steps", value: "6" }],
+                loras: ["detail.safetensors (0.8)"],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    const shared = await screen.findByRole("region", { name: "Shared settings" });
+    expect(within(shared).getByText("base_model.safetensors")).toBeInTheDocument();
+    const base = screen.getByRole("region", { name: "Pass 1: KSampler" });
+    expect(within(base).getByText("30")).toBeInTheDocument();
+    expect(within(base).getByText("Text to Image")).toBeInTheDocument();
+    expect(within(base).queryByText(/Skipped/)).not.toBeInTheDocument();
+    const refine = screen.getByRole("region", { name: "Pass 2: High-res pass, skipped" });
+    expect(within(refine).getByText("Skipped — switched off")).toBeInTheDocument();
+    expect(within(refine).getByText("6")).toBeInTheDocument();
+    expect(within(refine).getByText("detail.safetensors")).toBeInTheDocument();
+    expect(within(base).queryByText("6")).not.toBeInTheDocument();
+  });
+
+  it("opens a pass's settings from the workflow map below the passes", async () => {
+    const user = userEvent.setup();
+    const scrolled: Element[] = [];
+    // jsdom does not scroll, so it has no scrollIntoView to spy on.
+    Element.prototype.scrollIntoView ??= () => {};
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+      scrolled.push(this);
+    });
+    renderDialog(
+      makeResponse({
+        branches: [
+          makeBranch({
+            stages: [
+              {
+                node_id: "4",
+                label: "KSampler",
+                status: "ran",
+                parameters: [{ label: "Steps", value: "30" }],
+                loras: [],
+              },
+              {
+                node_id: "6",
+                label: "FaceDetailer",
+                status: "bypassed",
+                parameters: [{ label: "Steps", value: "8" }],
+                loras: [],
+              },
+            ],
+            map: [
+              {
+                id: "4",
+                kind: "pass",
+                label: "KSampler",
+                detail: [],
+                status: "ran",
+                feeds: ["6", "7"],
+              },
+              {
+                id: "6",
+                kind: "pass",
+                label: "FaceDetailer",
+                detail: [],
+                status: "bypassed",
+                feeds: ["7"],
+              },
+              { id: "7", kind: "output", label: "Output", detail: [], status: "ran", feeds: [] },
+            ],
+          }),
+        ],
+      }),
+    );
+    const map = await screen.findByRole("group", { name: "Workflow map" });
+    await user.click(within(map).getByRole("button", { name: "Pass 2: FaceDetailer, bypassed" }));
+
+    expect(scrolled).toEqual([
+      screen.getByRole("region", { name: "Pass 2: FaceDetailer, bypassed" }),
+    ]);
+  });
+
+  it("marks a bypassed pass and says when the workflow kept none of its settings", async () => {
+    renderDialog(
+      makeResponse({
+        branches: [
+          makeBranch({
+            stages: [
+              {
+                node_id: "4",
+                label: "KSampler",
+                status: "ran",
+                parameters: [{ label: "Steps", value: "30" }],
+                loras: [],
+              },
+              {
+                node_id: "6",
+                label: "FaceDetailer",
+                status: "bypassed",
+                parameters: [],
+                loras: [],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    const detailer = await screen.findByRole("region", {
+      name: "Pass 2: FaceDetailer, bypassed",
+    });
+    expect(within(detailer).getByText("Bypassed")).toBeInTheDocument();
+    expect(
+      within(detailer).getByText("The workflow does not record this bypassed node's settings."),
+    ).toBeInTheDocument();
   });
 
   it("reports missing saved names without inventing filename evidence", async () => {

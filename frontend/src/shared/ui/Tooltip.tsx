@@ -50,6 +50,8 @@ interface TooltipProps {
   trigger?: "hover-focus";
   /** Extra classes on the hover wrapper, e.g. when it has to be a flex item. */
   className?: string;
+  /** Extra classes on the bubble, for content richer than a line of text. */
+  bubbleClassName?: string;
   style?: CSSProperties;
 }
 
@@ -61,6 +63,7 @@ export function Tooltip({
   open = false,
   trigger = "hover-focus",
   className,
+  bubbleClassName,
   style,
 }: TooltipProps) {
   const id = useId();
@@ -167,7 +170,7 @@ export function Tooltip({
         offset={8}
         gutter={VIEWPORT_GUTTER}
         exitDuration={FADE_MS}
-        className="tooltip__bubble"
+        className={classNames("tooltip__bubble", bubbleClassName)}
         id={id}
         role="tooltip"
       >

@@ -97,6 +97,8 @@ describe("GalleryItemModal", () => {
           ],
           parameters: [],
           loras: [],
+          stages: [],
+          map: [],
         },
       ],
     });

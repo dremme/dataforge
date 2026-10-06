@@ -97,6 +97,13 @@
   --chart-wmv: #f0abfc;
   --chart-flv: #f5d0fe;
 
+  // One hue per box kind in the ComfyUI workflow map; passes and the output use the accent.
+  --map-model: #fbbf77;
+  --map-lora: #c4b5fd;
+  --map-input: #67e8f9;
+  --map-prompt: #86efac;
+  --map-negative: #fda4af;
+
   color-scheme: dark;
 
   --content-max: #{$content-max};

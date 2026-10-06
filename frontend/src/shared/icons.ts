@@ -90,6 +90,7 @@ export {
   Image as iconImage,
   ImageDown as iconImageDown,
   Images as iconImages,
+  Layers as iconLayers,
   Info as iconInfo,
   Italic as iconItalic,
   Keyboard as iconKeyboard,

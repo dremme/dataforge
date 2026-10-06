@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { fetchComfyEditorWorkflow } from "@/features/gallery/api/captions";
+import { ComfyWorkflowMap } from "@/features/gallery/components/ComfyWorkflowMap";
+import { PASS_NOT_RUN, splitLora } from "@/features/gallery/lib/comfyWorkflow";
 import { useComfyWorkflowPrompts } from "@/features/gallery/hooks/useComfyWorkflowPrompts";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
 import { iconCopy, iconLoader2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
-import type { ComfyOutputBranch } from "@/shared/types";
+import type { ComfyOutputBranch, ComfyParameter } from "@/shared/types";
 import { Dialog, DialogButton } from "@/shared/ui/Dialog";
 import { Icon } from "@/shared/ui/Icon";
 
@@ -61,14 +63,6 @@ function describe(
       have been renamed or the workflow may use a dynamic name.
     </>
   );
-}
-
-/** Splits the backend's `folder/name.safetensors (strength)` display string for styling. */
-function splitLora(lora: string): { folder: string; name: string; strength: string | null } {
-  const match = /^(.*?) \(([^()]+)\)$/.exec(lora);
-  const path = match ? match[1] : lora;
-  const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/")) + 1;
-  return { folder: path.slice(0, cut), name: path.slice(cut), strength: match ? match[2] : null };
 }
 
 function OutputIdentity({ branch }: { branch: ComfyOutputBranch }) {
@@ -169,6 +163,132 @@ function CopyWorkflowButton({ mediaPath, nodeId }: { mediaPath: string; nodeId: 
   );
 }
 
+function SettingsGroups({ parameters, loras }: { parameters: ComfyParameter[]; loras: string[] }) {
+  const models = parameters.filter((parameter) => MODEL_FILE_PATTERN.test(parameter.value));
+  const settings = parameters.filter((parameter) => !models.includes(parameter));
+
+  return (
+    <>
+      {models.length > 0 && (
+        <div className="comfy-workflow-dialog__group">
+          <span className="comfy-workflow-dialog__group-label">Models</span>
+          <dl className="comfy-workflow-dialog__models">
+            {models.map((parameter) => (
+              <div key={`${parameter.label}-${parameter.value}`}>
+                <dt>{parameter.label}</dt>
+                <dd title={parameter.value}>{parameter.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      {loras.length > 0 && (
+        <div className="comfy-workflow-dialog__group">
+          <span className="comfy-workflow-dialog__group-label">LoRAs</span>
+          <ul className="comfy-workflow-dialog__loras">
+            {loras.map((lora) => {
+              const { folder, name, strength } = splitLora(lora);
+              return (
+                <li key={lora} className="comfy-workflow-dialog__lora">
+                  <span className="comfy-workflow-dialog__lora-path" title={folder + name}>
+                    {folder && <span className="comfy-workflow-dialog__lora-folder">{folder}</span>}
+                    {name}
+                  </span>
+                  {strength && (
+                    <span className="comfy-workflow-dialog__lora-strength">{strength}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {settings.length > 0 && (
+        <div className="comfy-workflow-dialog__group">
+          <span className="comfy-workflow-dialog__group-label">Settings</span>
+          <dl className="comfy-workflow-dialog__parameters">
+            {settings.map((parameter) => (
+              <div key={`${parameter.label}-${parameter.value}`}>
+                <dt>{parameter.label}</dt>
+                <dd>{parameter.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** One section per sampling pass, so settings that run together read together. */
+function SamplingPasses({
+  branch,
+  sections,
+}: {
+  branch: ComfyOutputBranch;
+  /** Filled with each pass's section, so the workflow map can open one. */
+  sections: Map<string, HTMLElement>;
+}) {
+  const hasShared = branch.parameters.length > 0 || branch.loras.length > 0;
+
+  return (
+    <>
+      {hasShared && (
+        <section className="comfy-workflow-dialog__pass" aria-label="Shared settings">
+          <div className="comfy-workflow-dialog__pass-head">
+            <span className="comfy-workflow-dialog__pass-label">Shared</span>
+            <span className="comfy-workflow-dialog__pass-group">
+              Read by several passes or the output
+            </span>
+          </div>
+          <SettingsGroups parameters={branch.parameters} loras={branch.loras} />
+        </section>
+      )}
+
+      {branch.stages.map((stage, index) => {
+        const notRun = PASS_NOT_RUN[stage.status];
+        const hasSettings = stage.parameters.length > 0 || stage.loras.length > 0;
+        return (
+          <section
+            key={stage.node_id}
+            ref={(element) => {
+              if (element) sections.set(stage.node_id, element);
+              else sections.delete(stage.node_id);
+            }}
+            className={classNames(
+              "comfy-workflow-dialog__pass",
+              notRun && "comfy-workflow-dialog__pass--skipped",
+            )}
+            aria-label={`Pass ${index + 1}: ${stage.label}${notRun ? `, ${notRun.status}` : ""}`}
+          >
+            <div className="comfy-workflow-dialog__pass-head">
+              <span className="comfy-workflow-dialog__pass-number">Pass {index + 1}</span>
+              <span className="comfy-workflow-dialog__pass-label">{stage.label}</span>
+              {notRun && <span className="comfy-workflow-dialog__pass-flag">{notRun.flag}</span>}
+              {stage.group && (
+                <span className="comfy-workflow-dialog__pass-group">{stage.group}</span>
+              )}
+            </div>
+            {hasSettings ? (
+              <div className="comfy-workflow-dialog__pass-body">
+                <SettingsGroups parameters={stage.parameters} loras={stage.loras} />
+              </div>
+            ) : (
+              <p className="comfy-workflow-dialog__empty">
+                {stage.status === "bypassed"
+                  ? "The workflow does not record this bypassed node's settings."
+                  : "No settings of its own."}
+              </p>
+            )}
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
 function BranchDetails({
   branch,
   matchedNodeId,
@@ -184,8 +304,23 @@ function BranchDetails({
   mediaPath: string;
   canCopyWorkflow: boolean;
 }) {
-  const models = branch.parameters.filter((parameter) => MODEL_FILE_PATTERN.test(parameter.value));
-  const settings = branch.parameters.filter((parameter) => !models.includes(parameter));
+  const sections = useRef(new Map<string, HTMLElement>());
+  // Numbered as their sections are; a single pass has no section and is simply pass 1.
+  const passNumbers = useMemo(() => {
+    const passes =
+      branch.stages.length > 0
+        ? branch.stages.map((stage) => stage.node_id)
+        : branch.map.filter((node) => node.kind === "pass").map((node) => node.id);
+    return new Map(passes.map((nodeId, index) => [nodeId, index + 1]));
+  }, [branch]);
+  // A single pass owns every setting on the branch; otherwise each pass has its own.
+  const passSettings = useMemo(
+    () =>
+      branch.stages.length > 0
+        ? new Map(branch.stages.map((stage) => [stage.node_id, stage.parameters]))
+        : new Map([...passNumbers.keys()].map((nodeId) => [nodeId, branch.parameters])),
+    [branch, passNumbers],
+  );
 
   return (
     <div className="dialog__field comfy-workflow-dialog__details-field">
@@ -239,56 +374,27 @@ function BranchDetails({
           </div>
         ))}
 
-        {models.length > 0 && (
-          <div className="comfy-workflow-dialog__group">
-            <span className="comfy-workflow-dialog__group-label">Models</span>
-            <dl className="comfy-workflow-dialog__models">
-              {models.map((parameter) => (
-                <div key={`${parameter.label}-${parameter.value}`}>
-                  <dt>{parameter.label}</dt>
-                  <dd>{parameter.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+        {branch.stages.length > 0 ? (
+          <SamplingPasses branch={branch} sections={sections.current} />
+        ) : (
+          <SettingsGroups parameters={branch.parameters} loras={branch.loras} />
         )}
 
-        {branch.loras.length > 0 && (
-          <div className="comfy-workflow-dialog__group">
-            <span className="comfy-workflow-dialog__group-label">LoRAs</span>
-            <ul className="comfy-workflow-dialog__loras">
-              {branch.loras.map((lora) => {
-                const { folder, name, strength } = splitLora(lora);
-                return (
-                  <li key={lora} className="comfy-workflow-dialog__lora">
-                    <span className="comfy-workflow-dialog__lora-path">
-                      {folder && (
-                        <span className="comfy-workflow-dialog__lora-folder">{folder}</span>
-                      )}
-                      {name}
-                    </span>
-                    {strength && (
-                      <span className="comfy-workflow-dialog__lora-strength">{strength}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
-        {settings.length > 0 && (
-          <div className="comfy-workflow-dialog__group">
-            <span className="comfy-workflow-dialog__group-label">Settings</span>
-            <dl className="comfy-workflow-dialog__parameters">
-              {settings.map((parameter) => (
-                <div key={`${parameter.label}-${parameter.value}`}>
-                  <dt>{parameter.label}</dt>
-                  <dd>{parameter.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+        {branch.map.length > 0 && (
+          <ComfyWorkflowMap
+            map={branch.map}
+            passNumbers={passNumbers}
+            passSettings={passSettings}
+            output={branch.label}
+            onSelect={
+              branch.stages.length > 0
+                ? (nodeId) =>
+                    sections.current
+                      .get(nodeId)
+                      ?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+                : undefined
+            }
+          />
         )}
       </div>
     </div>

@@ -25,6 +25,10 @@ type AutomationMode = Literal["thinking", "instruct"]
 
 #: Which sampler input a workflow's text reached; anything not named negative counts as positive.
 type ComfyPromptRole = Literal["positive", "negative"]
+#: Whether a sampling pass ran, a switch routed around it, or it is bypassed in the editor.
+type ComfyPassStatus = Literal["ran", "switched_off", "bypassed"]
+type ComfyMapNodeKind = Literal["pass", "model", "loras", "prompt", "input", "output"]
+type ComfyMediaKind = Literal["image", "video", "audio"]
 
 #: Keys of ``TRAINING_TEMPLATES``; ``h3_*`` are video, ``krea2_turbo`` and ``qwen_image_2`` image.
 type TrainingModel = Literal["krea2_turbo", "qwen_image_2", "h3_fl2va", "h3_ref2va"]
@@ -977,6 +981,37 @@ class ComfyParameter(BaseModel):
     value: str
 
 
+class ComfySamplingStage(BaseModel):
+    """One sampling pass on the way to an output, with the settings only it reads."""
+
+    node_id: str
+    label: str
+    #: The innermost subgraph the pass sits in.
+    group: str | None = None
+    status: ComfyPassStatus = "ran"
+    parameters: list[ComfyParameter] = Field(default_factory=list)
+    loras: list[str] = Field(default_factory=list)
+
+
+class ComfyMapNode(BaseModel):
+    """One box of an output's map: a pass, or a model, LoRAs, input or prompt feeding one."""
+
+    id: str
+    kind: ComfyMapNodeKind
+    label: str
+    #: The full text behind a short label: a prompt, a model file or LoRA names.
+    detail: list[str] = Field(default_factory=list)
+    status: ComfyPassStatus = "ran"
+    #: Map nodes this one hands its result to directly.
+    feeds: list[str] = Field(default_factory=list)
+    #: Set on a prompt box only.
+    role: ComfyPromptRole | None = None
+    #: Set on an input box: what kind of media it is.
+    media: ComfyMediaKind | None = None
+    #: Set on an input an earlier stage generated: that stage's name.
+    source: str | None = None
+
+
 class ComfyOutputBranch(BaseModel):
     """One possible workflow output, named by the subgraph that fed it."""
 
@@ -988,8 +1023,13 @@ class ComfyOutputBranch(BaseModel):
     is_preview: bool = False
     matches_filename: bool = False
     prompts: list[ComfyPromptText] = Field(default_factory=list)
+    #: With ``stages``, only the settings no single pass owns; otherwise every setting.
     parameters: list[ComfyParameter] = Field(default_factory=list)
     loras: list[str] = Field(default_factory=list)
+    #: Sampling passes, earliest first; empty when the output has one pass and it ran.
+    stages: list[ComfySamplingStage] = Field(default_factory=list)
+    #: The passes and what feeds them, earliest first; empty when nothing samples.
+    map: list[ComfyMapNode] = Field(default_factory=list)
 
 
 class ComfyWorkflowPromptsResponse(BaseModel):
