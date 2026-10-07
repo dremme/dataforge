@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
 import { folderKeys } from "@/features/folder/lib/folderQuery";
@@ -63,7 +63,7 @@ function renderWithFolder(initial: FolderResponse) {
     () => {
       const { data: folder } = useQuery<FolderResponse>({
         queryKey: folderKeys.folder(FOLDER),
-        enabled: false,
+        queryFn: skipToken,
       });
       useSubfolderStats(folder?.path, folder?.fingerprint, folder?.subfolders ?? []);
       return folder;

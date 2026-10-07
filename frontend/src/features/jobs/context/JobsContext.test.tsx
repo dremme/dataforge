@@ -216,7 +216,6 @@ describe("JobsProvider", () => {
     const stream = installFakeEventSource();
     const latest = renderProvider();
     await waitFor(() => expect(listJobs).toHaveBeenCalled());
-    act(() => stream.source().onmessage?.({ data: "{}" }));
 
     act(() => {
       stream.push({
