@@ -112,6 +112,24 @@ describe("useVideoEdit", () => {
     expect(fetchStateMock.mock.calls.length).toBe(fetches);
   });
 
+  it("keeps a full-length end at the end when a later duration is longer", async () => {
+    const { result } = renderEdit();
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(4.678304));
+    });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await waitFor(() => expect(fetchStateMock).toHaveBeenCalled());
+
+    // A stream starting after zero: the browser extends the duration once it reads the last frame.
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(4.761637));
+    });
+
+    expect(result.current.draft.trimEnd).toBe(4.761637);
+    expect(result.current.dirty).toBe(false);
+  });
+
   it("re-opens on the blur regions stored beside the file", async () => {
     fetchStateMock.mockResolvedValue({
       path: CLIP,

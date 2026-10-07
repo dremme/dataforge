@@ -13,6 +13,7 @@ import {
   type CropRect,
 } from "@/features/gallery/lib/crop";
 import {
+  draftForDuration,
   draftFromSpec,
   emptyDraft,
   isIdentityEdit,
@@ -219,8 +220,13 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       setSourceWidth(video.videoWidth);
       setSourceHeight(video.videoHeight);
 
+      if (!hasUsableDuration(video.duration)) return;
       // A later durationchange is still this source. Wiping here throws away trim/crop/speed.
-      if (!hasUsableDuration(video.duration) || hasUsableDuration(previousDuration)) return;
+      if (hasUsableDuration(previousDuration)) {
+        const duration = video.duration;
+        setDraft((current) => draftForDuration(current, previousDuration, duration));
+        return;
+      }
 
       setDraft(emptyDraft(video.duration));
 

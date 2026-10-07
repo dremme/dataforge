@@ -4,6 +4,7 @@ import {
   MIN_TRIM_SECONDS,
   clampTrimEnd,
   clampTrimStart,
+  draftForDuration,
   draftFromSpec,
   emptyDraft,
   evenTrunc,
@@ -96,6 +97,25 @@ describe("trim clamping", () => {
 
     expect(clampTrimStart(-4, current, 12)).toBe(0);
     expect(clampTrimEnd(99, current, 12)).toBe(12);
+  });
+});
+
+describe("a corrected duration", () => {
+  it("moves a full-length end to the new length", () => {
+    expect(draftForDuration(draft({ trimEnd: 12 }), 12, 12.08).trimEnd).toBe(12.08);
+  });
+
+  it("keeps a trimmed end where the user put it", () => {
+    const current = draft({ trimStart: 2, trimEnd: 8 });
+
+    expect(draftForDuration(current, 12, 12.08)).toBe(current);
+  });
+
+  it("pulls an end past a shorter length back onto it", () => {
+    expect(draftForDuration(draft({ trimStart: 2, trimEnd: 11.99 }), 12, 11.9)).toMatchObject({
+      trimStart: 2,
+      trimEnd: 11.9,
+    });
   });
 });
 

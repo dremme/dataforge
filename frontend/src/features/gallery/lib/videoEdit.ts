@@ -54,6 +54,22 @@ export function emptyDraft(duration: number): VideoEditDraft {
   };
 }
 
+/**
+ * Refits a draft to a corrected duration: an end at the old full length moves to the new one,
+ * and no end may pass it. Browsers extend the duration of a stream that starts after zero once
+ * they read its last frame.
+ */
+export function draftForDuration(
+  draft: VideoEditDraft,
+  previous: number,
+  duration: number,
+): VideoEditDraft {
+  const trimEnd =
+    draft.trimEnd >= previous - TRIM_END_EPSILON ? duration : Math.min(draft.trimEnd, duration);
+  if (trimEnd === draft.trimEnd) return draft;
+  return { ...draft, trimStart: Math.min(draft.trimStart, trimEnd), trimEnd };
+}
+
 export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean {
   return (
     draft.trimStart < TRIM_END_EPSILON &&
