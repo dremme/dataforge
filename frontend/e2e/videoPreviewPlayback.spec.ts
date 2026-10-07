@@ -11,14 +11,15 @@ const python = path.join(
   ".venv",
   process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
 );
-// The fixture must make a seek to the in point slow while plain playback stays cheap, since CI
-// decodes in software. At 720p30 the single-player seek loop measured ~260 ms per lap, the
-// handoff 17-33 ms, and preparing the standby must finish well within one SPAN on a slow runner.
-const RATE = 30;
-const IN_POINT = 6;
-const SPAN = 3;
+// Tuned for a local PC with hardware decode. A seek to the in point decodes 240 frames: the
+// single-player seek loop measured ~220 ms per lap, the handoff one frame with or without
+// overlays, and preparing the standby ~220 ms, well inside one SPAN.
+const RATE = 60;
+const IN_POINT = 4;
+const SPAN = 1;
+const LAPS = 4;
 // One keyframe, at the start: every seek to the in point decodes IN_POINT seconds of frames.
-const LENGTH = 10;
+const LENGTH = 6;
 
 interface Picture {
   now: number;
@@ -39,7 +40,6 @@ for (const overlays of [false, true]) {
       ["-c", "from ffmpeg_bin import ffmpeg_path; print(ffmpeg_path() or '')"],
       { cwd: path.join(projectRoot, "backend"), encoding: "utf8" },
     ).trim();
-    test.setTimeout(60_000);
     const name = overlays ? "loop-overlays.mp4" : "loop-preview.mp4";
     execFileSync(ffmpeg, [
       "-v",
@@ -88,7 +88,9 @@ for (const overlays of [false, true]) {
               : undefined;
         if (!video) return;
         const slot = videos.indexOf(video);
-        drawn[canvas].push({ now: performance.now(), time: video.currentTime, slot });
+        // The frame's own timestamp, as frame callbacks report, not the moment the draw ran.
+        const now = Number(document.timeline.currentTime);
+        drawn[canvas].push({ now, time: video.currentTime, slot });
       };
       const texImage2D = WebGL2RenderingContext.prototype.texImage2D;
       WebGL2RenderingContext.prototype.texImage2D = function (
@@ -156,8 +158,8 @@ for (const overlays of [false, true]) {
         new MutationObserver(() => {
           if (slot === showing || !visible(video)) return;
           showing = slot;
-          const time = video.currentTime;
-          requestAnimationFrame((now) => frames.push({ now, time, slot }));
+          // No media time: the held frame must not read as a jump back to the in point.
+          requestAnimationFrame((now) => frames.push({ now, time: -Infinity, slot }));
         }).observe(video, { attributes: true, attributeFilter: ["style"] });
         const frame: VideoFrameRequestCallback = (now, metadata) => {
           if (slot === showing) frames.push({ now, time: metadata.mediaTime, slot });
@@ -181,7 +183,7 @@ for (const overlays of [false, true]) {
     // Allow the paused standby to prepare before measuring repeated loops.
     await page.waitForTimeout(500);
     await page.getByRole("button", { name: "Play preview" }).click();
-    await page.waitForTimeout(SPAN * 3500);
+    await page.waitForTimeout((LAPS + 0.5) * SPAN * 1000);
     await page.getByRole("button", { name: "Pause preview" }).click();
     const metrics = await page.evaluate(() => {
       const state = window as unknown as {
@@ -194,7 +196,8 @@ for (const overlays of [false, true]) {
       const lapGaps = (pictures: Picture[]) =>
         pictures.flatMap((picture, index) => {
           const previous = pictures[index - 1];
-          return previous && (picture.slot !== previous.slot || picture.time < previous.time)
+          const rewound = Number.isFinite(picture.time) && picture.time < previous?.time;
+          return previous && (picture.slot !== previous.slot || rewound)
             ? [picture.now - previous.now]
             : [];
         });
@@ -218,17 +221,16 @@ for (const overlays of [false, true]) {
       blurGaps: metrics.blurGaps.map(Math.round),
       seeks: metrics.seeks.map(({ slot, visible }) => ({ slot, visible })),
     });
-    expect(metrics.gaps.length, summary).toBeGreaterThanOrEqual(3);
+    expect(metrics.gaps.length, summary).toBeGreaterThanOrEqual(LAPS - 1);
     // Frame timestamps are rounded to display-clock ticks; allow one tick on top of two frames.
     expect(Math.max(...metrics.gaps), summary).toBeLessThanOrEqual(2 * frameMs + 1);
     expect(metrics.visibleSeeks, summary).toBe(0);
     expect(metrics.maxAudible).toBe(1);
-    // The canvases cover the video elements, so what they draw is what the user sees. They follow
-    // the switch a frame late, after React's commit, and draw times are not display-clock ticks.
+    // The canvases cover the video elements, so what they draw is what the user sees.
     if (overlays) {
       for (const gaps of [metrics.adjustGaps, metrics.blurGaps]) {
-        expect(gaps.length, summary).toBeGreaterThanOrEqual(3);
-        expect(Math.max(...gaps), summary).toBeLessThanOrEqual(3 * frameMs);
+        expect(gaps.length, summary).toBeGreaterThanOrEqual(LAPS - 1);
+        expect(Math.max(...gaps), summary).toBeLessThanOrEqual(2 * frameMs + 1);
       }
     }
   });
