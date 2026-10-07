@@ -487,6 +487,48 @@ class PromptExtractionTests(unittest.TestCase):
         self.assertIsNone(result.matched_node_id)
         self.assertEqual([branch.matches_filename for branch in result.branches], [True, True])
 
+    def test_an_output_with_saving_switched_off_cannot_claim_the_file(self) -> None:
+        def combine(source: str, save_output: object) -> dict:
+            inputs = {"images": [source, 0], "filename_prefix": "shot", "save_output": save_output}
+            return {"class_type": "VHS_VideoCombine", "inputs": inputs}
+
+        graph = {
+            "1": LOADER,
+            "2": _encode("a forest path in fog"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": _sampler("2", "3"),
+            "6": {"class_type": "PrimitiveBoolean", "inputs": {"value": False}},
+            "7": combine("4", True),
+            "8": combine("5", ["6", 0]),
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write_muxed(root, "shot_00001.mp4", graph))
+
+        self.assertEqual(result.matched_node_id, "7")
+        preview = next(branch for branch in result.branches if branch.node_id == "8")
+        self.assertFalse(preview.matches_filename)
+        self.assertTrue(preview.is_preview)
+
+    def test_a_file_copied_out_of_temp_still_matches_its_preview(self) -> None:
+        graph = {
+            "1": LOADER,
+            "2": _encode("a forest path in fog"),
+            "3": _encode("blurry"),
+            "4": _sampler("2", "3"),
+            "5": {
+                "class_type": "VHS_VideoCombine",
+                "inputs": {"images": ["4", 0], "filename_prefix": "shot", "save_output": False},
+            },
+        }
+
+        with TempMediaFolder() as root:
+            result = extract_workflow_prompts(_write_muxed(root, "shot_00001.mp4", graph))
+
+        self.assertEqual(result.matched_node_id, "5")
+        self.assertTrue(result.branches[0].is_preview)
+
     def test_branch_is_labelled_by_the_subgraph_that_produced_it(self) -> None:
         graph = {
             "1": LOADER,

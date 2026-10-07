@@ -46,6 +46,8 @@ _RESOLUTION_INPUT_KEYS = ("aspect_ratio", "megapixels", "multiple")
 #: Impact Pack detailers and Ultimate SD Upscale re-sample the image their own stage made.
 _REFINER_CLASS_MARKERS = ("detailer", "ultimatesdupscale")
 _NAME_INPUT_KEYS = ("filename_prefix", "filename")
+#: Switched off, Video Helper Suite's combine writes to ComfyUI's temp folder, as a preview does.
+_SAVE_FLAG_INPUTS = ("save_output",)
 #: Lazy switches by their selector and the input each value evaluates; the rest never run.
 _BOOLEAN_SWITCHES = {
     "ComfySwitchNode": ("switch", "on_true", "on_false"),
@@ -1068,6 +1070,14 @@ def _declared_name(graph: dict[str, dict], node: object, key: str) -> str | None
     return value if isinstance(value, str) and value.strip() else None
 
 
+def _is_preview(graph: dict[str, dict], node: object) -> bool:
+    """Whether an output writes only a temp file: a preview class, or its save flag is off."""
+    if any(marker in _node_class(node).lower() for marker in _PREVIEW_CLASS_MARKERS):
+        return True
+    inputs = _node_inputs(node)
+    return any(_scalar_at(graph, inputs.get(key)) is False for key in _SAVE_FLAG_INPUTS)
+
+
 def _prefix_basename(prefix: str) -> str:
     return re.split(r"[\\/]", prefix.strip())[-1].strip()
 
@@ -1389,7 +1399,7 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
                 label=_branch_label(node, ancestry, subgraph_labels),
                 filename_prefix=prefix,
                 filename=filename,
-                is_preview=any(marker in class_type.lower() for marker in _PREVIEW_CLASS_MARKERS),
+                is_preview=_is_preview(graph, node),
                 matches_filename=_matches_filename(prefix, filename, file_path, class_type),
                 prompts=prompts,
                 parameters=parameters,
@@ -1401,6 +1411,11 @@ def extract_workflow_prompts(file_path: Path) -> WorkflowPrompts:
             )
         )
 
+    # A temp file shares a saved file's name pattern, so a preview claims the file only when no
+    # saving output does: then the file was copied out of the temp folder.
+    if any(branch.matches_filename and not branch.is_preview for branch in branches):
+        for branch in branches:
+            branch.matches_filename = branch.matches_filename and not branch.is_preview
     claimants = [branch for branch in branches if branch.matches_filename]
     by_size = _size_tiebreak(claimants, file_path)
     matched = claimants[0] if len(claimants) == 1 else by_size
