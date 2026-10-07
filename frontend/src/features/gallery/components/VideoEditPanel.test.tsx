@@ -264,7 +264,7 @@ describe("VideoEditPanel", () => {
       expect(edit.setScale).toHaveBeenLastCalledWith(0.25);
     });
 
-    it("offers every speed from a quarter to double", () => {
+    it("offers every speed from a quarter to quadruple", () => {
       renderPanel(makeEdit());
 
       fireEvent.click(tool("Speed"));
@@ -272,7 +272,18 @@ describe("VideoEditPanel", () => {
       const speeds = within(screen.getByRole("group", { name: "Playback" }))
         .getAllByRole("button")
         .map((b) => b.textContent?.trim());
-      expect(speeds).toEqual(["0.25x", "0.5x", "0.75x", "1x", "1.25x", "1.5x", "1.75x", "2x"]);
+      expect(speeds).toEqual([
+        "0.25x",
+        "0.5x",
+        "0.75x",
+        "1x",
+        "1.25x",
+        "1.5x",
+        "1.75x",
+        "2x",
+        "3x",
+        "4x",
+      ]);
     });
 
     it("changes the volume from a preset, mute included", () => {
