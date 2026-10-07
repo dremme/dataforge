@@ -56,11 +56,17 @@ function mountScrollElement(scrollTop: number): HTMLElement {
 const folderNotFound = () => new ApiError(404, "Folder not found", "folder_not_found");
 
 function unchanged(folder: FolderResponse): FolderChangesResponse {
-  return { full: false, fingerprint: folder.fingerprint, changed: [], removed: [] };
+  return {
+    full: false,
+    fingerprint: folder.fingerprint,
+    changed: [],
+    removed: [],
+    stale_subfolders: [],
+  };
 }
 
 function changedWholly(fingerprint: string): FolderChangesResponse {
-  return { full: true, fingerprint, changed: [], removed: [] };
+  return { full: true, fingerprint, changed: [], removed: [], stale_subfolders: [] };
 }
 
 /** Full listings held until the test answers them, keyed by the path asked for. */
@@ -201,6 +207,7 @@ describe("useFolderNavigation", () => {
       fingerprint: "fp-home-2",
       changed: [renamed],
       removed: [first.path],
+      stale_subfolders: [],
     });
     const listings = vi.mocked(folderPreferences.loadFolderContents).mock.calls.length;
 

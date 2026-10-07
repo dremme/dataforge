@@ -9,6 +9,7 @@ from automation.backup_captions import run_backup_captions_job
 from captions import issue_file_path
 from constants import LAST_FOLDER_KEY, STAGING_DIR_NAME
 from db import get_preference, set_preference
+from duplicates import DuplicateFinding, save_duplicate_finding
 from folder_fingerprint import compute_folder_fingerprint
 from media_listing import clear_folder_summary_cache_for_tests
 from routes._test_client import client
@@ -57,6 +58,9 @@ class FolderContentsEndpointTests(unittest.TestCase):
             child.mkdir()
             captioned = write_media(child, "done.png")
             write_txt_caption(captioned, "Captioned.")
+            save_duplicate_finding(
+                captioned, DuplicateFinding(group="abc123", max_distance=0, threshold="exact")
+            )
             write_media(child, "pending.png")
             (child / "nested").mkdir()
             (root / ".git").mkdir()
@@ -80,6 +84,7 @@ class FolderContentsEndpointTests(unittest.TestCase):
         self.assertEqual(counted["path"], album["path"])
         self.assertEqual(counted["file_count"], 2)
         self.assertEqual(counted["captioned_count"], 1)
+        self.assertEqual(counted["duplicate_count"], 1)
 
     def test_lists_video_without_reading_its_header(self) -> None:
         # The listing reports what the directory scan already knows; nothing parses a video.

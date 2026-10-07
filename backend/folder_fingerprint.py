@@ -77,11 +77,15 @@ def compute_folder_fingerprint(folder: Path) -> str | None:
 
 @dataclass(frozen=True)
 class FolderSignature:
-    """``items`` covers the file and its sidecars; a ``shell`` change forces a full refetch."""
+    """``items`` covers the file and its sidecars; a ``shell`` change forces a full refetch.
+
+    ``staging`` covers every file in the staging folder, whose counts a delta must re-read.
+    """
 
     fingerprint: str
     items: dict[str, ItemSignature]
     shell: tuple[EntrySignature, ...]
+    staging: tuple[tuple[str, int, int], ...]
 
 
 #: Stands in for a missing sidecar so gaining or losing one shows up as a change.
@@ -136,6 +140,9 @@ def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
         fingerprint=fingerprint_from_scan(scan),
         items=items,
         shell=tuple(shell),
+        staging=tuple(
+            sorted((entry.name, entry.mtime_ns, entry.size) for entry in scan.candidates.values())
+        ),
     )
 
 

@@ -6,7 +6,7 @@ from time import perf_counter
 
 from automation.backup_captions import has_caption_backup
 from candidate_pairing import candidate_name_for
-from constants import ISSUE_SIDECAR_SUFFIX, LAST_FOLDER_KEY
+from constants import ISSUE_SIDECAR_SUFFIX, LAST_FOLDER_KEY, STAGING_DIR_NAME
 from db import get_preference, set_preference
 from filesystem import build_breadcrumbs, get_home_folder, list_subfolders
 from folder_fingerprint import (
@@ -124,6 +124,9 @@ def build_folder_changes(
         fingerprint=signature.fingerprint,
         changed=media_items_named(scan, changed),
         removed=[str(folder / name) for name in removed],
+        stale_subfolders=(
+            [] if baseline.staging == signature.staging else [str(folder / STAGING_DIR_NAME)]
+        ),
     )
 
 
@@ -163,6 +166,7 @@ def build_subfolder_stats_response(folder: Path) -> SubfolderStatsResponse:
                 file_count=int(entry["file_count"]),
                 captioned_count=int(entry["captioned_count"]),
                 issue_count=int(entry["issue_count"]),
+                duplicate_count=int(entry["duplicate_count"]),
             )
             for entry in subfolders
         ],

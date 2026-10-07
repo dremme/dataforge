@@ -65,9 +65,13 @@ def _sort_key(entry: ScannedEntry) -> tuple[str, str]:
     return (entry.name.lower(), entry.name)
 
 
-def _entry_from_dir_entry(entry: os.DirEntry, folder: Path) -> ScannedEntry | None:
+def _entry_from_dir_entry(
+    entry: os.DirEntry, folder: Path, *, is_dir: bool = False
+) -> ScannedEntry | None:
     try:
-        stat = entry.stat()
+        # Windows serves a DirEntry's times from the parent's index, which NTFS updates lazily
+        # for directories: a file added inside would leave the subfolder's mtime unchanged.
+        stat = os.stat(entry.path) if is_dir else entry.stat()
     except OSError:
         return None
     return ScannedEntry(
@@ -120,7 +124,7 @@ def scan_folder(folder: Path) -> FolderScan | None:
                         continue
                     if entry.name == STAGING_DIR_NAME:
                         saw_staging = True
-                    scanned = _entry_from_dir_entry(entry, folder)
+                    scanned = _entry_from_dir_entry(entry, folder, is_dir=True)
                     if scanned is not None:
                         dirs.append(scanned)
                     continue

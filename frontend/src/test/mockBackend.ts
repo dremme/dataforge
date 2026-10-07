@@ -331,6 +331,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         fingerprint: data.fingerprint,
         changed: [],
         removed: [],
+        stale_subfolders: [],
       });
     }
 
@@ -949,6 +950,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       fingerprint: data.fingerprint,
       changed: [structuredClone(item)],
       removed: [removedPath],
+      stale_subfolders: [],
     };
     (folderDeltas[pathKey] ??= []).push({ since, report });
   };

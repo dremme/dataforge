@@ -20,7 +20,7 @@ const PATH = homeFolder.path;
 const held: FolderResponse = { ...homeFolder, fingerprint: "fp-v1" };
 
 function delta(fingerprint: string): FolderChangesResponse {
-  return { full: false, fingerprint, changed: [], removed: [] };
+  return { full: false, fingerprint, changed: [], removed: [], stale_subfolders: [] };
 }
 
 function renderDetection(

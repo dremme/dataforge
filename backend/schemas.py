@@ -198,12 +198,16 @@ class FolderFingerprintResponse(BaseModel):
 
 
 class FolderChangesResponse(BaseModel):
-    """``full`` means refetch the whole folder; ``changed`` covers both new and edited items."""
+    """``full`` means refetch the whole folder; ``changed`` covers both new and edited items.
+
+    ``stale_subfolders`` names subfolders whose counts changed under a delta, which keeps them.
+    """
 
     full: bool = False
     fingerprint: str
     changed: list[GalleryItem] = Field(default_factory=list)
     removed: list[str] = Field(default_factory=list)
+    stale_subfolders: list[str] = Field(default_factory=list)
 
 
 class FolderResponse(BaseModel):

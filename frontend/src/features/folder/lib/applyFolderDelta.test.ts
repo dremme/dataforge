@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FolderChangesResponse, FolderResponse, GalleryItem } from "@/shared/types";
+import type { FolderChangesResponse, FolderResponse, GalleryItem, Subfolder } from "@/shared/types";
 import { applyFolderDelta } from "./applyFolderDelta";
 
 function item(name: string, overrides: Partial<GalleryItem> = {}): GalleryItem {
@@ -40,7 +40,14 @@ function folder(items: GalleryItem[]): FolderResponse {
 }
 
 function delta(overrides: Partial<FolderChangesResponse> = {}): FolderChangesResponse {
-  return { full: false, fingerprint: "after", changed: [], removed: [], ...overrides };
+  return {
+    full: false,
+    fingerprint: "after",
+    changed: [],
+    removed: [],
+    stale_subfolders: [],
+    ...overrides,
+  };
 }
 
 describe("applyFolderDelta", () => {
@@ -104,5 +111,36 @@ describe("applyFolderDelta", () => {
     expect(next).not.toBe(current);
     expect(next.fingerprint).toBe("after");
     expect(next.items).toEqual(current.items);
+  });
+
+  it("blanks the counts of subfolders the server marks stale, so they are read again", () => {
+    const counted = (name: string): Subfolder => ({
+      name,
+      path: `C:\\datasets\\sample\\${name}`,
+      file_count: 4,
+      captioned_count: 2,
+      issue_count: 1,
+      duplicate_count: 0,
+    });
+    const current = {
+      ...folder([item("a.png")]),
+      subfolders: [counted("album"), counted("staging")],
+    };
+
+    const next = applyFolderDelta(
+      current,
+      delta({ stale_subfolders: ["C:\\datasets\\sample\\staging"] }),
+    );
+
+    expect(next.subfolders[0]).toBe(current.subfolders[0]);
+    expect(next.subfolders[1]).toEqual({
+      name: "staging",
+      path: "C:\\datasets\\sample\\staging",
+      file_count: null,
+      captioned_count: null,
+      issue_count: null,
+      duplicate_count: null,
+    });
+    expect(next.fingerprint).toBe("after");
   });
 });

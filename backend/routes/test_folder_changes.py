@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import unittest
 from urllib.parse import quote
 
@@ -135,6 +136,39 @@ class FolderChangesTests(unittest.TestCase):
             self.assertTrue(changes["changed"][0]["has_candidate"])
             self.assertEqual(changes["changed"][0]["candidate_name"], "photo.png")
             self.assertNotEqual(changes["fingerprint"], listed["fingerprint"])
+
+    def test_a_new_candidate_marks_the_staging_counts_stale(self) -> None:
+        """A delta keeps subfolder counts, so staging's must be named or its card keeps the old ones."""
+        with TempMediaFolder() as root:
+            write_media(root, "upscaled.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            listed = self._listing(root)
+            unchanged = self._changes(root, listed["fingerprint"])
+
+            write_media(root / STAGING_DIR_NAME, "upscaled.png")
+
+            changes = self._changes(root, listed["fingerprint"])
+
+            self.assertEqual(unchanged["stale_subfolders"], [])
+            self.assertFalse(changes["full"])
+            self.assertEqual(changes["stale_subfolders"], [str(root / STAGING_DIR_NAME)])
+
+    def test_an_unpaired_staged_file_still_marks_the_staging_counts_stale(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "photo.png")
+            (root / STAGING_DIR_NAME).mkdir()
+            # Backdated: only the folder's mtime sees a file no media pairs with.
+            os.utime(root / STAGING_DIR_NAME, (1_000_000_000, 1_000_000_000))
+            listed = self._listing(root)
+
+            write_media(root / STAGING_DIR_NAME, "orphan.png")
+
+            changes = self._changes(root, listed["fingerprint"])
+
+            self.assertFalse(changes["full"])
+            self.assertNotEqual(changes["fingerprint"], listed["fingerprint"])
+            self.assertEqual(changes["changed"], [])
+            self.assertEqual(changes["stale_subfolders"], [str(root / STAGING_DIR_NAME)])
 
     def test_a_new_subfolder_asks_for_a_full_reload(self) -> None:
         """Subfolders are not part of a delta, so the shell changing sends the client back."""

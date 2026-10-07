@@ -4,6 +4,7 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
+import os
 import unittest
 
 from captions import save_issue_findings
@@ -102,6 +103,24 @@ class FolderFingerprintTests(unittest.TestCase):
             self.assertIsNotNone(first)
             self.assertIsNotNone(second)
             self.assertNotEqual(first, second)
+
+    def test_fingerprint_changes_when_a_subfolder_gains_or_loses_a_file(self) -> None:
+        """Windows serves a subfolder's scandir times from a lazily updated index; this went unseen."""
+        with TempMediaFolder() as root:
+            album = root / "Album"
+            album.mkdir()
+            # Backdated, so a change landing within the clock tick of the last one still shows.
+            os.utime(album, (1_000_000_000, 1_000_000_000))
+            first = compute_folder_fingerprint(root)
+            added = write_media(album, "alpha.png")
+            second = compute_folder_fingerprint(root)
+            os.utime(album, (1_000_000_000, 1_000_000_000))
+            between = compute_folder_fingerprint(root)
+            added.unlink()
+            third = compute_folder_fingerprint(root)
+
+            self.assertNotEqual(first, second)
+            self.assertNotEqual(between, third)
 
 
 if __name__ == "__main__":
