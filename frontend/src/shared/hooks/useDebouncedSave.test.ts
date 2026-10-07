@@ -8,6 +8,72 @@ interface Payload {
 }
 
 describe("useDebouncedSave", () => {
+  it("waits for an in-flight save before reporting a successful flush", async () => {
+    let finish!: () => void;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { result } = setupHook({ save });
+    let completed = false;
+    act(() => {
+      result.current.setBaseline({ path: "photo.png", text: "" });
+      result.current.scheduleSave({ path: "photo.png", text: "A lake" });
+      void result.current.flushPendingSave();
+      void result.current.flushPendingSave().then(() => {
+        completed = true;
+      });
+    });
+    expect(completed).toBe(false);
+    await act(async () => {
+      finish();
+    });
+    expect(completed).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns failure until a failed save is retried or discarded", async () => {
+    const save = vi.fn().mockRejectedValue(new Error("Write failed"));
+    const { result } = setupHook({ save });
+    act(() => {
+      result.current.setBaseline({ path: "photo.png", text: "" });
+      result.current.scheduleSave({ path: "photo.png", text: "A lake" });
+    });
+    await act(async () => {
+      expect(await result.current.flushPendingSave()).toBe(false);
+    });
+    expect(await result.current.flushPendingSave()).toBe(false);
+    act(() => result.current.discardPendingSave());
+    expect(await result.current.flushPendingSave()).toBe(true);
+  });
+
+  it("writes successive drafts in order while a previous save is running", async () => {
+    let finish!: () => void;
+    const save = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const { result } = setupHook({ save });
+    act(() => {
+      result.current.setBaseline({ path: "photo.png", text: "" });
+      result.current.scheduleSave({ path: "photo.png", text: "First" });
+      void result.current.flushPendingSave();
+      result.current.scheduleSave({ path: "photo.png", text: "Second" });
+      void result.current.flushPendingSave();
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish();
+    });
+    expect(save.mock.calls.map(([payload]) => payload.text)).toEqual(["First", "Second"]);
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -250,6 +316,37 @@ describe("useDebouncedSave", () => {
     });
 
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it("saves a restored baseline after an older draft finishes saving", async () => {
+    let resolveFirst: (() => void) | undefined;
+    const save = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const { result } = setupHook({ save });
+
+    act(() => {
+      result.current.setBaseline({ path: "a.png", text: "Original" });
+      result.current.scheduleSave({ path: "a.png", text: "Edited" });
+      vi.advanceTimersByTime(500);
+    });
+
+    await act(async () => {
+      result.current.scheduleSave({ path: "a.png", text: "Original" });
+      const flushed = result.current.flushPendingSave();
+      resolveFirst?.();
+      expect(await flushed).toBe(true);
+    });
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith({ path: "a.png", text: "Original" });
+    expect(result.current.saveState).toBe("saved");
   });
 
   it("skips scheduling when the payload matches the baseline", () => {

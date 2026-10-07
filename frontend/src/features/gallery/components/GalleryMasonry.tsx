@@ -29,7 +29,7 @@ interface GalleryMasonryProps {
 const UNMEASURED: PackedMasonryLayout<GalleryItem> = { cards: [], columnCount: 1, totalHeight: 0 };
 
 export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
-  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo } =
+  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
     useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor("large");
@@ -89,6 +89,7 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
               onSelect={onSelect}
               selectionMode={selectionMode}
               selected={selectedPaths.has(card.item.path)}
+              inspected={inspectedPath === card.item.path}
               onToggleSelect={toggleSelectedPath}
               onExtendSelect={extendSelectionTo}
             />
@@ -107,6 +108,7 @@ interface MasonryCardProps {
   onSelect: (path: string) => void;
   selectionMode: boolean;
   selected: boolean;
+  inspected: boolean;
   onToggleSelect: (path: string) => void;
   onExtendSelect: (path: string) => void;
 }
@@ -118,6 +120,7 @@ function MasonryCard({
   onSelect,
   selectionMode,
   selected,
+  inspected,
   onToggleSelect,
   onExtendSelect,
 }: MasonryCardProps) {
@@ -144,6 +147,7 @@ function MasonryCard({
         displayMode="large"
         selectionMode={selectionMode}
         selected={selected}
+        inspected={inspected}
         onToggleSelect={onToggleSelect}
         onExtendSelect={onExtendSelect}
       />

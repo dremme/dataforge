@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AutomationPanelProps } from "@/features/automation/components/AutomationPanel";
+import type { AutomationActions } from "@/features/automation/lib/automationActions";
 import { useFolderFavorites } from "@/features/folder/hooks/useFolderFavorites";
 import type { SettleAllCandidatesActions } from "@/features/gallery/hooks/useSettleAllCandidates";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
@@ -38,7 +38,7 @@ interface UseQuickActionHostOptions {
   refreshFolder: () => void | Promise<void>;
   onOpenFolderPicker: () => void;
   onCreateFolder: () => void;
-  panel: AutomationPanelProps;
+  panel: AutomationActions;
   selection: GallerySelectionActions;
   selectedCount: number;
   selectionMode: boolean;
@@ -72,7 +72,7 @@ export function useQuickActionHost({
   onOpenSettings,
   onOpenShortcuts,
 }: UseQuickActionHostOptions) {
-  const { open, close } = useQuickAction();
+  const { open, close, show } = useQuickAction();
   const { jobs, externalJobs } = useJobs();
   const notify = useNotify();
   const themePreference = useThemePreference();
@@ -232,9 +232,10 @@ export function useQuickActionHost({
         favorites: buildFavoriteItems(favorites, goTo),
         jobs: buildJobItems(jobs, externalJobs, goTo),
         run: buildRunJobItems({
-          availability: panel.jobAvailability,
-          canStart: panel.canStart,
-          hasFolder: Boolean(folder) && !folderNotFound,
+          startContext: {
+            ...panel.startContext,
+            hasFolder: panel.startContext.hasFolder && !folderNotFound,
+          },
           onRequestStart: panel.onRequestStart,
         }),
         commands: commandItems,
@@ -252,8 +253,7 @@ export function useQuickActionHost({
       folderNotFound,
       goTo,
       jobs,
-      panel.canStart,
-      panel.jobAvailability,
+      panel.startContext,
       panel.onRequestStart,
       recentFolderItems,
       subfolderItems,
@@ -274,7 +274,7 @@ export function useQuickActionHost({
     [goTo, items, recentActionIds],
   );
 
-  return { open, close, items, recentItems };
+  return { open, close, show, items, recentItems };
 }
 
 export type QuickActionOverlayState = ReturnType<typeof useQuickActionHost>;

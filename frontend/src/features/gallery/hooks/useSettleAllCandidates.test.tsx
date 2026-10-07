@@ -69,7 +69,7 @@ describe("useSettleAllCandidates", () => {
       expect(result.current.overlay.scope).toEqual({
         itemCount: 5,
         folderLabel: "Photos",
-        fromSelection: false,
+        kind: "folder",
         note: "2 of them have a staged candidate.",
       });
     });
@@ -119,7 +119,7 @@ describe("useSettleAllCandidates", () => {
       expect(result.current.overlay.scope).toEqual({
         itemCount: 2,
         folderLabel: "Photos",
-        fromSelection: true,
+        kind: "selected",
         note: "1 of them has a staged candidate.",
       });
     });

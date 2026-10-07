@@ -1,6 +1,5 @@
 import {
   iconBan,
-  iconCircleCheck,
   iconCircleAlert,
   iconLoader2,
   iconTrash2,
@@ -18,15 +17,20 @@ import {
   jobTypeLabel,
   jobWarningMessage,
   progressPercent,
-  statusLabel,
 } from "@/features/jobs/lib/jobs";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { useTrainingSamples } from "@/features/jobs/hooks/useTrainingSamples";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
 import { TrainingSamples } from "./TrainingSamples";
+import { JobStatusBadge } from "./JobStatusBadge";
+import { JobFileResults } from "./JobFileResults";
+import { ComfyProcessLog } from "@/features/automation/components/ComfyProcessLog";
 
 interface JobCardProps {
+  onOpenItem?: (path: string) => void;
+  onRetryFailed?: (paths: string[]) => void;
+  onRunAgain?: () => void;
   job: Job;
   isCurrentFolder?: boolean;
   onOpenFolder?: (folderPath: string) => void;
@@ -44,6 +48,9 @@ export function JobCard({
   onDelete,
   cancelling = false,
   onLightboxOpenChange,
+  onOpenItem,
+  onRetryFailed,
+  onRunAgain,
 }: JobCardProps) {
   const tone = jobStatusTone(job);
   const active = isActiveJobStatus(job.status);
@@ -80,25 +87,7 @@ export function JobCard({
         </button>
 
         <div className="job-card__header-actions">
-          <span className={`job-card__badge job-card__badge--${tone}`}>
-            {active && (
-              <Icon
-                icon={iconLoader2}
-                className="job-card__badge-icon job-card__badge-icon--spin"
-              />
-            )}
-            {!active && job.status === "completed" && !showError && !showWarning && (
-              <Icon icon={iconCircleCheck} className="job-card__badge-icon" />
-            )}
-            {!active && showWarning && (
-              <Icon icon={iconTriangleAlert} className="job-card__badge-icon" />
-            )}
-            {!active && showError && (
-              <Icon icon={iconCircleAlert} className="job-card__badge-icon" />
-            )}
-            {!active && showCancelled && <Icon icon={iconBan} className="job-card__badge-icon" />}
-            <span className="job-card__badge-label">{statusLabel(job)}</span>
-          </span>
+          <JobStatusBadge job={job} />
 
           {active && onCancel && (
             <button
@@ -159,6 +148,13 @@ export function JobCard({
       )}
 
       <TrainingSamples samples={samples} compact onLightboxOpenChange={onLightboxOpenChange} />
+      <ComfyProcessLog job={job} />
+      <JobFileResults
+        job={job}
+        onOpenItem={onOpenItem}
+        onRetryFailed={onRetryFailed}
+        onRunAgain={onRunAgain}
+      />
 
       {warningMessage && (
         <div className="job-card__warning" role="status">

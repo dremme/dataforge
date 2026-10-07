@@ -41,6 +41,7 @@ function TransferButton({
           spin={active}
           className="gallery-controls__btn-icon"
         />
+        {mode === "copy" ? "Copy" : "Move"}
       </button>
     </Tooltip>
   );
@@ -67,7 +68,9 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
   // Escape empties a selection first, and only leaves the mode once there is nothing left to lose.
   useGlobalShortcut(
     SHORTCUTS.clearSelection,
-    () => {
+    (event) => {
+      if (event.target instanceof Element && event.target.closest(".gallery-item-modal"))
+        return false;
       if (visibleSelectedCount > 0) clearSelectedPaths();
       else exitSelectionMode();
     },
@@ -170,6 +173,7 @@ export function GallerySelectionControls({ totalCount }: GallerySelectionControl
             spin={deleting}
             className="gallery-controls__btn-icon"
           />
+          Delete
         </button>
       </Tooltip>
     </div>

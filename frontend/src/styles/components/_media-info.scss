@@ -1,0 +1,78 @@
+@use "../abstracts/mixins" as *;
+
+.media-info {
+  background: var(--bg-card);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
+  padding: 0.875rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+
+  &__item {
+    @include modal-meta-item;
+  }
+
+  &__value {
+    @include modal-meta-value;
+  }
+
+  &__unit {
+    @include modal-meta-unit;
+  }
+
+  &__times {
+    margin: 0 0.125rem;
+    color: var(--text-subtle);
+  }
+
+  &__label {
+    @include modal-meta-label;
+  }
+
+  &__divider {
+    @include modal-meta-divider;
+  }
+
+  &__unavailable {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-normal);
+    line-height: var(--leading-normal);
+    font-style: italic;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1875rem 0.5rem;
+    gap: 0.3125rem;
+    border: 1px solid color-mix(in srgb, var(--meta-badge) 20%, transparent);
+    border-radius: var(--radius-pill);
+    @include fade-bg(color-mix(in srgb, var(--meta-badge) 12%, transparent));
+    color: var(--meta-badge);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+
+    &--action {
+      cursor: pointer;
+      transition:
+        border-color var(--transition),
+        --fade-bg var(--transition);
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--meta-badge) 45%, transparent);
+        @include fade-bg(color-mix(in srgb, var(--meta-badge) 22%, transparent));
+      }
+    }
+
+    &-icon {
+      @include icon-size-sm;
+    }
+  }
+}

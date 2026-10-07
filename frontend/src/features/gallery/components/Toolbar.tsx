@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   SORT_OPTIONS,
   type FileFilter,
@@ -32,9 +32,10 @@ import { NotificationsButton } from "@/shared/notifications/NotificationsButton"
 import { StatsButton } from "./StatsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
-import { SettingsButton } from "@/features/settings/components/SettingsButton";
 
 interface ToolbarProps {
+  /** Folder actions placed between the stats and the view controls. */
+  actions?: ReactNode;
   subfolderCount: number;
   fileCount: number;
   captionedCount: number;
@@ -55,7 +56,6 @@ interface ToolbarProps {
   fileFilterCounts: Record<FileFilter, number>;
   statsOpen: boolean;
   onToggleStats: () => void;
-  onOpenSettings: () => void;
   onSearchQueryChange: (value: string) => void;
   onSearchRegexChange: (value: boolean) => void;
   onSearchNamesChange: (value: boolean) => void;
@@ -107,9 +107,15 @@ function ToolbarSearch({
   return (
     <Tooltip
       content={
-        <ShortcutHint shortcut={SHORTCUTS.search}>
-          Search names and captions, regex optional
-        </ShortcutHint>
+        <span className="toolbar__search-help">
+          <ShortcutHint shortcut={SHORTCUTS.search}>Search captions</ShortcutHint>
+          <span>
+            <Icon icon={iconTag} /> Include file and folder names
+          </span>
+          <span>
+            <Icon icon={iconRegex} /> Use regular expressions
+          </span>
+        </span>
       }
       disabled={expanded && focused}
     >
@@ -151,7 +157,6 @@ function ToolbarSearch({
             onClick={() => onNamesChange(!names)}
             aria-label="Match file and folder names"
             aria-pressed={names}
-            tabIndex={-1}
           >
             <Icon icon={iconTag} className="toolbar__search-names-icon" />
           </button>
@@ -165,7 +170,6 @@ function ToolbarSearch({
             onClick={() => onRegexChange(!regex)}
             aria-label="Toggle regular expression search"
             aria-pressed={regex}
-            tabIndex={-1}
           >
             <Icon icon={iconRegex} className="toolbar__search-regex-icon" />
           </button>
@@ -176,7 +180,6 @@ function ToolbarSearch({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onQueryChange("")}
               aria-label="Clear search"
-              tabIndex={-1}
             >
               <Icon icon={iconX} className="toolbar__search-clear-icon" />
             </button>
@@ -206,6 +209,7 @@ function FolderMarker({ icon, label }: { icon: AppIcon; label: string }) {
 }
 
 export function Toolbar({
+  actions,
   subfolderCount,
   fileCount,
   captionedCount,
@@ -226,7 +230,6 @@ export function Toolbar({
   fileFilterCounts,
   statsOpen,
   onToggleStats,
-  onOpenSettings,
   onSearchQueryChange,
   onSearchRegexChange,
   onSearchNamesChange,
@@ -320,6 +323,8 @@ export function Toolbar({
         )}
       </div>
 
+      {actions}
+
       <div className="toolbar__controls">
         <ToolbarSearch
           value={searchQuery}
@@ -364,11 +369,8 @@ export function Toolbar({
         <StatsButton open={statsOpen} onToggle={onToggleStats} />
 
         <div className="toolbar__global">
-          <JobsButton />
-
           <NotificationsButton />
-
-          <SettingsButton onOpen={onOpenSettings} />
+          <JobsButton />
         </div>
       </div>
     </div>

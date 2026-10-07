@@ -66,7 +66,7 @@ export function AboutSection({ settings, visible }: AboutSectionProps) {
     enabled: visible,
     staleTime: Infinity,
   });
-  // The same specs the automation panel reads; the GPU line waits when they are missing.
+  // The same specs the workspace system panel reads; the GPU line waits when they are missing.
   const specsQuery = useQuery({ ...systemSpecsQueryOptions(), enabled: visible, retry: false });
 
   if (aboutQuery.isError) {

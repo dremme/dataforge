@@ -52,6 +52,8 @@ interface JobTypeMeta {
     confirmLabel: string;
   };
   isAvailable?: (availability: JobAvailability) => boolean;
+  /** Shown wherever the job is offered while `isAvailable` is false. */
+  unavailableReason?: string;
 }
 
 export const JOB_TYPE_META = {
@@ -106,6 +108,7 @@ export const JOB_TYPE_META = {
     menuLabel: "Quick LoRA training",
     menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
     isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
+    unavailableReason: "AI-Toolkit is unavailable. Check its connection in Settings.",
   },
   batch_rename: {
     type: "batch_rename" as const,
@@ -157,6 +160,7 @@ export const JOB_TYPE_META = {
       confirmLabel: "Restore captions",
     },
     isAvailable: ({ hasCaptionBackup }: JobAvailability) => hasCaptionBackup,
+    unavailableReason: "No caption backup in this folder.",
   },
   watermark: {
     type: "watermark" as const,
@@ -181,6 +185,7 @@ export const JOB_TYPE_META = {
     menuDescription:
       "Upscale, interpolate or repair images and video through a ComfyUI workflow, for review.",
     isAvailable: ({ comfyPresetsAvailable }: JobAvailability) => comfyPresetsAvailable,
+    unavailableReason: "No ComfyUI presets are available. Configure workflows in Settings.",
   },
 } satisfies Record<JobType, JobTypeMeta>;
 
@@ -216,6 +221,53 @@ export const SECONDARY_JOB_GROUPS: Array<{ id: JobGroup; label: string; types: J
 
 export function jobTypeLabelFor(type: string): string {
   return isKnownJobType(type) ? JOB_TYPE_LABELS[type] : type.trim();
+}
+
+/** The name a job is offered under in menus, e.g. "Quick LoRA training". */
+export function jobMenuLabelFor(type: JobType): string {
+  return jobTypeMeta(type).menuLabel ?? jobTypeLabelFor(type);
+}
+
+export interface JobStartContext {
+  hasFolder: boolean;
+  /** False while a job runs in this folder. */
+  canStart: boolean;
+  /** Another start request is in flight. */
+  starting: boolean;
+  /** Files in scope: the visible selection, or the visible results. */
+  itemCount: number;
+  /** Every file in the folder; LoRA training ignores the scope. */
+  folderCount: number;
+  syspromptApplies: boolean;
+  availability: JobAvailability;
+}
+
+export interface JobStartBlock {
+  blocked: boolean;
+  /** Why, when the user can do something about it; null for transient or obvious blocks. */
+  reason: string | null;
+}
+
+/** Whether a job can start now. Tools, the Auto-caption button and Quick actions all use this. */
+export function jobStartBlock(type: JobType, context: JobStartContext): JobStartBlock {
+  const unavailable = !isJobAvailable(type, context.availability);
+  const needsInstructions = type === "auto_caption" && !context.syspromptApplies;
+  const emptyScope = type === "train_lora" ? context.folderCount === 0 : context.itemCount === 0;
+  const reason = unavailable
+    ? (jobTypeMeta(type).unavailableReason ?? null)
+    : needsInstructions
+      ? "Create folder instructions to enable auto-captioning."
+      : null;
+  return {
+    blocked:
+      !context.hasFolder ||
+      !context.canStart ||
+      context.starting ||
+      emptyScope ||
+      unavailable ||
+      needsInstructions,
+    reason,
+  };
 }
 
 export function jobTypeIconFor(type: string): AppIcon {

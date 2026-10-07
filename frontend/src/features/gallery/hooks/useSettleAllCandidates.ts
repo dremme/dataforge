@@ -61,7 +61,7 @@ export function useSettleAllCandidates({
     return {
       itemCount,
       folderLabel,
-      fromSelection,
+      kind: fromSelection ? "selected" : "folder",
       note:
         candidates === itemCount
           ? undefined

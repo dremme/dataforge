@@ -1,34 +1,33 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
+// Sidebar | header over gallery and inspector. The header spans the full width so opening the
+// inspector never reflows it; the inspector takes the gallery's row and height.
 .app {
-  display: flex;
+  display: grid;
   flex: 1;
-  flex-direction: column;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   width: 100%;
-  max-width: var(--content-max);
-  margin: 0 auto;
+  overflow: hidden;
 }
 
 .app-nav {
   position: relative;
-  flex-shrink: 0;
+  grid-column: 2 / 4;
+  grid-row: 1;
   z-index: 20;
-  @include full-bleed;
-  padding: 0.625rem 0 0.875rem;
+  padding: 0.625rem 1rem;
   border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
+  background: var(--bg-elevated);
   // Path, stats and controls are chrome throughout; the search field opts back in.
   user-select: none;
 
   &__inner {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: 0 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.875rem;
+    gap: 0.5rem;
   }
 
   // Sits on the bottom border so a background reload reads as activity without shifting the header.
@@ -51,19 +50,26 @@
 }
 
 .main {
-  flex: 1;
+  grid-column: 2;
+  grid-row: 2;
   min-height: 0;
   overflow-y: auto;
-  @include full-bleed;
-  padding: 1.5rem 0 4rem;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, var(--body-glow), transparent), var(--bg);
+  padding: 1rem 0 2rem;
+  background: var(--bg);
   @include app-scrollbar;
 
   &__inner {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
+  }
+}
+
+@media (max-width: 799px) {
+  .app-nav {
+    padding: 0.625rem;
+  }
+
+  .main__inner {
+    padding: 0 0.625rem;
   }
 }
 

@@ -19,6 +19,10 @@
     transition: none;
   }
 
+  .workspace-sidebar__brand:hover svg {
+    animation: none;
+  }
+
   // Exits keep a 1ms duration so `animationend` still unmounts the jobs drawer and toasts.
   .modal-panel--exit,
   .modal-backdrop--exit,

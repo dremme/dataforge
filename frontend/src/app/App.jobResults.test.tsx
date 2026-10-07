@@ -49,6 +49,7 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
+    await user.click(await screen.findByRole("button", { name: "Job details" }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
 
     const row = await screen.findByText("Permission denied");
@@ -61,6 +62,7 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
+    await user.click(await screen.findByRole("button", { name: "Job details" }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "Retry 1 failed" }));
 
@@ -75,11 +77,14 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
+    await user.click(await screen.findByRole("button", { name: "Job details" }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "Run again" }));
 
     const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
-    expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent("All 3 files in Photos");
+    expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
+      "Matching 3 files in Photos",
+    );
   });
 
   it("opens a failed file from its result row", async () => {
@@ -87,11 +92,12 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
+    await user.click(await screen.findByRole("button", { name: "Job details" }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "beach.jpg" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("dialog", { name: "Viewing beach.jpg" })).toBeInTheDocument();
+      expect(screen.getByRole("complementary", { name: "Viewing beach.jpg" })).toBeInTheDocument();
     });
   });
 });

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { iconChevronDown, iconCpu, iconGpu, iconMemoryStick } from "@/shared/icons";
+import { iconCpu, iconGpu, iconMemoryStick } from "@/shared/icons";
 import { useSystemSpecs } from "@/features/automation/hooks/useSystemSpecs";
 import { classNames } from "@/shared/lib/classNames";
 import { formatBytes, formatBytesValue } from "@/shared/lib/format";
@@ -42,15 +42,9 @@ export interface AutomationSystemSpecsProps {
   open: boolean;
   /** Refreshes quickly while a job runs so its load is visible. */
   jobActive?: boolean;
-  onToggle?: () => void;
 }
 
-export function AutomationSystemSpecs({
-  id,
-  open,
-  jobActive = false,
-  onToggle,
-}: AutomationSystemSpecsProps) {
+export function AutomationSystemSpecs({ id, open, jobActive = false }: AutomationSystemSpecsProps) {
   // A collapsed panel shows nothing, so it has no reason to poll fast.
   const specs = useSystemSpecs(open && jobActive);
   if (!specs) return null;
@@ -68,26 +62,6 @@ export function AutomationSystemSpecs({
 
   return (
     <div className="automation__system">
-      {onToggle && (
-        <button
-          type="button"
-          className="automation__specs-toggle"
-          onClick={onToggle}
-          tabIndex={-1}
-          aria-label="Toggle system specifications"
-          aria-expanded={open}
-          aria-controls={id}
-        >
-          <Icon
-            icon={iconChevronDown}
-            className={classNames(
-              "automation__disclosure-icon",
-              open && "automation__disclosure-icon--open",
-            )}
-          />
-          System specifications
-        </button>
-      )}
       <div
         id={id}
         hidden={!open}

@@ -101,6 +101,7 @@ export {
   ListOrdered as iconListOrdered,
   Loader2 as iconLoader2,
   Maximize2 as iconMaximize2,
+  Minimize as iconMinimize,
   MemoryStick as iconMemoryStick,
   MessageCircleCheck as iconMessageCheck,
   MessageCircleDashed as iconMessageDashed,

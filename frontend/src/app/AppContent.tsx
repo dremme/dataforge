@@ -4,10 +4,14 @@ import { AppHeader } from "@/app/components/AppHeader";
 import { AppOverlays } from "@/app/components/AppOverlays";
 import { useAppWorkspace } from "@/app/hooks/useAppWorkspace";
 import { GallerySelectionProvider } from "@/features/gallery/context/GallerySelectionContext";
+import { WorkspaceSidebar } from "@/app/components/WorkspaceSidebar";
+import { ActiveFilters } from "@/features/gallery/components/ActiveFilters";
+import { WorkspaceActions, WorkspaceActivity } from "@/app/components/WorkspaceActions";
 
 export function AppContent() {
   const {
     mainRef,
+    transitionRef,
     folder,
     loading,
     refreshing,
@@ -53,9 +57,10 @@ export function AppContent() {
   } = gallery;
 
   return (
-    <ThumbnailProvider paused={Boolean(gallery.selectedPath)}>
+    <ThumbnailProvider paused={Boolean(gallery.selectedPath && gallery.focusView)}>
       <GallerySelectionProvider
         selectionMode={selectionMode}
+        inspectedPath={gallery.selectedPath}
         selectedPaths={selectedPaths}
         visibleSelectedPaths={visibleSelectedPaths}
         visibleSelectedCount={visibleSelectedCount}
@@ -72,14 +77,23 @@ export function AppContent() {
         actions={selectionActions}
       >
         <div className="app">
+          <WorkspaceSidebar
+            currentFolder={folder?.path}
+            onNavigate={navigateTo}
+            onOpenFolder={folderPicker.openPicker}
+            onCreateFolder={createFolder.openDialog}
+            onOpenSettings={settings.openSettings}
+            createDisabled={!folder || folderNotFound || createFolder.busy}
+          />
           {folder && (
             <AppHeader
               folder={folder}
               folderNotFound={folderNotFound}
               refreshing={refreshing}
               onNavigate={navigateTo}
-              onOpenFolderPicker={folderPicker.openPicker}
+              activity={<WorkspaceActivity panel={automation.actions} />}
               toolbarProps={{
+                actions: <WorkspaceActions panel={automation.actions} />,
                 subfolderCount: folder.subfolder_count,
                 fileCount: items.length,
                 captionedCount: query.captionedCount,
@@ -100,7 +114,6 @@ export function AppContent() {
                 fileFilterCounts: query.fileFilterCounts,
                 statsOpen: statsDrawer.statsOpen,
                 onToggleStats: statsDrawer.toggleStats,
-                onOpenSettings: settings.openSettings,
                 onSearchQueryChange: query.setSearchQuery,
                 onSearchRegexChange: query.setSearchRegex,
                 onSearchNamesChange: query.setSearchNames,
@@ -120,16 +133,23 @@ export function AppContent() {
                 folder={folder}
                 subfolders={subfolders}
                 filteredSubfolders={filteredSubfolders}
+                onNavigate={navigateTo}
                 items={items}
                 filteredItems={query.filteredItems}
                 filterEmptyState={query.filterEmptyState}
-                onNavigate={navigateTo}
-                onCreateFolder={folderNotFound ? undefined : createFolder.openDialog}
-                createFolderDisabled={createFolder.busy}
                 onOpenGalleryItem={openGalleryItem}
                 displayMode={gallery.displayMode}
                 onDisplayModeChange={gallery.setDisplayMode}
-                automationPanelProps={automation.panelProps}
+                activeFilters={
+                  <ActiveFilters
+                    filter={query.filter}
+                    mediaTypeFilter={query.mediaTypeFilter}
+                    fileFilter={query.fileFilter}
+                    onFilterChange={query.setFilter}
+                    onMediaTypeFilterChange={query.setMediaTypeFilter}
+                    onFileFilterChange={query.setFileFilter}
+                  />
+                }
                 fileDrop={{
                   enabled: Boolean(folder) && !folderNotFound && !loading,
                   active: fileDrop.isDragActive,
@@ -147,6 +167,7 @@ export function AppContent() {
           </main>
 
           <AppOverlays
+            currentJobActions={automation.actions}
             currentFolder={folder?.path}
             onOpenFolder={navigateTo}
             folderPicker={folderPicker}
@@ -162,6 +183,9 @@ export function AppContent() {
               searchQuery: query.searchQuery,
               searchRegex: query.searchRegex,
               hasCaptionBackup: folder?.has_caption_backup ?? false,
+              focusView: gallery.focusView,
+              onFocusViewChange: gallery.setFocusView,
+              transitionRef,
               onClose: gallery.closeGalleryItem,
               onPrevious: gallery.goToPrevious,
               onNext: gallery.goToNext,

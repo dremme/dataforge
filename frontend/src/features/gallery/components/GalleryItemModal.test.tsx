@@ -560,8 +560,7 @@ describe("GalleryItemModal", () => {
       });
       event.preventDefault();
       caption.dispatchEvent(event);
-
-      expect(props.onNext).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(props.onNext).toHaveBeenCalledTimes(1));
     });
 
     it("asks before deleting on the Delete key", async () => {

@@ -15,15 +15,17 @@ Open a folder with the folder picker (`Ctrl+O`). Breadcrumbs, recent folders, an
 
 Cards and the detail view distinguish missing, empty, and populated captions, and show badges for findings, candidates, and edits. The **statistics** drawer describes the whole folder, regardless of filters: caption coverage and lengths, frequent words, issues, duplicate groups, formats, durations, megapixels, aspect ratios, and unreadable dimensions/durations.
 
-Folder cards show caption coverage; hover over one to see its caption issue and staged candidate counts. Click the toolbar's captioned or issue count to filter those files; click it again to clear that filter. The automation panel's **Ready to review** buttons open caption issues, duplicate groups, and ComfyUI candidates.
+The folder sidebar provides Open folder, Settings, favorites, and recent folders. Subfolder cards above Media show caption coverage and review counts on hover. Collapse the sidebar for more gallery space. Windows narrower than 1600px start with it collapsed and remember your choice separately; below 1200px it opens over the gallery and closes with `Escape` or a click outside. Click the toolbar's captioned or issue count to filter those files; click again to clear that filter. **Review** appears when there are findings and opens a dropdown for caption issues, duplicate groups, and ComfyUI candidates. The **Tools** dropdown lists bulk tools in grouped columns. The Media count shows how many files match the search and filters, and each filter gets a removable chip in the Media header. The CPU button expands CPU, RAM, and GPU details beneath the toolbar.
 
 Videos start muted and loop in the viewer and review queues. In the video editor, playback loops within the selected trim range.
+
+Toolbar controls use icons with tooltips. Click Search or press `Ctrl+F` to expand it; it stays open while a query is entered and collapses after clearing and leaving the field.
 
 Press `Ctrl+P` for **Quick actions**: search for jobs, commands, filters, and folders, then select an action and press Enter. Press `?` to see the shortcut list in the app.
 
 ### Select, copy, move, rename, delete
 
-**Select** or `Ctrl+A` selects every media file shown by the current search and filters. `Ctrl+click` toggles one file. In selection mode you can invert or clear the selection, copy, move, or delete it. Copy and move preview conflicts and ask before overwriting destination files.
+**Select** enters selection mode; `Ctrl+A` selects every media file shown by the current search and filters. `Ctrl+click` toggles one file. The Media count shows how many visible files are selected; the selection bar has actions to invert or clear the selection, copy, move, or delete. Tools in the toolbar then run on the selection. Files hidden by filters are retained in the selection but excluded from actions until visible again. Copy and move preview conflicts and ask before overwriting destination files.
 
 **Rename** assigns sequential numbered names and has no undo. Files being rendered or having a ComfyUI result accepted cannot be renamed. You can also create subfolders and drag supported media and `.txt` captions into the app to import them.
 
@@ -33,13 +35,17 @@ Drag-and-drop imports accept only the media and `.txt` files you choose; they do
 
 ## Captions
 
-Open a file and edit its caption. Captions **autosave**, with surrounding whitespace trimmed; a failed save shows **Retry**. **Revert** restores the text you opened with. **Restore backup** loads its saved caption from `.backup/`.
+Click a file to edit its caption in the inspector beside the gallery. Its header shows the file's position with previous and next buttons, and the arrow keys page through files while focus is in the gallery. **Expand media view** opens the larger focus view; return to the inspector with the same draft. Your choice is remembered when opening other files or returning to the app. Narrow windows use an overlay. Resize the inspector by dragging its left edge or using the arrow keys on the focused separator.
+
+The media view and issue resolver share details for the modified date, dimensions, megapixels, aspect ratio, and embedded ComfyUI workflow. Opening folder instructions keeps the current media view and caption draft available.
+
+Captions **autosave**, with surrounding whitespace trimmed. Changing files, closing the editor, and navigating folders wait for saving. If saving fails, the draft stays available: retry saving, explicitly discard the draft to continue, or keep editing. **Revert** restores the text you opened with. **Restore backup** loads its saved caption from `.backup/`.
 
 Type two characters or press `Ctrl+Space` for word completions from the folder's captions. `Ctrl+Enter` saves and moves to the next item. The token count marked `~` is an estimate from text length, not a model tokenizer.
 
 ### Folder instructions
 
-Choose **Create instructions** or **Edit instructions** in the automation panel:
+Choose **Create instructions** or **Edit instructions** above the gallery:
 
 - **System prompt** sets the voice, required details, or format for Auto-caption, in `.sysprompt`. Auto-caption requires instructions in this folder or an ancestor.
 - **Caption rules** defines checks for **Lint captions**, in `.captionrules`. Use **Use template** to start when no rules apply.
@@ -99,7 +105,7 @@ Back up before a bulk rewrite you may want to undo. **Backup captions** copies `
 
 In **Edit captions**, enter an instruction and click **Dry run** in the dialog actions to test it before
 starting the job. The preview uses up to three readable captions in filename order from the
-current folder or selection, with the same model settings as the job. It highlights removed and
+dialog's frozen matching results or selection, with the same model settings as the job. It highlights removed and
 added text, marks unchanged captions, and reports model failures without changing files or
 backups. Changing the instruction or model controls clears the preview. The full job generates
 fresh results, so its wording may differ from the samples.
@@ -136,9 +142,9 @@ To remove color changes from a batch, open **Auto-adjust** and select **Reset al
 
 ## Jobs
 
-**Scope:** selected files limit most jobs; with no selection, the job uses the whole open folder. Filters alone do not limit a job: select the filtered files first. **Quick LoRA training** always uses the whole folder.
+**Scope:** ordinary bulk tools use visible selected files when present; otherwise they use the current search and filter results. The dialog shows its target count and freezes the paths when opened, including for previews. An empty scope cannot start a job. **Quick LoRA training** always uses the whole folder; its dialog explicitly shows that exception.
 
-Jobs run in the background. The automation panel and jobs drawer show progress, cancellation, warnings, history, and per-file results. **Retry N failed** retries failures; **Run again** uses the whole folder. Cancelling keeps completed writes. A new job replaces the previous history entry for the same job type and folder.
+Jobs run in the background. While a job runs, **Cancel job** replaces Auto-caption and Tools, and the activity strip under the toolbar shows progress, the current file, and the remaining time. After a job fails, is cancelled, warns, or leaves failed files, the strip keeps its message until you dismiss it; a cleanly finished job leaves no strip. **Job details** opens the Jobs drawer for warnings, history, logs, per-file results, and training samples. **Retry N failed** retries failures; **Run again** uses the current visible results. Cancelling keeps completed writes. A new job replaces the previous history entry for the same job type and folder.
 
 | Job                                        | Result / important option                                                                                                                                                                                                                                        |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

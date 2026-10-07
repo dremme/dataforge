@@ -29,6 +29,7 @@ export function useDebouncedSave<T>({
   const lastSavedRef = useRef<T | null>(null);
   const pendingSaveRef = useRef<T | null>(null);
   const failedSaveRef = useRef<T | null>(null);
+  const inFlightRef = useRef<Promise<boolean> | null>(null);
   const saveRef = useRef(save);
   const isUnchangedRef = useRef(isUnchanged);
 
@@ -63,25 +64,35 @@ export function useDebouncedSave<T>({
   );
 
   const persist = useCallback(
-    async (payload: T) => {
+    (payload: T): Promise<boolean> => {
       const requestId = next();
+      const previous = inFlightRef.current;
       clearFeedbackTimer();
       setSaveState("saving");
       setSaveError(null);
-
-      try {
-        await saveRef.current(payload);
-        if (!isCurrent(requestId)) return;
-
-        lastSavedRef.current = payload;
-        failedSaveRef.current = null;
-        showSaved();
-      } catch (err) {
-        if (!isCurrent(requestId)) return;
-
-        failedSaveRef.current = payload;
-        showError(err instanceof Error ? err.message : errorMessage);
-      }
+      const request = (async () => {
+        if (previous) await previous;
+        try {
+          await saveRef.current(payload);
+          if (isCurrent(requestId)) {
+            lastSavedRef.current = payload;
+            failedSaveRef.current = null;
+            showSaved();
+          }
+          return true;
+        } catch (err) {
+          if (isCurrent(requestId)) {
+            failedSaveRef.current = payload;
+            showError(err instanceof Error ? err.message : errorMessage);
+          }
+          return false;
+        }
+      })();
+      inFlightRef.current = request;
+      void request.then(() => {
+        if (inFlightRef.current === request) inFlightRef.current = null;
+      });
+      return request;
     },
     [clearFeedbackTimer, errorMessage, isCurrent, next, showError, showSaved],
   );
@@ -95,13 +106,16 @@ export function useDebouncedSave<T>({
     const pending = pendingSaveRef.current;
     const baseline = lastSavedRef.current;
 
-    if (!pending || (baseline !== null && isUnchangedRef.current(pending, baseline))) {
+    if (
+      !pending ||
+      (!inFlightRef.current && baseline !== null && isUnchangedRef.current(pending, baseline))
+    ) {
       pendingSaveRef.current = null;
-      return;
+      return inFlightRef.current ?? Promise.resolve(failedSaveRef.current === null);
     }
 
     pendingSaveRef.current = null;
-    void persist(pending);
+    return persist(pending);
   }, [persist]);
 
   const scheduleSave = useCallback(
@@ -114,7 +128,7 @@ export function useDebouncedSave<T>({
       failedSaveRef.current = null;
       const baseline = lastSavedRef.current;
 
-      if (baseline !== null && isUnchangedRef.current(payload, baseline)) {
+      if (!inFlightRef.current && baseline !== null && isUnchangedRef.current(payload, baseline)) {
         pendingSaveRef.current = null;
         clearFeedbackTimer();
         setSaveState("idle");
@@ -136,8 +150,8 @@ export function useDebouncedSave<T>({
   /** Re-sends the payload whose save failed. No-op once anything else has been scheduled. */
   const retrySave = useCallback(() => {
     const failed = failedSaveRef.current;
-    if (!failed) return;
-    void persist(failed);
+    if (!failed) return Promise.resolve(true);
+    return persist(failed);
   }, [persist]);
 
   const setBaseline = useCallback((baseline: T) => {
@@ -149,8 +163,19 @@ export function useDebouncedSave<T>({
 
   const invalidateInFlight = useCallback(() => {
     invalidate();
+    inFlightRef.current = null;
     clearFeedbackTimer();
   }, [clearFeedbackTimer, invalidate]);
+
+  const discardPendingSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+    pendingSaveRef.current = null;
+    failedSaveRef.current = null;
+    invalidateInFlight();
+    setSaveState("idle");
+    setSaveError(null);
+  }, [invalidateInFlight]);
 
   const hasUnsavedChanges = useCallback((current: T) => {
     const pending = pendingSaveRef.current;
@@ -182,5 +207,6 @@ export function useDebouncedSave<T>({
     setBaseline,
     invalidateInFlight,
     hasUnsavedChanges,
+    discardPendingSave,
   };
 }

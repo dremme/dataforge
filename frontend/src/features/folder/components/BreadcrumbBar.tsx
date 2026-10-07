@@ -3,20 +3,11 @@ import { openFolderInExplorer } from "@/features/folder/api/folders";
 import { useFolderPrefetch } from "@/features/folder/hooks/useFolderPrefetch";
 import { formatApiError } from "@/shared/api/http";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
-import {
-  iconArrowUpRight,
-  iconCheck,
-  iconCopy,
-  iconFolderOpen,
-  iconLoader2,
-  iconX,
-} from "@/shared/icons";
+import { iconArrowUpRight, iconCheck, iconCopy, iconLoader2, iconX } from "@/shared/icons";
 import type { Breadcrumb } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
-import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
 import { BreadcrumbCrumbMenu } from "./BreadcrumbCrumbMenu";
 import { Icon } from "@/shared/ui/Icon";
-import { ShortcutHint } from "@/shared/ui/ShortcutKeys";
 import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface BreadcrumbBarProps {
@@ -25,7 +16,6 @@ interface BreadcrumbBarProps {
   hasSubfolders: boolean;
   folderNotFound?: boolean;
   onNavigate: (path: string) => void;
-  onOpenPicker: () => void;
 }
 
 export function BreadcrumbBar({
@@ -34,7 +24,6 @@ export function BreadcrumbBar({
   hasSubfolders,
   folderNotFound = false,
   onNavigate,
-  onOpenPicker,
 }: BreadcrumbBarProps) {
   const prefetch = useFolderPrefetch();
   const [openingInExplorer, setOpeningInExplorer] = useState(false);
@@ -69,21 +58,6 @@ export function BreadcrumbBar({
 
   return (
     <nav className="breadcrumbs" aria-label="Folder path">
-      <Tooltip
-        content={<ShortcutHint shortcut={SHORTCUTS.openFolder}>Open another folder</ShortcutHint>}
-      >
-        <button
-          type="button"
-          className="breadcrumbs__picker"
-          onClick={onOpenPicker}
-          aria-label="Open folder"
-          aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.openFolder)}
-        >
-          <Icon icon={iconFolderOpen} className="breadcrumbs__picker-icon" />
-          Open folder
-        </button>
-      </Tooltip>
-
       <ol className="breadcrumbs__list">
         {breadcrumbs.map((crumb, index) => {
           const isLast = index === breadcrumbs.length - 1;

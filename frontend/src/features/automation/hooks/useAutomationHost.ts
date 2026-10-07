@@ -1,17 +1,20 @@
-import { useCallback, useMemo } from "react";
-import type { AutomationPanelProps } from "@/features/automation/components/AutomationPanel";
+import { useCallback, useMemo, useState } from "react";
+import type { BulkScopeKind } from "@/features/automation/lib/bulkScope";
+import type { AutomationActions } from "@/features/automation/lib/automationActions";
 import { useAutomationDialogOverlays } from "@/features/automation/hooks/useAutomationDialogOverlays";
 import type { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useJobStartConfirmation } from "@/features/jobs/hooks/useJobStartConfirmation";
 import {
   isConfirmableJobType,
-  isJobAvailable,
+  jobStartBlock,
   type JobAvailability,
+  type JobStartContext,
 } from "@/features/jobs/lib/jobMeta";
 import { quickActionRunJobId } from "@/features/quickAction/lib/buildQuickActionItems";
 import { touchRecentAction } from "@/features/quickAction/lib/quickActionHistory";
 import type { Breadcrumb, GalleryItem, JobType } from "@/shared/types";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 
 type FolderAutomation = ReturnType<typeof useFolderAutomation>;
 
@@ -19,7 +22,6 @@ type UseAutomationHostOptions = {
   folder: string | undefined;
   breadcrumbs: Breadcrumb[];
   items: GalleryItem[];
-  filteredItems: GalleryItem[];
   hasSysprompt: boolean;
   syspromptApplies: boolean;
   hasCaptionRules: boolean;
@@ -27,6 +29,8 @@ type UseAutomationHostOptions = {
   ostrisAvailable: boolean;
   comfyPresetsAvailable: boolean;
   getJobPaths: () => string[] | undefined;
+  jobScopeKind?: BulkScopeKind;
+  requestTransition?: WorkspaceTransition;
   automation: FolderAutomation;
   onEditSysprompt: () => void;
   issueCount: number;
@@ -44,7 +48,6 @@ export function useAutomationHost({
   folder,
   breadcrumbs,
   items,
-  filteredItems,
   hasSysprompt,
   syspromptApplies,
   hasCaptionRules,
@@ -52,6 +55,8 @@ export function useAutomationHost({
   ostrisAvailable,
   comfyPresetsAvailable,
   getJobPaths,
+  jobScopeKind,
+  requestTransition,
   automation,
   onEditSysprompt,
   issueCount,
@@ -67,11 +72,15 @@ export function useAutomationHost({
   const { startJob } = automation;
   const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
 
-  // One read, so the count a dialog shows and the paths its job starts with can
-  // never disagree. `undefined` means nothing is selected: the job takes the folder.
+  // Explicit paths distinguish matching results from the training folder exception.
   const jobPaths = getJobPaths();
-  const selectionActive = jobPaths !== undefined;
+  const scopeKind = jobScopeKind ?? (jobPaths !== undefined ? "selected" : "folder");
   const jobItemCount = jobPaths?.length ?? items.length;
+  const liveScope = useMemo<DialogScopeInfo>(
+    () => ({ itemCount: jobItemCount, folderLabel: jobStart.folderLabel, kind: scopeKind }),
+    [jobItemCount, jobStart.folderLabel, scopeKind],
+  );
+  const [pendingScope, setPendingScope] = useState<DialogScopeInfo | null>(null);
 
   const dialogs = useAutomationDialogOverlays({
     folderPath: folder,
@@ -79,7 +88,7 @@ export function useAutomationHost({
     startingJobType: automation.startingJobType,
     itemCount: jobItemCount,
     folderItemCount: items.length,
-    selectionActive,
+    scopeKind,
     startJob,
     getJobPaths,
   });
@@ -98,30 +107,68 @@ export function useAutomationHost({
     [comfyPresetsAvailable, hasCaptionBackup, ostrisAvailable],
   );
 
-  const requestStart = useCallback(
-    (jobType: JobType) => {
-      // The menu already disables these; re-checked so a stale flag cannot start a job.
-      if (!isJobAvailable(jobType, jobAvailability)) return;
-      touchRecentAction(quickActionRunJobId(jobType));
-      if (isConfirmableJobType(jobType)) {
-        requestJobStart(jobType);
-        return;
-      }
-      openDialogForJobType(jobType);
-    },
-    [jobAvailability, openDialogForJobType, requestJobStart],
+  const startContext = useMemo<JobStartContext>(
+    () => ({
+      hasFolder: Boolean(folder),
+      canStart: !automation.folderHasActiveJob,
+      starting: automation.startingJobType !== null,
+      itemCount: jobItemCount,
+      folderCount: items.length,
+      syspromptApplies,
+      availability: jobAvailability,
+    }),
+    [
+      automation.folderHasActiveJob,
+      automation.startingJobType,
+      folder,
+      items.length,
+      jobAvailability,
+      jobItemCount,
+      syspromptApplies,
+    ],
   );
 
-  const panelProps = useMemo<AutomationPanelProps>(
+  const requestStart = useCallback(
+    (jobType: JobType, explicitPaths?: string[], explicitKind?: BulkScopeKind) => {
+      // Every trigger already disables blocked jobs; re-checked so a stale flag cannot start one.
+      const paths = explicitPaths ?? getJobPaths();
+      const itemCount = paths?.length ?? items.length;
+      if (jobStartBlock(jobType, { ...startContext, itemCount }).blocked) return;
+      const targetScope = {
+        ...liveScope,
+        itemCount: paths?.length ?? liveScope.itemCount,
+        kind: explicitKind ?? liveScope.kind,
+      };
+      const open = () => {
+        touchRecentAction(quickActionRunJobId(jobType));
+        if (isConfirmableJobType(jobType)) {
+          setPendingScope(targetScope);
+          requestJobStart(jobType, paths);
+          return;
+        }
+        openDialogForJobType(jobType, { scope: targetScope, paths });
+      };
+      if (requestTransition) void requestTransition(open);
+      else open();
+    },
+    [
+      getJobPaths,
+      items.length,
+      liveScope,
+      openDialogForJobType,
+      requestJobStart,
+      requestTransition,
+      startContext,
+    ],
+  );
+
+  const actions = useMemo<AutomationActions>(
     () => ({
-      filteredItems,
       job: automation.folderJob,
       startingJobType: automation.startingJobType,
-      canStart: !automation.folderHasActiveJob,
+      startContext,
       hasSyspromptFile: hasSysprompt,
       hasCaptionRulesFile: hasCaptionRules,
-      syspromptApplies,
-      jobAvailability,
       onEditSysprompt,
       onRequestStart: requestStart,
       cancellingJob: automation.cancellingJob,
@@ -139,12 +186,10 @@ export function useAutomationHost({
     [
       automation.cancelFolderJob,
       automation.cancellingJob,
-      automation.folderHasActiveJob,
       automation.folderJob,
       automation.startingJobType,
-      filteredItems,
+      startContext,
       hasCaptionRules,
-      jobAvailability,
       issueCount,
       duplicateGroupCount,
       candidateCount,
@@ -157,17 +202,16 @@ export function useAutomationHost({
       onRunAgain,
       requestStart,
       hasSysprompt,
-      syspromptApplies,
     ],
   );
 
   const confirmScope = useMemo<DialogScopeInfo>(
-    () => ({ itemCount: jobItemCount, folderLabel, fromSelection: selectionActive }),
-    [folderLabel, jobItemCount, selectionActive],
+    () => pendingScope ?? { itemCount: jobItemCount, folderLabel, kind: scopeKind },
+    [folderLabel, jobItemCount, pendingScope, scopeKind],
   );
 
   return {
-    panelProps,
+    actions,
     requestStart,
     dialogs: automationDialogs,
     jobStartConfirm: {

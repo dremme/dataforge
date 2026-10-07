@@ -24,13 +24,6 @@
   }
 }
 
-/// Break a child out of `.app`'s centred max-width so it spans the window,
-/// never narrower than the supported minimum.
-@mixin full-bleed {
-  width: max(100vw, #{$min-app-width});
-  margin: 0 calc(50% - max(50vw, #{$min-app-width * 0.5}));
-}
-
 @mixin truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,8 +66,8 @@
 }
 
 // Panels that hang under a running job: per-file results, ComfyUI output, training samples.
-// Sits on a job card that may already carry a danger or warning gradient, and inside the
-// floating automation panel, so the surface stays translucent.
+// Sits on a job card that may already carry a danger or warning gradient, so the surface stays
+// translucent.
 @mixin job-panel-card {
   margin-top: 0.75rem;
   padding: 0.4375rem $job-panel-gutter;
@@ -411,10 +404,6 @@
   } @else {
     @include btn-surface-default;
   }
-}
-
-@mixin pill-btn-compact-accent {
-  @include pill-btn-compact(accent);
 }
 
 @mixin icon-btn($size: var(--control-height)) {

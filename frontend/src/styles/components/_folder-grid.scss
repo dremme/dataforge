@@ -1,35 +1,6 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-.folder-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3125rem;
-  flex-wrap: wrap;
-  min-height: 1.5rem;
-
-  &__btn {
-    @include pill-btn-compact(default);
-    --bg-elevated: var(--bg-soft);
-    padding: 0.1875rem 0.5rem;
-    min-height: 1.5rem;
-
-    &-icon {
-      @include icon-size-sm;
-    }
-
-    &--accent {
-      @include pill-btn-compact(accent);
-      padding: 0.1875rem 0.5rem;
-    }
-
-    &--danger {
-      @include pill-btn-compact(danger);
-      padding: 0.1875rem 0.5rem;
-    }
-  }
-}
-
 .folder-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

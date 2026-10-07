@@ -31,7 +31,9 @@ const scenarios = [
 
 for (const width of [1024, 1440]) {
   for (const scenario of scenarios) {
-    test(`${scenario} automation layout at ${width}px`, async ({ page }, testInfo) => {
+    test(`${scenario} workspace actions and job activity at ${width}px`, async ({
+      page,
+    }, testInfo) => {
       await page.setViewportSize({ width, height: 1000 });
       const active = ["running", "training", "comfy"].includes(scenario);
       const status: Job["status"] = active
@@ -156,72 +158,73 @@ for (const width of [1024, 1440]) {
       );
 
       await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
-      const controls = page.getByRole("region", { name: "Automation", exact: true });
+      const controls = page.locator(".app-nav");
       await expect(controls).toBeVisible();
       const initialBox = (await controls.boundingBox())!;
-      await expect(controls.getByRole("progressbar")).toHaveCount(active ? 1 : 0);
+      await expect(page.locator('.workspace-activity [role="progressbar"]')).toHaveCount(
+        active ? 1 : 0,
+      );
+      await expect(page.getByRole("button", { name: "Cancel job" })).toHaveCount(active ? 1 : 0);
+      await page.getByRole("button", { name: /^Review / }).click();
+      const review = page.getByRole("menu", { name: "Review queues" });
+      await expect(review).toBeVisible();
+      await expect(review.locator(".workspace-review__item")).toHaveCount(3);
+      await page.screenshot({ animations: "disabled", path: testInfo.outputPath("review.png") });
+      await page.keyboard.press("Escape");
+      if (currentJob) {
+        await page.getByRole("button", { name: "Job details", exact: true }).click();
+        if (!active) {
+          const toggle = page.getByRole("button", { name: /Per-file results/ });
+          await expect(toggle).toHaveAttribute("aria-expanded", "false");
+          await toggle.click();
+          await expect(page.locator(".job-file-results__row")).toHaveCount(results.length);
+        }
+        if (scenario === "comfy") {
+          await page.getByRole("button", { name: "ComfyUI output", exact: true }).click();
+          await expect(page.getByRole("region", { name: "ComfyUI output" })).toContainText(
+            "Sampling landscape",
+          );
+        }
+        if (scenario === "training") {
+          await expect(page.getByRole("button", { name: /View training sample/ })).toHaveCount(4);
+        }
+        await page.screenshot({
+          animations: "disabled",
+          path: testInfo.outputPath("job-details.png"),
+        });
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog", { name: "Automation jobs" })).toHaveCount(0);
+      }
       await page.getByRole("button", { name: "Toggle system specifications" }).click();
       await expect(page.getByRole("region", { name: "System specifications" })).toBeVisible();
+      await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath("system-specs.png"),
+      });
+      // A running job replaces the start actions with Cancel.
+      await expect(page.getByRole("button", { name: "Tools", exact: true })).toHaveCount(
+        active ? 0 : 1,
+      );
       if (!active) {
-        const review = page.getByRole("group", { name: "Ready to review" });
-        await expect(review).toBeVisible();
-        await expect(review.getByRole("button")).toHaveCount(3);
-      }
-      if (currentJob && !active) {
-        const toggle = page.getByRole("button", { name: /Per-file results/ });
-        await expect(toggle).toHaveAttribute("aria-expanded", "false");
-        await toggle.click();
-        await expect(page.locator(".job-file-results__row")).toHaveCount(results.length);
-      }
-      if (scenario === "comfy") {
-        const toggle = page.getByRole("button", { name: "ComfyUI output", exact: true });
-        await expect(toggle).toHaveAttribute("aria-expanded", "false");
-        await toggle.click();
-        await expect(page.getByRole("region", { name: "ComfyUI output" })).toContainText(
-          "Sampling landscape",
-        );
-      }
-      if (scenario === "training") {
-        await expect(page.getByRole("button", { name: /View training sample/ })).toHaveCount(4);
-      }
-      expect((await controls.boundingBox())!.height).toBe(initialBox.height);
-      const attachedDetails = (await page.locator(".automation-details").boundingBox())!;
-      expect(Math.abs(attachedDetails.y - initialBox.y - initialBox.height)).toBeLessThanOrEqual(1);
-      expect(attachedDetails.x).toBe(initialBox.x);
-      expect(attachedDetails.width).toBe(initialBox.width);
-      expect(
-        await page
-          .locator(".automation-details")
-          .evaluate((node) => node.scrollWidth <= node.clientWidth),
-      ).toBe(true);
-      await page.screenshot({ path: testInfo.outputPath("expanded.png") });
-
-      if (!active) {
-        await page.getByRole("button", { name: "More jobs", exact: true }).click();
-        const menu = page.getByRole("menu", { name: "More jobs" });
-        await expect(menu).toBeVisible();
-        const box = (await menu.boundingBox())!;
+        await page.getByRole("button", { name: "Tools", exact: true }).click();
+        const tools = page.getByRole("menu", { name: "Tools" });
+        await expect(tools).toBeVisible();
+        await expect(tools.getByRole("region", { name: "System specifications" })).toHaveCount(0);
+        const box = (await tools.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
-        await page.screenshot({ path: testInfo.outputPath("menu.png") });
+        await page.screenshot({ animations: "disabled", path: testInfo.outputPath("tools.png") });
         await page.keyboard.press("Escape");
-        await expect(page.getByRole("button", { name: "More jobs", exact: true })).toBeFocused();
+        await expect(page.getByRole("button", { name: "Tools", exact: true })).toBeFocused();
       }
-
       await page.locator(".main").evaluate((node) => {
         node.scrollTop = 850;
       });
-      await expect(controls).toHaveClass(/automation--floating/);
-      const pinnedBox = (await controls.boundingBox())!;
-      expect(Math.abs(pinnedBox.y - initialBox.y)).toBeLessThan(1);
-      const detailBox = (await page.locator(".automation-details").boundingBox())!;
-      expect(detailBox.y + detailBox.height).toBeLessThanOrEqual(pinnedBox.y + pinnedBox.height);
-      const galleryHeader = page.locator(".gallery-section__header");
-      await expect(galleryHeader).toHaveClass(/--floating/);
-      expect((await galleryHeader.boundingBox())!.y).toBeGreaterThan(
-        pinnedBox.y + pinnedBox.height,
-      );
-      await page.screenshot({ path: testInfo.outputPath("scrolled.png") });
+      expect(Math.abs((await controls.boundingBox())!.y - initialBox.y)).toBeLessThan(1);
+      expect(
+        await page.locator(".app").evaluate((node) => node.scrollWidth <= node.clientWidth),
+      ).toBe(true);
+      await page.screenshot({ animations: "disabled", path: testInfo.outputPath("scrolled.png") });
     });
   }
 }

@@ -13,7 +13,7 @@ vi.mock("@/features/automation/api/jobs", () => ({
 
 const fetchPresets = vi.mocked(fetchComfyPresets);
 
-const SCOPE = { itemCount: 12, folderLabel: "Photos", fromSelection: false };
+const SCOPE = { itemCount: 12, folderLabel: "Photos", kind: "folder" as const };
 
 function settings(
   overrides: Partial<JobSettingsByType["comfy_process"]> = {},

@@ -103,13 +103,12 @@ describe("GallerySelectionControls", () => {
     expect(onEnterSelectionMode).toHaveBeenCalledTimes(1);
   });
 
-  it("carries the transfer and delete actions as labelled icons", async () => {
+  it("shows text labels for transfer and delete actions", async () => {
     renderControls();
 
     for (const name of ["Copy selected files", "Move selected files", "Delete selected files"]) {
       const button = screen.getByRole("button", { name });
-      // Icon-only: the accessible name is the label, not rendered text.
-      expect(button).toHaveTextContent("");
+      expect(button).toHaveTextContent(name.split(" ")[0]);
       expect(button).toHaveAttribute("aria-label", name);
 
       // The bubble only exists while hovered, so the label has to be provoked.

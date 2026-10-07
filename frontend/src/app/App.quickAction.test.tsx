@@ -246,7 +246,7 @@ describe("App: quick action bar", () => {
     await renderApp();
     await waitForHomeFolder();
 
-    await user.click(screen.getByRole("button", { name: /More/ }));
+    await user.click(screen.getByRole("button", { name: /^Tools$/ }));
     await user.click(screen.getByRole("menuitem", { name: /Find & replace/ }));
     await screen.findByRole("alertdialog", { name: "Find and replace in captions?" });
     await user.keyboard("{Escape}");

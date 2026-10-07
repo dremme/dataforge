@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { renderWithQueryClient as render } from "@/test/queryClient";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -194,12 +195,50 @@ describe("IssueResolverModal", () => {
     const meta = within(dialog).getByRole("group", { name: "Media details" });
 
     expect(meta).toHaveTextContent("2.1 MP");
-    expect(meta).toHaveTextContent("1920 × 1080");
+    expect(meta).toHaveTextContent("1,920×1,080px");
     expect(meta).toHaveTextContent("16:9");
+    expect(meta).toHaveTextContent("Megapixels");
+    expect(meta).toHaveTextContent("Width × Height");
+    expect(meta).toHaveTextContent("Aspect ratio");
     expect(meta).not.toHaveTextContent("tokens");
   });
 
-  it("leaves the meta row empty until the resolution is known", async () => {
+  it("opens workflow details without resolving the issue or losing the caption draft", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "fetchComfyWorkflow").mockResolvedValue({ has_workflow: true });
+    vi.spyOn(api, "fetchComfyWorkflowPrompts").mockResolvedValue({
+      has_workflow: true,
+      matched_node_id: null,
+      orphan_prompts: [],
+      has_editor_workflow: false,
+      matched_by_size: false,
+      branches: [],
+    });
+    const save = vi.spyOn(api, "saveCaption");
+    render(
+      <IssueResolverModal
+        items={[makeIssueItem("sunset.png")]}
+        index={0}
+        onClose={vi.fn()}
+        onIndexChange={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+    const caption = screen.getByRole("textbox", { name: "Caption for sunset.png" });
+    await user.clear(caption);
+    await user.type(caption, "A lake at sunset");
+    await user.click(await screen.findByRole("button", { name: /ComfyUI/ }));
+    await screen.findByRole("dialog", { name: "ComfyUI workflow" });
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(save).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(
+      screen.getByRole("dialog", { name: "Resolve caption issue for sunset.png" }),
+    ).toBeVisible();
+    expect(caption).toHaveValue("A lake at sunset");
+  });
+
+  it("explains when media details are unavailable until the resolution is known", async () => {
     render(
       <IssueResolverModal
         items={[makeIssueItem("sunset.png")]}
@@ -214,7 +253,9 @@ describe("IssueResolverModal", () => {
       name: "Resolve caption issue for sunset.png",
     });
 
-    expect(within(dialog).getByRole("group", { name: "Media details" })).toBeEmptyDOMElement();
+    expect(within(dialog).getByRole("group", { name: "Media details" })).toHaveTextContent(
+      "Media details unavailable",
+    );
     expect(dialog).toHaveTextContent(/~\d+ tokens/);
   });
 

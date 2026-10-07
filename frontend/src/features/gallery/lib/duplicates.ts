@@ -92,3 +92,10 @@ export function duplicateOpenOutcome(staleCount: number, groupCount: number): No
 
   return { variant: "warning", message: "No duplicate groups left in this folder." };
 }
+
+/** Columns that keep the rows balanced: four files make a 2x2 grid rather than a row of four. */
+export function duplicateGridColumns(memberCount: number): number {
+  if (memberCount <= 2 || memberCount === 4) return 2;
+  if (memberCount <= 6) return 3;
+  return 4;
+}

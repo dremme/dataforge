@@ -3,6 +3,7 @@ import {
   chooseKeeper,
   countDuplicateGroups,
   countDuplicates,
+  duplicateGridColumns,
   duplicateOpenOutcome,
   isDuplicateItem,
 } from "./duplicates";
@@ -134,5 +135,12 @@ describe("duplicateOpenOutcome", () => {
       variant: "warning",
       message: "No duplicate groups left in this folder.",
     });
+  });
+});
+
+describe("duplicateGridColumns", () => {
+  it("balances rows instead of lining every file up in one row", () => {
+    const columns = [2, 3, 4, 5, 6, 7, 8, 12].map(duplicateGridColumns);
+    expect(columns).toEqual([2, 3, 2, 3, 3, 4, 4, 4]);
   });
 });

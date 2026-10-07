@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readRecentActionIds } from "@/features/quickAction/lib/quickActionHistory";
-import type { GalleryItem } from "@/shared/types";
+import { mediaItem } from "@/test/fixtures";
 import { useAutomationHost } from "./useAutomationHost";
 
 import type * as AutomationPreferences from "@/features/automation/preferences/automationPreferences";
@@ -41,8 +41,7 @@ function setupHost(
     useAutomationHost({
       folder: "C:\\Photos",
       breadcrumbs: [{ name: "Photos", path: "C:\\Photos" }],
-      items: [] as GalleryItem[],
-      filteredItems: [] as GalleryItem[],
+      items: [mediaItem("sunset.png", "C:\\Photos")],
       hasSysprompt: false,
       syspromptApplies: false,
       hasCaptionRules: false,
@@ -71,7 +70,7 @@ describe("useAutomationHost", () => {
     const { result, startJob } = setupHost();
 
     await act(async () => {
-      result.current.panelProps.onRequestStart("backup_captions");
+      result.current.actions.onRequestStart("backup_captions");
     });
 
     expect(result.current.jobStartConfirm.pending).toBeNull();
@@ -95,7 +94,7 @@ describe("useAutomationHost", () => {
     const { result, startJob } = setupHost();
 
     act(() => {
-      result.current.panelProps.onRequestStart("restore_captions");
+      result.current.actions.onRequestStart("restore_captions");
     });
 
     expect(result.current.jobStartConfirm.pending).toBe("restore_captions");
@@ -113,7 +112,7 @@ describe("useAutomationHost", () => {
     const { result, startJob } = setupHost();
 
     act(() => {
-      result.current.panelProps.onRequestStart("restore_captions");
+      result.current.actions.onRequestStart("restore_captions");
     });
 
     act(() => {
@@ -128,7 +127,7 @@ describe("useAutomationHost", () => {
     const { result, startJob } = setupHost({ hasCaptionBackup: false });
 
     act(() => {
-      result.current.panelProps.onRequestStart("restore_captions");
+      result.current.actions.onRequestStart("restore_captions");
     });
 
     expect(result.current.jobStartConfirm.pending).toBeNull();
@@ -139,7 +138,7 @@ describe("useAutomationHost", () => {
     const { result } = setupHost();
 
     await act(async () => {
-      result.current.panelProps.onRequestStart("replace_captions");
+      result.current.actions.onRequestStart("replace_captions");
     });
 
     expect(readRecentActionIds()).toEqual(["run:replace_captions"]);
@@ -149,7 +148,7 @@ describe("useAutomationHost", () => {
     const { result } = setupHost({ hasCaptionBackup: false });
 
     act(() => {
-      result.current.panelProps.onRequestStart("restore_captions");
+      result.current.actions.onRequestStart("restore_captions");
     });
 
     expect(readRecentActionIds()).toEqual([]);
@@ -159,7 +158,7 @@ describe("useAutomationHost", () => {
     const { result } = setupHost({ hasCaptionBackup: false });
 
     await act(async () => {
-      result.current.panelProps.onRequestStart("backup_captions");
+      result.current.actions.onRequestStart("backup_captions");
     });
 
     expect(result.current.dialogs.backupCaptions.open).toBe(true);

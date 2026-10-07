@@ -58,11 +58,18 @@ export function useGalleryItemCaption({
   }, []);
 
   const itemPath = item?.path;
+  const itemPathRef = useRef(itemPath);
+  itemPathRef.current = itemPath;
   const itemRevision = item ? itemCaptionRevision(item) : null;
 
   const persistCaption = useCallback(
     async (payload: CaptionSavePayload) => {
       const result = await saveCaption(payload.path, payload.text);
+
+      if (itemPathRef.current !== payload.path) {
+        onCaptionSaved(payload.path, result);
+        return;
+      }
 
       setCaption((current) => {
         if (current.trim() !== payload.text) return current;
@@ -87,6 +94,7 @@ export function useGalleryItemCaption({
     setBaseline,
     invalidateInFlight,
     hasUnsavedChanges,
+    discardPendingSave,
   } = useDebouncedSave<CaptionSavePayload>({
     errorMessage: "Failed to save caption",
     save: persistCaption,
@@ -202,5 +210,9 @@ export function useGalleryItemCaption({
     revertCaption,
     retrySave,
     flushPendingSave,
+    discardCaptionChanges: () => {
+      discardPendingSave();
+      if (item) applyCaptionFromItem(item);
+    },
   };
 }

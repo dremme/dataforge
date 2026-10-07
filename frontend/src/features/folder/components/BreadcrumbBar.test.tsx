@@ -16,7 +16,6 @@ function renderBar(props: Partial<BarProps> = {}) {
       currentFolder={homeFolder.path}
       hasSubfolders
       onNavigate={vi.fn()}
-      onOpenPicker={vi.fn()}
       {...props}
     />,
   );
@@ -25,15 +24,6 @@ function renderBar(props: Partial<BarProps> = {}) {
 describe("BreadcrumbBar", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  it("advertises the open folder shortcut on the picker button", () => {
-    renderBar();
-
-    expect(screen.getByRole("button", { name: "Open folder" })).toHaveAttribute(
-      "aria-keyshortcuts",
-      "Control+O Meta+O",
-    );
   });
 
   it("disables path actions when the current folder is missing", () => {

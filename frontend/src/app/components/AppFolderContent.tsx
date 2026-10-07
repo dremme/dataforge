@@ -1,5 +1,4 @@
-import type { ComponentProps } from "react";
-import { AutomationPanel } from "@/features/automation/components/AutomationPanel";
+import type { ReactNode } from "react";
 import { FolderErrorState } from "@/features/folder/components/FolderErrorState";
 import { FolderLoadingState } from "@/features/folder/components/FolderLoadingState";
 import { FolderGrid } from "@/features/folder/components/FolderGrid";
@@ -23,13 +22,12 @@ type AppFolderContentProps = {
   folder: FolderResponse | null;
   subfolders: Subfolder[];
   filteredSubfolders: Subfolder[];
+  onNavigate: (path: string) => void;
   items: GalleryItem[];
   filteredItems: GalleryItem[];
   filterEmptyState: FilterEmptyState;
-  automationPanelProps: ComponentProps<typeof AutomationPanel>;
-  onNavigate: (path?: string) => void;
-  onCreateFolder?: () => void;
-  createFolderDisabled?: boolean;
+  /** The search and filter summary, shown at the start of the Media header actions. */
+  activeFilters?: ReactNode;
   onOpenGalleryItem: (path: string) => void;
   displayMode: GalleryDisplayMode;
   onDisplayModeChange: (value: GalleryDisplayMode) => void;
@@ -52,13 +50,11 @@ export function AppFolderContent({
   folder,
   subfolders,
   filteredSubfolders,
+  onNavigate,
   items,
   filteredItems,
   filterEmptyState,
-  automationPanelProps,
-  onNavigate,
-  onCreateFolder,
-  createFolderDisabled = false,
+  activeFilters,
   onOpenGalleryItem,
   displayMode,
   onDisplayModeChange,
@@ -95,21 +91,15 @@ export function AppFolderContent({
             onDrop={fileDrop.enabled ? fileDrop.onDrop : undefined}
           >
             <div className="gallery-drop-zone__content">
-              {!folderNotFound && <AutomationPanel {...automationPanelProps} />}
-
-              {!folderNotFound && (
+              {!folderNotFound && subfolders.length > 0 && (
                 <FolderGrid
-                  // Remounting on navigation re-reads the stored expansion for the new folder.
                   key={folder.path}
-                  folders={filteredSubfolders}
                   folderPath={folder.path}
+                  folders={filteredSubfolders}
                   totalCount={subfolders.length}
                   onOpen={onNavigate}
-                  onCreateFolder={onCreateFolder}
-                  createFolderDisabled={createFolderDisabled}
                 />
               )}
-
               {!folderNotFound && (
                 <section className="gallery-section" aria-label="Media">
                   <SectionHeader
@@ -124,6 +114,7 @@ export function AppFolderContent({
                     actions={
                       items.length > 0 ? (
                         <div className="gallery-section__actions">
+                          {activeFilters}
                           {filteredItems.length > 0 && (
                             <GallerySelectionControls totalCount={filteredItems.length} />
                           )}

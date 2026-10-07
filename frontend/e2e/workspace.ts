@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { expect, type Page } from "@playwright/test";
 
 /** Built fresh by scripts/e2e_backend.py; the same path playwright.config.ts hands the servers. */
 export const WORKSPACE = path.join(os.tmpdir(), "dataforge-e2e");
@@ -34,4 +35,14 @@ export function imageParts(request: ModelRequest): ContentPart[] {
 export function systemText(request: ModelRequest): string {
   const system = request.messages.find((message) => message.role === "system");
   return typeof system?.content === "string" ? system.content : "";
+}
+
+/** A clean finish leaves no activity strip, so the outcome is read from the jobs drawer. */
+export async function expectJobCompleted(page: Page, jobLabel: string, timeout: number) {
+  await page.getByRole("button", { name: /^Open automation jobs/ }).click();
+  const drawer = page.getByRole("dialog", { name: "Automation jobs" });
+  const card = drawer.getByRole("article", { name: new RegExp(`^${jobLabel} job for `) }).first();
+  await expect(card).toContainText("Completed", { timeout });
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
 }

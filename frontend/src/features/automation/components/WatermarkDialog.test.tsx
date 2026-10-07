@@ -18,7 +18,7 @@ function renderDialog(
 ) {
   render(
     <WatermarkDialog
-      scope={{ itemCount: 3, folderLabel: "Photos", fromSelection: false }}
+      scope={{ itemCount: 3, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}
@@ -136,7 +136,7 @@ describe("WatermarkDialog", () => {
   it("disables its controls while the job is starting", () => {
     render(
       <WatermarkDialog
-        scope={{ itemCount: 3, folderLabel: "Photos", fromSelection: false }}
+        scope={{ itemCount: 3, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={{ ...DEFAULTS, text: "Sample Studio" }}
         busy
         onConfirm={vi.fn()}

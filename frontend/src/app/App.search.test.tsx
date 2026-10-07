@@ -403,7 +403,7 @@ describe("App: search and filters", () => {
         "This folder has no supported image/video files. Drop compatible files here to import them.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Automation")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tools" })).toBeInTheDocument();
   });
 
   it("searches captions for a word picked from the statistics drawer", async () => {

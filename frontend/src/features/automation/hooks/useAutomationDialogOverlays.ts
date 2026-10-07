@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { trainLoraBody, type TrainLoraSettings } from "@/features/automation/api/jobs";
 import type { AutoCaptionMode } from "@/features/automation/components/AutoCaptionDialog";
@@ -12,6 +12,11 @@ import {
 import type { AutomationDialogsState } from "@/features/automation/types";
 import type { JobStartBodies, JobStartBody } from "@/shared/api/jobStartBodies";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import {
+  snapshotBulkScope,
+  type BulkScopeKind,
+  type BulkScopeSnapshot,
+} from "@/features/automation/lib/bulkScope";
 import type {
   DuplicateThreshold,
   JobType,
@@ -25,12 +30,11 @@ type UseAutomationDialogOverlaysOptions = {
   folderPath: string | undefined;
   folderLabel: string;
   startingJobType: JobType | null;
-  /** Files a job will actually touch: the selection, or the whole folder. */
+  /** Files a job will touch, before job-specific eligibility checks. */
   itemCount: number;
   /** Every file in the folder, for jobs the selection cannot narrow. */
   folderItemCount: number;
-  /** True while a selection is scoping jobs to part of the folder. */
-  selectionActive: boolean;
+  scopeKind?: BulkScopeKind;
   startJob: (
     jobType: JobType,
     folder: string,
@@ -46,7 +50,7 @@ export function useAutomationDialogOverlays({
   startingJobType,
   itemCount,
   folderItemCount,
-  selectionActive,
+  scopeKind = "folder",
   startJob,
   getJobPaths,
 }: UseAutomationDialogOverlaysOptions) {
@@ -55,37 +59,48 @@ export function useAutomationDialogOverlays({
   // This folder's saved settings, loaded before any dialog opens.
   const queryClient = useQueryClient();
   const [settings, setSettings] = useState<AutomationSettings | null>(null);
+  const [snapshot, setSnapshot] = useState<BulkScopeSnapshot | null>(null);
+  const folderRef = useRef(folderPath);
+  folderRef.current = folderPath;
+  const openRevisionRef = useRef(0);
 
   const closeDialog = useCallback(() => {
     setOpenJobType(null);
     setSettings(null);
+    setSnapshot(null);
+    openRevisionRef.current += 1;
   }, []);
+
+  useEffect(() => closeDialog(), [closeDialog, folderPath]);
 
   /** Closes the dialog, then starts its job; a rejection is already reported by the context. */
   const startJobFromDialog = useCallback(
     <T extends JobType>(jobType: T, body?: JobStartBodies[T]) => {
-      if (!folderPath) return;
+      if (!folderPath || (jobType !== "train_lora" && snapshot?.paths?.length === 0)) return;
       closeDialog();
-      startJob(jobType, folderPath, body, getJobPaths?.()).catch(() => {});
+      startJob(
+        jobType,
+        folderPath,
+        body,
+        jobType === "train_lora" ? undefined : snapshot?.paths,
+      ).catch(() => {});
     },
-    [closeDialog, folderPath, getJobPaths, startJob],
+    [closeDialog, folderPath, snapshot, startJob],
   );
 
   const scope = useMemo<DialogScopeInfo>(
-    () => ({ itemCount, folderLabel, fromSelection: selectionActive }),
-    [folderLabel, itemCount, selectionActive],
+    () => snapshot?.scope ?? { itemCount, folderLabel, kind: scopeKind },
+    [folderLabel, itemCount, scopeKind, snapshot],
   );
 
   const trainLoraScope = useMemo<DialogScopeInfo>(
     () => ({
       itemCount: folderItemCount,
       folderLabel,
-      fromSelection: false,
-      note: selectionActive
-        ? "AI-Toolkit trains on the whole folder, so the current selection does not narrow it."
-        : undefined,
+      kind: "folder",
+      note: "AI-Toolkit trains on the whole folder. Search, filters, and selection do not limit training.",
     }),
-    [folderItemCount, folderLabel, selectionActive],
+    [folderItemCount, folderLabel],
   );
 
   const dialogs = useMemo<AutomationDialogsState>(() => {
@@ -109,7 +124,7 @@ export function useAutomationDialogOverlays({
         ...shared("replace_captions"),
         folderPath: folderPath ?? "",
         // The same selection the job will run on, so the preview counts what it edits.
-        selectedPaths: getJobPaths?.(),
+        selectedPaths: snapshot?.paths ?? getJobPaths?.(),
         onConfirm: (edit: ReplaceCaptionsSettings) =>
           startJobFromDialog("replace_captions", {
             mode: edit.mode,
@@ -157,7 +172,7 @@ export function useAutomationDialogOverlays({
       editCaptions: {
         ...shared("edit_captions"),
         folderPath: folderPath ?? "",
-        selectedPaths: getJobPaths?.(),
+        selectedPaths: snapshot?.paths ?? getJobPaths?.(),
         onConfirm: (
           mode: VerifyCaptionsMode,
           instruction: string,
@@ -246,18 +261,27 @@ export function useAutomationDialogOverlays({
     startJobFromDialog,
     startingJobType,
     trainLoraScope,
+    snapshot,
   ]);
 
   /** Shows a job type's dialog, loading this folder's saved settings first. */
   const openDialogForJobType = useCallback(
-    (jobType: JobType) => {
+    (jobType: JobType, override?: BulkScopeSnapshot) => {
       if (!folderPath) return;
+      const paths = override?.paths ?? getJobPaths?.();
+      if (jobType !== "train_lora" && paths?.length === 0) return;
+      setSnapshot(
+        snapshotBulkScope(override?.scope ?? { itemCount, folderLabel, kind: scopeKind }, paths),
+      );
+      const revision = ++openRevisionRef.current;
       void (async () => {
-        setSettings(await loadAutomationSettings(folderPath, queryClient));
+        const loaded = await loadAutomationSettings(folderPath, queryClient);
+        if (folderRef.current !== folderPath || revision !== openRevisionRef.current) return;
+        setSettings(loaded);
         setOpenJobType(jobType);
       })();
     },
-    [folderPath, queryClient],
+    [folderPath, queryClient, getJobPaths, itemCount, folderLabel, scopeKind],
   );
 
   return { dialogs, openDialogForJobType };

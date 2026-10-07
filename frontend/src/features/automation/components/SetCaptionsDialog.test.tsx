@@ -14,7 +14,7 @@ describe("SetCaptionsDialog", () => {
   it("focuses the caption field on open", () => {
     render(
       <SetCaptionsDialog
-        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={DEFAULTS}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
@@ -30,7 +30,7 @@ describe("SetCaptionsDialog", () => {
 
     render(
       <SetCaptionsDialog
-        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={DEFAULTS}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
@@ -50,7 +50,7 @@ describe("SetCaptionsDialog", () => {
 
     render(
       <SetCaptionsDialog
-        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={DEFAULTS}
         onConfirm={onConfirm}
         onCancel={vi.fn()}
@@ -69,7 +69,7 @@ describe("SetCaptionsDialog saved settings", () => {
   function renderWith(caption: string) {
     render(
       <SetCaptionsDialog
-        scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+        scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
         initialSettings={{ caption }}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}

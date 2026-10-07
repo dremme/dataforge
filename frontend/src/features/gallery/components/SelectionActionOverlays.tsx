@@ -41,7 +41,11 @@ export function SelectionActionOverlays({
   onCancelDelete,
 }: SelectionActionOverlaysProps) {
   const scope: DialogScopeInfo | undefined = currentFolder
-    ? { itemCount: selectedCount, folderLabel: pathBaseName(currentFolder), fromSelection: true }
+    ? {
+        itemCount: selectedCount,
+        folderLabel: pathBaseName(currentFolder),
+        kind: "selected" as const,
+      }
     : undefined;
 
   const deleteDescription =

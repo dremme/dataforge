@@ -24,13 +24,15 @@ import { isTrainLoraCoTrackedByExternal } from "@/features/jobs/lib/jobs";
 import { ExternalJobCard } from "./ExternalJobCard";
 import { Icon } from "@/shared/ui/Icon";
 import { JobCard } from "./JobCard";
+import type { AutomationActions } from "@/features/automation/lib/automationActions";
 
 interface JobsDrawerProps {
+  currentActions?: Pick<AutomationActions, "onOpenItem" | "onRetryFailed" | "onRunAgain">;
   currentFolder?: string;
   onOpenFolder: (folderPath: string) => void;
 }
 
-export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
+export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: JobsDrawerProps) {
   const {
     jobs,
     externalJobs,
@@ -193,7 +195,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
               <p>{history.loading ? "Loading job history..." : "No automation jobs yet."}</p>
               {!history.loading && (
                 <p className="jobs-drawer__empty-hint">
-                  Start one from a folder with media files using the automation panel.
+                  Start one from a folder with media files using Auto-caption or Tools.
                 </p>
               )}
             </div>
@@ -238,6 +240,31 @@ export function JobsDrawer({ currentFolder, onOpenFolder }: JobsDrawerProps) {
                       <div className="jobs-drawer__list">
                         {localJobs.map((job) => (
                           <JobCard
+                            onOpenItem={
+                              currentActions?.onOpenItem && foldersMatch(job.folder, currentFolder)
+                                ? (path) => {
+                                    closeDrawer();
+                                    currentActions.onOpenItem?.(path);
+                                  }
+                                : undefined
+                            }
+                            onRetryFailed={
+                              currentActions?.onRetryFailed &&
+                              foldersMatch(job.folder, currentFolder)
+                                ? (paths) => {
+                                    closeDrawer();
+                                    currentActions.onRetryFailed?.(job.job_type, paths);
+                                  }
+                                : undefined
+                            }
+                            onRunAgain={
+                              currentActions?.onRunAgain && foldersMatch(job.folder, currentFolder)
+                                ? () => {
+                                    closeDrawer();
+                                    currentActions.onRunAgain?.(job.job_type);
+                                  }
+                                : undefined
+                            }
                             key={job.id}
                             job={job}
                             isCurrentFolder={foldersMatch(currentFolder, job.folder)}

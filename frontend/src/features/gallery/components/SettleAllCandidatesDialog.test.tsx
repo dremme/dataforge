@@ -13,7 +13,7 @@ function renderDialog(overrides: Partial<SettleAllCandidatesDialogProps> = {}) {
     scope: {
       itemCount: 12,
       folderLabel: "Photos",
-      fromSelection: false,
+      kind: "folder" as const,
       note: "3 of them have a staged candidate.",
     },
     busy: false,
@@ -51,7 +51,7 @@ describe("SettleAllCandidatesDialog", () => {
 
   it("names the selection when files are selected", () => {
     renderDialog({
-      scope: { itemCount: 2, folderLabel: "Photos", fromSelection: true },
+      scope: { itemCount: 2, folderLabel: "Photos", kind: "selected" as const },
     });
 
     const dialog = screen.getByRole("alertdialog", { name: "Accept selected candidates?" });
@@ -108,7 +108,7 @@ describe("SettleAllCandidatesDialog", () => {
     it("names the selection when files are selected", () => {
       renderDialog({
         action: "delete",
-        scope: { itemCount: 2, folderLabel: "Photos", fromSelection: true },
+        scope: { itemCount: 2, folderLabel: "Photos", kind: "selected" as const },
       });
 
       expect(

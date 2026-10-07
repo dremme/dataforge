@@ -7,7 +7,7 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
 async function openLintDialog(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: /More/ }));
+  await user.click(await screen.findByRole("button", { name: /^Tools$/ }));
   await user.click(screen.getByRole("menuitem", { name: /Lint captions/ }));
   return screen.findByRole("alertdialog", { name: "Lint captions?" });
 }
@@ -132,7 +132,7 @@ describe("App: dialogs", () => {
 
     const dialog = await openLintDialog(user);
     expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
-      /^All \d+ files? in Photos$/,
+      /^Matching \d+ files? in Photos$/,
     );
     await within(dialog).findByText(/No caption rules apply to this folder yet/);
     expect(within(dialog).getByRole("button", { name: "Lint captions" })).toBeDisabled();
@@ -199,7 +199,7 @@ describe("App: dialogs", () => {
 
     const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
     expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
-      /^All \d+ files? in Photos$/,
+      /^Matching \d+ files? in Photos$/,
     );
 
     expect(screen.getByRole("radio", { name: /Reasoning/i })).toBeChecked();

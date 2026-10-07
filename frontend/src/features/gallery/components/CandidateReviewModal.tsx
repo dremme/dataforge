@@ -205,8 +205,6 @@ export function CandidateReviewModal({
         <div className="candidate-review-modal__body" data-scroll-lock-allow>
           <CompareStage entry={entry} />
 
-          <CompareMeta entry={entry} details={details} />
-
           {orphaned && (
             <p className="candidate-review-modal__warning" role="status">
               <Icon icon={iconTriangleAlert} className="candidate-review-modal__warning-icon" />
@@ -225,6 +223,7 @@ export function CandidateReviewModal({
           )}
         </div>
 
+        <CompareMeta entry={entry} details={details} />
         <footer className="candidate-review-modal__footer">
           <label className="dialog__checkbox candidate-review-modal__keep-metadata">
             <input

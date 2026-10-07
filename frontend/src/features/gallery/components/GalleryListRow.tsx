@@ -8,6 +8,7 @@ import { Icon } from "@/shared/ui/Icon";
 import { GalleryCardMedia } from "./GalleryCardMedia";
 
 interface GalleryListRowProps {
+  inspected?: boolean;
   item: GalleryItem;
   onSelect: (path: string) => void;
   selectionMode?: boolean;
@@ -17,6 +18,7 @@ interface GalleryListRowProps {
 }
 
 export const GalleryListRow = memo(function GalleryListRow({
+  inspected = false,
   item,
   onSelect,
   selectionMode = false,
@@ -44,6 +46,7 @@ export const GalleryListRow = memo(function GalleryListRow({
 
   return (
     <button
+      data-inspected={inspected || undefined}
       type="button"
       className={classNames(
         "gallery-list-row",

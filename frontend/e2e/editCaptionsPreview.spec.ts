@@ -1,7 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { WORKSPACE, imageParts, readModelRequests, systemText } from "./workspace";
+import {
+  WORKSPACE,
+  expectJobCompleted,
+  imageParts,
+  readModelRequests,
+  systemText,
+} from "./workspace";
 
 test("previews caption edits without writes, then starts the normal backed-up job", async ({
   page,
@@ -21,7 +27,7 @@ test("previews caption edits without writes, then starts the normal backed-up jo
   await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto(`/?path=${encodeURIComponent(folder)}`);
   await expect(page.getByText("one.png")).toBeVisible();
-  await page.getByRole("button", { name: "More jobs" }).click();
+  await page.getByRole("button", { name: "Tools" }).click();
   await page.getByRole("menuitem", { name: /Edit captions/ }).click();
   const dialog = page.getByRole("alertdialog", { name: "Start edit captions?" });
   await dialog.getByLabel("Edit instruction").fill("Rewrite in present tense.");
@@ -58,9 +64,7 @@ test("previews caption edits without writes, then starts the normal backed-up jo
   await expect(samples.getByRole("listitem")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Start edit captions" }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.locator(".automation__status-label")).toHaveText("Completed", {
-    timeout: 30_000,
-  });
+  await expectJobCompleted(page, "Edit captions", 30_000);
   for (const name of names) {
     expect(fs.readFileSync(path.join(folder, `${name}.txt`), "utf-8")).not.toBe(original);
     expect(fs.readFileSync(path.join(folder, ".backup", `${name}.txt`), "utf-8")).toBe(original);

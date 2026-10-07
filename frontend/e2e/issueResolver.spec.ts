@@ -28,12 +28,23 @@ async function openIssueResolver(page: Page, rules: string[] = []) {
 for (const viewport of [
   { width: 1280, height: 800 },
   { width: 1024, height: 600 },
+  { width: 768, height: 900 },
 ]) {
   test(`long captions scroll inside the issue editor at ${viewport.width}x${viewport.height}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
     const dialog = await openIssueResolver(page);
+    const meta = dialog.getByRole("group", { name: "Media details" });
+    await expect(meta).toContainText("Modified");
+    await expect(meta).toContainText("Megapixels");
+    await expect(meta).toContainText("Width × Height");
+    await expect(meta).toContainText("Aspect ratio");
+    const stageBox = (await dialog.locator(".issue-resolver-modal__stage").boundingBox())!;
+    const metaBox = (await meta.boundingBox())!;
+    expect(Math.abs(metaBox.y - stageBox.y - stageBox.height)).toBeLessThan(1);
+    expect(Math.abs(metaBox.x - stageBox.x)).toBeLessThan(1);
+    expect(Math.abs(metaBox.width - stageBox.width)).toBeLessThan(1);
     const details = dialog.locator(".issue-resolver-modal__details");
     const scroller = dialog.locator(".cm-scroller");
     await expect(scroller).toBeVisible();
@@ -96,7 +107,7 @@ test("extra media height goes to the caption editor instead of stretching the is
   await page.screenshot({ path: testInfo.outputPath("caption-fills-space.png") });
 });
 
-test("the issue modal grows with findings before scrolling at its viewport limit", async ({
+test("the issue modal uses viewport space and contains overflowing findings", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -113,7 +124,7 @@ test("the issue modal grows with findings before scrolling at its viewport limit
   );
   await expect
     .poll(() => dialog.evaluate((element: HTMLElement) => element.offsetHeight))
-    .toBeGreaterThan(initialHeight + 100);
+    .toBe(initialHeight);
   const details = dialog.locator(".issue-resolver-modal__details");
   const issues = dialog.locator(".issue-resolver-modal__issue-card");
   const scroller = dialog.locator(".cm-scroller");

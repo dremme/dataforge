@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { WORKSPACE, imageParts, readModelRequests, readSidecar, systemText } from "./workspace";
+import {
+  WORKSPACE,
+  expectJobCompleted,
+  imageParts,
+  readModelRequests,
+  readSidecar,
+  systemText,
+} from "./workspace";
 
 // Answered by the stand-in model in scripts/e2e_backend.py.
 const CAPTION =
@@ -17,14 +24,12 @@ test("auto-captions a still and a clip, and shows both captions back", async ({ 
   await expect(page.getByText("photo.png")).toBeVisible();
   await expect(page.getByText("clip.mp4")).toBeVisible();
 
-  await page.locator("button.automation__start").click();
+  await page.getByRole("button", { name: "Auto-caption", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Start auto-caption?" });
   await dialog.getByRole("button", { name: "Start auto-caption" }).click();
 
   // Two real decodes and two model round trips; the poll that reports it is on its own clock.
-  const status = page.locator(".automation__status-label");
-  await expect(status).toHaveText("Completed", { timeout: 90_000 });
-  await expect(page.locator(".automation__counts")).toContainText("2/2");
+  await expectJobCompleted(page, "Auto-caption", 90_000);
 
   // Read back through the listing: proves the sidecar landed and the caption memo let go of it.
   // Retried: the listing is re-read once the job reports done, so it lands a moment later.

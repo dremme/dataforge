@@ -33,7 +33,9 @@ export function SettleAllCandidatesDialog({
     return (
       <ConfirmDialog
         title={
-          scope.fromSelection ? "Delete selected candidates?" : "Delete all staged candidates?"
+          scope.kind === "selected"
+            ? "Delete selected candidates?"
+            : "Delete all staged candidates?"
         }
         scope={scope}
         description="Deletes each staged candidate and keeps the files they were made from. On Windows, candidates are moved to the Recycle Bin."
@@ -48,7 +50,9 @@ export function SettleAllCandidatesDialog({
 
   return (
     <Dialog
-      title={scope.fromSelection ? "Accept selected candidates?" : "Accept all staged candidates?"}
+      title={
+        scope.kind === "selected" ? "Accept selected candidates?" : "Accept all staged candidates?"
+      }
       scope={scope}
       description="Replaces each file with its staged candidate, without comparing them first. An unreverted edit is discarded too, making the candidate the new original. No backup is kept, so this cannot be undone."
       busy={busy}

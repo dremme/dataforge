@@ -1,29 +1,30 @@
 import type { ReactNode } from "react";
 import { iconCheck, iconFolder } from "@/shared/icons";
 import { Icon } from "./Icon";
+import type { BulkScopeKind } from "@/features/automation/lib/bulkScope";
 
 export interface DialogScopeInfo {
   itemCount: number;
   folderLabel: string;
-  fromSelection: boolean;
+  kind: BulkScopeKind;
   note?: ReactNode;
 }
 
-export function DialogScope({ itemCount, folderLabel, fromSelection, note }: DialogScopeInfo) {
+export function DialogScope({ itemCount, folderLabel, kind, note }: DialogScopeInfo) {
   const files = itemCount === 1 ? "file" : "files";
 
   return (
     <div className="dialog-scope">
       <p className="dialog-scope__line">
-        <Icon icon={fromSelection ? iconCheck : iconFolder} className="dialog-scope__icon" />
+        <Icon icon={kind === "selected" ? iconCheck : iconFolder} className="dialog-scope__icon" />
         <span>
-          {fromSelection ? (
+          {kind === "selected" ? (
             <>
               <strong>{itemCount}</strong> selected {files}
             </>
           ) : (
             <>
-              All <strong>{itemCount}</strong> {files}
+              {kind === "visible" ? "Matching" : "All"} <strong>{itemCount}</strong> {files}
             </>
           )}{" "}
           in <strong className="dialog-scope__folder">{folderLabel}</strong>

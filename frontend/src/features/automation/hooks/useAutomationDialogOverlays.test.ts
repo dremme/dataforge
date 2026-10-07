@@ -48,7 +48,7 @@ function setupOverlays(
       startingJobType,
       itemCount,
       folderItemCount,
-      selectionActive,
+      scopeKind: selectionActive ? "selected" : "folder",
       startJob,
     }),
   );
@@ -57,6 +57,85 @@ function setupOverlays(
 }
 
 describe("useAutomationDialogOverlays scope", () => {
+  it("freezes target paths and preview counts before loading the dialog", async () => {
+    const paths = ["C:\\Photos\\one.png"];
+    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const { result, rerender } = renderHookWithQueryClient(() =>
+      useAutomationDialogOverlays({
+        folderPath: "C:\\Photos",
+        folderLabel: "Photos",
+        startingJobType: null,
+        itemCount: paths.length,
+        folderItemCount: 3,
+        scopeKind: "visible",
+        startJob,
+        getJobPaths: () => paths,
+      }),
+    );
+    await act(async () => result.current.openDialogForJobType("replace_captions"));
+    paths.push("C:\\Photos\\two.png");
+    rerender();
+    expect(result.current.dialogs.replaceCaptions.scope.itemCount).toBe(1);
+    expect(result.current.dialogs.replaceCaptions.selectedPaths).toEqual(["C:\\Photos\\one.png"]);
+    await act(async () =>
+      result.current.dialogs.replaceCaptions.onConfirm({
+        mode: "replace",
+        search: "lake",
+        replacement: "river",
+        useRegex: false,
+        caseSensitive: false,
+      }),
+    );
+    expect(startJob.mock.calls[0][3]).toEqual(["C:\\Photos\\one.png"]);
+  });
+
+  it("does not open an ordinary bulk dialog for an empty target", async () => {
+    const startJob = vi.fn();
+    const { result } = renderHookWithQueryClient(() =>
+      useAutomationDialogOverlays({
+        folderPath: "C:\\Photos",
+        folderLabel: "Photos",
+        startingJobType: null,
+        itemCount: 0,
+        folderItemCount: 3,
+        scopeKind: "visible",
+        startJob,
+        getJobPaths: () => [],
+      }),
+    );
+    await act(async () => result.current.openDialogForJobType("set_captions"));
+    expect(result.current.dialogs.setCaptions.open).toBe(false);
+    expect(startJob).not.toHaveBeenCalled();
+  });
+
+  it("submits whole-folder training without a filtered path list", async () => {
+    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const { result } = renderHookWithQueryClient(() =>
+      useAutomationDialogOverlays({
+        folderPath: "C:\\Photos",
+        folderLabel: "Photos",
+        startingJobType: null,
+        itemCount: 1,
+        folderItemCount: 3,
+        scopeKind: "visible",
+        startJob,
+        getJobPaths: () => ["C:\\Photos\\one.png"],
+      }),
+    );
+    await act(async () => result.current.openDialogForJobType("train_lora"));
+    expect(result.current.dialogs.trainLora.scope.kind).toBe("folder");
+    expect(result.current.dialogs.trainLora.scope.itemCount).toBe(3);
+    await act(async () =>
+      result.current.dialogs.trainLora.onConfirm({
+        loraName: "sample_train_v1",
+        triggerWord: "",
+        prompts: ["a lake"],
+        model: "h3_fl2va",
+        template: null,
+      }),
+    );
+    expect(startJob.mock.calls[0][3]).toBeUndefined();
+  });
   it("reports the selection when one is narrowing the jobs", () => {
     const { result } = setupOverlays(null, {
       itemCount: 23,
@@ -67,7 +146,7 @@ describe("useAutomationDialogOverlays scope", () => {
     expect(result.current.dialogs.setCaptions.scope).toMatchObject({
       itemCount: 23,
       folderLabel: "Photos",
-      fromSelection: true,
+      kind: "selected" as const,
     });
   });
 
@@ -76,7 +155,7 @@ describe("useAutomationDialogOverlays scope", () => {
 
     expect(result.current.dialogs.setCaptions.scope).toMatchObject({
       itemCount: 2473,
-      fromSelection: false,
+      kind: "folder" as const,
     });
   });
 
@@ -90,15 +169,15 @@ describe("useAutomationDialogOverlays scope", () => {
 
     expect(result.current.dialogs.trainLora.scope).toMatchObject({
       itemCount: 2473,
-      fromSelection: false,
+      kind: "folder" as const,
     });
     expect(result.current.dialogs.trainLora.scope.note).toMatch(/whole folder/i);
   });
 
-  it("leaves the LoRA note off when there is no selection to contradict", () => {
+  it("always explains that search and filters do not narrow LoRA training", () => {
     const { result } = setupOverlays(null, { itemCount: 2473, folderItemCount: 2473 });
 
-    expect(result.current.dialogs.trainLora.scope.note).toBeUndefined();
+    expect(result.current.dialogs.trainLora.scope.note).toContain("Search, filters, and selection");
   });
 });
 

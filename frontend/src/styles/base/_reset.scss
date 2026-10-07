@@ -23,8 +23,6 @@ body {
   flex-direction: column;
   height: 100%;
   min-height: 100vh;
-  // Narrower windows scroll sideways instead of reflowing; there is no smaller layout to fall back to.
-  min-width: $min-app-width;
 }
 
 button,

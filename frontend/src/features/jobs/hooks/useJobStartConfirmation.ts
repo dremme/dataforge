@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { Breadcrumb, JobType } from "@/shared/types";
 
@@ -16,27 +16,38 @@ export function useJobStartConfirmation(
   getJobPaths?: () => string[] | undefined,
 ) {
   const [pendingJobStart, setPendingJobStart] = useState<ConfirmableJobType | null>(null);
+  const targetRef = useRef<{ folder: string; paths?: string[] } | null>(null);
 
   const folderLabel = breadcrumbs[breadcrumbs.length - 1]?.name ?? folder ?? "this folder";
 
-  const requestJobStart = useCallback((jobType: ConfirmableJobType) => {
-    setPendingJobStart(jobType);
-  }, []);
+  const requestJobStart = useCallback(
+    (jobType: ConfirmableJobType, explicitPaths?: string[]) => {
+      if (!folder) return;
+      const paths = explicitPaths ?? getJobPaths?.();
+      if (paths?.length === 0) return;
+      targetRef.current = { folder, paths: paths ? [...paths] : undefined };
+      setPendingJobStart(jobType);
+    },
+    [folder, getJobPaths],
+  );
 
   const cancelPendingJobStart = useCallback(() => {
+    targetRef.current = null;
     setPendingJobStart(null);
   }, []);
 
+  useEffect(() => cancelPendingJobStart(), [cancelPendingJobStart, folder]);
+
   const confirmPendingJobStart = useCallback(() => {
-    if (!pendingJobStart || !folder) return;
+    if (!pendingJobStart || !targetRef.current) return;
 
     const jobType = pendingJobStart;
-    const paths = getJobPaths?.();
+    const { folder: targetFolder, paths } = targetRef.current;
     setPendingJobStart(null);
-    startJob(jobType, folder, undefined, paths).catch(() => {
+    startJob(jobType, targetFolder, undefined, paths).catch(() => {
       // Errors are stored in jobs context state.
     });
-  }, [folder, getJobPaths, pendingJobStart, startJob]);
+  }, [pendingJobStart, startJob]);
 
   return {
     pendingJobStart,

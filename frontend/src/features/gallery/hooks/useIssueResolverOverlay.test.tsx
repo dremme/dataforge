@@ -48,7 +48,7 @@ describe("useIssueResolverOverlay", () => {
     const onReturnToItem = vi.fn();
     const { result } = renderHook(() => useIssueResolverOverlay(onReturnToItem), { wrapper });
 
-    // The automation panel's shape: a queue, no originating file.
+    // The Review menu's shape: a queue, no originating file.
     act(() => result.current.openIssueResolver(flagged));
     act(() => result.current.closeIssueResolver());
 

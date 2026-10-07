@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "@/shared/hooks/useDialogFocus";
 import { useEditorOverlayEscape } from "@/shared/hooks/useEditorOverlayEscape";
@@ -47,6 +47,8 @@ interface ModalShellProps {
   panelRef?: RefObject<HTMLDivElement | null>;
 
   children: ReactNode;
+  inline?: boolean;
+  style?: CSSProperties;
 }
 
 export function ModalShell({
@@ -71,6 +73,8 @@ export function ModalShell({
   initialFocusRef,
   panelRef,
   children,
+  inline = false,
+  style,
 }: ModalShellProps) {
   const fallbackRef = useRef<HTMLDivElement>(null);
   const resolvedPanelRef = panelRef ?? fallbackRef;
@@ -80,9 +84,9 @@ export function ModalShell({
   const backdropClass =
     nested === undefined ? depthBackdropClass : overlayBackdropClass(`${block}__backdrop`, nested);
 
-  useScrollLock(scrollLock !== undefined, scrollLock ?? "confirm-dialog-open");
-  useFocusTrap(resolvedPanelRef, !suspended);
-  useDialogFocus(resolvedPanelRef, initialFocusRef);
+  useScrollLock(!inline && scrollLock !== undefined, scrollLock ?? "confirm-dialog-open");
+  useFocusTrap(resolvedPanelRef, !inline && !suspended);
+  useDialogFocus(resolvedPanelRef, initialFocusRef, !inline);
 
   const dismissible = !busy && !suspended && !closing;
 
@@ -98,10 +102,19 @@ export function ModalShell({
   }, [closing]);
   // Both hooks stay mounted for stable order; the editor listener stops capture-phase
   // propagation and must stay detached in bubble mode.
-  useEscapeKey(onClose, escape === "bubble" && dismissible);
-  useEditorOverlayEscape(resolvedPanelRef, onClose, dismissible, escape === "editor");
+  useEscapeKey(onClose, !inline && escape === "bubble" && dismissible);
+  useEditorOverlayEscape(resolvedPanelRef, onClose, !inline && dismissible, escape === "editor");
 
   const Panel = panelAs as "div";
+
+  if (inline)
+    return (
+      <aside className={`${block} ${block}--inline`} aria-label={label} style={style}>
+        <div ref={resolvedPanelRef} className={`${block}__panel`} tabIndex={-1}>
+          {children}
+        </div>
+      </aside>
+    );
 
   return createPortal(
     <div className={block} role="presentation">

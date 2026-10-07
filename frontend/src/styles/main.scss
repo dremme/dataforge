@@ -31,6 +31,7 @@
 @use "components/adjust-canvas";
 @use "components/adjust-tools";
 @use "components/gallery-item-modal";
+@use "components/media-info";
 @use "components/edit-panel";
 @use "components/image-edit-stage";
 @use "components/issue-resolver-modal";
@@ -55,6 +56,7 @@
 @use "components/video-edit-timeline";
 @use "components/video-frame-bar";
 @use "components/zoomable-image";
+@use "layout/workspace";
 
 // Must load after the component layer: equal specificity, source order wins.
 @use "utilities/reduced-motion";

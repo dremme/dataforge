@@ -4,7 +4,9 @@ import { DialogScope } from "./DialogScope";
 
 describe("DialogScope", () => {
   it("names the selection when one is narrowing the job", () => {
-    const { container } = render(<DialogScope itemCount={23} folderLabel="Photos" fromSelection />);
+    const { container } = render(
+      <DialogScope itemCount={23} folderLabel="Photos" kind="selected" />,
+    );
 
     expect(container.querySelector(".dialog-scope__line")).toHaveTextContent(
       "23 selected files in Photos",
@@ -13,7 +15,7 @@ describe("DialogScope", () => {
 
   it("says the whole folder when nothing is selected", () => {
     const { container } = render(
-      <DialogScope itemCount={2473} folderLabel="Photos" fromSelection={false} />,
+      <DialogScope itemCount={2473} folderLabel="Photos" kind="folder" />,
     );
 
     expect(container.querySelector(".dialog-scope__line")).toHaveTextContent(
@@ -22,7 +24,9 @@ describe("DialogScope", () => {
   });
 
   it("keeps the count singular for one file", () => {
-    const { container } = render(<DialogScope itemCount={1} folderLabel="Photos" fromSelection />);
+    const { container } = render(
+      <DialogScope itemCount={1} folderLabel="Photos" kind="selected" />,
+    );
 
     expect(container.querySelector(".dialog-scope__line")).toHaveTextContent(
       "1 selected file in Photos",
@@ -34,7 +38,7 @@ describe("DialogScope", () => {
       <DialogScope
         itemCount={40}
         folderLabel="landscapes"
-        fromSelection={false}
+        kind="folder"
         note="AI-Toolkit trains on the whole folder."
       />,
     );
@@ -44,7 +48,7 @@ describe("DialogScope", () => {
 
   it("leaves the note out when there is nothing to explain", () => {
     const { container } = render(
-      <DialogScope itemCount={40} folderLabel="landscapes" fromSelection={false} />,
+      <DialogScope itemCount={40} folderLabel="landscapes" kind="folder" />,
     );
 
     expect(container.querySelector(".dialog-scope__note")).toBeNull();

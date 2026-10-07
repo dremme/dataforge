@@ -36,7 +36,7 @@ function renderDialog() {
   const onCancel = vi.fn();
   renderWithQueryClient(
     <CheckCaptionRulesDialog
-      scope={{ itemCount: 12, folderLabel: "portraits", fromSelection: false }}
+      scope={{ itemCount: 12, folderLabel: "portraits", kind: "folder" as const }}
       folderPath={FOLDER}
       onConfirm={onConfirm}
       onCancel={onCancel}

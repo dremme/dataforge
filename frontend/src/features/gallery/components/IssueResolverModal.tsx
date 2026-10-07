@@ -9,14 +9,13 @@ import { matchesShortcut, queueIndexAfter, queueStepFor, SHORTCUTS } from "@/sha
 import { flaggedCaptionPhrases } from "@/features/gallery/lib/issues";
 import { useGalleryItemCaption } from "@/features/gallery/hooks/useGalleryItemCaption";
 import { useMediaResolution } from "@/features/gallery/hooks/useMediaResolution";
+import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { isMotion, isVideo, mediaLabelFor } from "@/features/gallery/lib/itemKind";
 import {
   collectAdjacentModalMediaTargets,
   schedulePrefetchModalMedia,
 } from "@/features/gallery/lib/modalMediaPrefetch";
 import type { CaptionSaveResponse, GalleryItem } from "@/shared/types";
-import { formatMegapixels } from "@/shared/lib/format";
-import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
 import { classNames } from "@/shared/lib/classNames";
 import {
   iconArrowUpRight,
@@ -33,6 +32,8 @@ import { ModalShell } from "@/shared/ui/ModalShell";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ZoomableImage } from "./ZoomableImage";
+import { MediaInfoBar } from "./MediaInfoBar";
+import { ComfyWorkflowDialog } from "./ComfyWorkflowDialog";
 
 interface IssueGroup {
   label: string;
@@ -68,6 +69,8 @@ export function IssueResolverModal({
 }: IssueResolverModalProps) {
   const [queue] = useState(() => items);
   const item = queue[index];
+  const hasComfyWorkflow = useComfyWorkflowFlag(item?.path);
+  const [comfyWorkflowOpen, setComfyWorkflowOpen] = useState(false);
   const { recordResolution, getResolution } = useMediaResolution();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<boolean>(false);
@@ -83,6 +86,7 @@ export function IssueResolverModal({
   });
 
   useEffect(() => {
+    setComfyWorkflowOpen(false);
     setSaveError(false);
     setSaving(false);
     setOpeningInViewer(false);
@@ -157,7 +161,7 @@ export function IssueResolverModal({
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (saving) return;
+      if (saving || comfyWorkflowOpen) return;
 
       // Checked before the editable guard: the caption editor is where this gets pressed.
       if (matchesShortcut(event, SHORTCUTS.resolveOrAccept)) {
@@ -176,7 +180,7 @@ export function IssueResolverModal({
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [handleResolve, index, onIndexChange, queue.length, saving]);
+  }, [comfyWorkflowOpen, handleResolve, index, onIndexChange, queue.length, saving]);
 
   if (!item) return null;
 
@@ -195,6 +199,7 @@ export function IssueResolverModal({
       label={`Resolve caption issue for ${item.name}`}
       onClose={closeModal}
       busy={saving}
+      suspended={comfyWorkflowOpen}
       scrollLock="issue-resolver-modal-open"
     >
       <header className="issue-resolver-modal__header">
@@ -268,28 +273,18 @@ export function IssueResolverModal({
           )}
         </div>
 
+        <MediaInfoBar
+          item={item}
+          resolution={resolution}
+          className="issue-resolver-modal__meta"
+          role="group"
+          hasComfyWorkflow={hasComfyWorkflow}
+          onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
+        />
         <div className="issue-resolver-modal__details" data-scroll-lock-allow>
           <p className="issue-resolver-modal__file-name" title={item.name}>
             {item.name}
           </p>
-          <div className="issue-resolver-modal__meta" role="group" aria-label="Media details">
-            {resolution && (
-              <>
-                <div className="issue-resolver-modal__meta-value">
-                  {formatMegapixels(resolution.width, resolution.height)}
-                </div>
-                <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
-                <div className="issue-resolver-modal__meta-value">
-                  {resolution.width} × {resolution.height}
-                </div>
-                <span className="issue-resolver-modal__meta-divider" aria-hidden="true" />
-                <div className="issue-resolver-modal__meta-value">
-                  {formatAspectRatio(resolution.width, resolution.height)}
-                </div>
-              </>
-            )}
-          </div>
-
           <div
             className={classNames(
               "issue-resolver-modal__issue-card",
@@ -380,6 +375,13 @@ export function IssueResolverModal({
           }}
         />
       </footer>
+      {comfyWorkflowOpen && (
+        <ComfyWorkflowDialog
+          mediaPath={item.path}
+          mediaName={item.name}
+          onClose={() => setComfyWorkflowOpen(false)}
+        />
+      )}
     </ModalShell>
   );
 }

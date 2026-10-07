@@ -30,6 +30,42 @@
   }
 }
 
+// The file open in the caption inspector.
+.card[data-inspected],
+.gallery-list-row[data-inspected] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+// A chip per active filter, at the start of the Media header actions.
+.active-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+  min-width: 0;
+
+  &__chip {
+    @include pill-btn-compact(accent);
+  }
+
+  &__clear {
+    @include pill-btn-compact(default);
+  }
+
+  // After the mixins, which set their own padding and gap.
+  &__chip,
+  &__clear {
+    gap: 0.25rem;
+    min-height: 1.5rem;
+    padding: 0.1875rem 0.5rem;
+
+    svg {
+      @include icon-size-sm;
+    }
+  }
+}
+
 .gallery-section__actions {
   display: flex;
   flex: 1;
@@ -164,7 +200,7 @@
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   color: var(--text);
   text-align: left;
   cursor: pointer;

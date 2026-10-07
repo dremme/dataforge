@@ -165,8 +165,14 @@
     color: var(--text-subtle);
     font-size: var(--text-xs);
 
+    > span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
     .kbd {
-      margin-right: 0.1875rem;
+      margin-right: 0;
     }
   }
 }

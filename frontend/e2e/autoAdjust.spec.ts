@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import type { ImageEditStateResponse } from "../src/shared/types";
-import { WORKSPACE } from "./workspace";
+import { WORKSPACE, expectJobCompleted } from "./workspace";
 
 test.afterEach(async ({ request }) => {
   const media = path.join(WORKSPACE, "photo.png");
@@ -23,7 +23,7 @@ test("resets only color adjustments through the auto-adjust dialog", async ({ pa
   expect(response.ok()).toBe(true);
 
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
-  await page.getByRole("button", { name: "More jobs", exact: true }).click();
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Auto-adjust / }).click();
   const dialog = page.getByRole("alertdialog");
   const replace = dialog.getByRole("checkbox", { name: "Replace earlier adjustments" });
@@ -44,9 +44,7 @@ test("resets only color adjustments through the auto-adjust dialog", async ({ pa
     replace_adjustments: false,
     reset_adjustments: true,
   });
-  await expect(page.locator(".automation__status-label")).toHaveText("Completed", {
-    timeout: 30_000,
-  });
+  await expectJobCompleted(page, "Auto-adjust", 30_000);
 
   const state = (await (await page.request.get(editUrl)).json()) as ImageEditStateResponse;
   expect(state.spec?.crop).toEqual(crop);

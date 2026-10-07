@@ -13,6 +13,9 @@ import type {
   InstructionFileResponse,
 } from "@/shared/types";
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
+import type { RefObject } from "react";
+import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
+import type { AutomationActions } from "@/features/automation/lib/automationActions";
 
 type CaptionSavedHandler = (path: string, update: CaptionSaveResponse) => void;
 
@@ -23,6 +26,9 @@ type GalleryOverlayState = {
   searchQuery: string;
   searchRegex: boolean;
   hasCaptionBackup: boolean;
+  focusView?: boolean;
+  onFocusViewChange?: (focus: boolean) => void;
+  transitionRef?: RefObject<WorkspaceTransition | null>;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -115,6 +121,7 @@ type FolderPickerOverlayState = {
 };
 
 export type AppOverlaysProps = {
+  currentJobActions?: Pick<AutomationActions, "onOpenItem" | "onRetryFailed" | "onRunAgain">;
   currentFolder: string | undefined;
   onOpenFolder: (path?: string) => void;
   folderPicker: FolderPickerOverlayState;

@@ -13,7 +13,8 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    width: min(1280px, 100%);
+    width: min(1600px, 100%);
+    height: 94vh;
     max-height: 94vh;
     overflow: hidden;
   }
@@ -52,12 +53,15 @@
     flex: 1;
     overflow-y: auto;
     padding: var(--panel-padding);
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 50%, var(--modal-stage-glow), transparent),
+      var(--bg-media);
   }
 
   // Two equal columns, never auto-fit: a wrapped before/after has stopped being a comparison. Capped and centred as one block so portrait frames are not pushed to the outer edges.
   &__compare {
     --stage-gap: 0.875rem;
-    --stage-max-h: min(58vh, 34rem);
+    --stage-max-h: min(70vh, calc(94vh - 13rem));
     --pane-gap: 0.375rem;
     --pane-label-h: 1rem;
 
@@ -137,7 +141,10 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem 1.5rem;
-    margin: 1.125rem 0 0;
+    flex-shrink: 0;
+    padding: 0.75rem var(--panel-padding);
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
   }
 
   &__meta-item {

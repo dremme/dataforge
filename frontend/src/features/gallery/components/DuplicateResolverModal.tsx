@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { dismissDuplicateGroup, resolveDuplicateGroup } from "@/features/gallery/api/duplicates";
 import {
   KEEPER_REASON_LABEL,
   chooseKeeper,
   type KeeperReason,
+  duplicateGridColumns,
 } from "@/features/gallery/lib/duplicates";
 import { isVideo } from "@/features/gallery/lib/itemKind";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
@@ -188,10 +189,10 @@ export function DuplicateResolverModal({
 
         <div className="duplicate-resolver-modal__body" data-scroll-lock-allow>
           <div
-            className={classNames(
-              "duplicate-resolver-modal__grid",
-              group.members.length === 2 && "duplicate-resolver-modal__grid--pair",
-            )}
+            className="duplicate-resolver-modal__grid"
+            style={
+              { "--duplicate-columns": duplicateGridColumns(group.members.length) } as CSSProperties
+            }
             role="radiogroup"
             aria-label="Which file to keep"
           >
@@ -334,6 +335,12 @@ function MemberCard({
           />
           {selected ? "Keep" : "Delete"}
         </span>
+        {/* On the media, so a suggested card's picture stays as tall as the rest of its row. */}
+        {suggestedReason && (
+          <span className="duplicate-resolver-modal__suggestion">
+            {KEEPER_REASON_LABEL[suggestedReason]}
+          </span>
+        )}
       </span>
 
       <span className="duplicate-resolver-modal__card-name" title={member.name}>
@@ -363,12 +370,6 @@ function MemberCard({
         </span>
         {modified && <span className="duplicate-resolver-modal__meta-value">{modified}</span>}
       </span>
-
-      {suggestedReason && (
-        <span className="duplicate-resolver-modal__suggestion">
-          {KEEPER_REASON_LABEL[suggestedReason]}
-        </span>
-      )}
     </button>
   );
 }

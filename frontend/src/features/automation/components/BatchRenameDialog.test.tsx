@@ -17,7 +17,7 @@ function renderDialog(
 ) {
   render(
     <BatchRenameDialog
-      scope={{ itemCount, folderLabel: "Photos", fromSelection: false }}
+      scope={{ itemCount, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}

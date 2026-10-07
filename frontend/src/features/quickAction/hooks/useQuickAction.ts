@@ -19,5 +19,6 @@ export function useQuickAction() {
     { whenLocked: true, inEditable: true },
   );
 
-  return { open, close };
+  const show = useCallback(() => setOpen(true), []);
+  return { open, close, show };
 }

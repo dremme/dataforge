@@ -71,7 +71,7 @@ describe("App: captions", () => {
 
     await user.click(screen.getByRole("button", { name: "View beach.jpg" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing beach.jpg" });
+    const dialog = await screen.findByRole("complementary", { name: "Viewing beach.jpg" });
     const caption = within(dialog).getByRole("textbox", { name: "Caption for beach.jpg" });
     await user.type(caption, "Sandy shoreline at dusk.");
 
@@ -82,7 +82,7 @@ describe("App: captions", () => {
       );
     });
 
-    expect(screen.getByRole("dialog", { name: "Viewing beach.jpg" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Viewing beach.jpg" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "View beach.jpg" })).not.toBeInTheDocument();
   });
 });

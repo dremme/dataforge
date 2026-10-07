@@ -78,7 +78,7 @@ describe("App: folder navigation", () => {
       expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("region", { name: "Automation" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Auto-caption" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit instructions" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "View sunset.png" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "View beach.jpg" })).toBeInTheDocument();
@@ -199,7 +199,7 @@ describe("App: folder navigation", () => {
       expect(screen.getByText("Empty folder")).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText("Automation")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tools" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "System prompt" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /View .*\.png/ })).not.toBeInTheDocument();
   });

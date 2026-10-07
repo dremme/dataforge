@@ -59,14 +59,25 @@ function usePanelFocus(
   }, [open, panelRef, rootRef]);
 }
 
-export function usePopupMenu(): PopupMenu {
+export function usePopupMenu(controlled?: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): PopupMenu {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setOpen] = useState(false);
+  const open = controlled?.open ?? internalOpen;
+  const onOpenChange = controlled?.onOpenChange;
 
-  const close = useCallback(() => setOpen(false), []);
-  const toggle = useCallback(() => setOpen((current) => !current), []);
+  const close = useCallback(() => {
+    if (onOpenChange) onOpenChange(false);
+    else setOpen(false);
+  }, [onOpenChange]);
+  const toggle = useCallback(() => {
+    if (onOpenChange) onOpenChange(!open);
+    else setOpen((current) => !current);
+  }, [onOpenChange, open]);
 
   useEscapeKey(close, open);
   useOutsidePointerDown([rootRef, panelRef], close, open);

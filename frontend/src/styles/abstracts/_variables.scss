@@ -1,6 +1,5 @@
 $modal-backdrop-blur: 10px;
 
-$content-max: 1400px;
 $radius: 14px;
 $radius-sm: 8px;
 $radius-md: 12px;
@@ -15,8 +14,7 @@ $focus-ring-space: 0.3125rem;
 
 // Panels under a running job share this so their full-bleed dividers cannot drift.
 $job-panel-gutter: 0.625rem;
-// Gap between a docked sticky header and the panel above it; padding is the bar's own inset.
-$sticky-dock-gap: 0.625rem;
+// A docked sticky header's own inset around its frosted surface.
 $sticky-dock-padding: 0.5rem;
 $modal-gutter: 1.5rem;
 $modal-media-max-height: min(36vh, 500px);
@@ -41,9 +39,8 @@ $icon-size-xl: 2.25rem; // 36px — one and a half
 $icon-stroke: 2px;
 $icon-stroke-sm: 1.5px;
 
-// Not visual-order: the drawer outranks base modals because its header trigger sits behind every 1000-level backdrop. Sticky section headers dock under the automation panel but above gallery cards (z up to 2).
+// Not visual-order: the drawer outranks base modals because its header trigger sits behind every 1000-level backdrop. Sticky section headers dock above gallery cards (z up to 2).
 $z-index-sticky-section-header: 14;
-$z-index-sticky-panel: 15;
 $z-index-drawer: 1050;
 $z-index-modal: 1000;
 // Opens from inside the jobs drawer, so it has to clear it.
@@ -89,6 +86,3 @@ $leading-relaxed: 1.6;
 $tracking-tight: -0.025em;
 $tracking-normal: -0.011em;
 $tracking-caps: 0.06em;
-
-// Below this the app keeps its layout and scrolls sideways rather than reflowing.
-$min-app-width: 1024px;

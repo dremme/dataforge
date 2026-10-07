@@ -8,7 +8,6 @@ import {
   iconChevronDown,
   iconChevronUp,
   iconFolder,
-  iconFolderPlus,
   iconFolderTree,
   iconImage,
   iconTriangleAlert,
@@ -107,18 +106,9 @@ interface FolderGridProps {
   folderPath?: string;
   totalCount?: number;
   onOpen: (path: string) => void;
-  onCreateFolder?: () => void;
-  createFolderDisabled?: boolean;
 }
 
-export function FolderGrid({
-  folders,
-  folderPath,
-  totalCount,
-  onOpen,
-  onCreateFolder,
-  createFolderDisabled = false,
-}: FolderGridProps) {
+export function FolderGrid({ folders, folderPath, totalCount, onOpen }: FolderGridProps) {
   // Seeded once per mount, and the call site remounts on navigation, so the stored choice is
   // read for the folder being opened rather than carried over from the previous one.
   const [expanded, setExpanded] = useState(() => readFolderExpanded(folderPath));
@@ -140,21 +130,6 @@ export function FolderGrid({
         title="Folders"
         count={folders.length}
         total={totalCount}
-        actions={
-          onCreateFolder ? (
-            <div className="folder-controls">
-              <button
-                type="button"
-                className="folder-controls__btn"
-                onClick={onCreateFolder}
-                disabled={createFolderDisabled}
-              >
-                <Icon icon={iconFolderPlus} className="folder-controls__btn-icon" />
-                New
-              </button>
-            </div>
-          ) : undefined
-        }
       />
       {folders.length > 0 && (
         <div className="folder-grid" id={gridId}>

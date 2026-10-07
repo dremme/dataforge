@@ -47,15 +47,6 @@
     }
   }
 
-  &__picker {
-    @include pill-btn-compact-accent;
-
-    &-icon {
-      @include icon-block;
-      @include icon-size(var(--icon-size-base));
-    }
-  }
-
   &__list {
     display: flex;
     flex: 1;

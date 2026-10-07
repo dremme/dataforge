@@ -16,6 +16,7 @@ import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolv
 import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { instructionApplies, type InstructionKind } from "@/shared/api/folderInstructions";
 import type { FolderResponse, GalleryItem, InstructionFileResponse } from "@/shared/types";
+import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
 
 type GallerySelection = ReturnType<typeof useGallerySelection>;
 
@@ -27,6 +28,7 @@ type UseGallerySessionOptions = {
   mainRef: RefObject<HTMLElement | null>;
   refreshFolder: () => Promise<void>;
   syncBaseline: () => Promise<void> | void;
+  requestTransition?: WorkspaceTransition;
 };
 
 export function useGallerySession({
@@ -37,6 +39,7 @@ export function useGallerySession({
   mainRef,
   refreshFolder,
   syncBaseline,
+  requestTransition,
 }: UseGallerySessionOptions) {
   const {
     folderResetToken,
@@ -81,9 +84,10 @@ export function useGallerySession({
   const visibleSelectedCount = visibleSelectedPaths.size;
 
   const getJobPaths = useCallback((): string[] | undefined => {
-    if (!selectionMode || visibleSelectedCount === 0) return undefined;
+    if (!selectionMode || visibleSelectedCount === 0)
+      return query.filteredItems.map((item) => item.path);
     return Array.from(visibleSelectedPaths);
-  }, [selectionMode, visibleSelectedCount, visibleSelectedPaths]);
+  }, [query.filteredItems, selectionMode, visibleSelectedCount, visibleSelectedPaths]);
 
   const { displayMode, setDisplayMode } = useGalleryDisplayMode(folderPath);
   const issueCount = countResolvableIssues(items);
@@ -102,11 +106,14 @@ export function useGallerySession({
     openSysPrompt,
     closeInstructions,
     instructionsOpen,
+    focusView,
+    setFocusView,
   } = useGalleryOverlays({
     images: items,
     filteredItems: query.filteredItems,
     folderResetToken,
     mainRef,
+    requestTransition,
   });
 
   // Skip paths out of the filtered set: selectedIndex is -1 with the scroll lock still held.
@@ -234,6 +241,8 @@ export function useGallerySession({
     visibleSelectedPaths,
     visibleSelectedCount,
     getJobPaths,
+    jobScopeKind:
+      selectionMode && visibleSelectedCount > 0 ? ("selected" as const) : ("visible" as const),
     enterSelectionMode,
     exitSelectionMode,
     handleToggleSelectPath,
@@ -254,6 +263,8 @@ export function useGallerySession({
     selectedIndex,
     modalItems,
     closeGalleryItem,
+    focusView,
+    setFocusView,
     returnToGalleryItem,
     goToPrevious,
     goToNext,

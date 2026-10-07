@@ -3,6 +3,7 @@ import type { GallerySelectionActions } from "@/features/gallery/hooks/useGaller
 
 /** GalleryCard must not subscribe: selectedPaths changes identity and re-renders the grid. */
 export interface GallerySelectionValue {
+  inspectedPath?: string | null;
   selectionMode: boolean;
   selectedPaths: ReadonlySet<string>;
   visibleSelectedPaths: ReadonlySet<string>;
@@ -28,6 +29,7 @@ export function GallerySelectionProvider({
 }: GallerySelectionValue & { children: ReactNode }) {
   const {
     selectionMode,
+    inspectedPath,
     selectedPaths,
     visibleSelectedPaths,
     visibleSelectedCount,
@@ -47,6 +49,7 @@ export function GallerySelectionProvider({
   const contextValue = useMemo<GallerySelectionValue>(
     () => ({
       selectionMode,
+      inspectedPath,
       selectedPaths,
       visibleSelectedPaths,
       visibleSelectedCount,
@@ -64,6 +67,7 @@ export function GallerySelectionProvider({
     }),
     [
       selectionMode,
+      inspectedPath,
       selectedPaths,
       visibleSelectedPaths,
       visibleSelectedCount,

@@ -6,19 +6,22 @@ import { Tooltip } from "@/shared/ui/Tooltip";
 
 interface SettingsButtonProps {
   onOpen: () => void;
+  /** Shows "Settings" beside the icon; the collapsed sidebar rail shows the icon alone. */
+  showLabel: boolean;
 }
 
-export function SettingsButton({ onOpen }: SettingsButtonProps) {
+export function SettingsButton({ onOpen, showLabel }: SettingsButtonProps) {
   return (
     <Tooltip content={<ShortcutHint shortcut={SHORTCUTS.settings}>Settings</ShortcutHint>}>
       <button
         type="button"
-        className="settings-button"
+        className="workspace-button"
         onClick={onOpen}
         aria-label="Open settings"
         aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.settings)}
       >
-        <Icon icon={iconSettings} className="settings-button__icon" />
+        <Icon icon={iconSettings} />
+        {showLabel && "Settings"}
       </button>
     </Tooltip>
   );

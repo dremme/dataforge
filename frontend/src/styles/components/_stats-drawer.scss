@@ -1,8 +1,7 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-.stats-button,
-.settings-button {
+.stats-button {
   @include pill-btn-ghost(0.4rem);
   padding: 0 0.5625rem;
 

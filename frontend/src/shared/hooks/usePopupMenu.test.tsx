@@ -1,10 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { usePopupMenu } from "./usePopupMenu";
 
-function MenuFixture() {
-  const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu();
+function MenuFixture({ controlled = false }: { controlled?: boolean }) {
+  const [externalOpen, onOpenChange] = useState(false);
+  const { open, close, menuId, rootRef, panelRef, triggerProps } = usePopupMenu(
+    controlled ? { open: externalOpen, onOpenChange } : undefined,
+  );
 
   return (
     <div>
@@ -33,6 +37,17 @@ function MenuFixture() {
 const trigger = () => screen.getByRole("button", { name: "Open menu" });
 
 describe("usePopupMenu", () => {
+  it("dismisses a controlled menu and restores its trigger focus", () => {
+    render(<MenuFixture controlled />);
+    fireEvent.click(trigger());
+    expect(screen.getByRole("menu")).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger()).toHaveFocus();
+    fireEvent.click(trigger());
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
   it("toggles the panel from the trigger", () => {
     render(<MenuFixture />);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();

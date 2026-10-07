@@ -159,7 +159,8 @@ describe("App: modifier-click selection", () => {
 
     await user.click(card("sunset.png"));
 
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Expand media view" }));
+    expect(await screen.findByRole("dialog", { name: "Viewing sunset.png" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Exit selection mode" })).not.toBeInTheDocument();
   });
 });
@@ -232,7 +233,8 @@ describe("App: select-all shortcut", () => {
     await waitForHomeFolder();
 
     await user.click(card("sunset.png"));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Expand media view" }));
+    expect(await screen.findByRole("dialog", { name: "Viewing sunset.png" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "a", ctrlKey: true });
 

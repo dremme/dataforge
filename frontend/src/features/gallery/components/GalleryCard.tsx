@@ -23,6 +23,7 @@ import { Icon } from "@/shared/ui/Icon";
 type GalleryCardMode = Exclude<GalleryDisplayMode, "list">;
 
 interface GalleryCardProps {
+  inspected?: boolean;
   item: GalleryItem;
   onSelect: (path: string) => void;
   displayMode?: GalleryCardMode;
@@ -33,6 +34,7 @@ interface GalleryCardProps {
 }
 
 export const GalleryCard = memo(function GalleryCard({
+  inspected = false,
   item,
   onSelect,
   displayMode = "large",
@@ -67,6 +69,7 @@ export const GalleryCard = memo(function GalleryCard({
 
   return (
     <button
+      data-inspected={inspected || undefined}
       type="button"
       className={classNames(
         "card",

@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import type { AppOverlaysProps } from "./overlays";
 
 export function AppOverlays({
+  currentJobActions,
   currentFolder,
   onOpenFolder,
   folderPicker,
@@ -43,7 +44,11 @@ export function AppOverlays({
 }: AppOverlaysProps) {
   return (
     <>
-      <JobsDrawer currentFolder={currentFolder} onOpenFolder={onOpenFolder} />
+      <JobsDrawer
+        currentFolder={currentFolder}
+        onOpenFolder={onOpenFolder}
+        currentActions={currentJobActions}
+      />
 
       <StatsDrawer
         open={stats.open}
@@ -107,6 +112,10 @@ export function AppOverlays({
 
       {gallery.selectedPath && gallery.selectedIndex >= 0 && (
         <GalleryItemModal
+          suspended={instructions.open}
+          focusView={gallery.focusView}
+          onFocusViewChange={gallery.onFocusViewChange}
+          transitionRef={gallery.transitionRef}
           items={gallery.modalItems}
           index={gallery.selectedIndex}
           searchQuery={gallery.searchQuery}

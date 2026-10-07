@@ -68,7 +68,10 @@ export type FolderScrollIntent = {
   target: number;
 };
 
-export function useFolderNavigation(onFolderChange?: () => void) {
+export function useFolderNavigation(
+  onFolderChange?: () => void,
+  requestTransition?: (action: () => void | Promise<void>) => Promise<void>,
+) {
   const queryClient = useQueryClient();
   const [requestedPath, setRequestedPath] = useState<string | undefined>(getFolderFromUrl);
   const [scrollIntent, setScrollIntent] = useState<FolderScrollIntent | null>(null);
@@ -171,24 +174,27 @@ export function useFolderNavigation(onFolderChange?: () => void) {
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const path = getFolderFromHistoryEvent(event);
+      const open = async () => {
+        saveOutgoingScroll();
+        const entryKey = getEntryKeyFromHistoryEvent(event);
+        currentEntryKeyRef.current = entryKey;
+        setScrollIntent({
+          id: ++scrollIntentIdRef.current,
+          mode: "restore",
+          path,
+          target: recallFolderScroll(entryKey) ?? 0,
+        });
 
-      saveOutgoingScroll();
-      const entryKey = getEntryKeyFromHistoryEvent(event);
-      currentEntryKeyRef.current = entryKey;
-      setScrollIntent({
-        id: ++scrollIntentIdRef.current,
-        mode: "restore",
-        path,
-        target: recallFolderScroll(entryKey) ?? 0,
-      });
-
-      onFolderChange?.();
-      void openFolder(path);
+        onFolderChange?.();
+        await openFolder(path);
+      };
+      if (requestTransition) void requestTransition(open);
+      else void open();
     };
 
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [onFolderChange, openFolder, saveOutgoingScroll]);
+  }, [onFolderChange, openFolder, requestTransition, saveOutgoingScroll]);
 
   /** Re-reads in place: the listing stays on screen while the changes are fetched. */
   const reloadFolder = useCallback(

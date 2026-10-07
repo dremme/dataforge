@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
+import type { WorkspaceAction, WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
+import { readStored, writeStored } from "@/shared/lib/storage";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { CAPTION_SIDECAR_EXTENSION_LIST } from "@/shared/lib/captionSidecar";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
@@ -24,6 +35,7 @@ import { useImageEdit } from "@/features/gallery/hooks/useImageEdit";
 import { useVideoEdit } from "@/features/gallery/hooks/useVideoEdit";
 import { useVideoFrameCapture } from "@/features/gallery/hooks/useVideoFrameCapture";
 import { useEscapeKey } from "@/shared/hooks/useEscapeKey";
+import { getScrollLockDepth } from "@/shared/hooks/scrollLockManager";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
   iconArchiveRestore,
@@ -41,6 +53,8 @@ import {
   iconTrash2,
   iconVideo,
   iconX,
+  iconExpand,
+  iconMinimize,
 } from "@/shared/icons";
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
@@ -69,7 +83,7 @@ import { CaptionEditor } from "@/shared/ui/CaptionEditor";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FileImportOverwriteDialog } from "@/features/folder/components/FileImportOverwriteDialog";
 import { CaptionSaveStatus } from "./CaptionSaveStatus";
-import { GalleryItemModalMeta } from "./GalleryItemModalMeta";
+import { MediaInfoBar } from "./MediaInfoBar";
 import { Icon } from "@/shared/ui/Icon";
 import { TokenEstimate } from "@/shared/ui/TokenEstimate";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -88,6 +102,10 @@ import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
 
 const noop = () => {};
+
+// Widgets outside the inspector that use arrow keys themselves.
+const OUTSIDE_ARROW_OWNERS =
+  '[role="menu"], [role="listbox"], [role="slider"], [role="separator"], [role="tablist"], select';
 
 interface GalleryItemModalProps {
   items: GalleryItem[];
@@ -108,6 +126,10 @@ interface GalleryItemModalProps {
   onCopied?: () => void | Promise<void>;
   onResolveIssue?: (item: GalleryItem) => void;
   onReviewCandidate?: (item: GalleryItem) => void;
+  focusView?: boolean;
+  onFocusViewChange?: (focus: boolean) => void;
+  transitionRef?: RefObject<WorkspaceTransition | null>;
+  suspended?: boolean;
 }
 
 export function GalleryItemModal({
@@ -127,6 +149,10 @@ export function GalleryItemModal({
   onCopied,
   onResolveIssue,
   onReviewCandidate,
+  focusView = true,
+  onFocusViewChange,
+  transitionRef,
+  suspended = false,
 }: GalleryItemModalProps) {
   const item = items[index];
   const { recordResolution, getResolution } = useMediaResolution();
@@ -142,6 +168,7 @@ export function GalleryItemModal({
     revertCaption,
     retrySave,
     flushPendingSave,
+    discardCaptionChanges,
   } = useGalleryItemCaption({ item, onCaptionSaved });
   const backupCaption = useCaptionBackup(item?.path, hasCaptionBackup);
   const captionCompletions = useMemo(() => buildCaptionVocabulary(items), [items]);
@@ -157,6 +184,15 @@ export function GalleryItemModal({
   const [editMode, setEditMode] = useState(false);
   const [revertConfirmOpen, setRevertConfirmOpen] = useState(false);
   const [comfyWorkflowOpen, setComfyWorkflowOpen] = useState(false);
+  const [inspectorWidth, setInspectorWidth] = useState(() => {
+    const width = Number(readStored("workspace-inspector-width"));
+    return width >= 320 && width <= 520 ? width : 380;
+  });
+  const narrow = useMediaQuery("(max-width: 999px)");
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
+  const pendingActionRef = useRef<WorkspaceAction | null>(null);
+  const [leaveFailed, setLeaveFailed] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -226,8 +262,36 @@ export function GalleryItemModal({
   const { transferPicker, overwritePrompt, transferring } = transfer;
   const otherWorkBusy = deleting || transferring !== null || gifToMp4.converting;
   const busy = otherWorkBusy || frameCapture.saving || videoEdit.applying || imageEdit.applying;
+  const leave = useCallback(
+    async (action: WorkspaceAction) => {
+      if (busy || leavingRef.current) return;
+      leavingRef.current = true;
+      setLeaving(true);
+      const saved = await flushPendingSave();
+      leavingRef.current = false;
+      setLeaving(false);
+      if (!saved) {
+        pendingActionRef.current = action;
+        setLeaveFailed(true);
+        return;
+      }
+      pendingActionRef.current = null;
+      setLeaveFailed(false);
+      await action();
+    },
+    [busy, flushPendingSave],
+  );
+
+  useEffect(() => {
+    if (!transitionRef) return;
+    transitionRef.current = leave;
+    return () => {
+      if (transitionRef.current === leave) transitionRef.current = null;
+    };
+  }, [leave, transitionRef]);
   // Frame mode stays out: this feeds ModalShell.suspended, which would make the slider inert.
   const childOverlayOpen =
+    suspended ||
     deleteConfirmOpen ||
     revertConfirmOpen ||
     comfyWorkflowOpen ||
@@ -263,27 +327,29 @@ export function GalleryItemModal({
   }, [index, items]);
 
   const toggleFrameMode = useCallback(() => {
+    onFocusViewChange?.(true);
     setEditMode(false);
     frameCapture.toggleFrameMode();
-  }, [frameCapture]);
+  }, [frameCapture, onFocusViewChange]);
 
   const toggleVideoEditMode = useCallback(() => {
+    onFocusViewChange?.(true);
     setFrameMode(false);
     videoEdit.toggleEditMode();
-  }, [videoEdit]);
+  }, [videoEdit, onFocusViewChange]);
 
   const toggleImageEditMode = useCallback(() => {
+    onFocusViewChange?.(true);
     setFrameMode(false);
     imageEdit.toggleEditMode();
-  }, [imageEdit]);
+  }, [imageEdit, onFocusViewChange]);
 
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
   const closeModal = useCallback(() => {
     if (busy) return;
-    flushPendingSave();
-    onClose();
-  }, [busy, flushPendingSave, onClose]);
+    void leave(onClose);
+  }, [busy, leave, onClose]);
 
   const openDeleteConfirm = useCallback(() => {
     if (busy) return;
@@ -297,16 +363,13 @@ export function GalleryItemModal({
 
   const handleResolveIssue = useCallback(() => {
     if (!item || busy || !onResolveIssue) return;
-    flushPendingSave();
-    // Hand over the editor buffer, not the folder snapshot: the flushed save has not reached disk yet.
-    onResolveIssue({ ...item, description: caption });
-  }, [busy, caption, flushPendingSave, item, onResolveIssue]);
+    void leave(() => onResolveIssue({ ...item, description: caption }));
+  }, [busy, caption, leave, item, onResolveIssue]);
 
   const handleReviewCandidate = useCallback(() => {
     if (!item || busy || !onReviewCandidate) return;
-    flushPendingSave();
-    onReviewCandidate(item);
-  }, [busy, flushPendingSave, item, onReviewCandidate]);
+    void leave(() => onReviewCandidate(item));
+  }, [busy, leave, item, onReviewCandidate]);
 
   const handleOpenInViewer = useCallback(async () => {
     if (!item || openingInViewer) return;
@@ -327,7 +390,11 @@ export function GalleryItemModal({
     if (!item || deleting) return;
 
     setDeleting(true);
-    flushPendingSave();
+    if (!(await flushPendingSave())) {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+      return;
+    }
 
     try {
       await deleteMedia(item.path);
@@ -348,20 +415,49 @@ export function GalleryItemModal({
   const canEditVideoItem = item ? isEditableVideo(item) : false;
   const canEditImageItem = item ? isEditableImage(item) : false;
   const editing = editMode && (canEditVideoItem || canEditImageItem);
+  const inline =
+    Boolean(onFocusViewChange) && !focusView && !narrow && !editing && !frameCapture.frameMode;
 
   useEffect(() => {
+    const goToStep = (step: NonNullable<ReturnType<typeof queueStepFor>>) => {
+      if (step === "previous") void leave(onPrevious);
+      else if (step === "next") void leave(onNext);
+      else if (onGoTo) void leave(() => onGoTo(queueIndexAfter(step, index, items.length)));
+    };
     const handleKey = (event: KeyboardEvent) => {
       if (childOverlayOpen || busy) return;
+      const outside =
+        inline && (!(event.target instanceof Node) || !modalRef.current?.contains(event.target));
+      // Beside the gallery, only paging reaches past the panel, and never into another widget.
+      if (outside) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (
+          event.defaultPrevented ||
+          getScrollLockDepth() > 0 ||
+          isEditableTarget(event.target) ||
+          target?.closest(OUTSIDE_ARROW_OWNERS)
+        )
+          return;
+        const step = queueStepFor(event);
+        if (!step) return;
+        event.preventDefault();
+        goToStep(step);
+        return;
+      }
 
       // First: the caption editor, where this gets pressed, has already prevented the default.
       if (matchesShortcut(event, SHORTCUTS.saveAndNext)) {
         event.preventDefault();
-        flushPendingSave();
-        onNext();
+        void leave(onNext);
         return;
       }
       // A mask surface claims arrows and Delete by preventing the default.
       if (event.defaultPrevented) return;
+      if (inline && matchesShortcut(event, SHORTCUTS.close) && getScrollLockDepth() === 0) {
+        event.preventDefault();
+        closeModal();
+        return;
+      }
       // A focused scrubber is exempt via isEditableTarget so arrows still step frames.
       if (isEditableTarget(event.target)) return;
 
@@ -375,9 +471,7 @@ export function GalleryItemModal({
       const step = queueStepFor(event);
       if (!step) return;
       event.preventDefault();
-      if (step === "previous") onPrevious();
-      else if (step === "next") onNext();
-      else onGoTo?.(queueIndexAfter(step, index, items.length));
+      goToStep(step);
     };
 
     window.addEventListener("keydown", handleKey);
@@ -387,8 +481,10 @@ export function GalleryItemModal({
   }, [
     busy,
     childOverlayOpen,
+    closeModal,
     editing,
-    flushPendingSave,
+    leave,
+    inline,
     frameCapture.frameMode,
     index,
     items.length,
@@ -426,17 +522,74 @@ export function GalleryItemModal({
         onClose={closeModal}
         busy={busy}
         suspended={childOverlayOpen}
-        // useGalleryOverlays holds the scroll lock, so depth is non-zero and nested must be stated.
+        // The media viewer remains the workspace's base overlay when returning from review.
         nested={false}
         escape={frameCapture.frameMode || editMode ? "none" : "bubble"}
         panelRef={modalRef}
+        inline={inline}
+        scrollLock="gallery-item-modal-open"
+        style={{ "--inspector-width": `${inspectorWidth}px` } as CSSProperties}
       >
+        {inline && (
+          <div
+            className="workspace-inspector-resize"
+            role="separator"
+            aria-label="Caption inspector width"
+            aria-orientation="vertical"
+            aria-valuemin={320}
+            aria-valuemax={520}
+            aria-valuenow={inspectorWidth}
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              event.preventDefault();
+              const width = Math.max(
+                320,
+                Math.min(520, inspectorWidth + (event.key === "ArrowLeft" ? 20 : -20)),
+              );
+              setInspectorWidth(width);
+              writeStored("workspace-inspector-width", String(width));
+            }}
+            onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              const right = modalRef.current?.getBoundingClientRect().right ?? window.innerWidth;
+              setInspectorWidth(Math.max(320, Math.min(520, right - event.clientX)));
+            }}
+            onPointerUp={(event) => {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+              writeStored("workspace-inspector-width", String(inspectorWidth));
+            }}
+          />
+        )}
         <header className="gallery-item-modal__header">
           <div className="gallery-item-modal__header-text">
             <h2 className="gallery-item-modal__title">{item.name}</h2>
+            {inline && (
+              <button
+                type="button"
+                className="gallery-item-modal__step"
+                onClick={() => void leave(onPrevious)}
+                disabled={busy}
+                aria-label="Previous item"
+              >
+                <Icon icon={iconChevronLeft} />
+              </button>
+            )}
             <span className="gallery-item-modal__counter">
               {index + 1} / {items.length}
             </span>
+            {inline && (
+              <button
+                type="button"
+                className="gallery-item-modal__step"
+                onClick={() => void leave(onNext)}
+                disabled={busy}
+                aria-label="Next item"
+              >
+                <Icon icon={iconChevronRight} />
+              </button>
+            )}
           </div>
           <div className="gallery-item-modal__header-actions">
             {canEditVideoItem && (
@@ -541,7 +694,7 @@ export function GalleryItemModal({
                   <button
                     type="button"
                     className="gallery-item-modal__copy"
-                    onClick={() => transfer.openTransferPicker("copy")}
+                    onClick={() => void leave(() => transfer.openTransferPicker("copy"))}
                     disabled={busy}
                     aria-busy={transferring === "copy" || undefined}
                     aria-label={`Copy ${item.name} to another folder`}
@@ -556,7 +709,7 @@ export function GalleryItemModal({
                   <button
                     type="button"
                     className="gallery-item-modal__move"
-                    onClick={() => transfer.openTransferPicker("move")}
+                    onClick={() => void leave(() => transfer.openTransferPicker("move"))}
                     disabled={busy}
                     aria-busy={transferring === "move" || undefined}
                     aria-label={`Move ${item.name} to another folder`}
@@ -580,15 +733,30 @@ export function GalleryItemModal({
                 <Icon icon={iconTrash2} />
               </button>
             </Tooltip>
-            <button
-              type="button"
-              className="gallery-item-modal__close"
-              onClick={closeModal}
-              disabled={busy}
-              aria-label="Close"
-            >
-              <Icon icon={iconX} />
-            </button>
+            <div className="gallery-item-modal__presentation-actions">
+              {onFocusViewChange && (
+                <Tooltip content={focusView ? "Return to caption inspector" : "Expand media view"}>
+                  <button
+                    type="button"
+                    className="gallery-item-modal__expand"
+                    aria-label={focusView ? "Return to caption inspector" : "Expand media view"}
+                    disabled={busy || editing || frameCapture.frameMode}
+                    onClick={() => onFocusViewChange(!focusView)}
+                  >
+                    <Icon icon={focusView ? iconMinimize : iconExpand} />
+                  </button>
+                </Tooltip>
+              )}
+              <button
+                type="button"
+                className="gallery-item-modal__close"
+                onClick={closeModal}
+                disabled={busy}
+                aria-label="Close"
+              >
+                <Icon icon={iconX} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -598,15 +766,17 @@ export function GalleryItemModal({
             editing && "gallery-item-modal__stage--editing",
           )}
         >
-          <button
-            type="button"
-            className="gallery-item-modal__nav gallery-item-modal__nav--prev"
-            onClick={onPrevious}
-            disabled={busy}
-            aria-label="Previous item"
-          >
-            <Icon icon={iconChevronLeft} />
-          </button>
+          {!inline && (
+            <button
+              type="button"
+              className="gallery-item-modal__nav gallery-item-modal__nav--prev"
+              onClick={() => void leave(onPrevious)}
+              disabled={busy}
+              aria-label="Previous item"
+            >
+              <Icon icon={iconChevronLeft} />
+            </button>
+          )}
 
           {itemIsVideo ? (
             <>
@@ -717,15 +887,17 @@ export function GalleryItemModal({
             />
           )}
 
-          <button
-            type="button"
-            className="gallery-item-modal__nav gallery-item-modal__nav--next"
-            onClick={onNext}
-            disabled={busy}
-            aria-label="Next item"
-          >
-            <Icon icon={iconChevronRight} />
-          </button>
+          {!inline && (
+            <button
+              type="button"
+              className="gallery-item-modal__nav gallery-item-modal__nav--next"
+              onClick={() => void leave(onNext)}
+              disabled={busy}
+              aria-label="Next item"
+            >
+              <Icon icon={iconChevronRight} />
+            </button>
+          )}
         </div>
 
         {frameCapture.frameMode &&
@@ -780,123 +952,177 @@ export function GalleryItemModal({
         )}
 
         {!editMode && (
-          <footer className="gallery-item-modal__footer">
-            <GalleryItemModalMeta
+          <>
+            <MediaInfoBar
+              className="gallery-item-modal__meta"
               item={item}
               resolution={resolution}
               hasComfyWorkflow={hasComfyWorkflow}
               onInspectComfyWorkflow={() => setComfyWorkflowOpen(true)}
             />
-
-            <div className="gallery-item-modal__caption-editor">
-              <div className="gallery-item-modal__caption-toolbar">
-                <div className="gallery-item-modal__caption-heading">
-                  <label
-                    htmlFor="gallery-item-caption"
-                    className="gallery-item-modal__caption-label"
-                  >
-                    Caption
-                  </label>
-                  <TokenEstimate text={caption} className="gallery-item-modal__caption-tokens" />
-                </div>
-                <div className="gallery-item-modal__caption-actions">
-                  {backupCaption !== null && (
-                    <button
-                      type="button"
-                      className="gallery-item-modal__caption-action"
-                      onClick={() => handleCaptionChange(backupCaption)}
-                      disabled={busy || !canRestoreBackup}
-                      aria-label={`Restore the backed up caption for ${item.name}`}
-                      title="Replace this caption with the copy in .backup"
+            <footer className="gallery-item-modal__footer">
+              <div className="gallery-item-modal__caption-editor">
+                <div className="gallery-item-modal__caption-toolbar">
+                  <div className="gallery-item-modal__caption-heading">
+                    <label
+                      htmlFor="gallery-item-caption"
+                      className="gallery-item-modal__caption-label"
                     >
-                      <Icon
-                        icon={iconArchiveRestore}
-                        className="gallery-item-modal__caption-action-icon"
-                      />
-                      Restore backup
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="gallery-item-modal__caption-action"
-                    onClick={revertCaption}
-                    disabled={busy || !canRevert}
-                    aria-label={`Revert caption changes for ${item.name}`}
-                    title="Undo every change made since this file was opened"
-                  >
-                    <Icon
-                      icon={iconRotateCcw}
-                      className="gallery-item-modal__caption-action-icon"
-                    />
-                    Revert
-                  </button>
-                  {canResolveIssue && (
-                    <button
-                      type="button"
-                      className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
-                      onClick={handleResolveIssue}
-                      disabled={busy}
-                      aria-label={`Resolve caption issue for ${item.name}`}
-                    >
-                      <Icon
-                        icon={iconMessageCheck}
-                        className="gallery-item-modal__caption-action-icon"
-                      />
-                      Resolve issue
-                    </button>
-                  )}
-                  {canReviewCandidate && (
-                    <button
-                      type="button"
-                      className="gallery-item-modal__caption-action"
-                      onClick={handleReviewCandidate}
-                      disabled={busy}
-                      aria-label={`Review candidate for ${item.name}`}
-                      title="Compare the staged candidate against this file"
-                    >
-                      <Icon
-                        icon={iconScanSquare}
-                        className="gallery-item-modal__caption-action-icon"
-                      />
-                      Review candidate
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className={classNames(
-                      "gallery-item-modal__caption-action",
-                      copyState === "copied" && "gallery-item-modal__caption-action--copied",
-                      copyState === "error" && "gallery-item-modal__caption-action--error",
+                      Caption
+                    </label>
+                    <TokenEstimate text={caption} className="gallery-item-modal__caption-tokens" />
+                  </div>
+                  <div className="gallery-item-modal__caption-actions">
+                    {backupCaption !== null && (
+                      <button
+                        type="button"
+                        className="gallery-item-modal__caption-action"
+                        onClick={() => handleCaptionChange(backupCaption)}
+                        disabled={busy || !canRestoreBackup}
+                        aria-label={`Restore the backed up caption for ${item.name}`}
+                        title="Replace this caption with the copy in .backup"
+                      >
+                        <Icon
+                          icon={iconArchiveRestore}
+                          className="gallery-item-modal__caption-action-icon"
+                        />
+                        Restore backup
+                      </button>
                     )}
-                    onClick={() => {
-                      void copyText(copyContent);
-                    }}
-                    disabled={!canCopyCaption}
-                    aria-label={copyLabel}
-                  >
-                    <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
-                    {copyLabel}
-                  </button>
+                    <button
+                      type="button"
+                      className="gallery-item-modal__caption-action"
+                      onClick={revertCaption}
+                      disabled={busy || !canRevert}
+                      aria-label={`Revert caption changes for ${item.name}`}
+                      title="Undo every change made since this file was opened"
+                    >
+                      <Icon
+                        icon={iconRotateCcw}
+                        className="gallery-item-modal__caption-action-icon"
+                      />
+                      Revert
+                    </button>
+                    {canResolveIssue && (
+                      <button
+                        type="button"
+                        className="gallery-item-modal__caption-action gallery-item-modal__caption-action--issue"
+                        onClick={handleResolveIssue}
+                        disabled={busy}
+                        aria-label={`Resolve caption issue for ${item.name}`}
+                      >
+                        <Icon
+                          icon={iconMessageCheck}
+                          className="gallery-item-modal__caption-action-icon"
+                        />
+                        Resolve issue
+                      </button>
+                    )}
+                    {canReviewCandidate && (
+                      <button
+                        type="button"
+                        className="gallery-item-modal__caption-action"
+                        onClick={handleReviewCandidate}
+                        disabled={busy}
+                        aria-label={`Review candidate for ${item.name}`}
+                        title="Compare the staged candidate against this file"
+                      >
+                        <Icon
+                          icon={iconScanSquare}
+                          className="gallery-item-modal__caption-action-icon"
+                        />
+                        Review candidate
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={classNames(
+                        "gallery-item-modal__caption-action",
+                        copyState === "copied" && "gallery-item-modal__caption-action--copied",
+                        copyState === "error" && "gallery-item-modal__caption-action--error",
+                      )}
+                      onClick={() => {
+                        void copyText(copyContent);
+                      }}
+                      disabled={!canCopyCaption}
+                      aria-label={copyLabel}
+                    >
+                      <Icon icon={iconCopy} className="gallery-item-modal__caption-action-icon" />
+                      {copyLabel}
+                    </button>
+                  </div>
                 </div>
+                <CaptionEditor
+                  // Fresh editor per item: CodeMirror maps selection through a document swap.
+                  key={item.path}
+                  id="gallery-item-caption"
+                  completions={captionCompletions}
+                  value={caption}
+                  placeholder={placeholder}
+                  variant={captionDisplay.variant}
+                  saveState={saveState}
+                  searchQuery={searchQuery}
+                  searchRegex={searchRegex}
+                  aria-label={`Caption for ${item.name}`}
+                  aria-invalid={saveState === "error"}
+                  onChange={handleCaptionChange}
+                  editable={!leaving}
+                />
+                <CaptionSaveStatus state={saveState} error={saveError} onRetry={retrySave} />
+                {leaveFailed && (
+                  <div className="workspace-save-error" role="alert">
+                    <p>
+                      The caption could not be saved. Retry saving or discard the unsaved changes to
+                      continue.
+                    </p>
+                    <button
+                      type="button"
+                      className="workspace-button"
+                      disabled={leaving}
+                      onClick={async () => {
+                        if (leavingRef.current) return;
+                        leavingRef.current = true;
+                        setLeaving(true);
+                        const saved = await retrySave();
+                        leavingRef.current = false;
+                        setLeaving(false);
+                        if (saved) {
+                          const action = pendingActionRef.current;
+                          if (action) await leave(action);
+                        }
+                      }}
+                    >
+                      Retry and continue
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-button"
+                      disabled={leaving}
+                      onClick={() => {
+                        const action = pendingActionRef.current;
+                        pendingActionRef.current = null;
+                        discardCaptionChanges();
+                        setLeaveFailed(false);
+                        void action?.();
+                      }}
+                    >
+                      Discard and continue
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-button"
+                      onClick={() => {
+                        pendingActionRef.current = null;
+                        setLeaveFailed(false);
+                      }}
+                    >
+                      Keep editing
+                    </button>
+                  </div>
+                )}
               </div>
-              <CaptionEditor
-                // Fresh editor per item: CodeMirror maps selection through a document swap.
-                key={item.path}
-                id="gallery-item-caption"
-                completions={captionCompletions}
-                value={caption}
-                placeholder={placeholder}
-                variant={captionDisplay.variant}
-                saveState={saveState}
-                searchQuery={searchQuery}
-                searchRegex={searchRegex}
-                aria-label={`Caption for ${item.name}`}
-                aria-invalid={saveState === "error"}
-                onChange={handleCaptionChange}
-              />
-              <CaptionSaveStatus state={saveState} error={saveError} onRetry={retrySave} />
-            </div>
-          </footer>
+            </footer>
+          </>
         )}
       </ModalShell>
 

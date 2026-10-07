@@ -25,8 +25,10 @@ import { useQuickActionHost } from "@/features/quickAction/hooks/useQuickActionH
 import { filterSubfoldersBySearch } from "@/features/gallery/lib/query";
 import { useDocumentTitle } from "@/shared/hooks/useDocumentTitle";
 import type { GalleryItem, JobType } from "@/shared/types";
+import { useWorkspaceTransitions } from "@/app/hooks/useWorkspaceTransitions";
 
 export function useAppWorkspace() {
+  const { transitionRef, requestTransition } = useWorkspaceTransitions();
   const mainRef = useRef<HTMLElement>(null);
   const selection = useGallerySelection();
   const { ostrisAvailable } = useJobs();
@@ -37,11 +39,16 @@ export function useAppWorkspace() {
     loading,
     refreshing,
     error,
-    navigateTo,
+    navigateTo: navigateToBase,
     setFolder,
     reloadFolder: refreshFolder,
     scrollIntent,
-  } = useFolderNavigation(selection.clearSelection);
+  } = useFolderNavigation(selection.clearSelection, requestTransition);
+
+  const navigateTo = useCallback(
+    (path?: string) => requestTransition(() => navigateToBase(path)),
+    [navigateToBase, requestTransition],
+  );
 
   const folderNotFound = error?.kind === "folder-not-found";
 
@@ -92,6 +99,7 @@ export function useAppWorkspace() {
     mainRef,
     refreshFolder,
     syncBaseline,
+    requestTransition,
   });
 
   const { searchQuery, searchRegex, searchNames } = gallery.query;
@@ -162,12 +170,14 @@ export function useAppWorkspace() {
   });
 
   // Set from useAutomationHost's return below, which in turn needs these handlers.
-  const requestJobStartRef = useRef<(jobType: JobType) => void>(() => {});
+  const requestJobStartRef = useRef<
+    (jobType: JobType, paths?: string[], kind?: "selected" | "visible") => void
+  >(() => {});
 
   const retryFailedFiles = useCallback(
     (jobType: JobType, paths: string[]) => {
       gallery.selectOnlyPaths(paths);
-      requestJobStartRef.current(jobType);
+      requestJobStartRef.current(jobType, paths, "selected");
     },
     [gallery],
   );
@@ -175,7 +185,11 @@ export function useAppWorkspace() {
   const runJobAgain = useCallback(
     (jobType: JobType) => {
       gallery.exitSelectionMode();
-      requestJobStartRef.current(jobType);
+      requestJobStartRef.current(
+        jobType,
+        gallery.query.filteredItems.map((item) => item.path),
+        "visible",
+      );
     },
     [gallery],
   );
@@ -188,7 +202,6 @@ export function useAppWorkspace() {
     folder: folder?.path,
     breadcrumbs: folder?.breadcrumbs ?? [],
     items,
-    filteredItems: gallery.query.filteredItems,
     hasSysprompt: folder?.has_sysprompt ?? false,
     syspromptApplies: folder?.sysprompt_applies ?? false,
     hasCaptionRules: folder?.has_caption_rules ?? false,
@@ -196,20 +209,36 @@ export function useAppWorkspace() {
     ostrisAvailable,
     comfyPresetsAvailable,
     getJobPaths: gallery.getJobPaths,
+    jobScopeKind: gallery.jobScopeKind,
+    requestTransition,
     automation: folderAutomation,
     onEditSysprompt: gallery.openSysPrompt,
     issueCount: gallery.issueCount,
     onResolveIssues:
-      gallery.issueCount > 0 ? () => gallery.issueResolver.openIssueResolver(items) : undefined,
+      gallery.issueCount > 0
+        ? () =>
+            void requestTransition(() => {
+              gallery.closeGalleryItem();
+              gallery.issueResolver.openIssueResolver(items);
+            })
+        : undefined,
     duplicateGroupCount,
     onResolveDuplicates:
       duplicateGroupCount > 0 && folder?.path
-        ? () => void duplicateResolver.openDuplicateResolver(folder.path)
+        ? () =>
+            void requestTransition(async () => {
+              gallery.closeGalleryItem();
+              await duplicateResolver.openDuplicateResolver(folder.path);
+            })
         : undefined,
     candidateCount,
     onReviewCandidates:
       candidateCount > 0 && folder?.path
-        ? () => void candidateReview.openCandidateReview(folder.path, items)
+        ? () =>
+            void requestTransition(async () => {
+              gallery.closeGalleryItem();
+              await candidateReview.openCandidateReview(folder.path, items);
+            })
         : undefined,
     onOpenItem: gallery.openGalleryItem,
     onRetryFailed: retryFailedFiles,
@@ -257,7 +286,7 @@ export function useAppWorkspace() {
     refreshFolder,
     onOpenFolderPicker: openFolderPicker,
     onCreateFolder: createFolder.openDialog,
-    panel: automation.panelProps,
+    panel: automation.actions,
     selection: selectionActions,
     selectedCount: gallery.visibleSelectedCount,
     selectionMode: selection.selectionMode,
@@ -273,6 +302,7 @@ export function useAppWorkspace() {
 
   return {
     mainRef,
+    transitionRef,
     folder,
     loading,
     refreshing,

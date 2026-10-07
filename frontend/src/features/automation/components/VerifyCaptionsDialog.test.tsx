@@ -17,7 +17,7 @@ function renderDialog(
 ) {
   renderWithQueryClient(
     <VerifyCaptionsDialog
-      scope={{ itemCount: 12, folderLabel: "Photos", fromSelection: false }}
+      scope={{ itemCount: 12, folderLabel: "Photos", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}

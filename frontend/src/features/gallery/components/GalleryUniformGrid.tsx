@@ -26,7 +26,7 @@ function estimateRowSize(row: GalleryItem[], layout: GalleryModeLayout): number 
 }
 
 export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUniformGridProps) {
-  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo } =
+  const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
     useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
   const layout = galleryLayoutFor(displayMode);
@@ -90,6 +90,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                 {rowItems.map((item) =>
                   displayMode === "list" ? (
                     <GalleryListRow
+                      inspected={inspectedPath === item.path}
                       key={item.path}
                       item={item}
                       onSelect={onSelect}
@@ -100,6 +101,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                     />
                   ) : (
                     <GalleryCard
+                      inspected={inspectedPath === item.path}
                       key={item.path}
                       item={item}
                       onSelect={onSelect}

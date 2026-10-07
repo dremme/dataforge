@@ -29,7 +29,7 @@ function renderDialog(
 ) {
   renderWithQueryClient(
     <TrainLoraDialog
-      scope={{ itemCount: 24, folderLabel: "landscapes", fromSelection: false }}
+      scope={{ itemCount: 24, folderLabel: "landscapes", kind: "folder" as const }}
       initialSettings={{ ...DEFAULTS, ...overrides }}
       onConfirm={onConfirm}
       onCancel={vi.fn()}

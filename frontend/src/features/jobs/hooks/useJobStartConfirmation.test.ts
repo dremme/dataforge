@@ -5,6 +5,30 @@ import { useJobStartConfirmation } from "./useJobStartConfirmation";
 const breadcrumbs = [{ name: "Photos", path: "C:\\Photos" }];
 
 describe("useJobStartConfirmation", () => {
+  it("freezes paths when the confirmation opens", async () => {
+    const paths = ["C:\\Photos\\one.png"];
+    const startJob = vi.fn().mockResolvedValue({ id: "job-1" });
+    const { result } = renderHook(() =>
+      useJobStartConfirmation("C:\\Photos", breadcrumbs, startJob, () => paths),
+    );
+    act(() => result.current.requestJobStart("strip_metadata"));
+    paths.push("C:\\Photos\\two.png");
+    await act(async () => result.current.confirmPendingJobStart());
+    expect(startJob).toHaveBeenCalledWith("strip_metadata", "C:\\Photos", undefined, [
+      "C:\\Photos\\one.png",
+    ]);
+  });
+
+  it("does not open or submit an empty scope", () => {
+    const startJob = vi.fn();
+    const { result } = renderHook(() =>
+      useJobStartConfirmation("C:\\Photos", breadcrumbs, startJob, () => []),
+    );
+    act(() => result.current.requestJobStart("strip_metadata"));
+    expect(result.current.pendingJobStart).toBeNull();
+    act(() => result.current.confirmPendingJobStart());
+    expect(startJob).not.toHaveBeenCalled();
+  });
   it("starts strip metadata after confirmation", async () => {
     const startJob = vi.fn().mockResolvedValue({ id: "job-2" });
     const { result } = renderHook(() =>

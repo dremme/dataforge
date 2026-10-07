@@ -67,13 +67,15 @@ describe("App: gallery item modal", () => {
 
     await user.click(screen.getByRole("button", { name: "View sunset.png" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     expect(within(dialog).getByRole("heading", { name: "sunset.png" })).toBeInTheDocument();
 
     await user.click(within(dialog).getAllByRole("button", { name: "Close" })[0]);
 
     await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Viewing sunset.png" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("complementary", { name: "Viewing sunset.png" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -88,7 +90,7 @@ describe("App: gallery item modal", () => {
 
     await user.click(screen.getByRole("button", { name: "View sunset.png" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(within(dialog).getByRole("button", { name: "Delete sunset.png" }));
 
     const confirmDialog = await screen.findByRole("alertdialog", { name: "Delete file?" });
@@ -107,7 +109,7 @@ describe("App: gallery item modal", () => {
 
     await user.click(screen.getByRole("button", { name: "View sunset.png" }));
 
-    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const dialog = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(
       within(dialog).getByRole("button", { name: "Move sunset.png to another folder" }),
     );
@@ -116,7 +118,7 @@ describe("App: gallery item modal", () => {
     await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
     await user.click(within(picker).getByRole("button", { name: "Move here" }));
 
-    await screen.findByRole("dialog", { name: "Viewing waves.mp4" });
+    await screen.findByRole("complementary", { name: "Viewing waves.mp4" });
   });
 
   it("counts the selection against the visible media while selecting", async () => {
@@ -148,7 +150,7 @@ describe("App: gallery item modal", () => {
 
     await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
 
-    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(
       within(modal).getByRole("button", { name: "Resolve caption issue for sunset.png" }),
     );
@@ -161,7 +163,7 @@ describe("App: gallery item modal", () => {
     await user.type(caption, "Golden hour over the river");
     await user.click(within(resolver).getByRole("button", { name: "Resolve" }));
 
-    const reopened = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const reopened = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await waitFor(() => {
       expect(within(reopened).getByLabelText("Caption for sunset.png")).toHaveValue(
         "Golden hour over the river",
@@ -179,7 +181,7 @@ describe("App: gallery item modal", () => {
 
     await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
 
-    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(
       within(modal).getByRole("button", { name: "Resolve caption issue for sunset.png" }),
     );
@@ -189,18 +191,19 @@ describe("App: gallery item modal", () => {
     });
     await user.click(within(resolver).getByRole("button", { name: "Close" }));
 
-    const reopened = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const reopened = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     expect(
       within(reopened).getByRole("button", { name: "Resolve caption issue for sunset.png" }),
     ).toBeInTheDocument();
   });
 
-  it("closes to the gallery when the issue queue was started from the automation panel", async () => {
+  it("closes to the gallery when the issue queue was started from the Review menu", async () => {
     const user = userEvent.setup();
     installIssueBackend();
     await renderApp();
 
-    await user.click(await screen.findByRole("button", { name: "Resolve 1 caption issue" }));
+    await user.click(await screen.findByRole("button", { name: /^Review / }));
+    await user.click(await screen.findByRole("menuitem", { name: /Caption issues/ }));
 
     const resolver = await screen.findByRole("dialog", {
       name: "Resolve caption issue for sunset.png",
@@ -220,18 +223,22 @@ describe("App: gallery item modal", () => {
 
     await user.click(await screen.findByRole("button", { name: "View sunset.png" }));
 
-    const modal = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const modal = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
     await user.click(
       within(modal).getByRole("button", { name: "Review candidate for sunset.png" }),
     );
 
     const review = await screen.findByRole("dialog", { name: "Review candidate 1 of 1" });
     expect(within(review).getByRole("heading", { name: "sunset.png" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Viewing sunset.png" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("complementary", { name: "Viewing sunset.png" }),
+    ).not.toBeInTheDocument();
 
     await user.click(within(review).getByRole("button", { name: "Close" }));
 
-    expect(await screen.findByRole("dialog", { name: "Viewing sunset.png" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("complementary", { name: "Viewing sunset.png" }),
+    ).toBeInTheDocument();
   });
 
   it("offers no candidate review for a file without one", async () => {
@@ -241,7 +248,7 @@ describe("App: gallery item modal", () => {
 
     await user.click(await screen.findByRole("button", { name: "View waves.mp4" }));
 
-    const modal = await screen.findByRole("dialog", { name: "Viewing waves.mp4" });
+    const modal = await screen.findByRole("complementary", { name: "Viewing waves.mp4" });
     expect(
       within(modal).queryByRole("button", { name: /^Review candidate for / }),
     ).not.toBeInTheDocument();

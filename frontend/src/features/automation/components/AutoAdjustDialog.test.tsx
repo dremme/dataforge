@@ -5,7 +5,7 @@ import { AutoAdjustDialog } from "./AutoAdjustDialog";
 
 const REPLACE_LABEL = "Replace earlier adjustments";
 const RESET_LABEL = "Reset all color adjustments to zero";
-const SCOPE = { itemCount: 12, folderLabel: "Photos", fromSelection: false };
+const SCOPE = { itemCount: 12, folderLabel: "Photos", kind: "folder" as const };
 
 describe("AutoAdjustDialog", () => {
   it("keeps earlier adjustments unless replacing is ticked", async () => {

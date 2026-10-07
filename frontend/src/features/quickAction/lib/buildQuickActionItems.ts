@@ -13,10 +13,11 @@ import {
   JOB_TYPE_META,
   PRIMARY_JOB_TYPE,
   SECONDARY_JOB_TYPES,
-  isJobAvailable,
+  jobMenuLabelFor,
+  jobStartBlock,
   jobTypeIconFor,
   jobTypeLabelFor,
-  type JobAvailability,
+  type JobStartContext,
 } from "@/features/jobs/lib/jobMeta";
 import { candidateCountPhrase } from "@/features/gallery/lib/settleAllCandidates";
 import { SIDECAR_SWEEP_KINDS, sidecarCountPhrase } from "@/features/gallery/lib/sidecarSweep";
@@ -174,32 +175,25 @@ export function buildJobItems(
 }
 
 export interface RunJobOptions {
-  availability: JobAvailability;
-  canStart: boolean;
-  hasFolder: boolean;
+  startContext: JobStartContext;
   onRequestStart: (jobType: JobType) => void;
 }
 
 export function buildRunJobItems({
-  availability,
-  canStart,
-  hasFolder,
+  startContext,
   onRequestStart,
 }: RunJobOptions): QuickActionItem[] {
   return ALL_JOB_TYPES.map((type) => {
-    const meta = JOB_TYPE_META[type] as {
-      menuLabel?: string;
-      menuDescription?: string;
-    };
-
+    const { blocked, reason } = jobStartBlock(type, startContext);
+    const description = JOB_TYPE_META[type].menuDescription;
     return {
       id: quickActionRunJobId(type),
       section: "run",
-      label: meta.menuLabel ?? jobTypeLabelFor(type),
-      detail: meta.menuDescription,
+      label: jobMenuLabelFor(type),
+      detail: reason ? `${description} ${reason}` : description,
       icon: jobTypeIconFor(type),
       keywords: jobTypeLabelFor(type),
-      disabled: !hasFolder || !canStart || !isJobAvailable(type, availability),
+      disabled: blocked,
       run: () => onRequestStart(type),
     };
   });

@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { BreadcrumbBar } from "@/features/folder/components/BreadcrumbBar";
 import { Toolbar } from "@/features/gallery/components/Toolbar";
 import type { FolderResponse } from "@/shared/types";
@@ -8,8 +8,8 @@ type AppHeaderProps = {
   folderNotFound?: boolean;
   refreshing?: boolean;
   onNavigate: (path?: string) => void;
-  onOpenFolderPicker: () => void;
   toolbarProps: ComponentProps<typeof Toolbar>;
+  activity?: ReactNode;
 };
 
 export function AppHeader({
@@ -17,8 +17,8 @@ export function AppHeader({
   folderNotFound,
   refreshing = false,
   onNavigate,
-  onOpenFolderPicker,
   toolbarProps,
+  activity,
 }: AppHeaderProps) {
   return (
     <header className="app-nav">
@@ -29,9 +29,9 @@ export function AppHeader({
           hasSubfolders={folder.subfolder_count > 0}
           folderNotFound={folderNotFound}
           onNavigate={onNavigate}
-          onOpenPicker={onOpenFolderPicker}
         />
         <Toolbar {...toolbarProps} />
+        {activity}
       </div>
       {refreshing && (
         <div className="app-nav__refresh" role="status" aria-label="Refreshing folder" />

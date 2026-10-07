@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState, type RefObject } from "react";
 import { useGalleryItemModal } from "@/features/gallery/hooks/useGalleryItemModal";
 import { useScrollLock } from "@/shared/hooks/useScrollLock";
 import type { GalleryItem } from "@/shared/types";
+import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
+import { readStored, writeStored } from "@/shared/lib/storage";
 
 type UseGalleryOverlaysArgs = {
   images: GalleryItem[];
   filteredItems: GalleryItem[];
   folderResetToken: number;
   mainRef: RefObject<HTMLElement | null>;
+  requestTransition?: WorkspaceTransition;
 };
 
 export function useGalleryOverlays({
@@ -15,8 +18,16 @@ export function useGalleryOverlays({
   filteredItems,
   folderResetToken,
   mainRef,
+  requestTransition,
 }: UseGalleryOverlaysArgs) {
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [focusView, setFocusViewState] = useState(
+    () => readStored("gallery-focus-view") === "true",
+  );
+  const setFocusView = useCallback((expanded: boolean) => {
+    setFocusViewState(expanded);
+    writeStored("gallery-focus-view", String(expanded));
+  }, []);
 
   const {
     selectedPath,
@@ -36,23 +47,27 @@ export function useGalleryOverlays({
 
   const openGalleryItem = useCallback(
     (path: string) => {
-      setInstructionsOpen(false);
-      openGalleryItemBase(path);
+      const open = () => {
+        setInstructionsOpen(false);
+        openGalleryItemBase(path);
+      };
+      if (requestTransition) void requestTransition(open);
+      else open();
     },
-    [openGalleryItemBase],
+    [openGalleryItemBase, requestTransition],
   );
 
   const openSysPrompt = useCallback(() => {
-    closeGalleryItem();
-    setInstructionsOpen(true);
-  }, [closeGalleryItem]);
+    const open = () => {
+      setInstructionsOpen(true);
+    };
+    if (requestTransition) void requestTransition(open);
+    else open();
+  }, [requestTransition]);
 
   const closeInstructions = useCallback(() => setInstructionsOpen(false), []);
 
-  const modalOpen = selectedPath !== null || instructionsOpen;
-  const modalLockClass =
-    selectedPath !== null ? "gallery-item-modal-open" : "folder-instructions-modal-open";
-  useScrollLock(modalOpen, modalLockClass, mainRef);
+  useScrollLock(instructionsOpen, "folder-instructions-modal-open", mainRef);
 
   return {
     selectedPath,
@@ -67,5 +82,7 @@ export function useGalleryOverlays({
     openSysPrompt,
     closeInstructions,
     instructionsOpen,
+    focusView,
+    setFocusView,
   };
 }
