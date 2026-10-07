@@ -12,8 +12,9 @@ import argparse
 import os
 import sys
 import unittest
+import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import coverage
@@ -22,6 +23,7 @@ BACKEND = Path(__file__).resolve().parent.parent / "backend"
 
 PROGRESS_ENV = "DATAFORGE_PROGRESS"
 PROGRESS_PREFIX = "@progress "
+WARNINGS_PREFIX = "@warnings "
 COVERAGE_ENV = "DATAFORGE_COVERAGE_DIR"
 COVERAGE_FILE = "backend.json"
 
@@ -38,6 +40,22 @@ def progress_result(total: int) -> type[unittest.TextTestResult]:
             self.stream.flush()
 
     return ProgressResult
+
+
+class WarningCounter:
+    """Counts warnings as they are shown, then shows them as before.
+
+    A passing test's buffer swallows the text, so the count is all ``run_checks`` gets. Warnings
+    a test expects (``assertWarns``, ``catch_warnings(record=True)``) bypass this hook.
+    """
+
+    def __init__(self) -> None:
+        self.count = 0
+        self._show = warnings.showwarning
+
+    def show(self, *args: Any, **kwargs: Any) -> None:
+        self.count += 1
+        self._show(*args, **kwargs)
 
 
 def start_coverage() -> coverage.Coverage | None:
@@ -63,6 +81,11 @@ if __name__ == "__main__":
     os.chdir(BACKEND)
     sys.path.insert(0, str(BACKEND))
     collector = start_coverage()
+    counter = WarningCounter()
+    warnings.showwarning = counter.show
+    if not sys.warnoptions:
+        # The runner applies this only around the run; set it now so import-time warnings count.
+        warnings.simplefilter("default")
 
     from testing_fixtures import isolate_test_database
 
@@ -83,4 +106,6 @@ if __name__ == "__main__":
     close_all_connections()
     if collector is not None:
         write_coverage(collector)
+    if counter.count:
+        print(f"{WARNINGS_PREFIX}{counter.count}")
     sys.exit(0 if result.wasSuccessful() else 1)

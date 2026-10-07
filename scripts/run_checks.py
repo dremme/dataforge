@@ -4,6 +4,8 @@ Run from the project root:
   backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only] [--scope SCOPE]
 
 A passing step is one line. A failing step prints everything it wrote, and the run stops there.
+Lint and type warnings fail their step. Warnings raised while tests pass are only counted;
+``run_tests.py -v`` or ``npm test`` shows them.
 
 ``--scope`` exists for CI, which matrixes the backend over Python versions and so
 would otherwise repeat the (version-independent) frontend checks for each one.
@@ -39,6 +41,7 @@ ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 BACKEND_TEST_COUNT = re.compile(r"^Ran (\d+) tests? in", re.MULTILINE)
 FRONTEND_TEST_COUNT = re.compile(r"^\s*Tests\s.*\((\d+)\)\s*$", re.MULTILINE)
 PROGRESS_MARKER = re.compile(r"@progress (\d+)/(\d+)\n?")
+WARNINGS_MARKER = re.compile(r"@warnings (\d+)\n?")
 PROGRESS_ENV = "DATAFORGE_PROGRESS"
 COVERAGE_ENV = "DATAFORGE_COVERAGE_DIR"
 BACKEND_COVERAGE_FILE = "backend.json"
@@ -51,6 +54,7 @@ BOLD = "1"
 DIM = "2"
 RED = "31"
 GREEN = "32"
+YELLOW = "33"
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,7 @@ class Outcome:
     returncode: int
     output: str
     seconds: float
+    warnings: int = 0
 
 
 @dataclass(frozen=True)
@@ -161,7 +166,15 @@ class Console:
         )
         self._redraw(head + done + todo + tail, painted)
 
-    def finished(self, label: str, *, passed: bool, seconds: float, detail: str = "") -> None:
+    def finished(
+        self,
+        label: str,
+        *,
+        passed: bool,
+        seconds: float,
+        detail: str = "",
+        warnings: int = 0,
+    ) -> None:
         self._clear_pending()
         glyph = (
             self._paint(self._glyphs.passed, GREEN)
@@ -172,6 +185,9 @@ class Console:
         line += "  " + self._paint(_format_duration(seconds).rjust(6), DIM)
         if detail:
             line += "  " + self._paint(detail, DIM)
+        if warnings:
+            line += self._paint(", ", DIM) if detail else "  "
+            line += self._paint(_plural(warnings, "warning"), YELLOW)
         self._write(line)
 
     def failure(self, step: Step, outcome: Outcome) -> None:
@@ -446,6 +462,7 @@ def _capture(
 ) -> Outcome:
     started = time.monotonic()
     chunks: list[str] = []
+    warnings = 0
     with subprocess.Popen(
         step.command,
         cwd=step.cwd,
@@ -464,11 +481,15 @@ def _capture(
                     line = line[: marker.start()] + line[marker.end() :]
                     if on_progress is not None and int(marker[2]) > 0:
                         on_progress(int(marker[1]) / int(marker[2]))
+                counted = WARNINGS_MARKER.search(line)
+                if counted:
+                    line = line[: counted.start()] + line[counted.end() :]
+                    warnings += int(counted[1])
                 chunks.append(line)
         except BaseException:
             process.kill()
             raise
-    return Outcome(process.returncode, "".join(chunks), time.monotonic() - started)
+    return Outcome(process.returncode, "".join(chunks), time.monotonic() - started, warnings)
 
 
 def _detail(step: Step, output: str) -> str:
@@ -483,7 +504,13 @@ def _execute(console: Console, step: Step, environ: Mapping[str, str]) -> bool:
     outcome = _capture(step, environ, lambda fraction: console.progress(step.label, fraction))
     passed = outcome.returncode == 0
     detail = _detail(step, outcome.output) if passed else ""
-    console.finished(step.label, passed=passed, seconds=outcome.seconds, detail=detail)
+    console.finished(
+        step.label,
+        passed=passed,
+        seconds=outcome.seconds,
+        detail=detail,
+        warnings=outcome.warnings if passed else 0,
+    )
     if not passed:
         console.failure(step, outcome)
     return passed
