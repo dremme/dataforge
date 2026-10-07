@@ -11,10 +11,14 @@ const python = path.join(
   ".venv",
   process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
 );
-// High enough that a stalled lap shows as several dropped frames, not a fraction of one.
-const RATE = 60;
-// Seconds from the keyframe to the in point: enough decoding that a seek stalls the old loop.
-const IN_POINT = 4;
+// The fixture must make a seek to the in point slow while plain playback stays cheap, since CI
+// decodes in software. At 720p30 the single-player seek loop measured ~260 ms per lap, the
+// handoff 17-33 ms, and preparing the standby must finish well within one SPAN on a slow runner.
+const RATE = 30;
+const IN_POINT = 6;
+const SPAN = 3;
+// One keyframe, at the start: every seek to the in point decodes IN_POINT seconds of frames.
+const LENGTH = 10;
 
 interface Picture {
   now: number;
@@ -33,8 +37,6 @@ for (const overlays of [false, true]) {
     ).trim();
     test.setTimeout(60_000);
     const name = overlays ? "loop-overlays.mp4" : "loop-preview.mp4";
-    // One keyframe per five seconds and a heavy 1080p stream, so a seek to the in point decodes
-    // about 240 frames: the single-player seek loop measured ~450 ms there, the handoff 17 ms.
     execFileSync(ffmpeg, [
       "-v",
       "error",
@@ -42,19 +44,19 @@ for (const overlays of [false, true]) {
       "-f",
       "lavfi",
       "-i",
-      `testsrc2=size=1920x1080:rate=${RATE}`,
+      `testsrc2=size=1280x720:rate=${RATE}`,
       "-t",
-      "6",
+      String(LENGTH),
       "-c:v",
       "libx264",
       "-preset",
       "veryfast",
       "-b:v",
-      "40M",
+      "8M",
       "-g",
-      String(RATE * 5),
+      String(RATE * LENGTH),
       "-keyint_min",
-      String(RATE * 5),
+      String(RATE * LENGTH),
       "-sc_threshold",
       "0",
       "-pix_fmt",
@@ -117,7 +119,7 @@ for (const overlays of [false, true]) {
     await start.press("ArrowRight");
     await end.focus();
     await end.press("Home");
-    await end.press("Shift+ArrowRight");
+    for (let second = 0; second < SPAN; second += 1) await end.press("Shift+ArrowRight");
     await expect
       .poll(async () => Number(await start.getAttribute("aria-valuenow")))
       .toBeCloseTo(IN_POINT + 1 / RATE, 6);
@@ -143,9 +145,18 @@ for (const overlays of [false, true]) {
         const style = getComputedStyle(video);
         return style.visibility !== "hidden" && style.opacity !== "0";
       };
+      // A frame presented while its player is hidden appears when the loop reveals that player,
+      // which may be after the frame's own callback: count it from the next frame after the flip.
+      let showing = videos.findIndex(visible);
       videos.forEach((video, slot) => {
+        new MutationObserver(() => {
+          if (slot === showing || !visible(video)) return;
+          showing = slot;
+          const time = video.currentTime;
+          requestAnimationFrame((now) => frames.push({ now, time, slot }));
+        }).observe(video, { attributes: true, attributeFilter: ["style"] });
         const frame: VideoFrameRequestCallback = (now, metadata) => {
-          if (visible(video)) frames.push({ now, time: metadata.mediaTime, slot });
+          if (slot === showing) frames.push({ now, time: metadata.mediaTime, slot });
           audio.push(videos.filter((candidate) => !candidate.paused && !candidate.muted).length);
           video.requestVideoFrameCallback(frame);
         };
@@ -166,7 +177,7 @@ for (const overlays of [false, true]) {
     // Allow the paused standby to prepare before measuring repeated loops.
     await page.waitForTimeout(500);
     await page.getByRole("button", { name: "Play preview" }).click();
-    await page.waitForTimeout(6500);
+    await page.waitForTimeout(SPAN * 3500);
     await page.getByRole("button", { name: "Pause preview" }).click();
     const metrics = await page.evaluate(() => {
       const state = window as unknown as {
@@ -184,7 +195,7 @@ for (const overlays of [false, true]) {
             : [];
         });
       return {
-        gaps: lapGaps(state.previewFrames),
+        gaps: lapGaps([...state.previewFrames].sort((a, b) => a.now - b.now)),
         adjustGaps: lapGaps(state.previewDrawn.adjust),
         blurGaps: lapGaps(state.previewDrawn.blur),
         visibleSeeks: state.previewSeeks.filter((seek) => seek.visible).length,
@@ -197,17 +208,23 @@ for (const overlays of [false, true]) {
       contentType: "application/json",
     });
     const frameMs = 1000 / RATE;
-    expect(metrics.gaps.length).toBeGreaterThanOrEqual(3);
+    const summary = JSON.stringify({
+      gaps: metrics.gaps.map(Math.round),
+      adjustGaps: metrics.adjustGaps.map(Math.round),
+      blurGaps: metrics.blurGaps.map(Math.round),
+      seeks: metrics.seeks.map(({ slot, visible }) => ({ slot, visible })),
+    });
+    expect(metrics.gaps.length, summary).toBeGreaterThanOrEqual(3);
     // Frame timestamps are rounded to display-clock ticks; allow one tick on top of two frames.
-    expect(Math.max(...metrics.gaps)).toBeLessThanOrEqual(2 * frameMs + 1);
-    expect(metrics.visibleSeeks).toBe(0);
+    expect(Math.max(...metrics.gaps), summary).toBeLessThanOrEqual(2 * frameMs + 1);
+    expect(metrics.visibleSeeks, summary).toBe(0);
     expect(metrics.maxAudible).toBe(1);
     // The canvases cover the video elements, so what they draw is what the user sees. They follow
     // the switch a frame late, after React's commit, and draw times are not display-clock ticks.
     if (overlays) {
       for (const gaps of [metrics.adjustGaps, metrics.blurGaps]) {
-        expect(gaps.length).toBeGreaterThanOrEqual(3);
-        expect(Math.max(...gaps)).toBeLessThanOrEqual(3 * frameMs);
+        expect(gaps.length, summary).toBeGreaterThanOrEqual(3);
+        expect(Math.max(...gaps), summary).toBeLessThanOrEqual(3 * frameMs);
       }
     }
   });
