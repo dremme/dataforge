@@ -12,7 +12,10 @@ interface SettingsButtonProps {
 
 export function SettingsButton({ onOpen, showLabel }: SettingsButtonProps) {
   return (
-    <Tooltip content={<ShortcutHint shortcut={SHORTCUTS.settings}>Settings</ShortcutHint>}>
+    <Tooltip
+      content={<ShortcutHint shortcut={SHORTCUTS.settings}>Settings</ShortcutHint>}
+      placement="right"
+    >
       <button
         type="button"
         className="workspace-button"

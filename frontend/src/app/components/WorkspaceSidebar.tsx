@@ -130,7 +130,7 @@ export function WorkspaceSidebar({
               DataForge
             </strong>
           )}
-          <Tooltip content={toggleLabel}>
+          <Tooltip content={toggleLabel} placement="right">
             <button
               type="button"
               className="workspace-button workspace-button--icon"
@@ -144,6 +144,7 @@ export function WorkspaceSidebar({
         </div>
         <Tooltip
           content={<ShortcutHint shortcut={SHORTCUTS.openFolder}>Open another folder</ShortcutHint>}
+          placement="right"
         >
           <button
             type="button"
@@ -174,7 +175,10 @@ export function WorkspaceSidebar({
         )}
         {/* The rail keeps these as icons: the sidebar is the only place to create a folder. */}
         <div className="workspace-sidebar__footer">
-          <Tooltip content={<ShortcutHint shortcut={SHORTCUTS.newFolder}>New folder</ShortcutHint>}>
+          <Tooltip
+            content={<ShortcutHint shortcut={SHORTCUTS.newFolder}>New folder</ShortcutHint>}
+            placement="right"
+          >
             <button
               type="button"
               className="workspace-button"
@@ -188,7 +192,7 @@ export function WorkspaceSidebar({
             </button>
           </Tooltip>
           {/* The label names the action; the accent star shows the state in the rail. */}
-          <Tooltip content={favoriteLabel}>
+          <Tooltip content={favoriteLabel} placement="right">
             <button
               type="button"
               className={classNames(

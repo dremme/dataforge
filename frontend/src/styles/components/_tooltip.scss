@@ -31,6 +31,14 @@
       animation-name: tooltip-in-from-below;
     }
 
+    &[data-side="right"] {
+      animation-name: tooltip-in-from-left;
+    }
+
+    &[data-side="left"] {
+      animation-name: tooltip-in-from-right;
+    }
+
     &[data-state="closed"] {
       animation-name: tooltip-out;
       animation-fill-mode: forwards;
@@ -55,6 +63,19 @@
     bottom: -0.3125rem;
     transform: translateX(-50%) rotate(225deg);
   }
+
+  &__bubble[data-side="left"] &__arrow,
+  &__bubble[data-side="right"] &__arrow {
+    top: clamp(0.75rem, calc(50% - var(--anchored-shift, 0px)), calc(100% - 0.75rem));
+    left: -0.3125rem;
+    transform: translateY(-50%) rotate(-45deg);
+  }
+
+  &__bubble[data-side="left"] &__arrow {
+    right: -0.3125rem;
+    left: auto;
+    transform: translateY(-50%) rotate(135deg);
+  }
 }
 
 @keyframes tooltip-in {
@@ -78,6 +99,30 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes tooltip-in-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tooltip-in-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 

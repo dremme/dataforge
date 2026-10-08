@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, afterEach } from "vitest";
+import type { AnchoredSide } from "@/shared/lib/anchoredPosition";
 import { Tooltip } from "./Tooltip";
 
 describe("Tooltip", () => {
@@ -308,7 +309,11 @@ describe("Tooltip placement", () => {
   }
 
   /** jsdom has no layout; supply the trigger rect and bubble size. */
-  function showTooltip(anchor: Partial<DOMRect>, bubble: Partial<DOMRect>) {
+  function showTooltip(
+    anchor: Partial<DOMRect>,
+    bubble: Partial<DOMRect>,
+    placement?: AnchoredSide,
+  ) {
     vi.useFakeTimers();
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
     vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
@@ -321,7 +326,7 @@ describe("Tooltip placement", () => {
     });
 
     render(
-      <Tooltip content="Filter by media type and caption status">
+      <Tooltip content="Filter by media type and caption status" placement={placement}>
         <button type="button">Filter</button>
       </Tooltip>,
     );
@@ -373,5 +378,20 @@ describe("Tooltip placement", () => {
 
     expect(bubble.dataset.side).toBe("top");
     expect(bubble.style.top).toBe("732px");
+  });
+
+  it("centres the bubble beside the trigger on a preferred side", () => {
+    const bubble = showTooltip({ ...TRIGGER, left: 100 }, BUBBLE, "right");
+
+    expect(bubble.dataset.side).toBe("right");
+    expect(bubble.style.left).toBe("208px");
+    expect(bubble.style.top).toBe("290px");
+  });
+
+  it("flips a side placement that has no room", () => {
+    const bubble = showTooltip({ ...TRIGGER, left: 20 }, BUBBLE, "left");
+
+    expect(bubble.dataset.side).toBe("right");
+    expect(bubble.style.left).toBe("128px");
   });
 });

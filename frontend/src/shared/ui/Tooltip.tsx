@@ -12,6 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import type { AnchoredSide } from "@/shared/lib/anchoredPosition";
 import { classNames } from "@/shared/lib/classNames";
 import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 
@@ -48,6 +49,8 @@ interface TooltipProps {
   /** Show the bubble immediately, e.g. after a click, without waiting for hover. */
   open?: boolean;
   trigger?: "hover-focus";
+  /** Preferred side of the trigger; the bubble flips only when that side cannot hold it. */
+  placement?: AnchoredSide;
   /** Extra classes on the hover wrapper, e.g. when it has to be a flex item. */
   className?: string;
   /** Extra classes on the bubble, for content richer than a line of text. */
@@ -62,6 +65,7 @@ export function Tooltip({
   disabled = false,
   open = false,
   trigger = "hover-focus",
+  placement = "bottom",
   className,
   bubbleClassName,
   style,
@@ -166,7 +170,7 @@ export function Tooltip({
       <AnchoredLayer
         anchorRef={wrapperRef}
         open={shown}
-        placement="bottom-center"
+        placement={`${placement}-center`}
         offset={8}
         gutter={VIEWPORT_GUTTER}
         exitDuration={FADE_MS}
