@@ -339,7 +339,7 @@ export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
                 {job.processed} of {job.total} {job.job_type === "train_lora" ? "steps" : "files"}
               </span>
             )}
-            {timeLabel && <span className="workspace-activity__count">{timeLabel}</span>}
+            {!active && timeLabel && <span className="workspace-activity__count">{timeLabel}</span>}
             {active && job.current_name && (
               <span className="workspace-activity__current" title={job.current_name}>
                 {job.current_name}
@@ -364,6 +364,7 @@ export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
               </div>
             )}
             {active && <span className="workspace-activity__percent">{progressPercent(job)}%</span>}
+            {active && timeLabel && <span className="workspace-activity__count">{timeLabel}</span>}
             {!active && (
               <button
                 type="button"

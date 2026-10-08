@@ -262,6 +262,34 @@ describe("Gallery", () => {
     }
   });
 
+  it("changes the column count before the browser paints the resized gallery", () => {
+    const observers = captureResizeObservers();
+    const actEnvironment = Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT");
+
+    try {
+      const { container } = render(
+        withGallerySelection(
+          <main className="main">
+            <Gallery items={[imageItem, videoItem]} onSelect={vi.fn()} displayMode="small" />
+          </main>,
+        ),
+      );
+      const columns = () =>
+        (container.querySelector(".gallery-row") as HTMLElement).style.gridTemplateColumns;
+      const before = columns();
+
+      // As the browser runs it: no act() around the callback, nothing flushed afterwards.
+      Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
+      stubClientWidth(320);
+      observers.fire();
+
+      expect(columns()).not.toBe(before);
+    } finally {
+      Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", actEnvironment);
+      observers.restore();
+    }
+  });
+
   it("keeps small mode on equal-width columns", () => {
     const { container } = render(
       withGallerySelection(
