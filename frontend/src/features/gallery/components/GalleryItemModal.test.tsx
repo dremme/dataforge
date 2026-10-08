@@ -478,6 +478,40 @@ describe("GalleryItemModal", () => {
       return props;
     }
 
+    describe("docked beside the gallery", () => {
+      const docked = { focusView: false, onFocusViewChange: vi.fn() };
+
+      function focusOutside(element: HTMLElement) {
+        document.body.append(element);
+        element.focus();
+        return () => element.remove();
+      }
+
+      it("closes on Escape while focus is still on the card that opened it", async () => {
+        const user = userEvent.setup();
+        const cleanup = focusOutside(document.createElement("button"));
+        const props = renderKeyboardModal(docked);
+        await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+
+        await user.keyboard("{Escape}");
+
+        await waitFor(() => expect(props.onClose).toHaveBeenCalledTimes(1));
+        cleanup();
+      });
+
+      it("leaves Escape to a text field outside the panel", async () => {
+        const user = userEvent.setup();
+        const cleanup = focusOutside(document.createElement("input"));
+        const props = renderKeyboardModal(docked);
+        await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+
+        await user.keyboard("{Escape}");
+
+        expect(props.onClose).not.toHaveBeenCalled();
+        cleanup();
+      });
+    });
+
     it("pages with the arrow keys", async () => {
       const user = userEvent.setup();
       const props = renderKeyboardModal();

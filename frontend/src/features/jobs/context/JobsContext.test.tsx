@@ -444,6 +444,18 @@ describe("JobsProvider", () => {
       );
     });
 
+    it("keeps a job the drawer's filter hid unseen on close", async () => {
+      const latest = renderProvider();
+      await waitFor(() => expect(latest.current?.unseenCount).toBe(2));
+
+      act(() => latest.current!.toggleDrawer());
+      latest.current!.setShownJobFilter((entry) => entry.status === "completed");
+      act(() => latest.current!.closeDrawer());
+
+      expect(latest.current?.unseenCount).toBe(1);
+      expect(latest.current?.seenAtMs).toBe(Date.parse("2026-03-10T11:30:00.000Z") - 1);
+    });
+
     it("follows another tab marking the same jobs seen", async () => {
       const latest = renderProvider();
       await waitFor(() => expect(latest.current?.unseenCount).toBe(2));

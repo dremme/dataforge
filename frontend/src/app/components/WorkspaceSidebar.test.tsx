@@ -67,6 +67,19 @@ describe("WorkspaceSidebar", () => {
     expect(localStorage.getItem("workspace-sidebar-collapsed")).toBeNull();
   });
 
+  it.each([["Expand folder sidebar"], ["New folder"], [/^(Un)?favorite folder$/i]])(
+    "explains the rail's %s icon on hover",
+    async (name) => {
+      const user = userEvent.setup();
+      stubViewportWidth(1440);
+      renderSidebar();
+
+      await user.hover(screen.getByRole("button", { name }));
+
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
+    },
+  );
+
   it("opens narrow windows as an overlay that keeps the rail's track and closes on Escape", async () => {
     const user = userEvent.setup();
     stubViewportWidth(1100);

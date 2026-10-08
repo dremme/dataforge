@@ -64,4 +64,35 @@ describe("nextJobsSeenAt", () => {
     expect(nextJobsSeenAt([ahead], 0)).toBe(Date.parse("2026-03-10T10:00:00.000Z"));
     expect(nextJobsSeenAt([ahead], Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
   });
+
+  it("stops short of an unseen job the drawer did not show", () => {
+    const shown = job({
+      id: "shown",
+      status: "completed",
+      finished_at: "2026-03-10T10:00:00.000Z",
+    });
+    const hidden = job({
+      id: "hidden",
+      status: "completed",
+      finished_at: "2026-03-10T09:00:00.000Z",
+    });
+    const hiddenMs = Date.parse("2026-03-10T09:00:00.000Z");
+    const isShown = (entry: { id: string }) => entry.id === "shown";
+
+    const next = nextJobsSeenAt([shown, hidden], Number.MAX_SAFE_INTEGER, isShown, 0);
+
+    expect(isUnseenJob(hidden, next)).toBe(true);
+    expect(next).toBe(hiddenMs - 1);
+  });
+
+  it("passes a hidden job that was already seen", () => {
+    const hidden = job({
+      id: "hidden",
+      status: "completed",
+      finished_at: "2026-03-10T09:00:00.000Z",
+    });
+    const seenAtMs = Date.parse("2026-03-10T09:30:00.000Z");
+
+    expect(nextJobsSeenAt([hidden], 5e12, () => false, seenAtMs)).toBe(5e12);
+  });
 });

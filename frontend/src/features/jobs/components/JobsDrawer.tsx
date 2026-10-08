@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useJobHistory } from "@/features/jobs/hooks/useJobHistory";
 import {
@@ -31,7 +31,11 @@ import { useTicker } from "@/shared/hooks/useTicker";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { Tooltip } from "@/shared/ui/Tooltip";
-import { isActiveJobStatus, isTrainLoraCoTrackedByExternal } from "@/features/jobs/lib/jobs";
+import {
+  isActiveJobStatus,
+  isTrainLoraCoTrackedByExternal,
+  runningJobCount,
+} from "@/features/jobs/lib/jobs";
 import { ExternalJobCard } from "./ExternalJobCard";
 import { Icon } from "@/shared/ui/Icon";
 import { CancelJobConfirm } from "./CancelJobConfirm";
@@ -124,6 +128,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
     deleteJob,
     deleteAllJobs,
     seenAtMs,
+    setShownJobFilter,
   } = useJobs();
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
@@ -131,6 +136,14 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
   const [cancelTarget, setCancelTarget] = useState<Job | null>(null);
   const [filters, setFilters] = useState<JobFilters>(readJobFilters);
   const statusName = useId();
+
+  useEffect(() => {
+    setShownJobFilter(
+      isDefaultJobFilters(filters) ? null : (job) => matchesJobFilters(job, filters, currentFolder),
+    );
+    return () => setShownJobFilter(null);
+  }, [filters, currentFolder, setShownJobFilter]);
+
   const nowMs = useTicker(RETICK_MS);
 
   // Starting, finishing or deleting a job changes which stored page is right; progress does not.
@@ -166,8 +179,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
   const hasAnyJobs = hasLocalJobs || hasExternalJobs;
   const hasHistory = jobs.length > 0 || history.total > 0 || filtering;
   const recordCount = filtering ? null : Math.max(history.total, jobs.length);
-  const runningCount =
-    jobs.filter((job) => isActiveJobStatus(job.status)).length + externalJobs.length;
+  const runningCount = runningJobCount(jobs, externalJobs);
   const newCount = jobs.filter((job) => isUnseenJob(job, seenAtMs)).length;
   const summary = [
     runningCount > 0 && `${runningCount} running`,

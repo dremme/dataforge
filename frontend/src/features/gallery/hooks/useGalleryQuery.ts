@@ -18,6 +18,7 @@ import {
   filterBySearch,
   parseSortOption,
   processGalleryItems,
+  searchRegexError,
   type FileFilter,
   type ItemFilter,
   type MediaTypeFilter,
@@ -189,11 +190,20 @@ export function useGalleryQuery(items: GalleryItem[]) {
         mediaTypeFilter,
         fileFilter,
         searchQuery: filterQuery,
+        searchError: searchRegex ? searchRegexError(filterQuery) : null,
         hasFilterMatches: filterMatchedItems.length > 0,
         imageCount: countMediaType(items, "image"),
         videoCount: countMediaType(items, "video"),
       }),
-    [filterMatchedItems.length, filter, items, mediaTypeFilter, fileFilter, filterQuery],
+    [
+      filterMatchedItems.length,
+      filter,
+      items,
+      mediaTypeFilter,
+      fileFilter,
+      filterQuery,
+      searchRegex,
+    ],
   );
 
   return {

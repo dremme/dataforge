@@ -26,10 +26,8 @@ describe("findSearchMatchRanges", () => {
     ]);
   });
 
-  it("falls back to plain substring for an invalid regex", () => {
-    expect(findSearchMatchRanges("land(scape photo", "land(scape", true)).toEqual([
-      { from: 0, to: 10 },
-    ]);
+  it("highlights nothing for an invalid regex, as the filter matches nothing", () => {
+    expect(findSearchMatchRanges("land(scape photo", "land(scape", true)).toEqual([]);
   });
 });
 

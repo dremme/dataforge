@@ -128,6 +128,8 @@ interface GalleryItemModalProps {
   onReviewCandidate?: (item: GalleryItem) => void;
   focusView?: boolean;
   onFocusViewChange?: (focus: boolean) => void;
+  /** Editing or capture expanded a docked view: the gallery is covered, its layout unsaved. */
+  onEditExpandedChange?: (expanded: boolean) => void;
   transitionRef?: RefObject<WorkspaceTransition | null>;
   suspended?: boolean;
 }
@@ -151,6 +153,7 @@ export function GalleryItemModal({
   onReviewCandidate,
   focusView = true,
   onFocusViewChange,
+  onEditExpandedChange,
   transitionRef,
   suspended = false,
 }: GalleryItemModalProps) {
@@ -326,23 +329,21 @@ export function GalleryItemModal({
     return schedulePrefetchModalMedia(collectAdjacentModalMediaTargets(items, index));
   }, [index, items]);
 
+  // Editing and capture expand the view through `inline` below; the saved layout stays put.
   const toggleFrameMode = useCallback(() => {
-    onFocusViewChange?.(true);
     setEditMode(false);
     frameCapture.toggleFrameMode();
-  }, [frameCapture, onFocusViewChange]);
+  }, [frameCapture]);
 
   const toggleVideoEditMode = useCallback(() => {
-    onFocusViewChange?.(true);
     setFrameMode(false);
     videoEdit.toggleEditMode();
-  }, [videoEdit, onFocusViewChange]);
+  }, [videoEdit]);
 
   const toggleImageEditMode = useCallback(() => {
-    onFocusViewChange?.(true);
     setFrameMode(false);
     imageEdit.toggleEditMode();
-  }, [imageEdit, onFocusViewChange]);
+  }, [imageEdit]);
 
   const { copyState, copyLabel, copyText } = useCopyFeedback();
 
@@ -417,6 +418,13 @@ export function GalleryItemModal({
   const editing = editMode && (canEditVideoItem || canEditImageItem);
   const inline =
     Boolean(onFocusViewChange) && !focusView && !narrow && !editing && !frameCapture.frameMode;
+  const editExpanded = editing || frameCapture.frameMode;
+
+  useEffect(() => {
+    if (!editExpanded || !onEditExpandedChange) return;
+    onEditExpandedChange(true);
+    return () => onEditExpandedChange(false);
+  }, [editExpanded, onEditExpandedChange]);
 
   useEffect(() => {
     const goToStep = (step: NonNullable<ReturnType<typeof queueStepFor>>) => {
@@ -428,7 +436,8 @@ export function GalleryItemModal({
       if (childOverlayOpen || busy) return;
       const outside =
         inline && (!(event.target instanceof Node) || !modalRef.current?.contains(event.target));
-      // Beside the gallery, only paging reaches past the panel, and never into another widget.
+      // Beside the gallery, only closing and paging reach past the panel, and never into
+      // another widget. Focus stays on the opening card, so Escape must work from there.
       if (outside) {
         const target = event.target instanceof Element ? event.target : null;
         if (
@@ -438,6 +447,11 @@ export function GalleryItemModal({
           target?.closest(OUTSIDE_ARROW_OWNERS)
         )
           return;
+        if (matchesShortcut(event, SHORTCUTS.close)) {
+          event.preventDefault();
+          closeModal();
+          return;
+        }
         const step = queueStepFor(event);
         if (!step) return;
         event.preventDefault();
@@ -564,7 +578,9 @@ export function GalleryItemModal({
         )}
         <header className="gallery-item-modal__header">
           <div className="gallery-item-modal__header-text">
-            <h2 className="gallery-item-modal__title">{item.name}</h2>
+            <h2 className="gallery-item-modal__title" title={item.name}>
+              {item.name}
+            </h2>
             {inline && (
               <button
                 type="button"

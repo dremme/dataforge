@@ -2,6 +2,7 @@ import { isResolvableIssueItem } from "./issues";
 import { isDuplicateItem } from "./duplicates";
 import { isCandidateItem } from "./candidateReview";
 import { isMotion } from "@/features/gallery/lib/itemKind";
+import { DEFAULT_GALLERY_SORT } from "@/shared/constants";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem, GallerySort, Subfolder } from "@/shared/types";
 
@@ -32,7 +33,7 @@ export function isFileFilter(value: string | null): value is FileFilter {
   return value !== null && FILE_FILTER_VALUES.has(value as FileFilter);
 }
 
-export const DEFAULT_SORT: SortOption = "name-asc";
+export const DEFAULT_SORT: SortOption = DEFAULT_GALLERY_SORT;
 
 export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "name-asc", label: "Name (A–Z)" },
@@ -46,6 +47,10 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "duration-asc", label: "Duration (shortest)" },
   { value: "duration-desc", label: "Duration (longest)" },
 ];
+
+export function sortOptionLabel(value: SortOption): string {
+  return SORT_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
 
 const SORT_OPTION_VALUES = new Set<SortOption>(SORT_OPTIONS.map((option) => option.value));
 
@@ -113,13 +118,30 @@ export function sortGalleryItems(items: GalleryItem[], sort: SortOption): Galler
     .map((entry) => entry.item);
 }
 
+// s so `.` spans newlines; `^((?!x).)*$` would otherwise reject multi-line captions.
+// m is omitted: per-line anchors let each line satisfy a negation on its own.
+const SEARCH_REGEX_FLAGS = "is";
+
 function compileSearchRegex(pattern: string): RegExp | null {
   try {
-    // s so `.` spans newlines; `^((?!x).)*$` would otherwise reject multi-line captions.
-    // m is omitted: per-line anchors let each line satisfy a negation on its own.
-    return new RegExp(pattern, "is");
+    return new RegExp(pattern, SEARCH_REGEX_FLAGS);
   } catch {
     return null;
+  }
+}
+
+/** Why a regex search query does not compile, or null when it does (or is blank). */
+export function searchRegexError(query: string): string | null {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  try {
+    new RegExp(trimmed, SEARCH_REGEX_FLAGS);
+    return null;
+  } catch (error) {
+    // Chrome prefixes "Invalid regular expression: /pattern/flags: "; keep only the reason.
+    const reason = (error instanceof Error ? error.message : "").split(": ").pop()?.trim();
+    if (!reason) return "Invalid pattern";
+    return reason.charAt(0).toUpperCase() + reason.slice(1);
   }
 }
 
@@ -131,7 +153,9 @@ function matchesSearchQuery(
   name: string,
   description?: string | null,
 ): boolean {
-  if (useRegex && pattern) {
+  // An invalid pattern matches nothing: a literal fallback would contradict the regex toggle.
+  if (useRegex) {
+    if (!pattern) return false;
     if (matchNames && pattern.test(name)) return true;
     if (description != null && pattern.test(description)) return true;
     return false;
@@ -153,7 +177,6 @@ export function filterBySearch(
   const trimmed = query.trim();
   if (!trimmed) return items;
 
-  // Incomplete/invalid patterns must not throw while the user is still typing.
   const pattern = regex ? compileSearchRegex(trimmed) : null;
 
   return items.filter((item) =>

@@ -44,7 +44,9 @@ for (const mode of ["Large cards", "Small cards", "List"]) {
     );
     await page.goto(`/?path=${encodeURIComponent(folder)}`);
     await setMode(page, mode);
-    await page.locator(".toolbar__sort-select").selectOption("caption-asc");
+    await page.getByRole("button", { name: "Sort media" }).click();
+    await page.getByRole("menuitemradio", { name: "Caption length" }).click();
+    await page.keyboard.press("Escape");
     await expectThumbnail(
       page.getByRole("button", { name: "View landscape-000.png", exact: true }),
     );

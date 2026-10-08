@@ -28,6 +28,7 @@ import {
   isActiveJobStatus,
   isTerminalJobStatus,
   jobShowsErrorState,
+  runningJobCount,
   selectFolderJob,
 } from "@/features/jobs/lib/jobs";
 import {
@@ -97,6 +98,8 @@ interface JobsContextValue {
   stoppingOstrisJobId: string | null;
   closeDrawer: () => void;
   toggleDrawer: () => void;
+  /** The drawer's filter, or null when it shows every job; closing marks only shown jobs seen. */
+  setShownJobFilter: (isShown: ((job: Job) => boolean) | null) => void;
   startJob: (
     jobType: JobType,
     folderPath: string,
@@ -216,11 +219,17 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     jobsRef.current = jobs;
   }, [jobs]);
 
+  const shownJobFilterRef = useRef<((job: Job) => boolean) | null>(null);
+  const setShownJobFilter = useCallback((isShown: ((job: Job) => boolean) | null) => {
+    shownJobFilterRef.current = isShown;
+  }, []);
+
   // Seen on close, not open: marking on open would erase the markers the user came to read.
   useEffect(() => {
     if (!drawerOpen) return;
     return () => {
-      const next = nextJobsSeenAt(jobsRef.current);
+      const isShown = shownJobFilterRef.current ?? undefined;
+      const next = nextJobsSeenAt(jobsRef.current, Date.now(), isShown, readJobsSeenAt());
       writeJobsSeenAt(next);
       setSeenAtMs(next);
     };
@@ -231,10 +240,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     return { unseenCount: unseen.length, unseenFailed: unseen.some(jobShowsErrorState) };
   }, [jobs, seenAtMs]);
 
-  const activeCount = useMemo(
-    () => jobs.filter((job) => isActiveJobStatus(job.status)).length + external.jobs.length,
-    [jobs, external.jobs],
-  );
+  const activeCount = useMemo(() => runningJobCount(jobs, external.jobs), [jobs, external.jobs]);
 
   const refreshLive = useCallback(
     () => queryClient.invalidateQueries({ queryKey: jobKeys.live }),
@@ -372,6 +378,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       stoppingOstrisJobId,
       closeDrawer,
       toggleDrawer,
+      setShownJobFilter,
       startJob,
       cancelJob: cancelJobImpl,
       stopExternalOstrisJob,
@@ -391,6 +398,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       stoppingOstrisJobId,
       closeDrawer,
       toggleDrawer,
+      setShownJobFilter,
       startJob,
       cancelJobImpl,
       stopExternalOstrisJob,

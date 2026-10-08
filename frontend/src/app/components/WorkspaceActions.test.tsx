@@ -12,6 +12,7 @@ import {
   buildRunJobItems,
   quickActionRunJobId,
 } from "@/features/quickAction/lib/buildQuickActionItems";
+import { ToolbarCompactContext } from "@/features/gallery/lib/toolbarCompact";
 import { job } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithQueryClient } from "@/test/queryClient";
@@ -20,6 +21,7 @@ import { WorkspaceActions, WorkspaceActivity } from "./WorkspaceActions";
 function renderActions(
   overrides: Partial<AutomationActions> = {},
   context: Partial<JobStartContext> = {},
+  compact = false,
 ) {
   installMockBackend();
   const onRequestStart = vi.fn();
@@ -44,15 +46,36 @@ function renderActions(
     ...overrides,
   };
   renderWithQueryClient(
-    <>
+    <ToolbarCompactContext.Provider value={compact}>
       <WorkspaceActions panel={panel} />
       <WorkspaceActivity panel={panel} />
-    </>,
+    </ToolbarCompactContext.Provider>,
   );
   return { panel, onRequestStart };
 }
 
 describe("Workspace tools", () => {
+  it("keeps the folder actions' names when a crowded toolbar shows only their icons", async () => {
+    const user = userEvent.setup();
+    renderActions({}, {}, true);
+
+    for (const name of ["Edit instructions", jobMenuLabelFor(PRIMARY_JOB_TYPE), "Tools"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    await user.hover(screen.getByRole("button", { name: "Tools" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Tools");
+  });
+
+  it("does not repeat the Tools label in a tooltip while it is shown", async () => {
+    const user = userEvent.setup();
+    renderActions();
+
+    await user.hover(screen.getByRole("button", { name: "Tools" }));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("shows training progress as steps alongside its status badge", () => {
     renderActions({
       job: job({ job_type: "train_lora", status: "running", processed: 250, total: 1000 }),

@@ -19,6 +19,18 @@ const baseOptions = {
 };
 
 describe("getFilterEmptyState", () => {
+  it("names an invalid regular expression instead of reporting a miss", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      searchQuery: "[",
+      searchError: "Unterminated character class",
+      hasFilterMatches: true,
+    });
+
+    expect(state.title).toBe("Invalid regular expression");
+    expect(state.description).toContain("Unterminated character class");
+  });
+
   it("describes active search misses", () => {
     const state = getFilterEmptyState({
       ...baseOptions,

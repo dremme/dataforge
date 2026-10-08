@@ -41,7 +41,22 @@ export function isUnseenJob(job: Job, seenAtMs: number): boolean {
   return finishedMs !== null && finishedMs > seenAtMs;
 }
 
-/** Never before a shown job's finish, so a server clock ahead of this one cannot re-flag it. */
-export function nextJobsSeenAt(jobs: readonly Job[], nowMs = Date.now()): number {
-  return jobs.reduce((latest, job) => Math.max(latest, jobFinishedMs(job) ?? 0), nowMs);
+/**
+ * Never before a shown job's finish, so a server clock ahead of this one cannot re-flag it.
+ * With `isShown`, stops short of the earliest unseen job a drawer filter hid: one timestamp
+ * cannot mark later jobs seen while keeping an earlier one new.
+ */
+export function nextJobsSeenAt(
+  jobs: readonly Job[],
+  nowMs = Date.now(),
+  isShown?: (job: Job) => boolean,
+  seenAtMs = Number.NEGATIVE_INFINITY,
+): number {
+  const next = jobs.reduce((latest, job) => Math.max(latest, jobFinishedMs(job) ?? 0), nowMs);
+  if (!isShown) return next;
+
+  const earliestHidden = jobs
+    .filter((job) => !isShown(job) && isUnseenJob(job, seenAtMs))
+    .reduce((earliest, job) => Math.min(earliest, jobFinishedMs(job) ?? earliest), Infinity);
+  return Math.min(next, earliestHidden - 1);
 }

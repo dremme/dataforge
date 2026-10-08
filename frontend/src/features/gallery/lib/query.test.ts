@@ -9,7 +9,9 @@ import {
   filterSubfoldersBySearch,
   parseSortOption,
   processGalleryItems,
+  searchRegexError,
   sortGalleryItems,
+  sortOptionLabel,
   type MediaTypeFilter,
   type SortOption,
 } from "./query";
@@ -311,13 +313,14 @@ describe("filterBySearch", () => {
     ]);
   });
 
-  it("does not crash on an incomplete or invalid regular expression", () => {
-    expect(() => filterBySearch(items, "land(scape", true, true)).not.toThrow();
-    // Falls back to plain substring match while the pattern is invalid.
-    expect(filterBySearch(items, "sunset", true, true).map((entry) => entry.name)).toEqual([
-      "sunset.png",
+  it("matches nothing for an invalid regular expression, not the text taken literally", () => {
+    const bracketed = [...items, item("[draft].png", "image")];
+
+    expect(() => filterBySearch(bracketed, "[", true, true)).not.toThrow();
+    expect(filterBySearch(bracketed, "[", true, true)).toEqual([]);
+    expect(filterBySearch(bracketed, "[", false, true).map((entry) => entry.name)).toEqual([
+      "[draft].png",
     ]);
-    expect(filterBySearch(items, "land(scape", true, true).map((entry) => entry.name)).toEqual([]);
   });
 
   it("ignores file names when name matching is off", () => {
@@ -383,9 +386,23 @@ describe("filterSubfoldersBySearch", () => {
     ).toEqual(["Vacation", "Sunsets"]);
   });
 
-  it("does not crash on an incomplete regular expression", () => {
-    expect(() => filterSubfoldersBySearch(folders, "vac(", true)).not.toThrow();
-    expect(filterSubfoldersBySearch(folders, "vac(", true)).toEqual([]);
+  it("matches nothing for an incomplete regular expression", () => {
+    const named = [...folders, folder("vac(old)")];
+
+    expect(() => filterSubfoldersBySearch(named, "vac(", true)).not.toThrow();
+    expect(filterSubfoldersBySearch(named, "vac(", true)).toEqual([]);
+  });
+});
+
+describe("searchRegexError", () => {
+  it("names what is wrong with an invalid pattern", () => {
+    expect(searchRegexError("[")).toMatch(/^[A-Z].*character class/);
+    expect(searchRegexError("land(scape")).toMatch(/^[A-Z]/);
+  });
+
+  it("accepts a valid or blank pattern", () => {
+    expect(searchRegexError("sun|ocean")).toBeNull();
+    expect(searchRegexError("  ")).toBeNull();
   });
 });
 
@@ -413,9 +430,15 @@ describe("countCaptioned", () => {
   });
 });
 
+describe("sortOptionLabel", () => {
+  it("names an order by its full label", () => {
+    expect(sortOptionLabel("date-desc")).toBe("Date modified (newest)");
+  });
+});
+
 describe("parseSortOption", () => {
   it("falls back to the default for invalid values", () => {
-    expect(parseSortOption("not-a-sort")).toBe("name-asc");
+    expect(parseSortOption("not-a-sort")).toBe("date-desc");
     expect(parseSortOption("date-desc")).toBe("date-desc");
     expect(parseSortOption("megapixels-desc")).toBe("megapixels-desc");
     expect(parseSortOption("duration-desc")).toBe("duration-desc");

@@ -28,6 +28,8 @@ export function useGalleryOverlays({
     setFocusViewState(expanded);
     writeStored("gallery-focus-view", String(expanded));
   }, []);
+  // Editing or capture expands a docked view for its duration without saving that layout.
+  const [editExpanded, setEditExpanded] = useState(false);
 
   const {
     selectedPath,
@@ -84,5 +86,7 @@ export function useGalleryOverlays({
     instructionsOpen,
     focusView,
     setFocusView,
+    editExpanded,
+    setEditExpanded,
   };
 }

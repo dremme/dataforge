@@ -28,6 +28,7 @@ type GalleryOverlayState = {
   hasCaptionBackup: boolean;
   focusView?: boolean;
   onFocusViewChange?: (focus: boolean) => void;
+  onEditExpandedChange?: (expanded: boolean) => void;
   transitionRef?: RefObject<WorkspaceTransition | null>;
   onClose: () => void;
   onPrevious: () => void;

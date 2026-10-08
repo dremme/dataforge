@@ -135,12 +135,23 @@ export function getFilterEmptyState(options: {
   mediaTypeFilter: MediaTypeFilter;
   fileFilter: FileFilter;
   searchQuery: string;
+  /** Why the regex search does not compile; it then matches nothing. */
+  searchError?: string | null;
   hasFilterMatches: boolean;
   imageCount: number;
   videoCount: number;
 }): FilterEmptyState {
   const trimmedSearch = options.searchQuery.trim();
   const hasActiveSearch = trimmedSearch.length > 0;
+
+  if (hasActiveSearch && options.searchError) {
+    return {
+      icon: iconSearch,
+      title: "Invalid regular expression",
+      description: `${options.searchError}. Fix the pattern, or turn off regular expressions to search for the text as typed.`,
+      variant: "muted",
+    };
+  }
 
   if (hasActiveSearch && options.hasFilterMatches) {
     return {

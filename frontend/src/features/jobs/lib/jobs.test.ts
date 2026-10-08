@@ -8,6 +8,7 @@ import {
   formatElapsed,
   isTrainLoraCoTrackedByExternal,
   jobElapsedSeconds,
+  runningJobCount,
   jobErrorMessage,
   jobIcon,
   jobIsCancelled,
@@ -519,6 +520,14 @@ describe("isTrainLoraCoTrackedByExternal", () => {
         externalJob,
       ]),
     ).toBe(false);
+  });
+
+  it("counts a co-tracked run once in the running total", () => {
+    const queued = makeJob({ job_type: "auto_caption", status: "queued" });
+    const done = makeJob({ job_type: "auto_caption", status: "completed" });
+
+    expect(runningJobCount([trainingJob, queued, done], [externalJob])).toBe(2);
+    expect(runningJobCount([trainingJob, queued, done], [])).toBe(2);
   });
 });
 

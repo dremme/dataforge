@@ -108,6 +108,8 @@ export function useGallerySession({
     instructionsOpen,
     focusView,
     setFocusView,
+    editExpanded,
+    setEditExpanded,
   } = useGalleryOverlays({
     images: items,
     filteredItems: query.filteredItems,
@@ -265,6 +267,8 @@ export function useGallerySession({
     closeGalleryItem,
     focusView,
     setFocusView,
+    editExpanded,
+    setEditExpanded,
     returnToGalleryItem,
     goToPrevious,
     goToNext,

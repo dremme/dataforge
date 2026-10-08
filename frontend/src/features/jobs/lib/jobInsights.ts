@@ -57,20 +57,26 @@ export function jobOutcomeMix(job: Job): JobOutcomeMix | null {
   return { done, skipped, failed, notRun };
 }
 
-/** The one fact a job type's counters say beyond the file mix, or null. */
+/**
+ * The one fact a job type's counters say beyond the file mix, or null. A clean result is
+ * claimed only for a completed scan: a run that stopped early found nothing because it looked
+ * at too little.
+ */
 export function jobHeadline(job: Job): string | null {
   if (!isTerminalJobStatus(job.status)) return null;
+  const completed = job.status === "completed";
 
   switch (jobTypeOf(job)) {
     case "find_duplicates": {
       const duplicates = stat(job, "duplicate");
-      if (duplicates === 0) return "No duplicates found";
+      if (duplicates === 0) return completed ? "No duplicates found" : null;
       return `${plural(duplicates, "duplicate")} in ${plural(stat(job, "group"), "group")}`;
     }
     case "verify_captions":
     case "check_caption_rules": {
       const issues = stat(job, "issues_found");
-      return issues === 0 ? "No caption issues found" : `${plural(issues, "caption")} flagged`;
+      if (issues === 0) return completed ? "No caption issues found" : null;
+      return `${plural(issues, "caption")} flagged`;
     }
     default:
       return null;

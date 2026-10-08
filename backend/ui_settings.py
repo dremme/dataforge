@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import get_args
 
+from constants import DEFAULT_GALLERY_SORT
 from preferences import JsonPreference
 from schemas import GallerySort, ThemePreference, UiSettingsResponse
 
 UI_SETTINGS_KEY = "ui_settings"
-DEFAULT_SORT: GallerySort = "name-asc"
+DEFAULT_SORT: GallerySort = DEFAULT_GALLERY_SORT
 # PEP 695 alias: ``get_args`` on the alias itself returns empty and would reject every sort.
 VALID_SORTS = frozenset(get_args(GallerySort.__value__))
 

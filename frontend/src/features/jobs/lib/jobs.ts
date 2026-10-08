@@ -72,6 +72,17 @@ export function isActiveJobStatus(status: JobStatus): boolean {
   return status === "queued" || status === "running";
 }
 
+/** Every external run is live; a local training run it already tracks is not counted again. */
+export function runningJobCount(
+  jobs: readonly Job[],
+  externalJobs: ReadonlyArray<{ name: string }>,
+): number {
+  const local = jobs.filter(
+    (job) => isActiveJobStatus(job.status) && !isTrainLoraCoTrackedByExternal(job, externalJobs),
+  );
+  return local.length + externalJobs.length;
+}
+
 export function isTerminalJobStatus(status: JobStatus): boolean {
   return (
     status === "completed" ||

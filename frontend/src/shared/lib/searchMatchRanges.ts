@@ -25,7 +25,8 @@ export function findSearchMatchRanges(
       }
       return ranges;
     } catch {
-      // Invalid pattern while typing — fall through to plain substring (filterBySearch).
+      // filterBySearch matches nothing for an invalid pattern, so nothing is highlighted.
+      return [];
     }
   }
 

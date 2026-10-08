@@ -44,6 +44,11 @@ import {
 import { classNames } from "@/shared/lib/classNames";
 import { AutomationSystemSpecs } from "@/features/automation/components/AutomationSystemSpecs";
 import { useAutomationSpecsVisible } from "@/features/automation/hooks/useAutomationSpecsVisible";
+import {
+  COLLAPSIBLE_LABEL_CLASS,
+  ROUND_WHEN_COMPACT_CLASS,
+  useToolbarCompact,
+} from "@/features/gallery/lib/toolbarCompact";
 
 interface ToolsMenuProps {
   panel: AutomationActions;
@@ -97,14 +102,17 @@ function ToolsMenuItems({ panel, onPick }: ToolsMenuProps & { onPick: () => void
 
 function ToolsMenu(props: ToolsMenuProps) {
   const menu = usePopupMenu();
+  const compact = useToolbarCompact();
   return (
     <>
       <div ref={menu.rootRef}>
-        <button type="button" className="workspace-button" {...menu.triggerProps}>
-          <Icon icon={iconHammer} />
-          Tools
-          <Icon icon={iconChevronDown} />
-        </button>
+        <Tooltip content="Tools" disabled={!compact}>
+          <button type="button" className="workspace-button" {...menu.triggerProps}>
+            <Icon icon={iconHammer} />
+            <span className={COLLAPSIBLE_LABEL_CLASS}>Tools</span>
+            <Icon icon={iconChevronDown} />
+          </button>
+        </Tooltip>
       </div>
       <AnchoredLayer
         anchorRef={menu.rootRef}
@@ -215,9 +223,15 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
             : "Create a system prompt or caption rules for this folder"
         }
       >
-        <button type="button" className="workspace-button" onClick={panel.onEditSysprompt}>
+        <button
+          type="button"
+          className={classNames("workspace-button", ROUND_WHEN_COMPACT_CLASS)}
+          onClick={panel.onEditSysprompt}
+        >
           <Icon icon={hasInstructions ? iconFilePen : iconFilePlus} />
-          {hasInstructions ? "Edit instructions" : "Create instructions"}
+          <span className={COLLAPSIBLE_LABEL_CLASS}>
+            {hasInstructions ? "Edit instructions" : "Create instructions"}
+          </span>
         </button>
       </Tooltip>
       {active ? (
@@ -236,7 +250,10 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
             <Tooltip content={autoCaptionTooltip}>
               <button
                 type="button"
-                className="workspace-button workspace-button--accent"
+                className={classNames(
+                  "workspace-button workspace-button--accent",
+                  ROUND_WHEN_COMPACT_CLASS,
+                )}
                 aria-busy={startingPrimary || undefined}
                 disabled={autoCaption.blocked}
                 onClick={() => panel.onRequestStart(PRIMARY_JOB_TYPE)}
@@ -245,7 +262,7 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
                   icon={startingPrimary ? iconLoader2 : jobTypeIconFor(PRIMARY_JOB_TYPE)}
                   spin={startingPrimary}
                 />
-                {jobMenuLabelFor(PRIMARY_JOB_TYPE)}
+                <span className={COLLAPSIBLE_LABEL_CLASS}>{jobMenuLabelFor(PRIMARY_JOB_TYPE)}</span>
               </button>
             </Tooltip>
             <ToolsMenu panel={panel} />

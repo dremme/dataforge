@@ -26,7 +26,7 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         response = client.get("/api/preferences/ui")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["sort"], "name-asc")
+        self.assertEqual(response.json()["sort"], "date-desc")
 
     def test_update_sort(self) -> None:
         response = client.put("/api/preferences/ui", json={"sort": "date-desc"})
@@ -50,7 +50,7 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         response = client.put("/api/preferences/ui", json={"sort": "not-a-real-sort"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["sort"], "name-asc")
+        self.assertEqual(response.json()["sort"], "date-desc")
 
     def test_read_default_automation_specs_visibility(self) -> None:
         response = client.get("/api/preferences/ui")

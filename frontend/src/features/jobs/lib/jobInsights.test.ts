@@ -91,6 +91,18 @@ describe("jobHeadline", () => {
     );
   });
 
+  it("claims a clean result only for a scan that completed", () => {
+    for (const status of ["failed", "cancelled", "interrupted"] as const) {
+      expect(jobHeadline(finished({ status, job_type: "find_duplicates", stats: {} }))).toBeNull();
+      expect(jobHeadline(finished({ status, job_type: "verify_captions", stats: {} }))).toBeNull();
+    }
+    expect(
+      jobHeadline(
+        finished({ status: "cancelled", job_type: "verify_captions", stats: { issues_found: 2 } }),
+      ),
+    ).toBe("2 captions flagged");
+  });
+
   it("says nothing for types whose mix already tells the story", () => {
     expect(jobHeadline(finished({ stats: { success: 3 } }))).toBeNull();
   });

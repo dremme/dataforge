@@ -73,6 +73,8 @@ export function WorkspaceSidebar({
   const currentFavorite = favorites.some((entry) =>
     folderPathsEqual(entry.path, currentFolder ?? ""),
   );
+  const toggleLabel = hidden ? "Expand folder sidebar" : "Collapse folder sidebar";
+  const favoriteLabel = currentFavorite ? "Unfavorite folder" : "Favorite folder";
   const toggle = () => {
     if (narrow) setShowNarrow(!showNarrow);
     else if (medium) {
@@ -128,15 +130,17 @@ export function WorkspaceSidebar({
               DataForge
             </strong>
           )}
-          <button
-            type="button"
-            className="workspace-button workspace-button--icon"
-            onClick={toggle}
-            aria-label={hidden ? "Expand folder sidebar" : "Collapse folder sidebar"}
-            aria-expanded={!hidden}
-          >
-            <Icon icon={hidden ? iconChevronRight : iconChevronLeft} />
-          </button>
+          <Tooltip content={toggleLabel}>
+            <button
+              type="button"
+              className="workspace-button workspace-button--icon"
+              onClick={toggle}
+              aria-label={toggleLabel}
+              aria-expanded={!hidden}
+            >
+              <Icon icon={hidden ? iconChevronRight : iconChevronLeft} />
+            </button>
+          </Tooltip>
         </div>
         <Tooltip
           content={<ShortcutHint shortcut={SHORTCUTS.openFolder}>Open another folder</ShortcutHint>}
@@ -170,35 +174,44 @@ export function WorkspaceSidebar({
         )}
         {/* The rail keeps these as icons: the sidebar is the only place to create a folder. */}
         <div className="workspace-sidebar__footer">
-          <button
-            type="button"
-            className="workspace-button"
-            onClick={onCreateFolder}
-            disabled={createDisabled}
-            aria-label="New folder"
-          >
-            <Icon icon={iconPlus} />
-            {!hidden && "New folder"}
-          </button>
-          <button
-            type="button"
-            className="workspace-button"
-            disabled={!currentFolder || toggleFavorite.isPending}
-            aria-label={currentFavorite ? "Unfavorite folder" : "Favorite folder"}
-            onClick={() => {
-              if (currentFolder)
-                toggleFavorite.mutate(
-                  { path: currentFolder, isFavorite: currentFavorite },
-                  {
-                    onError: (error) =>
-                      notify({ variant: "danger", message: formatApiError(error) }),
-                  },
-                );
-            }}
-          >
-            <Icon icon={iconStar} />
-            {!hidden && (currentFavorite ? "Unfavorite folder" : "Favorite folder")}
-          </button>
+          <Tooltip content={<ShortcutHint shortcut={SHORTCUTS.newFolder}>New folder</ShortcutHint>}>
+            <button
+              type="button"
+              className="workspace-button"
+              onClick={onCreateFolder}
+              disabled={createDisabled}
+              aria-label="New folder"
+              aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.newFolder)}
+            >
+              <Icon icon={iconPlus} />
+              {!hidden && "New folder"}
+            </button>
+          </Tooltip>
+          {/* The label names the action; the accent star shows the state in the rail. */}
+          <Tooltip content={favoriteLabel}>
+            <button
+              type="button"
+              className={classNames(
+                "workspace-button",
+                currentFavorite && "workspace-sidebar__favorite--active",
+              )}
+              disabled={!currentFolder || toggleFavorite.isPending}
+              aria-label={favoriteLabel}
+              onClick={() => {
+                if (currentFolder)
+                  toggleFavorite.mutate(
+                    { path: currentFolder, isFavorite: currentFavorite },
+                    {
+                      onError: (error) =>
+                        notify({ variant: "danger", message: formatApiError(error) }),
+                    },
+                  );
+              }}
+            >
+              <Icon icon={iconStar} />
+              {!hidden && favoriteLabel}
+            </button>
+          </Tooltip>
         </div>
       </div>
     </aside>

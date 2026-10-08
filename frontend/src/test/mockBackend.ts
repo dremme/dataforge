@@ -13,6 +13,9 @@ import type {
 import type { InstructionKind } from "@/shared/api/folderInstructions";
 import { appSettings, emptyFolder, HOME_SYSPROMPT, homeFolder, vacationFolder } from "./fixtures";
 
+// The fixture folder's tests are written in name order; the server's default is newest first.
+const FIXTURE_SORT = "name-asc";
+
 const MINIMAL_PNG = new Uint8Array([
   137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0,
   0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1, 13, 10, 46,
@@ -480,10 +483,10 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/preferences/ui") {
       if (method === "PUT") {
         const body = init?.body ? JSON.parse(init.body as string) : {};
-        return jsonResponse({ sort: body.sort ?? "name-asc", theme: body.theme ?? "system" });
+        return jsonResponse({ sort: body.sort ?? FIXTURE_SORT, theme: body.theme ?? "system" });
       }
 
-      return jsonResponse({ sort: "name-asc", theme: "system" });
+      return jsonResponse({ sort: FIXTURE_SORT, theme: "system" });
     }
 
     if (url.pathname === "/api/preferences/automation") {

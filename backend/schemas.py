@@ -3,7 +3,12 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from constants import ADJUST_MAX_HUE, AUTO_ADJUST_DEFAULT_AMOUNT, COLOR_ADJUST
+from constants import (
+    ADJUST_MAX_HUE,
+    AUTO_ADJUST_DEFAULT_AMOUNT,
+    COLOR_ADJUST,
+    DEFAULT_GALLERY_SORT,
+)
 
 # PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
 
@@ -270,7 +275,7 @@ type ThemePreference = Literal["system", "light", "dark"]
 
 
 class UiSettingsResponse(BaseModel):
-    sort: GallerySort = "name-asc"
+    sort: GallerySort = DEFAULT_GALLERY_SORT
     show_automation_specs: bool = False
     theme: ThemePreference = "system"
     #: On by default: accepting a ComfyUI candidate would otherwise lose the original's metadata.

@@ -78,6 +78,7 @@ const jobsContext = {
   deleteJob: vi.fn(),
   deleteAllJobs: vi.fn(),
   seenAtMs: 0,
+  setShownJobFilter: vi.fn(),
 };
 
 vi.mock("@/features/jobs/context/JobsContext", () => ({
@@ -240,6 +241,20 @@ describe("JobsDrawer", () => {
       expect(await screen.findByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
     });
 
+    it("tells the jobs context which jobs a filter hides, so closing keeps them new", async () => {
+      const user = userEvent.setup();
+      renderDrawer([finishedCaption]);
+      expect(jobsContext.setShownJobFilter).toHaveBeenLastCalledWith(null);
+
+      await user.click(screen.getByRole("radio", { name: "Failed" }));
+
+      const isShown = jobsContext.setShownJobFilter.mock.lastCall?.[0];
+      expect(isShown?.(finishedCaption)).toBe(false);
+      expect(isShown?.({ ...finishedCaption, status: "failed", effective_status: "failed" })).toBe(
+        true,
+      );
+    });
+
     it("restores the filters chosen earlier in the session", async () => {
       const user = userEvent.setup();
       const first = renderDrawer([finishedCaption]);
@@ -298,6 +313,7 @@ describe("JobsDrawer", () => {
     expect(screen.getByLabelText("external job sample_train_v1")).toBeInTheDocument();
     expect(screen.queryByLabelText("DataForge jobs")).not.toBeInTheDocument();
     expect(baseElement.querySelectorAll(".job-card")).toHaveLength(1);
+    expect(screen.getByText(/1 running/)).toBeInTheDocument();
   });
 
   it("still lists other job types in the DataForge section", () => {

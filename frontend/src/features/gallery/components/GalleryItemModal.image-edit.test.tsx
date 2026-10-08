@@ -245,6 +245,49 @@ describe("GalleryItemModal", () => {
       });
     });
 
+    describe("beside the gallery", () => {
+      it("expands only for the edit, without changing the saved viewing layout", async () => {
+        const user = userEvent.setup();
+        const onFocusViewChange = vi.fn();
+        renderModal(imageItem(), { focusView: false, onFocusViewChange });
+        const docked = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+
+        await user.click(within(docked).getByRole("button", { name: "Edit sunset.png" }));
+        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        fireEvent.load(dialog.querySelector("img")!);
+        await user.click(
+          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+        );
+
+        expect(
+          await screen.findByRole("complementary", { name: "Viewing sunset.png" }),
+        ).toBeInTheDocument();
+        expect(onFocusViewChange).not.toHaveBeenCalled();
+      });
+
+      it("reports covering the gallery while the edit expands it, so thumbnails can pause", async () => {
+        const user = userEvent.setup();
+        const onEditExpandedChange = vi.fn();
+        renderModal(imageItem(), {
+          focusView: false,
+          onFocusViewChange: vi.fn(),
+          onEditExpandedChange,
+        });
+        const docked = await screen.findByRole("complementary", { name: "Viewing sunset.png" });
+        expect(onEditExpandedChange).not.toHaveBeenCalled();
+
+        await user.click(within(docked).getByRole("button", { name: "Edit sunset.png" }));
+        expect(onEditExpandedChange).toHaveBeenLastCalledWith(true);
+
+        const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+        fireEvent.load(dialog.querySelector("img")!);
+        await user.click(
+          within(dialog).getByRole("button", { name: "Exit image editing for sunset.png" }),
+        );
+        expect(onEditExpandedChange).toHaveBeenLastCalledWith(false);
+      });
+    });
+
     describe("alongside the modal's other modes", () => {
       it("steps out of the mode on Escape before it closes the modal", async () => {
         const user = userEvent.setup();

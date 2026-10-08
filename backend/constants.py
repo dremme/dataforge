@@ -1,3 +1,5 @@
+from typing import Final
+
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 GIF_EXTENSION = ".gif"
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".wmv", ".m4v", ".flv"}
@@ -186,6 +188,9 @@ ADJUST_RENDER_LUT_SIZE = 65
 #: The wand's dial position that applies its reading once; the far end applies it twice.
 AUTO_ADJUST_DEFAULT_AMOUNT = 0.5
 
+#: The gallery order until the user picks one: the newest files are the ones being worked on.
+DEFAULT_GALLERY_SORT: Final = "date-desc"
+
 #: Emitted into ``frontend/src/shared/constants.ts``. Sets are sorted; sequences keep walk order.
 SHARED_CONSTANTS: dict[str, object] = {
     "IMPORT_EXTENSIONS": sorted(IMPORT_EXTENSIONS),
@@ -206,4 +211,5 @@ SHARED_CONSTANTS: dict[str, object] = {
     "COLOR_DETAIL": COLOR_DETAIL,
     "ADJUST_PREVIEW_LUT_SIZE": ADJUST_PREVIEW_LUT_SIZE,
     "AUTO_ADJUST_DEFAULT_AMOUNT": AUTO_ADJUST_DEFAULT_AMOUNT,
+    "DEFAULT_GALLERY_SORT": DEFAULT_GALLERY_SORT,
 }

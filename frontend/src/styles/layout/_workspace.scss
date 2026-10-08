@@ -132,6 +132,10 @@
     padding-top: 0.5rem;
     border-top: 1px solid var(--border);
   }
+  &__favorite--active svg {
+    color: var(--accent);
+    fill: currentColor;
+  }
   h2 {
     margin: 1.25rem 0 0.5rem;
     font-size: var(--text-xs);

@@ -1,6 +1,5 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
-  SORT_OPTIONS,
   type FileFilter,
   type ItemFilter,
   type MediaTypeFilter,
@@ -9,7 +8,6 @@ import {
 import { useGlobalShortcut } from "@/shared/hooks/useGlobalShortcut";
 import {
   iconArchive,
-  iconArrowDownWideNarrow,
   iconFileBraces,
   iconFileText,
   iconFolder,
@@ -22,6 +20,9 @@ import {
   iconX,
   type AppIcon,
 } from "@/shared/icons";
+import { useToolbarCompactMode } from "@/features/gallery/hooks/useToolbarCompactMode";
+import { searchRegexError } from "@/features/gallery/lib/query";
+import { ToolbarCompactContext } from "@/features/gallery/lib/toolbarCompact";
 import { classNames } from "@/shared/lib/classNames";
 import { isEditableTarget } from "@/shared/lib/isEditableTarget";
 import { ariaKeyShortcuts, SHORTCUTS } from "@/shared/lib/shortcuts";
@@ -32,6 +33,7 @@ import { NotificationsButton } from "@/shared/notifications/NotificationsButton"
 import { StatsButton } from "./StatsButton";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import { ToolbarFilterMenu } from "./ToolbarFilterMenu";
+import { ToolbarSortMenu } from "./ToolbarSortMenu";
 
 interface ToolbarProps {
   /** Folder actions placed between the stats and the view controls. */
@@ -84,8 +86,12 @@ function ToolbarSearch({
 }: ToolbarSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
+  const errorId = useId();
   const hasValue = value.trim().length > 0;
   const expanded = focused || value.length > 0;
+  // Checked on every keystroke, not the deferred filter value, so the field reacts at once.
+  const regexError = regex ? searchRegexError(value) : null;
+  const errorText = regexError && `Invalid regular expression: ${regexError}`;
 
   const openSearch = () => {
     const input = inputRef.current;
@@ -106,24 +112,31 @@ function ToolbarSearch({
 
   return (
     <Tooltip
+      // The error stays up until the pattern compiles; it is the field's only explanation.
+      open={Boolean(errorText)}
       content={
-        <span className="toolbar__search-help">
-          <ShortcutHint shortcut={SHORTCUTS.search}>Search captions</ShortcutHint>
-          <span>
-            <Icon icon={iconTag} /> Include file and folder names
+        errorText ? (
+          <span className="toolbar__search-error">{errorText}</span>
+        ) : (
+          <span className="toolbar__search-help">
+            <ShortcutHint shortcut={SHORTCUTS.search}>Search captions</ShortcutHint>
+            <span>
+              <Icon icon={iconTag} /> Include file and folder names
+            </span>
+            <span>
+              <Icon icon={iconRegex} /> Use regular expressions
+            </span>
           </span>
-          <span>
-            <Icon icon={iconRegex} /> Use regular expressions
-          </span>
-        </span>
+        )
       }
-      disabled={expanded && focused}
+      disabled={!errorText && expanded && focused}
     >
       <label
         className={classNames(
           "toolbar__search",
           expanded ? "toolbar__search--expanded" : "toolbar__search--collapsed",
           hasValue && "toolbar__search--filtering",
+          errorText && "toolbar__search--invalid",
         )}
         // Drives how far the expanded field grows; the width itself is clamped in CSS.
         style={{ "--toolbar-search-length": value.length } as CSSProperties}
@@ -146,7 +159,14 @@ function ToolbarSearch({
             placeholder="Search..."
             aria-label={names ? "Search files and folders by name or caption" : "Search captions"}
             aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.search)}
+            aria-invalid={errorText ? true : undefined}
+            aria-describedby={errorText ? errorId : undefined}
           />
+          {errorText && (
+            <span id={errorId} className="toolbar__search-error-text">
+              {errorText}
+            </span>
+          )}
           <button
             type="button"
             className={classNames(
@@ -251,8 +271,10 @@ export function Toolbar({
   // Both counts toggle their own filter, so a second click restores every file.
   const filterHint = (active: boolean, only: string) =>
     active ? "click to clear the filter" : `click to show only ${only}`;
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const compact = useToolbarCompactMode(toolbarRef);
   return (
-    <div className="toolbar">
+    <div ref={toolbarRef} className={classNames("toolbar", compact && "toolbar--compact")}>
       <div
         className={classNames("toolbar__stats", statsLoading && "toolbar__stats--loading")}
         aria-busy={statsLoading || undefined}
@@ -323,7 +345,11 @@ export function Toolbar({
         )}
       </div>
 
-      {actions}
+      {actions && (
+        <div className="toolbar__actions">
+          <ToolbarCompactContext.Provider value={compact}>{actions}</ToolbarCompactContext.Provider>
+        </div>
+      )}
 
       <div className="toolbar__controls">
         <ToolbarSearch
@@ -335,23 +361,7 @@ export function Toolbar({
           onNamesChange={onSearchNamesChange}
         />
 
-        <Tooltip content="Sort files by name, date, caption, megapixels, or duration">
-          <label className="toolbar__sort">
-            <Icon icon={iconArrowDownWideNarrow} className="toolbar__sort-icon" />
-            <select
-              className="toolbar__sort-select"
-              value={sort}
-              onChange={(event) => onSortChange(event.target.value as SortOption)}
-              aria-label="Sort media"
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </Tooltip>
+        <ToolbarSortMenu value={sort} onChange={onSortChange} />
 
         <ToolbarFilterMenu
           searchQuery={searchQuery}

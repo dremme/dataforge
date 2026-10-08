@@ -160,6 +160,31 @@ describe("Toolbar", () => {
     expect(defaultProps.onSearchNamesChange).toHaveBeenCalledWith(false);
   });
 
+  it("flags an invalid regular expression on the field and says what is wrong", async () => {
+    const { rerender } = renderToolbar({ searchQuery: "[", searchRegex: true });
+    const search = screen.getByRole("searchbox", {
+      name: "Search files and folders by name or caption",
+    });
+
+    expect(search).toHaveAttribute("aria-invalid", "true");
+    expect(search).toHaveAccessibleDescription(/^Invalid regular expression: [A-Z]/);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(/Invalid regular expression/);
+
+    rerender(<Toolbar {...defaultProps} searchQuery="[" searchRegex={false} />);
+    expect(search).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("sorts from a compact menu button rather than a wide dropdown", () => {
+    renderToolbar();
+
+    expect(screen.getByRole("button", { name: "Sort media" })).toHaveAttribute(
+      "aria-haspopup",
+      "menu",
+    );
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
   it("labels the search box for captions only when names are excluded", () => {
     renderToolbar({ searchNames: false });
 

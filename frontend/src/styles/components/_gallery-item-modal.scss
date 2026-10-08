@@ -310,10 +310,10 @@
     width: 100%;
   }
 
+  // In a short window the media gives up height first, so the caption keeps its floor.
   .gallery-item-modal__stage {
-    flex-shrink: 0;
-    height: clamp(160px, 28vh, 320px);
-    min-height: 0;
+    flex: 0 1 clamp(160px, 28vh, 320px);
+    min-height: 96px;
     overflow: hidden;
     padding: 0.625rem;
   }
@@ -356,9 +356,9 @@
 
   .gallery-item-modal__footer {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 0 0;
     flex-direction: column;
-    min-height: 0;
+    min-height: min-content;
     padding: 0.75rem;
   }
 
@@ -376,10 +376,13 @@
     flex-wrap: wrap;
   }
 
+  // Sized by the panel, never by the caption: a long one scrolls inside instead of
+  // setting the footer's floor.
   .code-editor--caption {
     flex: 1;
     min-height: 6.5rem;
     max-height: none;
+    contain: size;
     resize: none;
   }
 }

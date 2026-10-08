@@ -57,7 +57,9 @@ export function AppContent() {
   } = gallery;
 
   return (
-    <ThumbnailProvider paused={Boolean(gallery.selectedPath && gallery.focusView)}>
+    <ThumbnailProvider
+      paused={Boolean(gallery.selectedPath && (gallery.focusView || gallery.editExpanded))}
+    >
       <GallerySelectionProvider
         selectionMode={selectionMode}
         inspectedPath={gallery.selectedPath}
@@ -185,6 +187,7 @@ export function AppContent() {
               hasCaptionBackup: folder?.has_caption_backup ?? false,
               focusView: gallery.focusView,
               onFocusViewChange: gallery.setFocusView,
+              onEditExpandedChange: gallery.setEditExpanded,
               transitionRef,
               onClose: gallery.closeGalleryItem,
               onPrevious: gallery.goToPrevious,

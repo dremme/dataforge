@@ -115,6 +115,7 @@ export function AppOverlays({
           suspended={instructions.open}
           focusView={gallery.focusView}
           onFocusViewChange={gallery.onFocusViewChange}
+          onEditExpandedChange={gallery.onEditExpandedChange}
           transitionRef={gallery.transitionRef}
           items={gallery.modalItems}
           index={gallery.selectedIndex}
