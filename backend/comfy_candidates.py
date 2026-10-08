@@ -7,7 +7,7 @@ import logging
 import os
 import shutil
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,7 +71,7 @@ def is_settling(media: Path) -> bool:
 
 
 @contextmanager
-def settle_slot(media: Path) -> Iterator[None]:
+def settle_slot(media: Path) -> Generator[None]:
     """One accept/reject slot; a batch and a single accept must not publish over each other."""
     key = _settle_key(media)
 

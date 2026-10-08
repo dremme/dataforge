@@ -7,7 +7,7 @@ import logging
 import os
 import shutil
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
@@ -41,7 +41,7 @@ def _render_key(media: Path) -> str:
 
 
 @contextmanager
-def render_slot(media: Path) -> Iterator[Callable[[], bool]]:
+def render_slot(media: Path) -> Generator[Callable[[], bool]]:
     """One render slot; a second request for the same file is refused rather than queued."""
     key = _render_key(media)
     cancelled = threading.Event()

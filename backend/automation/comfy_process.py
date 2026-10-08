@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -107,7 +107,7 @@ _gpu_lock = threading.Lock()
 
 
 @contextmanager
-def _gpu_slot(should_cancel: ShouldCancel | None) -> Iterator[None]:
+def _gpu_slot(should_cancel: ShouldCancel | None) -> Generator[None]:
     """Wait for the slot in polls, not one blocking acquire: a whole video file can hold it for an
     hour, and a thread parked in ``acquire`` never looks at ``should_cancel`` again."""
     while not _gpu_lock.acquire(timeout=COMFY_POLL_INTERVAL_SECONDS):

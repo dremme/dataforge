@@ -5,7 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from collections.abc import Iterator
+from collections.abc import Generator
 from pathlib import Path
 
 from automation.jobs_store import get_job as get_job_from_store
@@ -37,7 +37,7 @@ _JOBS_TABLE_WITHOUT_EXTERNAL_REF = """
 
 
 @contextlib.contextmanager
-def _database_at(db_path: Path) -> Iterator[None]:
+def _database_at(db_path: Path) -> Generator[None]:
     previous = os.environ.get("DATAFORGE_DB_PATH")
     os.environ["DATAFORGE_DB_PATH"] = str(db_path)
     close_all_connections()

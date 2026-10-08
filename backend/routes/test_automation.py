@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -29,7 +29,7 @@ from testing_fixtures import (
 
 
 @contextmanager
-def _patched_job_runner(job_type: str, run: Callable[..., object]) -> Iterator[None]:
+def _patched_job_runner(job_type: str, run: Callable[..., object]) -> Generator[None]:
     """Swap a job type's runner. JOB_SPECS holds the function, so patching the module cannot."""
     patched = replace(JOB_SPECS[job_type], run=run)
     with patch.dict(JOB_SPECS, {job_type: patched}):

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager, suppress
 
 MAX_QUEUED_EVENTS = 100
@@ -85,7 +85,7 @@ def connected_tab_ids() -> set[str]:
 
 
 @contextmanager
-def subscribe(tab_id: str = "") -> Iterator[Subscriber]:
+def subscribe(tab_id: str = "") -> Generator[Subscriber]:
     subscriber = Subscriber(asyncio.get_running_loop(), tab_id)
 
     with _lock:

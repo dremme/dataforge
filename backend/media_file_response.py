@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import secrets
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import BinaryIO
 
@@ -76,7 +76,7 @@ def open_shared_read(path: str | os.PathLike[str]) -> BinaryIO:
 
 
 @asynccontextmanager
-async def async_open_shared_read(path: str | os.PathLike[str]) -> AsyncIterator[BinaryIO]:
+async def async_open_shared_read(path: str | os.PathLike[str]) -> AsyncGenerator[BinaryIO]:
     file = await anyio.to_thread.run_sync(open_shared_read, path)
     try:
         yield file

@@ -18,7 +18,7 @@ runs:
 
     - name: Cache pinned FFmpeg
       id: ffmpeg-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/dataforge-ffmpeg
         key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-ubuntu-24.04-${{ inputs.version }}-${{ inputs.sha256 }}-${{ hashFiles('.github/actions/setup-ffmpeg/action.yml') }}

@@ -5,7 +5,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
-from collections.abc import Iterator
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -28,7 +28,7 @@ def _response(payload: object) -> Mock:
 
 
 @contextlib.contextmanager
-def _patched_client(client: Mock) -> Iterator[None]:
+def _patched_client(client: Mock) -> Generator[None]:
     with patch("external.ostris_jobs.httpx.Client") as client_cls:
         client_cls.return_value.__enter__.return_value = client
         yield

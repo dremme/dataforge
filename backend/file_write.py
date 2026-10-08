@@ -3,13 +3,13 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
 
 @contextmanager
-def _temporary_file(destination: Path) -> Iterator[Path]:
+def _temporary_file(destination: Path) -> Generator[Path]:
     descriptor, name = tempfile.mkstemp(prefix=".write-", suffix=".tmp", dir=destination.parent)
     os.close(descriptor)
     temporary = Path(name)

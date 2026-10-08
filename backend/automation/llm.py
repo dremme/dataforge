@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
@@ -204,7 +204,7 @@ def close_model_client(client: object) -> None:
 
 
 @contextmanager
-def model_client() -> Iterator[Any]:
+def model_client() -> Generator[Any]:
     client = create_openai_client()
     try:
         yield client
