@@ -100,18 +100,14 @@
     overflow: hidden;
   }
 
-  // `zoomable-image` loads after this file, so these rules must out-specify it. Zoomed shared rules use `fill`; `contain` keeps the before pane honest when framing changed.
-  &__stage.zoomable-image--zoomed .zoomable-image__img {
-    object-fit: contain;
-  }
-
-  // Unzoomed, shared rules size from the image's own pixels and a taller original is cropped by `overflow: hidden`.
-  &__stage:not(.zoomable-image--zoomed) .zoomable-image__canvas {
+  // `zoomable-image` loads after this file, so these rules must out-specify it: its own rules size
+  // from the image's pixels, and a taller original would be cropped by `overflow: hidden`.
+  &__stage .zoomable-image__canvas {
     width: 100%;
     height: 100%;
   }
 
-  &__stage:not(.zoomable-image--zoomed) .zoomable-image__img {
+  &__stage .zoomable-image__img {
     width: 100%;
     height: 100%;
     max-width: 100%;

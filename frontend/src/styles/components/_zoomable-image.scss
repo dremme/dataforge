@@ -13,11 +13,9 @@
   touch-action: none;
   user-select: none;
 
+  // Zoom is a transform on the canvas; the layout must not change, or the measured boxes go stale.
   &--zoomed {
-    // Lock layout to the pre-zoom box and anchor the enlarged canvas at top-left so pan math is not offset by flex centering.
-    display: block;
     cursor: zoom-out;
-    flex-shrink: 0;
   }
 
   &--static {
@@ -34,12 +32,7 @@
   }
 
   &--zoomed &__canvas {
-    position: absolute;
-    left: 0;
-    top: 0;
-    max-width: none;
-    max-height: none;
-    will-change: transform;
+    transform-origin: 0 0;
   }
 
   &__img {
@@ -48,14 +41,6 @@
     max-height: inherit;
     object-fit: contain;
     pointer-events: none;
-  }
-
-  &--zoomed &__img {
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    max-height: none;
-    object-fit: fill;
   }
 
   &:focus-visible {

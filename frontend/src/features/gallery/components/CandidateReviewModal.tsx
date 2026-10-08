@@ -494,15 +494,9 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
     after: null,
   });
   const [loadedSize, setLoadedSize] = useState<{ width: number; height: number } | null>(null);
-  const {
-    zoomed,
-    containerStyle,
-    canvasStyle,
-    handleClick,
-    handleMouseMove,
-    toggleZoom,
-    recordNaturalSize,
-  } = useImageZoom(entry.path);
+  const { zoomed, canvasStyle, handleClick, handleMouseMove, toggleZoom } = useImageZoom(
+    entry.path,
+  );
 
   // Drop with the entry like useImageZoom, or the next candidate keeps the old shape until decode.
   useEffect(() => {
@@ -599,8 +593,8 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
             zoomed && "zoomable-image--zoomed",
             "candidate-review-modal__stage",
           )}
-          style={containerStyle}
-          onClick={handleClick}
+          // Measure the after pane either way, so both panes take the same transform.
+          onClick={(event) => handleClick(event, rootRef.current)}
           onMouseMove={handleMouseMove}
           role="button"
           aria-label={zoomed ? `Zoom out ${entry.name}` : `Zoom in ${entry.name}`}
@@ -624,7 +618,6 @@ function CompareStage({ entry }: { entry: CandidateReviewEntry }) {
                 onLoad={(event) => {
                   if (side !== "after") return;
                   const img = event.currentTarget;
-                  recordNaturalSize(img.naturalWidth, img.naturalHeight);
                   setLoadedSize({ width: img.naturalWidth, height: img.naturalHeight });
                 }}
               />

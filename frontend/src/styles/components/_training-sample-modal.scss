@@ -82,15 +82,9 @@
     background: var(--video-bg);
   }
 
-  &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {
+  &__media-wrap .zoomable-image__img {
     width: 100%;
     max-height: $modal-media-max-height;
-  }
-
-  &__media-wrap.zoomable-image--zoomed .zoomable-image__img {
-    width: 100%;
-    height: 100%;
-    max-height: none;
   }
 
   &__footer {

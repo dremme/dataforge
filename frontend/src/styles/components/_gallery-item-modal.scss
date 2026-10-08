@@ -145,15 +145,9 @@
     object-fit: contain;
   }
 
-  &__media-wrap:not(.zoomable-image--zoomed) .zoomable-image__img {
+  &__media-wrap .zoomable-image__img {
     width: 100%;
     max-height: $modal-media-max-height;
-  }
-
-  &__media-wrap.zoomable-image--zoomed .zoomable-image__img {
-    width: 100%;
-    height: 100%;
-    max-height: none;
   }
 
   &__video-backdrop {
@@ -318,6 +312,23 @@
     padding: 0.625rem;
   }
 
+  // Fill the shrinking stage and letterbox inside it; the shared max-height would overflow it.
+  .gallery-item-modal__media-wrap {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+
+    .zoomable-image__canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .zoomable-image__img {
+      height: 100%;
+      max-height: 100%;
+    }
+  }
+
   .gallery-item-modal__video-backdrop,
   .gallery-item-modal__video {
     width: 100%;
@@ -411,7 +422,7 @@
     }
 
     .gallery-item-modal__stage:not(.gallery-item-modal__stage--editing) {
-      .gallery-item-modal__media-wrap:not(.zoomable-image--zoomed) {
+      .gallery-item-modal__media-wrap {
         width: 100%;
         height: 100%;
         max-height: 100%;

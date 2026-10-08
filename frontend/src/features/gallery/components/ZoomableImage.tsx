@@ -1,5 +1,5 @@
-import type { ImgHTMLAttributes, ReactNode, SyntheticEvent } from "react";
-import { useCallback, useRef } from "react";
+import type { ImgHTMLAttributes, ReactNode } from "react";
+import { useRef } from "react";
 import { useImageZoom } from "@/features/gallery/hooks/useImageZoom";
 import { classNames } from "@/shared/lib/classNames";
 
@@ -23,23 +23,9 @@ export function ZoomableImage({
   children,
 }: ZoomableImageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const {
-    zoomed,
-    containerStyle,
-    canvasStyle,
-    handleClick,
-    handleMouseMove,
-    toggleZoom,
-    recordNaturalSize,
-  } = useImageZoom(src, zoomable);
-
-  const handleLoad = useCallback(
-    (event: SyntheticEvent<HTMLImageElement>) => {
-      const img = event.currentTarget;
-      recordNaturalSize(img.naturalWidth, img.naturalHeight);
-      onLoad?.(event);
-    },
-    [onLoad, recordNaturalSize],
+  const { zoomed, canvasStyle, handleClick, handleMouseMove, toggleZoom } = useImageZoom(
+    src,
+    zoomable,
   );
 
   if (!zoomable) {
@@ -51,7 +37,7 @@ export function ZoomableImage({
             src={src}
             alt={alt}
             draggable={false}
-            onLoad={handleLoad}
+            onLoad={onLoad}
           />
           {children}
         </div>
@@ -63,7 +49,6 @@ export function ZoomableImage({
     <div
       ref={rootRef}
       className={classNames("zoomable-image", zoomed && "zoomable-image--zoomed", className)}
-      style={containerStyle}
       onClick={handleClick}
       onMouseMove={handleMouseMove}
       role="button"
@@ -82,7 +67,7 @@ export function ZoomableImage({
           src={src}
           alt={alt}
           draggable={false}
-          onLoad={handleLoad}
+          onLoad={onLoad}
         />
         {children}
       </div>

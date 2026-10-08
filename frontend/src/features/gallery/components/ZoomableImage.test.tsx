@@ -1,9 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ZoomableImage } from "./ZoomableImage";
 
 describe("ZoomableImage", () => {
+  // jsdom lays nothing out, and zoom needs a measured box.
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 100, 100),
+    );
+  });
+
   it("zooms in on click and updates the pressed state", async () => {
     const user = userEvent.setup();
     render(<ZoomableImage src="/media/sunset.png" alt="sunset.png" />);
