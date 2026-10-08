@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SORT_OPTIONS } from "@/features/gallery/lib/query";
 import {
-  iconArrowDownAZ,
-  iconArrowDownNarrowWide,
+  iconArrowUpAZ,
+  iconArrowUpNarrowWide,
   iconArrowDownWideNarrow,
   iconArrowDownZA,
 } from "@/shared/icons";
@@ -22,9 +22,9 @@ describe("SORT_FIELDS", () => {
 
 describe("sortDirectionIcon", () => {
   it("shows letters for names and the stack's direction otherwise", () => {
-    expect(sortDirectionIcon("name-asc")).toBe(iconArrowDownAZ);
+    expect(sortDirectionIcon("name-asc")).toBe(iconArrowUpAZ);
     expect(sortDirectionIcon("name-desc")).toBe(iconArrowDownZA);
-    expect(sortDirectionIcon("caption-asc")).toBe(iconArrowDownNarrowWide);
+    expect(sortDirectionIcon("caption-asc")).toBe(iconArrowUpNarrowWide);
     expect(sortDirectionIcon("date-desc")).toBe(iconArrowDownWideNarrow);
   });
 });

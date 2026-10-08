@@ -87,7 +87,7 @@ describe("ToolbarSortMenu", () => {
     expect(trigger).not.toHaveClass("toolbar__sort-menu-trigger--sorted");
 
     rerender(<ToolbarSortMenu value="name-asc" onChange={vi.fn()} />);
-    expect(trigger.querySelector("svg")).toHaveClass("lucide-arrow-down-a-z");
+    expect(trigger.querySelector("svg")).toHaveClass("lucide-arrow-up-a-z");
     expect(trigger).toHaveClass("toolbar__sort-menu-trigger--sorted");
   });
 });

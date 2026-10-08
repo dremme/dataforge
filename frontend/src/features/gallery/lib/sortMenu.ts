@@ -1,9 +1,9 @@
 import type { SortOption } from "@/features/gallery/lib/query";
 import {
-  iconArrowDownAZ,
-  iconArrowDownNarrowWide,
   iconArrowDownWideNarrow,
   iconArrowDownZA,
+  iconArrowUpAZ,
+  iconArrowUpNarrowWide,
   iconCalendar,
   iconCaseSensitive,
   iconHourglass,
@@ -76,7 +76,7 @@ export function sortFieldOf(value: SortOption): SortField {
 
 /** Letters for names; for measured fields, a stack that narrows or widens downwards. */
 export function sortDirectionIcon(value: SortOption): AppIcon {
-  if (value === "name-asc") return iconArrowDownAZ;
+  if (value === "name-asc") return iconArrowUpAZ;
   if (value === "name-desc") return iconArrowDownZA;
-  return value.endsWith("-asc") ? iconArrowDownNarrowWide : iconArrowDownWideNarrow;
+  return value.endsWith("-asc") ? iconArrowUpNarrowWide : iconArrowDownWideNarrow;
 }

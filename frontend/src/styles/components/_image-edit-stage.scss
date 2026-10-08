@@ -1,14 +1,14 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-// Stage size is fixed in CSS; an in-flow transformed <img> would size the stage from itself.
+// Stage size comes from the modal, never the media: an in-flow transformed <img> would size the
+// stage from itself. Both axes are containers so the image can fill either one.
 .image-edit-stage {
   position: relative;
   flex: 1 1 0;
+  align-self: stretch;
   min-width: 0;
-  height: $modal-edit-media-max-height;
-  // Width comes from the flex row via 100cqi on the turned image.
-  container-type: inline-size;
+  container-type: size;
 
   &__canvas {
     position: absolute;
@@ -24,7 +24,7 @@
   &__img {
     display: block;
     width: 100cqi;
-    max-height: $modal-edit-media-max-height;
+    max-height: 100cqb;
     border-radius: var(--radius-sm);
     object-fit: contain;
     pointer-events: none;
@@ -37,7 +37,7 @@
 
   // On its side the constraints swap: layout width becomes painted height (the cap) and layout height becomes painted width (100cqi).
   &--turned &__img {
-    width: $modal-edit-media-max-height;
+    width: 100cqb;
     max-height: 100cqi;
   }
 }
