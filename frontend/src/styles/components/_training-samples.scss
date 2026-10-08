@@ -16,10 +16,9 @@
   }
 
   &__count {
-    @include count-pill-muted;
-    min-height: 1rem;
+    @include count-pill-muted($height: 1rem);
     margin-left: auto;
-    padding: 0.0625rem 0.375rem;
+    padding-inline: 0.375rem;
   }
 
   &__panel {

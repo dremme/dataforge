@@ -146,6 +146,10 @@
     &-icon {
       @include icon-size-sm;
     }
+
+    &-label {
+      @include trim-to-caps;
+    }
   }
 
   &__card-name {

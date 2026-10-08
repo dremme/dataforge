@@ -68,6 +68,7 @@ function folderLeafName(path: string): string {
 function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_caption"): Job {
   const now = new Date().toISOString();
   return {
+    workflow_edited: false,
     id: `job-${jobType}-${folderPath}`,
     folder: folderPath,
     folder_name: folderLeafName(folderPath),

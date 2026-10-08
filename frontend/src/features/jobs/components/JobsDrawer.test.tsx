@@ -23,6 +23,7 @@ const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
 const fetchJobsMock = vi.mocked(fetchJobs);
 
 const trainingJob: Job = {
+  workflow_edited: false,
   id: "job-1",
   folder: "C:\\datasets\\landscapes",
   folder_name: "landscapes",

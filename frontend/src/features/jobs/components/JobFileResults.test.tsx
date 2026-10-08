@@ -13,6 +13,7 @@ vi.mock("@/features/jobs/api/jobs", () => ({
 const fetchResults = vi.mocked(fetchJobResults);
 
 const finishedJob: Job = {
+  workflow_edited: false,
   id: "job-1",
   folder: "C:\\Photos",
   folder_name: "Photos",

@@ -76,6 +76,7 @@ from automation.watermark import (
     run_watermark_job,
     validate_watermark_folder,
 )
+from external.ostris_training import DEFAULT_TRAINING_MODEL
 from filesystem import normalize_user_path, path_leaf_name
 from revisions import next_revision
 from schemas import JobEvent, JobHistoryStatus, JobsRemovedEvent, JobStatus, JobType
@@ -134,6 +135,10 @@ class Job:
     job_type: JobType = "auto_caption"
     auto_caption_mode: str | None = None
     external_ref: str | None = None
+    #: The ComfyUI preset or training model the run used; null for types without one.
+    workflow: str | None = None
+    #: A training run started from an edited template rather than the shipped one.
+    workflow_edited: bool = False
     #: Stamped on every change, so a client can tell which of two copies is newer.
     revision: int = 0
 
@@ -159,6 +164,8 @@ class Job:
             job_type=_stored_literal(data, "job_type", JOB_TYPES, "auto_caption"),
             auto_caption_mode=_stored_text(data, "auto_caption_mode"),
             external_ref=_stored_text(data, "external_ref"),
+            workflow=_stored_text(data, "workflow"),
+            workflow_edited=data.get("workflow_edited") is True,
             revision=_stored_int(data, "revision"),
         )
 
@@ -181,6 +188,8 @@ class Job:
             "finished_at": self.finished_at,
             "auto_caption_mode": self.auto_caption_mode,
             "external_ref": self.external_ref,
+            "workflow": self.workflow,
+            "workflow_edited": self.workflow_edited,
             "revision": self.revision,
         }
 
@@ -264,6 +273,15 @@ def _resume_train_lora(job: Job) -> dict[str, object] | None:
     return {"lora_name": job.external_ref, "attach_only": True}
 
 
+def _comfy_workflow(params: dict[str, object]) -> tuple[str | None, bool]:
+    return str(params.get("preset", "")).strip() or None, False
+
+
+def _train_lora_workflow(params: dict[str, object]) -> tuple[str | None, bool]:
+    model = str(params.get("model") or DEFAULT_TRAINING_MODEL)
+    return model, params.get("template") is not None
+
+
 def _auto_caption_mode(params: dict[str, object]) -> str | None:
     return str(params.get("mode", "thinking"))
 
@@ -291,6 +309,8 @@ class JobSpec:
     resume: Callable[[Job], dict[str, object] | None] | None = None
     external_ref: Callable[[dict[str, object]], str | None] | None = None
     caption_mode: Callable[[dict[str, object]], str | None] | None = None
+    #: What the run was built from, and whether it was edited for this run only.
+    workflow: Callable[[dict[str, object]], tuple[str | None, bool]] | None = None
 
     def failure(self, stats: dict[str, int]) -> str | None:
         return self.failure_message(stats) if self.failure_message else None
@@ -389,6 +409,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_comfy_process_job,
         failure_message=comfy_process_error_message,
         validate=_validate_comfy_process,
+        workflow=_comfy_workflow,
         # No resume: prompt ids are never persisted and ComfyUI history is bounded.
     ),
     "train_lora": JobSpec(
@@ -397,6 +418,7 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         validate=validate_train_lora_folder,
         resume=_resume_train_lora,
         external_ref=_train_lora_external_ref,
+        workflow=_train_lora_workflow,
     ),
 }
 
@@ -652,12 +674,15 @@ class JobManager:
                 raise ValueError("A job is already running for this folder")
 
             job_id = uuid.uuid4().hex
+            workflow, workflow_edited = spec.workflow(params) if spec.workflow else (None, False)
             job = Job(
                 id=job_id,
                 folder=str(folder),
                 job_type=job_type,
                 auto_caption_mode=spec.caption_mode(params) if spec.caption_mode else None,
                 external_ref=spec.external_ref(params) if spec.external_ref else None,
+                workflow=workflow,
+                workflow_edited=workflow_edited,
             )
             self._jobs[job_id] = job
             cancel_event = threading.Event()

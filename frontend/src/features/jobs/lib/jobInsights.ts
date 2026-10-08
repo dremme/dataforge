@@ -1,5 +1,6 @@
 import { formatCount, formatModifiedAt, formatRelativeTime } from "@/shared/lib/format";
-import type { Job } from "@/shared/types";
+import { trainingModelLabel } from "@/features/automation/lib/training";
+import type { Job, TrainingModel } from "@/shared/types";
 import { cancelledCountFromStats, failedCountFromStats, SKIPPED_STATUSES } from "./jobFileResults";
 import { isUnseenJob, jobFinishedMs } from "./jobSeen";
 import {
@@ -94,6 +95,32 @@ export function jobThroughputLabel(job: Job): string | null {
   const elapsed = jobElapsedSeconds(job);
   if (elapsed === null || elapsed <= 0 || job.processed < 2) return null;
   return formatRate(elapsed / job.processed, "file");
+}
+
+export interface JobWorkflow {
+  /** What kind of recipe it was, e.g. "Workflow" or "Template". */
+  kind: string;
+  name: string;
+  /** Edited for this run only, so it differs from the file of that name. */
+  edited: boolean;
+}
+
+/** The ComfyUI preset or training template a run was built from, or null for other jobs. */
+export function jobWorkflow(job: Job): JobWorkflow | null {
+  if (!job.workflow) return null;
+
+  switch (jobTypeOf(job)) {
+    case "comfy_process":
+      return { kind: "Workflow", name: job.workflow, edited: false };
+    case "train_lora":
+      return {
+        kind: "Template",
+        name: trainingModelLabel(job.workflow as TrainingModel),
+        edited: job.workflow_edited,
+      };
+    default:
+      return null;
+  }
 }
 
 export interface JobWhen {

@@ -6,6 +6,7 @@ import {
   jobOutcomeMix,
   jobThroughputLabel,
   jobWhenLabel,
+  jobWorkflow,
 } from "./jobInsights";
 
 const finished = (options: Parameters<typeof job>[0] = {}) =>
@@ -113,6 +114,32 @@ describe("jobThroughputLabel", () => {
   it("stays quiet for a single file or a running job", () => {
     expect(jobThroughputLabel(finished({ processed: 1 }))).toBeNull();
     expect(jobThroughputLabel(job({ status: "running", processed: 40 }))).toBeNull();
+  });
+});
+
+describe("jobWorkflow", () => {
+  it("names the ComfyUI preset a run used", () => {
+    expect(jobWorkflow(job({ job_type: "comfy_process", workflow: "upscale_2x" }))).toEqual({
+      kind: "Workflow",
+      name: "upscale_2x",
+      edited: false,
+    });
+  });
+
+  it("names a training run's template by its model, and says when it was edited", () => {
+    const training = job({ job_type: "train_lora", workflow: "qwen_image_2" });
+
+    expect(jobWorkflow(training)).toEqual({
+      kind: "Template",
+      name: "Qwen Image 2.1",
+      edited: false,
+    });
+    expect(jobWorkflow({ ...training, workflow_edited: true })?.edited).toBe(true);
+  });
+
+  it("says nothing for runs from before the field existed or other job types", () => {
+    expect(jobWorkflow(job({ job_type: "comfy_process" }))).toBeNull();
+    expect(jobWorkflow(job({ workflow: "stray" }))).toBeNull();
   });
 });
 

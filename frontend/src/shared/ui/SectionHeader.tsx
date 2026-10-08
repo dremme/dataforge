@@ -59,7 +59,7 @@ export function SectionHeader({
             aria-label={showTotal ? `${count} of ${total}` : undefined}
           >
             {countIcon && <Icon icon={countIcon} className="section-header__count-icon" />}
-            {count}
+            <span className="section-header__count-value">{count}</span>
             {showTotal && (
               <>
                 <span className="section-header__count-divider">/</span>

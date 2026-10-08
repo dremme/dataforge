@@ -7,6 +7,7 @@ import { renderApp } from "@/test/renderApp";
 import type { Job } from "@/shared/types";
 
 const failedJob: Job = {
+  workflow_edited: false,
   id: "job-auto-caption",
   folder: HOME_PATH,
   folder_name: "Photos",

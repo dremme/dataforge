@@ -237,13 +237,27 @@
   animation: spin 0.9s linear infinite;
 }
 
-@mixin count-pill($accent: true) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/// Trims a text box to its capitals, so centring the box centres the letters. Digits and caps have
+/// no descenders; an untrimmed line box keeps room for them and leaves the letters high. Only a
+/// block container trims, so on a flex pill put this on the text's own element, not the pill.
+@mixin trim-to-caps {
+  text-box: trim-both cap alphabetic;
+}
+
+/// A one-line text pill exactly `$height` tall, borders included, with its letters centred.
+/// Sizes by padding around the trimmed caps, so callers set `padding-inline`, never `padding`.
+@mixin text-pill($height, $border: 0px) {
+  display: inline-block;
+  padding-block: calc((#{$height} - 1cap - #{2 * $border}) / 2);
   line-height: 1;
-  min-height: 1.25rem;
-  padding: 0.1875rem 0.5rem;
+  white-space: nowrap;
+  text-align: center;
+  @include trim-to-caps;
+}
+
+@mixin count-pill($accent: true, $height: 1.25rem, $border: 0px) {
+  @include text-pill($height, $border);
+  padding-inline: 0.5rem;
   font-size: var(--text-2xs);
   font-weight: var(--font-semibold);
   border-radius: var(--radius-pill);
@@ -255,8 +269,8 @@
   }
 }
 
-@mixin count-pill-muted {
-  @include count-pill($accent: false);
+@mixin count-pill-muted($height: 1.25rem) {
+  @include count-pill($accent: false, $height: $height, $border: 1px);
   border: 1px solid var(--border);
   background: var(--surface-hover);
   color: var(--text-muted);

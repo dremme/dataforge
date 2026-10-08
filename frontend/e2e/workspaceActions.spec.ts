@@ -73,6 +73,13 @@ for (const width of [1024, 1440]) {
                   ? "Could not write the caption. Check folder permissions and retry."
                   : null,
               external_ref: scenario === "training" ? "sample_train_v1" : null,
+              workflow:
+                scenario === "training"
+                  ? "krea2_turbo"
+                  : scenario === "comfy"
+                    ? "upscale_2x"
+                    : null,
+              workflow_edited: scenario === "training",
               created_at: "2026-01-01T00:00:00.000Z",
               started_at: "2026-01-01T00:00:00.000Z",
               finished_at: active ? null : "2026-01-01T00:02:30.000Z",

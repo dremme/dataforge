@@ -767,6 +767,7 @@ describe("buildFilterItems", () => {
 
 function job(id: string, folder: string, overrides: Partial<Job> = {}): Job {
   return {
+    workflow_edited: false,
     id,
     folder,
     folder_name: folderLeafName(folder),

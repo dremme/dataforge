@@ -22,7 +22,7 @@ export function CardBadge({ icon, compact, label, variant }: CardBadgeProps) {
       aria-hidden="true"
     >
       <Icon icon={icon} className="card__badge-icon" />
-      {!compact && label}
+      {!compact && <span className="card__badge-label">{label}</span>}
     </span>
   );
 }

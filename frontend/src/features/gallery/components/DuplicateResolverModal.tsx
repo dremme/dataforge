@@ -333,7 +333,9 @@ function MemberCard({
             icon={selected ? iconCheck : iconTrash2}
             className="duplicate-resolver-modal__badge-icon"
           />
-          {selected ? "Keep" : "Delete"}
+          <span className="duplicate-resolver-modal__badge-label">
+            {selected ? "Keep" : "Delete"}
+          </span>
         </span>
         {/* On the media, so a suggested card's picture stays as tall as the rest of its row. */}
         {suggestedReason && (

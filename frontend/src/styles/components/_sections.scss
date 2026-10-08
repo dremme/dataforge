@@ -48,11 +48,22 @@
     @include section-label;
   }
 
+  // An icon sits beside the number, so this pill stays a flex row; its text parts trim instead.
   &__count {
     @include count-pill;
+    display: inline-flex;
+    align-items: center;
+    height: 1.25rem;
+    padding-block: 0;
     // Whitespace between the count parts would collapse inside the flex box.
     gap: 0.3125rem;
   }
+}
+
+.section-header__count-value,
+.section-header__count-divider,
+.section-header__count-total {
+  @include trim-to-caps;
 }
 
 .section-header__count-divider,

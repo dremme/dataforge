@@ -26,6 +26,7 @@ import {
   jobThroughputLabel,
   jobUnitWord,
   jobWhenLabel,
+  jobWorkflow,
   type JobOutcomeMix,
 } from "@/features/jobs/lib/jobInsights";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
@@ -121,6 +122,7 @@ export function JobCard({
   const timeLabel = useJobTimeLabel(job);
   const samples = useTrainingSamples(job);
   const when = jobWhenLabel(job, nowMs);
+  const workflow = jobWorkflow(job);
   const mix = active ? null : jobOutcomeMix(job);
   const throughput = jobThroughputLabel(job);
   const headline = jobHeadline(job);
@@ -201,6 +203,16 @@ export function JobCard({
           )}
         </div>
       </div>
+
+      {workflow && (
+        <p className="job-card__workflow">
+          <span className="job-card__workflow-kind">{workflow.kind}</span>
+          <span className="job-card__workflow-name" title={workflow.name}>
+            {workflow.name}
+          </span>
+          {workflow.edited && <span className="job-card__workflow-edited">Edited</span>}
+        </p>
+      )}
 
       {active && (
         <div className="job-card__live">

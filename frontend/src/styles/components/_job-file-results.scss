@@ -92,9 +92,8 @@
   }
 
   &__group-count {
-    @include count-pill-muted;
-    min-height: 1rem;
-    padding: 0.0625rem 0.375rem;
+    @include count-pill-muted($height: 1rem);
+    padding-inline: 0.375rem;
   }
 
   // Stands in for the rows a cancelled run has no results for; aligns with the row gutter.
@@ -162,14 +161,12 @@
   }
 
   &__status {
-    @include count-pill($accent: false);
+    @include count-pill($accent: false, $height: 1rem);
     flex-shrink: 0;
-    min-height: 1rem;
-    padding: 0.0625rem 0.375rem;
+    padding-inline: 0.375rem;
     background: var(--surface-hover);
     color: var(--text-muted);
     font-weight: var(--font-medium);
-    white-space: nowrap;
   }
 
   &__row--failed &__status {

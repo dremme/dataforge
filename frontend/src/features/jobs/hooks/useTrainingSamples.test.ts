@@ -25,6 +25,7 @@ const SAMPLE_PATH = "C:\\AI-Toolkit\\output\\sample_train_v1\\samples\\1__000000
 
 function trainingJob(overrides: Partial<Job> = {}): Job {
   return {
+    workflow_edited: false,
     id: "job-1",
     folder: "C:\\datasets\\landscapes",
     folder_name: "landscapes",

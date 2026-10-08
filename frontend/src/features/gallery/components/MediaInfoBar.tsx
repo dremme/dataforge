@@ -82,7 +82,7 @@ export function MediaInfoBar({
               title="Inspect the embedded ComfyUI workflow"
             >
               <Icon icon={iconComfyUi} className="media-info__badge-icon" />
-              ComfyUI
+              <span className="media-info__badge-label">ComfyUI</span>
             </button>
             <span className="media-info__label">Workflow</span>
           </div>

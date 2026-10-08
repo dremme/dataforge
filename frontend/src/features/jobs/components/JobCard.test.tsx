@@ -20,6 +20,7 @@ const fetchSamples = vi.mocked(fetchOstrisTrainingSamples);
 const fetchResults = vi.mocked(fetchJobResults);
 
 const runningJob: Job = {
+  workflow_edited: false,
   id: "job-1",
   folder: "C:\\Photos",
   folder_name: "Photos",
@@ -126,6 +127,28 @@ describe("JobCard", () => {
 
     expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
     expect(fetchSamples).not.toHaveBeenCalled();
+  });
+
+  it("says which workflow a ComfyUI run used, and which template a training run used", () => {
+    const comfy: Job = { ...runningJob, job_type: "comfy_process", workflow: "upscale_2x" };
+    const { rerender } = renderWithQueryClient(<JobCard job={comfy} />);
+
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    expect(screen.getByText("upscale_2x")).toBeInTheDocument();
+
+    rerender(
+      <JobCard
+        job={{
+          ...runningJob,
+          job_type: "train_lora",
+          workflow: "krea2_turbo",
+          workflow_edited: true,
+        }}
+      />,
+    );
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    expect(screen.getByText("Krea 2 Turbo")).toBeInTheDocument();
+    expect(screen.getByText("Edited")).toBeInTheDocument();
   });
 
   it("names the file it is working on", () => {

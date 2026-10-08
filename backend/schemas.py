@@ -854,6 +854,10 @@ class JobResponse(BaseModel):
         default=None,
         description="The external job this one co-tracks (the AI-Toolkit training name).",
     )
+    #: The ComfyUI preset name or the training model key the run used.
+    workflow: str | None = None
+    #: The training template was edited for this run instead of the shipped one.
+    workflow_edited: bool = False
     #: Of two copies of this job, the one with the higher revision is newer.
     revision: int = 0
 

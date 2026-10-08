@@ -142,6 +142,32 @@ class JobManagerExecutionTests(unittest.TestCase):
         self.assertEqual(received["lora_name"], "sample_train_v1")
         self.assertIs(received["attach_only"], True)
 
+    def test_records_the_workflow_a_comfy_or_training_run_used(self) -> None:
+        def finish(folder, **_params):
+            return {"folder": str(folder), "total": 0, "processed": 0, "stats": {}, "results": []}
+
+        def accept(_folder, **_params):
+            return None
+
+        cases = [
+            ("comfy_process", {"preset": "upscale_2x"}, ("upscale_2x", False)),
+            ("train_lora", {"model": "qwen_image_2"}, ("qwen_image_2", False)),
+            ("train_lora", {"model": "krea2_turbo", "template": "job: x"}, ("krea2_turbo", True)),
+            ("strip_metadata", {}, (None, False)),
+        ]
+        for job_type, params, expected in cases:
+            with self.subTest(job_type=job_type, params=params):
+                reset_job_manager()
+                spec = replace(JOB_SPECS[job_type], run=finish, validate=accept)
+                with TempMediaFolder() as root, patch.dict(JOB_SPECS, {job_type: spec}):
+                    write_media(root, "photo.png")
+                    finished = wait_for_job(job_manager.queue_job(job_type, root, **params).id)
+                    stored = get_job_from_store(finished.id)
+
+                self.assertEqual((finished.workflow, finished.workflow_edited), expected)
+                assert stored is not None
+                self.assertEqual((stored["workflow"], stored["workflow_edited"]), expected)
+
     def test_auto_caption_api_errors_mark_job_failed(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")
