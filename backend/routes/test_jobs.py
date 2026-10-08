@@ -230,6 +230,16 @@ class JobHistoryTests(unittest.TestCase):
         )
         self.assertEqual(_ids("?job_type=watermark&status=stopped"), ["halted"])
 
+    def test_filters_by_several_types(self) -> None:
+        _stored("caption", job_type="auto_caption")
+        _stored("mark", job_type="watermark")
+        _stored("strip", job_type="strip_metadata")
+
+        payload = client.get("/api/jobs?job_type=watermark&job_type=strip_metadata").json()
+
+        self.assertEqual({job["id"] for job in payload["jobs"]}, {"mark", "strip"})
+        self.assertEqual(payload["total"], 2)
+
     def test_pages_through_matching_jobs_with_a_total(self) -> None:
         for index in range(5):
             _stored(f"job-{index}", created_at=f"2026-01-0{index + 1}T00:00:00+00:00")

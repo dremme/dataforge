@@ -19,11 +19,11 @@ router = APIRouter()
 def list_jobs(
     limit: int = Query(100, ge=1, le=100, description="Maximum number of jobs to return"),
     offset: int = Query(0, ge=0, description="Matching jobs to skip, for paging"),
-    job_type: JobType | None = Query(None, description="Only jobs of this type"),
+    job_type: list[JobType] | None = Query(None, description="Only jobs of these types"),
     status: JobHistoryStatus | None = Query(None, description="Only jobs in this state"),
     folder: str | None = Query(None, description="Only jobs that ran in this folder"),
 ) -> JobsResponse:
-    filters = {"job_type": job_type, "status": status, "folder": folder}
+    filters = {"job_types": job_type, "status": status, "folder": folder}
     revision = job_manager.snapshot_revision()
     jobs = job_manager.list_jobs(limit=limit, offset=offset, **filters)
     return JobsResponse(

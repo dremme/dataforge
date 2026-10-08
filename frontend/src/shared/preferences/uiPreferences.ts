@@ -1,4 +1,11 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { JobFilters } from "@/features/jobs/lib/jobFilters";
+import {
+  cacheJobFilters,
+  jobFiltersFromWire,
+  jobFiltersToWire,
+  readJobFilters,
+} from "@/features/jobs/lib/jobFilterPreferences";
 import { putJson, requestJson } from "@/shared/api/http";
 import { readStored, writeStored } from "@/shared/lib/storage";
 import { mirroredPreference } from "@/shared/query/refreshPolicies";
@@ -9,6 +16,7 @@ export interface UiSettings {
   showAutomationSpecs: boolean;
   theme: ThemePreference;
   keepCandidateMetadata: boolean;
+  jobsDrawerFilters: JobFilters;
 }
 
 const SORT_CACHE_KEY = "gallery-sort";
@@ -36,6 +44,7 @@ function readCachedUiSettings(): UiSettings {
     theme: parseThemePreference(readStored(THEME_CACHE_KEY)),
     // On unless turned off: accepting without it loses the original's metadata.
     keepCandidateMetadata: readStored(KEEP_CANDIDATE_METADATA_CACHE_KEY) !== "false",
+    jobsDrawerFilters: readJobFilters(),
   };
 }
 
@@ -43,6 +52,7 @@ function cacheUiSettings({
   sort,
   showAutomationSpecs,
   keepCandidateMetadata,
+  jobsDrawerFilters,
 }: Partial<UiSettings>): void {
   if (sort !== undefined) writeStored(SORT_CACHE_KEY, sort);
   if (showAutomationSpecs !== undefined) {
@@ -51,6 +61,7 @@ function cacheUiSettings({
   if (keepCandidateMetadata !== undefined) {
     writeStored(KEEP_CANDIDATE_METADATA_CACHE_KEY, String(keepCandidateMetadata));
   }
+  if (jobsDrawerFilters !== undefined) cacheJobFilters(jobsDrawerFilters);
 }
 
 function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
@@ -59,6 +70,7 @@ function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
     showAutomationSpecs: Boolean(data.show_automation_specs),
     theme: data.theme,
     keepCandidateMetadata: data.keep_candidate_metadata,
+    jobsDrawerFilters: jobFiltersFromWire(data.jobs_drawer_filters),
   };
 }
 
@@ -87,6 +99,9 @@ export function updateUiSettings(partial: Partial<UiSettings>): Promise<UiSettin
   if (partial.theme !== undefined) body.theme = partial.theme;
   if (partial.keepCandidateMetadata !== undefined) {
     body.keep_candidate_metadata = partial.keepCandidateMetadata;
+  }
+  if (partial.jobsDrawerFilters !== undefined) {
+    body.jobs_drawer_filters = jobFiltersToWire(partial.jobsDrawerFilters);
   }
 
   const save = pendingUiSave.then(async () =>

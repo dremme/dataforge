@@ -1,21 +1,19 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useJobHistory } from "@/features/jobs/hooks/useJobHistory";
+import { JobTypeFilterMenu } from "@/features/jobs/components/JobTypeFilterMenu";
 import {
   DEFAULT_JOB_FILTERS,
   isDefaultJobFilters,
   JOB_STATUS_FILTER_OPTIONS,
-  JOB_TYPE_FILTER_OPTIONS,
   jobHistoryStatusOf,
   jobsQueryFor,
   matchesJobFilters,
   mergeJobLists,
   type JobFilters,
 } from "@/features/jobs/lib/jobFilters";
-import { cacheJobFilters, readJobFilters } from "@/features/jobs/lib/jobFilterPreferences";
 import { groupJobsForDrawer } from "@/features/jobs/lib/jobInsights";
 import { isUnseenJob } from "@/features/jobs/lib/jobSeen";
-import { DialogSelect } from "@/shared/ui/DialogSelect";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import {
   iconBot,
@@ -28,6 +26,7 @@ import {
 } from "@/shared/icons";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { useTicker } from "@/shared/hooks/useTicker";
+import { useUiSettings, useUpdateUiSettings } from "@/shared/preferences/uiPreferences";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { Tooltip } from "@/shared/ui/Tooltip";
@@ -134,7 +133,8 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
   const [clearingAll, setClearingAll] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Job | null>(null);
-  const [filters, setFilters] = useState<JobFilters>(readJobFilters);
+  const { jobsDrawerFilters: filters } = useUiSettings();
+  const updateUiSettings = useUpdateUiSettings();
   const statusName = useId();
 
   useEffect(() => {
@@ -151,7 +151,12 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
     () => jobs.map((job) => `${job.id}:${jobHistoryStatusOf(job.status)}`).join(","),
     [jobs],
   );
-  const history = useJobHistory(jobsQueryFor(filters, currentFolder), {
+  // Memoized so the type list keeps its identity, and with it the history query key.
+  const historyQuery = useMemo(
+    () => jobsQueryFor(filters, currentFolder),
+    [filters, currentFolder],
+  );
+  const history = useJobHistory(historyQuery, {
     enabled: drawerOpen,
     refreshKey,
   });
@@ -185,10 +190,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
     runningCount > 0 && `${runningCount} running`,
     newCount > 0 && `${newCount} new`,
   ].filter(Boolean);
-  const changeFilters = (next: JobFilters) => {
-    setFilters(next);
-    cacheJobFilters(next);
-  };
+  const changeFilters = (next: JobFilters) => updateUiSettings({ jobsDrawerFilters: next });
   const updateFilter = (patch: Partial<JobFilters>) => changeFilters({ ...filters, ...patch });
   const folderFilterOn = Boolean(currentFolder) && filters.folder === "current";
 
@@ -339,14 +341,10 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
             </div>
 
             <div className="jobs-drawer__refine">
-              <div className="jobs-drawer__type">
-                <DialogSelect
-                  label="Type"
-                  value={filters.jobType}
-                  options={JOB_TYPE_FILTER_OPTIONS}
-                  onChange={(jobType) => updateFilter({ jobType })}
-                />
-              </div>
+              <JobTypeFilterMenu
+                value={filters.jobTypes}
+                onChange={(jobTypes) => updateFilter({ jobTypes })}
+              />
               <button
                 type="button"
                 className={classNames(

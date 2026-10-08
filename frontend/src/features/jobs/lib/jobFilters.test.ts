@@ -6,6 +6,7 @@ import {
   jobsQueryFor,
   matchesJobFilters,
   mergeJobLists,
+  toggleJobType,
 } from "./jobFilters";
 
 const PHOTOS = "C:\\Photos";
@@ -34,10 +35,30 @@ describe("jobsQueryFor", () => {
   });
 });
 
+describe("toggleJobType", () => {
+  it("adds and removes a type, keeping option order whatever the click order", () => {
+    const picked = toggleJobType(toggleJobType([], "watermark"), "auto_caption");
+
+    expect(picked).toEqual(["auto_caption", "watermark"]);
+    expect(toggleJobType(picked, "watermark")).toEqual(["auto_caption"]);
+  });
+});
+
 describe("matchesJobFilters", () => {
+  it("matches any of several types", () => {
+    const filters = {
+      ...DEFAULT_JOB_FILTERS,
+      jobTypes: ["watermark" as const, "auto_caption" as const],
+    };
+
+    expect(matchesJobFilters(job({ job_type: "auto_caption" }), filters, PHOTOS)).toBe(true);
+    expect(matchesJobFilters(job({ job_type: "watermark" }), filters, PHOTOS)).toBe(true);
+    expect(matchesJobFilters(job({ job_type: "strip_metadata" }), filters, PHOTOS)).toBe(false);
+  });
+
   it("applies type, status and folder together", () => {
     const filters = {
-      jobType: "watermark" as const,
+      jobTypes: ["watermark" as const],
       status: "stopped" as const,
       folder: "current" as const,
     };

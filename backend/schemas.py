@@ -1,7 +1,7 @@
 import math
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from constants import (
     ADJUST_MAX_HUE,
@@ -274,12 +274,28 @@ type GallerySort = Literal[
 type ThemePreference = Literal["system", "light", "dark"]
 
 
+class JobsDrawerFilters(BaseModel):
+    #: Empty means every type.
+    job_types: list[JobType] = Field(default_factory=list)
+    status: JobHistoryStatus | Literal["all"] = "all"
+    folder: Literal["all", "current"] = "all"
+
+    @field_validator("job_types", mode="before")
+    @classmethod
+    def _drop_unknown_job_types(cls, value: object) -> object:
+        """A saved filter outlives a retired job type; drop it rather than the whole filter."""
+        if not isinstance(value, list):
+            return value
+        return [item for item in value if item in get_args(JobType.__value__)]
+
+
 class UiSettingsResponse(BaseModel):
     sort: GallerySort = DEFAULT_GALLERY_SORT
     show_automation_specs: bool = False
     theme: ThemePreference = "system"
     #: On by default: accepting a ComfyUI candidate would otherwise lose the original's metadata.
     keep_candidate_metadata: bool = True
+    jobs_drawer_filters: JobsDrawerFilters = Field(default_factory=JobsDrawerFilters)
 
 
 class UiSettingsUpdate(BaseModel):
@@ -288,6 +304,7 @@ class UiSettingsUpdate(BaseModel):
     show_automation_specs: bool | None = None
     theme: ThemePreference | None = None
     keep_candidate_metadata: bool | None = None
+    jobs_drawer_filters: JobsDrawerFilters | None = None
 
 
 type AppSettingKey = Literal[

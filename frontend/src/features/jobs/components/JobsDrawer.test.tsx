@@ -110,6 +110,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   resetScrollLockManagerForTests();
 });
 
@@ -205,7 +206,15 @@ describe("JobsDrawer", () => {
       const user = userEvent.setup();
       renderDrawer([finishedCaption]);
 
-      await user.selectOptions(screen.getByLabelText("Type"), "watermark");
+      await user.click(screen.getByRole("button", { name: "Type: All types" }));
+      await user.click(screen.getByRole("menuitemcheckbox", { name: "Watermark" }));
+      await user.click(screen.getByRole("menuitemcheckbox", { name: "Strip metadata" }));
+      expect(screen.getByRole("button", { name: "Type: 2 types" })).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      // Escape closes the menu, not the drawer under it.
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(jobsContext.closeDrawer).not.toHaveBeenCalled();
+
       await user.click(screen.getByRole("radio", { name: "Failed" }));
       await user.click(screen.getByRole("button", { name: "This folder" }));
 
@@ -213,7 +222,7 @@ describe("JobsDrawer", () => {
         expect(fetchJobsMock).toHaveBeenLastCalledWith(
           expect.objectContaining({
             offset: 0,
-            jobType: "watermark",
+            jobTypes: ["strip_metadata", "watermark"],
             status: "failed",
             // JSX attribute strings keep their backslashes, so this is what the drawer received.
             folder: "C:\\\\datasets\\\\landscapes",
@@ -225,6 +234,74 @@ describe("JobsDrawer", () => {
 
       await user.click(screen.getByRole("button", { name: "Clear filters" }));
       expect(await screen.findByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
+    });
+
+    it("saves filter changes to the server", async () => {
+      const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+        Promise.resolve(Response.json(init?.body ? JSON.parse(String(init.body)) : {})),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderDrawer([finishedCaption]);
+
+      await user.click(screen.getByRole("radio", { name: "Failed" }));
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/preferences/ui",
+          expect.objectContaining({
+            method: "PUT",
+            body: JSON.stringify({
+              jobs_drawer_filters: { job_types: [], status: "failed", folder: "all" },
+            }),
+          }),
+        ),
+      );
+    });
+
+    it("keeps a filter whose save fails, without saying anything about it", async () => {
+      const fetchMock = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")));
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderDrawer([finishedCaption]);
+
+      await user.click(screen.getByRole("radio", { name: "Failed" }));
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/preferences/ui",
+          expect.objectContaining({ method: "PUT" }),
+        ),
+      );
+      expect(screen.getByRole("radio", { name: "Failed" })).toBeChecked();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByText(/sav(e|ing)/i)).not.toBeInTheDocument();
+    });
+
+    it("opens with the saved filters", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() =>
+          Promise.resolve(
+            Response.json({
+              sort: "date-desc",
+              show_automation_specs: false,
+              theme: "system",
+              keep_candidate_metadata: true,
+              jobs_drawer_filters: { job_types: ["watermark"], status: "all", folder: "all" },
+            }),
+          ),
+        ),
+      );
+      renderDrawer([finishedCaption]);
+
+      expect(await screen.findByRole("button", { name: "Type: Watermark" })).toBeInTheDocument();
+      await waitFor(() =>
+        expect(fetchJobsMock).toHaveBeenLastCalledWith(
+          expect.objectContaining({ jobTypes: ["watermark"] }),
+        ),
+      );
     });
 
     it("offers to clear filters that hide every local job beside an external one", async () => {

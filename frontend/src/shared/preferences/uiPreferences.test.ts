@@ -24,6 +24,7 @@ const serverCopy = {
   show_automation_specs: true,
   theme: "dark",
   keep_candidate_metadata: false,
+  jobs_drawer_filters: { job_types: ["watermark"], status: "failed", folder: "all" },
 };
 
 function respond(body: unknown) {
@@ -53,6 +54,7 @@ describe("useUiSettings", () => {
         showAutomationSpecs: true,
         theme: "dark",
         keepCandidateMetadata: false,
+        jobsDrawerFilters: { jobTypes: ["watermark"], status: "failed", folder: "all" },
       }),
     );
     expect(localStorage.getItem("gallery-sort")).toBe("name-asc");

@@ -17,6 +17,7 @@ function stubSettings(showAutomationSpecs: boolean) {
       sort: "name-asc",
       theme: "system",
       show_automation_specs: saved.show_automation_specs ?? showAutomationSpecs,
+      jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
     });
   });
   vi.stubGlobal("fetch", fetchMock);

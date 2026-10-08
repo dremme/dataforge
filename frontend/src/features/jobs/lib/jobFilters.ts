@@ -6,20 +6,25 @@ import { isActiveJobStatus, jobTypeOf } from "./jobs";
 export type JobFolderFilter = "all" | "current";
 
 export interface JobFilters {
-  jobType: JobType | "all";
+  /** Empty means every type. Kept in `JOB_TYPE_FILTER_OPTIONS` order. */
+  jobTypes: JobType[];
   status: JobHistoryStatus | "all";
   folder: JobFolderFilter;
 }
 
-export const DEFAULT_JOB_FILTERS: JobFilters = { jobType: "all", status: "all", folder: "all" };
+export const DEFAULT_JOB_FILTERS: JobFilters = { jobTypes: [], status: "all", folder: "all" };
 
-export const JOB_TYPE_FILTER_OPTIONS: ReadonlyArray<{ value: JobType | "all"; title: string }> = [
-  { value: "all", title: "All types" },
-  ...[PRIMARY_JOB_TYPE, ...SECONDARY_JOB_TYPES].map((type) => ({
-    value: type,
-    title: jobTypeLabelFor(type),
-  })),
-];
+export const JOB_TYPE_FILTER_OPTIONS: ReadonlyArray<{ value: JobType; title: string }> = [
+  PRIMARY_JOB_TYPE,
+  ...SECONDARY_JOB_TYPES,
+].map((type) => ({ value: type, title: jobTypeLabelFor(type) }));
+
+/** Adds or removes ``type``, keeping option order so equal selections compare equal. */
+export function toggleJobType(selected: readonly JobType[], type: JobType): JobType[] {
+  const next = new Set(selected);
+  if (!next.delete(type)) next.add(type);
+  return JOB_TYPE_FILTER_OPTIONS.map((option) => option.value).filter((value) => next.has(value));
+}
 
 export const JOB_STATUS_FILTER_OPTIONS: ReadonlyArray<{
   value: JobHistoryStatus | "all";
@@ -38,13 +43,13 @@ export const JOB_FOLDER_FILTER_OPTIONS: ReadonlyArray<{ value: JobFolderFilter; 
 ];
 
 export interface JobsQuery {
-  jobType?: JobType;
+  jobTypes?: JobType[];
   status?: JobHistoryStatus;
   folder?: string;
 }
 
 export function isDefaultJobFilters(filters: JobFilters): boolean {
-  return filters.jobType === "all" && filters.status === "all" && filters.folder === "all";
+  return filters.jobTypes.length === 0 && filters.status === "all" && filters.folder === "all";
 }
 
 /** Mirrors the backend's ``_HISTORY_STATUSES``. */
@@ -57,7 +62,7 @@ export function jobHistoryStatusOf(status: JobStatus): JobHistoryStatus {
 /** The folder filter falls back to all folders when no folder is open. */
 export function jobsQueryFor(filters: JobFilters, currentFolder: string | undefined): JobsQuery {
   return {
-    ...(filters.jobType !== "all" && { jobType: filters.jobType }),
+    ...(filters.jobTypes.length > 0 && { jobTypes: filters.jobTypes }),
     ...(filters.status !== "all" && { status: filters.status }),
     ...(filters.folder === "current" && currentFolder && { folder: currentFolder }),
   };
@@ -69,7 +74,7 @@ export function matchesJobFilters(
   currentFolder: string | undefined,
 ): boolean {
   const query = jobsQueryFor(filters, currentFolder);
-  if (query.jobType && jobTypeOf(job) !== query.jobType) return false;
+  if (query.jobTypes && !query.jobTypes.includes(jobTypeOf(job))) return false;
   if (query.status && jobHistoryStatusOf(job.status) !== query.status) return false;
   if (query.folder && !foldersMatch(job.folder, query.folder)) return false;
   return true;

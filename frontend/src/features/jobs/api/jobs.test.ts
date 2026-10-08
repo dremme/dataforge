@@ -39,13 +39,14 @@ describe("jobs API", () => {
     await fetchJobs({
       limit: 50,
       offset: 50,
-      jobType: "watermark",
+      jobTypes: ["watermark", "strip_metadata"],
       status: "stopped",
       folder: "C:\\Photos",
     });
 
     expect(requestJsonMock).toHaveBeenCalledWith(
-      "/api/jobs?limit=50&offset=50&job_type=watermark&status=stopped&folder=C%3A%5CPhotos",
+      "/api/jobs?limit=50&offset=50&job_type=watermark&job_type=strip_metadata&status=stopped" +
+        "&folder=C%3A%5CPhotos",
       { signal: undefined },
     );
   });

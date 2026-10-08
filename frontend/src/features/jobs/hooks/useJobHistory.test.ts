@@ -45,11 +45,11 @@ describe("useJobHistory", () => {
   it("loads the first page with the filter", async () => {
     fetchJobsMock.mockResolvedValue(page(jobs("a", 2), 2));
 
-    const { result } = renderHistory({ query: { jobType: "watermark" } });
+    const { result } = renderHistory({ query: { jobTypes: ["watermark"] } });
 
     await waitFor(() => expect(result.current.jobs).toHaveLength(2));
     expect(fetchJobsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: JOB_HISTORY_PAGE_SIZE, offset: 0, jobType: "watermark" }),
+      expect.objectContaining({ limit: JOB_HISTORY_PAGE_SIZE, offset: 0, jobTypes: ["watermark"] }),
     );
     expect(result.current.hasMore).toBe(false);
   });

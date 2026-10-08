@@ -26,7 +26,13 @@ function stubSystemScheme(light: boolean) {
 }
 
 function respond(theme: string) {
-  return new Response(JSON.stringify({ sort: "name-asc", show_automation_specs: false, theme }), {
+  const body = {
+    sort: "name-asc",
+    show_automation_specs: false,
+    theme,
+    jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
+  };
+  return new Response(JSON.stringify(body), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });

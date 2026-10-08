@@ -24,10 +24,10 @@ type HistoryPages = InfiniteData<JobsResponse, number>;
 /** Stored job history for the drawer, one page at a time. Live progress comes from the context. */
 export function useJobHistory(query: JobsQuery, { enabled, refreshKey }: UseJobHistoryOptions) {
   const queryClient = useQueryClient();
-  const { jobType, status, folder } = query;
+  const { jobTypes, status, folder } = query;
   const queryKey = useMemo(
-    () => jobKeys.historyPage({ jobType, status, folder }),
-    [jobType, status, folder],
+    () => jobKeys.historyPage({ jobTypes, status, folder }),
+    [jobTypes, status, folder],
   );
 
   const history = useInfiniteQuery({
@@ -36,7 +36,7 @@ export function useJobHistory(query: JobsQuery, { enabled, refreshKey }: UseJobH
       fetchJobs({
         limit: JOB_HISTORY_PAGE_SIZE,
         offset: pageParam,
-        jobType,
+        jobTypes,
         status,
         folder,
         signal,

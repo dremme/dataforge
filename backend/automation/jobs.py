@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -471,12 +471,12 @@ class JobManager:
         *,
         limit: int = 100,
         offset: int = 0,
-        job_type: str | None = None,
+        job_types: Sequence[str] | None = None,
         status: JobHistoryStatus | None = None,
         folder: str | None = None,
     ) -> list[Job]:
         stored_jobs = jobs_store.list_jobs(
-            limit=limit, offset=offset, job_type=job_type, status=status, folder=folder
+            limit=limit, offset=offset, job_types=job_types, status=status, folder=folder
         )
 
         with self._lock:

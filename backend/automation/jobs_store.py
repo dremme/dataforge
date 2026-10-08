@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Sequence
 
 from db import get_connection
 from filesystem import normalize_user_path, path_leaf_name
@@ -241,15 +242,15 @@ def get_job(job_id: str) -> dict[str, object] | None:
 
 def _history_where(
     *,
-    job_type: str | None,
+    job_types: Sequence[str] | None,
     status: JobHistoryStatus | None,
     folder: str | None,
 ) -> tuple[str, list[object]]:
     clauses: list[str] = []
     params: list[object] = []
-    if job_type:
-        clauses.append("job_type = ?")
-        params.append(job_type)
+    if job_types:
+        clauses.append(f"job_type IN ({', '.join('?' for _ in job_types)})")
+        params.extend(job_types)
     if status:
         statuses = _HISTORY_STATUSES[status]
         clauses.append(f"status IN ({', '.join('?' for _ in statuses)})")
@@ -264,13 +265,13 @@ def list_jobs(
     *,
     limit: int = 100,
     offset: int = 0,
-    job_type: str | None = None,
+    job_types: Sequence[str] | None = None,
     status: JobHistoryStatus | None = None,
     folder: str | None = None,
 ) -> list[dict[str, object]]:
     """Job summaries, most active then newest first. Carries no per-file results."""
     safe_limit = max(1, min(limit, 100))
-    where, params = _history_where(job_type=job_type, status=status, folder=folder)
+    where, params = _history_where(job_types=job_types, status=status, folder=folder)
 
     with get_connection() as conn:
         rows = conn.execute(
@@ -295,11 +296,11 @@ def list_jobs(
 
 def count_jobs(
     *,
-    job_type: str | None = None,
+    job_types: Sequence[str] | None = None,
     status: JobHistoryStatus | None = None,
     folder: str | None = None,
 ) -> int:
-    where, params = _history_where(job_type=job_type, status=status, folder=folder)
+    where, params = _history_where(job_types=job_types, status=status, folder=folder)
 
     with get_connection() as conn:
         row = conn.execute(f"SELECT COUNT(*) FROM jobs {where}", params).fetchone()

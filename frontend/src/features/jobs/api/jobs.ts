@@ -25,14 +25,14 @@ export interface FetchJobsOptions extends JobsQuery {
 export async function fetchJobs({
   limit = 100,
   offset = 0,
-  jobType,
+  jobTypes = [],
   status,
   folder,
   signal,
 }: FetchJobsOptions = {}): Promise<JobsResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (offset) params.set("offset", String(offset));
-  if (jobType) params.set("job_type", jobType);
+  for (const jobType of jobTypes) params.append("job_type", jobType);
   if (status) params.set("status", status);
   if (folder) params.set("folder", folder);
   return requestJson<JobsResponse>(`/api/jobs?${params}`, { signal });
