@@ -24,7 +24,20 @@ import { useNotify } from "@/shared/notifications/notifications";
 import { mergedRead } from "@/shared/query/queryClient";
 import type { ExternalOstrisJob, ExternalOstrisJobsResponse, Job, JobType } from "@/shared/types";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
-import { isActiveJobStatus, isTerminalJobStatus, selectFolderJob } from "@/features/jobs/lib/jobs";
+import {
+  isActiveJobStatus,
+  isTerminalJobStatus,
+  jobShowsErrorState,
+  selectFolderJob,
+} from "@/features/jobs/lib/jobs";
+import {
+  isUnseenJob,
+  JOBS_SEEN_AT_KEY,
+  nextJobsSeenAt,
+  parseJobsSeenAt,
+  readJobsSeenAt,
+  writeJobsSeenAt,
+} from "@/features/jobs/lib/jobSeen";
 import { jobKeys } from "@/features/jobs/lib/jobQueries";
 import {
   EMPTY_LIVE_JOBS,
@@ -73,6 +86,11 @@ interface JobsContextValue {
   externalJobs: ExternalOstrisJob[];
   ostrisAvailable: boolean;
   activeCount: number;
+  /** Jobs that finished after the drawer was last closed; the drawer marks them "New". */
+  seenAtMs: number;
+  unseenCount: number;
+  /** Any unseen job failed or was interrupted. */
+  unseenFailed: boolean;
   drawerOpen: boolean;
   startingJob: StartingJob | null;
   cancellingJobId: string | null;
@@ -146,6 +164,7 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const streamConnected = useStreamConnected();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [seenAtMs, setSeenAtMs] = useState(() => readJobsSeenAt());
 
   const liveQuery = useQuery({
     queryKey: jobKeys.live,
@@ -180,6 +199,37 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     void refetchLive();
     void refetchExternal();
   }, [drawerOpen, refetchLive, refetchExternal]);
+
+  // Another tab closing its drawer has seen the same jobs.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== JOBS_SEEN_AT_KEY) return;
+      const next = parseJobsSeenAt(event.newValue);
+      if (next !== null) setSeenAtMs(next);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const jobsRef = useRef(jobs);
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
+
+  // Seen on close, not open: marking on open would erase the markers the user came to read.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    return () => {
+      const next = nextJobsSeenAt(jobsRef.current);
+      writeJobsSeenAt(next);
+      setSeenAtMs(next);
+    };
+  }, [drawerOpen]);
+
+  const { unseenCount, unseenFailed } = useMemo(() => {
+    const unseen = jobs.filter((job) => isUnseenJob(job, seenAtMs));
+    return { unseenCount: unseen.length, unseenFailed: unseen.some(jobShowsErrorState) };
+  }, [jobs, seenAtMs]);
 
   const activeCount = useMemo(
     () => jobs.filter((job) => isActiveJobStatus(job.status)).length + external.jobs.length,
@@ -313,6 +363,9 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       externalJobs: external.jobs,
       ostrisAvailable: external.available,
       activeCount,
+      seenAtMs,
+      unseenCount,
+      unseenFailed,
       drawerOpen,
       startingJob,
       cancellingJobId,
@@ -329,6 +382,9 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       jobs,
       external,
       activeCount,
+      seenAtMs,
+      unseenCount,
+      unseenFailed,
       drawerOpen,
       startingJob,
       cancellingJobId,

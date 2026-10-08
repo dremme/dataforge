@@ -8,6 +8,7 @@ import {
 import { applyFolderDelta } from "@/features/folder/lib/applyFolderDelta";
 import { folderKey } from "@/features/folder/lib/folderPath";
 import { loadFolderContents } from "@/features/folder/lib/folderPreferences";
+import { carrySubfolderCounts } from "@/features/folder/lib/subfolderCounts";
 import type { FolderChild, FolderResponse, SubfolderStats } from "@/shared/types";
 
 /** A listing this young is shown as is; older ones are revalidated when shown again. */
@@ -26,6 +27,8 @@ export const folderKeys = {
   reviewCounts: (path: string) => ["folder-review-counts", folderKey(path)] as const,
   stats: (path: string, fingerprint: string) =>
     ["folder-stats", folderKey(path), fingerprint] as const,
+  /** The listing fingerprint whose subfolder counts are held over and must be read again. */
+  recount: (path: string) => ["folder-recount", folderKey(path)] as const,
 };
 
 /**
@@ -47,11 +50,24 @@ async function readFolder(
     const report = await fetchFolderChanges(held.path, held.fingerprint, signal, opening);
     if (!report.full) {
       // Re-read: a local patch made while the request was out must survive the delta.
-      return applyFolderDelta(queryClient.getQueryData<FolderResponse>(key) ?? held, report);
+      const next = applyFolderDelta(queryClient.getQueryData<FolderResponse>(key) ?? held, report);
+      const stale = new Set(report.stale_subfolders);
+      if (next.subfolders.some((entry) => stale.has(entry.path))) {
+        queryClient.setQueryData(folderKeys.recount(next.path), next.fingerprint);
+      }
+      return next;
     }
   }
 
-  return loadFolderContents(path, { signal });
+  const fresh = await loadFolderContents(path, { signal });
+  if (!held || folderKey(held.path) !== folderKey(fresh.path)) return fresh;
+
+  // A full listing leaves subfolder counts out. A job writing into a subfolder moves its mtime
+  // and forces one; showing the old counts until the recount lands keeps the cards steady.
+  const { subfolders, carried } = carrySubfolderCounts(held.subfolders, fresh.subfolders);
+  if (!carried) return fresh;
+  queryClient.setQueryData(folderKeys.recount(fresh.path), fresh.fingerprint);
+  return { ...fresh, subfolders };
 }
 
 export function folderQueryOptions(path: string | undefined) {
@@ -137,6 +153,9 @@ export function subfolderStatsQueryOptions(path: string, fingerprint: string) {
 
       client.setQueryData<FolderResponse>(folderKeys.folder(path), (folder) =>
         folder && folder.fingerprint === fingerprint ? mergeSubfolderStats(folder, stats) : folder,
+      );
+      client.setQueryData<string | null>(folderKeys.recount(path), (owed) =>
+        owed === fingerprint ? null : owed,
       );
       return subfolders;
     },

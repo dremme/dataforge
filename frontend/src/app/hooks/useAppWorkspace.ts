@@ -182,18 +182,6 @@ export function useAppWorkspace() {
     [gallery],
   );
 
-  const runJobAgain = useCallback(
-    (jobType: JobType) => {
-      gallery.exitSelectionMode();
-      requestJobStartRef.current(
-        jobType,
-        gallery.query.filteredItems.map((item) => item.path),
-        "visible",
-      );
-    },
-    [gallery],
-  );
-
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const openFolderPicker = useCallback(() => setFolderPickerOpen(true), []);
   const closeFolderPicker = useCallback(() => setFolderPickerOpen(false), []);
@@ -242,7 +230,6 @@ export function useAppWorkspace() {
         : undefined,
     onOpenItem: gallery.openGalleryItem,
     onRetryFailed: retryFailedFiles,
-    onRunAgain: runJobAgain,
   });
 
   requestJobStartRef.current = automation.requestStart;

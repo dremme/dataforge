@@ -14,7 +14,6 @@ export interface AutomationActions {
   onRequestStart: (jobType: JobType) => void;
   onOpenItem?: (path: string) => void;
   onRetryFailed?: (jobType: JobType, paths: string[]) => void;
-  onRunAgain?: (jobType: JobType) => void;
   onCancelJob: () => void;
   cancellingJob?: boolean;
   issueCount?: number;

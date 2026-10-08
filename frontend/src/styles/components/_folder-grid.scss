@@ -81,6 +81,8 @@
     font-size: var(--text-2xs);
     font-weight: var(--font-normal);
     color: var(--text-muted);
+    // The pending skeleton has no text; one text line keeps it as tall as the final count.
+    min-height: 1lh;
 
     &--warning {
       strong {

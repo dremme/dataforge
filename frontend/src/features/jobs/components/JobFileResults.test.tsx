@@ -128,41 +128,6 @@ describe("JobFileResults", () => {
     expect(screen.queryByText("Skipped", { selector: "p" })).not.toBeInTheDocument();
   });
 
-  it("states the breakdown in words beside the proportion bar", async () => {
-    const user = userEvent.setup();
-    renderWithQueryClient(<JobFileResults job={finishedJob} />);
-
-    await user.click(screen.getByRole("button", { name: /1 failed/ }));
-
-    expect(await screen.findByText("1 done · 1 skipped · 1 failed")).toBeInTheDocument();
-    expect(screen.getByRole("figure")).toBeInTheDocument();
-  });
-
-  it("draws no proportion bar when every file succeeded", async () => {
-    const user = userEvent.setup();
-    fetchResults.mockResolvedValue([results[0]]);
-    renderWithQueryClient(
-      <JobFileResults job={{ ...finishedJob, stats: { total: 1, success: 1 } }} />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
-
-    expect(await screen.findByText("Completed")).toBeInTheDocument();
-    expect(screen.queryByRole("figure")).not.toBeInTheDocument();
-  });
-
-  it("still draws the bar when a run only skipped files", async () => {
-    const user = userEvent.setup();
-    fetchResults.mockResolvedValue([results[1]]);
-    renderWithQueryClient(
-      <JobFileResults job={{ ...finishedJob, stats: { total: 1, skipped: 1 } }} />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /Per-file results/ }));
-
-    expect(await screen.findByText("1 skipped")).toBeInTheDocument();
-  });
-
   it("still shows a file and its status when rows cannot be opened", async () => {
     const user = userEvent.setup();
     renderWithQueryClient(<JobFileResults job={finishedJob} />);
@@ -193,13 +158,12 @@ describe("JobFileResults", () => {
       <JobFileResults
         job={{ ...finishedJob, stats: { total: 1, success: 1 } }}
         onRetryFailed={vi.fn()}
-        onRunAgain={vi.fn()}
       />,
     );
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
-    expect(await screen.findByRole("button", { name: "Run again" })).toBeInTheDocument();
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Retry/ })).not.toBeInTheDocument();
   });
 
@@ -224,8 +188,7 @@ describe("JobFileResults", () => {
 
     await user.click(screen.getByRole("button", { name: /Per-file results/ }));
 
-    expect(await screen.findByText("11 done · 189 not run")).toBeInTheDocument();
-    const group = screen.getByText("Not run", { selector: "p" });
+    const group = await screen.findByText("Not run", { selector: "p" });
     expect(within(group).getByText("189")).toBeInTheDocument();
     expect(screen.getByTitle(/interrupted.png/)).toBeInTheDocument();
     expect(screen.getByText("188 more never started.")).toBeInTheDocument();

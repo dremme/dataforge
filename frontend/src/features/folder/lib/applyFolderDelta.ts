@@ -1,33 +1,13 @@
-import type { FolderChangesResponse, FolderResponse, GalleryItem, Subfolder } from "@/shared/types";
-
-/** Blank counts are what `useSubfolderStats` reads as "ask again" for the new fingerprint. */
-function blankStaleCounts(subfolders: Subfolder[], stale: string[]): Subfolder[] {
-  if (stale.length === 0) return subfolders;
-
-  const stalePaths = new Set(stale);
-  return subfolders.map((subfolder) =>
-    stalePaths.has(subfolder.path)
-      ? {
-          ...subfolder,
-          file_count: null,
-          captioned_count: null,
-          issue_count: null,
-          duplicate_count: null,
-        }
-      : subfolder,
-  );
-}
+import type { FolderChangesResponse, FolderResponse, GalleryItem } from "@/shared/types";
 
 export function applyFolderDelta(
   folder: FolderResponse,
   delta: FolderChangesResponse,
 ): FolderResponse {
-  const subfolders = blankStaleCounts(folder.subfolders, delta.stale_subfolders);
-
   if (delta.changed.length === 0 && delta.removed.length === 0) {
-    return folder.fingerprint === delta.fingerprint && subfolders === folder.subfolders
+    return folder.fingerprint === delta.fingerprint
       ? folder
-      : { ...folder, subfolders, fingerprint: delta.fingerprint };
+      : { ...folder, fingerprint: delta.fingerprint };
   }
 
   const changedByPath = new Map(delta.changed.map((item) => [item.path, item]));
@@ -51,7 +31,6 @@ export function applyFolderDelta(
 
   return {
     ...folder,
-    subfolders,
     items,
     item_count: items.length,
     fingerprint: delta.fingerprint,

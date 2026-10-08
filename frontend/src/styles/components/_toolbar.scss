@@ -279,16 +279,19 @@ $toolbar-search-width-max: 22rem;
 
       &-icon {
         @include icon-size(var(--icon-size-base));
+        transition:
+          color var(--transition),
+          fill var(--transition);
       }
 
-      &-dot {
-        position: absolute;
-        top: calc(50% - 0.25rem);
-        right: 0.1875rem;
-        width: 0.375rem;
-        height: 0.375rem;
-        border-radius: var(--radius-pill);
-        background: var(--accent);
+      // A state, not an event: color and fill say it, and the border makes it visible from afar.
+      &--filtering {
+        border-color: var(--accent-border);
+      }
+
+      &--filtering &-icon {
+        color: var(--accent);
+        fill: color-mix(in srgb, var(--accent) 35%, transparent);
       }
     }
 

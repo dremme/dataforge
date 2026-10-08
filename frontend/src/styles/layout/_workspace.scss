@@ -24,6 +24,10 @@
   @include btn-surface-accent;
 }
 
+.workspace-button--warning {
+  @include btn-surface-warning;
+}
+
 .workspace-button--icon {
   width: var(--control-height);
   padding: 0;

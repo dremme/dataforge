@@ -18,6 +18,7 @@ import {
   jobWarningMessage,
   progressPercent,
 } from "@/features/jobs/lib/jobs";
+import { CancelJobConfirm } from "@/features/jobs/components/CancelJobConfirm";
 import { JobStatusBadge } from "@/features/jobs/components/JobStatusBadge";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
@@ -195,6 +196,7 @@ function ReviewMenu({ panel }: { panel: AutomationActions }) {
 /** Folder actions that sit in the toolbar row. */
 export function WorkspaceActions({ panel }: ToolsMenuProps) {
   const { showSpecs, toggleSpecs } = useAutomationSpecsVisible();
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const job = panel.job;
   const active = Boolean(job && isActiveJobStatus(job.status));
   const hasInstructions = panel.hasSyspromptFile || panel.hasCaptionRulesFile;
@@ -223,8 +225,8 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
       {active ? (
         <button
           type="button"
-          className="workspace-button"
-          onClick={panel.onCancelJob}
+          className="workspace-button workspace-button--warning"
+          onClick={() => setConfirmingCancel(true)}
           disabled={panel.cancellingJob}
         >
           <Icon icon={panel.cancellingJob ? iconLoader2 : iconBan} spin={panel.cancellingJob} />
@@ -265,6 +267,16 @@ export function WorkspaceActions({ panel }: ToolsMenuProps) {
           <Icon icon={iconCpu} />
         </button>
       </Tooltip>
+      {confirmingCancel && job && active && (
+        <CancelJobConfirm
+          job={job}
+          onConfirm={() => {
+            setConfirmingCancel(false);
+            panel.onCancelJob();
+          }}
+          onCancel={() => setConfirmingCancel(false)}
+        />
+      )}
     </div>
   );
 }

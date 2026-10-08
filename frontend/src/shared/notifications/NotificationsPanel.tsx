@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { iconBellOff } from "@/shared/icons";
+import { useTicker } from "@/shared/hooks/useTicker";
 import { formatRelativeTime } from "@/shared/lib/format";
 import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
@@ -11,17 +11,6 @@ const RETICK_MS = 30_000;
 interface NotificationsPanelProps {
   history: NotificationRecord[];
   onClear: () => void;
-}
-
-function useTicker(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(id);
-  }, [intervalMs]);
-
-  return now;
 }
 
 export function NotificationsPanel({ history, onClear }: NotificationsPanelProps) {

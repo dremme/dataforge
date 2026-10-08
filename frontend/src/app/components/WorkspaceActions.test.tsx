@@ -80,6 +80,21 @@ describe("Workspace tools", () => {
     expect(screen.queryByRole("button", { name: "Tools" })).not.toBeInTheDocument();
   });
 
+  it("asks before cancelling the running job", async () => {
+    const user = userEvent.setup();
+    const onCancelJob = vi.fn();
+    renderActions({ job: job({ status: "running", processed: 2, total: 8 }), onCancelJob });
+
+    await user.click(screen.getByRole("button", { name: "Cancel job" }));
+    await user.click(screen.getByRole("button", { name: "Keep running" }));
+    expect(onCancelJob).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Cancel job" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Cancel auto-caption job?" });
+    await user.click(within(dialog).getByRole("button", { name: "Cancel job" }));
+    expect(onCancelJob).toHaveBeenCalledTimes(1);
+  });
+
   it("hides a job that finished cleanly", () => {
     renderActions({ job: job({ status: "completed", processed: 8, total: 8 }) });
     expect(screen.queryByRole("button", { name: "Job details" })).not.toBeInTheDocument();

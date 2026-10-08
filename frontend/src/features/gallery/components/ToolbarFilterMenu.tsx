@@ -141,7 +141,6 @@ export function ToolbarFilterMenu({
           {...triggerProps}
         >
           <Icon icon={iconFilter} className="toolbar__filter-menu-trigger-icon" />
-          {filtering && <span className="toolbar__filter-menu-trigger-dot" aria-hidden="true" />}
         </button>
       </Tooltip>
 

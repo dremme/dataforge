@@ -72,21 +72,6 @@ describe("App: job results", () => {
     );
   });
 
-  it("runs a job again over the whole folder", async () => {
-    const user = userEvent.setup();
-    installBackendWithFailedJob();
-    await renderApp();
-
-    await user.click(await screen.findByRole("button", { name: "Job details" }));
-    await user.click(await screen.findByRole("button", { name: /1 failed/ }));
-    await user.click(await screen.findByRole("button", { name: "Run again" }));
-
-    const dialog = await screen.findByRole("alertdialog", { name: "Start auto-caption?" });
-    expect(dialog.querySelector(".dialog-scope__line")).toHaveTextContent(
-      "Matching 3 files in Photos",
-    );
-  });
-
   it("opens a failed file from its result row", async () => {
     const user = userEvent.setup();
     installBackendWithFailedJob();

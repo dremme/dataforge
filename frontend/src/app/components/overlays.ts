@@ -15,7 +15,7 @@ import type {
 import type { DialogScopeInfo } from "@/shared/ui/DialogScope";
 import type { RefObject } from "react";
 import type { WorkspaceTransition } from "@/app/hooks/useWorkspaceTransitions";
-import type { AutomationActions } from "@/features/automation/lib/automationActions";
+import type { CurrentJobActions } from "@/features/jobs/components/JobsDrawer";
 
 type CaptionSavedHandler = (path: string, update: CaptionSaveResponse) => void;
 
@@ -121,7 +121,7 @@ type FolderPickerOverlayState = {
 };
 
 export type AppOverlaysProps = {
-  currentJobActions?: Pick<AutomationActions, "onOpenItem" | "onRetryFailed" | "onRunAgain">;
+  currentJobActions?: Partial<CurrentJobActions>;
   currentFolder: string | undefined;
   onOpenFolder: (path?: string) => void;
   folderPicker: FolderPickerOverlayState;

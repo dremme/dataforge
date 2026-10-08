@@ -36,6 +36,7 @@ export {
   Ban as iconBan,
   Bell as iconBell,
   BellOff as iconBellOff,
+  BellRing as iconBellRing,
   Bold as iconBold,
   BookOpen as iconBookOpen,
   Bot as iconBot,

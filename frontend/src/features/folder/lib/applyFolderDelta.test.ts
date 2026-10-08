@@ -113,7 +113,8 @@ describe("applyFolderDelta", () => {
     expect(next.items).toEqual(current.items);
   });
 
-  it("blanks the counts of subfolders the server marks stale, so they are read again", () => {
+  // The folder read records the owed recount; the delta itself never blanks what is on screen.
+  it("keeps stale subfolder counts on screen", () => {
     const counted = (name: string): Subfolder => ({
       name,
       path: `C:\\datasets\\sample\\${name}`,
@@ -132,15 +133,7 @@ describe("applyFolderDelta", () => {
       delta({ stale_subfolders: ["C:\\datasets\\sample\\staging"] }),
     );
 
-    expect(next.subfolders[0]).toBe(current.subfolders[0]);
-    expect(next.subfolders[1]).toEqual({
-      name: "staging",
-      path: "C:\\datasets\\sample\\staging",
-      file_count: null,
-      captioned_count: null,
-      issue_count: null,
-      duplicate_count: null,
-    });
+    expect(next.subfolders).toBe(current.subfolders);
     expect(next.fingerprint).toBe("after");
   });
 });

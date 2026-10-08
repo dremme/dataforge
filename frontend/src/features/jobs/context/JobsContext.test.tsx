@@ -6,6 +6,7 @@ import { NotificationsProvider } from "@/shared/notifications/NotificationsProvi
 import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
 import type { ExternalOstrisJobsResponse, JobsResponse } from "@/shared/types";
 import { installFakeEventSource, type FakeStream } from "@/test/fakeEventSource";
+import { JOBS_SEEN_AT_KEY } from "@/features/jobs/lib/jobSeen";
 import { job } from "@/test/fixtures";
 import { queryWrapper } from "@/test/queryClient";
 import {
@@ -403,5 +404,58 @@ describe("JobsProvider", () => {
       stream.push({ type: "job", job: { ...runningJob, status: "cancelled", revision: 90 } });
     });
     await waitFor(() => expect(latest.current?.cancellingJobId).toBeNull());
+  });
+
+  describe("unseen jobs", () => {
+    const seenAt = Date.parse("2026-03-10T10:00:00.000Z");
+    const finishedJob = (id: string, status: "completed" | "failed", finishedAt: string) =>
+      job({ id, status, finished_at: finishedAt, revision: 5 });
+
+    beforeEach(() => {
+      localStorage.setItem(JOBS_SEEN_AT_KEY, String(seenAt));
+      listJobs.mockResolvedValue(
+        listing([
+          finishedJob("old", "completed", "2026-03-10T09:00:00.000Z"),
+          finishedJob("new-ok", "completed", "2026-03-10T11:00:00.000Z"),
+          finishedJob("new-failed", "failed", "2026-03-10T11:30:00.000Z"),
+        ]),
+      );
+    });
+
+    it("counts jobs that finished after the drawer was last closed", async () => {
+      const latest = renderProvider();
+
+      await waitFor(() => expect(latest.current?.unseenCount).toBe(2));
+      expect(latest.current?.unseenFailed).toBe(true);
+    });
+
+    it("keeps them unseen while the drawer is open and marks them seen on close", async () => {
+      const latest = renderProvider();
+      await waitFor(() => expect(latest.current?.unseenCount).toBe(2));
+
+      act(() => latest.current!.toggleDrawer());
+      expect(latest.current?.unseenCount).toBe(2);
+      expect(latest.current?.seenAtMs).toBe(seenAt);
+
+      act(() => latest.current!.closeDrawer());
+      expect(latest.current?.unseenCount).toBe(0);
+      expect(Number(localStorage.getItem(JOBS_SEEN_AT_KEY))).toBeGreaterThanOrEqual(
+        Date.parse("2026-03-10T11:30:00.000Z"),
+      );
+    });
+
+    it("follows another tab marking the same jobs seen", async () => {
+      const latest = renderProvider();
+      await waitFor(() => expect(latest.current?.unseenCount).toBe(2));
+
+      const later = String(Date.parse("2026-03-10T12:00:00.000Z"));
+      act(() => {
+        window.dispatchEvent(
+          new StorageEvent("storage", { key: JOBS_SEEN_AT_KEY, newValue: later }),
+        );
+      });
+
+      expect(latest.current?.unseenCount).toBe(0);
+    });
   });
 });

@@ -1009,6 +1009,12 @@
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
+
+  // Kept beside the animation: the shimmer is mixed into many selectors, too many to list in
+  // utilities/_reduced-motion.scss. The still gradient keeps reading as a placeholder.
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }
 
 @mixin skeleton-line($height, $width: 100%) {

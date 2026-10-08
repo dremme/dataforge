@@ -8,7 +8,7 @@ const CANCELLED_STATUS = "cancelled";
 
 const FAILED_STATUSES = new Set(["too_short", "rejected"]);
 
-const SKIPPED_STATUSES = new Set([
+export const SKIPPED_STATUSES: ReadonlySet<string> = new Set([
   "skipped",
   "skipped_long",
   "no_caption",

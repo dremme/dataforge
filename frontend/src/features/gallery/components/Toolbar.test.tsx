@@ -284,9 +284,9 @@ describe("Toolbar", () => {
   it("marks the trigger as filtering when a file filter is the only active axis", () => {
     renderToolbar({ fileFilter: "candidates" });
 
-    expect(screen.getByRole("button", { name: "Filter media" })).toHaveClass(
-      "toolbar__filter-menu-trigger--filtering",
-    );
+    const trigger = screen.getByRole("button", { name: "Filter media" });
+    expect(trigger).toHaveClass("toolbar__filter-menu-trigger--filtering");
+    expect(trigger.querySelector(".toolbar__filter-menu-trigger-dot")).toBeNull();
   });
 
   it("closes the filter menu on Escape", async () => {

@@ -41,7 +41,6 @@ type UseAutomationHostOptions = {
   onReviewCandidates?: () => void;
   onOpenItem?: (path: string) => void;
   onRetryFailed?: (jobType: JobType, paths: string[]) => void;
-  onRunAgain?: (jobType: JobType) => void;
 };
 
 export function useAutomationHost({
@@ -67,7 +66,6 @@ export function useAutomationHost({
   onReviewCandidates,
   onOpenItem,
   onRetryFailed,
-  onRunAgain,
 }: UseAutomationHostOptions) {
   const { startJob } = automation;
   const jobStart = useJobStartConfirmation(folder, breadcrumbs, startJob, getJobPaths);
@@ -181,7 +179,6 @@ export function useAutomationHost({
       onReviewCandidates,
       onOpenItem,
       onRetryFailed,
-      onRunAgain,
     }),
     [
       automation.cancelFolderJob,
@@ -199,7 +196,6 @@ export function useAutomationHost({
       onReviewCandidates,
       onOpenItem,
       onRetryFailed,
-      onRunAgain,
       requestStart,
       hasSysprompt,
     ],

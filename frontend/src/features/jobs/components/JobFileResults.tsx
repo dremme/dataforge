@@ -30,7 +30,6 @@ interface JobFileResultsProps {
   job: Job;
   onOpenItem?: (path: string) => void;
   onRetryFailed?: (paths: string[]) => void;
-  onRunAgain?: () => void;
 }
 
 const TONE_ICONS: Record<ResultTone, AppIcon> = {
@@ -40,47 +39,12 @@ const TONE_ICONS: Record<ResultTone, AppIcon> = {
   skipped: iconBan,
 };
 
-const TONE_WORDS: Record<ResultTone, string> = {
-  failed: "failed",
-  cancelled: "not run",
-  done: "done",
-  skipped: "skipped",
-};
-
-const MIX_ORDER: readonly ResultTone[] = ["done", "skipped", "cancelled", "failed"];
-
 /** A cancelled run counts far more files than it has rows, so the remainder is stated in words. */
 function unlistedNote(group: ResultGroup): string | null {
   const unlisted = group.count - group.results.length;
   if (unlisted <= 0) return null;
   if (group.results.length > 0) return `${unlisted} more never started.`;
   return unlisted === 1 ? "1 file never started." : `${unlisted} files never started.`;
-}
-
-function ResultMix({ groups }: { groups: ResultGroup[] }) {
-  const ordered = MIX_ORDER.map((tone) => groups.find((group) => group.tone === tone)).filter(
-    (group): group is ResultGroup => group !== undefined,
-  );
-
-  // A clean run has nothing to compare, and the Completed group already carries the count.
-  if (ordered.every((group) => group.tone === "done")) return null;
-
-  return (
-    <figure className="job-file-results__mix">
-      <div className="job-file-results__mix-track" aria-hidden="true">
-        {ordered.map((group) => (
-          <span
-            key={group.tone}
-            className={`job-file-results__mix-segment job-file-results__mix-segment--${group.tone}`}
-            style={{ flexGrow: group.count }}
-          />
-        ))}
-      </div>
-      <figcaption className="job-file-results__mix-caption">
-        {ordered.map((group) => `${group.count} ${TONE_WORDS[group.tone]}`).join(" · ")}
-      </figcaption>
-    </figure>
-  );
 }
 
 function ResultRow({
@@ -122,12 +86,7 @@ function ResultRow({
   );
 }
 
-export function JobFileResults({
-  job,
-  onOpenItem,
-  onRetryFailed,
-  onRunAgain,
-}: JobFileResultsProps) {
+export function JobFileResults({ job, onOpenItem, onRetryFailed }: JobFileResultsProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const { results, loading, failed } = useJobFileResults(job, expanded);
@@ -186,57 +145,42 @@ export function JobFileResults({
             )}
 
             {groups.length > 0 && (
-              <>
-                <ResultMix groups={groups} />
+              <div className="job-file-results__groups" data-scroll-lock-allow>
+                {groups.map((group) => {
+                  const unlisted = unlistedNote(group);
 
-                <div className="job-file-results__groups" data-scroll-lock-allow>
-                  {groups.map((group) => {
-                    const unlisted = unlistedNote(group);
-
-                    return (
-                      <section key={group.tone} className="job-file-results__group">
-                        <p
-                          className={`job-file-results__group-label job-file-results__group-label--${group.tone}`}
-                        >
-                          {group.label}
-                          <span className="job-file-results__group-count">{group.count}</span>
-                        </p>
-                        {group.results.length > 0 && (
-                          <ul className="job-file-results__list">
-                            {group.results.map((result) => (
-                              <ResultRow
-                                key={result.path}
-                                result={result}
-                                onOpenItem={onOpenItem}
-                              />
-                            ))}
-                          </ul>
-                        )}
-                        {unlisted && <p className="job-file-results__group-note">{unlisted}</p>}
-                      </section>
-                    );
-                  })}
-                </div>
-              </>
+                  return (
+                    <section key={group.tone} className="job-file-results__group">
+                      <p
+                        className={`job-file-results__group-label job-file-results__group-label--${group.tone}`}
+                      >
+                        {group.label}
+                        <span className="job-file-results__group-count">{group.count}</span>
+                      </p>
+                      {group.results.length > 0 && (
+                        <ul className="job-file-results__list">
+                          {group.results.map((result) => (
+                            <ResultRow key={result.path} result={result} onOpenItem={onOpenItem} />
+                          ))}
+                        </ul>
+                      )}
+                      {unlisted && <p className="job-file-results__group-note">{unlisted}</p>}
+                    </section>
+                  );
+                })}
+              </div>
             )}
 
-            {(onRetryFailed || onRunAgain) && !loading && (
+            {onRetryFailed && !loading && loadedFailedCount > 0 && (
               <div className="job-file-results__actions">
-                {onRetryFailed && loadedFailedCount > 0 && (
-                  <button
-                    type="button"
-                    className="job-file-results__action job-file-results__action--primary"
-                    onClick={() => onRetryFailed(retryPaths)}
-                  >
-                    <Icon icon={iconRotateCcw} className="job-file-results__action-icon" />
-                    Retry {loadedFailedCount} failed
-                  </button>
-                )}
-                {onRunAgain && (
-                  <button type="button" className="job-file-results__action" onClick={onRunAgain}>
-                    Run again
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="job-file-results__action job-file-results__action--primary"
+                  onClick={() => onRetryFailed(retryPaths)}
+                >
+                  <Icon icon={iconRotateCcw} className="job-file-results__action-icon" />
+                  Retry {loadedFailedCount} failed
+                </button>
               </div>
             )}
           </div>

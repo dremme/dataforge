@@ -8,6 +8,7 @@ import { iconCopy, iconLoader2 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import type { ComfyOutputBranch, ComfyParameter } from "@/shared/types";
 import { Dialog, DialogButton } from "@/shared/ui/Dialog";
+import { scrollBehavior } from "@/shared/lib/motion";
 import { Icon } from "@/shared/ui/Icon";
 
 interface ComfyWorkflowDialogProps {
@@ -391,7 +392,7 @@ function BranchDetails({
                 ? (nodeId) =>
                     sections.current
                       .get(nodeId)
-                      ?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+                      ?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() })
                 : undefined
             }
           />

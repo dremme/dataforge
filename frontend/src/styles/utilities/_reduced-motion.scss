@@ -23,6 +23,23 @@
     animation: none;
   }
 
+  .card--skeleton,
+  .tooltip__bubble:not([data-state="closed"]) {
+    animation: none;
+  }
+
+  // A busy signal must not vanish like decoration: the sweep becomes a slow in-place pulse.
+  .app-nav__refresh::after {
+    width: 100%;
+    animation: nav-refresh-pulse 2s ease-in-out infinite;
+  }
+
+  // Color and shape still mark these states; only the motion goes.
+  .jobs-button--running .jobs-button__icon,
+  .notifications-button--unread .notifications-button__icon {
+    animation: none;
+  }
+
   // Exits keep a 1ms duration so `animationend` still unmounts the jobs drawer and toasts.
   .modal-panel--exit,
   .modal-backdrop--exit,

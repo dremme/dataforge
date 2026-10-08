@@ -1,7 +1,9 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import { fetchJobResults } from "@/features/jobs/api/jobs";
+import { iconMessageCheck } from "@/shared/icons";
 import type { Job } from "@/shared/types";
 import { JobCard } from "./JobCard";
 import { renderWithQueryClient } from "@/test/queryClient";
@@ -64,7 +66,7 @@ describe("JobCard", () => {
       rerender(<JobCard job={{ ...runningJob, status }} />);
 
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-      expect(screen.getByText("3/10")).toBeInTheDocument();
+      expect(screen.getByRole("figure", { name: "Outcome: 3 done" })).toBeInTheDocument();
     },
   );
 
@@ -124,5 +126,64 @@ describe("JobCard", () => {
 
     expect(container.querySelector(".training-samples")).not.toBeInTheDocument();
     expect(fetchSamples).not.toHaveBeenCalled();
+  });
+
+  it("names the file it is working on", () => {
+    renderWithQueryClient(<JobCard job={{ ...runningJob, current_name: "lake.png" }} />);
+
+    expect(screen.getByText("3 of 10 files")).toBeInTheDocument();
+    expect(screen.getByText("lake.png")).toBeInTheDocument();
+  });
+
+  it("breaks a finished run down by outcome without fetching its results", () => {
+    const mixed: Job = {
+      ...runningJob,
+      status: "completed",
+      effective_status: "completed",
+      processed: 10,
+      stats: { success: 6, skipped_long: 2, api_error: 2 },
+      started_at: "2026-01-01T00:00:00Z",
+      finished_at: "2026-01-01T00:00:25Z",
+    };
+
+    renderWithQueryClient(<JobCard job={mixed} />);
+
+    expect(
+      screen.getByRole("figure", { name: "Outcome: 6 done, 2 skipped, 2 failed" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Took 25s")).toBeInTheDocument();
+    expect(screen.getByText("2.5 s/file")).toBeInTheDocument();
+    expect(fetchResults).not.toHaveBeenCalled();
+  });
+
+  it("says when it finished and flags a run nobody has seen yet", () => {
+    const finished: Job = {
+      ...runningJob,
+      status: "completed",
+      effective_status: "completed",
+      finished_at: "2026-01-01T00:10:00Z",
+    };
+
+    renderWithQueryClient(
+      <JobCard job={finished} isNew nowMs={Date.parse("2026-01-01T00:15:00Z")} />,
+    );
+
+    expect(screen.getByText("New")).toBeInTheDocument();
+    expect(screen.getByText("Finished 5 minutes ago")).toBeInTheDocument();
+  });
+
+  it("offers the follow-ups it was given once the job has finished", async () => {
+    const user = userEvent.setup();
+    const onReview = vi.fn();
+    const followUps = [{ label: "Review 3 issues", icon: iconMessageCheck, onClick: onReview }];
+    const finished: Job = { ...runningJob, status: "completed", effective_status: "completed" };
+
+    const { rerender } = renderWithQueryClient(<JobCard job={runningJob} followUps={followUps} />);
+    expect(screen.queryByRole("button", { name: "Review 3 issues" })).not.toBeInTheDocument();
+
+    rerender(<JobCard job={finished} followUps={followUps} />);
+    await user.click(screen.getByRole("button", { name: "Review 3 issues" }));
+
+    expect(onReview).toHaveBeenCalledTimes(1);
   });
 });

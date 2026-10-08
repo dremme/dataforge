@@ -2,7 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
-import { folderKeys } from "@/features/folder/lib/folderQuery";
+import { folderKeys, folderQueryOptions } from "@/features/folder/lib/folderQuery";
+import * as preferences from "@/features/folder/lib/folderPreferences";
 import type { FolderResponse, Subfolder, SubfolderStatsResponse } from "@/shared/types";
 import { queryWrapper } from "@/test/queryClient";
 import { useSubfolderStats } from "./useSubfolderStats";
@@ -57,6 +58,8 @@ function statsWith(fileCount: number): SubfolderStatsResponse {
 /** Reads the listing the way the workspace does: from the folder's cache entry. */
 function renderWithFolder(initial: FolderResponse) {
   const { client, wrapper } = queryWrapper();
+  /** Every rendered listing, so a placeholder that flashed between two counts is caught. */
+  const rendered: Array<FolderResponse | undefined> = [];
   client.setQueryData(folderKeys.folder(FOLDER), initial);
 
   const view = renderHook(
@@ -66,6 +69,7 @@ function renderWithFolder(initial: FolderResponse) {
         queryFn: skipToken,
       });
       useSubfolderStats(folder?.path, folder?.fingerprint, folder?.subfolders ?? []);
+      rendered.push(folder);
       return folder;
     },
     { wrapper },
@@ -77,7 +81,7 @@ function renderWithFolder(initial: FolderResponse) {
     });
   };
 
-  return { view, reload };
+  return { view, reload, client, rendered };
 }
 
 describe("useSubfolderStats", () => {
@@ -171,6 +175,41 @@ describe("useSubfolderStats", () => {
     });
 
     await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(5));
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+
+  it("recounts a full reload without blanking the counts it carried over", async () => {
+    const fetchStats = vi
+      .spyOn(api, "fetchSubfolderStats")
+      .mockResolvedValueOnce(statsWith(3))
+      .mockResolvedValueOnce(statsWith(4));
+    const { view, client, rendered } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(3));
+
+    // A job wrote into the subfolder: its mtime moved, so the parent is listed in full again,
+    // and a full listing comes without subfolder counts.
+    vi.spyOn(api, "fetchFolderChanges").mockResolvedValue({
+      full: true,
+      fingerprint: "fp-v2",
+      changed: [],
+      removed: [],
+      stale_subfolders: [],
+    });
+    vi.spyOn(preferences, "loadFolderContents").mockResolvedValue(
+      makeFolder([makeSubfolder()], "fp-v2"),
+    );
+    await act(async () => {
+      await client.fetchQuery({ ...folderQueryOptions(FOLDER), staleTime: 0 });
+    });
+
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(4));
+    view.rerender();
+    await act(async () => {});
+
+    const counts = rendered
+      .filter((folder) => folder?.fingerprint === "fp-v2")
+      .map((folder) => folder?.subfolders[0].file_count);
+    expect(new Set(counts)).toEqual(new Set([3, 4]));
     expect(fetchStats).toHaveBeenCalledTimes(2);
   });
 });

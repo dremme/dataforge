@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
-import { iconBell } from "@/shared/icons";
+import { iconBell, iconBellRing } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { Icon } from "@/shared/ui/Icon";
@@ -32,17 +32,22 @@ export function NotificationsButton() {
       className={classNames("notifications-button-wrap", open && "notifications-button-wrap--open")}
     >
       <Tooltip content={unread ? `${unreadCount} new notifications` : "Notifications"}>
-        <button type="button" className="notifications-button" aria-label={label} {...triggerProps}>
-          <Icon icon={iconBell} className="notifications-button__icon" />
-          {unread && (
-            <span
-              className={classNames(
-                "notifications-button__dot",
-                urgent && "notifications-button__dot--danger",
-              )}
-              aria-hidden="true"
-            />
+        <button
+          type="button"
+          className={classNames(
+            "notifications-button",
+            unread && "notifications-button--unread",
+            urgent && "notifications-button--urgent",
           )}
+          aria-label={label}
+          {...triggerProps}
+        >
+          {/* Keyed by the count so each new arrival replays the ring. */}
+          <Icon
+            key={unreadCount}
+            icon={unread ? iconBellRing : iconBell}
+            className="notifications-button__icon"
+          />
         </button>
       </Tooltip>
 

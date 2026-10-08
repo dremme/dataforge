@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { easedCount } from "@/features/gallery/lib/countUp";
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-}
+import { prefersReducedMotion } from "@/shared/lib/motion";
 
 export function useCountUp(value: number, ref: RefObject<HTMLElement | null>): number {
   const [displayed, setDisplayed] = useState(0);

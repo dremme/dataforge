@@ -133,3 +133,62 @@
     transform: translateX(100%);
   }
 }
+
+// The reduced-motion stand-in for nav-refresh-sweep: still says "busy", without travel.
+@keyframes nav-refresh-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+// Toolbar icon states: a loop for an ongoing process, a one-shot for an event.
+@keyframes job-bot-work {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+
+  25% {
+    transform: translateY(-1.5px) rotate(-8deg);
+  }
+
+  50% {
+    transform: translateY(0) rotate(0);
+  }
+
+  75% {
+    transform: translateY(-1.5px) rotate(8deg);
+  }
+}
+
+@keyframes bell-ring {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  15% {
+    transform: rotate(18deg);
+  }
+
+  30% {
+    transform: rotate(-16deg);
+  }
+
+  45% {
+    transform: rotate(12deg);
+  }
+
+  60% {
+    transform: rotate(-8deg);
+  }
+
+  75% {
+    transform: rotate(4deg);
+  }
+}

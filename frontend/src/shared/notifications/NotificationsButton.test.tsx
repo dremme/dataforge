@@ -75,6 +75,15 @@ describe("NotificationsButton", () => {
     expect(await screen.findByRole("button", { name: "Notifications (2 new)" })).toBeVisible();
   });
 
+  it("rings the bell instead of showing a dot, red while an unread one is urgent", async () => {
+    renderButton([record({ id: "a" }), record({ id: "b", variant: "danger" })]);
+
+    const button = await screen.findByRole("button", { name: "Notifications (2 new)" });
+    expect(button).toHaveClass("notifications-button--unread", "notifications-button--urgent");
+    expect(button.querySelector(".lucide-bell-ring")).not.toBeNull();
+    expect(button.querySelector(".notifications-button__dot")).toBeNull();
+  });
+
   it("lists the retained notifications when opened", async () => {
     const user = userEvent.setup();
     renderButton([record(), record({ id: "b", message: "Second." })]);
@@ -112,7 +121,9 @@ describe("NotificationsButton", () => {
     await user.keyboard("{Escape}");
 
     await waitFor(() => expect(markNotificationsRead).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole("button", { name: "Notifications" })).toBeVisible();
+    const button = await screen.findByRole("button", { name: "Notifications" });
+    expect(button).not.toHaveClass("notifications-button--unread");
+    expect(button.querySelector(".lucide-bell-ring")).toBeNull();
   });
 
   it("shows how often a message repeated", async () => {

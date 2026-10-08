@@ -319,7 +319,7 @@ function estimateSlowRemainingFraction(
 }
 
 /** Interrupted-job SQLite timestamps are "YYYY-MM-DD HH:MM:SS" with no zone; treat them as UTC. */
-function parseJobTimestamp(value: string | null | undefined): number | null {
+export function parseJobTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
 
   const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value);

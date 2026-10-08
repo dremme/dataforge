@@ -133,20 +133,18 @@
 
   &__icon {
     @include icon-size(var(--icon-size-base));
+    transition: color var(--transition);
   }
 
-  &__dot {
-    position: absolute;
-    top: calc(50% - 0.25rem);
-    right: 0.1875rem;
-    width: 0.375rem;
-    height: 0.375rem;
-    border-radius: var(--radius-pill);
-    background: var(--accent);
+  &--unread &__icon {
+    color: var(--accent);
+    // Swings from the bell's hanger, not its middle.
+    transform-origin: 50% 10%;
+    animation: bell-ring 0.7s ease-in-out;
+  }
 
-    &--danger {
-      background: var(--danger);
-    }
+  &--urgent &__icon {
+    color: var(--danger);
   }
 }
 

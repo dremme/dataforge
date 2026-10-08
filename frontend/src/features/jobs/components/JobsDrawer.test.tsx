@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -75,22 +76,32 @@ const jobsContext = {
   stopExternalOstrisJob: vi.fn(),
   deleteJob: vi.fn(),
   deleteAllJobs: vi.fn(),
+  seenAtMs: 0,
 };
 
 vi.mock("@/features/jobs/context/JobsContext", () => ({
   useJobs: () => jobsContext,
 }));
 
-function renderDrawer(jobs: Job[], externalJobs: ExternalOstrisJob[] = []) {
+function renderDrawer(
+  jobs: Job[],
+  externalJobs: ExternalOstrisJob[] = [],
+  currentActions?: ComponentProps<typeof JobsDrawer>["currentActions"],
+) {
   jobsContext.jobs = jobs;
   jobsContext.externalJobs = externalJobs;
   return renderWithQueryClient(
-    <JobsDrawer currentFolder="C:\\datasets\\landscapes" onOpenFolder={vi.fn()} />,
+    <JobsDrawer
+      currentFolder="C:\\datasets\\landscapes"
+      onOpenFolder={vi.fn()}
+      currentActions={currentActions}
+    />,
   );
 }
 
 beforeEach(() => {
   jobsContext.drawerOpen = true;
+  jobsContext.seenAtMs = 0;
   fetchSamples.mockResolvedValue({ samples: [], step: null, available: true });
   fetchJobsMock.mockResolvedValue({ jobs: [], active_count: 0, total: 0, revision: 1 });
 });
@@ -193,8 +204,8 @@ describe("JobsDrawer", () => {
       renderDrawer([finishedCaption]);
 
       await user.selectOptions(screen.getByLabelText("Type"), "watermark");
-      await user.selectOptions(screen.getByLabelText("Status"), "failed");
-      await user.selectOptions(screen.getByLabelText("Folder"), "current");
+      await user.click(screen.getByRole("radio", { name: "Failed" }));
+      await user.click(screen.getByRole("button", { name: "This folder" }));
 
       await waitFor(() =>
         expect(fetchJobsMock).toHaveBeenLastCalledWith(
@@ -218,7 +229,7 @@ describe("JobsDrawer", () => {
       const user = userEvent.setup();
       renderDrawer([finishedCaption], [externalJob]);
 
-      await user.selectOptions(screen.getByLabelText("Status"), "failed");
+      await user.click(screen.getByRole("radio", { name: "Failed" }));
 
       const localSection = await screen.findByRole("region", { name: "DataForge jobs" });
       expect(localSection).toHaveTextContent("No jobs match these filters.");
@@ -231,13 +242,13 @@ describe("JobsDrawer", () => {
     it("restores the filters chosen earlier in the session", async () => {
       const user = userEvent.setup();
       const first = renderDrawer([finishedCaption]);
-      await user.selectOptions(screen.getByLabelText("Status"), "failed");
+      await user.click(screen.getByRole("radio", { name: "Failed" }));
       first.unmount();
       fetchJobsMock.mockClear();
 
       renderDrawer([finishedCaption]);
 
-      expect(screen.getByLabelText("Status")).toHaveValue("failed");
+      expect(screen.getByRole("radio", { name: "Failed" })).toBeChecked();
       await waitFor(() =>
         expect(fetchJobsMock).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" })),
       );
@@ -347,5 +358,84 @@ describe("JobsDrawer", () => {
       screen.queryByRole("dialog", { name: "Training sample 1 of 1" }),
     ).not.toBeInTheDocument();
     expect(panel).not.toHaveAttribute("inert");
+  });
+
+  it("asks before cancelling a running job from its card", async () => {
+    const user = userEvent.setup();
+    jobsContext.cancelJob.mockResolvedValue(null);
+    const { baseElement } = renderDrawer([captionJob]);
+    const panel = baseElement.querySelector(".jobs-drawer__panel")!;
+
+    await user.click(screen.getByRole("button", { name: "Cancel job for landscapes" }));
+    const confirm = screen.getByRole("alertdialog", { name: "Cancel auto-caption job?" });
+    expect(panel).toHaveAttribute("inert");
+    expect(jobsContext.cancelJob).not.toHaveBeenCalled();
+
+    await user.click(within(confirm).getByRole("button", { name: "Cancel job" }));
+
+    expect(jobsContext.cancelJob).toHaveBeenCalledWith("job-2");
+    expect(screen.queryByRole("alertdialog", { name: "Cancel auto-caption job?" })).toBeNull();
+  });
+
+  it("keeps the summary line when filters hide every job", async () => {
+    const user = userEvent.setup();
+    renderDrawer([{ ...captionJob, status: "completed", effective_status: "completed" }]);
+    expect(screen.getByText("Nothing running")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Failed" }));
+
+    expect(await screen.findByText("No jobs match these filters.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing running")).toBeInTheDocument();
+  });
+
+  describe("sections", () => {
+    const at = (iso: string) => ({ finished_at: iso, created_at: iso, started_at: iso });
+    const doneJob = (id: string, jobType: Job["job_type"], finishedAt: string): Job => ({
+      ...captionJob,
+      ...at(finishedAt),
+      id,
+      job_type: jobType,
+      status: "completed",
+      effective_status: "completed",
+      processed: 10,
+    });
+
+    it("splits running, new and older jobs, and marks only the unseen ones", () => {
+      const seen = doneJob("seen", "watermark", "2026-01-01T00:00:00.000Z");
+      const unseen = doneJob("unseen", "find_duplicates", "2026-01-03T00:00:00.000Z");
+      jobsContext.seenAtMs = Date.parse("2026-01-02T00:00:00.000Z");
+
+      renderDrawer([captionJob, unseen, seen]);
+
+      const running = screen.getByRole("region", { name: /^Running/ });
+      const fresh = screen.getByRole("region", { name: /^New/ });
+      expect(within(running).getByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
+      expect(within(fresh).getByLabelText("Find duplicates job for landscapes")).toHaveTextContent(
+        "New",
+      );
+      expect(screen.getByLabelText("Watermark job for landscapes")).not.toHaveTextContent("New");
+      expect(screen.getByText("1 running · 1 new")).toBeInTheDocument();
+    });
+
+    it("offers the folder's review queues on its latest job only", async () => {
+      const user = userEvent.setup();
+      const onResolveIssues = vi.fn();
+      // The drawer's JSX attribute keeps both backslashes, so the jobs must too to match it.
+      const folder = "C:\\\\datasets\\\\landscapes";
+      const latest = {
+        ...doneJob("latest", "verify_captions", "2026-01-03T00:00:00.000Z"),
+        folder,
+      };
+      const older = { ...doneJob("older", "verify_captions", "2026-01-02T00:00:00.000Z"), folder };
+
+      renderDrawer([latest, older], [], { job: latest, issueCount: 3, onResolveIssues });
+
+      const buttons = screen.getAllByRole("button", { name: "Review 3 issues" });
+      expect(buttons).toHaveLength(1);
+      await user.click(buttons[0]);
+
+      expect(jobsContext.closeDrawer).toHaveBeenCalled();
+      expect(onResolveIssues).toHaveBeenCalledTimes(1);
+    });
   });
 });

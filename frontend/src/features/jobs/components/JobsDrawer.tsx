@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useJobHistory } from "@/features/jobs/hooks/useJobHistory";
 import {
   DEFAULT_JOB_FILTERS,
   isDefaultJobFilters,
-  JOB_FOLDER_FILTER_OPTIONS,
   JOB_STATUS_FILTER_OPTIONS,
   JOB_TYPE_FILTER_OPTIONS,
   jobHistoryStatusOf,
@@ -14,22 +13,102 @@ import {
   type JobFilters,
 } from "@/features/jobs/lib/jobFilters";
 import { cacheJobFilters, readJobFilters } from "@/features/jobs/lib/jobFilterPreferences";
+import { groupJobsForDrawer } from "@/features/jobs/lib/jobInsights";
+import { isUnseenJob } from "@/features/jobs/lib/jobSeen";
 import { DialogSelect } from "@/shared/ui/DialogSelect";
 import { ModalShell } from "@/shared/ui/ModalShell";
-import { iconBot, iconTrash2, iconX } from "@/shared/icons";
+import {
+  iconBot,
+  iconFileCheck,
+  iconFolder,
+  iconMessageCheck,
+  iconScanSquare,
+  iconTrash2,
+  iconX,
+} from "@/shared/icons";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
+import { useTicker } from "@/shared/hooks/useTicker";
 import { classNames } from "@/shared/lib/classNames";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
-import { isTrainLoraCoTrackedByExternal } from "@/features/jobs/lib/jobs";
+import { Tooltip } from "@/shared/ui/Tooltip";
+import { isActiveJobStatus, isTrainLoraCoTrackedByExternal } from "@/features/jobs/lib/jobs";
 import { ExternalJobCard } from "./ExternalJobCard";
 import { Icon } from "@/shared/ui/Icon";
-import { JobCard } from "./JobCard";
+import { CancelJobConfirm } from "./CancelJobConfirm";
+import { JobCard, type JobFollowUp } from "./JobCard";
 import type { AutomationActions } from "@/features/automation/lib/automationActions";
+import type { Job } from "@/shared/types";
+
+const RETICK_MS = 30_000;
+
+/** The jobs that flag caption issues for the resolver. */
+const ISSUE_JOB_TYPES: ReadonlySet<string> = new Set(["verify_captions", "check_caption_rules"]);
+
+/** The open folder's automation handlers; cards for other folders get none. */
+export type CurrentJobActions = Pick<
+  AutomationActions,
+  | "job"
+  | "onOpenItem"
+  | "onRetryFailed"
+  | "issueCount"
+  | "onResolveIssues"
+  | "duplicateGroupCount"
+  | "onResolveDuplicates"
+  | "candidateCount"
+  | "onReviewCandidates"
+>;
 
 interface JobsDrawerProps {
-  currentActions?: Pick<AutomationActions, "onOpenItem" | "onRetryFailed" | "onRunAgain">;
+  currentActions?: Partial<CurrentJobActions>;
   currentFolder?: string;
   onOpenFolder: (folderPath: string) => void;
+}
+
+function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** The folder's review queues, offered on the job that filled them: its latest run. */
+function followUpsFor(
+  job: Job,
+  actions: Partial<CurrentJobActions> | undefined,
+  closeDrawer: () => void,
+): JobFollowUp[] {
+  if (!actions?.job || actions.job.id !== job.id || isActiveJobStatus(job.status)) return [];
+
+  const thenClose = (action: (() => void) | undefined) => () => {
+    closeDrawer();
+    action?.();
+  };
+  const followUps: JobFollowUp[] = [];
+  const { issueCount = 0, duplicateGroupCount = 0, candidateCount = 0 } = actions;
+
+  if (issueCount > 0 && actions.onResolveIssues && ISSUE_JOB_TYPES.has(job.job_type)) {
+    followUps.push({
+      label: `Review ${plural(issueCount, "issue")}`,
+      icon: iconMessageCheck,
+      onClick: thenClose(actions.onResolveIssues),
+    });
+  }
+  if (
+    duplicateGroupCount > 0 &&
+    actions.onResolveDuplicates &&
+    job.job_type === "find_duplicates"
+  ) {
+    followUps.push({
+      label: `Resolve ${plural(duplicateGroupCount, "duplicate group")}`,
+      icon: iconFileCheck,
+      onClick: thenClose(actions.onResolveDuplicates),
+    });
+  }
+  if (candidateCount > 0 && actions.onReviewCandidates && job.job_type === "comfy_process") {
+    followUps.push({
+      label: `Review ${plural(candidateCount, "candidate")}`,
+      icon: iconScanSquare,
+      onClick: thenClose(actions.onReviewCandidates),
+    });
+  }
+  return followUps;
 }
 
 export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: JobsDrawerProps) {
@@ -44,11 +123,15 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
     stopExternalOstrisJob,
     deleteJob,
     deleteAllJobs,
+    seenAtMs,
   } = useJobs();
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [clearingAll, setClearingAll] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Job | null>(null);
   const [filters, setFilters] = useState<JobFilters>(readJobFilters);
+  const statusName = useId();
+  const nowMs = useTicker(RETICK_MS);
 
   // Starting, finishing or deleting a job changes which stored page is right; progress does not.
   const refreshKey = useMemo(
@@ -67,7 +150,7 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
     setClosing(renderedOpen && !drawerOpen);
   }
 
-  const overlayAbove = !closing && (clearAllOpen || lightboxOpen);
+  const overlayAbove = !closing && (clearAllOpen || lightboxOpen || cancelTarget !== null);
 
   if (!drawerOpen && !closing) return null;
 
@@ -77,16 +160,25 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
   const localJobs = mergeJobLists(jobs.filter(matches), history.jobs).filter(
     (job) => matches(job) && !isTrainLoraCoTrackedByExternal(job, externalJobs),
   );
+  const sections = groupJobsForDrawer(localJobs, seenAtMs, nowMs);
   const hasLocalJobs = localJobs.length > 0;
   const hasExternalJobs = externalJobs.length > 0;
   const hasAnyJobs = hasLocalJobs || hasExternalJobs;
   const hasHistory = jobs.length > 0 || history.total > 0 || filtering;
   const recordCount = filtering ? null : Math.max(history.total, jobs.length);
+  const runningCount =
+    jobs.filter((job) => isActiveJobStatus(job.status)).length + externalJobs.length;
+  const newCount = jobs.filter((job) => isUnseenJob(job, seenAtMs)).length;
+  const summary = [
+    runningCount > 0 && `${runningCount} running`,
+    newCount > 0 && `${newCount} new`,
+  ].filter(Boolean);
   const changeFilters = (next: JobFilters) => {
     setFilters(next);
     cacheJobFilters(next);
   };
   const updateFilter = (patch: Partial<JobFilters>) => changeFilters({ ...filters, ...patch });
+  const folderFilterOn = Boolean(currentFolder) && filters.folder === "current";
 
   const filteredEmpty = (
     <div className="jobs-drawer__empty">
@@ -110,6 +202,50 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
     }
   };
 
+  const openFolder = (folderPath: string) => {
+    onOpenFolder(folderPath);
+    closeDrawer();
+  };
+
+  const renderJobCard = (job: Job) => {
+    const inCurrentFolder = foldersMatch(job.folder, currentFolder);
+    const actions = inCurrentFolder ? currentActions : undefined;
+
+    return (
+      <JobCard
+        key={job.id}
+        job={job}
+        isNew={isUnseenJob(job, seenAtMs)}
+        nowMs={nowMs}
+        isCurrentFolder={inCurrentFolder}
+        onOpenFolder={openFolder}
+        onOpenItem={
+          actions?.onOpenItem
+            ? (path) => {
+                closeDrawer();
+                actions.onOpenItem?.(path);
+              }
+            : undefined
+        }
+        onRetryFailed={
+          actions?.onRetryFailed
+            ? (paths) => {
+                closeDrawer();
+                actions.onRetryFailed?.(job.job_type, paths);
+              }
+            : undefined
+        }
+        followUps={followUpsFor(job, actions, closeDrawer)}
+        cancelling={cancellingJobId === job.id}
+        onCancel={() => setCancelTarget(job)}
+        onDelete={(jobId) => {
+          void deleteJob(jobId).finally(() => history.reload());
+        }}
+        onLightboxOpenChange={setLightboxOpen}
+      />
+    );
+  };
+
   return (
     <>
       <ModalShell
@@ -128,23 +264,31 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
         <header className="jobs-drawer__header">
           <div className="jobs-drawer__title">
             <Icon icon={iconBot} className="jobs-drawer__title-icon" />
-            <div>
+            <div className="jobs-drawer__title-text">
               <h2 id="jobs-drawer-title">Automation jobs</h2>
+              {/* Always present, so filtering down to nothing does not shift the header. */}
+              <p className="jobs-drawer__summary">
+                {summary.length > 0
+                  ? summary.join(" · ")
+                  : hasHistory || hasAnyJobs
+                    ? "Nothing running"
+                    : "No jobs yet"}
+              </p>
             </div>
           </div>
 
           <div className="jobs-drawer__header-actions">
             {(jobs.length > 0 || history.total > 0) && (
-              <button
-                type="button"
-                className="jobs-drawer__clear-all"
-                onClick={() => setClearAllOpen(true)}
-                aria-label="Delete all jobs"
-                title="Delete all jobs"
-              >
-                <Icon icon={iconTrash2} className="jobs-drawer__clear-all-icon" />
-                Clear all
-              </button>
+              <Tooltip content="Delete all jobs">
+                <button
+                  type="button"
+                  className="jobs-drawer__clear-all"
+                  onClick={() => setClearAllOpen(true)}
+                  aria-label="Delete all jobs"
+                >
+                  <Icon icon={iconTrash2} />
+                </button>
+              </Tooltip>
             )}
 
             <button
@@ -160,25 +304,52 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
 
         {hasHistory && (
           <div className="jobs-drawer__filters" role="group" aria-label="Filter jobs">
-            <DialogSelect
-              label="Type"
-              value={filters.jobType}
-              options={JOB_TYPE_FILTER_OPTIONS}
-              onChange={(jobType) => updateFilter({ jobType })}
-            />
-            <DialogSelect
-              label="Status"
-              value={filters.status}
-              options={JOB_STATUS_FILTER_OPTIONS}
-              onChange={(status) => updateFilter({ status })}
-            />
-            <DialogSelect
-              label="Folder"
-              value={currentFolder ? filters.folder : "all"}
-              options={JOB_FOLDER_FILTER_OPTIONS}
-              disabled={!currentFolder}
-              onChange={(folder) => updateFilter({ folder })}
-            />
+            <div className="jobs-drawer__status" role="radiogroup" aria-label="Status">
+              {JOB_STATUS_FILTER_OPTIONS.map((option) => (
+                <label
+                  key={option.value}
+                  className={classNames(
+                    "jobs-drawer__status-option",
+                    filters.status === option.value && "jobs-drawer__status-option--active",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name={statusName}
+                    className="jobs-drawer__status-input"
+                    value={option.value}
+                    checked={filters.status === option.value}
+                    onChange={() => updateFilter({ status: option.value })}
+                  />
+                  {option.value === "all" ? "All" : option.title}
+                </label>
+              ))}
+            </div>
+
+            <div className="jobs-drawer__refine">
+              <div className="jobs-drawer__type">
+                <DialogSelect
+                  label="Type"
+                  value={filters.jobType}
+                  options={JOB_TYPE_FILTER_OPTIONS}
+                  onChange={(jobType) => updateFilter({ jobType })}
+                />
+              </div>
+              <button
+                type="button"
+                className={classNames(
+                  "jobs-drawer__folder-chip",
+                  folderFilterOn && "jobs-drawer__folder-chip--active",
+                )}
+                aria-pressed={folderFilterOn}
+                disabled={!currentFolder}
+                title={currentFolder ? undefined : "Open a folder to filter by it"}
+                onClick={() => updateFilter({ folder: folderFilterOn ? "all" : "current" })}
+              >
+                <Icon icon={iconFolder} className="jobs-drawer__folder-chip-icon" />
+                This folder
+              </button>
+            </div>
           </div>
         )}
 
@@ -192,6 +363,9 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
             filteredEmpty
           ) : !hasAnyJobs ? (
             <div className="jobs-drawer__empty">
+              <span className="jobs-drawer__empty-icon" aria-hidden="true">
+                <Icon icon={iconBot} />
+              </span>
               <p>{history.loading ? "Loading job history..." : "No automation jobs yet."}</p>
               {!history.loading && (
                 <p className="jobs-drawer__empty-hint">
@@ -203,17 +377,14 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
             <>
               {hasExternalJobs && (
                 <section className="jobs-drawer__section" aria-label="External jobs">
-                  <h3 className="jobs-drawer__section-title">External</h3>
+                  <h3 className="jobs-drawer__section-title">AI-Toolkit</h3>
                   <div className="jobs-drawer__list">
                     {externalJobs.map((job) => (
                       <ExternalJobCard
                         key={`ostris-${job.id}`}
                         job={job}
                         isCurrentFolder={foldersMatch(currentFolder, job.dataset_folder)}
-                        onOpenFolder={(folderPath) => {
-                          onOpenFolder(folderPath);
-                          closeDrawer();
-                        }}
+                        onOpenFolder={openFolder}
                         stopping={stoppingOstrisJobId === job.id}
                         onStop={(jobId) => {
                           stopExternalOstrisJob(jobId).catch(() => {});
@@ -225,64 +396,32 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
                 </section>
               )}
               {(hasLocalJobs || filtering) && (
-                <section
-                  className={classNames(
-                    "jobs-drawer__section",
-                    hasExternalJobs && "jobs-drawer__section--local",
-                  )}
-                  aria-label="DataForge jobs"
-                >
-                  {hasExternalJobs && <h3 className="jobs-drawer__section-title">DataForge</h3>}
+                <div className="jobs-drawer__local" role="region" aria-label="DataForge jobs">
                   {!hasLocalJobs ? (
                     filteredEmpty
                   ) : (
                     <>
-                      <div className="jobs-drawer__list">
-                        {localJobs.map((job) => (
-                          <JobCard
-                            onOpenItem={
-                              currentActions?.onOpenItem && foldersMatch(job.folder, currentFolder)
-                                ? (path) => {
-                                    closeDrawer();
-                                    currentActions.onOpenItem?.(path);
-                                  }
-                                : undefined
-                            }
-                            onRetryFailed={
-                              currentActions?.onRetryFailed &&
-                              foldersMatch(job.folder, currentFolder)
-                                ? (paths) => {
-                                    closeDrawer();
-                                    currentActions.onRetryFailed?.(job.job_type, paths);
-                                  }
-                                : undefined
-                            }
-                            onRunAgain={
-                              currentActions?.onRunAgain && foldersMatch(job.folder, currentFolder)
-                                ? () => {
-                                    closeDrawer();
-                                    currentActions.onRunAgain?.(job.job_type);
-                                  }
-                                : undefined
-                            }
-                            key={job.id}
-                            job={job}
-                            isCurrentFolder={foldersMatch(currentFolder, job.folder)}
-                            onOpenFolder={(folderPath) => {
-                              onOpenFolder(folderPath);
-                              closeDrawer();
-                            }}
-                            cancelling={cancellingJobId === job.id}
-                            onCancel={(jobId) => {
-                              cancelJob(jobId).catch(() => {});
-                            }}
-                            onDelete={(jobId) => {
-                              void deleteJob(jobId).finally(() => history.reload());
-                            }}
-                            onLightboxOpenChange={setLightboxOpen}
-                          />
-                        ))}
-                      </div>
+                      {sections.map((section) => (
+                        <section
+                          key={section.id}
+                          className={classNames(
+                            "jobs-drawer__section",
+                            `jobs-drawer__section--${section.id}`,
+                          )}
+                          aria-labelledby={`jobs-drawer-section-${section.id}`}
+                        >
+                          <h3
+                            id={`jobs-drawer-section-${section.id}`}
+                            className="jobs-drawer__section-title"
+                          >
+                            {section.label}
+                            <span className="jobs-drawer__section-count">
+                              {section.jobs.length}
+                            </span>
+                          </h3>
+                          <div className="jobs-drawer__list">{section.jobs.map(renderJobCard)}</div>
+                        </section>
+                      ))}
                       {history.hasMore && (
                         <div className="jobs-drawer__more">
                           <span className="jobs-drawer__more-count">
@@ -300,12 +439,23 @@ export function JobsDrawer({ currentFolder, onOpenFolder, currentActions }: Jobs
                       )}
                     </>
                   )}
-                </section>
+                </div>
               )}
             </>
           )}
         </div>
       </ModalShell>
+
+      {cancelTarget && !closing && (
+        <CancelJobConfirm
+          job={cancelTarget}
+          onConfirm={() => {
+            setCancelTarget(null);
+            cancelJob(cancelTarget.id).catch(() => {});
+          }}
+          onCancel={() => setCancelTarget(null)}
+        />
+      )}
 
       {clearAllOpen && !closing && (
         <ConfirmDialog

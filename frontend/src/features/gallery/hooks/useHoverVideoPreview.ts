@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { prefersReducedMotion } from "@/shared/lib/motion";
 
 /** Long enough that sweeping the cursor across the grid never starts a download. */
 export const HOVER_PREVIEW_DELAY_MS = 400;
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-}
 
 export function useHoverVideoPreview(enabled: boolean) {
   const [previewing, setPreviewing] = useState(false);
