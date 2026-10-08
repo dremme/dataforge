@@ -94,12 +94,13 @@ describe("layoutWorkflowMap", () => {
     expect(edge.path.startsWith(`M ${upscaler.x + upscaler.width / 2} `)).toBe(true);
   });
 
-  it("routes an edge that skips rows around every box, neighbours in its row included", () => {
+  it("runs an edge that skips rows between the boxes of the rows it passes", () => {
     // The model's neighbours share its row, and it feeds both the next row and the output.
     const crowded = layoutWorkflowMap([
       box("model", "model", ["base", "out"]),
       box("lora", "loras", ["base"]),
       box("prompt", "prompt", ["base"]),
+      box("upscaler", "model", ["base"]),
       box("base", "pass", ["out"]),
       box("out", "output", []),
     ]);
@@ -115,15 +116,42 @@ describe("layoutWorkflowMap", () => {
       );
 
     expect(points.filter(([x, y]) => inside(x, y))).toEqual([]);
-    expect(Math.max(...points.map(([x]) => x))).toBeGreaterThan(
-      Math.max(...crowded.nodes.map((node) => node.x + node.width)),
-    );
+    // No detour out to a lane: it stays within the span of the boxes at its two ends.
+    const ends = crowded.nodes.filter((node) => ["model", "out"].includes(node.node.id));
+    const xs = points.map(([x]) => x);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(Math.max(...ends.map((n) => n.x + n.width)));
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(Math.min(...ends.map((n) => n.x)));
     // It comes in from the top of its target.
     const out = crowded.nodes.find((node) => node.node.id === "out")!;
     const { x: endX, y: endY } = end(skip.path);
     expect(endY).toBeCloseTo(out.y);
     expect(endX).toBeGreaterThan(out.x);
     expect(endX).toBeLessThan(out.x + out.width);
+  });
+
+  it("orders a row so its edges do not cross", () => {
+    // Listed so that, kept in this order, the two edges would cross.
+    const swapped = layoutWorkflowMap([
+      box("first", "model", ["late"]),
+      box("second", "model", ["early"]),
+      box("early", "pass", ["out"]),
+      box("late", "pass", ["out"]),
+      box("out", "output", []),
+    ]);
+    const x = (id: string) => swapped.nodes.find((node) => node.node.id === id)!.x;
+
+    expect(Math.sign(x("first") - x("second"))).toBe(Math.sign(x("late") - x("early")));
+  });
+
+  it("closes the map with the output even when nothing reached it", () => {
+    const unlinked = layoutWorkflowMap([
+      box("model", "model", ["base"]),
+      box("base", "pass", []),
+      box("out", "output", []),
+    ]);
+    const y = (id: string) => unlinked.nodes.find((node) => node.node.id === id)!.y;
+
+    expect(y("out")).toBeGreaterThan(y("base"));
   });
 
   it("fans edges that share a box out along it, ordered by their other end", () => {

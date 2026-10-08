@@ -32,7 +32,7 @@ type AutomationMode = Literal["thinking", "instruct"]
 type ComfyPromptRole = Literal["positive", "negative"]
 #: Whether a sampling pass ran, a switch routed around it, or it is bypassed in the editor.
 type ComfyPassStatus = Literal["ran", "switched_off", "bypassed"]
-type ComfyMapNodeKind = Literal["pass", "model", "loras", "prompt", "input", "output"]
+type ComfyMapNodeKind = Literal["pass", "model", "loras", "vae", "prompt", "input", "output"]
 type ComfyMediaKind = Literal["image", "video", "audio"]
 
 #: Keys of ``TRAINING_TEMPLATES``; ``h3_*`` are video, ``krea2_turbo`` and ``qwen_image_2`` image.
@@ -1024,19 +1024,19 @@ class ComfySamplingStage(BaseModel):
 
 
 class ComfyMapNode(BaseModel):
-    """One box of an output's map: a pass, or a model, LoRAs, input or prompt feeding one."""
+    """One box of an output's map: a pass, or a model, LoRAs, VAE, input or prompt feeding one."""
 
     id: str
     kind: ComfyMapNodeKind
     label: str
-    #: The full text behind a short label: a prompt, a model file or LoRA names.
+    #: The full text behind a short label: a prompt, a model or VAE file or LoRA names.
     detail: list[str] = Field(default_factory=list)
     status: ComfyPassStatus = "ran"
     #: Map nodes this one hands its result to directly.
     feeds: list[str] = Field(default_factory=list)
     #: Set on a prompt box only.
     role: ComfyPromptRole | None = None
-    #: Set on an input box: what kind of media it is.
+    #: Set on an input or output box: what kind of media it is.
     media: ComfyMediaKind | None = None
     #: Set on an input an earlier stage generated: that stage's name.
     source: str | None = None

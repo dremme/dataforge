@@ -20,6 +20,7 @@ export {
   iconAdjustHue,
   iconAdjustDefinition,
   iconAdjustNoiseReduction,
+  iconVae,
 } from "./customIcons";
 
 export {

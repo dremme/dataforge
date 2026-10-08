@@ -634,11 +634,13 @@
 
 // ---- Workflow map tones and tooltip ------------------------------------------------------------
 
-// One hue per box kind; a box, the edges leaving it and its portalled tooltip share it.
+// ComfyUI's hues: a box, the edges leaving it and its portalled tooltip share one. LoRAs patch
+// the model, so they share its purple.
 $map-tones: (
   accent: var(--accent),
   model: var(--map-model),
-  loras: var(--map-lora),
+  loras: var(--map-model),
+  vae: var(--map-vae),
   input: var(--map-input),
   prompt: var(--map-prompt),
   negative: var(--map-negative),

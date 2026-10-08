@@ -16,6 +16,7 @@ import {
   iconAdjustHue,
   iconAdjustDefinition,
   iconAdjustNoiseReduction,
+  iconVae,
 } from "./icons";
 import { Icon } from "./ui/Icon";
 
@@ -35,6 +36,7 @@ describe.each([
   ["Hue", iconAdjustHue],
   ["Definition", iconAdjustDefinition],
   ["NoiseReduction", iconAdjustNoiseReduction],
+  ["Vae", iconVae],
 ])("%s custom icon", (_name, glyph) => {
   it("uses the shared Lucide outline styling through the icon registry", () => {
     const { container } = render(<Icon icon={glyph} className="adjust-tools__glyph" />);

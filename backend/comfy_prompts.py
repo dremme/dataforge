@@ -530,10 +530,11 @@ _INPUT_MEDIA_KEYS: tuple[ComfyMediaKind, ...] = ("image", "video", "audio")
 _MAP_KIND_ORDER: dict[ComfyMapNodeKind, int] = {
     "model": 0,
     "loras": 1,
-    "input": 2,
-    "prompt": 3,
-    "pass": 4,
-    "output": 5,
+    "vae": 2,
+    "input": 3,
+    "prompt": 4,
+    "pass": 5,
+    "output": 6,
 }
 
 
@@ -555,6 +556,9 @@ def _map_box(
         model = _scalar_at(graph, inputs.get(key))
         if isinstance(model, str) and model.strip():
             return "model", _short_name(model), [model.strip()]
+    vae = _scalar_at(graph, inputs.get("vae_name"))
+    if isinstance(vae, str) and vae.strip():
+        return "vae", _short_name(vae), [vae.strip()]
     _, loras = _collect_parameters(graph, [node_id])
     if loras:
         return "loras", "", loras
@@ -575,6 +579,19 @@ def _loaded_media(node: object) -> ComfyMediaKind | None:
         ),
         None,
     )
+
+
+def _output_media(node: object) -> ComfyMediaKind:
+    """What an output writes: by its class first, since a video combine takes ``images``."""
+    lowered = _node_class(node).lower()
+    if "audio" in lowered:
+        return "audio"
+    if any(marker in lowered for marker in ("video", "animated")):
+        return "video"
+    inputs = _node_inputs(node).keys()
+    if "video" in inputs:
+        return "video"
+    return "audio" if "audio" in inputs and not {"image", "images"} & inputs else "image"
 
 
 def _media_of(input_name: str) -> ComfyMediaKind | None:
@@ -634,7 +651,7 @@ def _branch_map(
     stages: tuple[set[str], set[str], set[str]],
     subgraph_labels: dict[str, str],
 ) -> list[MapNode]:
-    """The output's passes and what feeds them: models, LoRAs, input media and prompts.
+    """The output's passes and what feeds them: models, LoRAs, VAEs, input media and prompts.
 
     Each box links to the nearest boxes downstream. A prompt never blocks the walk, since its
     text often sits on a node that also takes the image or the model. A chain of LoRA loaders
@@ -732,6 +749,7 @@ def _branch_map(
             status(prompt.node_id),
         )
     nodes[root] = ("output", "Output", [], "ran")
+    media[root] = _output_media(graph.get(root))
 
     feeds: dict[str, list[str]] = {node_id: [] for node_id in nodes}
     for source, target in edges:

@@ -1280,6 +1280,41 @@ class SamplingPassTests(unittest.TestCase):
         order = [node.id for node in branch.map]
         self.assertTrue(all(order.index(a) < order.index(b) for a, b in _map_edges(branch)))
 
+    def test_a_loaded_vae_is_a_box_feeding_what_it_decodes_and_encodes(self) -> None:
+        graph = _two_pass_graph(True)
+        graph["11"] = {"class_type": "VAELoader", "inputs": {"vae_name": "vae/sharp.safetensors"}}
+        graph["9"]["inputs"]["vae"] = ["11", 0]
+        graph["12"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["9", 0], "vae": ["11", 0]}}
+        graph["7"]["inputs"]["latent_image"] = ["12", 0]
+
+        branch = self._branch(graph)
+
+        vae = next(node for node in branch.map if node.id == "11")
+        self.assertEqual(
+            (vae.kind, vae.label, vae.detail), ("vae", "sharp", ["vae/sharp.safetensors"])
+        )
+        self.assertLessEqual({("11", "7"), ("11", "10")}, _map_edges(branch))
+
+    def test_the_output_box_carries_the_media_its_node_writes(self) -> None:
+        cases = {
+            "SaveImage": ({"images": ["9", 0]}, "image"),
+            "VHS_VideoCombine": ({"images": ["9", 0]}, "video"),
+            "SaveVideo": ({"video": ["9", 0]}, "video"),
+            "SaveAudio": ({"audio": ["9", 0]}, "audio"),
+        }
+        for class_type, (inputs, media) in cases.items():
+            with self.subTest(class_type):
+                graph = _two_pass_graph(True)
+                graph["10"] = {
+                    "class_type": class_type,
+                    "inputs": {**inputs, "filename_prefix": "storm"},
+                }
+
+                branch = self._branch(graph)
+
+                self.assertEqual(branch.map[-1].kind, "output")
+                self.assertEqual(branch.map[-1].media, media)
+
     def test_a_chain_of_lora_loaders_is_one_box(self) -> None:
         graph = _two_pass_graph(True)
         graph["11"] = {

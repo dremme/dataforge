@@ -129,6 +129,59 @@ describe("ComfyWorkflowMap", () => {
     );
   });
 
+  it("shows a VAE's file in its tooltip", async () => {
+    const user = userEvent.setup();
+    render(
+      <ComfyWorkflowMap
+        map={[
+          {
+            id: "9",
+            kind: "vae",
+            label: "sharp",
+            detail: ["vae/sharp.safetensors"],
+            status: "ran",
+            feeds: ["3"],
+          },
+          { id: "2", kind: "pass", label: "KSampler", detail: [], status: "ran", feeds: ["3"] },
+          { id: "3", kind: "output", label: "Output", detail: [], status: "ran", feeds: [] },
+        ]}
+        passNumbers={new Map([["2", 1]])}
+        passSettings={new Map()}
+        output="Text to Image"
+      />,
+    );
+
+    await user.hover(box("sharp"));
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent("VAE");
+    expect(tip).toHaveTextContent("vae/sharp.safetensors");
+  });
+
+  it("draws the output with the icon of the media it writes", () => {
+    const { container } = render(
+      <ComfyWorkflowMap
+        map={[
+          { id: "2", kind: "pass", label: "KSampler", detail: [], status: "ran", feeds: ["3"] },
+          {
+            id: "3",
+            kind: "output",
+            label: "Output",
+            detail: [],
+            status: "ran",
+            feeds: [],
+            media: "video",
+          },
+        ]}
+        passNumbers={new Map([["2", 1]])}
+        passSettings={new Map()}
+        output="Image to Video"
+      />,
+    );
+
+    const output = container.querySelector(".comfy-workflow-dialog__map-node--output");
+    expect(output?.querySelector("svg")).toHaveClass("lucide-video");
+  });
+
   it("keeps a file name's end visible when its label has to be cut", () => {
     render(
       <ComfyWorkflowMap

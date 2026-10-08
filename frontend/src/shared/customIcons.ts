@@ -301,3 +301,14 @@ export const iconAdjustNoiseReduction = createLucideIcon("adjust-noise-reduction
     },
   ],
 ]);
+
+/** An autoencoder's bow tie: pixels squeezed into a small latent, then widened back. */
+export const iconVae = createLucideIcon("vae", [
+  [
+    "path",
+    {
+      d: "M3 5l7 5v4l-7 5zM21 5l-7 5v4l7 5z",
+      key: "bow-tie",
+    },
+  ],
+]);
