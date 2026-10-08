@@ -179,7 +179,7 @@ for (const width of [1024, 1440]) {
       await page.screenshot({ animations: "disabled", path: testInfo.outputPath("review.png") });
       await page.keyboard.press("Escape");
       if (currentJob) {
-        await page.getByRole("button", { name: "Job details", exact: true }).click();
+        await page.getByRole("button", { name: /^Open automation jobs/ }).click();
         if (!active) {
           const toggle = page.getByRole("button", { name: /Per-file results/ });
           await expect(toggle).toHaveAttribute("aria-expanded", "false");

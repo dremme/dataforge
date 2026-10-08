@@ -20,7 +20,6 @@ import {
 } from "@/features/jobs/lib/jobs";
 import { CancelJobConfirm } from "@/features/jobs/components/CancelJobConfirm";
 import { JobStatusBadge } from "@/features/jobs/components/JobStatusBadge";
-import { useJobs } from "@/features/jobs/context/JobsContext";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { failedCountFromStats } from "@/features/jobs/lib/jobFileResults";
 import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
@@ -37,7 +36,6 @@ import {
   iconScanSquare,
   iconChevronDown,
   iconBan,
-  iconList,
   iconLoader2,
   iconCircleAlert,
   iconTriangleAlert,
@@ -294,7 +292,6 @@ function jobTone(job: AutomationActions["job"]) {
  * no attention, so only running, failed, cancelled, or warning jobs show here.
  */
 export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
-  const { toggleDrawer } = useJobs();
   const { showSpecs } = useAutomationSpecsVisible();
   const [dismissedJobId, setDismissedJobId] = useState<string | null>(null);
   const job = panel.job;
@@ -306,7 +303,7 @@ export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
   const visible = job && (active || (needsAttention && dismissedJobId !== job.id));
   const failedNote =
     failedCount > 0
-      ? `${failedCount} ${failedCount === 1 ? "file" : "files"} failed. Job details lists them and can retry.`
+      ? `${failedCount} ${failedCount === 1 ? "file" : "files"} failed. Open automation jobs to view them and retry.`
       : null;
   const message = job ? (jobErrorMessage(job) ?? jobWarningMessage(job) ?? failedNote) : null;
 
@@ -350,10 +347,6 @@ export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
               </div>
             )}
             {active && <span className="workspace-activity__percent">{progressPercent(job)}%</span>}
-            <button type="button" className="workspace-button" onClick={toggleDrawer}>
-              <Icon icon={iconList} />
-              Job details
-            </button>
             {!active && (
               <button
                 type="button"

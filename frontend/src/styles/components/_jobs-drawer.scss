@@ -786,29 +786,18 @@ $jobs-content-pad-top: 0.75rem;
     @include icon-btn-sm;
     --bg-elevated: var(--bg-soft);
     flex-shrink: 0;
-
-    &:hover:not(:disabled) {
-      color: var(--danger);
-      border-color: var(--danger-border);
-      @include fade-bg(var(--danger-soft));
-    }
   }
 
-  // Deleting history is rare, so the button waits until the card is hovered or focused.
-  @media (hover: hover) {
-    &__delete {
-      opacity: 0;
-      transition:
-        opacity var(--transition),
-        --fade-bg var(--transition),
-        color var(--transition),
-        border-color var(--transition);
-    }
+  &__cancel:hover:not(:disabled) {
+    color: var(--warning);
+    border-color: var(--warning-border);
+    @include fade-bg(var(--warning-soft));
+  }
 
-    &:hover &__delete,
-    &:focus-within &__delete {
-      opacity: 1;
-    }
+  &__delete:hover:not(:disabled) {
+    color: var(--danger);
+    border-color: var(--danger-border);
+    @include fade-bg(var(--danger-soft));
   }
 
   &__cancel-icon--spin {

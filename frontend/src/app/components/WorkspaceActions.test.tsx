@@ -17,10 +17,6 @@ import { installMockBackend } from "@/test/mockBackend";
 import { renderWithQueryClient } from "@/test/queryClient";
 import { WorkspaceActions, WorkspaceActivity } from "./WorkspaceActions";
 
-vi.mock("@/features/jobs/context/JobsContext", () => ({
-  useJobs: () => ({ toggleDrawer: vi.fn() }),
-}));
-
 function renderActions(
   overrides: Partial<AutomationActions> = {},
   context: Partial<JobStartContext> = {},
@@ -97,7 +93,7 @@ describe("Workspace tools", () => {
 
   it("hides a job that finished cleanly", () => {
     renderActions({ job: job({ status: "completed", processed: 8, total: 8 }) });
-    expect(screen.queryByRole("button", { name: "Job details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("keeps a failed job's message until it is dismissed", async () => {
@@ -108,10 +104,10 @@ describe("Workspace tools", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Disk is full.");
     await user.click(screen.getByRole("button", { name: "Dismiss job status" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Job details" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("points a completed job with failed files to its details", () => {
+  it("points a completed job with failed files to automation jobs", () => {
     renderActions({
       job: job({
         status: "completed",
@@ -121,7 +117,7 @@ describe("Workspace tools", () => {
       }),
     });
     expect(screen.getByText(/1 file failed/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Job details" })).toBeVisible();
+    expect(screen.getByText(/Open automation jobs to view them and retry/)).toBeVisible();
   });
 
   it("offers Review only when a queue has findings", () => {

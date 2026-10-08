@@ -50,7 +50,7 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
-    await user.click(await screen.findByRole("button", { name: "Job details" }));
+    await user.click(await screen.findByRole("button", { name: /^Open automation jobs/ }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
 
     const row = await screen.findByText("Permission denied");
@@ -63,7 +63,7 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
-    await user.click(await screen.findByRole("button", { name: "Job details" }));
+    await user.click(await screen.findByRole("button", { name: /^Open automation jobs/ }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "Retry 1 failed" }));
 
@@ -78,7 +78,7 @@ describe("App: job results", () => {
     installBackendWithFailedJob();
     await renderApp();
 
-    await user.click(await screen.findByRole("button", { name: "Job details" }));
+    await user.click(await screen.findByRole("button", { name: /^Open automation jobs/ }));
     await user.click(await screen.findByRole("button", { name: /1 failed/ }));
     await user.click(await screen.findByRole("button", { name: "beach.jpg" }));
 
