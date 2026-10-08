@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
@@ -20,7 +21,7 @@ def validate_or_salvage[T: BaseModel](model: type[T], data: dict) -> T:
         if name not in data:
             continue
         try:
-            salvaged[name] = TypeAdapter(field.annotation).validate_python(data[name])
+            salvaged[name] = TypeAdapter(field.annotation or Any).validate_python(data[name])
         except ValidationError:
             continue
 

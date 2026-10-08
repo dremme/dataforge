@@ -172,7 +172,8 @@ _RULES: dict[str, _Rule] = {
 }
 
 _PARSERS = {
-    key: TypeAdapter(field.annotation) for key, field in EffectiveSettings.model_fields.items()
+    key: TypeAdapter(field.annotation or Any)
+    for key, field in EffectiveSettings.model_fields.items()
 }
 
 _store: JsonPreference[AppSettingsOverrides] = JsonPreference(
