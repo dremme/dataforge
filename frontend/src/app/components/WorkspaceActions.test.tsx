@@ -207,6 +207,25 @@ describe("Workspace tools", () => {
     }
   });
 
+  it("sections Tools by what each job changes, with integrations last", async () => {
+    const user = userEvent.setup();
+    renderActions();
+    await user.click(screen.getByRole("button", { name: "Tools" }));
+    const menu = screen.getByRole("menu", { name: "Tools" });
+
+    const sections = within(menu).getAllByRole("group");
+    expect(sections.map((section) => section.getAttribute("aria-label"))).toEqual([
+      "Captions",
+      "Check",
+      "Media",
+      "Files",
+      "Integrations",
+    ]);
+    for (const name of [/^Process with ComfyUI/, /^Quick LoRA training/]) {
+      expect(within(sections.at(-1)!).getByRole("menuitem", { name })).toBeInTheDocument();
+    }
+  });
+
   it("lists Auto-caption only as its own button, not again under Tools", async () => {
     const user = userEvent.setup();
     renderActions();

@@ -55,49 +55,66 @@ interface ToolsMenuProps {
   panel: AutomationActions;
 }
 
-// No scope line: each job's confirmation dialog states which files it targets. Auto-caption has
-// its own button, so the menu lists only the secondary jobs.
-function ToolsMenuItems({ panel, onPick }: ToolsMenuProps & { onPick: () => void }) {
+type ToolsMenuItemsProps = ToolsMenuProps & { onPick: () => void };
+
+function ToolsGroup({
+  group,
+  panel,
+  onPick,
+}: ToolsMenuItemsProps & { group: (typeof SECONDARY_JOB_GROUPS)[number] }) {
   return (
-    <div className="workspace-tools__groups">
-      {SECONDARY_JOB_GROUPS.map((group) => (
-        <div
-          key={group.id}
-          role="group"
-          aria-label={group.label}
-          className="workspace-tools__group"
-        >
-          <div className="workspace-tools__group-label" aria-hidden="true">
-            {group.label}
-          </div>
-          {group.types.map((type) => {
-            const { blocked, reason } = jobStartBlock(type, panel.startContext);
-            return (
-              <button
-                key={type}
-                type="button"
-                role="menuitem"
-                className="workspace-tools__item"
-                disabled={blocked}
-                onClick={() => {
-                  onPick();
-                  panel.onRequestStart(type);
-                }}
-              >
-                <Icon icon={jobTypeIconFor(type)} className="workspace-tools__item-icon" />
-                <span className="workspace-tools__item-text">
-                  <span className="workspace-tools__item-title">{jobMenuLabelFor(type)}</span>
-                  <span className="workspace-tools__item-desc">
-                    {JOB_TYPE_META[type].menuDescription}
-                  </span>
-                  {reason && <span className="workspace-tools__item-desc">{reason}</span>}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
+    <div
+      role="group"
+      aria-label={group.label}
+      className={classNames("workspace-tools__group", group.wide && "workspace-tools__group--wide")}
+    >
+      <div className="workspace-tools__group-label" aria-hidden="true">
+        {group.label}
+      </div>
+      {group.types.map((type) => {
+        const { blocked, reason } = jobStartBlock(type, panel.startContext);
+        return (
+          <button
+            key={type}
+            type="button"
+            role="menuitem"
+            className="workspace-tools__item"
+            disabled={blocked}
+            onClick={() => {
+              onPick();
+              panel.onRequestStart(type);
+            }}
+          >
+            <Icon icon={jobTypeIconFor(type)} className="workspace-tools__item-icon" />
+            <span className="workspace-tools__item-text">
+              <span className="workspace-tools__item-title">{jobMenuLabelFor(type)}</span>
+              <span className="workspace-tools__item-desc">
+                {JOB_TYPE_META[type].menuDescription}
+              </span>
+              {reason && <span className="workspace-tools__item-desc">{reason}</span>}
+            </span>
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+// No scope line: each job's confirmation dialog states which files it targets. Auto-caption has
+// its own button, so the menu lists only the secondary jobs. Wide groups sit outside the wrapping
+// row so their text cannot widen the panel's max-content width.
+function ToolsMenuItems(props: ToolsMenuItemsProps) {
+  return (
+    <>
+      <div className="workspace-tools__groups">
+        {SECONDARY_JOB_GROUPS.filter((group) => !group.wide).map((group) => (
+          <ToolsGroup key={group.id} group={group} {...props} />
+        ))}
+      </div>
+      {SECONDARY_JOB_GROUPS.filter((group) => group.wide).map((group) => (
+        <ToolsGroup key={group.id} group={group} {...props} />
+      ))}
+    </>
   );
 }
 

@@ -87,13 +87,29 @@ describe("SECONDARY_JOB_GROUPS", () => {
     expect(SECONDARY_JOB_GROUPS.every((group) => group.types.length > 0)).toBe(true);
   });
 
-  it("buckets the dataset, file, backup and integration jobs apart", () => {
+  it("sorts jobs by what they change, each section in workflow order", () => {
     const byId = Object.fromEntries(SECONDARY_JOB_GROUPS.map((group) => [group.id, group.types]));
 
-    expect(byId.datasets).toContain("set_captions");
-    expect(byId.datasets).toContain("edit_captions");
-    expect(byId.files).toContain("batch_rename");
-    expect(byId.backup).toEqual(["backup_captions", "restore_captions"]);
-    expect(byId.integrations).toEqual(["train_lora", "comfy_process"]);
+    expect(byId.captions).toEqual(["replace_captions", "edit_captions", "set_captions"]);
+    // Check jobs only write findings for the Review menu, never media or captions.
+    expect(byId.check).toEqual(["check_caption_rules", "verify_captions", "find_duplicates"]);
+    expect(byId.media).toEqual(["auto_adjust", "resize", "watermark"]);
+    expect(byId.files).toEqual([
+      "batch_rename",
+      "strip_metadata",
+      "backup_captions",
+      "restore_captions",
+    ]);
+    expect(byId.integrations).toEqual(["comfy_process", "train_lora"]);
+  });
+
+  it("spans only the integrations section across the menu", () => {
+    const wide = SECONDARY_JOB_GROUPS.filter((group) => group.wide).map((group) => group.id);
+    expect(wide).toEqual(["integrations"]);
+  });
+
+  it("lists secondary jobs in menu order everywhere else", () => {
+    // The jobs filter and Quick actions read SECONDARY_JOB_TYPES directly.
+    expect(SECONDARY_JOB_TYPES).toEqual(SECONDARY_JOB_GROUPS.flatMap((group) => group.types));
   });
 });

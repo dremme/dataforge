@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as captionsApi from "@/features/gallery/api/captions";
-import { SECONDARY_JOB_TYPES } from "@/features/jobs/lib/jobMeta";
+import { SECONDARY_JOB_GROUPS, SECONDARY_JOB_TYPES } from "@/features/jobs/lib/jobMeta";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderApp } from "@/test/renderApp";
 
@@ -171,7 +171,7 @@ describe("App workspace", () => {
     expect(drawer.querySelectorAll(".workspace-tools__item")).toHaveLength(
       SECONDARY_JOB_TYPES.length,
     );
-    expect(within(drawer).getAllByRole("group")).toHaveLength(4);
+    expect(within(drawer).getAllByRole("group")).toHaveLength(SECONDARY_JOB_GROUPS.length);
     expect(within(drawer).queryByRole("searchbox")).not.toBeInTheDocument();
     expect(
       within(drawer).queryByRole("menuitem", { name: "Folder instructions" }),

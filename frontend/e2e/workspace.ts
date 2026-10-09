@@ -2,9 +2,25 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
+import type { FolderResponse } from "../src/shared/types";
 
 /** Built fresh by scripts/e2e_backend.py; the same path playwright.config.ts hands the servers. */
 export const WORKSPACE = path.join(os.tmpdir(), "dataforge-e2e");
+
+/** Opens the workspace trimmed to one image and one video, with no subfolders. */
+export async function openWorkspace(page: Page) {
+  await page.route("**/api/folders/contents?**", async (route) => {
+    const response = await route.fetch();
+    const folder = (await response.json()) as FolderResponse;
+    const items = folder.items.filter(
+      (item) => item.name === "photo.png" || item.name === "clip.mp4",
+    );
+    await route.fulfill({
+      json: { ...folder, items, item_count: items.length, subfolders: [], subfolder_count: 0 },
+    });
+  });
+  await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
+}
 
 export interface ModelRequest {
   model: string;

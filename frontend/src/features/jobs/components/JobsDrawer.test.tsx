@@ -222,7 +222,7 @@ describe("JobsDrawer", () => {
         expect(fetchJobsMock).toHaveBeenLastCalledWith(
           expect.objectContaining({
             offset: 0,
-            jobTypes: ["strip_metadata", "watermark"],
+            jobTypes: ["watermark", "strip_metadata"],
             status: "failed",
             // JSX attribute strings keep their backslashes, so this is what the drawer received.
             folder: "C:\\\\datasets\\\\landscapes",

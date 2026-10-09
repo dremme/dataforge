@@ -228,6 +228,19 @@
     padding-left: 0.375rem;
     border-left: 1px solid var(--border);
   }
+  // Spans the columns above and lays its items out side by side.
+  &__group--wide {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    column-gap: 0.375rem;
+    width: auto;
+    margin-top: 0.375rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid var(--border);
+  }
+  &__group--wide &__group-label {
+    grid-column: 1 / -1;
+  }
   &__group-label {
     @include section-label;
     padding: 0.1875rem 0.6875rem 0.375rem;

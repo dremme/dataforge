@@ -30,11 +30,16 @@ export interface JobAvailability {
   comfyPresetsAvailable: boolean;
 }
 
+/**
+ * Tools menu sections, by what a job changes: caption text, nothing (findings for the Review menu),
+ * pixels, or file names, metadata and backups. Jobs run by external tools span the menu below.
+ */
 export const JOB_GROUPS = [
-  { id: "datasets", label: "Datasets" },
-  { id: "backup", label: "Backup" },
+  { id: "captions", label: "Captions" },
+  { id: "check", label: "Check" },
+  { id: "media", label: "Media" },
   { id: "files", label: "Files" },
-  { id: "integrations", label: "Integrations" },
+  { id: "integrations", label: "Integrations", wide: true },
 ] as const;
 
 export type JobGroup = (typeof JOB_GROUPS)[number]["id"];
@@ -57,59 +62,78 @@ interface JobTypeMeta {
   unavailableReason?: string;
 }
 
+// Entry order is menu order: the jobs filter and Quick actions list jobs in this order too.
 export const JOB_TYPE_META = {
   auto_caption: {
     type: "auto_caption" as const,
-    group: "datasets" as const,
+    group: "captions" as const,
     icon: iconSparkles,
     startUi: "dialog" as const,
     primary: true as const,
     menuDescription: "Auto-complete captions with the local model.",
   },
-  set_captions: {
-    type: "set_captions" as const,
-    group: "datasets" as const,
-    icon: iconMessagePlus,
-    startUi: "dialog" as const,
-    menuDescription: "Write the same caption text to media files.",
-  },
-  verify_captions: {
-    type: "verify_captions" as const,
-    group: "datasets" as const,
-    icon: iconMessageWarning,
-    startUi: "dialog" as const,
-    menuDescription: "Verifies captions by comparing them with their media file.",
-  },
-  check_caption_rules: {
-    type: "check_caption_rules" as const,
-    group: "datasets" as const,
-    icon: iconSpellCheck2,
-    startUi: "dialog" as const,
-    menuDescription: `Check captions against your ${CAPTION_RULES_FILENAME} file, no model needed.`,
-  },
-  edit_captions: {
-    type: "edit_captions" as const,
-    group: "datasets" as const,
-    icon: iconPencilSparkles,
-    startUi: "dialog" as const,
-    menuDescription: "Rewrite existing captions with the local model, from your instruction.",
-  },
   replace_captions: {
     type: "replace_captions" as const,
-    group: "datasets" as const,
+    group: "captions" as const,
     icon: iconReplace,
     startUi: "dialog" as const,
     menuDescription: "Search and replace, prepend, or append text across captions.",
   },
-  train_lora: {
-    type: "train_lora" as const,
-    group: "integrations" as const,
-    icon: iconAiToolkit,
+  edit_captions: {
+    type: "edit_captions" as const,
+    group: "captions" as const,
+    icon: iconPencilSparkles,
     startUi: "dialog" as const,
-    menuLabel: "Quick LoRA training",
-    menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
-    isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
-    unavailableReason: "AI-Toolkit is unavailable. Check its connection in Settings.",
+    menuDescription: "Rewrite existing captions with the local model, from your instruction.",
+  },
+  set_captions: {
+    type: "set_captions" as const,
+    group: "captions" as const,
+    icon: iconMessagePlus,
+    startUi: "dialog" as const,
+    menuDescription: "Write the same caption text to media files.",
+  },
+  check_caption_rules: {
+    type: "check_caption_rules" as const,
+    group: "check" as const,
+    icon: iconSpellCheck2,
+    startUi: "dialog" as const,
+    menuDescription: `Check captions against your ${CAPTION_RULES_FILENAME} file, no model needed.`,
+  },
+  verify_captions: {
+    type: "verify_captions" as const,
+    group: "check" as const,
+    icon: iconMessageWarning,
+    startUi: "dialog" as const,
+    menuDescription: "Have the local model compare each caption with its media.",
+  },
+  find_duplicates: {
+    type: "find_duplicates" as const,
+    group: "check" as const,
+    icon: iconFiles,
+    startUi: "dialog" as const,
+    menuDescription: "Find duplicate and near-duplicate media and group them for review.",
+  },
+  auto_adjust: {
+    type: "auto_adjust" as const,
+    group: "media" as const,
+    icon: iconWandSparkles,
+    startUi: "dialog" as const,
+    menuDescription: "Correct exposure, contrast and color with the Adjust wand.",
+  },
+  resize: {
+    type: "resize" as const,
+    group: "media" as const,
+    icon: iconScaling,
+    startUi: "dialog" as const,
+    menuDescription: "Scale media to a megapixel size with sides on a pixel grid, for training.",
+  },
+  watermark: {
+    type: "watermark" as const,
+    group: "media" as const,
+    icon: iconStamp,
+    startUi: "dialog" as const,
+    menuDescription: "Add a watermark to media files.",
   },
   batch_rename: {
     type: "batch_rename" as const,
@@ -130,23 +154,16 @@ export const JOB_TYPE_META = {
       confirmLabel: "Start strip metadata",
     },
   },
-  find_duplicates: {
-    type: "find_duplicates" as const,
-    group: "files" as const,
-    icon: iconFiles,
-    startUi: "dialog" as const,
-    menuDescription: "Find duplicate and near-duplicate media and group them for review.",
-  },
   backup_captions: {
     type: "backup_captions" as const,
-    group: "backup" as const,
+    group: "files" as const,
     icon: iconArchive,
     startUi: "dialog" as const,
     menuDescription: "Copy captions into the .backup folder.",
   },
   restore_captions: {
     type: "restore_captions" as const,
-    group: "backup" as const,
+    group: "files" as const,
     icon: iconArchiveRestore,
     startUi: "confirm" as const,
     menuDescription: "Bring captions back from the .backup folder.",
@@ -163,27 +180,6 @@ export const JOB_TYPE_META = {
     isAvailable: ({ hasCaptionBackup }: JobAvailability) => hasCaptionBackup,
     unavailableReason: "No caption backup in this folder.",
   },
-  watermark: {
-    type: "watermark" as const,
-    group: "files" as const,
-    icon: iconStamp,
-    startUi: "dialog" as const,
-    menuDescription: "Adds a watermark to media files.",
-  },
-  auto_adjust: {
-    type: "auto_adjust" as const,
-    group: "files" as const,
-    icon: iconWandSparkles,
-    startUi: "dialog" as const,
-    menuDescription: "Correct exposure, contrast and color with the Adjust wand.",
-  },
-  resize: {
-    type: "resize" as const,
-    group: "files" as const,
-    icon: iconScaling,
-    startUi: "dialog" as const,
-    menuDescription: "Scale media to a megapixel size with sides on a pixel grid, for training.",
-  },
   comfy_process: {
     type: "comfy_process" as const,
     group: "integrations" as const,
@@ -194,6 +190,16 @@ export const JOB_TYPE_META = {
       "Upscale, interpolate or repair images and video through a ComfyUI workflow, for review.",
     isAvailable: ({ comfyPresetsAvailable }: JobAvailability) => comfyPresetsAvailable,
     unavailableReason: "No ComfyUI presets are available. Configure workflows in Settings.",
+  },
+  train_lora: {
+    type: "train_lora" as const,
+    group: "integrations" as const,
+    icon: iconAiToolkit,
+    startUi: "dialog" as const,
+    menuLabel: "Quick LoRA training",
+    menuDescription: "Train an image or video LoRA on this folder with AI-Toolkit.",
+    isAvailable: ({ ostrisAvailable }: JobAvailability) => ostrisAvailable,
+    unavailableReason: "AI-Toolkit is unavailable. Check its connection in Settings.",
   },
 } satisfies Record<JobType, JobTypeMeta>;
 
@@ -220,12 +226,18 @@ export const SECONDARY_JOB_TYPES: JobType[] = JOB_TYPES.filter(
   (type) => !jobTypeMeta(type).primary,
 );
 
-export const SECONDARY_JOB_GROUPS: Array<{ id: JobGroup; label: string; types: JobType[] }> =
-  JOB_GROUPS.map((group) => ({
-    id: group.id,
-    label: group.label,
-    types: SECONDARY_JOB_TYPES.filter((type) => jobTypeMeta(type).group === group.id),
-  })).filter((group) => group.types.length > 0);
+export const SECONDARY_JOB_GROUPS: Array<{
+  id: JobGroup;
+  label: string;
+  /** Spans the menu below the columns instead of taking one. */
+  wide: boolean;
+  types: JobType[];
+}> = JOB_GROUPS.map((group) => ({
+  id: group.id,
+  label: group.label,
+  wide: "wide" in group && group.wide,
+  types: SECONDARY_JOB_TYPES.filter((type) => jobTypeMeta(type).group === group.id),
+})).filter((group) => group.types.length > 0);
 
 export function jobTypeLabelFor(type: string): string {
   return isKnownJobType(type) ? JOB_TYPE_LABELS[type] : type.trim();

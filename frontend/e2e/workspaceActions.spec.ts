@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import type { FolderResponse, Job, JobFileResult, SystemSpecs } from "../src/shared/types";
-import { WORKSPACE } from "./workspace";
+import { WORKSPACE, openWorkspace } from "./workspace";
 
 const specs: SystemSpecs = {
   cpu_name: "Intel Core i7-12700K",
@@ -235,3 +235,104 @@ for (const width of [1024, 1440]) {
     });
   }
 }
+
+for (const theme of ["dark", "light"]) {
+  for (const width of [1920, 1440, 1024, 768]) {
+    test(`${theme} Tools menu at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript((preference) => localStorage.setItem("ui-theme", preference), theme);
+      await page.route("**/api/preferences/ui", async (route) => {
+        const response = await route.fetch();
+        await route.fulfill({ json: { ...(await response.json()), theme } });
+      });
+      await openWorkspace(page);
+      await expect(page.getByRole("button", { name: "View photo.png", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Auto-caption", exact: true }).hover();
+      await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath("auto-caption-hover.png"),
+      });
+      await page.getByRole("button", { name: "Tools", exact: true }).hover();
+      await page.screenshot({
+        animations: "disabled",
+        path: testInfo.outputPath("actions-hover.png"),
+      });
+      await page.getByRole("button", { name: "Tools", exact: true }).click();
+      const tools = page.getByRole("menu", { name: "Tools" });
+      await expect(tools).toBeVisible();
+      const toolsBox = (await tools.boundingBox())!;
+      expect(toolsBox.x).toBeGreaterThanOrEqual(0);
+      expect(toolsBox.x + toolsBox.width).toBeLessThanOrEqual(width);
+      const triggerBox = (await page
+        .getByRole("button", { name: "Tools", exact: true })
+        .boundingBox())!;
+      expect(toolsBox.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
+      expect(toolsBox.height).toBeLessThan(900);
+      await expect(tools.getByRole("searchbox")).toHaveCount(0);
+      await expect(tools.getByRole("menuitem", { name: "Folder instructions" })).toHaveCount(0);
+      await expect(tools.getByRole("group")).toHaveCount(5);
+      if (width >= 1440) {
+        expect(toolsBox.width).toBeLessThan(950);
+        const groups = await tools.getByRole("group").all();
+        const boxes = (await Promise.all(groups.map((group) => group.boundingBox()))).map(
+          (box) => box!,
+        );
+        // The columns share one row; Integrations spans the menu beneath them.
+        const columns = boxes.slice(0, -1);
+        const integrations = boxes.at(-1)!;
+        expect(
+          Math.max(...columns.map((box) => box.y)) - Math.min(...columns.map((box) => box.y)),
+        ).toBeLessThan(1);
+        expect(integrations.y).toBeGreaterThanOrEqual(
+          Math.max(...columns.map((box) => box.y + box.height)),
+        );
+      }
+      await page.screenshot({ animations: "disabled", path: testInfo.outputPath("tools.png") });
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("button", { name: "Tools", exact: true })).toBeFocused();
+      // Neither file has findings, so there is nothing to review.
+      await expect(page.getByRole("button", { name: /^Review/ })).toHaveCount(0);
+    });
+  }
+}
+
+test("sends only filtered media paths to bulk tools", async ({ page }, testInfo) => {
+  await openWorkspace(page);
+  await page.keyboard.press("Control+f");
+  await page
+    .getByRole("searchbox", { name: "Search files and folders by name or caption" })
+    .fill("photo.png");
+  await expect(page.getByRole("button", { name: "View clip.mp4", exact: true })).toHaveCount(0);
+  const toolbarHeight = (await page.locator(".toolbar").boundingBox())!.height;
+  await page.getByRole("button", { name: "Filter media" }).click();
+  await page.getByRole("menuitemradio", { name: /^Images/ }).click();
+  await page.keyboard.press("Escape");
+  const clearFilters = page.getByRole("button", { name: "Clear filters" });
+  const filterChip = page.getByRole("button", { name: "Remove media type filter" });
+  // The summary lives in the Media header, so it stays as compact as that header's own buttons.
+  const select = page.getByRole("button", { name: "Select", exact: true });
+  const controlHeight = (await select.boundingBox())!.height;
+  expect((await clearFilters.boundingBox())!.height).toBeLessThanOrEqual(controlHeight);
+  expect((await filterChip.boundingBox())!.height).toBeLessThanOrEqual(controlHeight);
+  // Filter chips never reflow the toolbar.
+  expect((await page.locator(".toolbar").boundingBox())!.height).toBe(toolbarHeight);
+  await page.screenshot({
+    animations: "disabled",
+    path: testInfo.outputPath("compact-filters.png"),
+  });
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await page
+    .getByRole("menu", { name: "Tools" })
+    .getByRole("menuitem", { name: /^Set captions/ })
+    .click();
+  const dialog = page.getByRole("alertdialog", { name: "Set captions?" });
+  await expect(dialog.locator(".dialog-scope__line")).toContainText("Matching 1 file");
+  let submitted: { paths?: string[] } | undefined;
+  await page.route("**/api/automation/set-captions?**", async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ status: 400, json: { detail: "Captured request" } });
+  });
+  await dialog.getByRole("textbox").fill("A dataset caption");
+  await dialog.getByRole("button", { name: "Set captions", exact: true }).click();
+  await expect.poll(() => submitted?.paths).toEqual([path.join(WORKSPACE, "photo.png")]);
+});
