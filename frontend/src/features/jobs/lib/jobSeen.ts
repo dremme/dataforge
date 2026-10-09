@@ -32,6 +32,29 @@ export function parseJobsSeenAt(raw: string | null): number | null {
   }
 }
 
+/** Jobs whose activity strip the user dismissed; local so a reload does not bring them back. */
+export const DISMISSED_JOB_IDS_KEY = "dismissed-job-ids";
+
+/** Each folder shows only its latest job, so a short list covers every folder in use. */
+const DISMISSED_JOB_IDS_LIMIT = 50;
+
+function parseJobIds(value: unknown): string[] | null {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : null;
+}
+
+export function readDismissedJobIds(): string[] {
+  return readStoredJson(DISMISSED_JOB_IDS_KEY, parseJobIds, []);
+}
+
+/** Returns the stored list, newest last. */
+export function dismissJob(jobId: string): string[] {
+  const ids = [...readDismissedJobIds().filter((id) => id !== jobId), jobId].slice(
+    -DISMISSED_JOB_IDS_LIMIT,
+  );
+  writeStoredJson(DISMISSED_JOB_IDS_KEY, ids);
+  return ids;
+}
+
 export function jobFinishedMs(job: Job): number | null {
   return isTerminalJobStatus(job.status) ? parseJobTimestamp(job.finished_at) : null;
 }

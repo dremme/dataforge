@@ -22,6 +22,7 @@ import { CancelJobConfirm } from "@/features/jobs/components/CancelJobConfirm";
 import { JobStatusBadge } from "@/features/jobs/components/JobStatusBadge";
 import { useJobTimeLabel } from "@/features/jobs/hooks/useJobTimeLabel";
 import { failedCountFromStats } from "@/features/jobs/lib/jobFileResults";
+import { dismissJob, readDismissedJobIds } from "@/features/jobs/lib/jobSeen";
 import { AnchoredLayer } from "@/shared/ui/AnchoredLayer";
 import { usePopupMenu } from "@/shared/hooks/usePopupMenu";
 import { Icon } from "@/shared/ui/Icon";
@@ -310,14 +311,14 @@ function jobTone(job: AutomationActions["job"]) {
  */
 export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
   const { showSpecs } = useAutomationSpecsVisible();
-  const [dismissedJobId, setDismissedJobId] = useState<string | null>(null);
+  const [dismissedJobIds, setDismissedJobIds] = useState(readDismissedJobIds);
   const job = panel.job;
   const timeLabel = useJobTimeLabel(job);
   const active = Boolean(job && isActiveJobStatus(job.status));
   const tone = jobTone(job);
   const failedCount = job && !active ? failedCountFromStats(job.stats) : 0;
   const needsAttention = tone !== null || failedCount > 0;
-  const visible = job && (active || (needsAttention && dismissedJobId !== job.id));
+  const visible = job && (active || (needsAttention && !dismissedJobIds.includes(job.id)));
   const failedNote =
     failedCount > 0
       ? `${failedCount} ${failedCount === 1 ? "file" : "files"} failed. Open automation jobs to view them and retry.`
@@ -369,7 +370,7 @@ export function WorkspaceActivity({ panel }: { panel: AutomationActions }) {
               <button
                 type="button"
                 className="workspace-button workspace-button--icon"
-                onClick={() => setDismissedJobId(job.id)}
+                onClick={() => setDismissedJobIds(dismissJob(job.id))}
                 aria-label="Dismiss job status"
               >
                 <Icon icon={iconX} />

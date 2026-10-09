@@ -45,13 +45,13 @@ function renderActions(
     onCancelJob: vi.fn(),
     ...overrides,
   };
-  renderWithQueryClient(
+  const { unmount } = renderWithQueryClient(
     <ToolbarCompactContext.Provider value={compact}>
       <WorkspaceActions panel={panel} />
       <WorkspaceActivity panel={panel} />
     </ToolbarCompactContext.Provider>,
   );
-  return { panel, onRequestStart };
+  return { panel, onRequestStart, unmount };
 }
 
 describe("Workspace tools", () => {
@@ -127,6 +127,17 @@ describe("Workspace tools", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Disk is full.");
     await user.click(screen.getByRole("button", { name: "Dismiss job status" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("keeps a dismissed job hidden after a reload", async () => {
+    const user = userEvent.setup();
+    const failed = job({ status: "failed", processed: 3, total: 8, error: "Disk is full." });
+    const { unmount } = renderActions({ job: failed });
+    await user.click(screen.getByRole("button", { name: "Dismiss job status" }));
+    unmount();
+
+    renderActions({ job: failed });
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
