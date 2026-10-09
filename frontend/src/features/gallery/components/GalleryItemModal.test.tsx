@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HOME_PATH, homeFolder } from "@/test/fixtures";
@@ -118,6 +118,10 @@ describe("GalleryItemModal", () => {
 
     const prompts = await screen.findByRole("dialog", { name: "ComfyUI workflow" });
     expect(within(prompts).getByText("a mountain lake at sunrise")).toBeInTheDocument();
+
+    // The footer button; the header has its own Close.
+    await user.click(within(prompts).getAllByRole("button", { name: "Close" }).at(-1)!);
+    expect(screen.queryByRole("dialog", { name: "ComfyUI workflow" })).not.toBeInTheDocument();
   });
 
   it("shows the modified date in the media meta section", async () => {
@@ -423,6 +427,71 @@ describe("GalleryItemModal", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Next item" }));
     expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
+  it("steps back with Previous item", async () => {
+    const user = userEvent.setup();
+    const onPrevious = vi.fn();
+
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png"), makeItem("beach.jpg")]}
+        index={1}
+        onClose={vi.fn()}
+        onPrevious={onPrevious}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Previous item" }));
+    expect(onPrevious).toHaveBeenCalledOnce();
+  });
+
+  describe("docked beside the gallery", () => {
+    function renderDocked(onNext = vi.fn()) {
+      renderWithProviders(
+        <GalleryItemModal
+          items={[makeItem("sunset.png"), makeItem("beach.jpg")]}
+          index={0}
+          onClose={vi.fn()}
+          onPrevious={vi.fn()}
+          onNext={onNext}
+          onCaptionSaved={vi.fn()}
+          focusView={false}
+          onFocusViewChange={vi.fn()}
+        />,
+      );
+      return onNext;
+    }
+
+    it("steps forward from the header", async () => {
+      const user = userEvent.setup();
+      const onNext = renderDocked();
+
+      await user.click(await screen.findByRole("button", { name: "Next item" }));
+      expect(onNext).toHaveBeenCalledOnce();
+    });
+
+    it("resizes the inspector by dragging its edge", async () => {
+      renderDocked();
+      const edge = await screen.findByRole("separator", { name: "Caption inspector width" });
+      // Gives the modal a right edge at 1200px, so a pointer at 800px means a 400px inspector.
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+        new DOMRect(0, 0, 1200, 800),
+      );
+      // jsdom has no pointer capture; the handlers only need it to be reported.
+      edge.setPointerCapture = vi.fn();
+      edge.hasPointerCapture = () => true;
+      edge.releasePointerCapture = vi.fn();
+
+      fireEvent.pointerDown(edge, { pointerId: 1 });
+      fireEvent.pointerMove(edge, { pointerId: 1, clientX: 800 });
+      fireEvent.pointerUp(edge, { pointerId: 1 });
+
+      expect(edge.setPointerCapture).toHaveBeenCalledWith(1);
+      expect(edge).toHaveAttribute("aria-valuenow", "400");
+    });
   });
 
   it("does not navigate with arrow keys while a child overlay is open", async () => {

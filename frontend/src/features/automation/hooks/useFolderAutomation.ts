@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { useFolderJob, useJobTransitions, useJobs } from "@/features/jobs/context/JobsContext";
-import { isStartingJobForFolder } from "@/features/jobs/lib/jobStartHelpers";
 import type { JobType } from "@/shared/types";
 
 export function useFolderAutomation(
@@ -36,17 +35,11 @@ export function useFolderAutomation(
     return startingJob.jobType;
   }, [folder, startingJob]);
 
-  const isStartingType = useCallback(
-    (jobType: JobType) => isStartingJobForFolder(startingJob, folder, jobType),
-    [folder, startingJob],
-  );
-
   return {
     folderJob,
     folderHasActiveJob,
     startingJobType,
     isStarting: startingJobType !== null,
-    isStartingType,
     cancellingJob: folderJob ? cancellingJobId === folderJob.id : false,
     cancelFolderJob,
     startJob,

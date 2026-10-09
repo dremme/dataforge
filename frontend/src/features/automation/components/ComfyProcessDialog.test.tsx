@@ -174,6 +174,17 @@ describe("ComfyProcessDialog", () => {
     });
   });
 
+  it("replaces waiting candidates when asked to", async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderDialog();
+
+    await screen.findByLabelText("Workflow");
+    await user.click(screen.getByLabelText(/Replace candidates already waiting/));
+    await user.click(screen.getByRole("button", { name: "Start processing" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ overwriteCandidates: true }));
+  });
+
   it("leaves the preset's own seeds alone when the field is empty", async () => {
     const user = userEvent.setup();
     const { onConfirm } = renderDialog();

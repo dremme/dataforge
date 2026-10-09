@@ -210,6 +210,26 @@ describe("EditCaptionsDialog", () => {
     );
   });
 
+  it("submits a cleared Preserve thinking box", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog({
+      mode: "thinking",
+      preserve_thinking: true,
+      instruction: "Rewrite in present tense.",
+    });
+
+    await user.click(screen.getByLabelText("Preserve thinking"));
+    await confirm(user);
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      "thinking",
+      "Rewrite in present tense.",
+      "medium",
+      false,
+      true,
+    );
+  });
+
   it("trims the instruction before starting", async () => {
     const user = userEvent.setup();
     const onConfirm = renderDialog({ instruction: "  Drop the colours.  " });

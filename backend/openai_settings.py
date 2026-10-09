@@ -106,13 +106,12 @@ def build_sampling_extra_body(
 
 def create_openai_client() -> Any:
     """Retries are disabled: ``automation.vision.call_with_retries`` already owns them."""
-    import httpx
-    from openai import OpenAI
+    from openai import OpenAI, Timeout
 
     return OpenAI(
         base_url=get_openai_base_url(),
         api_key=get_openai_api_key(),
-        timeout=httpx.Timeout(get_openai_timeout(), connect=CONNECT_TIMEOUT_SECONDS),
+        timeout=Timeout(get_openai_timeout(), connect=CONNECT_TIMEOUT_SECONDS),
         max_retries=0,
     )
 

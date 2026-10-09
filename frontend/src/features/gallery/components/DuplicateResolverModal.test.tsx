@@ -70,6 +70,20 @@ describe("DuplicateResolverModal", () => {
     expect(large).toHaveTextContent("8.8 KB");
   });
 
+  it("steps through the groups with Back and Skip", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange } = renderModal({
+      groups: [group(), group({ group: "g2" }), group({ group: "g3" })],
+      index: 1,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(onIndexChange).toHaveBeenLastCalledWith(0);
+
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    expect(onIndexChange).toHaveBeenLastCalledWith(2);
+  });
+
   it("counts groups rather than files", () => {
     renderModal({ groups: [group(), group({ group: "g2" })], index: 1 });
 

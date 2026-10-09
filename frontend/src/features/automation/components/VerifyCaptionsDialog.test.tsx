@@ -69,6 +69,16 @@ describe("VerifyCaptionsDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("thinking", "Outdoor portraits.", "medium", true);
   });
 
+  it("submits a cleared Preserve thinking box", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog({ mode: "thinking", preserve_thinking: true, context: "" });
+
+    await user.click(screen.getByLabelText("Preserve thinking"));
+    await confirm(user);
+
+    expect(onConfirm).toHaveBeenCalledWith("thinking", "", "medium", false);
+  });
+
   it("confirms without writing preferences of its own", async () => {
     // Starting the job is what stores these now; a second write from the dialog was
     // the inconsistency this replaced. The badge's own model lookup is not one.

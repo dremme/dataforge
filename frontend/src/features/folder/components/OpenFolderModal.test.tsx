@@ -43,6 +43,23 @@ describe("OpenFolderModal", () => {
     localStorage.clear();
   });
 
+  it("opens a recent folder and closes", async () => {
+    const user = userEvent.setup();
+    fetchFolderFavoritesMock.mockResolvedValue({ favorites: [{ name: "Home", path: HOME_PATH }] });
+    const onClose = vi.fn();
+    const onOpenFolder = vi.fn();
+
+    render(
+      <OpenFolderModal currentFolder={HOME_PATH} onClose={onClose} onOpenFolder={onOpenFolder} />,
+    );
+
+    const recentSection = await screen.findByRole("region", { name: "Recent folders" });
+    await user.click(within(recentSection).getByRole("button", { name: /^Vacation/ }));
+
+    expect(onOpenFolder).toHaveBeenCalledExactlyOnceWith(VACATION_PATH);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("unlocks every folder after overlapping favorite toggles settle", async () => {
     const user = userEvent.setup();
     const home = { name: "Home", path: HOME_PATH };

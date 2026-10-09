@@ -21,6 +21,43 @@ function renderEditor(value: string) {
 }
 
 describe("MarkdownEditor toolbar", () => {
+  it.each([
+    ["Heading 1", "# word"],
+    ["Heading 2", "## word"],
+    ["Heading 3", "### word"],
+    ["Bold", "**word**"],
+    ["Italic", "*word*"],
+    ["Strikethrough", "~~word~~"],
+    ["Quote", "> word"],
+    ["Code", "`word`"],
+    ["Unordered list", "- word"],
+    ["Ordered list", "1. word"],
+  ])("formats the selection with %s", (name, expected) => {
+    const { view, onChange } = renderEditor("word");
+    view.dispatch({ selection: { anchor: 0, head: 4 } });
+
+    fireEvent.click(screen.getByRole("button", { name }));
+
+    expect(onChange).toHaveBeenLastCalledWith(expected);
+  });
+
+  it("links the selection to the URL the user enters", () => {
+    vi.spyOn(window, "prompt").mockReturnValue("https://example.com");
+    const { view, onChange } = renderEditor("word");
+    view.dispatch({ selection: { anchor: 0, head: 4 } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+
+    expect(onChange).toHaveBeenLastCalledWith("[word](https://example.com)");
+  });
+
+  it("keeps focus in the editor when a toolbar button is pressed", () => {
+    renderEditor("word");
+
+    // A prevented mousedown leaves focus, and so the selection, in the editor.
+    expect(fireEvent.mouseDown(screen.getByRole("button", { name: "Bold" }))).toBe(false);
+  });
+
   it("removes only the link when Remove link is clicked", () => {
     const value = "**bold** [text](https://example.com)";
     const { view, onChange } = renderEditor(value);

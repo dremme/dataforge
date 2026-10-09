@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { makeItem } from "@/test/galleryItemModal";
 import { installMockBackend } from "@/test/mockBackend";
@@ -53,16 +53,16 @@ describe("GalleryItemModal", () => {
     const SUNSET_PATH = `${HOME_PATH}\\sunset.png`;
 
     type TransferModalHandlers = {
-      onClose: ReturnType<typeof vi.fn>;
-      onMoved: ReturnType<typeof vi.fn>;
-      onCopied: ReturnType<typeof vi.fn>;
+      onClose: Mock<() => void>;
+      onMoved: Mock<(paths: string[]) => void>;
+      onCopied: Mock<() => void>;
     };
 
     function renderTransferModal(overrides: Partial<TransferModalHandlers> = {}) {
       const handlers: TransferModalHandlers = {
-        onClose: vi.fn(),
-        onMoved: vi.fn(),
-        onCopied: vi.fn(),
+        onClose: vi.fn<() => void>(),
+        onMoved: vi.fn<(paths: string[]) => void>(),
+        onCopied: vi.fn<() => void>(),
         ...overrides,
       };
 
@@ -204,6 +204,37 @@ describe("GalleryItemModal", () => {
           VACATION_PATH,
           [SUNSET_PATH],
           true,
+        );
+      });
+    });
+
+    it("moves only the new files when existing ones are skipped", async () => {
+      const user = userEvent.setup();
+      previewMediaTransferMock.mockResolvedValue({
+        eligible: [],
+        conflicts: ["sunset.png"],
+        skipped: [],
+      });
+      transferSelectedMediaMock.mockResolvedValue({
+        succeeded: [],
+        skipped: [SUNSET_PATH],
+        failed: [],
+      });
+
+      renderTransferModal();
+
+      await pickDestination(user, "Move");
+      const overwriteDialog = await screen.findByRole("alertdialog", {
+        name: "Replace existing files?",
+      });
+      await user.click(within(overwriteDialog).getByRole("button", { name: "Skip existing" }));
+
+      await waitFor(() => {
+        expect(transferSelectedMediaMock).toHaveBeenCalledWith(
+          "move",
+          VACATION_PATH,
+          [SUNSET_PATH],
+          false,
         );
       });
     });

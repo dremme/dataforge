@@ -33,6 +33,15 @@ describe("useCandidateReviewOverlay", () => {
     fetchFolderMock.mockReset();
   });
 
+  it("tells the caller each time the modal settles a candidate", () => {
+    const onResolved = vi.fn();
+    const { result } = renderHook(() => useCandidateReviewOverlay(onResolved), { wrapper });
+
+    act(() => result.current.overlay.onResolved());
+
+    expect(onResolved).toHaveBeenCalledOnce();
+  });
+
   it("pairs each candidate with the dataset image of the same name", async () => {
     const source = mediaItem("lake.png", HOME_PATH, {
       width: 512,

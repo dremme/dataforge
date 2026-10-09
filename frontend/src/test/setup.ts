@@ -1,3 +1,4 @@
+import "./animationEvent";
 import "@testing-library/jest-dom/vitest";
 import { cleanup, configure } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
@@ -210,6 +211,8 @@ Object.defineProperty(window, "IntersectionObserver", {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  // restoreAllMocks only touches spyOn spies; module-factory and vi.fn mocks need their own reset.
+  vi.resetAllMocks();
   vi.unstubAllGlobals();
   clipboardMock.writeText = vi
     .fn<typeof navigator.clipboard.writeText>()

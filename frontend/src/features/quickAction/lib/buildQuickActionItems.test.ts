@@ -832,6 +832,15 @@ describe("buildJobItems", () => {
     expect(ordered[0].section).toBe("subfolders");
   });
 
+  it("opens a live training run's dataset folder", () => {
+    const onNavigate = vi.fn();
+    const [item] = buildJobItems([], [externalJob("ostris-1", folder)], onNavigate);
+
+    item.run();
+
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith(folder);
+  });
+
   it("lets a live training run stand for the folder over a finished local job", () => {
     const items = buildJobItems([job("j1", folder)], [externalJob("ostris-1", folder)], vi.fn());
     const [surviving] = orderQuickActionItems(sections({ jobs: items }));

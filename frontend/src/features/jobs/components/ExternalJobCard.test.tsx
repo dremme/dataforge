@@ -1,4 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchOstrisTrainingSamples } from "@/features/jobs/api/externalJobs";
 import type { ExternalOstrisJob } from "@/shared/types";
@@ -43,6 +44,26 @@ afterEach(() => {
 });
 
 describe("ExternalJobCard", () => {
+  it("opens the run's dataset folder", async () => {
+    const user = userEvent.setup();
+    const onOpenFolder = vi.fn();
+    renderWithQueryClient(<ExternalJobCard job={runningJob} onOpenFolder={onOpenFolder} />);
+
+    await user.click(screen.getByTitle(`sample_train_v1 · ${runningJob.dataset_folder}`));
+
+    expect(onOpenFolder).toHaveBeenCalledExactlyOnceWith(runningJob.dataset_folder);
+  });
+
+  it("stops the run", async () => {
+    const user = userEvent.setup();
+    const onStop = vi.fn();
+    renderWithQueryClient(<ExternalJobCard job={runningJob} onStop={onStop} />);
+
+    await user.click(screen.getByRole("button", { name: "Stop job sample_train_v1" }));
+
+    expect(onStop).toHaveBeenCalledExactlyOnceWith("ostris-1");
+  });
+
   it("spins the badge while the run is training", () => {
     const { container } = renderWithQueryClient(<ExternalJobCard job={runningJob} />);
 

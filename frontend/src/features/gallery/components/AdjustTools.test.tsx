@@ -64,6 +64,21 @@ describe("AdjustTools", () => {
     expect(controls.setComparing).toHaveBeenLastCalledWith(false);
   });
 
+  it("releases comparison when the pointer lifts or loses capture", () => {
+    const controls = makeAdjustControls({ values: { ...RESTING_ADJUST, exposure: 0.3 } });
+    render(<AdjustTools controls={controls} disabled={false} />);
+    const compare = screen.getByRole("button", { name: "Hold to see the original" });
+    compare.setPointerCapture = () => {};
+
+    fireEvent.pointerDown(compare);
+    fireEvent.pointerUp(compare);
+    expect(controls.setComparing).toHaveBeenLastCalledWith(false);
+
+    fireEvent.pointerDown(compare);
+    fireEvent.lostPointerCapture(compare);
+    expect(controls.setComparing).toHaveBeenLastCalledWith(false);
+  });
+
   describe("with more tools than fit", () => {
     // jsdom lays nothing out and ignores scrollLeft, so the strip is given half its tools' width.
     function renderOverflowing() {

@@ -50,6 +50,12 @@ describe("GalleryListRow", () => {
     expect(status?.querySelector(".gallery-list-row__status-icon")).toBeInTheDocument();
   });
 
+  it("never starts a native drag of the row", () => {
+    render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
+
+    expect(fireEvent.dragStart(screen.getByRole("button", { name: /^View / }))).toBe(false);
+  });
+
   it("gives each caption state its own icon and tooltip", () => {
     const statusOf = (item: GalleryItem) => {
       const { container } = render(<GalleryListRow item={item} onSelect={vi.fn()} />);

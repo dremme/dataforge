@@ -25,7 +25,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Root = $PSScriptRoot
 $PyVer = (Get-Content -LiteralPath (Join-Path $Root '.python-version') -Raw).Trim()
-$NodeVer = '20.19.0'
+$NodeVer = '24.21.0'
 $PyDir = Join-Path $Root '.python'
 $NodeDir = Join-Path $Root '.node'
 $PyExe = Join-Path $PyDir 'python.exe'

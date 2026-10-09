@@ -38,6 +38,7 @@ describe("GalleryCardMedia", () => {
     fireEvent.load(image);
     expect(image).toHaveClass("card__img--ready");
     expect(image).toHaveAttribute("draggable", "false");
+    expect(fireEvent.dragStart(image)).toBe(false);
     expect(container.querySelector(".card__media-placeholder")).toBeNull();
   });
 

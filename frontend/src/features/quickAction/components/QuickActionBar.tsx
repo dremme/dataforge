@@ -214,16 +214,16 @@ export function QuickActionBar({ items, recentItems, onClose }: QuickActionBarPr
                   onClick={() => runItem(item)}
                 >
                   <Icon icon={item.icon} className="quick-action__option-icon" />
-                  <span className="quick-action__option-text">
-                    <span className="quick-action__option-label">
+                  <div className="quick-action__option-text">
+                    <div className="quick-action__option-label">
                       <HighlightedMatch text={item.label} query={query} />
-                    </span>
+                    </div>
                     {item.detail && (
-                      <span className="quick-action__option-detail">
+                      <div className="quick-action__option-detail">
                         <HighlightedMatch text={item.detail} query={query} />
-                      </span>
+                      </div>
                     )}
-                  </span>
+                  </div>
                   {item.shortcut && (
                     <ShortcutKeys
                       shortcut={SHORTCUTS[item.shortcut]}

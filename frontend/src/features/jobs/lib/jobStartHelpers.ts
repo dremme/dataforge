@@ -6,15 +6,6 @@ export type StartingJob = {
   jobType: JobType;
 };
 
-export function isStartingJobForFolder(
-  startingJob: StartingJob | null,
-  folderPath: string | undefined,
-  jobType: JobType,
-): boolean {
-  if (!startingJob || !folderPath) return false;
-  return startingJob.jobType === jobType && foldersMatch(startingJob.folder, folderPath);
-}
-
 export function clearStartingJobIfMatch(
   current: StartingJob | null,
   folderPath: string,

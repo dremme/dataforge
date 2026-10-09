@@ -81,6 +81,16 @@ describe("JobCard", () => {
     expect(container.querySelector(".job-card__cancel-icon--spin")).toBeInTheDocument();
   });
 
+  it("opens the job's folder", async () => {
+    const user = userEvent.setup();
+    const onOpenFolder = vi.fn();
+    renderWithQueryClient(<JobCard job={runningJob} onOpenFolder={onOpenFolder} />);
+
+    await user.click(screen.getByTitle(`Open ${runningJob.folder}`));
+
+    expect(onOpenFolder).toHaveBeenCalledExactlyOnceWith(runningJob.folder);
+  });
+
   it("shows how long a finished job took where the estimate used to be", () => {
     const cancelledJob: Job = {
       ...runningJob,

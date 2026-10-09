@@ -345,6 +345,49 @@ describe("App: quick action bar", () => {
     }
   });
 
+  it("copies the selection to another folder from the palette", async () => {
+    const user = userEvent.setup();
+    installMockBackend();
+    await renderApp();
+    await waitForHomeFolder();
+
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select sunset.png" }));
+    await openQuickAction(user);
+    const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+    await user.type(within(palette).getByRole("combobox"), "copy selected");
+    await user.click(within(palette).getByRole("option", { name: /^Copy selected files/ }));
+
+    expect(await screen.findByRole("dialog", { name: "Copy to folder" })).toBeInTheDocument();
+  });
+
+  it.each(["Accept", "Delete"])(
+    "asks before the palette's %s all staged candidates",
+    async (verb) => {
+      const user = userEvent.setup();
+      const pendingHome = {
+        ...homeFolder,
+        items: homeFolder.items.map((item) =>
+          item.name === "sunset.png" ? { ...item, has_candidate: true } : item,
+        ),
+      };
+      installMockBackend({ folderByPath: { undefined: pendingHome, [HOME_PATH]: pendingHome } });
+      await renderApp();
+      await waitForHomeFolder();
+
+      await openQuickAction(user);
+      const palette = await screen.findByRole("dialog", { name: "Quick actions" });
+      await user.type(within(palette).getByRole("combobox"), "staged candidates");
+      await user.click(
+        within(palette).getByRole("option", { name: new RegExp(`^${verb} all staged candidates`) }),
+      );
+
+      expect(
+        await screen.findByRole("alertdialog", { name: `${verb} all staged candidates?` }),
+      ).toBeInTheDocument();
+    },
+  );
+
   it("selects every visible file and enters selection mode", async () => {
     const user = userEvent.setup();
     installMockBackend();

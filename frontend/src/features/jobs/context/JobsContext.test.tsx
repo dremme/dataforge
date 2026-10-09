@@ -1,7 +1,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { deleteAllJobs, deleteJob, fetchJobs } from "@/features/jobs/api/jobs";
-import { fetchOstrisJobs } from "@/features/jobs/api/externalJobs";
+import { startAutomationJob } from "@/features/automation/api/jobs";
+import { cancelJob, deleteAllJobs, deleteJob, fetchJobs } from "@/features/jobs/api/jobs";
+import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
 import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
 import type { ExternalOstrisJobsResponse, JobsResponse } from "@/shared/types";
@@ -24,6 +25,10 @@ vi.mock("@/features/jobs/api/jobs", () => ({
   deleteAllJobs: vi.fn(),
 }));
 
+vi.mock("@/features/automation/api/jobs", () => ({
+  startAutomationJob: vi.fn(),
+}));
+
 vi.mock("@/features/jobs/api/externalJobs", () => ({
   fetchOstrisJobs: vi.fn(),
   stopOstrisJob: vi.fn(),
@@ -33,6 +38,9 @@ const listJobs = vi.mocked(fetchJobs);
 const deleteJobMock = vi.mocked(deleteJob);
 const deleteAllJobsMock = vi.mocked(deleteAllJobs);
 const listExternalJobs = vi.mocked(fetchOstrisJobs);
+const startJobMock = vi.mocked(startAutomationJob);
+const cancelJobMock = vi.mocked(cancelJob);
+const stopExternalMock = vi.mocked(stopOstrisJob);
 
 const runningJob = job({ id: "job-1", status: "running", total: 10, processed: 3, revision: 5 });
 
@@ -385,6 +393,58 @@ describe("JobsProvider", () => {
     expect(
       await screen.findByText("Could not delete jobs: Database is locked"),
     ).toBeInTheDocument();
+  });
+
+  it("reports success once every job is cleared", async () => {
+    deleteAllJobsMock.mockResolvedValue(undefined as never);
+    const latest = renderProvider();
+    await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
+
+    let cleared: boolean | undefined;
+    await act(async () => {
+      cleared = await latest.current!.deleteAllJobs();
+    });
+
+    expect(cleared).toBe(true);
+  });
+
+  it.each([
+    [
+      "start",
+      () => startJobMock,
+      (jobs: ReturnType<typeof useJobs>) => jobs.startJob("auto_caption", "C:/data"),
+    ],
+    ["cancel", () => cancelJobMock, (jobs: ReturnType<typeof useJobs>) => jobs.cancelJob("job-1")],
+    [
+      "stop",
+      () => stopExternalMock,
+      (jobs: ReturnType<typeof useJobs>) => jobs.stopExternalOstrisJob("ostris-1"),
+    ],
+  ] as const)("tells the user when a %s request fails", async (_action, mock, run) => {
+    mock().mockRejectedValue(new Error("Backend unreachable"));
+    const latest = renderProvider();
+    await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
+
+    await act(async () => {
+      await run(latest.current!);
+    });
+
+    expect(await screen.findByText("Backend unreachable")).toBeInTheDocument();
+  });
+
+  it("refetches the external runs after a stop", async () => {
+    stopExternalMock.mockResolvedValue(undefined as never);
+    const latest = renderProvider();
+    await waitFor(() => expect(listExternalJobs).toHaveBeenCalled());
+    const reads = listExternalJobs.mock.calls.length;
+
+    let stopped: boolean | undefined;
+    await act(async () => {
+      stopped = await latest.current!.stopExternalOstrisJob("ostris-1");
+    });
+
+    expect(stopped).toBe(true);
+    await waitFor(() => expect(listExternalJobs.mock.calls.length).toBeGreaterThan(reads));
   });
 
   it("marks a job as cancelling until it leaves the active states", async () => {

@@ -613,7 +613,44 @@ describe("GallerySelectionControls", () => {
     expect(await screen.findByText("Copied 2 files to Vacation.")).toBeInTheDocument();
   });
 
-  it("offers to copy only new files when the destination already has conflicts", async () => {
+  it("moves only the new files when existing ones are skipped", async () => {
+    const user = userEvent.setup();
+    const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`]);
+
+    previewMediaTransferMock.mockResolvedValue({
+      eligible: [],
+      conflicts: ["sunset.png"],
+      skipped: [],
+    });
+    transferSelectedMediaMock.mockResolvedValue({
+      succeeded: [],
+      skipped: Array.from(selectedPaths),
+      failed: [],
+    });
+
+    renderControls({ selectedPaths });
+
+    await user.click(screen.getByRole("button", { name: "Move selected files" }));
+    const picker = await screen.findByRole("dialog", { name: "Move to folder" });
+    await user.click(await within(picker).findByRole("button", { name: "Vacation" }));
+    await user.click(within(picker).getByRole("button", { name: "Move here" }));
+
+    const overwriteDialog = await screen.findByRole("alertdialog", {
+      name: "Replace existing files?",
+    });
+    await user.click(within(overwriteDialog).getByRole("button", { name: "Skip existing" }));
+
+    await waitFor(() => {
+      expect(transferSelectedMediaMock).toHaveBeenCalledWith(
+        "move",
+        VACATION_PATH,
+        Array.from(selectedPaths),
+        false,
+      );
+    });
+  });
+
+  it("asks whether to replace files when copying onto conflicts", async () => {
     const user = userEvent.setup();
     const selectedPaths = new Set([`${HOME_PATH}\\sunset.png`]);
 

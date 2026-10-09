@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image
+from PIL import Image, ImageStat
 from pydantic import ValidationError
 
 import edit_sidecars
@@ -390,9 +390,8 @@ class IdentitySpecTests(unittest.TestCase):
 
 
 def channel_means(image: Image.Image) -> tuple[float, float, float]:
-    pixels = list(image.convert("RGB").getdata())
-    count = len(pixels)
-    return tuple(sum(pixel[band] for pixel in pixels) / count for band in range(3))
+    red, green, blue = ImageStat.Stat(image.convert("RGB")).mean
+    return red, green, blue
 
 
 class RenderAdjustTests(unittest.TestCase):
@@ -421,7 +420,7 @@ class RenderAdjustTests(unittest.TestCase):
         source = graded()
 
         def spread(image: Image.Image) -> int:
-            values = sorted(pixel[0] for pixel in image.convert("RGB").getdata())
+            values = sorted(pixel[0] for pixel in image.convert("RGB").get_flattened_data())
             return values[-len(values) // 10] - values[len(values) // 10]
 
         harder = spread(
@@ -439,7 +438,7 @@ class RenderAdjustTests(unittest.TestCase):
             graded(), ImageEditSpec(adjust=ColorAdjust(saturation=-1.0))
         )
 
-        for pixel in desaturated.convert("RGB").getdata():
+        for pixel in desaturated.convert("RGB").get_flattened_data():
             self.assertLessEqual(max(pixel) - min(pixel), 1)
 
     def test_warmth_pushes_red_up_and_blue_down(self) -> None:
@@ -473,7 +472,7 @@ class RenderAdjustTests(unittest.TestCase):
                 result = image_edit.render_image_edit(source, ImageEditSpec(adjust=adjust))
 
                 self.assertEqual(result.mode, "RGBA")
-                self.assertEqual(set(result.getchannel("A").getdata()), {128})
+                self.assertEqual(set(result.getchannel("A").get_flattened_data()), {128})
 
     def test_detail_keeps_the_icc_profile_and_dpi(self) -> None:
         source = graded().convert("RGBA")
@@ -490,7 +489,7 @@ class RenderAdjustTests(unittest.TestCase):
         noisy = Image.effect_noise((WIDTH, HEIGHT), 8).convert("RGB")
 
         def roughness(image: Image.Image) -> float:
-            values = [pixel[1] for pixel in image.convert("RGB").getdata()]
+            values = [pixel[1] for pixel in image.convert("RGB").get_flattened_data()]
             mean = sum(values) / len(values)
             return sum((value - mean) ** 2 for value in values) / len(values)
 

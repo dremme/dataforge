@@ -355,7 +355,7 @@ class WatermarkImageTests(unittest.TestCase):
                 write_media(root, "photo.png", width=400, height=300)
                 run_watermark_job(root, text="Sample Studio", opacity=opacity)
                 with Image.open(watermarked(root, "photo.png")) as output:
-                    pixels = list(bottom_right(output).convert("L").getdata())
+                    pixels = bottom_right(output).convert("L").tobytes()
                     marks[opacity] = sum(pixels) / len(pixels)
 
         self.assertGreater(marks[75], marks[25])

@@ -293,6 +293,31 @@ describe("ComfyWorkflowDialog", () => {
     expect(within(base).queryByText("6")).not.toBeInTheDocument();
   });
 
+  it("numbers a single pass from the map and gives it the output's settings", async () => {
+    const user = userEvent.setup();
+    renderDialog(
+      makeResponse({
+        branches: [
+          makeBranch({
+            parameters: [{ label: "Steps", value: "20" }],
+            map: [
+              { id: "4", kind: "pass", label: "KSampler", detail: [], status: "ran", feeds: ["7"] },
+              { id: "7", kind: "output", label: "Output", detail: [], status: "ran", feeds: [] },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const map = await screen.findByRole("group", { name: "Workflow map" });
+    // A lone pass has no section to open, so its box is not a button.
+    await user.hover(within(map).getByText("KSampler"));
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("Pass 1");
+    expect(tooltip).toHaveTextContent(/Steps\s*20/);
+  });
+
   it("opens a pass's settings from the workflow map below the passes", async () => {
     const user = userEvent.setup();
     const scrolled: Element[] = [];

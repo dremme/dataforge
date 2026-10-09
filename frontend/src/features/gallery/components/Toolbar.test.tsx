@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -158,6 +158,17 @@ describe("Toolbar", () => {
     await user.click(namesToggle);
 
     expect(defaultProps.onSearchNamesChange).toHaveBeenCalledWith(false);
+  });
+
+  it("toggles regular expression search without taking focus from the field", async () => {
+    const user = userEvent.setup();
+    renderToolbar({ searchQuery: "sun", searchRegex: false });
+    const regexToggle = screen.getByRole("button", { name: "Toggle regular expression search" });
+
+    expect(fireEvent.mouseDown(regexToggle)).toBe(false);
+    await user.click(regexToggle);
+
+    expect(defaultProps.onSearchRegexChange).toHaveBeenCalledWith(true);
   });
 
   it("flags an invalid regular expression on the field and says what is wrong", async () => {

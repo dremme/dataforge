@@ -236,6 +236,19 @@ describe("JobsDrawer", () => {
       expect(await screen.findByLabelText("Auto-caption job for landscapes")).toBeInTheDocument();
     });
 
+    it("clears a type filter with All types", async () => {
+      const user = userEvent.setup();
+      renderDrawer([finishedCaption]);
+
+      await user.click(screen.getByRole("button", { name: "Type: All types" }));
+      await user.click(screen.getByRole("menuitemcheckbox", { name: "Watermark" }));
+      expect(screen.getByRole("button", { name: "Type: Watermark" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("menuitemcheckbox", { name: "All types" }));
+
+      expect(screen.getByRole("button", { name: "Type: All types" })).toBeInTheDocument();
+    });
+
     it("saves filter changes to the server", async () => {
       const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
         Promise.resolve(Response.json(init?.body ? JSON.parse(String(init.body)) : {})),
@@ -469,6 +482,18 @@ describe("JobsDrawer", () => {
 
     expect(jobsContext.cancelJob).toHaveBeenCalledWith("job-2");
     expect(screen.queryByRole("alertdialog", { name: "Cancel auto-caption job?" })).toBeNull();
+  });
+
+  it("keeps a running job when the cancel is declined", async () => {
+    const user = userEvent.setup();
+    renderDrawer([captionJob]);
+
+    await user.click(screen.getByRole("button", { name: "Cancel job for landscapes" }));
+    const confirm = screen.getByRole("alertdialog", { name: "Cancel auto-caption job?" });
+    await user.click(within(confirm).getByRole("button", { name: "Keep running" }));
+
+    expect(screen.queryByRole("alertdialog", { name: "Cancel auto-caption job?" })).toBeNull();
+    expect(jobsContext.cancelJob).not.toHaveBeenCalled();
   });
 
   it("keeps the summary line when filters hide every job", async () => {

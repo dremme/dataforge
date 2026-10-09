@@ -31,7 +31,6 @@ function setupHost(
     folderHasActiveJob: false,
     startingJobType: null,
     isStarting: false,
-    isStartingType: vi.fn(() => false),
     cancellingJob: false,
     cancelFolderJob: vi.fn(),
     startJob,

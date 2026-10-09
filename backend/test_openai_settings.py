@@ -4,6 +4,8 @@ import os
 import unittest
 from unittest.mock import patch
 
+import openai
+
 from app_settings import NO_API_KEY, SETTING_DEFAULTS
 from openai_settings import (
     CONNECT_TIMEOUT_SECONDS,
@@ -208,6 +210,8 @@ class OpenAISettingsTests(unittest.TestCase):
             kwargs = openai_cls.call_args.kwargs
             self.assertEqual(kwargs["base_url"], "http://example.local/v1")
             self.assertEqual(kwargs["api_key"], "secret")
+            # The SDK's own Timeout; an httpx.Timeout only works while its HTTP layer mimics httpx.
+            self.assertIsInstance(kwargs["timeout"], openai.Timeout)
             self.assertEqual(kwargs["timeout"].read, DEFAULT_TIMEOUT_SECONDS)
             self.assertEqual(kwargs["timeout"].connect, CONNECT_TIMEOUT_SECONDS)
 

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   acceptCandidate,
   fetchCandidateState,
@@ -10,6 +10,7 @@ import { buildCandidateReviewQueue } from "@/features/gallery/lib/candidateRevie
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
 import type { GalleryItem } from "@/shared/types";
 import { HOME_PATH, mediaItem } from "@/test/fixtures";
+import { stubImageElement } from "@/test/imageElement";
 import { CandidateReviewModal } from "./CandidateReviewModal";
 import { renderWithQueryClient } from "@/test/queryClient";
 
@@ -352,6 +353,34 @@ describe("CandidateReviewModal", () => {
 
     expect(screen.queryByRole("button", { name: /accept all/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+  });
+
+  it("steps through the queue with Back and Skip", async () => {
+    const user = userEvent.setup();
+    const { onIndexChange } = renderModal(["a.png", "b.png", "c.png"], { index: 1 });
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(onIndexChange).toHaveBeenLastCalledWith(0);
+
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    expect(onIndexChange).toHaveBeenLastCalledWith(2);
+  });
+
+  it("zooms both panes together from either one", async () => {
+    // jsdom lays nothing out; zoom needs a painted image to measure.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 100, 100),
+    );
+    onTestFinished(stubImageElement());
+    const user = userEvent.setup();
+    renderModal();
+
+    const [before] = screen.getAllByRole("button", { name: "Zoom in a.png" });
+    await user.click(before);
+    expect(screen.getAllByRole("button", { name: "Zoom out a.png" })).toHaveLength(2);
+
+    await user.click(screen.getAllByRole("button", { name: "Zoom out a.png" })[1]);
+    expect(screen.getAllByRole("button", { name: "Zoom in a.png" })).toHaveLength(2);
   });
 
   it("walks the queue with the arrow keys", async () => {

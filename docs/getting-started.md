@@ -8,7 +8,7 @@ Get the project from the [repository](https://github.com/dremme/dataforge): choo
 
 ### Windows
 
-1. Run `setup.bat` once. It downloads portable Python 3.13.12 and Node 20 into `.python/` and `.node/`, creates `backend/.venv`, installs dependencies including bundled FFmpeg 7.1, and generates frontend API files.
+1. Run `setup.bat` once. It downloads portable Python 3.13.12 and Node 24 into `.python/` and `.node/`, creates `backend/.venv`, installs dependencies including bundled FFmpeg 7.1, and generates frontend API files.
 2. Run `start.bat`. It builds the UI when needed, starts the server, and opens `http://localhost:18081`.
 
 No global Python or Node is needed. Keep the launcher window open while using the app.
@@ -62,7 +62,7 @@ Do not combine rebuild and no-build. To change the browser port, set `DATAFORGE_
 
 - **Platform:** Windows 10/11, Linux, or macOS; 64-bit CPU, dual-core or better.
 - **Memory/storage:** allow about 8 GB RAM and 2 GB disk for the app, plus dataset/cache space. A quad-core CPU, 16 GB RAM, and an SSD are practical starting points.
-- **Runtimes:** Python 3.13.x; Node `^20.19.0 || ^22.13.0 || >=24` with npm. Windows setup supplies Python 3.13.12 and Node 20.19.0.
+- **Runtimes:** Python 3.13.x; Node `^20.19.0 || ^22.13.0 || >=24` with npm. Windows setup supplies Python 3.13.12 and Node 24.21.0.
 - **Media:** Pillow handles images. Video work requires FFmpeg 7.1.x: DataForge uses a matching binary on PATH or its bundled copy, and rejects other release series. Windows dependencies include FFmpeg 7.1; Linux/macOS may need a separate installation. CI uses exactly 7.1.5. Browser playback depends on codec support.
 
 DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own hardware requirements. Check the chosen model's memory needs, including context and media input; audio captioning also requires an audio-capable model/server.

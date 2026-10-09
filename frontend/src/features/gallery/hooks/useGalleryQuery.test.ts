@@ -1,5 +1,5 @@
-import { act } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { FILTER_OPTIONS } from "@/features/gallery/lib/filters";
 import { readGallerySessionQuery } from "@/features/gallery/lib/sessionPreferences";
 import { useGalleryQuery } from "./useGalleryQuery";
@@ -58,6 +58,31 @@ const candidateItems = [
 ];
 
 describe("useGalleryQuery", () => {
+  it("saves a sort change to the UI settings", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const saved = init?.body ? JSON.parse(init.body as string) : {};
+      return new Response(
+        JSON.stringify({
+          sort: saved.sort ?? "name-asc",
+          theme: "system",
+          show_automation_specs: false,
+          jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHookWithQueryClient(() => useGalleryQuery(items));
+
+    act(() => result.current.setSort("date-asc"));
+
+    await waitFor(() => expect(result.current.sort).toBe("date-asc"));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/preferences/ui",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ sort: "date-asc" }) }),
+    );
+  });
+
   it("scopes caption filter counts by the active media type filter", () => {
     const { result } = renderHookWithQueryClient(() => useGalleryQuery(items));
 

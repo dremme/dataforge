@@ -1,4 +1,4 @@
-import { renderHook, screen, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchDuplicateGroups } from "@/features/gallery/api/duplicates";
 import { AppProviders } from "@/test/AppProviders";
@@ -41,6 +41,15 @@ beforeEach(() => {
 });
 
 describe("useDuplicateResolverOverlay", () => {
+  it("tells the caller each time the modal resolves a group", () => {
+    const onResolved = vi.fn();
+    const { result } = renderHook(() => useDuplicateResolverOverlay(onResolved), { wrapper });
+
+    act(() => result.current.overlay.onResolved());
+
+    expect(onResolved).toHaveBeenCalledOnce();
+  });
+
   it("opens on the group the card was flagged with", async () => {
     fetchGroups.mockResolvedValue(listing({ groups: [group("g1"), group("g2")] }));
     const { result } = renderHook(() => useDuplicateResolverOverlay(), { wrapper });

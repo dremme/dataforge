@@ -88,7 +88,12 @@ export function SettingInput({
       <div className="setting-field__head">
         <label className="setting-field__label" htmlFor={inputId}>
           {field.label}
-          {field.unit && <span className="setting-field__unit"> ({field.unit})</span>}
+          {field.unit && (
+            <>
+              {" "}
+              <span className="setting-field__unit">({field.unit})</span>
+            </>
+          )}
         </label>
         <span
           id={badgeId}

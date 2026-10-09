@@ -441,6 +441,31 @@ describe("GalleryItemModal", () => {
 
         await waitFor(() => expect(revertMock).toHaveBeenCalledWith(PHOTO));
       });
+
+      it("keeps the edit when the revert is cancelled", async () => {
+        const user = userEvent.setup();
+        fetchStateMock.mockResolvedValue({
+          path: PHOTO,
+          has_backup: true,
+          spec: {
+            masks: [],
+            crop: null,
+            mirror_h: false,
+            mirror_v: false,
+            rotate: 90,
+            scale: 1,
+            adjust: { ...RESTING_ADJUST },
+          },
+        });
+        renderModal(imageItem({ has_backup: true }));
+        const dialog = await openEditMode(user);
+
+        await user.click(await within(dialog).findByRole("button", { name: "Revert original" }));
+        await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+        expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument();
+        expect(revertMock).not.toHaveBeenCalled();
+      });
     });
   });
 });

@@ -1,7 +1,7 @@
 import { renderWithThumbnails as render } from "@/test/renderWithThumbnails";
 import { StrictMode } from "react";
 import { act, createEvent, fireEvent, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem } from "@/shared/types";
@@ -43,6 +43,14 @@ describe("GalleryCard", () => {
     render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
 
     expect(screen.getByText("Golden hour over the harbour")).toBeInTheDocument();
+  });
+
+  it("never starts a native drag of the card", () => {
+    render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+
+    expect(fireEvent.dragStart(screen.getByRole("button", { name: "View sunset.png" }))).toBe(
+      false,
+    );
   });
 
   it("falls back to the caption status when there is no caption", () => {
@@ -126,13 +134,13 @@ describe("GalleryCard", () => {
   });
 
   describe("hover preview", () => {
-    let play: ReturnType<typeof vi.fn>;
-    let pause: ReturnType<typeof vi.fn>;
+    let play: Mock<() => Promise<void>>;
+    let pause: Mock<() => void>;
 
     beforeEach(() => {
       vi.useFakeTimers();
-      play = vi.fn().mockResolvedValue(undefined);
-      pause = vi.fn();
+      play = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+      pause = vi.fn<() => void>();
       vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(play);
       vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(pause);
     });

@@ -97,6 +97,21 @@ describe("ComfyWorkflowMap", () => {
     expect(map).not.toHaveClass("comfy-workflow-dialog__map--tracing");
   });
 
+  it("traces a single edge on hover until the pointer leaves", () => {
+    const { container } = renderMap();
+    const map = screen.getByRole("group", { name: "Workflow map" });
+    const edges = container.querySelectorAll(".comfy-workflow-dialog__map-edge");
+    const edge = (from: string, to: string) => edges[EDGES.indexOf(`${from}>${to}`)];
+
+    fireEvent.mouseEnter(edge("4", "6"));
+
+    expect(map).toHaveClass("comfy-workflow-dialog__map--tracing");
+    expect(edge("4", "6")).toHaveClass("comfy-workflow-dialog__map-edge--lit");
+    expect(edge("6", "7")).not.toHaveClass("comfy-workflow-dialog__map-edge--lit");
+    fireEvent.mouseLeave(edge("4", "6"));
+    expect(map).not.toHaveClass("comfy-workflow-dialog__map--tracing");
+  });
+
   it("shows a pass's kind, state and leading settings in a tooltip", async () => {
     const user = userEvent.setup();
     renderMap(() => {});
