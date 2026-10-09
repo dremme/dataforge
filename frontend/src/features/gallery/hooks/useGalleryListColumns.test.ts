@@ -81,13 +81,12 @@ describe("useGalleryListColumns", () => {
   });
 
   it("sizes the marker column to the most markers any item carries", () => {
-    const one = renderColumns([item({ media_type: "video" })]);
+    const one = renderColumns([item({ has_backup: true })]);
     const three = renderColumns([
       item({
-        media_type: "video",
         has_issue_file: true,
         has_duplicate_file: true,
-        has_backup: false,
+        has_backup: true,
         has_candidate: false,
       }),
     ]);

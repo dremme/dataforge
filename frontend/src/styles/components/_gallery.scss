@@ -677,10 +677,24 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
   }
 
   &__name {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
     // Without this the name refuses to shrink and shoves the file facts out of the row.
     min-width: 0;
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
+  }
+
+  &__name-icon {
+    @include icon-block;
+    @include icon-size-sm;
+    flex-shrink: 0;
+    color: var(--text-subtle);
+  }
+
+  &__name-text {
+    min-width: 0;
     @include truncate;
   }
 

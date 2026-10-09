@@ -146,10 +146,20 @@ describe("GalleryListRow", () => {
 
     const markers = [...container.querySelectorAll(".gallery-list-row__marker")];
     expect(markers.map((marker) => marker.getAttribute("title"))).toEqual([
-      "Video",
       "Caption issue",
       "Duplicate",
     ]);
+  });
+
+  it("puts the media type icon in front of the name", () => {
+    const iconOf = (item: GalleryItem) => {
+      const { container } = render(<GalleryListRow item={item} onSelect={vi.fn()} />);
+      const name = container.querySelector(".gallery-list-row__name");
+      expect(name?.firstElementChild).toHaveClass("gallery-list-row__name-icon");
+      return name?.querySelector("svg")?.innerHTML;
+    };
+
+    expect(iconOf(captionedItem)).not.toBe(iconOf(uncaptionedVideo));
   });
 
   it("marks a candidate", () => {

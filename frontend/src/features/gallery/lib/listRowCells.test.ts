@@ -41,10 +41,10 @@ describe("rowMarkers", () => {
     expect(markers[0]?.label).toBe("Edited");
   });
 
-  it("marks an edited video after its type", () => {
+  it("leaves the media type to the name icon", () => {
     const markers = rowMarkers(item({ has_backup: true }));
 
-    expect(markers.map((marker) => marker.key)).toEqual(["video", "edited"]);
+    expect(markers.map((marker) => marker.key)).toEqual(["edited"]);
   });
 
   it("leaves an untouched file unmarked", () => {

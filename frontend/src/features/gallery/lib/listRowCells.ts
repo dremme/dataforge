@@ -3,7 +3,7 @@ import {
   getRowCaptionDisplay,
   type CaptionStatusVariant,
 } from "@/features/gallery/lib/captionStatus";
-import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
+import { isGif } from "@/features/gallery/lib/itemKind";
 import {
   iconFileImage,
   iconFiles,
@@ -12,7 +12,6 @@ import {
   iconMessageWarning,
   iconPencil,
   iconScanSquare,
-  iconVideo,
   type AppIcon,
 } from "@/shared/icons";
 import {
@@ -40,9 +39,6 @@ export type RowMetaColumn = "megapixels" | "aspect-ratio" | "duration" | "size" 
 export function rowMarkers(item: GalleryItem): RowMarker[] {
   const markers: RowMarker[] = [];
 
-  if (isVideo(item)) {
-    markers.push({ key: "video", icon: iconVideo, label: "Video", variant: "video" });
-  }
   if (isGif(item)) {
     markers.push({ key: "gif", icon: iconFileImage, label: "GIF", variant: "gif" });
   }
