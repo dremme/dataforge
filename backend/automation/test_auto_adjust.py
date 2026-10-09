@@ -13,7 +13,7 @@ from PIL import Image
 
 from automation.auto_adjust import run_auto_adjust_job, validate_auto_adjust_folder
 from color_auto import suggest_adjust
-from edit_sidecars import backup_path_for, edit_spec_path, render_slot, write_spec
+from edit_sidecars import backup_path_for, edit_spec_path, ensure_backup, render_slot, write_spec
 from ffmpeg_run import FfmpegCancelled
 from image_edit import apply_image_edit, read_image_edit_spec
 from schemas import AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec, MaskRegion, VideoEditSpec
@@ -76,6 +76,7 @@ class ImageTests(unittest.TestCase):
     def test_reset_clears_auto_state_even_if_color_values_are_already_zero(self) -> None:
         with TempMediaFolder() as root:
             media = write_image(root, "photo.png", color=DARK)
+            original = media.read_bytes()
             apply_image_edit(
                 media, ImageEditSpec(auto_adjust=AutoAdjust(amount=0, suggestion=ColorAdjust()))
             )
@@ -83,7 +84,22 @@ class ImageTests(unittest.TestCase):
             result = run_auto_adjust_job(root, reset_adjustments=True)
 
             self.assertEqual(result["stats"]["success"], 1)
-            self.assertEqual(read_image_edit_spec(media), ImageEditSpec())
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(edit_spec_path(media).exists())
+
+    def test_resetting_the_only_edit_restores_the_original(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "dusk.png", color=DARK)
+            original = media.read_bytes()
+            run_auto_adjust_job(root)
+            self.assertTrue(backup_path_for(media).exists())
+
+            result = run_auto_adjust_job(root, reset_adjustments=True)
+
+            self.assertEqual(result["stats"]["image_success"], 1)
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(backup_path_for(media).exists())
+            self.assertFalse(edit_spec_path(media).exists())
 
     def test_renders_the_suggestion_and_keeps_the_original(self) -> None:
         with TempMediaFolder() as root:
@@ -226,6 +242,30 @@ class VideoTests(unittest.TestCase):
             self.assertEqual(apply.call_args.kwargs["ffmpeg"], "ffmpeg")
             analyse.assert_not_called()
             probe.assert_not_called()
+
+    def test_resetting_the_only_edit_restores_the_original(self, analyse, _probe) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root)
+            original = media.read_bytes()
+            ensure_backup(media)
+            media.write_bytes(b"rendered")
+            write_spec(
+                media,
+                VideoEditSpec(
+                    adjust=ColorAdjust(exposure=0.3),
+                    auto_adjust=AutoAdjust(suggestion=ColorAdjust(exposure=0.3)),
+                ),
+            )
+
+            with patch("automation.auto_adjust.apply_video_edit") as apply:
+                result = run_auto_adjust_job(root, reset_adjustments=True, ffmpeg="ffmpeg")
+
+            self.assertEqual(result["stats"]["video_success"], 1)
+            apply.assert_not_called()
+            analyse.assert_not_called()
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(backup_path_for(media).exists())
+            self.assertFalse(edit_spec_path(media).exists())
 
     def test_reads_the_kept_range_and_renders_the_suggestion(self, analyse, _probe) -> None:
         with TempMediaFolder() as root:

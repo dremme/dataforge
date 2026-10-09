@@ -1,25 +1,38 @@
 @use "../abstracts/variables" as *;
 @use "../abstracts/mixins" as *;
 
-$adjust-tab-size: 1.75rem;
+$adjust-tab-size: var(--control-height-sm);
 
-// Fills the edit panel's pinned tool row; only the strip scrolls, sideways.
+// Fills the edit panel's tool row; only the strip scrolls, sideways. Bottom-aligned so the
+// captioned tool groups, the dial and the actions share one baseline.
 .adjust-tools {
   display: flex;
   flex: 1 1 auto;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-end;
+  gap: 1.5rem;
   min-width: 0;
+
+  // A narrow panel stacks the strip over the dial, in the room it reserves for tool hints.
+  @container edit-panel (width < 56rem) {
+    flex-wrap: wrap;
+    gap: 0.625rem 1rem;
+  }
 
   &__strip {
     --fade-start: 0rem;
     --fade-end: 0rem;
     display: flex;
     flex: 0 1 auto;
-    align-items: center;
-    gap: 0.375rem;
+    align-items: flex-end;
+    gap: 1.125rem;
     min-width: 0;
-    // Room for the tabs' inset focus ring and rings without clipping them at the scroll edge.
+
+    @container edit-panel (width < 56rem) {
+      flex-basis: 100%;
+    }
+    // Room for the tabs' inset focus ring and rings without clipping them at the scroll edge;
+    // the margin cancels it, so Adjust is no taller than the other tools.
+    margin-block: -0.125rem;
     padding: 0.125rem;
     overflow-x: auto;
     overscroll-behavior-x: contain;
@@ -44,6 +57,29 @@ $adjust-tab-size: 1.75rem;
 
   &__strip--more-end {
     --fade-end: 2.5rem;
+  }
+
+  &__group {
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    gap: 0.4375rem;
+  }
+
+  // Matches the edit panel's group captions, so Adjust reads like the other tools.
+  &__group-label {
+    padding-inline: 0.25rem;
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    line-height: 1;
+  }
+
+  &__group-tabs {
+    display: flex;
+    gap: 0.3125rem;
   }
 
   &__tab {
@@ -123,16 +159,23 @@ $adjust-tab-size: 1.75rem;
     display: none;
   }
 
+  // Takes the row's spare width, so a drag has room for fine steps.
   &__dial {
     display: flex;
-    flex-shrink: 0;
+    flex: 1 1 10rem;
+    max-width: 26rem;
+
+    .ruler-dial {
+      width: 100%;
+    }
   }
 
   &__actions {
     display: flex;
     flex-shrink: 0;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.375rem;
+    margin-left: auto;
   }
 
   &__action {

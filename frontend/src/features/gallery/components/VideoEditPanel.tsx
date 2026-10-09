@@ -32,6 +32,8 @@ import {
   OutputPart,
   PresetChoices,
   SizeTools,
+  ToolGroup,
+  ToolHint,
   ToolTabs,
   type EditTool,
 } from "./EditPanelParts";
@@ -48,6 +50,16 @@ const TOOLS: ReadonlyArray<EditTool<ToolId>> = [
   { id: "adjust", label: "Adjust", icon: iconSliders },
   { id: "blur", label: "Blur", icon: iconDroplets },
 ];
+
+// Adjust has none: its strip and dial take the whole row and label themselves.
+const HINTS: Partial<Record<ToolId, string>> = {
+  trim: "Both follow the playhead. Drag a handle, or nudge it with the arrow keys.",
+  speed: "Changes the length too; the audio keeps its pitch.",
+  volume: "Applies to the whole clip; Mute removes the sound.",
+  crop: "Drag the frame or its handles on the picture, or pick a ratio.",
+  size: "Pick a scale, or type a width or height; the other follows.",
+  blur: "Add a region, then drag it over what to hide.",
+};
 
 interface VideoEditPanelProps {
   edit: VideoEdit;
@@ -104,7 +116,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
         onToggleMuted={edit.toggleMuted}
       />
 
-      <div className="edit-panel__bar edit-panel__bar--tabs">
+      <div className="edit-panel__tabs-bar">
         <ToolTabs
           tools={TOOLS}
           activeTool={activeTool}
@@ -112,64 +124,29 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
           disabled={locked}
           onSelect={setActiveTool}
         />
-
-        <p className="edit-panel__output">
-          {edit.ready ? (
-            <>
-              <OutputChange
-                from={`${edit.sourceWidth} x ${edit.sourceHeight}`}
-                to={`${edit.outputWidth} x ${edit.outputHeight}`}
-              />
-              {modified.blur && <OutputPart>{describeMasks(edit.draft.masks.length)}</OutputPart>}
-              {modified.volume && (
-                <OutputPart>
-                  {edit.draft.volume === 0 ? "Muted" : `Volume ${formatVolume(edit.draft.volume)}`}
-                </OutputPart>
-              )}
-              {modified.adjust && (
-                <OutputPart>
-                  {edit.adjust.previewAvailable
-                    ? "Adjusted"
-                    : "Adjusted, no live preview in this browser"}
-                </OutputPart>
-              )}
-              <OutputChange
-                from={formatFrameTime(edit.duration)}
-                to={formatFrameTime(edit.outputSeconds)}
-              />
-            </>
-          ) : (
-            <OutputPart>The timeline loads with the video.</OutputPart>
-          )}
-        </p>
       </div>
 
-      <div className="edit-panel__bar edit-panel__bar--tool">
+      <div className="edit-panel__body">
         <div className="edit-panel__tool-controls">
           {activeTool === "trim" && (
-            <>
-              <div className="edit-panel__tool-actions">
-                <button
-                  type="button"
-                  className="edit-panel__control"
-                  disabled={locked}
-                  onClick={edit.setTrimStartAtPlayhead}
-                >
-                  Set in
-                </button>
-                <button
-                  type="button"
-                  className="edit-panel__control"
-                  disabled={locked}
-                  onClick={edit.setTrimEndAtPlayhead}
-                >
-                  Set out
-                </button>
-              </div>
-              <span className="edit-panel__hint">
-                Both follow the playhead. Drag a handle, or nudge it with the arrow keys.
-              </span>
-            </>
+            <ToolGroup label="Trim points" className="edit-panel__tool-actions">
+              <button
+                type="button"
+                className="edit-panel__control"
+                disabled={locked}
+                onClick={edit.setTrimStartAtPlayhead}
+              >
+                Set in
+              </button>
+              <button
+                type="button"
+                className="edit-panel__control"
+                disabled={locked}
+                onClick={edit.setTrimEndAtPlayhead}
+              >
+                Set out
+              </button>
+            </ToolGroup>
           )}
 
           {activeTool === "speed" && (
@@ -221,6 +198,40 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
             <BlurTools masks={edit} hasRegions={modified.blur} disabled={locked} />
           )}
         </div>
+
+        {HINTS[activeTool] && <ToolHint>{HINTS[activeTool]}</ToolHint>}
+      </div>
+
+      <div className="edit-panel__footer">
+        <p className="edit-panel__output">
+          {edit.ready ? (
+            <>
+              <OutputChange
+                from={`${edit.sourceWidth} x ${edit.sourceHeight}`}
+                to={`${edit.outputWidth} x ${edit.outputHeight}`}
+              />
+              {modified.blur && <OutputPart>{describeMasks(edit.draft.masks.length)}</OutputPart>}
+              {modified.volume && (
+                <OutputPart>
+                  {edit.draft.volume === 0 ? "Muted" : `Volume ${formatVolume(edit.draft.volume)}`}
+                </OutputPart>
+              )}
+              {modified.adjust && (
+                <OutputPart>
+                  {edit.adjust.previewAvailable
+                    ? "Adjusted"
+                    : "Adjusted, no live preview in this browser"}
+                </OutputPart>
+              )}
+              <OutputChange
+                from={formatFrameTime(edit.duration)}
+                to={formatFrameTime(edit.outputSeconds)}
+              />
+            </>
+          ) : (
+            <OutputPart>The timeline loads with the video.</OutputPart>
+          )}
+        </p>
 
         {edit.applying ? (
           <div className="edit-panel__actions">

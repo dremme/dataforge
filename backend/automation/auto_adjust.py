@@ -18,10 +18,17 @@ from constants import IMAGE_EDIT_EXTENSIONS, VIDEO_EDIT_EXTENSIONS
 from edit_sidecars import EditBusyError, original_path_for, render_slot
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import FfmpegCancelled, ShouldCancel
-from image_edit import apply_image_edit, read_image_edit_spec
+from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
+from image_edit import is_identity_spec as is_identity_image_spec
 from image_io import ImageReadError
 from schemas import ColorAdjust, ImageEditSpec, VideoEditSpec
-from video_edit import apply_video_edit, probe_source, read_edit_spec
+from video_edit import (
+    apply_video_edit,
+    is_identity_spec,
+    probe_source,
+    read_edit_spec,
+    revert_video_edit,
+)
 
 AUTO_ADJUST_EXTENSIONS = IMAGE_EDIT_EXTENSIONS | VIDEO_EDIT_EXTENSIONS
 
@@ -76,8 +83,12 @@ def auto_adjust_image(media: Path, *, replace: bool = False, reset: bool = False
         pixels, weights = image_analysis_pixels(original_path_for(media), spec.masks, spec.crop)
         adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
 
+    # Nothing left to render: restore the original, so the file no longer reads as edited.
     with render_slot(media):
-        apply_image_edit(media, adjusted)
+        if is_identity_image_spec(adjusted):
+            revert_image_edit(media)
+        else:
+            apply_image_edit(media, adjusted)
 
 
 def auto_adjust_video(
@@ -106,7 +117,12 @@ def auto_adjust_video(
         adjusted = _auto_adjusted(spec, suggest_adjust(pixels, weights), replace=replace)
 
     with render_slot(media):
-        apply_video_edit(media, adjusted, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe)
+        if is_identity_spec(adjusted):
+            revert_video_edit(media)
+        else:
+            apply_video_edit(
+                media, adjusted, ffmpeg=ffmpeg, should_cancel=should_cancel, probe=probe
+            )
 
 
 def auto_adjust_file(

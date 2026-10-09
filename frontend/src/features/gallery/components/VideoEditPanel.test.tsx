@@ -114,6 +114,18 @@ describe("VideoEditPanel", () => {
       expect(screen.queryByRole("button", { name: "Set in" })).not.toBeInTheDocument();
     });
 
+    it("explains the open tool, and says nothing where the controls speak for themselves", () => {
+      renderPanel(makeEdit());
+      expect(screen.getByText(/follow the playhead/)).toBeInTheDocument();
+
+      fireEvent.click(tool("Volume"));
+      expect(screen.queryByText(/follow the playhead/)).not.toBeInTheDocument();
+      expect(screen.getByText(/whole clip/)).toBeInTheDocument();
+
+      fireEvent.click(tool("Adjust"));
+      expect(screen.queryByText(/whole clip/)).not.toBeInTheDocument();
+    });
+
     it("brings the crop handles out with the crop tool, and puts them away after", () => {
       const edit = makeEdit();
       renderPanel(edit);

@@ -20,6 +20,17 @@ describe("AdjustTools", () => {
     expect(controls.set).toHaveBeenCalledWith("noise_reduction", 1);
   });
 
+  it("keeps one tab list across the Light, Color and Detail groups", async () => {
+    const user = userEvent.setup();
+    render(<AdjustTools controls={makeAdjustControls()} disabled={false} />);
+
+    expect(screen.getByRole("tablist", { name: "Adjustments" })).toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(16);
+    await user.click(screen.getByRole("tab", { name: "White Point" }));
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Saturation" })).toHaveFocus();
+  });
+
   it("reads Auto once and lets a second click turn it off", async () => {
     const user = userEvent.setup();
     const controls = makeAdjustControls();

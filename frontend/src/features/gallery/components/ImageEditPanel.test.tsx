@@ -113,6 +113,19 @@ describe("ImageEditPanel", () => {
       expect(screen.queryByRole("group", { name: "Aspect" })).not.toBeInTheDocument();
     });
 
+    it("explains the open tool, and says nothing where the controls speak for themselves", async () => {
+      const user = userEvent.setup();
+      renderPanel(makeEdit());
+      expect(screen.getByText(/pick a ratio/)).toBeInTheDocument();
+
+      await user.click(tools().getByRole("button", { name: "Blur" }));
+      expect(screen.queryByText(/pick a ratio/)).not.toBeInTheDocument();
+      expect(screen.getByText(/drag it over what to hide/)).toBeInTheDocument();
+
+      await user.click(tools().getByRole("button", { name: "Adjust" }));
+      expect(screen.queryByText(/drag it over what to hide/)).not.toBeInTheDocument();
+    });
+
     it("arms the tool it opens on, rather than waiting to be switched away and back", () => {
       const edit = makeEdit();
 
@@ -206,8 +219,8 @@ describe("ImageEditPanel", () => {
     });
 
     it.each([
-      ["Flip hori.", "toggleMirrorH", { mirrorH: true }],
-      ["Flip vert.", "toggleMirrorV", { mirrorV: true }],
+      ["Flip horizontal", "toggleMirrorH", { mirrorH: true }],
+      ["Flip vertical", "toggleMirrorV", { mirrorV: true }],
     ] as const)("holds %s pressed while it is on", async (label, method, applied) => {
       const edit = makeEdit({ draft: draftWith(applied) });
       renderPanel(edit);

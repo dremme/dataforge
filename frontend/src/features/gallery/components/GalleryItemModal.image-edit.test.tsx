@@ -223,7 +223,7 @@ describe("GalleryItemModal", () => {
         const dialog = await openEditMode(user);
 
         await user.click(within(dialog).getByRole("button", { name: /^Rotate$/ }));
-        await user.click(within(dialog).getByRole("button", { name: "Flip hori." }));
+        await user.click(within(dialog).getByRole("button", { name: "Flip horizontal" }));
 
         expect(dialog.querySelector(".image-edit-stage__canvas")).toHaveStyle({
           "--edit-flip-x": "-1",

@@ -29,6 +29,7 @@ import {
   OutputPart,
   PresetButton,
   SizeTools,
+  ToolHint,
   ToolPresets,
   ToolTabs,
   type EditTool,
@@ -43,6 +44,14 @@ const TOOLS: ReadonlyArray<EditTool<ToolId>> = [
   { id: "adjust", label: "Adjust", icon: iconSliders },
   { id: "blur", label: "Blur", icon: iconDroplets },
 ];
+
+// Adjust has none: its strip and dial take the whole row and label themselves.
+const HINTS: Partial<Record<ToolId, string>> = {
+  crop: "Drag the frame or its handles on the picture, or pick a ratio.",
+  size: "Pick a scale, or type a width or height; the other follows.",
+  rotate: "Turns go in quarter steps; flips mirror the picture.",
+  blur: "Add a region, then drag it over what to hide.",
+};
 
 interface ImageEditPanelProps {
   edit: ImageEdit;
@@ -78,7 +87,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
 
   return (
     <div className="edit-panel" role="group" aria-label="Image editing">
-      <div className="edit-panel__bar edit-panel__bar--tabs">
+      <div className="edit-panel__tabs-bar">
         <ToolTabs
           tools={TOOLS}
           activeTool={activeTool}
@@ -86,37 +95,9 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
           disabled={locked}
           onSelect={setActiveTool}
         />
-
-        <p className="edit-panel__output">
-          {edit.ready ? (
-            <>
-              <OutputChange
-                from={`${edit.sourceWidth} x ${edit.sourceHeight}`}
-                to={`${edit.outputWidth} x ${edit.outputHeight}`}
-              />
-              {modified.blur && <OutputPart>{describeMasks(edit.draft.masks.length)}</OutputPart>}
-              {modified.rotate && (
-                <OutputPart>
-                  {formatRotation(edit.draft.rotate)}
-                  {edit.draft.mirrorH && " mirrored"}
-                  {edit.draft.mirrorV && " flipped"}
-                </OutputPart>
-              )}
-              {modified.adjust && (
-                <OutputPart>
-                  {edit.adjust.previewAvailable
-                    ? "Adjusted"
-                    : "Adjusted, no live preview in this browser"}
-                </OutputPart>
-              )}
-            </>
-          ) : (
-            <OutputPart>The tools load with the image.</OutputPart>
-          )}
-        </p>
       </div>
 
-      <div className="edit-panel__bar edit-panel__bar--tool">
+      <div className="edit-panel__body">
         <div className="edit-panel__tool-controls">
           {activeTool === "crop" && (
             <AspectTools aspectId={edit.aspectId} disabled={locked} onSelect={edit.selectAspect} />
@@ -162,7 +143,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   onClick={edit.toggleMirrorH}
                 >
                   <Icon icon={iconFlipHorizontal} />
-                  Flip hori.
+                  Flip horizontal
                 </PresetButton>
                 <PresetButton
                   active={edit.draft.mirrorV}
@@ -170,7 +151,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
                   onClick={edit.toggleMirrorV}
                 >
                   <Icon icon={iconFlipVertical} />
-                  Flip vert.
+                  Flip vertical
                 </PresetButton>
               </ToolPresets>
             </>
@@ -182,6 +163,38 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
             <BlurTools masks={edit} hasRegions={modified.blur} disabled={locked} />
           )}
         </div>
+
+        {HINTS[activeTool] && <ToolHint>{HINTS[activeTool]}</ToolHint>}
+      </div>
+
+      <div className="edit-panel__footer">
+        <p className="edit-panel__output">
+          {edit.ready ? (
+            <>
+              <OutputChange
+                from={`${edit.sourceWidth} x ${edit.sourceHeight}`}
+                to={`${edit.outputWidth} x ${edit.outputHeight}`}
+              />
+              {modified.blur && <OutputPart>{describeMasks(edit.draft.masks.length)}</OutputPart>}
+              {modified.rotate && (
+                <OutputPart>
+                  {formatRotation(edit.draft.rotate)}
+                  {edit.draft.mirrorH && " mirrored"}
+                  {edit.draft.mirrorV && " flipped"}
+                </OutputPart>
+              )}
+              {modified.adjust && (
+                <OutputPart>
+                  {edit.adjust.previewAvailable
+                    ? "Adjusted"
+                    : "Adjusted, no live preview in this browser"}
+                </OutputPart>
+              )}
+            </>
+          ) : (
+            <OutputPart>The tools load with the image.</OutputPart>
+          )}
+        </p>
 
         {edit.applying ? (
           <div className="edit-panel__actions">

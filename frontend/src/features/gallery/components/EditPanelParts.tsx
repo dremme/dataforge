@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { CROP_ASPECTS } from "@/features/gallery/lib/crop";
 import { SCALE_PRESETS, formatScale } from "@/features/gallery/lib/editSpec";
 import { MASK_MODES, MASK_STRENGTHS } from "@/features/gallery/lib/mask";
@@ -69,12 +69,40 @@ export function OutputChange({ from, to }: { from: ReactNode; to: ReactNode }) {
   );
 }
 
-export function ToolPresets({ label, children }: { label: string; children: ReactNode }) {
+/** A control cluster under a visible caption, which also names the group. */
+export function ToolGroup({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className: string;
+  children: ReactNode;
+}) {
+  const labelId = useId();
   return (
-    <div className="edit-panel__presets" role="group" aria-label={label}>
-      {children}
+    <div className="edit-panel__group">
+      <span id={labelId} className="edit-panel__group-label">
+        {label}
+      </span>
+      <div className={className} role="group" aria-labelledby={labelId}>
+        {children}
+      </div>
     </div>
   );
+}
+
+export function ToolPresets({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <ToolGroup label={label} className="edit-panel__presets">
+      {children}
+    </ToolGroup>
+  );
+}
+
+/** How the open tool is used, mostly the gesture on the picture the buttons do not show. */
+export function ToolHint({ children }: { children: ReactNode }) {
+  return <p className="edit-panel__hint">{children}</p>;
 }
 
 export function PresetButton({
@@ -188,7 +216,7 @@ export function SizeTools({
         disabled={disabled}
         onSelect={onScale}
       />
-      <div className="edit-panel__fields">
+      <ToolGroup label="Pixels" className="edit-panel__fields">
         <SizeNumberField
           label="W"
           className="edit-panel__field"
@@ -207,7 +235,10 @@ export function SizeTools({
           disabled={disabled}
           onCommit={onHeight}
         />
-      </div>
+        <span className="edit-panel__unit" aria-hidden="true">
+          px
+        </span>
+      </ToolGroup>
     </>
   );
 }
@@ -223,7 +254,7 @@ export function BlurTools({
 }) {
   return (
     <>
-      <div className="edit-panel__tool-actions">
+      <ToolGroup label="Regions" className="edit-panel__tool-actions">
         <button
           type="button"
           className="edit-panel__control"
@@ -242,7 +273,7 @@ export function BlurTools({
           <Icon icon={iconTrash2} />
           Clear
         </button>
-      </div>
+      </ToolGroup>
       <ToolPresets label="Blur style">
         {MASK_MODES.map((mode) => (
           <PresetButton

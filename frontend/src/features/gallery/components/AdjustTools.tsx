@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import {
   adjustRange,
@@ -44,23 +45,46 @@ import type { ColorAdjustControls } from "@/features/gallery/hooks/useColorAdjus
 
 type StripId = "auto" | AdjustTool;
 
-const TOOLS: ReadonlyArray<{ id: AdjustTool; label: string; icon: AppIcon }> = [
-  { id: "exposure", label: "Exposure", icon: iconAdjustExposure },
-  { id: "brilliance", label: "Brilliance", icon: iconAdjustBrilliance },
-  { id: "highlights", label: "Highlights", icon: iconAdjustHighlights },
-  { id: "shadows", label: "Shadows", icon: iconAdjustShadows },
-  { id: "contrast", label: "Contrast", icon: iconAdjustContrast },
-  { id: "brightness", label: "Brightness", icon: iconAdjustBrightness },
-  { id: "black_point", label: "Black Point", icon: iconAdjustBlackPoint },
-  { id: "white_point", label: "White Point", icon: iconAdjustWhitePoint },
-  { id: "saturation", label: "Saturation", icon: iconAdjustSaturation },
-  { id: "vibrance", label: "Vibrance", icon: iconAdjustVibrance },
-  { id: "warmth", label: "Warmth", icon: iconAdjustWarmth },
-  { id: "tint", label: "Tint", icon: iconAdjustTint },
-  { id: "hue", label: "Hue", icon: iconAdjustHue },
-  { id: "definition", label: "Definition", icon: iconAdjustDefinition },
-  { id: "noise_reduction", label: "Noise Reduction", icon: iconAdjustNoiseReduction },
+interface ToolEntry {
+  id: AdjustTool;
+  label: string;
+  icon: AppIcon;
+}
+
+const GROUPS: ReadonlyArray<{ label: string; tools: readonly ToolEntry[] }> = [
+  {
+    label: "Light",
+    tools: [
+      { id: "exposure", label: "Exposure", icon: iconAdjustExposure },
+      { id: "brilliance", label: "Brilliance", icon: iconAdjustBrilliance },
+      { id: "highlights", label: "Highlights", icon: iconAdjustHighlights },
+      { id: "shadows", label: "Shadows", icon: iconAdjustShadows },
+      { id: "contrast", label: "Contrast", icon: iconAdjustContrast },
+      { id: "brightness", label: "Brightness", icon: iconAdjustBrightness },
+      { id: "black_point", label: "Black Point", icon: iconAdjustBlackPoint },
+      { id: "white_point", label: "White Point", icon: iconAdjustWhitePoint },
+    ],
+  },
+  {
+    label: "Color",
+    tools: [
+      { id: "saturation", label: "Saturation", icon: iconAdjustSaturation },
+      { id: "vibrance", label: "Vibrance", icon: iconAdjustVibrance },
+      { id: "warmth", label: "Warmth", icon: iconAdjustWarmth },
+      { id: "tint", label: "Tint", icon: iconAdjustTint },
+      { id: "hue", label: "Hue", icon: iconAdjustHue },
+    ],
+  },
+  {
+    label: "Detail",
+    tools: [
+      { id: "definition", label: "Definition", icon: iconAdjustDefinition },
+      { id: "noise_reduction", label: "Noise Reduction", icon: iconAdjustNoiseReduction },
+    ],
+  },
 ];
+
+const TOOLS = GROUPS.flatMap((group) => group.tools);
 
 const STRIP_IDS: readonly StripId[] = ["auto", ...TOOLS.map((tool) => tool.id)];
 
@@ -157,52 +181,65 @@ export function AdjustTools({ controls, disabled }: AdjustToolsProps) {
         onScroll={measureOverflow}
         {...tabs.tabListProps}
       >
-        <Tooltip
-          content={
-            autoOn && selected === "auto" ? "Auto (click to turn off)" : "Auto: fix levels and cast"
-          }
-        >
-          <button
-            {...tabs.tabProps("auto")}
-            className={classNames(
-              "adjust-tools__tab",
-              "adjust-tools__tab--auto",
-              autoOn && "adjust-tools__tab--changed",
-            )}
-            aria-label={autoOn ? `Auto, ${formatAmount(controls.auto?.amount ?? 0)}` : "Auto"}
-            aria-busy={controls.autoPending || undefined}
-            disabled={disabled}
-            style={ringStyle(autoOn ? (controls.auto?.amount ?? 0) : 0, false)}
-            onClick={handleWandClick}
+        <StripGroup label="Auto">
+          <Tooltip
+            content={
+              autoOn && selected === "auto"
+                ? "Auto (click to turn off)"
+                : "Auto: fix levels and cast"
+            }
           >
-            <ToolRing />
-            <Icon
-              icon={controls.autoPending ? iconLoader2 : iconWandSparkles}
-              spin={controls.autoPending}
-            />
-          </button>
-        </Tooltip>
+            <button
+              {...tabs.tabProps("auto")}
+              className={classNames(
+                "adjust-tools__tab",
+                "adjust-tools__tab--auto",
+                autoOn && "adjust-tools__tab--changed",
+              )}
+              aria-label={autoOn ? `Auto, ${formatAmount(controls.auto?.amount ?? 0)}` : "Auto"}
+              aria-busy={controls.autoPending || undefined}
+              disabled={disabled}
+              style={ringStyle(autoOn ? (controls.auto?.amount ?? 0) : 0, false)}
+              onClick={handleWandClick}
+            >
+              <ToolRing />
+              <Icon
+                icon={controls.autoPending ? iconLoader2 : iconWandSparkles}
+                spin={controls.autoPending}
+              />
+            </button>
+          </Tooltip>
+        </StripGroup>
 
-        {TOOLS.map((entry) => {
-          const value = controls.values[entry.id];
-          const changed = Math.abs(value) > 1e-9;
-          return (
-            <Tooltip key={entry.id} content={entry.label}>
-              <button
-                {...tabs.tabProps(entry.id)}
-                className={classNames("adjust-tools__tab", changed && "adjust-tools__tab--changed")}
-                aria-label={
-                  changed ? `${entry.label}, ${formatAdjustValue(entry.id, value)}` : entry.label
-                }
-                disabled={disabled}
-                style={ringStyle(ringShare(entry.id, value), value < 0)}
-              >
-                <ToolRing />
-                <Icon icon={entry.icon} className="adjust-tools__glyph" />
-              </button>
-            </Tooltip>
-          );
-        })}
+        {GROUPS.map((group) => (
+          <StripGroup key={group.label} label={group.label}>
+            {group.tools.map((entry) => {
+              const value = controls.values[entry.id];
+              const changed = Math.abs(value) > 1e-9;
+              return (
+                <Tooltip key={entry.id} content={entry.label}>
+                  <button
+                    {...tabs.tabProps(entry.id)}
+                    className={classNames(
+                      "adjust-tools__tab",
+                      changed && "adjust-tools__tab--changed",
+                    )}
+                    aria-label={
+                      changed
+                        ? `${entry.label}, ${formatAdjustValue(entry.id, value)}`
+                        : entry.label
+                    }
+                    disabled={disabled}
+                    style={ringStyle(ringShare(entry.id, value), value < 0)}
+                  >
+                    <ToolRing />
+                    <Icon icon={entry.icon} className="adjust-tools__glyph" />
+                  </button>
+                </Tooltip>
+              );
+            })}
+          </StripGroup>
+        ))}
       </div>
 
       <div className="adjust-tools__dial" {...tabs.panelProps(selected)}>
@@ -281,6 +318,20 @@ function ringStyle(share: number, reversed: boolean): CSSProperties {
     "--ring-share": share,
     "--ring-direction": reversed ? -1 : 1,
   } as CSSProperties;
+}
+
+/** Visual only: the strip stays one flat tablist, so arrow keys run straight across groups. */
+function StripGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="adjust-tools__group" role="presentation">
+      <span className="adjust-tools__group-label" aria-hidden="true">
+        {label}
+      </span>
+      <div className="adjust-tools__group-tabs" role="presentation">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function ToolRing() {
