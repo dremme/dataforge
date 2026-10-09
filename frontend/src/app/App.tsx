@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AppContent } from "./AppContent";
+import { BackendUnavailable } from "@/app/components/BackendUnavailable";
 import { JobsProvider } from "@/features/jobs/context/JobsContext";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
 import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
@@ -22,6 +23,7 @@ export default function App() {
         <NotificationsProvider>
           <JobsProvider>
             <AppContent />
+            <BackendUnavailable />
           </JobsProvider>
         </NotificationsProvider>
       </ServerEventsProvider>

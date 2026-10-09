@@ -62,7 +62,7 @@ export function AppFolderContent({
 }: AppFolderContentProps) {
   const { selectionMode, visibleSelectedCount } = useGallerySelectionContext();
   const folderNotFound = error?.kind === "folder-not-found";
-  const globalError = error && !folderNotFound ? error : null;
+  const globalError = error?.kind === "other" ? error : null;
   const showEmptyFolder = !error && items.length === 0;
   const showFilterEmptyState = !error && filteredItems.length === 0 && !showEmptyFolder;
   const emptyFolderDescription =
@@ -148,7 +148,7 @@ export function AppFolderContent({
                 </section>
               )}
 
-              {folderNotFound && error && <FolderErrorState error={error} />}
+              {error?.kind === "folder-not-found" && <FolderErrorState error={error} />}
             </div>
 
             {fileDrop.enabled && (

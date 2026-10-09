@@ -1,0 +1,16 @@
+@use "../abstracts/variables" as *;
+@use "../abstracts/mixins" as *;
+
+.backend-unavailable {
+  @include modal-shell($z-index-backend-unavailable);
+  background: var(--modal-backdrop);
+  backdrop-filter: blur($modal-backdrop-blur);
+  -webkit-backdrop-filter: blur($modal-backdrop-blur);
+
+  .empty-state {
+    width: min(32rem, 100%);
+    background: var(--bg-elevated);
+    border-style: solid;
+    box-shadow: var(--shadow);
+  }
+}

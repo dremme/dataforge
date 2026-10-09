@@ -1,9 +1,10 @@
-import { BACKEND_UNREACHABLE, FOLDER_NOT_FOUND, type FolderError } from "@/shared/api/http";
+import { FOLDER_NOT_FOUND, type FolderError } from "@/shared/api/http";
 import { iconCircleAlert } from "@/shared/icons";
 import { EmptyState } from "@/shared/ui/EmptyState";
 
 type FolderErrorStateProps = {
-  error: FolderError;
+  /** An unreachable backend is reported app-wide by `BackendUnavailable`, never here. */
+  error: Exclude<FolderError, { kind: "backend-unreachable" }>;
 };
 
 export function FolderErrorState({ error }: FolderErrorStateProps) {
@@ -13,18 +14,6 @@ export function FolderErrorState({ error }: FolderErrorStateProps) {
         icon={iconCircleAlert}
         title={FOLDER_NOT_FOUND.title}
         description={FOLDER_NOT_FOUND.description}
-        variant="error"
-        role="alert"
-      />
-    );
-  }
-
-  if (error.kind === "backend-unreachable") {
-    return (
-      <EmptyState
-        icon={iconCircleAlert}
-        title={BACKEND_UNREACHABLE.title}
-        description={BACKEND_UNREACHABLE.description}
         variant="error"
         role="alert"
       />

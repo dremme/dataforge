@@ -47,6 +47,8 @@ $z-index-confirm: 1100;
 // Portalled to the body; must clear every overlay except notifications.
 $z-index-anchored: 1150;
 $z-index-notification: 1200;
+// Blocks the whole app, notifications included, while the API is down.
+$z-index-backend-unavailable: 1300;
 
 $transition-fast: 0.15s ease;
 $transition-medium: 0.2s;
