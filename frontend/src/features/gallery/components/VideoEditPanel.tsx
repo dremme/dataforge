@@ -80,7 +80,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
     crop: !isIdentityCrop(edit.draft.crop),
     blur: edit.draft.masks.length > 0,
     speed: edit.draft.speed !== 1,
-    size: edit.draft.scale !== 1,
+    size: edit.draft.scale !== 1 || edit.draft.fit !== null,
     volume: edit.draft.volume !== 1,
     adjust: !isAdjustIdentity(edit.draft.adjust),
   };
@@ -180,6 +180,7 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
           {activeTool === "size" && (
             <SizeTools
               scale={edit.draft.scale}
+              fit={edit.draft.fit}
               width={edit.outputWidth}
               height={edit.outputHeight}
               step={2}

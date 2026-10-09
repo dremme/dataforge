@@ -142,6 +142,7 @@ JOB_TYPE_LABELS: dict[str, str] = {
     "restore_captions": "Restore captions",
     "watermark": "Watermark",
     "auto_adjust": "Auto-adjust",
+    "resize": "Resize",
     "comfy_process": "Process with ComfyUI",
 }
 
@@ -188,6 +189,13 @@ ADJUST_RENDER_LUT_SIZE = 65
 #: The wand's dial position that applies its reading once; the far end applies it twice.
 AUTO_ADJUST_DEFAULT_AMOUNT = 0.5
 
+#: One "MP" of a resize target is 1024², the unit ComfyUI's resolution nodes use.
+MEGAPIXEL = 1024 * 1024
+DEFAULT_RESIZE_MEGAPIXELS = 2.0
+DEFAULT_RESIZE_MULTIPLE = 32
+MAX_RESIZE_MEGAPIXELS = 64.0
+MAX_RESIZE_MULTIPLE = 256
+
 #: The gallery order until the user picks one: the newest files are the ones being worked on.
 DEFAULT_GALLERY_SORT: Final = "date-desc"
 
@@ -212,4 +220,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "ADJUST_PREVIEW_LUT_SIZE": ADJUST_PREVIEW_LUT_SIZE,
     "AUTO_ADJUST_DEFAULT_AMOUNT": AUTO_ADJUST_DEFAULT_AMOUNT,
     "DEFAULT_GALLERY_SORT": DEFAULT_GALLERY_SORT,
+    "MEGAPIXEL": MEGAPIXEL,
+    "MAX_RESIZE_MEGAPIXELS": MAX_RESIZE_MEGAPIXELS,
+    "MAX_RESIZE_MULTIPLE": MAX_RESIZE_MULTIPLE,
 }

@@ -6,6 +6,8 @@ import type { MaskRegionControls } from "@/features/gallery/hooks/useMaskRegions
 import type { ColorAdjustControls } from "@/features/gallery/hooks/useColorAdjust";
 import { iconPlus, iconTrash2, iconUndo2, type AppIcon } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
+import { formatSizeFit } from "@/shared/lib/sizeFit";
+import type { SizeFit } from "@/shared/types";
 import { Icon } from "@/shared/ui/Icon";
 import { SizeNumberField } from "./SizeNumberField";
 
@@ -186,9 +188,11 @@ export function AspectTools({
   );
 }
 
-/** Scale presets plus W/H fields; `step` is 2 for video, whose encoders want even sizes. */
+/** Scale presets plus W/H fields; `step` is 2 for video, whose encoders want even sizes.
+ *  A fit from the Resize job shows as a pressed preset; any scale choice replaces it. */
 export function SizeTools({
   scale,
+  fit,
   width,
   height,
   step,
@@ -198,6 +202,7 @@ export function SizeTools({
   onHeight,
 }: {
   scale: number;
+  fit: SizeFit | null;
   width: number;
   height: number;
   step: number;
@@ -208,10 +213,17 @@ export function SizeTools({
 }) {
   return (
     <>
+      {fit && (
+        <ToolPresets label="Fit">
+          <PresetButton active disabled={disabled} onClick={() => onScale(1)}>
+            {formatSizeFit(fit)}
+          </PresetButton>
+        </ToolPresets>
+      )}
       <PresetChoices
         label="Scale"
         values={SCALE_PRESETS}
-        current={scale}
+        current={fit ? Number.NaN : scale}
         format={formatScale}
         disabled={disabled}
         onSelect={onScale}

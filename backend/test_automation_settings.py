@@ -20,6 +20,7 @@ from schemas import (
     EditCaptionsStartRequest,
     FindDuplicatesStartRequest,
     ReplaceCaptionsStartRequest,
+    ResizeStartRequest,
     SetCaptionsStartRequest,
     TrainLoraStartRequest,
     VerifyCaptionsStartRequest,
@@ -38,6 +39,7 @@ START_REQUESTS = {
     "find_duplicates": FindDuplicatesStartRequest,
     "train_lora": TrainLoraStartRequest,
     "watermark": WatermarkStartRequest,
+    "resize": ResizeStartRequest,
 }
 
 

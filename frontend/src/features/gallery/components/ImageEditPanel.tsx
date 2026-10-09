@@ -71,7 +71,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
     crop: !isIdentityCrop(edit.draft.crop),
     blur: edit.draft.masks.length > 0,
     rotate: edit.draft.rotate !== 0 || edit.draft.mirrorH || edit.draft.mirrorV,
-    size: edit.draft.scale !== 1,
+    size: edit.draft.scale !== 1 || edit.draft.fit !== null,
     adjust: !isAdjustIdentity(edit.draft.adjust),
   };
 
@@ -106,6 +106,7 @@ export function ImageEditPanel({ edit, busy, onRevertRequested }: ImageEditPanel
           {activeTool === "size" && (
             <SizeTools
               scale={edit.draft.scale}
+              fit={edit.draft.fit}
               width={edit.outputWidth}
               height={edit.outputHeight}
               step={1}

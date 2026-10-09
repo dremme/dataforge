@@ -8,6 +8,7 @@ import type {
   FindDuplicatesStartRequest,
   JobType,
   ReplaceCaptionsStartRequest,
+  ResizeStartRequest,
   RestoreCaptionsStartRequest,
   SetCaptionsStartRequest,
   StripMetadataStartRequest,
@@ -34,6 +35,7 @@ export interface JobStartBodies {
   backup_captions: BackupCaptionsStartRequest;
   restore_captions: RestoreCaptionsStartRequest;
   auto_adjust: AutoAdjustStartRequest;
+  resize: ResizeStartRequest;
 }
 
 /** Any job's body, for callers whose job type is only known at runtime. */

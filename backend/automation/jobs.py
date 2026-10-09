@@ -46,6 +46,7 @@ from automation.job_messages import (
     find_duplicates_error_message,
     rename_media_error_message,
     replace_captions_error_message,
+    resize_error_message,
     restore_captions_error_message,
     set_captions_error_message,
     strip_metadata_error_message,
@@ -65,6 +66,7 @@ from automation.replace_captions import (
     run_replace_captions_job,
     validate_replace_captions_folder,
 )
+from automation.resize import run_resize_job, validate_resize_folder
 from automation.set_captions import run_set_captions_job, validate_set_captions_folder
 from automation.strip_metadata import run_strip_metadata_job, validate_strip_metadata_folder
 from automation.train_lora import run_train_lora_job, validate_train_lora_folder
@@ -254,6 +256,10 @@ def _validate_auto_adjust(folder: Path, **params: object) -> None:
     validate_auto_adjust_folder(folder, _selected_paths(params))
 
 
+def _validate_resize(folder: Path, **params: object) -> None:
+    validate_resize_folder(folder, _selected_paths(params))
+
+
 def _validate_comfy_process(folder: Path, **params: object) -> None:
     validate_comfy_process_folder(
         folder,
@@ -403,6 +409,12 @@ JOB_SPECS: dict[JobType, JobSpec] = {
         run=run_auto_adjust_job,
         failure_message=auto_adjust_error_message,
         validate=_validate_auto_adjust,
+    ),
+    "resize": JobSpec(
+        thread_prefix="resize",
+        run=run_resize_job,
+        failure_message=resize_error_message,
+        validate=_validate_resize,
     ),
     "comfy_process": JobSpec(
         thread_prefix="comfy-process",

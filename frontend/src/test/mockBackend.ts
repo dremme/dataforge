@@ -530,6 +530,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
           position: "bottom",
           strip_metadata: false,
         },
+        resize: { megapixels: 2, multiple: 32 },
       });
     }
 
@@ -833,6 +834,11 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     if (url.pathname === "/api/automation/auto-adjust" && method === "POST") {
       const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
       return jsonResponse(createMockJob(folderPath, "auto_adjust"));
+    }
+
+    if (url.pathname === "/api/automation/resize" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path")) ?? homeFolder.path;
+      return jsonResponse(createMockJob(folderPath, "resize"));
     }
 
     if (url.pathname === "/api/automation/set-captions" && method === "POST") {

@@ -1,5 +1,5 @@
 import { clampCrop, IDENTITY_CROP, type CropRect } from "./crop";
-import type { EditCropRect } from "@/shared/types";
+import type { EditCropRect, SizeFit } from "@/shared/types";
 
 /** What the image and video specs share: the scale presets and the crop's wire form. */
 
@@ -25,6 +25,14 @@ export function cropFromSpec(crop: EditCropRect | null | undefined): CropRect {
   return crop
     ? clampCrop({ x: crop.x, y: crop.y, width: crop.width, height: crop.height })
     : IDENTITY_CROP;
+}
+
+export function sizeFitsEqual(
+  a: SizeFit | null | undefined,
+  b: SizeFit | null | undefined,
+): boolean {
+  if (a == null || b == null) return (a ?? null) === (b ?? null);
+  return sameNumber(a.megapixels, b.megapixels) && a.multiple === b.multiple;
 }
 
 export function specCropsEqual(

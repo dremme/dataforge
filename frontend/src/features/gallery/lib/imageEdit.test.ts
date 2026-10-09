@@ -34,6 +34,7 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
     mirror_v: false,
     rotate: 0,
     scale: 1,
+    fit: null,
     adjust: { ...RESTING_ADJUST },
     ...overrides,
   };
@@ -126,6 +127,12 @@ describe("outputDimensions", () => {
     expect(outputDimensions(HD, crop, 90, 0.5)).toEqual({ width: 540, height: 480 });
   });
 
+  it("fits the turned frame to the budget on the grid, in place of the scale", () => {
+    const fit = { megapixels: 0.5, multiple: 32 };
+
+    expect(outputDimensions(HD, IDENTITY_CROP, 90, 1, fit)).toEqual({ width: 544, height: 960 });
+  });
+
   it("never rounds an axis away entirely", () => {
     expect(outputDimensions({ width: 8, height: 4 }, IDENTITY_CROP, 0, 0.05)).toEqual({
       width: 1,
@@ -182,6 +189,7 @@ describe("edit identity", () => {
     ["a quarter turn", draft({ rotate: 90 })],
     ["a half turn", draft({ rotate: 180 })],
     ["a scale", draft({ scale: 0.5 })],
+    ["a fit", draft({ fit: { megapixels: 1, multiple: 8 } })],
     ["a blur region", draft({ masks: [newMaskDraft("blur", 0.12, 0)] })],
     ["an exposure change", draft({ adjust: { ...RESTING_ADJUST, exposure: 0.2 } })],
     ["a noise reduction", draft({ adjust: { ...RESTING_ADJUST, noise_reduction: 0.3 } })],
@@ -245,6 +253,13 @@ describe("wire conversion", () => {
     });
 
     expect(toImageEditSpec(draftFromSpec(original))).toEqual(original);
+  });
+
+  it("keeps a fit the Resize job stored, so saving in the editor does not drop it", () => {
+    const original = spec({ rotate: 90, fit: { megapixels: 2, multiple: 32 }, auto_adjust: null });
+
+    expect(toImageEditSpec(draftFromSpec(original))).toEqual(original);
+    expect(specsEqual(original, spec({ rotate: 90 }))).toBe(false);
   });
 
   it("opens on an empty draft when there is no stored spec", () => {

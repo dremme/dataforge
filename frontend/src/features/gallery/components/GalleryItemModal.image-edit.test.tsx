@@ -364,6 +364,7 @@ describe("GalleryItemModal", () => {
           mirror_v: false,
           rotate: 90,
           scale: 1,
+          fit: null,
           adjust: { ...RESTING_ADJUST },
           auto_adjust: null,
         });

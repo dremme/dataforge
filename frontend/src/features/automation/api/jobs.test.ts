@@ -31,6 +31,7 @@ describe("automation API", () => {
       ["train_lora", "train-lora"],
       ["watermark", "watermark"],
       ["auto_adjust", "auto-adjust"],
+      ["resize", "resize"],
     ];
 
     for (const [jobType, path] of routes) {

@@ -133,6 +133,7 @@ export {
   RotateCw as iconRotateCw,
   Rows3 as iconRows3,
   RulerDimensionLine as iconRulerDimensionLine,
+  Scaling as iconScaling,
   ScanSquare as iconScanSquare,
   Scissors as iconScissors,
   Search as iconSearch,

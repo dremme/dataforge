@@ -13,6 +13,7 @@ import {
   iconMessageWarning,
   iconPencilSparkles,
   iconReplace,
+  iconScaling,
   iconShredder,
   iconSparkles,
   iconSpellCheck2,
@@ -175,6 +176,13 @@ export const JOB_TYPE_META = {
     icon: iconWandSparkles,
     startUi: "dialog" as const,
     menuDescription: "Correct exposure, contrast and color with the Adjust wand.",
+  },
+  resize: {
+    type: "resize" as const,
+    group: "files" as const,
+    icon: iconScaling,
+    startUi: "dialog" as const,
+    menuDescription: "Scale media to a megapixel size with sides on a pixel grid, for training.",
   },
   comfy_process: {
     type: "comfy_process" as const,

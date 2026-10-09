@@ -15,9 +15,11 @@ import {
   clamp,
   cropFromSpec,
   sameNumber,
+  sizeFitsEqual,
   specCropsEqual,
 } from "./editSpec";
-import type { AutoAdjust, ColorAdjust, ImageEditSpec } from "@/shared/types";
+import { fittedSize } from "@/shared/lib/sizeFit";
+import type { AutoAdjust, ColorAdjust, ImageEditSpec, SizeFit } from "@/shared/types";
 
 // Order matches backend/image_edit.py: mask, crop, mirror, rotate, scale, adjust. Sizes round.
 
@@ -30,6 +32,8 @@ export interface ImageEditDraft {
   mirrorV: boolean;
   rotate: RotationDegrees;
   scale: number;
+  /** Set by the Resize job; replaces `scale`, and any scale change clears it. */
+  fit: SizeFit | null;
   adjust: ColorAdjust;
   /** The wand's last reading, so its dial can rescale it; never rendered. */
   autoAdjust: AutoAdjust | null;
@@ -43,6 +47,7 @@ export function emptyDraft(): ImageEditDraft {
     mirrorV: false,
     rotate: 0,
     scale: 1,
+    fit: null,
     adjust: { ...RESTING_ADJUST },
     autoAdjust: null,
   };
@@ -56,6 +61,7 @@ export function isIdentityEdit(draft: ImageEditDraft): boolean {
     !draft.mirrorV &&
     draft.rotate === 0 &&
     Math.abs(draft.scale - 1) < IDENTITY_EPSILON &&
+    draft.fit === null &&
     isAdjustIdentity(draft.adjust)
   );
 }
@@ -86,12 +92,16 @@ export function outputDimensions(
   crop: CropRect,
   rotate: RotationDegrees,
   scale: number,
+  fit: SizeFit | null = null,
 ): Size {
   const cropped = croppedSize(source, crop);
   const turned = swapsAxes(rotate)
     ? { width: cropped.height, height: cropped.width }
     : { width: cropped.width, height: cropped.height };
 
+  if (fit) {
+    return fittedSize(turned, fit) ?? turned;
+  }
   if (Math.abs(scale - 1) < IDENTITY_EPSILON) {
     return turned;
   }
@@ -132,6 +142,7 @@ export function toImageEditSpec(draft: ImageEditDraft): ImageEditSpec {
     mirror_v: draft.mirrorV,
     rotate: draft.rotate,
     scale: draft.scale,
+    fit: draft.fit,
     adjust: clampAdjust(draft.adjust),
     auto_adjust: draft.autoAdjust,
   };
@@ -148,6 +159,7 @@ export function draftFromSpec(spec: ImageEditSpec | null): ImageEditDraft {
     mirrorV: spec.mirror_v,
     rotate: spec.rotate,
     scale: spec.scale,
+    fit: spec.fit ?? null,
     adjust: { ...spec.adjust },
     autoAdjust: spec.auto_adjust ?? null,
   };
@@ -162,6 +174,7 @@ export function specsEqual(a: ImageEditSpec, b: ImageEditSpec): boolean {
     a.mirror_v === b.mirror_v &&
     a.rotate === b.rotate &&
     sameNumber(a.scale, b.scale) &&
+    sizeFitsEqual(a.fit, b.fit) &&
     adjustEqual(a.adjust, b.adjust) &&
     autoAdjustEqual(a.auto_adjust ?? null, b.auto_adjust ?? null)
   );

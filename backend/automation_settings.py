@@ -20,6 +20,7 @@ from schemas import (
     EditCaptionsJobSettings,
     FindDuplicatesJobSettings,
     ReplaceCaptionsJobSettings,
+    ResizeJobSettings,
     SetCaptionsJobSettings,
     TrainLoraJobSettings,
     VerifyCaptionsJobSettings,
@@ -41,6 +42,7 @@ JOB_SETTINGS_MODELS: dict[str, type[BaseModel]] = {
     "find_duplicates": FindDuplicatesJobSettings,
     "train_lora": TrainLoraJobSettings,
     "watermark": WatermarkJobSettings,
+    "resize": ResizeJobSettings,
 }
 
 __all__ = [

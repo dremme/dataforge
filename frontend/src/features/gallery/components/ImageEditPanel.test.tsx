@@ -417,6 +417,24 @@ describe("ImageEditPanel", () => {
       expect(edit.setScale).toHaveBeenCalledWith(0.5);
     });
 
+    it("shows a stored fit as a pressed preset that a click clears", async () => {
+      const edit = makeEdit({ draft: draftWith({ fit: { megapixels: 2, multiple: 32 } }) });
+      renderPanel(edit);
+      const user = await openSize();
+
+      const fit = within(screen.getByRole("group", { name: "Fit" })).getByRole("button", {
+        name: "2 MP, 32 px grid",
+      });
+      expect(fit).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(screen.getByRole("group", { name: "Scale" })).getByRole("button", { name: "100%" }),
+      ).toHaveAttribute("aria-pressed", "false");
+
+      await user.click(fit);
+
+      expect(edit.setScale).toHaveBeenCalledWith(1);
+    });
+
     it("shows the output size in both fields", async () => {
       renderPanel(makeEdit({ draft: draftWith({ scale: 0.5 }) }));
       await openSize();

@@ -19,7 +19,7 @@ import video_edit
 from color_adjust import adjust_lut
 from constants import EDIT_STALE_SUFFIX, EDIT_TEMP_SUFFIX, VIDEO_EDIT_MUXERS
 from ffmpeg_run import FfmpegCancelled
-from schemas import AutoAdjust, ColorAdjust, EditCropRect, MaskRegion, VideoEditSpec
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, MaskRegion, SizeFit, VideoEditSpec
 from testing_fixtures import TempMediaFolder, write_mp4_video
 
 SOURCE = Path("clip.mp4.bak")
@@ -175,6 +175,37 @@ class BuildVideoEditCommandTests(unittest.TestCase):
             command[command.index("-vf") + 1],
             "scale=trunc(iw*0.500000/2)*2:trunc(ih*0.500000/2)*2",
         )
+
+    def test_a_fit_scales_to_cover_then_trims_the_grid_sliver_from_the_center(self) -> None:
+        spec = VideoEditSpec(fit=SizeFit(megapixels=2.0, multiple=32))
+
+        command = command_for(spec, source_size=(3840, 2160))
+
+        self.assertEqual(
+            command[command.index("-vf") + 1],
+            "scale=1934:1088:flags=lanczos,crop=1920:1088:6:0,setsar=1",
+        )
+
+    def test_a_fit_is_measured_against_the_cropped_frame(self) -> None:
+        spec = VideoEditSpec(
+            crop=EditCropRect(x=0, y=0, width=0.5, height=1),
+            fit=SizeFit(megapixels=64.0, multiple=32),
+        )
+
+        command = command_for(spec, source_size=(1920, 1080))
+
+        self.assertEqual(
+            command[command.index("-vf") + 1].split(",")[1:], ["crop=960:1056:0:12", "setsar=1"]
+        )
+
+    def test_a_fit_that_changes_nothing_adds_no_filter(self) -> None:
+        spec = VideoEditSpec(fit=SizeFit(megapixels=64.0, multiple=8))
+
+        self.assertNotIn("-vf", command_for(spec, source_size=(1920, 1080)))
+
+    def test_a_fit_without_a_frame_size_refuses_to_render(self) -> None:
+        with self.assertRaises(RuntimeError):
+            command_for(VideoEditSpec(fit=SizeFit(megapixels=2.0, multiple=32)))
 
     def test_filters_run_crop_then_scale_then_retime(self) -> None:
         spec = VideoEditSpec(
@@ -452,6 +483,11 @@ class OutputDimensionsTests(unittest.TestCase):
 
                 self.assertEqual(video_edit.output_frame_size(source, spec), expected)
 
+    def test_a_fit_lands_on_an_even_grid(self) -> None:
+        spec = VideoEditSpec(fit=SizeFit(megapixels=1.0, multiple=5))
+
+        self.assertEqual(video_edit.output_frame_size((1920, 1080), spec), (1370, 770))
+
     def test_an_untouched_frame_keeps_its_odd_size_until_the_encoder(self) -> None:
         self.assertEqual(video_edit.output_frame_size((1919, 1081), VideoEditSpec()), (1919, 1081))
 
@@ -476,6 +512,7 @@ class SpecHelperTests(unittest.TestCase):
             VideoEditSpec(trim_end=3.0),
             VideoEditSpec(speed=2.0),
             VideoEditSpec(scale=0.5),
+            VideoEditSpec(fit=SizeFit(megapixels=1.0, multiple=8)),
             VideoEditSpec(crop=EditCropRect(width=0.5)),
             VideoEditSpec(masks=[MaskRegion(x=0.1, y=0.1, width=0.3, height=0.3)]),
             VideoEditSpec(volume=0.5),

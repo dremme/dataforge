@@ -3,6 +3,7 @@ import { folderKey } from "@/features/folder/lib/folderPath";
 import { requestJson } from "@/shared/api/http";
 import { normalizeFolderPath } from "@/features/folder/lib/folderPath";
 import { DEFAULT_TRAINING_MODEL, TRAINING_MODELS } from "@/features/automation/lib/training";
+import { MAX_RESIZE_MEGAPIXELS, MAX_RESIZE_MULTIPLE } from "@/shared/constants";
 import type {
   AutomationMode,
   AutomationSettingsResponse,
@@ -28,6 +29,7 @@ export type JobSettingsByType = {
   find_duplicates: AutomationSettings["find_duplicates"];
   train_lora: AutomationSettings["train_lora"];
   watermark: AutomationSettings["watermark"];
+  resize: AutomationSettings["resize"];
   comfy_process: AutomationSettings["comfy_process"];
 };
 
@@ -38,6 +40,8 @@ export const DEFAULT_PRESERVE_THINKING = true;
 export const DEFAULT_WATERMARK_SIZE: WatermarkSizeName = "medium";
 export const DEFAULT_WATERMARK_OPACITY: WatermarkOpacity = 50;
 export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = "bottom";
+export const DEFAULT_RESIZE_MEGAPIXELS = 2;
+export const DEFAULT_RESIZE_MULTIPLE = 32;
 
 const AUTOMATION_MODES: readonly AutomationMode[] = ["thinking", "instruct"];
 const REASONING_EFFORTS: readonly ReasoningEffort[] = ["low", "medium", "xhigh"];
@@ -57,6 +61,15 @@ function text(value: unknown): string {
 
 function flag(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function numberWithin(value: unknown, max: number, fallback: number, integer = false): number {
+  return typeof value === "number" &&
+    value > 0 &&
+    value <= max &&
+    (!integer || Number.isInteger(value))
+    ? value
+    : fallback;
 }
 
 function comfyPresetSettings(value: unknown): Record<string, ComfyPresetSettings> {
@@ -125,6 +138,7 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
       position: DEFAULT_WATERMARK_POSITION,
       strip_metadata: false,
     },
+    resize: { megapixels: DEFAULT_RESIZE_MEGAPIXELS, multiple: DEFAULT_RESIZE_MULTIPLE },
     comfy_process: { preset: "", overwrite_candidates: false, by_preset: {} },
   };
 }
@@ -141,6 +155,7 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
   const findDuplicates = block(data, "find_duplicates");
   const trainLora = block(data, "train_lora");
   const watermark = block(data, "watermark");
+  const resize = block(data, "resize");
   const comfyProcess = block(data, "comfy_process");
 
   return {
@@ -214,6 +229,10 @@ function parseSettings(data: Partial<AutomationSettings>, folderPath: string): A
       opacity: oneOf(WATERMARK_OPACITIES, watermark.opacity, DEFAULT_WATERMARK_OPACITY),
       position: oneOf(WATERMARK_POSITIONS, watermark.position, DEFAULT_WATERMARK_POSITION),
       strip_metadata: flag(watermark.strip_metadata, false),
+    },
+    resize: {
+      megapixels: numberWithin(resize.megapixels, MAX_RESIZE_MEGAPIXELS, DEFAULT_RESIZE_MEGAPIXELS),
+      multiple: numberWithin(resize.multiple, MAX_RESIZE_MULTIPLE, DEFAULT_RESIZE_MULTIPLE, true),
     },
     comfy_process: {
       preset: text(comfyProcess.preset),

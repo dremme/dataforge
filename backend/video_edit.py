@@ -30,6 +30,7 @@ from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
 from file_publish import publish_replacing
 from media_dimensions import media_dimensions
 from schemas import MaskRegion, VideoEditResponse, VideoEditSpec
+from size_fit import cover_size, fitted_size
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ def is_identity_spec(spec: VideoEditSpec) -> bool:
         and spec.crop is None
         and abs(spec.speed - 1.0) < IDENTITY_EPSILON
         and abs(spec.scale - 1.0) < IDENTITY_EPSILON
+        and spec.fit is None
         and abs(spec.volume - 1.0) < IDENTITY_EPSILON
         and is_adjust_identity(spec.adjust)
         and spec.trim_start < IDENTITY_EPSILON
@@ -169,11 +171,19 @@ def _even_part(size: int, fraction: float) -> int:
     return math.trunc(size * float(_fraction(fraction)) / 2) * 2
 
 
-def output_frame_size(source_size: tuple[int, int], spec: VideoEditSpec) -> tuple[int, int]:
+def cropped_frame_size(source_size: tuple[int, int], spec: VideoEditSpec) -> tuple[int, int]:
+    """The frame the scale step receives."""
     width, height = source_size
     if spec.crop is not None:
         width = _even_part(width, spec.crop.width)
         height = _even_part(height, spec.crop.height)
+    return width, height
+
+
+def output_frame_size(source_size: tuple[int, int], spec: VideoEditSpec) -> tuple[int, int]:
+    width, height = cropped_frame_size(source_size, spec)
+    if spec.fit is not None:
+        return fitted_size((width, height), spec.fit, even=True) or (width, height)
     if abs(spec.scale - 1.0) > IDENTITY_EPSILON:
         width = _even_part(width, spec.scale)
         height = _even_part(height, spec.scale)
@@ -263,7 +273,32 @@ def build_audio_filters(spec: VideoEditSpec) -> str:
     return ",".join(link for link in links if link)
 
 
-def geometry_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> list[str]:
+def fit_filters(cropped: tuple[int, int], spec: VideoEditSpec) -> list[str]:
+    """Scale to cover the fitted size, then trim the sliver the grid leaves, centered on even
+    offsets. Explicit numbers: the target depends on the cropped size, not just a ratio of it."""
+    if spec.fit is None:
+        return []
+    target = fitted_size(cropped, spec.fit, even=True)
+    if target is None or target == cropped:
+        return []
+    cover = cover_size(cropped, target)
+    filters = [] if cover == cropped else [f"scale={cover[0]}:{cover[1]}:flags=lanczos"]
+    if cover != target:
+        left = (cover[0] - target[0]) // 4 * 2
+        top = (cover[1] - target[1]) // 4 * 2
+        filters.append(f"crop={target[0]}:{target[1]}:{left}:{top}")
+    # `scale` keeps the display aspect by bending the SAR, which the cover's rounding nudges
+    # off 1:1; players would then show the grid size stretched by a pixel.
+    filters.append("setsar=1")
+    return filters
+
+
+def geometry_filters(
+    spec: VideoEditSpec,
+    frame_rate: float | None = None,
+    *,
+    source_size: tuple[int, int] | None = None,
+) -> list[str]:
     """Crop, scale and retime. Dimensions are even because ``yuv420p`` cannot express an odd one."""
     filters: list[str] = []
 
@@ -277,7 +312,11 @@ def geometry_filters(spec: VideoEditSpec, frame_rate: float | None = None) -> li
             f"trunc(ih*{_fraction(crop.y)}/2)*2"
         )
 
-    if abs(spec.scale - 1.0) > IDENTITY_EPSILON:
+    if spec.fit is not None:
+        if source_size is None:
+            raise RuntimeError("The video's frame size could not be read, so it cannot be resized")
+        filters += fit_filters(cropped_frame_size(source_size, spec), spec)
+    elif abs(spec.scale - 1.0) > IDENTITY_EPSILON:
         # Both axes, not `-2`: that rounds to even where this truncates, disagreeing by a pixel.
         filters.append(
             f"scale=trunc(iw*{_fraction(spec.scale)}/2)*2:trunc(ih*{_fraction(spec.scale)}/2)*2"
@@ -389,7 +428,7 @@ def build_video_filters(
     """The video filters, and whether they need ``-filter_complex`` rather than ``-vf``."""
     frame = output_frame_size(source_size, spec) if source_size is not None else None
     stage = build_adjust_stage(spec, frame, color=color)
-    head = geometry_filters(spec, frame_rate) + stage.head
+    head = geometry_filters(spec, frame_rate, source_size=source_size) + stage.head
 
     if not spec.masks and stage.definition is None:
         return ",".join(head + stage.tail), False

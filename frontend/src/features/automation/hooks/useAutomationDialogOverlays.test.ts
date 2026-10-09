@@ -276,6 +276,27 @@ describe("useAutomationDialogOverlays", () => {
     );
   });
 
+  it("starts a resize with the chosen budget and grid", async () => {
+    const { result, startJob } = setupOverlays();
+
+    await act(async () => {
+      result.current.openDialogForJobType("resize");
+    });
+    expect(result.current.dialogs.resize.initialSettings).toEqual({ megapixels: 2, multiple: 32 });
+
+    await act(async () => {
+      result.current.dialogs.resize.onConfirm(1.5, 8);
+    });
+
+    expect(result.current.dialogs.resize.open).toBe(false);
+    expect(startJob).toHaveBeenCalledWith(
+      "resize",
+      "C:\\Photos",
+      { megapixels: 1.5, multiple: 8 },
+      undefined,
+    );
+  });
+
   it("fetches preferences before opening the watermark dialog", async () => {
     const { result, startJob } = setupOverlays();
 
@@ -415,6 +436,7 @@ describe("useAutomationDialogOverlays saved settings", () => {
     ["batchRename", "batch_rename"],
     ["trainLora", "train_lora"],
     ["watermark", "watermark"],
+    ["resize", "resize"],
   ] as const;
 
   it("hands every dialog its own block of this folder's settings", async () => {

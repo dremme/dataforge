@@ -78,6 +78,7 @@ describe("loadAutomationSettings", () => {
         position: "top",
         strip_metadata: true,
       },
+      resize: { megapixels: 1.5, multiple: 8 },
     });
 
     const settings = await loadAutomationSettings(FOLDER);
@@ -111,6 +112,7 @@ describe("loadAutomationSettings", () => {
       position: "top",
       strip_metadata: true,
     });
+    expect(settings.resize).toEqual({ megapixels: 1.5, multiple: 8 });
   });
 
   it.each(TRAINING_MODELS)("restores the saved %s training model", async (model) => {
@@ -130,6 +132,7 @@ describe("loadAutomationSettings", () => {
       find_duplicates: { threshold: "vague" },
       train_lora: { model: "no_such_model" },
       watermark: { size: "huge", opacity: 33, position: "side" },
+      resize: { megapixels: -1, multiple: 7.5 },
     });
 
     const settings = await loadAutomationSettings(FOLDER);
@@ -151,6 +154,7 @@ describe("loadAutomationSettings", () => {
       position: "bottom",
       strip_metadata: false,
     });
+    expect(settings.resize).toEqual({ megapixels: 2, multiple: 32 });
   });
 
   it("keeps only the string prompts a stored list holds", async () => {

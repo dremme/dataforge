@@ -8,6 +8,10 @@ from constants import (
     AUTO_ADJUST_DEFAULT_AMOUNT,
     COLOR_ADJUST,
     DEFAULT_GALLERY_SORT,
+    DEFAULT_RESIZE_MEGAPIXELS,
+    DEFAULT_RESIZE_MULTIPLE,
+    MAX_RESIZE_MEGAPIXELS,
+    MAX_RESIZE_MULTIPLE,
 )
 
 # PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
@@ -57,6 +61,7 @@ type JobType = Literal[
     "train_lora",
     "watermark",
     "auto_adjust",
+    "resize",
     "comfy_process",
 ]
 
@@ -682,6 +687,15 @@ class WatermarkStartRequest(JobSelectionRequest, WatermarkJobSettings):
     pass
 
 
+class ResizeJobSettings(BaseModel):
+    megapixels: float = Field(DEFAULT_RESIZE_MEGAPIXELS, gt=0, le=MAX_RESIZE_MEGAPIXELS)
+    multiple: int = Field(DEFAULT_RESIZE_MULTIPLE, ge=1, le=MAX_RESIZE_MULTIPLE)
+
+
+class ResizeStartRequest(JobSelectionRequest, ResizeJobSettings):
+    pass
+
+
 class ComfyPresetSettings(BaseModel):
     """What the dialog remembers for one workflow preset."""
 
@@ -823,6 +837,7 @@ class AutomationSettingsResponse(BaseModel):
     find_duplicates: FindDuplicatesJobSettings = Field(default_factory=FindDuplicatesJobSettings)
     train_lora: TrainLoraJobSettings = Field(default_factory=TrainLoraJobSettings)
     watermark: WatermarkJobSettings = Field(default_factory=WatermarkJobSettings)
+    resize: ResizeJobSettings = Field(default_factory=ResizeJobSettings)
     comfy_process: ComfyProcessSettingsResponse = Field(
         default_factory=ComfyProcessSettingsResponse
     )
@@ -1175,6 +1190,15 @@ MIN_MASK_STRENGTH = 0.02
 MAX_MASK_STRENGTH = 0.5
 
 
+class SizeFit(BaseModel):
+    """A pixel budget at the frame's own aspect, both sides snapped to ``multiple``.
+
+    Applied at the scale step, in place of ``scale``; it never upscales."""
+
+    megapixels: float = Field(gt=0, le=MAX_RESIZE_MEGAPIXELS)
+    multiple: int = Field(ge=1, le=MAX_RESIZE_MULTIPLE)
+
+
 class EditCropRect(BaseModel):
     """Fractions of the source frame so ffmpeg can use ``iw``/``ih`` without ffprobe."""
 
@@ -1311,6 +1335,7 @@ class VideoEditSpec(BaseModel):
     crop: EditCropRect | None = None
     speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
+    fit: SizeFit | None = None
     #: Audio gain: 1 unchanged, 0 mutes (the track is dropped), up to 2 for a boost.
     volume: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
     adjust: ColorAdjust = Field(default_factory=ColorAdjust)
@@ -1363,6 +1388,7 @@ class ImageEditSpec(BaseModel):
     rotate: Literal[0, 90, 180, 270] = 0
     #: Capped at 1: upscaling invents detail a caption would then describe.
     scale: float = Field(1.0, ge=MIN_EDIT_SCALE, le=1.0)
+    fit: SizeFit | None = None
     adjust: ColorAdjust = Field(default_factory=ColorAdjust)
     auto_adjust: AutoAdjust | None = None
 

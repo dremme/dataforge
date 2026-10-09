@@ -359,7 +359,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   }, []);
 
   const setScale = useCallback((scale: number) => {
-    setDraft((current) => ({ ...current, scale }));
+    setDraft((current) => ({ ...current, scale, fit: null }));
   }, []);
 
   const setVolume = useCallback((volume: number) => {
@@ -516,6 +516,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     { width: sourceWidth, height: sourceHeight },
     draft.crop,
     draft.scale,
+    draft.fit,
   );
 
   return {

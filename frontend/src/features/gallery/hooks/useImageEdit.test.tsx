@@ -49,6 +49,7 @@ function spec(overrides: Partial<ImageEditSpec> = {}): ImageEditSpec {
     mirror_v: false,
     rotate: 0,
     scale: 1,
+    fit: null,
     adjust: { ...RESTING_ADJUST },
     auto_adjust: null,
     ...overrides,
@@ -121,6 +122,7 @@ describe("useImageEdit", () => {
         mirrorV: false,
         rotate: 0,
         scale: 1,
+        fit: null,
         adjust: { ...RESTING_ADJUST },
         autoAdjust: null,
       });
@@ -405,6 +407,21 @@ describe("useImageEdit", () => {
       expect(result.current.hasBackup).toBe(true);
       // Already on disk, so there is nothing left to apply.
       expect(result.current.dirty).toBe(false);
+    });
+
+    it("lets a scale replace a fit the Resize job stored", async () => {
+      fetchStateMock.mockResolvedValue({
+        path: PHOTO,
+        has_backup: true,
+        spec: spec({ fit: { megapixels: 2, multiple: 32 } }),
+      });
+      const { result } = await renderReady();
+      await waitFor(() => expect(result.current.draft.fit).not.toBeNull());
+
+      act(() => result.current.setScale(0.5));
+
+      expect(result.current.draft).toMatchObject({ scale: 0.5, fit: null });
+      expect(result.current.dirty).toBe(true);
     });
 
     it("restores the shape a stored crop was framed with", async () => {

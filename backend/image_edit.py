@@ -8,7 +8,7 @@ from math import ceil
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 
 from color_adjust import is_adjust_identity, is_global_identity, lut_filter
 from color_detail import apply_detail, is_detail_identity
@@ -26,6 +26,7 @@ from file_publish import publish_replacing
 from image_io import load_image_for_edit, save_image_preserving_format
 from media_dimensions import media_dimensions
 from schemas import ColorAdjust, EditCropRect, ImageEditResponse, ImageEditSpec, MaskRegion
+from size_fit import fitted_size
 
 IDENTITY_EPSILON = 1e-9
 
@@ -52,6 +53,7 @@ def is_identity_spec(spec: ImageEditSpec) -> bool:
         and not spec.mirror_v
         and spec.rotate == 0
         and abs(spec.scale - 1.0) < IDENTITY_EPSILON
+        and spec.fit is None
         and is_adjust_identity(spec.adjust)
     )
 
@@ -77,6 +79,14 @@ def scaled_size(size: tuple[int, int], scale: float) -> tuple[int, int]:
     """At least one pixel on each axis: a 5% scale of a thumbnail can round to zero."""
     width, height = size
     return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def fit_input_size(size: tuple[int, int], spec: ImageEditSpec) -> tuple[int, int]:
+    """The frame the scale step receives: cropped, then turned."""
+    if spec.crop is not None:
+        left, top, right, bottom = crop_box(size, spec.crop)
+        size = (right - left, bottom - top)
+    return (size[1], size[0]) if spec.rotate in (90, 270) else size
 
 
 def blurred_region(
@@ -170,7 +180,11 @@ def render_image_edit(image: Image.Image, spec: ImageEditSpec) -> Image.Image:
     if spec.rotate:
         image = image.transpose(_CLOCKWISE_TRANSPOSE[spec.rotate])
 
-    if abs(spec.scale - 1.0) > IDENTITY_EPSILON:
+    if spec.fit is not None:
+        target = fitted_size(image.size, spec.fit)
+        if target is not None and target != image.size:
+            image = ImageOps.fit(image, target, Image.Resampling.LANCZOS)
+    elif abs(spec.scale - 1.0) > IDENTITY_EPSILON:
         image = image.resize(scaled_size(image.size, spec.scale), Image.Resampling.LANCZOS)
 
     if not is_adjust_identity(spec.adjust):

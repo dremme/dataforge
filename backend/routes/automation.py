@@ -40,6 +40,7 @@ from schemas import (
     ReplaceCaptionsPreviewRequest,
     ReplaceCaptionsPreviewResponse,
     ReplaceCaptionsStartRequest,
+    ResizeStartRequest,
     RestoreCaptionsStartRequest,
     SetCaptionsStartRequest,
     StripMetadataStartRequest,
@@ -163,6 +164,13 @@ def start_auto_adjust_job(
     path: str = FOLDER_QUERY, body: AutoAdjustStartRequest = AutoAdjustStartRequest()
 ) -> JobResponse:
     return _start_job("auto_adjust", path, body)
+
+
+@router.post("/automation/resize", response_model=JobResponse)
+def start_resize_job(
+    path: str = FOLDER_QUERY, body: ResizeStartRequest = ResizeStartRequest()
+) -> JobResponse:
+    return _start_job("resize", path, body)
 
 
 @router.post("/automation/restore-captions", response_model=JobResponse)

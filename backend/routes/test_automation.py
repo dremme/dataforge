@@ -138,6 +138,7 @@ _NON_DEFAULT_STARTS: dict[str, tuple[str, dict[str, object]]] = {
         },
     ),
     "auto_adjust": ("auto-adjust", {"replace_adjustments": True}),
+    "resize": ("resize", {"megapixels": 1.5, "multiple": 8}),
 }
 
 

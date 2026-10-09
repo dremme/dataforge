@@ -10,6 +10,7 @@ import { CheckCaptionRulesDialog } from "./CheckCaptionRulesDialog";
 import { ComfyProcessDialog } from "./ComfyProcessDialog";
 import { TrainLoraDialog } from "./TrainLoraDialog";
 import { VerifyCaptionsDialog } from "./VerifyCaptionsDialog";
+import { ResizeDialog } from "./ResizeDialog";
 import { WatermarkDialog } from "./WatermarkDialog";
 import type { AutomationDialogsState } from "@/features/automation/types";
 
@@ -29,6 +30,7 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
     batchRename,
     trainLora,
     watermark,
+    resize,
     comfyProcess,
     autoAdjust,
     checkCaptionRules,
@@ -148,6 +150,16 @@ export function AutomationDialogOverlays({ dialogs }: AutomationDialogOverlaysPr
           busy={comfyProcess.busy}
           onConfirm={comfyProcess.onConfirm}
           onCancel={comfyProcess.onCancel}
+        />
+      )}
+
+      {resize.open && resize.initialSettings && (
+        <ResizeDialog
+          scope={resize.scope}
+          initialSettings={resize.initialSettings}
+          busy={resize.busy}
+          onConfirm={resize.onConfirm}
+          onCancel={resize.onCancel}
         />
       )}
 

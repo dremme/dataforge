@@ -14,7 +14,7 @@ from pydantic import ValidationError
 import edit_sidecars
 import image_edit
 import schemas
-from schemas import AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec, MaskRegion
+from schemas import AutoAdjust, ColorAdjust, EditCropRect, ImageEditSpec, MaskRegion, SizeFit
 from testing_fixtures import TempMediaFolder, write_image, write_jpeg
 
 RED = (255, 0, 0)
@@ -179,6 +179,40 @@ class RenderScaleTests(unittest.TestCase):
 
     def test_a_tiny_scale_still_leaves_a_pixel_on_each_axis(self) -> None:
         self.assertEqual(image_edit.scaled_size((8, 4), 0.05), (1, 1))
+
+
+class RenderFitTests(unittest.TestCase):
+    def test_a_fit_lands_both_sides_on_the_grid_and_crops_rather_than_stretches(self) -> None:
+        # 400 x 150 at 0.02 MP is 236.5 x 88.7, which the grid rounds to 224 x 96.
+        source = Image.new("RGB", (400, 150), BLUE)
+        source.paste(RED, (0, 0, 20, 150))
+        source.paste(RED, (380, 0, 400, 150))
+        spec = ImageEditSpec(fit=SizeFit(megapixels=0.02, multiple=32))
+
+        result = image_edit.render_image_edit(source, spec)
+
+        self.assertEqual(result.size, (224, 96))
+        # Covering 224 x 96 at the source aspect is 256 x 96; the red side bands are trimmed off.
+        for x in (0, 223):
+            self.assertLess(result.getpixel((x, 48))[0], 8)
+
+    def test_a_fit_is_measured_after_the_rotation(self) -> None:
+        spec = ImageEditSpec(rotate=90, fit=SizeFit(megapixels=64.0, multiple=8))
+
+        result = image_edit.render_image_edit(corner_marked(), spec)
+
+        self.assertEqual(result.size, (16, 40))
+
+    def test_a_fit_too_coarse_for_the_frame_leaves_its_size_alone(self) -> None:
+        spec = ImageEditSpec(fit=SizeFit(megapixels=1.0, multiple=64))
+
+        self.assertEqual(image_edit.render_image_edit(corner_marked(), spec).size, (WIDTH, HEIGHT))
+
+    def test_the_fit_input_is_cropped_then_turned(self) -> None:
+        spec = ImageEditSpec(crop=EditCropRect(x=0, y=0, width=0.5, height=1), rotate=270)
+
+        self.assertEqual(image_edit.fit_input_size((40, 20), spec), (20, 20))
+        self.assertEqual(image_edit.fit_input_size((40, 30), spec), (30, 20))
 
 
 class RenderMaskTests(unittest.TestCase):
@@ -384,6 +418,7 @@ class IdentitySpecTests(unittest.TestCase):
             ImageEditSpec(mirror_v=True),
             ImageEditSpec(rotate=90),
             ImageEditSpec(scale=0.5),
+            ImageEditSpec(fit=SizeFit(megapixels=1.0, multiple=8)),
         ):
             with self.subTest(spec=spec):
                 self.assertFalse(image_edit.is_identity_spec(spec))

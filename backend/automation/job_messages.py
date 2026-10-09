@@ -79,6 +79,15 @@ def auto_adjust_error_message(stats: dict[str, int]) -> str | None:
     )
 
 
+def resize_error_message(stats: dict[str, int]) -> str | None:
+    return _ffmpeg_job_message(
+        stats,
+        "resize",
+        kept_one=" It was left unchanged.",
+        kept_many=" They were left unchanged.",
+    )
+
+
 def rename_media_error_message(stats: dict[str, int]) -> str | None:
     rename_errors = _count(stats, "rename_error")
     if rename_errors == 0:

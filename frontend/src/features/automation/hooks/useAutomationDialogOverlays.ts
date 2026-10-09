@@ -231,6 +231,11 @@ export function useAutomationDialogOverlays({
             overwrite_candidates: draft.overwriteCandidates,
           }),
       },
+      resize: {
+        ...shared("resize"),
+        onConfirm: (megapixels: number, multiple: number) =>
+          startJobFromDialog("resize", { megapixels, multiple }),
+      },
       autoAdjust: {
         open: openJobType === "auto_adjust",
         scope,

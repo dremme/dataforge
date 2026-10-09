@@ -211,7 +211,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   }, []);
 
   const setScale = useCallback((scale: number) => {
-    setDraft((current) => ({ ...current, scale }));
+    setDraft((current) => ({ ...current, scale, fit: null }));
   }, []);
 
   const updateAdjust = useCallback((change: (current: AdjustDraft) => AdjustDraft) => {
@@ -327,6 +327,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       currentDraft.crop,
       currentDraft.rotate,
       currentDraft.scale,
+      currentDraft.fit,
     );
 
     runEdit(
@@ -346,6 +347,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     draft.crop,
     draft.rotate,
     draft.scale,
+    draft.fit,
   );
 
   return {

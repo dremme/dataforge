@@ -9,9 +9,11 @@ import {
   clamp,
   cropFromSpec,
   sameNumber,
+  sizeFitsEqual,
   specCropsEqual,
 } from "./editSpec";
-import type { AutoAdjust, ColorAdjust, VideoEditSpec } from "@/shared/types";
+import { fittedSize } from "@/shared/lib/sizeFit";
+import type { AutoAdjust, ColorAdjust, SizeFit, VideoEditSpec } from "@/shared/types";
 
 export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4] as const;
 /** 0 mutes; the rest are audio gain, capped at 2x to match backend/schemas.py. */
@@ -29,6 +31,8 @@ export interface VideoEditDraft {
   crop: CropRect;
   speed: number;
   scale: number;
+  /** Set by the Resize job; replaces `scale`, and any scale change clears it. */
+  fit: SizeFit | null;
   volume: number;
   adjust: ColorAdjust;
   /** The wand's last reading, so its dial can rescale it; never rendered. */
@@ -48,6 +52,7 @@ export function emptyDraft(duration: number): VideoEditDraft {
     crop: IDENTITY_CROP,
     speed: 1,
     scale: 1,
+    fit: null,
     volume: 1,
     adjust: { ...RESTING_ADJUST },
     autoAdjust: null,
@@ -78,6 +83,7 @@ export function isIdentityEdit(draft: VideoEditDraft, duration: number): boolean
     isIdentityCrop(draft.crop) &&
     Math.abs(draft.speed - 1) < IDENTITY_EPSILON &&
     Math.abs(draft.scale - 1) < IDENTITY_EPSILON &&
+    draft.fit === null &&
     Math.abs(draft.volume - 1) < IDENTITY_EPSILON &&
     isAdjustIdentity(draft.adjust)
   );
@@ -129,8 +135,16 @@ export function croppedSize(source: Size, crop: CropRect): Size {
   };
 }
 
-export function outputDimensions(source: Size, crop: CropRect, scale: number): Size {
+export function outputDimensions(
+  source: Size,
+  crop: CropRect,
+  scale: number,
+  fit: SizeFit | null = null,
+): Size {
   const cropped = croppedSize(source, crop);
+  if (fit) {
+    return fittedSize(cropped, fit, true) ?? cropped;
+  }
   if (Math.abs(scale - 1) < IDENTITY_EPSILON) {
     return cropped;
   }
@@ -175,6 +189,7 @@ export function toVideoEditSpec(draft: VideoEditDraft, duration: number): VideoE
     crop: isIdentityCrop(draft.crop) ? null : { ...draft.crop },
     speed: draft.speed,
     scale: draft.scale,
+    fit: draft.fit,
     volume: draft.volume,
     adjust: clampAdjust(draft.adjust),
     auto_adjust: draft.autoAdjust,
@@ -192,6 +207,7 @@ export function draftFromSpec(spec: VideoEditSpec | null, duration: number): Vid
     crop: cropFromSpec(spec.crop),
     speed: spec.speed,
     scale: spec.scale,
+    fit: spec.fit ?? null,
     volume: spec.volume,
     adjust: { ...spec.adjust },
     autoAdjust: spec.auto_adjust ?? null,
@@ -209,6 +225,7 @@ export function specsEqual(a: VideoEditSpec, b: VideoEditSpec): boolean {
     specCropsEqual(a.crop, b.crop) &&
     sameNumber(a.speed, b.speed) &&
     sameNumber(a.scale, b.scale) &&
+    sizeFitsEqual(a.fit, b.fit) &&
     sameNumber(a.volume, b.volume) &&
     adjustEqual(a.adjust, b.adjust) &&
     autoAdjustEqual(a.auto_adjust ?? null, b.auto_adjust ?? null)

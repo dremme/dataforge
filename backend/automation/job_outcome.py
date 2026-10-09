@@ -20,6 +20,7 @@ _NEVER_WARN: frozenset[str] = frozenset(
         "train_lora",
         "watermark",
         "auto_adjust",
+        "resize",
     }
 )
 

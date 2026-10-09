@@ -505,6 +505,7 @@ describe("GalleryItemModal", () => {
         crop: null,
         speed: 0.5,
         scale: 1,
+        fit: null,
         volume: 1,
         adjust: { ...RESTING_ADJUST },
         auto_adjust: null,
