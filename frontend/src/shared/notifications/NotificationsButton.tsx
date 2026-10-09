@@ -23,7 +23,9 @@ export function NotificationsButton() {
   }, [open, setPanelOpen, markAllRead, refreshHistory]);
 
   const unread = unreadCount > 0;
-  const urgent = history.some((entry) => !entry.read_at && entry.variant === "danger");
+  const unreadVariants = new Set(history.filter((entry) => !entry.read_at).map((e) => e.variant));
+  const urgent = unreadVariants.has("danger");
+  const warning = !urgent && unreadVariants.has("warning");
   const label = unread ? `Notifications (${unreadCount} new)` : "Notifications";
 
   return (
@@ -38,6 +40,7 @@ export function NotificationsButton() {
             "notifications-button",
             unread && "notifications-button--unread",
             urgent && "notifications-button--urgent",
+            warning && "notifications-button--warning",
           )}
           aria-label={label}
           {...triggerProps}

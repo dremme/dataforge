@@ -146,6 +146,10 @@
   &--urgent &__icon {
     color: var(--danger);
   }
+
+  &--warning &__icon {
+    color: var(--warning);
+  }
 }
 
 .notifications-panel {

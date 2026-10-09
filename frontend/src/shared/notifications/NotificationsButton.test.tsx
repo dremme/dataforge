@@ -84,6 +84,19 @@ describe("NotificationsButton", () => {
     expect(button.querySelector(".notifications-button__dot")).toBeNull();
   });
 
+  it("turns the bell yellow for an unread warning, red when an error is also unread", async () => {
+    const { unmount } = renderButton([record({ id: "a", variant: "warning" })]);
+    const button = await screen.findByRole("button", { name: "Notifications (1 new)" });
+    expect(button).toHaveClass("notifications-button--warning");
+    expect(button).not.toHaveClass("notifications-button--urgent");
+    unmount();
+
+    renderButton([record({ id: "a", variant: "warning" }), record({ id: "b", variant: "danger" })]);
+    const both = await screen.findByRole("button", { name: "Notifications (2 new)" });
+    expect(both).toHaveClass("notifications-button--urgent");
+    expect(both).not.toHaveClass("notifications-button--warning");
+  });
+
   it("lists the retained notifications when opened", async () => {
     const user = userEvent.setup();
     renderButton([record(), record({ id: "b", message: "Second." })]);
