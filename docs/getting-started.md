@@ -26,7 +26,7 @@ Any final Python 3.13.x release is supported locally. `.python-version` records 
 
 ## Open your first dataset
 
-Use **Open folder** (`Ctrl+O`) to choose a dataset, or try [`sample_images/`](../sample_images/). It includes captioned and uncaptioned media, flagged captions, folder instructions, caption rules, and a ComfyUI result ready for review.
+Use **Open folder** (`Ctrl+O`) to choose a dataset, or try [`sample_images/`](../sample_images/). It includes captioned and uncaptioned media, flagged captions, a duplicate pair, folder instructions, caption rules, and a ComfyUI result ready for review.
 
 1. Browse the gallery. Filters and statistics show missing captions and review work.
 2. Open a file and write a caption; it autosaves as `.txt` beside the media.

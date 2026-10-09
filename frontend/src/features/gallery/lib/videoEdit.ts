@@ -19,6 +19,9 @@ export const SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3, 4] as c
 /** 0 mutes; the rest are audio gain, capped at 2x to match backend/schemas.py. */
 export const VOLUME_PRESETS = [0, 0.25, 0.5, 1, 1.5, 2] as const;
 
+/** Output lengths in seconds, the clip lengths video trainers commonly take. */
+export const TRIM_LENGTH_PRESETS = [3, 4, 5, 7, 9] as const;
+
 export const MIN_TRIM_SECONDS = 0.1;
 
 /** A trim that reaches this close to the end is sent as "run to the end". */
@@ -126,6 +129,38 @@ export function snapTrimEnd(
   const clamped = clampTrimEnd(snapped, draft, duration);
   if (clamped === snapped) return snapped;
   return Math.min(duration, Math.ceil(clamped / frameDuration) * frameDuration);
+}
+
+/**
+ * A trim keeping `seconds` of output from the in point, in whole frames. When the rest of the
+ * clip is too short the range slides back to fit; `null` when the whole clip is too short.
+ */
+export function trimForLength(
+  seconds: number,
+  draft: VideoEditDraft,
+  duration: number,
+  frameDuration: number,
+): { trimStart: number; trimEnd: number } | null {
+  const frames = Math.round((seconds * draft.speed) / frameDuration);
+  if (frames * frameDuration > duration + frameDuration / 2) return null;
+
+  const lastStart = Math.max(0, Math.floor(duration / frameDuration - frames + 1e-6));
+  const startFrame = Math.min(Math.round(draft.trimStart / frameDuration), lastStart);
+  const trimEnd = (startFrame + frames) * frameDuration;
+  return {
+    trimStart: startFrame * frameDuration,
+    // As with a dragged handle: an end within half a frame of the duration runs to the end.
+    trimEnd: trimEnd >= duration - frameDuration / 2 ? duration : trimEnd,
+  };
+}
+
+export function hasTrimLength(
+  seconds: number,
+  draft: VideoEditDraft,
+  frameDuration: number,
+): boolean {
+  const span = draft.trimEnd - draft.trimStart;
+  return Math.abs(span - seconds * draft.speed) < frameDuration / 2;
 }
 
 export function croppedSize(source: Size, crop: CropRect): Size {

@@ -306,18 +306,6 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       return jsonResponse({ folder: pathKey, children });
     }
 
-    if (url.pathname === "/api/folders/fingerprint") {
-      const rawPath = url.searchParams.get("path");
-      const pathKey = normalizeFolderKey(rawPath);
-      const data =
-        rawPath === null || rawPath === "" ? folderResponses.undefined : folderResponses[pathKey!];
-      if (!data) {
-        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
-      }
-
-      return jsonResponse({ fingerprint: data.fingerprint });
-    }
-
     if (url.pathname === "/api/folders/changes") {
       const pathKey = normalizeFolderKey(url.searchParams.get("path"));
       const data = pathKey ? folderResponses[pathKey] : undefined;

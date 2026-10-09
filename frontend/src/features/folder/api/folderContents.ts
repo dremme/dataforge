@@ -1,11 +1,6 @@
 import { serverEventsTabId } from "@/shared/api/eventStream";
 import { requestJson } from "@/shared/api/http";
-import type {
-  FolderChangesResponse,
-  FolderFingerprintResponse,
-  FolderResponse,
-  SubfolderStatsResponse,
-} from "@/shared/types";
+import type { FolderChangesResponse, FolderResponse, SubfolderStatsResponse } from "@/shared/types";
 
 /** The tab id asks the server to watch the folder for this tab. */
 function folderParams(folderPath?: string): URLSearchParams {
@@ -31,14 +26,6 @@ export async function fetchFolder(
   const params = folderParams(folderPath);
   if (prefetch) params.set("prefetch", "true");
   return requestJson<FolderResponse>(`/api/folders/contents?${params}`, { signal });
-}
-
-export async function fetchFolderFingerprint(
-  folderPath: string,
-  signal?: AbortSignal,
-): Promise<FolderFingerprintResponse> {
-  const params = folderParams(folderPath);
-  return requestJson<FolderFingerprintResponse>(`/api/folders/fingerprint?${params}`, { signal });
 }
 
 export async function fetchFolderChanges(

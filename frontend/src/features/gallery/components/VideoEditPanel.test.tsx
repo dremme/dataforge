@@ -49,6 +49,7 @@ function makeEdit(overrides: Partial<VideoEdit> = {}): VideoEdit {
     setTrimEnd: vi.fn(),
     setTrimStartAtPlayhead: vi.fn(),
     setTrimEndAtPlayhead: vi.fn(),
+    setTrimLength: vi.fn(),
     setCrop: vi.fn(),
     setCropActive: vi.fn(),
     setMaskActive: vi.fn(),
@@ -225,6 +226,25 @@ describe("VideoEditPanel", () => {
 
       expect(edit.setTrimStartAtPlayhead).toHaveBeenCalled();
       expect(edit.setTrimEndAtPlayhead).toHaveBeenCalled();
+    });
+
+    it("trims to a length from a preset", () => {
+      const edit = makeEdit();
+      renderPanel(edit);
+
+      fireEvent.click(screen.getByRole("button", { name: "5s" }));
+
+      expect(edit.setTrimLength).toHaveBeenCalledWith(5);
+    });
+
+    it("presses the length the range already has, and offers none the clip is too short for", () => {
+      const draft = { ...emptyDraft(8), trimStart: 1, trimEnd: 5 };
+      renderPanel(makeEdit({ draft, duration: 8 }));
+
+      expect(screen.getByRole("button", { name: "4s" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "3s" })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: "7s" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "9s" })).toBeDisabled();
     });
 
     it("changes the speed from a preset", () => {

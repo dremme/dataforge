@@ -193,15 +193,21 @@ describe("useFolderChangeDetection", () => {
     });
   });
 
-  it("adopts the server's fingerprint after the tab wrote to the folder itself", async () => {
-    vi.spyOn(api, "fetchFolderFingerprint").mockResolvedValue({ fingerprint: "fp-v2" });
+  it("keeps a change made elsewhere when the tab wrote to the folder itself", async () => {
+    // A job resized the first file while the tab saved a caption.
+    const resized = { ...held.items[0], width: 320, height: 240 };
+    vi.mocked(api.fetchFolderChanges).mockImplementation(async (_path, since) =>
+      since === "fp-v1" ? { ...delta("fp-v3"), changed: [resized] } : delta("fp-v3"),
+    );
     const { result, client } = renderDetection();
 
     await act(async () => {
       await result.current.syncBaseline();
     });
+    await flush(VISIBLE_POLL_MS);
 
-    expect(heldFingerprint(client)).toBe("fp-v2");
-    expect(api.fetchFolderChanges).not.toHaveBeenCalled();
+    const listing = client.getQueryData<FolderResponse>(folderKeys.folder(PATH));
+    expect(listing?.fingerprint).toBe("fp-v3");
+    expect(listing?.items[0]).toMatchObject({ width: 320, height: 240 });
   });
 });

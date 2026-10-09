@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchFolderFingerprint } from "@/features/folder/api/folderContents";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { folderKeys, folderQueryOptions } from "@/features/folder/lib/folderQuery";
-import { isFolderNotFoundError } from "@/shared/api/http";
 import { useServerEvent } from "@/shared/events/serverEvents";
 import type { FolderResponse } from "@/shared/types";
 
@@ -106,20 +104,14 @@ export function useFolderChangeDetection(
     if (event.fingerprint !== held.fingerprint) schedule();
   });
 
-  /** After writing to the folder itself: adopt the server's fingerprint instead of re-reading. */
+  /**
+   * After writing to the folder itself: re-read what changed. Adopting the server's fingerprint
+   * instead would also absorb whatever else changed meanwhile, such as a running job's files.
+   */
   const syncBaseline = useCallback(async () => {
     if (!folderPath || !enabled) return;
-
-    try {
-      const { fingerprint } = await fetchFolderFingerprint(folderPath);
-      queryClient.setQueryData<FolderResponse>(
-        key,
-        (current) => current && { ...current, fingerprint },
-      );
-    } catch (error) {
-      if (isFolderNotFoundError(error)) refresh();
-    }
-  }, [enabled, folderPath, key, queryClient, refresh]);
+    await queryClient.invalidateQueries({ queryKey: key, exact: true });
+  }, [enabled, folderPath, key, queryClient]);
 
   return { syncBaseline };
 }

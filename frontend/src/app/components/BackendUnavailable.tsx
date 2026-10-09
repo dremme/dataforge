@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BACKEND_UNREACHABLE, NetworkError, requestJson } from "@/shared/api/http";
 import { useOptionalStreamConnected } from "@/shared/events/serverEvents";
@@ -16,7 +16,7 @@ function isUnreachable(error: unknown): boolean {
 export function BackendUnavailable() {
   const queryClient = useQueryClient();
   const connected = useOptionalStreamConnected();
-  const { error, refetch } = useQuery({
+  const { error, isFetching, refetch } = useQuery({
     queryKey: ["health"],
     queryFn: ({ signal }) => requestJson<HealthResponse>("/api/health", { signal }),
     // Two quick retries ride out a blip without leaving a dead app on screen for long.
@@ -32,7 +32,10 @@ export function BackendUnavailable() {
     void refetch();
   }, [connected, refetch]);
 
-  const down = isUnreachable(error);
+  // A refetch of a query without data clears its error, so a probe of an API that never answered
+  // would otherwise lift the cover, and re-read every failed view, on each poll.
+  const [down, setDown] = useState(false);
+  if (!isFetching && isUnreachable(error) !== down) setDown(isUnreachable(error));
 
   // Views show nothing for an unreachable backend, so whatever failed that way must be re-read
   // once it answers; the push stream may reconnect later than this probe.

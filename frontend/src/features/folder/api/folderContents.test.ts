@@ -9,7 +9,7 @@ vi.mock("@/shared/api/http", () => ({
 }));
 
 import { serverEventsTabId } from "@/shared/api/eventStream";
-import { fetchFolder, fetchFolderFingerprint, fetchSubfolderStats } from "./folderContents";
+import { fetchFolder, fetchSubfolderStats } from "./folderContents";
 
 /** Every folder request carries it: that is what registers this tab's interest. */
 const tab = () => `tab=${serverEventsTabId()}`;
@@ -39,17 +39,6 @@ describe("folder API", () => {
       {
         signal: undefined,
       },
-    );
-  });
-
-  it("fetches a folder fingerprint", async () => {
-    requestJsonMock.mockResolvedValue({ fingerprint: "abc123" });
-
-    await fetchFolderFingerprint("C:\\Photos");
-
-    expect(requestJsonMock).toHaveBeenCalledWith(
-      `/api/folders/fingerprint?path=C%3A%5CPhotos&${tab()}`,
-      { signal: undefined },
     );
   });
 

@@ -10,6 +10,7 @@ import {
   evenTrunc,
   formatSpeed,
   formatVolume,
+  hasTrimLength,
   isIdentityEdit,
   outputDimensions,
   outputDuration,
@@ -20,6 +21,7 @@ import {
   snapTrimStart,
   specsEqual,
   toVideoEditSpec,
+  trimForLength,
   type VideoEditDraft,
 } from "./videoEdit";
 import { newMaskDraft } from "./mask";
@@ -147,6 +149,49 @@ describe("trim snapping", () => {
     // A duration is not on the grid, and rounding it down would read as a trim.
     expect(snapTrimEnd(12, current, 12.01, FRAME)).toBe(12.01);
     expect(snapTrimEnd(99, current, 12.01, FRAME)).toBe(12.01);
+  });
+});
+
+describe("trim to a length", () => {
+  const FRAME = 1 / 25;
+
+  it("keeps the in point and ends that many seconds later", () => {
+    const range = trimForLength(3, draft({ trimStart: 2, trimEnd: 12 }), 12, FRAME);
+
+    expect(range?.trimStart).toBeCloseTo(2);
+    expect(range?.trimEnd).toBeCloseTo(5);
+  });
+
+  it("measures the length after the speed change", () => {
+    const range = trimForLength(3, draft({ trimStart: 0, speed: 2 }), 12, FRAME);
+
+    expect(range?.trimEnd).toBeCloseTo(6);
+  });
+
+  it("moves the in point back when the rest of the clip is too short", () => {
+    const range = trimForLength(5, draft({ trimStart: 9, trimEnd: 12 }), 12, FRAME);
+
+    expect(range?.trimStart).toBeCloseTo(7);
+    expect(range?.trimEnd).toBe(12);
+  });
+
+  it("lands on whole frames when the length does not divide into them", () => {
+    const frame = 1 / 29.97;
+    const range = trimForLength(3, draft({ trimStart: 30 * frame }), 12, frame);
+
+    expect(range && Math.round((range.trimEnd - range.trimStart) / frame)).toBe(90);
+    expect(range && (range.trimEnd / frame) % 1).toBeCloseTo(0);
+  });
+
+  it("refuses a length the whole clip cannot give", () => {
+    expect(trimForLength(9, draft({ trimEnd: 8 }), 8, FRAME)).toBeNull();
+    expect(trimForLength(5, draft({ speed: 2 }), 8, FRAME)).toBeNull();
+  });
+
+  it("recognises a range that already has the length", () => {
+    expect(hasTrimLength(4, draft({ trimStart: 1, trimEnd: 5 }), FRAME)).toBe(true);
+    expect(hasTrimLength(4, draft({ trimStart: 1, trimEnd: 5.2 }), FRAME)).toBe(false);
+    expect(hasTrimLength(4, draft({ trimStart: 0, trimEnd: 8, speed: 2 }), FRAME)).toBe(true);
   });
 });
 

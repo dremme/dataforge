@@ -245,10 +245,12 @@
     }
   }
 
-  // Set against the controls' baseline row, on the far side so it never crowds them.
+  // Set against the controls' baseline row, on the far side so it never crowds them. One line
+  // while the row has room; when it runs short, the hint wraps before the controls scroll.
   &__hint {
-    flex: 0 1 24rem;
+    flex: 0 1000 auto;
     min-width: 10rem;
+    text-wrap: balance;
     margin: 0 0 0 auto;
     font-size: var(--text-xs);
     line-height: var(--leading-snug);

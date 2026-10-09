@@ -48,6 +48,25 @@ describe("BackendUnavailable", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(BACKEND_UNREACHABLE.title);
   });
 
+  it("keeps the error up while re-probing an API that never answered", async () => {
+    installFakeEventSource();
+    vi.stubGlobal("fetch", unreachable());
+    const read = vi.fn<() => Promise<string>>().mockRejectedValue(new NetworkError());
+    const client = renderGate(read);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitFor(() => expect(client.getQueryState(["probe"])?.status).toBe("error"));
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    act(() => void client.refetchQueries({ queryKey: ["health"] }));
+
+    await waitFor(() => expect(client.getQueryState(["health"])?.fetchStatus).toBe("fetching"));
+    expect(screen.getByRole("alert")).toHaveTextContent(BACKEND_UNREACHABLE.title);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it("stays out of the way while the API answers, even with an error", async () => {
     installFakeEventSource();
     const fetchMock = vi.fn(async () => new Response("Not found", { status: 404 }));

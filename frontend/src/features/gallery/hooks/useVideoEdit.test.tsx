@@ -338,6 +338,17 @@ describe("useVideoEdit", () => {
       expect(video.currentTime).toBeCloseTo(5.22);
     });
 
+    it("trims to a length from the in point and shows its first frame", async () => {
+      const { result, video } = await renderOnGrid();
+      act(() => result.current.setTrimStart(2.03));
+
+      act(() => result.current.setTrimLength(3));
+
+      expect(result.current.draft.trimStart).toBeCloseTo(2.04);
+      expect(result.current.draft.trimEnd).toBeCloseTo(5.04);
+      expect(video.currentTime).toBeCloseTo(2.04 + FRAME / 2);
+    });
+
     it("makes the frame on screen the first one kept when the in point is set", async () => {
       const { result, video } = await renderOnGrid();
       video.currentTime = 5.21;

@@ -3,11 +3,14 @@ import { isIdentityCrop } from "@/features/gallery/lib/crop";
 import { isAdjustIdentity } from "@/features/gallery/lib/colorAdjust";
 import {
   SPEED_PRESETS,
+  TRIM_LENGTH_PRESETS,
   VOLUME_PRESETS,
   formatSpeed,
   formatVolume,
+  hasTrimLength,
   scaleForTargetHeight,
   scaleForTargetWidth,
+  trimForLength,
 } from "@/features/gallery/lib/videoEdit";
 import { describeMasks } from "@/features/gallery/lib/mask";
 import { formatFrameTime } from "@/features/gallery/lib/videoFrameCapture";
@@ -30,10 +33,12 @@ import {
   EditActions,
   OutputChange,
   OutputPart,
+  PresetButton,
   PresetChoices,
   SizeTools,
   ToolGroup,
   ToolHint,
+  ToolPresets,
   ToolTabs,
   type EditTool,
 } from "./EditPanelParts";
@@ -129,24 +134,41 @@ export function VideoEditPanel({ edit, busy, onRevertRequested }: VideoEditPanel
       <div className="edit-panel__body">
         <div className="edit-panel__tool-controls">
           {activeTool === "trim" && (
-            <ToolGroup label="Trim points" className="edit-panel__tool-actions">
-              <button
-                type="button"
-                className="edit-panel__control"
-                disabled={locked}
-                onClick={edit.setTrimStartAtPlayhead}
-              >
-                Set in
-              </button>
-              <button
-                type="button"
-                className="edit-panel__control"
-                disabled={locked}
-                onClick={edit.setTrimEndAtPlayhead}
-              >
-                Set out
-              </button>
-            </ToolGroup>
+            <>
+              <ToolGroup label="Trim points" className="edit-panel__tool-actions">
+                <button
+                  type="button"
+                  className="edit-panel__control"
+                  disabled={locked}
+                  onClick={edit.setTrimStartAtPlayhead}
+                >
+                  Set in
+                </button>
+                <button
+                  type="button"
+                  className="edit-panel__control"
+                  disabled={locked}
+                  onClick={edit.setTrimEndAtPlayhead}
+                >
+                  Set out
+                </button>
+              </ToolGroup>
+              <ToolPresets label="Length">
+                {TRIM_LENGTH_PRESETS.map((seconds) => (
+                  <PresetButton
+                    key={seconds}
+                    active={hasTrimLength(seconds, edit.draft, edit.frameDuration)}
+                    disabled={
+                      locked ||
+                      !trimForLength(seconds, edit.draft, edit.duration, edit.frameDuration)
+                    }
+                    onClick={() => edit.setTrimLength(seconds)}
+                  >
+                    {seconds}s
+                  </PresetButton>
+                ))}
+              </ToolPresets>
+            </>
           )}
 
           {activeTool === "speed" && (

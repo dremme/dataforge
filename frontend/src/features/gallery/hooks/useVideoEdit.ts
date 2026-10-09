@@ -23,6 +23,7 @@ import {
   snapTrimStart,
   specsEqual,
   toVideoEditSpec,
+  trimForLength,
   type VideoEditDraft,
 } from "@/features/gallery/lib/videoEdit";
 import { frameDurationFor, frameIndexAt } from "@/features/gallery/lib/frameGrid";
@@ -83,6 +84,7 @@ export interface VideoEdit extends MaskRegionControls {
   setTrimEnd: (seconds: number) => void;
   setTrimStartAtPlayhead: () => void;
   setTrimEndAtPlayhead: () => void;
+  setTrimLength: (seconds: number) => void;
   setCrop: (crop: CropRect) => void;
   setCropActive: (active: boolean) => void;
   selectAspect: (aspectId: string) => void;
@@ -335,6 +337,17 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setTrimEnd((frameIndexAt(video.currentTime, frame) + 1) * frame);
   }, [activeMediaRef, setTrimEnd]);
 
+  const setTrimLength = useCallback(
+    (seconds: number) => {
+      const frame = frameSecondsRef.current;
+      const range = trimForLength(seconds, draftRef.current, durationRef.current, frame);
+      if (!range) return;
+      setDraft((current) => ({ ...current, ...range }));
+      seekTo(range.trimStart + frame / 2);
+    },
+    [seekTo],
+  );
+
   const setCrop = useCallback((crop: CropRect) => {
     setDraft((current) => ({ ...current, crop }));
   }, []);
@@ -549,6 +562,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
     setTrimEnd,
     setTrimStartAtPlayhead,
     setTrimEndAtPlayhead,
+    setTrimLength,
     setCrop,
     setCropActive,
     selectAspect,
