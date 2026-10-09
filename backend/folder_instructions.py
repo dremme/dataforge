@@ -17,11 +17,23 @@ def find_instruction_file(folder: Path, filename: str) -> Path | None:
     return None
 
 
+def instruction_file_reaches(folder: Path, job_folder: Path, filename: str) -> bool:
+    """Whether writing ``folder``'s own file changes which one ``job_folder`` resolves to."""
+    for directory in (job_folder, *job_folder.parents):
+        if directory == folder:
+            return True
+        if (directory / filename).is_file():
+            return False
+    return False
+
+
 def read_instruction_file(path: Path) -> str:
     return path.read_text(encoding="utf-8-sig")
 
 
-def describe_instruction_file(folder: Path, filename: str) -> InstructionFileResponse:
+def describe_instruction_file(
+    folder: Path, filename: str, locked_by_job_id: str | None
+) -> InstructionFileResponse:
     """Raises ``OSError`` when a file exists but cannot be read."""
     own = folder / filename
     has_file = own.is_file()
@@ -33,6 +45,7 @@ def describe_instruction_file(folder: Path, filename: str) -> InstructionFileRes
         parent_folder=None if parent is None else str(parent.parent),
         parent_relative_path=None if parent is None else os.path.relpath(parent, folder),
         parent_text="" if parent is None else read_instruction_file(parent),
+        locked_by_job_id=locked_by_job_id,
     )
 
 

@@ -172,6 +172,14 @@ describe("ComfyWorkflowMap", () => {
     expect(tip).toHaveTextContent("vae/sharp.safetensors");
   });
 
+  it("lays the map out at the width of its column", () => {
+    // The test setup gives every div a 1000px client width.
+    renderMap();
+
+    const wires = screen.getByRole("group", { name: "Workflow map" }).querySelector("svg");
+    expect(wires?.getAttribute("viewBox")).toMatch(/^0 0 1000 /);
+  });
+
   it("draws the output with the icon of the media it writes", () => {
     const { container } = render(
       <ComfyWorkflowMap

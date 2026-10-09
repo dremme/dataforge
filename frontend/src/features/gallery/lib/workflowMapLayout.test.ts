@@ -129,6 +129,25 @@ describe("layoutWorkflowMap", () => {
     expect(endX).toBeLessThan(out.x + out.width);
   });
 
+  it("spreads a crowded row over a wider map, but never lays out narrower than its minimum", () => {
+    const row = [
+      box("a", "model", ["base"]),
+      box("b", "loras", ["base"]),
+      box("c", "prompt", ["base"]),
+      box("d", "input", ["base"]),
+      box("base", "pass", []),
+    ];
+    const boxWidth = (layout: ReturnType<typeof layoutWorkflowMap>) =>
+      layout.nodes.find((node) => node.node.id === "a")!.width;
+    const narrow = layoutWorkflowMap(row);
+    const wide = layoutWorkflowMap(row, 960);
+
+    expect(wide.width).toBe(960);
+    expect(boxWidth(wide)).toBeGreaterThan(boxWidth(narrow) * 1.5);
+    expect(Math.max(...wide.nodes.map((node) => node.x + node.width))).toBeLessThanOrEqual(960);
+    expect(layoutWorkflowMap(row, 200).width).toBe(narrow.width);
+  });
+
   it("orders a row so its edges do not cross", () => {
     // Listed so that, kept in this order, the two edges would cross.
     const swapped = layoutWorkflowMap([

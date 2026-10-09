@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties } from "react";
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { PASS_NOT_RUN, splitLora, splitPath } from "@/features/gallery/lib/comfyWorkflow";
 import { layoutWorkflowMap, splitLabel } from "@/features/gallery/lib/workflowMapLayout";
 import {
@@ -205,7 +205,10 @@ export function ComfyWorkflowMap({
   const baseId = useId().replace(/[^\w-]/g, "");
   const gridId = `workflow-map-grid-${baseId}`;
   const arrowId = (edgeTone: string) => `workflow-map-arrow-${baseId}-${edgeTone}`;
-  const layout = layoutWorkflowMap(map);
+  const mapRef = useRef<HTMLDivElement>(null);
+  // Zero until measured: the layout's minimum width stands in for the first render.
+  const [available, setAvailable] = useState(0);
+  const layout = layoutWorkflowMap(map, available);
   const tones = new Map(map.map((node) => [node.id, tone(node)]));
   const [trace, setTrace] = useState<Trace>(null);
 
@@ -219,10 +222,22 @@ export function ComfyWorkflowMap({
   if (trace !== null && "node" in trace) litNodes.add(trace.node);
   const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 
+  // Laid out at the column's own width, so a wide column gets wider boxes, not larger text.
+  useLayoutEffect(() => {
+    const element = mapRef.current;
+    if (!element) return;
+    const update = () => setAvailable(element.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="comfy-workflow-dialog__group">
       <span className="comfy-workflow-dialog__group-label">Workflow map</span>
       <div
+        ref={mapRef}
         className={classNames(
           "comfy-workflow-dialog__map",
           trace !== null && "comfy-workflow-dialog__map--tracing",

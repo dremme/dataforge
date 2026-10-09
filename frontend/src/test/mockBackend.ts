@@ -146,6 +146,7 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       parent_folder: parent,
       parent_relative_path: parent === null ? null : `${"..\\".repeat(levels)}${filename}`,
       parent_text: parent === null ? "" : (files.get(parent) ?? ""),
+      locked_by_job_id: null,
     };
   };
 

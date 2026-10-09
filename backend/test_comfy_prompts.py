@@ -657,7 +657,22 @@ class LinkedParameterTests(unittest.TestCase):
                     "lora_1": {"on": True, "lora": "stacked.safetensors", "strength": 1},
                 },
             },
-            "7": {"class_type": "KSampler", "inputs": {"model": ["11", 0]}},
+            "12": {
+                "class_type": "LTX_lora_loader",
+                "inputs": {
+                    "model": ["11", 0],
+                    "mode": "normal",
+                    "stack_data": json.dumps(
+                        [
+                            {"on": True, "lora": "packed.safetensors", "str": 0.7, "v": 1},
+                            {"on": False, "lora": "skipped.safetensors", "str": 1},
+                            {"on": True, "lora": "None", "str": 1},
+                        ]
+                    ),
+                    "lora_ui": "",
+                },
+            },
+            "7": {"class_type": "KSampler", "inputs": {"model": ["12", 0]}},
             "9": _save("7", "scene"),
         }
         workflow = {
@@ -677,6 +692,7 @@ class LinkedParameterTests(unittest.TestCase):
         self.assertEqual(
             result.branches[0].loras,
             [
+                "packed.safetensors (0.7)",
                 "stacked.safetensors (1.0)",
                 "full.safetensors (1.0)",
                 "plain.safetensors",

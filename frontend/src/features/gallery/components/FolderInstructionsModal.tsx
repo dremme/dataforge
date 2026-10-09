@@ -2,11 +2,12 @@ import { useCallback, useState } from "react";
 import { saveInstructionFile, type InstructionKind } from "@/shared/api/folderInstructions";
 import { formatApiError } from "@/shared/api/http";
 import { CAPTION_RULES_FILENAME, SYSPROMPT_FILENAME } from "@/shared/constants";
+import { jobTypeLabelFor } from "@/features/jobs/lib/jobMeta";
 import { useFolderInstructions } from "@/shared/hooks/useFolderInstructions";
 import { useTabList } from "@/shared/hooks/useTabList";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import { iconCopy, iconFilePlus, iconLoader2, iconX } from "@/shared/icons";
-import type { InstructionFileResponse } from "@/shared/types";
+import type { InstructionFileResponse, JobType } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { formatCount } from "@/shared/lib/format";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
@@ -20,6 +21,8 @@ interface InstructionDocument {
   label: string;
   filename: string;
   placeholder: string;
+  /** The job that reads the file; the backend refuses edits while one is queued or running. */
+  readBy: JobType;
 }
 
 const DOCUMENTS: Record<InstructionKind, InstructionDocument> = {
@@ -27,11 +30,13 @@ const DOCUMENTS: Record<InstructionKind, InstructionDocument> = {
     label: "System prompt",
     filename: SYSPROMPT_FILENAME,
     placeholder: "Write a system prompt for this folder...",
+    readBy: "auto_caption",
   },
   caption_rules: {
     label: "Caption rules",
     filename: CAPTION_RULES_FILENAME,
     placeholder: "No caption rules for this folder. Write YAML here, or start from the template.",
+    readBy: "check_caption_rules",
   },
 };
 
@@ -136,6 +141,16 @@ export function FolderInstructionsModal({
     if (!instructions) return null;
 
     const file = instructions[kind];
+    if (file.locked_by_job_id !== null) {
+      return (
+        <div className="folder-instructions-modal__source">
+          <span className="folder-instructions-modal__source-text">
+            Locked while <strong>{jobTypeLabelFor(DOCUMENTS[kind].readBy)}</strong> runs
+          </span>
+        </div>
+      );
+    }
+
     const fill =
       file.parent_folder !== null
         ? { label: "Copy from parent", icon: iconCopy, text: file.parent_text }
@@ -178,7 +193,7 @@ export function FolderInstructionsModal({
           : `This folder uses ${file.parent_relative_path}. Write here to replace it for this folder only.`,
       "aria-label": details.label,
       "aria-invalid": errors[kind] !== null,
-      editable: !saving,
+      editable: !saving && file.locked_by_job_id === null,
       onChange: (value: string) => setDraft(kind, value),
     };
 

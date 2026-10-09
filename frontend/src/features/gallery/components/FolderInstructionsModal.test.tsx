@@ -25,6 +25,7 @@ const NO_FILE: InstructionFileResponse = {
   parent_folder: null,
   parent_relative_path: null,
   parent_text: "",
+  locked_by_job_id: null,
 };
 
 const LABELS: Record<InstructionKind, string> = {
@@ -93,6 +94,18 @@ describe("FolderInstructionsModal", () => {
     saveInstructionFile.mockImplementation(async (_kind, _folder, text: string) =>
       own(`${text.trim()}\n`),
     );
+  });
+
+  it("locks a file while a job that reads it is queued or running", async () => {
+    fetchFolderInstructions.mockResolvedValue(
+      instructions({ sysprompt: file({ ...own(PROMPT), locked_by_job_id: "job-1" }) }),
+    );
+    renderModal();
+
+    expect(await editor("sysprompt")).toBeDisabled();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Caption rules" }));
+    expect(await editor("caption_rules")).toBeEnabled();
+    expect(screen.getByText(/Locked while/)).toHaveTextContent("Locked while Auto-caption runs");
   });
 
   it("reports the prompt in estimated tokens only", async () => {

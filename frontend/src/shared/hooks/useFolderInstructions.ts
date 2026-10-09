@@ -3,14 +3,22 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { folderKey } from "@/features/folder/lib/folderPath";
 import { fetchFolderInstructions, type InstructionKind } from "@/shared/api/folderInstructions";
 import { formatApiError } from "@/shared/api/http";
-import type { FolderInstructionsResponse, InstructionFileResponse } from "@/shared/types";
+import type { FolderInstructionsResponse, InstructionFileResponse, JobType } from "@/shared/types";
 
 export type FolderInstructionsState =
   | { status: "loading" }
   | { status: "ready"; instructions: FolderInstructionsResponse }
   | { status: "error"; message: string };
 
-const instructionsKey = (folderPath: string) => ["folder-instructions", folderKey(folderPath)];
+export const FOLDER_INSTRUCTIONS_KEY = ["folder-instructions"] as const;
+
+/** Jobs that read an instruction file; while one is queued or running, that file is locked. */
+export const INSTRUCTION_READING_JOB_TYPES: ReadonlySet<JobType> = new Set([
+  "auto_caption",
+  "check_caption_rules",
+]);
+
+const instructionsKey = (folderPath: string) => [...FOLDER_INSTRUCTIONS_KEY, folderKey(folderPath)];
 
 /** The folder's instruction files; `setFile` takes the response of a save. */
 export function useFolderInstructions(folderPath: string) {

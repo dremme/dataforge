@@ -526,6 +526,8 @@ class InstructionFileResponse(BaseModel):
     #: The parent's file as seen from the folder, e.g. ``../.captionrules``.
     parent_relative_path: str | None
     parent_text: str
+    #: A queued or running job that reads this file; saves are refused until it finishes.
+    locked_by_job_id: str | None
 
 
 class FolderInstructionsResponse(BaseModel):

@@ -21,6 +21,7 @@ const NO_FILE: InstructionFileResponse = {
   parent_folder: null,
   parent_relative_path: null,
   parent_text: "",
+  locked_by_job_id: null,
 };
 
 function rulesResponse(rules: Partial<InstructionFileResponse> = {}): FolderInstructionsResponse {

@@ -1050,6 +1050,26 @@ def _lora_names(graph: dict[str, dict], inputs: dict[str, object], value: object
     return []
 
 
+def _stacked_lora_names(graph: dict[str, dict], value: object) -> list[str]:
+    """The live rows of plaguekind's LoRA Loader Stack: a JSON list of `{on, lora, str}`."""
+    text = _scalar_at(graph, value)
+    try:
+        rows = json.loads(text) if isinstance(text, str) else None
+    except ValueError:
+        return []
+    if not isinstance(rows, list):
+        return []
+    names: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("on"):
+            continue
+        name = row.get("lora")
+        if isinstance(name, str) and name.strip() and name != "None":
+            strength = _strength(graph, row.get("str", 1.0))
+            names.append(f"{name.strip()} ({strength})" if strength is not None else name.strip())
+    return names
+
+
 def _collect_parameters(
     graph: dict[str, dict], node_ids: list[str]
 ) -> tuple[list[Parameter], list[str]]:
@@ -1060,8 +1080,13 @@ def _collect_parameters(
     for node_id in node_ids:
         inputs = _node_inputs(graph.get(node_id))
         for input_name, value in inputs.items():
-            if input_name.startswith("lora"):
-                for name in _lora_names(graph, inputs, value):
+            if input_name.startswith("lora") or input_name == "stack_data":
+                names = (
+                    _stacked_lora_names(graph, value)
+                    if input_name == "stack_data"
+                    else _lora_names(graph, inputs, value)
+                )
+                for name in names:
                     if name not in loras:
                         loras.append(name)
                 continue

@@ -1,8 +1,9 @@
 import type { ComfyMapNode } from "@/shared/types";
 
-// Layout runs in viewBox units, so nothing is measured: the SVG scales to its column, and the
-// boxes over it are placed in percentages of the same box.
-const WIDTH = 480;
+// Layout runs in viewBox units, one per CSS pixel at the width it is given, so no box is
+// measured: the SVG scales to its column, and the boxes over it are placed in percentages of the
+// same box. Below the minimum the whole drawing scales down instead of crowding its rows.
+const MIN_WIDTH = 480;
 const PAD = 8;
 const NODE_HEIGHT = 30;
 const LAYER_GAP = 28;
@@ -73,7 +74,8 @@ interface Slot {
  * shorten the wires), and every slot is pulled over the slots it links to, so edges run as
  * straight as the row's room allows.
  */
-export function layoutWorkflowMap(map: ComfyMapNode[]): WorkflowMapLayout {
+export function layoutWorkflowMap(map: ComfyMapNode[], available = MIN_WIDTH): WorkflowMapLayout {
+  const width = Math.max(MIN_WIDTH, Math.floor(available));
   const rowOf = assignRows(map);
   const rowCount = Math.max(0, ...rowOf.values()) + 1;
 
@@ -115,7 +117,7 @@ export function layoutWorkflowMap(map: ComfyMapNode[]): WorkflowMapLayout {
   const get = (id: string) => slots.get(id)!;
   const centre = (placed: Slot) => placed.x + placed.width / 2;
   const gap = (a: Slot, b: Slot) => (a.box && b.box ? COLUMN_GAP : WIRE_GAP);
-  const contentWidth = WIDTH - 2 * PAD;
+  const contentWidth = width - 2 * PAD;
 
   const crossings = () => {
     const position = new Map(rows.flatMap((row) => row.map((id, index) => [id, index])));
@@ -178,8 +180,8 @@ export function layoutWorkflowMap(map: ComfyMapNode[]): WorkflowMapLayout {
       const boxes = members.filter((placed) => placed.box);
       const wires = members.length - boxes.length;
       const room = contentWidth - (boxes.length - 1) * COLUMN_GAP - wires * 2 * WIRE_GAP;
-      const width = Math.min(MAX_NODE_WIDTH, room / Math.max(1, boxes.length));
-      for (const placed of boxes) placed.width = width;
+      const boxWidth = Math.min(MAX_NODE_WIDTH, room / Math.max(1, boxes.length));
+      for (const placed of boxes) placed.width = boxWidth;
       // Packed and centred, before the pulls below move it.
       const span = members.reduce((t, s, i) => t + s.width + (i ? gap(members[i - 1], s) : 0), 0);
       let x = PAD + (contentWidth - span) / 2;
@@ -279,7 +281,7 @@ export function layoutWorkflowMap(map: ComfyMapNode[]): WorkflowMapLayout {
     return { from, to, ran: ran.get(from)! && ran.get(to)!, path };
   });
 
-  return { width: WIDTH, height: top(rowCount - 1) + NODE_HEIGHT + PAD, nodes, edges };
+  return { width, height: top(rowCount - 1) + NODE_HEIGHT + PAD, nodes, edges };
 }
 
 function slot(id: string, row: number, box: boolean): Slot {

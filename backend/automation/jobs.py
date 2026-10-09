@@ -433,8 +433,13 @@ class JobManager:
 
     def initialize(self) -> None:
         resumable = self._resumable_jobs()
+        resumed_ids = {job.id for job, _ in resumable}
 
-        jobs_store.recover_stale_jobs()
+        for job_id in jobs_store.recover_stale_jobs():
+            stored = jobs_store.get_job(job_id)
+            # Only the jobs this restart cut off; a job already finished is not announced again.
+            if stored is not None and job_id not in resumed_ids:
+                self._notify_outcome(stored)
 
         for job, params in resumable:
             self._resume_job(job, params)
@@ -511,6 +516,14 @@ class JobManager:
         if stored is not None:
             return Job.from_dict(stored)
         return None
+
+    def active_jobs(self, job_type: JobType) -> list[Job]:
+        with self._lock:
+            return [
+                job
+                for job in self._jobs.values()
+                if job.job_type == job_type and job.status in ACTIVE_STATUSES
+            ]
 
     def get_active_job_for_folder(
         self,

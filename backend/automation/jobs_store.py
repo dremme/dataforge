@@ -135,7 +135,8 @@ def list_active_jobs() -> list[dict[str, object]]:
     return [_row_to_dict(row) for row in rows]
 
 
-def recover_stale_jobs() -> int:
+def recover_stale_jobs() -> list[str]:
+    """Marks every job a previous process left active as interrupted; returns their ids."""
     # A fresh revision, or a tab still holding the pre-restart "running" frame would keep it.
     with get_connection() as conn:
         cursor = conn.execute(
@@ -146,11 +147,13 @@ def recover_stale_jobs() -> int:
                 finished_at = COALESCE(finished_at, datetime('now')),
                 revision = ?
             WHERE status IN ('queued', 'running')
+            RETURNING id
             """,
             (next_revision(),),
         )
+        recovered = [str(row[0]) for row in cursor.fetchall()]
         conn.commit()
-        return cursor.rowcount
+        return recovered
 
 
 def _normalize_folder(folder: str) -> str:

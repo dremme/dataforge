@@ -93,6 +93,7 @@ $toolbar-search-width-max: 22rem;
     }
 
     &--collapsed {
+      @include btn-surface-default;
       width: var(--toolbar-control-height);
       min-width: var(--toolbar-control-height);
       max-width: var(--toolbar-control-height);
@@ -143,17 +144,6 @@ $toolbar-search-width-max: 22rem;
 
     &-error-text {
       @include visually-hidden;
-    }
-
-    &-icon {
-      @include icon-block;
-      @include icon-size(var(--icon-size-base));
-      flex-shrink: 0;
-      color: var(--text-subtle);
-      transition:
-        color var(--transition),
-        opacity var(--transition);
-      @include icon-muted;
     }
 
     &-field {

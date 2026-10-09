@@ -20,6 +20,10 @@ import {
 import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs";
 import { useServerEvent, useStreamConnected } from "@/shared/events/serverEvents";
 import { formatApiError } from "@/shared/api/http";
+import {
+  FOLDER_INSTRUCTIONS_KEY,
+  INSTRUCTION_READING_JOB_TYPES,
+} from "@/shared/hooks/useFolderInstructions";
 import { useNotify } from "@/shared/notifications/notifications";
 import { mergedRead } from "@/shared/query/queryClient";
 import type { ExternalOstrisJob, ExternalOstrisJobsResponse, Job, JobType } from "@/shared/types";
@@ -241,6 +245,17 @@ export function JobsProvider({ children }: { children: ReactNode }) {
   }, [jobs, seenAtMs]);
 
   const activeCount = useMemo(() => runningJobCount(jobs, external.jobs), [jobs, external.jobs]);
+
+  // The backend reports which instruction files these jobs lock, so re-read when the set changes.
+  const instructionJobIds = jobs
+    .filter(
+      (job) => INSTRUCTION_READING_JOB_TYPES.has(job.job_type) && isActiveJobStatus(job.status),
+    )
+    .map((job) => job.id)
+    .join(" ");
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: FOLDER_INSTRUCTIONS_KEY });
+  }, [instructionJobIds, queryClient]);
 
   const refreshLive = useCallback(
     () => queryClient.invalidateQueries({ queryKey: jobKeys.live }),

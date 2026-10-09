@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAutomationJob } from "@/features/automation/api/jobs";
+import { FOLDER_INSTRUCTIONS_KEY } from "@/shared/hooks/useFolderInstructions";
 import { cancelJob, deleteAllJobs, deleteJob, fetchJobs } from "@/features/jobs/api/jobs";
 import { fetchOstrisJobs, stopOstrisJob } from "@/features/jobs/api/externalJobs";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
@@ -66,7 +67,7 @@ function Probe({ onRender }: { onRender: (value: ReturnType<typeof useJobs>) => 
   return null;
 }
 
-function renderProvider() {
+function renderProvider({ wrapper } = queryWrapper()) {
   const latest = { current: null as ReturnType<typeof useJobs> | null };
 
   render(
@@ -81,7 +82,7 @@ function renderProvider() {
         </JobsProvider>
       </ServerEventsProvider>
     </NotificationsProvider>,
-    { wrapper: queryWrapper().wrapper },
+    { wrapper },
   );
 
   return latest;
@@ -199,6 +200,22 @@ describe("JobsProvider", () => {
     await waitFor(() => expect(latest.current?.jobs[0].processed).toBe(9));
     expect(latest.current?.activeCount).toBe(0);
     expect(listJobs).toHaveBeenCalledTimes(callsBeforePush);
+  });
+
+  it("re-reads folder instructions when a job that locks them finishes", async () => {
+    const stream = installFakeEventSource();
+    const query = queryWrapper();
+    const latest = renderProvider(query);
+    await connect(stream);
+    await waitFor(() => expect(latest.current?.jobs).toHaveLength(1));
+
+    const key = [...FOLDER_INSTRUCTIONS_KEY, "folder"];
+    query.client.setQueryData(key, {});
+    act(() => {
+      stream.push({ type: "job", job: { ...runningJob, status: "completed", revision: 20 } });
+    });
+
+    await waitFor(() => expect(query.client.getQueryState(key)?.isInvalidated).toBe(true));
   });
 
   it("ignores a pushed frame older than the copy it already holds", async () => {

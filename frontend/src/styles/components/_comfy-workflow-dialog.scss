@@ -419,11 +419,10 @@
   // ---- Workflow map --------------------------------------------------------------------------------
 
   // Lines in an SVG, boxes as HTML over it: both are placed in the same viewBox proportions, so
-  // they scale together. Capped at the viewBox width so the map never scales up.
+  // they scale together. The layout takes the measured width, so the map never scales up.
   &__map {
     position: relative;
     width: 100%;
-    max-width: 30rem;
     // A diagram, not prose: selecting its labels only gets in the way of hovering and clicking.
     user-select: none;
     -webkit-user-select: none;

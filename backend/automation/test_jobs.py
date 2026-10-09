@@ -469,6 +469,32 @@ class JobOutcomeNotificationTests(unittest.TestCase):
 
         self.assertEqual(list_notifications(), [])
 
+    def test_a_job_cut_off_by_a_restart_is_announced_once(self) -> None:
+        jobs_store.save_job(Job(id=self.job_id, folder=r"C:\Photos", status="running").to_dict())
+
+        job_manager.initialize()
+        job_manager.initialize()
+
+        [stored] = list_notifications()
+        self.assertEqual(stored["variant"], "danger")
+        self.assertEqual(
+            stored["message"],
+            'Auto-caption failed in "Photos": Job interrupted when the server restarted.',
+        )
+        self.assertEqual(stored["job_id"], self.job_id)
+
+    def test_a_job_resumed_after_a_restart_is_not_announced(self) -> None:
+        resumed = Job(id=self.job_id, folder=r"C:\Photos", status="running")
+        jobs_store.save_job(resumed.to_dict())
+
+        with (
+            patch.object(job_manager, "_resumable_jobs", return_value=[(resumed, {})]),
+            patch.object(job_manager, "_resume_job"),
+        ):
+            job_manager.initialize()
+
+        self.assertEqual(list_notifications(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

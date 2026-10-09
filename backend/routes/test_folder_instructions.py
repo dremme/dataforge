@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import quote
 
+from automation.jobs import Job, JobType, job_manager
 from caption_rules import STARTER_CAPTION_RULES
 from constants import CAPTION_RULES_FILENAME, SYSPROMPT_FILENAME
 from routes._test_client import client
-from testing_fixtures import TempMediaFolder
+from testing_fixtures import TempMediaFolder, write_sysprompt
 
 #: The PUT route, and a valid body, for each instruction file.
 FILES = {
@@ -44,6 +46,7 @@ class FolderInstructionsEndpointTests(unittest.TestCase):
             "parent_folder": None,
             "parent_relative_path": None,
             "parent_text": "",
+            "locked_by_job_id": None,
         }
         with TempMediaFolder() as root:
             self.assertEqual(
@@ -163,3 +166,66 @@ class FolderInstructionsEndpointTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InstructionsLockedByJobTests(unittest.TestCase):
+    """A queued or running job reads the file it started with; a save would not reach it."""
+
+    def run_job(self, folder: Path, job_type: JobType, status: str = "running") -> None:
+        job = Job(id=f"{job_type}-1", folder=str(folder), status=status, job_type=job_type)
+        patcher = patch.dict(job_manager._jobs, {job.id: job})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_auto_caption_locks_the_prompt_it_reads_but_not_the_rules(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            self.run_job(root, "auto_caption", status="queued")
+
+            refused = _save(root, SYSPROMPT_FILENAME, "Describe the person.")
+            self.assertEqual(refused.status_code, 409, refused.text)
+            self.assertIn("Auto-caption", refused.json()["detail"])
+            self.assertEqual((root / SYSPROMPT_FILENAME).read_text(), "Describe the scene.")
+
+            self.assertEqual(
+                _save(root, CAPTION_RULES_FILENAME, "repeated_phrases: 4").status_code, 200
+            )
+            reported = _instructions(root)
+            self.assertEqual(reported["sysprompt"]["locked_by_job_id"], "auto_caption-1")
+            self.assertIsNone(reported["caption_rules"]["locked_by_job_id"])
+
+    def test_a_job_in_a_subfolder_locks_the_parent_file_it_inherits(self) -> None:
+        with TempMediaFolder() as root:
+            child = _nested(root)
+            self.run_job(child, "check_caption_rules")
+
+            self.assertEqual(
+                _save(root, CAPTION_RULES_FILENAME, "repeated_phrases: 4").status_code, 409
+            )
+            # A file of its own in the subfolder would replace the inherited one just as well.
+            self.assertEqual(
+                _save(child, CAPTION_RULES_FILENAME, "repeated_phrases: 4").status_code, 409
+            )
+
+    def test_a_subfolder_with_its_own_file_leaves_the_parent_editable(self) -> None:
+        with TempMediaFolder() as root:
+            child = _nested(root)
+            write_sysprompt(child, "Describe the person.")
+            self.run_job(child, "auto_caption")
+
+            self.assertEqual(
+                _save(root, SYSPROMPT_FILENAME, "Describe the scene.").status_code, 200
+            )
+            self.assertIsNone(_instructions(root)["sysprompt"]["locked_by_job_id"])
+
+    def test_a_sibling_folder_job_or_a_finished_job_locks_nothing(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "a").mkdir()
+            (root / "b").mkdir()
+            self.run_job(root / "a", "auto_caption")
+            self.run_job(root, "check_caption_rules", status="completed")
+
+            self.assertEqual(_save(root / "b", SYSPROMPT_FILENAME, "Describe it.").status_code, 200)
+            self.assertEqual(
+                _save(root, CAPTION_RULES_FILENAME, "repeated_phrases: 4").status_code, 200
+            )
