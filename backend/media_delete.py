@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from media_group import media_group_paths
+from media_group import media_group_paths, shared_stem_paths
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,8 @@ def delete_media_with_sidecars(file_path: Path) -> dict[str, object]:
     deleted: list[str] = []
     # Listed before the media goes: the candidate is found by pairing against the file itself.
     media, *related = media_group_paths(file_path)
+    shared = shared_stem_paths(file_path)
+    related = [path for path in related if path not in shared]
 
     try:
         delete_path(media)

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { importFiles, previewFileImport } from "@/features/folder/api/files";
 import { formatApiError } from "@/shared/api/http";
 import { isExternalFileDrag } from "@/shared/lib/dragTransfer";
@@ -6,6 +6,12 @@ import { filterImportableFiles } from "@/features/folder/lib/importableFiles";
 
 type OverwritePrompt = {
   conflicts: string[];
+};
+
+/** The prompt's files with the folder they were previewed against; confirming imports there. */
+type PendingImport = {
+  folderPath: string;
+  files: File[];
 };
 
 type UseFolderFileDropOptions = {
@@ -20,7 +26,17 @@ export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolder
   const [importError, setImportError] = useState<string | null>(null);
   const [overwritePrompt, setOverwritePrompt] = useState<OverwritePrompt | null>(null);
   const dragDepthRef = useRef(0);
-  const pendingFilesRef = useRef<File[]>([]);
+  const pendingRef = useRef<PendingImport | null>(null);
+  // Bumped on navigation so a preview answered for the previous folder is dropped.
+  const generationRef = useRef(0);
+  // Synchronous, unlike `importing`: a double click must not send the upload twice.
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    generationRef.current += 1;
+    pendingRef.current = null;
+    setOverwritePrompt(null);
+  }, [folderPath]);
 
   const resetDragState = useCallback(() => {
     dragDepthRef.current = 0;
@@ -28,29 +44,31 @@ export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolder
   }, []);
 
   const runImport = useCallback(
-    async (files: File[], overwrite: boolean) => {
-      if (!folderPath || files.length === 0) {
+    async (destination: string, files: File[], overwrite: boolean) => {
+      if (files.length === 0 || busyRef.current) {
         return;
       }
 
+      busyRef.current = true;
       setImporting(true);
       setImportError(null);
 
       try {
-        const result = await importFiles(folderPath, files, overwrite);
+        const result = await importFiles(destination, files, overwrite);
         if (result.copied.length > 0) {
           await onImported();
         }
       } catch (error) {
         setImportError(formatApiError(error));
       } finally {
+        busyRef.current = false;
         setImporting(false);
-        pendingFilesRef.current = [];
+        pendingRef.current = null;
         setOverwritePrompt(null);
         resetDragState();
       }
     },
-    [folderPath, onImported, resetDragState],
+    [onImported, resetDragState],
   );
 
   const beginImport = useCallback(
@@ -66,12 +84,18 @@ export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolder
       }
 
       setImportError(null);
+      const destination = folderPath;
+      const generation = generationRef.current;
 
       try {
         const preview = await previewFileImport(
-          folderPath,
+          destination,
           importable.map((file) => file.name),
         );
+        if (generation !== generationRef.current) {
+          resetDragState();
+          return;
+        }
         const allowed = new Set(preview.importable);
         const allowedFiles = importable.filter((file) => allowed.has(file.name));
 
@@ -81,13 +105,13 @@ export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolder
         }
 
         if (preview.conflicts.length > 0) {
-          pendingFilesRef.current = allowedFiles;
+          pendingRef.current = { folderPath: destination, files: allowedFiles };
           setOverwritePrompt({ conflicts: preview.conflicts });
           resetDragState();
           return;
         }
 
-        await runImport(allowedFiles, false);
+        await runImport(destination, allowedFiles, false);
       } catch (error) {
         setImportError(formatApiError(error));
         resetDragState();
@@ -164,15 +188,17 @@ export function useFolderFileDrop({ folderPath, enabled, onImported }: UseFolder
   );
 
   const confirmOverwrite = useCallback(() => {
-    void runImport(pendingFilesRef.current, true);
+    const pending = pendingRef.current;
+    if (pending) void runImport(pending.folderPath, pending.files, true);
   }, [runImport]);
 
   const importNewFilesOnly = useCallback(() => {
-    void runImport(pendingFilesRef.current, false);
+    const pending = pendingRef.current;
+    if (pending) void runImport(pending.folderPath, pending.files, false);
   }, [runImport]);
 
   const dismissOverwritePrompt = useCallback(() => {
-    pendingFilesRef.current = [];
+    pendingRef.current = null;
     setOverwritePrompt(null);
   }, []);
 

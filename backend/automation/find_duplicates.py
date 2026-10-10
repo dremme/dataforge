@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from pathlib import Path
 
 from PIL import Image
@@ -22,6 +23,12 @@ DEFAULT_THRESHOLD = "near"
 
 HASH_SIZE = 8
 
+# dHash sees only luminance gradients, so two flat images or a recoloured copy share a hash.
+# Exact mode also compares colour, as the mean absolute 0-255 difference of small RGB copies:
+# a recompressed or resized copy stays well under the tolerance, a visible recolour does not.
+COLOUR_SIGNATURE_SIZE = 16
+EXACT_COLOUR_TOLERANCE = 6.0
+
 
 def difference_hash(image: Image.Image, size: int = HASH_SIZE) -> int:
     """A 64-bit perceptual hash of the image's luminance."""
@@ -40,6 +47,15 @@ def hamming_distance(left: int, right: int) -> int:
     return (left ^ right).bit_count()
 
 
+def colour_signature(image: Image.Image) -> bytes:
+    size = (COLOUR_SIGNATURE_SIZE, COLOUR_SIGNATURE_SIZE)
+    return image.convert("RGB").resize(size, Image.Resampling.BOX).tobytes()
+
+
+def colour_distance(left: bytes, right: bytes) -> float:
+    return sum(abs(a - b) for a, b in zip(left, right, strict=True)) / len(left)
+
+
 def _representative_frame(media_path: Path) -> tuple[Image.Image | None, str | None]:
     """A still, or a video's middle frame so opening fades do not hash unrelated clips alike."""
     if media_kind_for(media_path) != "video":
@@ -54,8 +70,33 @@ def _representative_frame(media_path: Path) -> tuple[Image.Image | None, str | N
     return frames.images[len(frames.images) // 2], None
 
 
-def _group_duplicates(hashes: dict[Path, int], max_distance: int) -> list[list[Path]]:
-    """Files grouped so every member is within ``max_distance`` of another member."""
+def _group_exact(hashes: dict[Path, int], colours: dict[Path, bytes]) -> list[list[Path]]:
+    """Files with one hash, split by colour so each group looks the same. Linear in the files."""
+    buckets: dict[int, list[Path]] = defaultdict(list)
+    for path, value in hashes.items():
+        buckets[value].append(path)
+
+    groups: list[list[Path]] = []
+    for members in buckets.values():
+        clusters: list[list[Path]] = []
+        for path in members:
+            for cluster in clusters:
+                if colour_distance(colours[cluster[0]], colours[path]) <= EXACT_COLOUR_TOLERANCE:
+                    cluster.append(path)
+                    break
+            else:
+                clusters.append([path])
+        groups.extend(sorted(cluster) for cluster in clusters if len(cluster) > 1)
+    return sorted(groups)
+
+
+def _group_duplicates(
+    hashes: dict[Path, int], max_distance: int, should_cancel: ShouldCancel | None = None
+) -> list[list[Path]] | None:
+    """Files grouped so every member is within ``max_distance`` of another; ``None`` if cancelled.
+
+    Every pair is compared, so this polls ``should_cancel`` once per file.
+    """
     paths = list(hashes)
     parent = {path: path for path in paths}
 
@@ -71,6 +112,8 @@ def _group_duplicates(hashes: dict[Path, int], max_distance: int) -> list[list[P
             parent[right_root] = left_root
 
     for index, left in enumerate(paths):
+        if should_cancel and should_cancel():
+            return None
         for right in paths[index + 1 :]:
             if hamming_distance(hashes[left], hashes[right]) <= max_distance:
                 union(left, right)
@@ -119,6 +162,7 @@ def run_find_duplicates_job(
     media_files = filter_media_list(list_find_duplicates_media(folder), selected_paths)
     max_distance = THRESHOLD_DISTANCES[threshold]
     hashes: dict[Path, int] = {}
+    colours: dict[Path, bytes] = {}
 
     def process(media_path: Path) -> FileOutcome:
         image, error = _representative_frame(media_path)
@@ -126,6 +170,8 @@ def run_find_duplicates_job(
             return FileOutcome.counted("read_error", error)
 
         hashes[media_path] = difference_hash(image)
+        if max_distance == 0:
+            colours[media_path] = colour_signature(image)
         return FileOutcome.counted("hashed")
 
     result = run_media_job(
@@ -153,13 +199,22 @@ def run_find_duplicates_job(
     if stats.get("cancelled"):
         return result
 
-    groups = _group_duplicates(hashes, max_distance)
+    # A cancel during grouping returns before any sidecar is written, so nothing changes.
+    groups = (
+        _group_exact(hashes, colours)
+        if max_distance == 0
+        else _group_duplicates(hashes, max_distance, should_cancel)
+    )
+    if groups is None:
+        return result
 
     findings: dict[Path, DuplicateFinding] = {}
     for group in groups:
+        if should_cancel and should_cancel():
+            return result
         finding = DuplicateFinding(
             group=group_id_for([path.name for path in group]),
-            max_distance=_group_max_distance(group, hashes),
+            max_distance=0 if max_distance == 0 else _group_max_distance(group, hashes),
             threshold=threshold,
         )
         for path in group:

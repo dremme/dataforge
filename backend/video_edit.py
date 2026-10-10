@@ -18,16 +18,14 @@ from color_detail import DefinitionParams, definition_params, is_detail_identity
 from constants import VIDEO_EDIT_MUXERS
 from edit_sidecars import (
     ensure_backup,
+    publish_with_spec,
     read_spec,
     restore_backup,
-    stale_path_for,
     sweep_edit_temp_files,
     temp_path_for,
-    write_spec,
 )
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import ProgressCallback, ShouldCancel, run_ffmpeg
-from file_publish import publish_replacing
 from media_dimensions import media_dimensions
 from schemas import MaskRegion, VideoEditResponse, VideoEditSpec
 from size_fit import cover_size, fitted_size
@@ -657,12 +655,11 @@ def apply_video_edit(
                 timeout=VIDEO_EDIT_TIMEOUT_SECONDS,
                 cwd=Path(workspace),
             )
-            publish_replacing(temp_path, media, stale_path_for(media))
+            publish_with_spec(temp_path, media, spec)
         finally:
             with suppress(OSError):
                 temp_path.unlink(missing_ok=True)
 
-    write_spec(media, spec)
     return describe_edited(media, has_backup=True)
 
 

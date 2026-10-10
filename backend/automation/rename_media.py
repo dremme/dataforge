@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import filecmp
 import logging
 import re
+import shutil
 from pathlib import Path
 
 from automation.job_runner import ProgressCallback, ShouldCancel
@@ -12,7 +14,7 @@ from candidate_pairing import candidate_path_for
 from comfy_candidates import is_settling, read_candidate_sidecar, write_candidate_sidecar
 from constants import MEDIA_EXTENSIONS
 from edit_sidecars import is_rendering
-from media_group import group_target, media_group_paths
+from media_group import group_target, media_group_paths, shared_stem_paths
 
 logger = logging.getLogger(__name__)
 
@@ -69,17 +71,30 @@ def _repoint_candidate_record(source_media: Path, target_media: Path) -> None:
 
 
 def _rename_media_group(source_media: Path, target_media: Path) -> None:
-    renamed: list[tuple[Path, Path]] = []
+    """A file a same-stem sibling still shares is copied; an identical one already there merges."""
+    shared = shared_stem_paths(source_media)
+    # (original, target, copied): a copy is undone by removing it, not by renaming it back.
+    renamed: list[tuple[Path, Path, bool]] = []
     try:
         for path in media_group_paths(source_media):
             target = group_target(source_media, target_media, path)
-            path.rename(target)
-            renamed.append((path, target))
+            if path in shared:
+                shutil.copy2(path, target)
+                renamed.append((path, target, True))
+            elif path != source_media and target.is_file() and filecmp.cmp(path, target, False):
+                # A sibling renamed earlier in the batch already carried this shared file here.
+                path.unlink()
+            else:
+                path.rename(target)
+                renamed.append((path, target, False))
         _repoint_candidate_record(source_media, target_media)
     except OSError:
-        for original, target in reversed(renamed):
+        for original, target, copied in reversed(renamed):
             try:
-                target.rename(original)
+                if copied:
+                    target.unlink(missing_ok=True)
+                else:
+                    target.rename(original)
             except OSError:
                 logger.exception("Failed to restore %s from %s", original, target)
         raise

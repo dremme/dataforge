@@ -13,6 +13,7 @@ from PIL import Image, UnidentifiedImageError
 from app_settings import effective_settings
 from constants import MEDIA_EXTENSIONS, PILLOW_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
+from image_io import displayed_image
 from schemas import ThumbnailCacheCleared, ThumbnailCacheStats
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,11 @@ class ThumbnailUnavailableError(ThumbnailError):
     """Raised when a thumbnail cannot be produced (for example, ffmpeg missing)."""
 
 
+#: Part of the cache key; bump it when rendering changes so stale thumbnails are not served.
+#: 2: EXIF Orientation applied.
+THUMBNAIL_RENDER_VERSION = 2
+
+
 def get_thumbnail_cache_dir() -> Path:
     override = os.environ.get("DATAFORGE_THUMBNAIL_CACHE")
     if override:
@@ -62,7 +68,7 @@ def normalize_thumbnail_width(width: int) -> int:
 
 def thumbnail_cache_path(source: Path, width: int) -> Path:
     stat = source.stat()
-    key = f"{source.resolve()}|{width}|{stat.st_mtime_ns}:{stat.st_size}"
+    key = f"{source.resolve()}|{width}|{stat.st_mtime_ns}:{stat.st_size}|{THUMBNAIL_RENDER_VERSION}"
     digest = hashlib.sha256(key.encode()).hexdigest()
     return get_thumbnail_cache_dir() / digest[:2] / f"{digest}{THUMBNAIL_SUFFIX}"
 
@@ -104,7 +110,7 @@ def _render_image_thumbnail(source: Path, destination: Path, width: int) -> None
                 image.draft("RGB", (width, width))
             except Exception:
                 logger.debug("Thumbnail draft mode unavailable for %s", source, exc_info=True)
-            _save_thumbnail_webp(image, destination, width)
+            _save_thumbnail_webp(displayed_image(image), destination, width)
     except (OSError, UnidentifiedImageError) as exc:
         raise ThumbnailError("Failed to read image for thumbnail generation") from exc
 

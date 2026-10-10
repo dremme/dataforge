@@ -12,7 +12,11 @@ from fastapi import HTTPException
 from candidate_pairing import candidate_path_for, candidate_sidecar_path
 from captions import issue_file_path
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
-from media_transfer import preview_media_transfer, transfer_media_with_sidecars
+from media_transfer import (
+    preview_media_transfer,
+    transfer_media_batch,
+    transfer_media_with_sidecars,
+)
 from testing_fixtures import (
     TempMediaFolder,
     write_media,
@@ -537,6 +541,101 @@ class TransferNameLinkedFilesTests(unittest.TestCase):
             self.assertTrue((source_dir / CAPTION_BACKUP_DIR_NAME / "photo.txt").is_file())
             self.assertFalse((destination_dir / STAGING_DIR_NAME).exists())
             self.assertFalse((destination_dir / CAPTION_BACKUP_DIR_NAME).exists())
+
+
+class SharedStemTransferTests(unittest.TestCase):
+    def _folders(self, root: Path) -> tuple[Path, Path]:
+        source_dir, destination_dir = root / "Source", root / "Destination"
+        source_dir.mkdir()
+        destination_dir.mkdir()
+        return source_dir, destination_dir
+
+    def test_moving_one_sibling_copies_the_caption_they_share(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            jpg = write_media(source_dir, "item.jpg")
+            write_media(source_dir, "item.png")
+            caption = write_txt_caption(jpg, "Shared.")
+
+            transfer_media_with_sidecars(jpg, destination_dir, mode="move")
+
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Shared.")
+            self.assertEqual((destination_dir / "item.txt").read_text(encoding="utf-8"), "Shared.")
+
+    def test_moving_both_siblings_moves_the_caption_once(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            jpg = write_media(source_dir, "item.jpg")
+            png = write_media(source_dir, "item.png")
+            caption = write_txt_caption(jpg, "Shared.")
+
+            result = transfer_media_batch(destination_dir, [jpg, png], mode="move")
+
+            self.assertEqual(result["failed"], [])
+            self.assertFalse(caption.exists())
+            self.assertEqual((destination_dir / "item.txt").read_text(encoding="utf-8"), "Shared.")
+
+
+class SidecarCollisionTests(unittest.TestCase):
+    def _folders(self, root: Path) -> tuple[Path, Path]:
+        source_dir, destination_dir = root / "Source", root / "Destination"
+        source_dir.mkdir()
+        destination_dir.mkdir()
+        return source_dir, destination_dir
+
+    def test_a_caption_collision_is_a_conflict_in_the_preview(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            jpg = write_media(source_dir, "item.jpg")
+            write_txt_caption(jpg, "Source caption.")
+            write_txt_caption(write_media(destination_dir, "item.png"), "Destination caption.")
+
+            preview = preview_media_transfer(destination_dir, [jpg])
+
+            self.assertEqual(preview["conflicts"], ["item.jpg"])
+
+    def test_declining_overwrite_keeps_every_destination_byte(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            jpg = write_media(source_dir, "item.jpg")
+            write_txt_caption(jpg, "Source caption.")
+            kept = write_txt_caption(write_media(destination_dir, "item.png"), "Destination.")
+
+            with self.assertRaises(HTTPException) as caught:
+                transfer_media_with_sidecars(jpg, destination_dir, mode="copy", overwrite=False)
+
+            self.assertEqual(caught.exception.status_code, 409)
+            self.assertEqual(kept.read_text(encoding="utf-8"), "Destination.")
+            self.assertFalse((destination_dir / "item.jpg").exists())
+
+    def test_overwrite_never_replaces_a_caption_another_destination_file_owns(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            jpg = write_media(source_dir, "item.jpg")
+            write_txt_caption(jpg, "Source caption.")
+            kept = write_txt_caption(write_media(destination_dir, "item.png"), "Destination.")
+
+            with self.assertRaises(HTTPException) as caught:
+                transfer_media_with_sidecars(jpg, destination_dir, mode="copy", overwrite=True)
+
+            self.assertEqual(caught.exception.status_code, 409)
+            self.assertIn("item.png", str(caught.exception.detail))
+            self.assertEqual(kept.read_text(encoding="utf-8"), "Destination.")
+
+    def test_an_orphan_destination_sidecar_needs_overwrite(self) -> None:
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            jpg = write_media(source_dir, "item.jpg")
+            write_txt_caption(jpg, "Source caption.")
+            orphan = destination_dir / "item.txt"
+            orphan.write_text("Orphan.", encoding="utf-8")
+
+            with self.assertRaises(HTTPException):
+                transfer_media_with_sidecars(jpg, destination_dir, mode="copy", overwrite=False)
+            self.assertEqual(orphan.read_text(encoding="utf-8"), "Orphan.")
+
+            transfer_media_with_sidecars(jpg, destination_dir, mode="copy", overwrite=True)
+            self.assertEqual(orphan.read_text(encoding="utf-8"), "Source caption.")
 
 
 if __name__ == "__main__":

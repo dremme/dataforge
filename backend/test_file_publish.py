@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from file_publish import publish_replacing
+from file_publish import publish_replacing, sweep_publish_leftovers
 from testing_fixtures import TempMediaFolder
 
 
@@ -130,6 +130,64 @@ class PublishReplacingTests(unittest.TestCase):
             self.assertEqual(final_path.read_bytes(), b"new-bytes")
             self.assertFalse(temp_path.exists())
             self.assertFalse(stale_path.exists())
+
+
+class SweepPublishLeftoversTests(unittest.TestCase):
+    def _sweep(self, root: Path, busy: frozenset[str] = frozenset()) -> None:
+        sweep_publish_leftovers(
+            root,
+            temp_suffix=".publish-tmp",
+            stale_suffix=".publish-stale",
+            is_busy=lambda owner: owner.name in busy,
+        )
+
+    def test_drops_the_leftovers_of_an_idle_file(self) -> None:
+        with TempMediaFolder() as root:
+            temp_path, final_path, stale_path = _names(root, "photo.png")
+            final_path.write_bytes(b"live")
+            temp_path.write_bytes(b"partial")
+            stale_path.write_bytes(b"displaced")
+
+            self._sweep(root)
+
+            self.assertEqual(final_path.read_bytes(), b"live")
+            self.assertFalse(temp_path.exists())
+            self.assertFalse(stale_path.exists())
+
+    def test_keeps_the_leftovers_of_a_file_being_written(self) -> None:
+        with TempMediaFolder() as root:
+            temp_path, final_path, stale_path = _names(root, "photo.png")
+            final_path.write_bytes(b"live")
+            temp_path.write_bytes(b"rendering")
+            stale_path.write_bytes(b"parked")
+
+            self._sweep(root, busy=frozenset({"photo.png"}))
+
+            self.assertEqual(temp_path.read_bytes(), b"rendering")
+            self.assertEqual(stale_path.read_bytes(), b"parked")
+
+    def test_restores_a_parked_original_whose_live_file_is_gone(self) -> None:
+        """A failed publish whose rollback also failed leaves the only copy at the stale name."""
+        with TempMediaFolder() as root:
+            temp_path, final_path, stale_path = _names(root, "photo.png")
+            final_path.write_bytes(b"original")
+            temp_path.write_bytes(b"new")
+
+            # 1: direct attempt, 2: park the original, 3: install, 4: roll back.
+            with patch("file_publish.os.replace", side_effect=_denying_replace(1, 3, 4)):
+                with self.assertRaises(OSError):
+                    publish_replacing(temp_path, final_path, stale_path)
+            self.assertFalse(final_path.exists())
+
+            self._sweep(root)
+
+            self.assertEqual(final_path.read_bytes(), b"original")
+            self.assertFalse(stale_path.exists())
+            self.assertFalse(temp_path.exists())
+
+    def test_survives_a_folder_that_is_not_there(self) -> None:
+        with TempMediaFolder() as root:
+            self._sweep(root / "missing")
 
 
 if __name__ == "__main__":

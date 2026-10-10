@@ -265,11 +265,27 @@ const MEDIA_KIND_SPLIT: TimingSplit = {
 
 const TIMING_SPLITS: Partial<Record<JobType, TimingSplit>> = {
   auto_caption: {
-    slow: ["success", "api_error", "frame_error", "too_short", "read_error", "write_error"],
+    slow: [
+      "success",
+      "api_error",
+      "frame_error",
+      "too_short",
+      "read_error",
+      "write_error",
+      "caption_changed",
+    ],
     fast: ["no_caption", "skipped_long"],
   },
   edit_captions: {
-    slow: ["success", "api_error", "unchanged", "rejected", "read_error", "write_error"],
+    slow: [
+      "success",
+      "api_error",
+      "unchanged",
+      "rejected",
+      "read_error",
+      "write_error",
+      "caption_changed",
+    ],
     fast: ["no_caption"],
   },
   verify_captions: {

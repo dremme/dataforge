@@ -3,44 +3,44 @@
 from __future__ import annotations
 
 import shutil
-import zlib
 from pathlib import Path
 
 from PIL import Image
 
 from automation.strip_metadata import (
+    EXIF_HEADER,
     PNG_PROVENANCE_CHUNKS,
     PNG_SIGNATURE,
     iter_png_chunks,
+    png_chunk,
     strip_png_chunks,
+    upright_exif,
 )
 from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from ffmpeg_run import run_ffmpeg
 
 _PNG_IHDR = b"IHDR"
-_EXIF_HEADER = b"Exif\x00\x00"
 _XMP_KEYWORD = b"XML:com.adobe.xmp"
 _COMMENT_KEYWORD = b"Comment"
 # The temp file's own suffix names no container, so the muxer is chosen explicitly.
 _ISOBMFF_MUXERS = {".mp4": "mp4", ".mov": "mov"}
 
 
-def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
-    crc = zlib.crc32(chunk_type + data) & 0xFFFFFFFF
-    return len(data).to_bytes(4, "big") + chunk_type + data + crc.to_bytes(4, "big")
-
-
 def _itxt_chunk(keyword: bytes, text: bytes) -> bytes:
     # Uncompressed, with empty language tag and translated keyword.
-    return _png_chunk(b"iTXt", keyword + b"\x00\x00\x00\x00\x00" + text)
+    return png_chunk(b"iTXt", keyword + b"\x00\x00\x00\x00\x00" + text)
 
 
 def _source_png_chunks(source: Path) -> list[bytes]:
-    """The source's metadata as PNG chunks: copied verbatim from a PNG, translated otherwise."""
+    """The source's metadata as PNG chunks: copied verbatim from a PNG, translated otherwise.
+
+    EXIF Orientation is reset to 1: ComfyUI loads the source upright, so the candidate's pixels
+    are already turned and the source's tag would turn them a second time.
+    """
     if source.suffix.lower() == ".png":
         return [
-            chunk
+            png_chunk(b"eXIf", upright_exif(chunk[8:-4])) if chunk_type == b"eXIf" else chunk
             for chunk_type, chunk in iter_png_chunks(source.read_bytes())
             if chunk_type in PNG_PROVENANCE_CHUNKS
         ]
@@ -51,7 +51,7 @@ def _source_png_chunks(source: Path) -> list[bytes]:
     chunks: list[bytes] = []
     exif = info.get("exif")
     if isinstance(exif, bytes) and exif:
-        chunks.append(_png_chunk(b"eXIf", exif.removeprefix(_EXIF_HEADER)))
+        chunks.append(png_chunk(b"eXIf", upright_exif(exif.removeprefix(EXIF_HEADER))))
     xmp = info.get("xmp")
     if isinstance(xmp, bytes) and xmp:
         chunks.append(_itxt_chunk(_XMP_KEYWORD, xmp))

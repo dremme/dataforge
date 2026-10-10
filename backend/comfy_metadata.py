@@ -15,6 +15,8 @@ _comfy_workflow_cache_lock = threading.Lock()
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _TEXT_CHUNK_TYPES = frozenset({b"tEXt", b"zTXt", b"iTXt", b"comf"})
 _MAX_READ_BYTES = 64 * 1024 * 1024
+# Decoded text per file, compressed chunks included: a few KiB of zlib can inflate to gigabytes.
+_MAX_TEXT_BYTES = _MAX_READ_BYTES
 _WORKFLOW_KEYS = frozenset(
     {
         "workflow",
@@ -31,10 +33,26 @@ _WORKFLOW_KEYS = frozenset(
 )
 
 
-def _decode_text_chunk(chunk_type: bytes, chunk_data: bytes) -> tuple[str, str] | None:
+def _inflate(data: bytes, limit: int) -> bytes | None:
+    """``data`` decompressed, or ``None`` when it is corrupt, truncated or inflates past ``limit``."""
+    inflater = zlib.decompressobj()
+    try:
+        inflated = inflater.decompress(data, limit + 1)
+    except zlib.error:
+        return None
+    if len(inflated) > limit or not inflater.eof:
+        return None
+    return inflated
+
+
+def _decode_text_chunk(chunk_type: bytes, chunk_data: bytes, budget: int) -> tuple[str, str] | None:
+    """``(keyword, text)``, or ``None`` when malformed or its text would exceed ``budget`` bytes."""
+    if budget <= 0:
+        return None
+
     if chunk_type in {b"tEXt", b"comf"}:
         separator = chunk_data.find(b"\x00")
-        if separator < 0:
+        if separator < 0 or len(chunk_data) - separator - 1 > budget:
             return None
         keyword = chunk_data[:separator].decode("latin1", errors="replace")
         text = chunk_data[separator + 1 :].decode("utf-8", errors="replace")
@@ -48,15 +66,15 @@ def _decode_text_chunk(chunk_type: bytes, chunk_data: bytes) -> tuple[str, str] 
         compression_method = chunk_data[separator + 1]
         if compression_method != 0:
             return None
-        try:
-            text = zlib.decompress(chunk_data[separator + 2 :]).decode("utf-8", errors="replace")
-        except zlib.error:
+        inflated = _inflate(chunk_data[separator + 2 :], budget)
+        if inflated is None:
             return None
-        return keyword, text
+        return keyword, inflated.decode("utf-8", errors="replace")
 
     if chunk_type == b"iTXt":
         separator = chunk_data.find(b"\x00")
-        if separator < 0 or separator + 2 > len(chunk_data):
+        # The compression flag and method follow the keyword's terminator.
+        if separator < 0 or separator + 3 > len(chunk_data):
             return None
         keyword = chunk_data[:separator].decode("latin1", errors="replace")
         is_compressed = chunk_data[separator + 1] == 1
@@ -79,10 +97,12 @@ def _decode_text_chunk(chunk_type: bytes, chunk_data: bytes) -> tuple[str, str] 
         if is_compressed:
             if compression_method != 0:
                 return None
-            try:
-                payload = zlib.decompress(payload)
-            except zlib.error:
+            inflated = _inflate(payload, budget)
+            if inflated is None:
                 return None
+            payload = inflated
+        elif len(payload) > budget:
+            return None
 
         text = payload.decode("utf-8", errors="replace")
         return keyword, text
@@ -97,6 +117,7 @@ def _parse_png_text_chunks(data: bytes) -> dict[str, str]:
     offset = len(PNG_SIGNATURE)
     chunks: dict[str, str] = {}
     data_len = len(data)
+    budget = _MAX_TEXT_BYTES
 
     while offset + 12 <= data_len:
         length = struct.unpack(">I", data[offset : offset + 4])[0]
@@ -108,10 +129,11 @@ def _parse_png_text_chunks(data: bytes) -> dict[str, str]:
         chunk_data = data[offset + 8 : offset + 8 + length]
 
         if chunk_type in _TEXT_CHUNK_TYPES:
-            decoded = _decode_text_chunk(chunk_type, chunk_data)
+            decoded = _decode_text_chunk(chunk_type, chunk_data, budget)
             if decoded is not None:
                 keyword, text = decoded
                 chunks[keyword] = text
+                budget -= len(text)
 
         offset = chunk_end
 

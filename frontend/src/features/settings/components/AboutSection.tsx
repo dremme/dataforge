@@ -9,7 +9,11 @@ import { fetchAbout, settingsKeys } from "../api/settings";
 import { SettingsActionButton } from "./SettingsActionButton";
 import { SettingsGroup } from "./SettingsGroup";
 
-const FFMPEG_SOURCES = { path: "from PATH", bundled: "bundled" } as const;
+const FFMPEG_SOURCES = {
+  setup: "installed by setup",
+  path: "from PATH",
+  bundled: "bundled",
+} as const;
 
 function ffmpegText(about: AboutResponse): string {
   if (!about.ffmpeg_path || !about.ffmpeg_source)

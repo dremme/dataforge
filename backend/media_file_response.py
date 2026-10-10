@@ -206,6 +206,11 @@ class MediaFileResponse(FileResponse):
                 position = start
                 while position < end:
                     chunk = await _read(file, min(self.chunk_size, end - position))
+                    if not chunk:
+                        # Replaced by a shorter file since the ranges were planned: end here,
+                        # as a short single range does, instead of reading nothing forever.
+                        await send({"type": "http.response.body", "body": b"", "more_body": False})
+                        return
                     position += len(chunk)
                     await send({"type": "http.response.body", "body": chunk, "more_body": True})
                 await send({"type": "http.response.body", "body": b"\n", "more_body": True})

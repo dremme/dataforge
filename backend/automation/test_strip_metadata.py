@@ -10,7 +10,7 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-from PIL import Image, ImageCms, UnidentifiedImageError
+from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
 
 from automation.strip_metadata import (
     list_strip_metadata_files,
@@ -31,6 +31,9 @@ from testing_fixtures import (
     write_media,
     write_mp4_video,
 )
+
+#: A provenance tag; Orientation stays through a strip, so it cannot stand in for EXIF here.
+CAMERA_MAKE_TAG = 0x010F
 
 
 def jpeg_scan(data: bytes) -> bytes:
@@ -83,7 +86,7 @@ def insert_after_ihdr(data: bytes, chunk: bytes) -> bytes:
 def write_webp_with_exif(root: Path, name: str = "photo.webp") -> Path:
     media = root / name
     exif = Image.Exif()
-    exif[0x0112] = 3
+    exif[CAMERA_MAKE_TAG] = "Example Camera"
     Image.new("RGB", (64, 48), (10, 20, 30)).save(media, format="WEBP", exif=exif.tobytes())
     return media
 
@@ -137,7 +140,10 @@ class StripMetadataFileTests(unittest.TestCase):
 class StripJpegMetadataTests(unittest.TestCase):
     def test_removes_exif_without_re_encoding_the_scan(self) -> None:
         with TempMediaFolder() as root:
-            media = write_jpeg(root, "photo.jpg", orientation=3)
+            media = root / "photo.jpg"
+            exif = Image.Exif()
+            exif[CAMERA_MAKE_TAG] = "Example Camera"
+            Image.new("RGB", (64, 48)).save(media, format="JPEG", exif=exif)
             original = media.read_bytes()
             with Image.open(media) as opened:
                 self.assertTrue(dict(opened.getexif()))
@@ -157,7 +163,7 @@ class StripJpegMetadataTests(unittest.TestCase):
             media = root / "photo.jpg"
             profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
             exif = Image.Exif()
-            exif[0x0112] = 3
+            exif[CAMERA_MAKE_TAG] = "Example Camera"
             Image.new("RGB", (64, 48), (30, 60, 90)).save(
                 media, format="JPEG", exif=exif, icc_profile=profile
             )
@@ -207,7 +213,7 @@ class StripPngMetadataTests(unittest.TestCase):
             media = root / "photo.png"
             profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
             exif = Image.Exif()
-            exif[0x0112] = 3
+            exif[CAMERA_MAKE_TAG] = "Example Camera"
             buffer = BytesIO()
             Image.new("RGB", (64, 48), (30, 60, 90)).save(
                 buffer, format="PNG", icc_profile=profile, dpi=(72, 72), exif=exif.tobytes()
@@ -388,6 +394,35 @@ class StripIsobmffMetadataTests(unittest.TestCase):
 
                 self.assertEqual(result["stats"][status], 1)
                 self.assertEqual(result["results"][0]["status"], status)
+
+
+class StripKeepsOrientationTests(unittest.TestCase):
+    """Orientation decides how the pixels display; dropping it would turn the training image."""
+
+    def _photo(self, root: Path, suffix: str, orientation: int) -> Path:
+        exif = Image.Exif()
+        exif[0x0112] = orientation
+        exif[0x010F] = "Example Camera"  # Make: provenance, which must still go.
+        media = root / f"photo{suffix}"
+        Image.new("RGB", (32, 16), (200, 40, 40)).save(media, exif=exif.tobytes())
+        return media
+
+    def test_every_orientation_displays_the_same_after_stripping(self) -> None:
+        for suffix in (".jpg", ".png", ".webp"):
+            for orientation in range(1, 9):
+                with self.subTest(suffix=suffix, orientation=orientation):
+                    with TempMediaFolder() as root:
+                        media = self._photo(root, suffix, orientation)
+                        with Image.open(media) as before:
+                            shown = ImageOps.exif_transpose(before).size
+
+                        strip_file_metadata(media)
+
+                        with Image.open(media) as after:
+                            exif = after.getexif()
+                            self.assertEqual(ImageOps.exif_transpose(after).size, shown)
+                            self.assertEqual(exif.get(0x0112, 1), orientation)
+                            self.assertNotIn(0x010F, exif)
 
 
 if __name__ == "__main__":

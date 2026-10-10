@@ -47,14 +47,24 @@ export function useGalleryItemCaption({
   const { next, isCurrent } = useStaleRequest();
   const captionRef = useRef(caption);
   const captionRevisionRef = useRef<string | null>(null);
-  // Revisions already shown here. A poller reload can answer from data older than the save.
-  const seenRevisionsRef = useRef(new Set<string>());
+  // Revisions shown since this item opened.
+  const shownRevisionsRef = useRef(new Set<string>());
+  // Armed by a save: a poller reload can answer from data older than it, so a revision shown
+  // before the save is a stale echo until the server reports the save or anything newer. Not
+  // a plain seen-set: a restore back to earlier text is a genuine change and must sync.
+  const staleRevisionsRef = useRef<Set<string> | null>(null);
 
   captionRef.current = caption;
 
   const markRevision = useCallback((revision: string) => {
     captionRevisionRef.current = revision;
-    seenRevisionsRef.current.add(revision);
+    shownRevisionsRef.current.add(revision);
+  }, []);
+
+  const armStaleRevisions = useCallback((saved: string) => {
+    const stale = new Set(shownRevisionsRef.current);
+    stale.delete(saved);
+    staleRevisionsRef.current = stale;
   }, []);
 
   const itemPath = item?.path;
@@ -79,10 +89,12 @@ export function useGalleryItemCaption({
         return result.description ?? "";
       });
       // Match the folder revision from onCaptionSaved so background sync does not wipe a save.
-      markRevision(revisionFromSaveResult(result));
+      const saved = revisionFromSaveResult(result);
+      armStaleRevisions(saved);
+      markRevision(saved);
       onCaptionSaved(payload.path, result);
     },
-    [markRevision, onCaptionSaved],
+    [armStaleRevisions, markRevision, onCaptionSaved],
   );
 
   const {
@@ -120,7 +132,8 @@ export function useGalleryItemCaption({
       flushPendingSave();
     }
     invalidateInFlight();
-    seenRevisionsRef.current.clear();
+    shownRevisionsRef.current.clear();
+    staleRevisionsRef.current = null;
     applyCaptionFromItem(item);
 
     const requestId = next();
@@ -161,12 +174,17 @@ export function useGalleryItemCaption({
   useEffect(() => {
     if (!itemPath || !item || itemRevision === null) return;
 
+    const stale = staleRevisionsRef.current;
+    if (stale) {
+      // Stale poller echo from before the last save; applying it would undo the save.
+      if (stale.has(itemRevision)) return;
+      // The save itself, or something newer: the server has caught up.
+      staleRevisionsRef.current = null;
+    }
+
     if (captionRevisionRef.current === itemRevision) return;
 
     const hadPreviousRevision = captionRevisionRef.current !== null;
-
-    // Stale poller echo of a revision already shown; applying it would undo newer text.
-    if (hadPreviousRevision && seenRevisionsRef.current.has(itemRevision)) return;
 
     markRevision(itemRevision);
 

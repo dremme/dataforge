@@ -96,6 +96,9 @@ COMFY_CANDIDATE_SIDECAR_SUFFIX = ".comfy.json"
 COMFY_TEMP_SUFFIX = ".comfy-tmp"
 COMFY_STALE_SUFFIX = ".comfy-stale"
 
+# Accepting decodes the whole candidate clip; staging only checks its first frame.
+COMFY_ACCEPT_DECODE_TIMEOUT_SECONDS = 300
+
 # The workflow decides what it can read; a file its loader refuses fails with ComfyUI's own error.
 COMFY_PROCESS_EXTENSIONS = MEDIA_EXTENSIONS
 

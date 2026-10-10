@@ -7,4 +7,5 @@ from testing_fixtures import isolate_test_database
 
 isolate_test_database()
 
-client = TestClient(app)
+# A loopback base URL: the request guard refuses TestClient's default "testserver" host.
+client = TestClient(app, base_url="http://127.0.0.1")

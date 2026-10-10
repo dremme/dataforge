@@ -464,6 +464,28 @@ describe("useImageEdit", () => {
       expect(fetchStateMock.mock.calls.length).toBe(calls);
     });
 
+    it("waits for the saved edit before it can apply over it", async () => {
+      let answer!: (state: { path: string; has_backup: boolean; spec: ImageEditSpec }) => void;
+      fetchStateMock.mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const { result } = await renderReady();
+
+      expect(result.current.ready).toBe(false);
+      act(() => result.current.rotateClockwise());
+      act(() => result.current.apply());
+      expect(applyMock).not.toHaveBeenCalled();
+
+      const saved = spec({ crop: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 }, rotate: 90 });
+      await act(async () => answer({ path: PHOTO, has_backup: true, spec: saved }));
+
+      expect(result.current.ready).toBe(true);
+      expect(result.current.draft.rotate).toBe(90);
+      expect(result.current.draft.crop).toEqual(saved.crop);
+    });
+
     it("stays quiet when there is nothing stored to read", async () => {
       fetchStateMock.mockRejectedValue(new Error("nope"));
       const { result } = await renderReady();

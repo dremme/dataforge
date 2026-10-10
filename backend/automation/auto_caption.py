@@ -29,7 +29,13 @@ from automation.vision import (
     media_kind_max_pixels,
     request_vision_text,
 )
-from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
+from captions import (
+    CAPTION_CHANGED_STATUS,
+    NO_CAPTION_STATUS,
+    caption_changed_since,
+    load_reference_caption,
+    save_caption,
+)
 from constants import MEDIA_EXTENSIONS, SYSPROMPT_FILENAME
 from ffmpeg_bin import ffmpeg_path
 from openai_settings import (
@@ -57,6 +63,7 @@ PROCESSED_STAT_KEYS = (
     "too_short",
     "skipped_long",
     "write_error",
+    CAPTION_CHANGED_STATUS,
 )
 
 # Without this a walking subject is captioned as standing.
@@ -319,6 +326,7 @@ def _initial_job_stats(total: int) -> dict[str, int]:
         "too_short": 0,
         "skipped_long": 0,
         "write_error": 0,
+        CAPTION_CHANGED_STATUS: 0,
         AUDIO_ERROR: 0,
         "cancelled": 0,
     }
@@ -330,6 +338,8 @@ def _caption_outcome(
     status: str,
     message: str | None,
     should_cancel: ShouldCancel | None,
+    *,
+    draft: str | None,
 ) -> FileOutcome:
     if status == "cancelled":
         return FileOutcome.cancelled()
@@ -337,6 +347,10 @@ def _caption_outcome(
     if status == "success" and clean_text:
         if should_cancel and should_cancel():
             return FileOutcome.cancelled()
+
+        changed = caption_changed_since(media_path, draft)
+        if changed is not None:
+            return FileOutcome.counted(CAPTION_CHANGED_STATUS, changed)
 
         try:
             save_caption(media_path, clean_text, trailing_newline=False)
@@ -369,6 +383,8 @@ def run_auto_caption_job(
     with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
+            # The text the reply is built from; the write is skipped if it changes meanwhile.
+            draft, _status = load_reference_caption(media_path)
             clean_text, status, message, audio_missing = process_media(
                 client,
                 media_path,
@@ -381,7 +397,9 @@ def run_auto_caption_job(
                 should_cancel=should_cancel,
             )
 
-            outcome = _caption_outcome(media_path, clean_text, status, message, should_cancel)
+            outcome = _caption_outcome(
+                media_path, clean_text, status, message, should_cancel, draft=draft
+            )
             if not audio_missing or outcome.status == "cancelled":
                 return outcome
 

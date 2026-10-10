@@ -6,7 +6,12 @@ from pathlib import Path
 
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
 from automation.selection import filter_media_list, list_folder_media
-from captions import media_has_caption_text, save_caption
+from captions import (
+    CAPTION_READ_ERROR,
+    NO_CAPTION_STATUS,
+    load_reference_caption,
+    save_caption,
+)
 from constants import MEDIA_EXTENSIONS
 
 
@@ -37,13 +42,13 @@ def run_set_captions_job(
     text = (caption or "").strip()
 
     def process(media_path: Path) -> FileOutcome:
-        try:
-            has_existing = media_has_caption_text(media_path)
-        except Exception:
-            has_existing = False
-
-        if has_existing and not overwrite:
-            return FileOutcome.counted("skipped", "Existing caption present")
+        if not overwrite:
+            _, status = load_reference_caption(media_path)
+            # Unreadable is not absent: the bytes may be a caption in another encoding.
+            if status == CAPTION_READ_ERROR:
+                return FileOutcome.counted("skipped", "Existing caption could not be read")
+            if status != NO_CAPTION_STATUS:
+                return FileOutcome.counted("skipped", "Existing caption present")
 
         try:
             save_caption(media_path, text)

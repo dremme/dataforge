@@ -28,7 +28,9 @@ _test_database_dir: tempfile.TemporaryDirectory[str] | None = None
 
 
 @lru_cache(maxsize=16)
-def playable_video_bytes(*, suffix: str = ".mp4", audio: bool = False) -> bytes:
+def playable_video_bytes(
+    *, suffix: str = ".mp4", audio: bool = False, duration: float = 1
+) -> bytes:
     from ffmpeg_bin import ffmpeg_path
 
     executable = ffmpeg_path()
@@ -44,10 +46,12 @@ def playable_video_bytes(*, suffix: str = ".mp4", audio: bool = False) -> bytes:
             "-f",
             "lavfi",
             "-i",
-            "testsrc2=size=64x48:rate=10:duration=1",
+            f"testsrc2=size=64x48:rate=10:duration={duration}",
         ]
         if audio:
-            command.extend(["-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "aac"])
+            command.extend(
+                ["-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}", "-c:a", "aac"]
+            )
         command.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", str(output)])
         subprocess.run(command, check=True, capture_output=True, timeout=30)
         return output.read_bytes()

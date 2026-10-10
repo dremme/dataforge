@@ -6,11 +6,17 @@ the same name would silently inherit them.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from candidate_pairing import candidate_path_for, candidate_sidecar_path
 from captions import issue_file_path
-from constants import CAPTION_BACKUP_DIR_NAME, CAPTION_SIDECAR_EXTENSIONS, SIDECAR_EXTENSIONS
+from constants import (
+    CAPTION_BACKUP_DIR_NAME,
+    CAPTION_SIDECAR_EXTENSIONS,
+    MEDIA_EXTENSIONS,
+    SIDECAR_EXTENSIONS,
+)
 from duplicates import duplicate_file_path
 from edit_sidecars import backup_path_for, edit_spec_path
 
@@ -48,6 +54,38 @@ def media_group_paths(media: Path) -> list[Path]:
             paths.append(record)
 
     return paths
+
+
+def stem_siblings(media: Path) -> list[Path]:
+    """Other media files in the folder with this stem; they share its caption and edit spec."""
+    stem = os.path.normcase(media.stem)
+    try:
+        entries = list(media.parent.iterdir())
+    except OSError:
+        return []
+    return [
+        entry
+        for entry in entries
+        if entry.name != media.name
+        and entry.suffix.lower() in MEDIA_EXTENSIONS
+        and os.path.normcase(entry.stem) == stem
+        and entry.is_file()
+    ]
+
+
+def stem_keyed_paths(media: Path) -> set[Path]:
+    """Related names built from the stem alone, which every same-stem sibling resolves to."""
+    backup_dir = media.parent / CAPTION_BACKUP_DIR_NAME
+    return {
+        *(media.with_suffix(extension) for extension in SIDECAR_EXTENSIONS),
+        edit_spec_path(media),
+        *(backup_dir / f"{media.stem}{extension}" for extension in CAPTION_SIDECAR_EXTENSIONS),
+    }
+
+
+def shared_stem_paths(media: Path) -> set[Path]:
+    """:func:`stem_keyed_paths` while a sibling still shares them; empty for a lone file."""
+    return stem_keyed_paths(media) if stem_siblings(media) else set()
 
 
 def sidecar_suffix(media: Path, related: Path) -> str:

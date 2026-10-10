@@ -8,7 +8,7 @@ Get the project from the [repository](https://github.com/dremme/dataforge): choo
 
 ### Windows
 
-1. Run `setup.bat` once. It downloads portable Python 3.13.12 and Node 24 into `.python/` and `.node/`, creates `backend/.venv`, installs dependencies including bundled FFmpeg 7.1, and generates frontend API files.
+1. Run `setup.bat` once. It downloads portable Python 3.13.12 and Node 24 into `.python/` and `.node/`, and on x64 a checksum-verified FFmpeg 7.1.1 into `.ffmpeg/`. Then it creates `backend/.venv`, installs dependencies, and generates frontend API files.
 2. Run `start.bat`. It builds the UI when needed, starts the server, and opens `http://localhost:18081`.
 
 No global Python or Node is needed. Keep the launcher window open while using the app.
@@ -63,7 +63,7 @@ Do not combine rebuild and no-build. To change the browser port, set `DATAFORGE_
 - **Platform:** Windows 10/11, Linux, or macOS; 64-bit CPU, dual-core or better.
 - **Memory/storage:** allow about 8 GB RAM and 2 GB disk for the app, plus dataset/cache space. A quad-core CPU, 16 GB RAM, and an SSD are practical starting points.
 - **Runtimes:** Python 3.13.x; Node `^20.19.0 || ^22.13.0 || >=24` with npm. Windows setup supplies Python 3.13.12 and Node 24.21.0.
-- **Media:** Pillow handles images. Video work requires FFmpeg 7.1.x: DataForge uses a matching binary on PATH or its bundled copy, and rejects other release series. Windows dependencies include FFmpeg 7.1; Linux/macOS may need a separate installation. CI uses exactly 7.1.5. Browser playback depends on codec support.
+- **Media:** Pillow handles images. Video work requires FFmpeg 7.1.x: DataForge picks the most patched 7.1.x it finds in `.ffmpeg/bin` inside the clone, on PATH, or as its bundled copy, preferring them in that order on a tie, and rejects other release series. The bundled copy is 7.1.0, which predates the 7.1 security fixes, so DataForge logs a warning while it is the only one available. Windows dependencies include FFmpeg 7.1; Linux/macOS may need a separate installation. CI uses exactly 7.1.5. Browser playback depends on codec support.
 
 DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own hardware requirements. Check the chosen model's memory needs, including context and media input; audio captioning also requires an audio-capable model/server.
 
@@ -73,7 +73,7 @@ DataForge needs no GPU. Model servers, ComfyUI, and AI-Toolkit set their own har
 
 **Python is outside the supported 3.13.x series.** Run `setup.bat` on Windows. On Linux/macOS, install any final Python 3.13.x release and rerun `./setup.sh`. Other release series and prereleases are rejected; setup recreates an incompatible backend virtual environment.
 
-**Setup cannot find FFmpeg 7.1.x.** Install a 7.1.x build and put its binary folder on PATH, then run setup again. A global 8.x, 9.x, or unversioned development build does not satisfy the pin. Windows setup normally supplies the matching bundled copy. The build must include the `drawtext` filter (libfreetype and libharfbuzz), which watermarking uses. Verify the application's selection with `backend/.venv/Scripts/python scripts/check_ffmpeg.py` on Windows or `backend/.venv/bin/python scripts/check_ffmpeg.py` on Linux/macOS.
+**Setup cannot find FFmpeg 7.1.x.** Install a 7.1.x build and put its binary folder on PATH, then run setup again. A global 8.x, 9.x, or unversioned development build does not satisfy the pin. Windows x64 setup installs a matching build into `.ffmpeg/`; delete that folder and run setup again to repair it. The build must include the `drawtext` filter (libfreetype and libharfbuzz), which watermarking uses. Verify the application's selection with `backend/.venv/Scripts/python scripts/check_ffmpeg.py` on Windows or `backend/.venv/bin/python scripts/check_ffmpeg.py` on Linux/macOS.
 
 **Shell scripts will not execute.** From an extracted ZIP, try `bash setup.sh` and `bash start.sh` if executable permissions were not retained.
 

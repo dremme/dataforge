@@ -155,7 +155,12 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   } = useMaskRegions(draft.masks, setMasks);
 
   const path = item?.path;
-  const ready = hasUsableDuration(duration) && sourceWidth > 0 && sourceHeight > 0;
+  // The saved spec has been read for this path; editing before then would apply a draft missing it.
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
+  const ready =
+    hasUsableDuration(duration) && sourceWidth > 0 && sourceHeight > 0 && loadedPath === path;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
 
   // Read per frame rather than captured, so a handle dragged mid-playback lands on the next lap.
   const getRange = useCallback(
@@ -258,6 +263,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
   useEffect(() => {
     if (!editMode) {
       seededPathRef.current = null;
+      setLoadedPath(null);
       return;
     }
     // The ref, not the state: `duration` still holds the outgoing file's value in the commit
@@ -280,6 +286,7 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       } catch {
         // Missing spec: open on an empty draft like an unedited file.
       }
+      if (mountedRef.current && optionsRef.current.item?.path === forPath) setLoadedPath(forPath);
     })();
   }, [editMode, path, duration, seedDraft]);
 
@@ -439,8 +446,9 @@ export function useVideoEdit(options: UseVideoEditOptions): VideoEdit {
       describe: (path: string) => string,
       settle: () => void,
     ) => {
-      // Ref guard: a double click lands before applying has re-rendered the button disabled.
-      if (applyingRef.current) return;
+      // Ref guards: a double click lands before applying has re-rendered the button disabled,
+      // and a shortcut can fire before the saved spec has seeded the draft.
+      if (applyingRef.current || !readyRef.current) return;
 
       const { item: currentItem, onEdited } = optionsRef.current;
       if (!currentItem) return;

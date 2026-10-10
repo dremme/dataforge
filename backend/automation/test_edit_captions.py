@@ -187,6 +187,20 @@ class EditCaptionsJobRunTests(unittest.TestCase):
             self.assertEqual(result["stats"]["success"], 1)
             self.assertEqual(result["results"][0]["description"], EDITED)
 
+    def test_a_caption_saved_while_the_model_runs_is_kept(self) -> None:
+        with TempMediaFolder() as root:
+            media = _captioned(root, "photo.png")
+
+            def edit(*_args, **_kwargs) -> str:
+                media.with_suffix(".txt").write_text("Typed by hand meanwhile.", encoding="utf-8")
+                return EDITED
+
+            with patch("automation.edit_captions.edit_caption", side_effect=edit):
+                result = _run(root)
+
+            self.assertEqual(_caption_text(media), "Typed by hand meanwhile.")
+            self.assertEqual(result["stats"]["caption_changed"], 1)
+
     def test_an_identical_reply_counts_unchanged_and_writes_nothing(self) -> None:
         with TempMediaFolder() as root:
             media = _captioned(root, "photo.png")

@@ -321,6 +321,31 @@ class RangeRequestTests(unittest.TestCase):
             self.assertIn(payload[0:10], recorder.body)
             self.assertIn(payload[100:110], recorder.body)
 
+    def test_multiple_ranges_end_when_the_file_shrinks_mid_response(self) -> None:
+        """The ranges were planned from an earlier stat; a replacement can end the file early."""
+        with TempMediaFolder() as root:
+            media = root / "clip.bin"
+            media.write_bytes(os.urandom(4096))
+            response = MediaFileResponse(media, stat_result=media.stat())
+            media.write_bytes(b"short")
+
+            recorder = _Recorder()
+            sends = {"count": 0}
+
+            async def bounded_send(message: dict) -> None:
+                sends["count"] += 1
+                if sends["count"] > 50:
+                    raise AssertionError("the response never ended")
+                await recorder(message)
+
+            async def run() -> None:
+                scope = _asgi_scope([(b"range", b"bytes=0-9,100-199")])
+                await response(scope, _park, bounded_send)
+
+            anyio.run(run)
+
+        self.assertLessEqual(sends["count"], 50)
+
     def test_unsatisfiable_range_answers_416(self) -> None:
         """Regression: cancelling before sending truncated this response."""
         with TempMediaFolder() as root:

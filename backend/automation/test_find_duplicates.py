@@ -318,5 +318,60 @@ class StemSharingTests(unittest.TestCase):
             self.assertNotEqual(group_of(video_like), group_of(still_like))
 
 
+class ExactMeansIdenticalTests(unittest.TestCase):
+    """dHash reads luminance gradients only; "Exact" promises files that look identical."""
+
+    def test_two_flat_images_of_different_colours_are_not_exact(self) -> None:
+        with TempMediaFolder() as root:
+            write_image(root, "red.png", color=(255, 0, 0))
+            write_image(root, "green.png", color=(0, 255, 0))
+
+            result = run_find_duplicates_job(root, threshold="exact")
+
+        self.assertEqual(result["stats"]["duplicate"], 0)
+
+    def test_a_brightened_copy_is_not_exact(self) -> None:
+        from PIL import Image, ImageEnhance
+
+        with TempMediaFolder() as root:
+            source = write_patterned_image(root, "one.png", seed=7)
+            with Image.open(source) as opened:
+                ImageEnhance.Brightness(opened.convert("RGB")).enhance(1.4).save(root / "two.png")
+
+            result = run_find_duplicates_job(root, threshold="exact")
+
+        self.assertEqual(result["stats"]["duplicate"], 0)
+
+    def test_a_recompressed_copy_is_still_exact(self) -> None:
+        from PIL import Image
+
+        with TempMediaFolder() as root:
+            source = write_patterned_image(root, "one.png", seed=7)
+            with Image.open(source) as opened:
+                opened.convert("RGB").save(root / "two.jpg", quality=92)
+
+            result = run_find_duplicates_job(root, threshold="exact")
+
+        self.assertEqual(result["stats"]["duplicate"], 2)
+
+
+class GroupingCancellationTests(unittest.TestCase):
+    def test_a_cancel_after_hashing_writes_no_findings(self) -> None:
+        with TempMediaFolder() as root:
+            first = write_patterned_image(root, "one.png", seed=7)
+            shutil.copyfile(first, root / "two.png")
+            calls = {"count": 0}
+
+            def cancel_once_hashed() -> bool:
+                # The runner asks once per file; anything later is the grouping phase.
+                calls["count"] += 1
+                return calls["count"] > 2
+
+            run_find_duplicates_job(root, threshold="near", should_cancel=cancel_once_hashed)
+
+            self.assertGreater(calls["count"], 2)
+            self.assertFalse(duplicate_file_path(first).exists())
+
+
 if __name__ == "__main__":
     unittest.main()

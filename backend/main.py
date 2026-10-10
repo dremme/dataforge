@@ -20,6 +20,7 @@ from external_jobs_feed import run_external_jobs_feed
 from folder_watch import run_folder_watch_feed
 from history_retention import run_history_retention
 from logging_config import configure_logging
+from request_guard import LocalRequestGuard, allowed_host_names
 from routes import router
 from server_settings import get_cors_origins
 from static_site import mount_ui
@@ -62,6 +63,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+# Added last, so it runs first: a forged request is refused before CORS answers it.
+app.add_middleware(
+    LocalRequestGuard, allowed_origins=CORS_ORIGINS, allowed_hosts=allowed_host_names()
 )
 
 app.add_exception_handler(ApiError, api_error_handler)

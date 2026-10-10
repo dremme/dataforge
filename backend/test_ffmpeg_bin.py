@@ -19,9 +19,14 @@ from ffmpeg_bin import ffmpeg_path, locate_ffmpeg
 
 class FfmpegPathTests(unittest.TestCase):
     def setUp(self) -> None:
-        version = patch("ffmpeg_bin._is_pinned", return_value=True)
+        version = patch("ffmpeg_bin._pinned_version", return_value=(7, 1, 1))
         version.start()
         self.addCleanup(version.stop)
+        empty = tempfile.TemporaryDirectory()
+        self.addCleanup(empty.cleanup)
+        no_setup_build = patch("ffmpeg_bin.SETUP_FFMPEG_DIR", Path(empty.name))
+        no_setup_build.start()
+        self.addCleanup(no_setup_build.stop)
 
     def test_prefers_ffmpeg_on_path(self) -> None:
         with patch("ffmpeg_bin.shutil.which", return_value="/usr/bin/ffmpeg") as which:
@@ -73,6 +78,9 @@ class FfmpegVersionTests(unittest.TestCase):
         self.on_path.write_bytes(b"")
         self.bundled = Path(directory.name) / "ffmpeg-bundled"
         self.bundled.write_bytes(b"")
+        no_setup_build = patch("ffmpeg_bin.SETUP_FFMPEG_DIR", Path(directory.name) / "none")
+        no_setup_build.start()
+        self.addCleanup(no_setup_build.stop)
         ffmpeg_bin._ffmpeg_version.cache_clear()
         self.addCleanup(ffmpeg_bin._ffmpeg_version.cache_clear)
 
@@ -172,6 +180,70 @@ class FfmpegVersionTests(unittest.TestCase):
             patch.dict(sys.modules, {"imageio_ffmpeg": wheel}),
         ):
             self.assertIsNone(locate_ffmpeg())
+
+
+class FfmpegPatchLevelTests(unittest.TestCase):
+    """Within the pinned 7.1 series the most patched build wins, wherever it was found."""
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        self.setup_dir = root / "setup"
+        self.setup_dir.mkdir()
+        self.binaries = {
+            "setup": self.setup_dir / ffmpeg_bin.FFMPEG_EXECUTABLE,
+            "path": root / "ffmpeg-path",
+            "bundled": root / "ffmpeg-bundled",
+        }
+        ffmpeg_bin._ffmpeg_version.cache_clear()
+        self.addCleanup(ffmpeg_bin._ffmpeg_version.cache_clear)
+
+    def _locate(self, **releases: str) -> tuple[str, str] | None:
+        """``releases`` maps a source to its banner version; a missing source has no binary."""
+        by_path: dict[str, str] = {}
+        for source, release in releases.items():
+            binary = self.binaries[source]
+            binary.write_bytes(b"")
+            by_path[str(binary)] = release
+
+        def version(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            banner = f"ffmpeg version {by_path[command[0]]}"
+            return subprocess.CompletedProcess(command, 0, stdout=banner, stderr="")
+
+        bundled = str(self.binaries["bundled"]) if "bundled" in releases else ""
+        wheel = SimpleNamespace(get_ffmpeg_exe=lambda: bundled)
+        on_path = str(self.binaries["path"]) if "path" in releases else None
+        with (
+            patch("ffmpeg_bin.SETUP_FFMPEG_DIR", self.setup_dir),
+            patch("ffmpeg_bin.shutil.which", return_value=on_path),
+            patch("ffmpeg_bin.subprocess.run", side_effect=version),
+            patch.dict(sys.modules, {"imageio_ffmpeg": wheel}),
+        ):
+            return locate_ffmpeg()
+
+    def _expected(self, source: str) -> tuple[str, str]:
+        return str(self.binaries[source]), source
+
+    def test_the_setup_build_wins_over_an_unpatched_bundle(self) -> None:
+        self.assertEqual(self._locate(setup="7.1.1", bundled="7.1"), self._expected("setup"))
+
+    def test_a_more_patched_path_build_wins_over_the_setup_one(self) -> None:
+        self.assertEqual(
+            self._locate(setup="7.1.1", path="7.1.5", bundled="7.1"), self._expected("path")
+        )
+
+    def test_the_setup_build_wins_a_tie(self) -> None:
+        self.assertEqual(self._locate(setup="7.1.1", path="7.1.1"), self._expected("setup"))
+
+    def test_another_series_is_still_rejected_however_new(self) -> None:
+        self.assertEqual(self._locate(setup="8.0.1", bundled="7.1"), self._expected("bundled"))
+
+    def test_settling_for_an_unpatched_build_is_logged(self) -> None:
+        with self.assertLogs("ffmpeg_bin", level="WARNING") as logs:
+            self._locate(bundled="7.1")
+
+        self.assertIn("7.1.0", logs.output[0])
 
 
 if __name__ == "__main__":

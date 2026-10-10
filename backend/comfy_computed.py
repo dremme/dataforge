@@ -37,8 +37,8 @@ def resolution_selector(
     ratio = _ASPECT_RATIOS.get(aspect_ratio) if isinstance(aspect_ratio, str) else None
     if (
         ratio is None
-        or not _is_number(megapixels)
-        or not _is_number(multiple)
+        or not _is_finite_number(megapixels)
+        or not _is_finite_number(multiple)
         or megapixels <= 0
         or multiple <= 0
     ):
@@ -53,6 +53,16 @@ def resolution_selector(
 
 def _is_number(value: object) -> TypeIs[Number]:
     return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _is_finite_number(value: object) -> TypeIs[Number]:
+    """A number a float can hold: not NaN or infinite, and no integer too large to convert."""
+    if not _is_number(value):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _safe_pow(base: Number, exponent: Number) -> Number:
@@ -134,9 +144,8 @@ def math_expression(expression: object, values: Mapping[str, object]) -> Number 
         result = _evaluate(ast.parse(expression.strip(), mode="eval").body, names)
     except (ValueError, TypeError, ZeroDivisionError, OverflowError, SyntaxError, RecursionError):
         return None
-    if isinstance(result, bool) or not _is_number(result):
-        return None
-    return result if math.isfinite(result) else None
+    # Also bounds an integer result: its FLOAT output must convert.
+    return result if _is_finite_number(result) else None
 
 
 def math_expression_output(result: Number, slot: int) -> Number | bool | None:

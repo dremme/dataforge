@@ -7,6 +7,8 @@
   (the documented CI/layout distribution - not the GUI installer, which needs UAC
   or a visible wizard). Node comes from the official Windows zip. Both land in
   .python\ and .node\, then a venv, pip, npm, and the generated frontend types.
+  On x64, a checksum-verified FFmpeg 7.1 build lands in .ffmpeg\: the copy bundled with
+  the Python dependencies is 7.1.0, which predates the 7.1 security fixes.
 
   Use this directly, or double-click setup.bat for the same behavior.
 
@@ -26,12 +28,19 @@ $ProgressPreference = 'SilentlyContinue'
 $Root = $PSScriptRoot
 $PyVer = (Get-Content -LiteralPath (Join-Path $Root '.python-version') -Raw).Trim()
 $NodeVer = '24.21.0'
+# Bump all three together; the hash is of the release archive, checked before it is opened.
+$FfmpegVer = '7.1.1'
+$FfmpegUri = 'https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-essentials_build.zip'
+$FfmpegSha256 = '04861d3339c5ebe38b56c19a15cf2c0cc97f5de4fa8910e4d47e5e6404e4a2d4'
 $PyDir = Join-Path $Root '.python'
 $NodeDir = Join-Path $Root '.node'
 $PyExe = Join-Path $PyDir 'python.exe'
 $NpmCmd = Join-Path $NodeDir 'npm.cmd'
 $PyStampFile = Join-Path $PyDir 'setup-python-version.txt'
 $NodeStampFile = Join-Path $NodeDir 'setup-node-version.txt'
+$FfmpegDir = Join-Path $Root '.ffmpeg'
+$FfmpegExe = Join-Path $FfmpegDir 'bin\ffmpeg.exe'
+$FfmpegStampFile = Join-Path $FfmpegDir 'setup-ffmpeg-version.txt'
 $VenvDir = Join-Path $Root 'backend\.venv'
 $VenvPy = Join-Path $VenvDir 'Scripts\python.exe'
 $PyVersionCheck = Join-Path $Root 'scripts\py_version.py'
@@ -49,11 +58,13 @@ function Get-SetupArch {
         return [pscustomobject]@{
             PythonPackage = 'pythonarm64'
             NodeBuild     = 'win-arm64'
+            HasFfmpeg     = $false
         }
     }
     return [pscustomobject]@{
         PythonPackage = 'python'
         NodeBuild     = 'win-x64'
+        HasFfmpeg     = $true
     }
 }
 
@@ -181,6 +192,48 @@ function Install-PortableNode {
     Write-Host ('Node.js {0} installed to .node\' -f $NodeVer)
 }
 
+function Install-PortableFfmpeg {
+    $zip = Join-Path $env:TEMP ('dataforge-ffmpeg-{0}.zip' -f $FfmpegVer)
+    $extract = Join-Path $env:TEMP ('dataforge-ffmpeg-{0}' -f $FfmpegVer)
+
+    Write-Host ('Downloading FFmpeg {0}...' -f $FfmpegVer)
+    Get-RemoteFile -Uri $FfmpegUri -OutFile $zip
+
+    $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $FfmpegSha256) {
+        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+        throw "The FFmpeg download does not match its pinned checksum (got $actual)."
+    }
+
+    if (Test-Path -LiteralPath $extract) {
+        Remove-Item -LiteralPath $extract -Recurse -Force
+    }
+    Expand-Archive -Path $zip -DestinationPath $extract -Force
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+
+    $found = Get-ChildItem -LiteralPath $extract -Filter 'ffmpeg.exe' -Recurse -File |
+        Where-Object { $_.Directory.Name -eq 'bin' } |
+        Select-Object -First 1
+    if (-not $found) {
+        throw 'The FFmpeg archive did not contain bin\ffmpeg.exe.'
+    }
+
+    if (Test-Path -LiteralPath $FfmpegDir) {
+        Remove-Item -LiteralPath $FfmpegDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path (Join-Path $FfmpegDir 'bin') | Out-Null
+    # Only ffmpeg.exe is used; the licence travels with the GPL build.
+    Move-Item -LiteralPath $found.FullName -Destination $FfmpegExe
+    $license = Join-Path $found.Directory.Parent.FullName 'LICENSE'
+    if (Test-Path -LiteralPath $license) {
+        Move-Item -LiteralPath $license -Destination (Join-Path $FfmpegDir 'LICENSE')
+    }
+    Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
+
+    Set-Content -LiteralPath $FfmpegStampFile -Value $FfmpegVer -Encoding ASCII
+    Write-Host ('FFmpeg {0} installed to .ffmpeg\' -f $FfmpegVer)
+}
+
 Write-Host '================================================'
 Write-Host '  DataForge Windows Self-Contained Setup'
 Write-Host ('  Python {0} -> .python\   Node {1} -> .node\' -f $PyVer, $NodeVer)
@@ -205,6 +258,14 @@ try {
         Write-Host ('Node.js {0} already present at .node\' -f $NodeVer)
     } else {
         Install-PortableNode -Arch $arch
+    }
+
+    if (-not $arch.HasFfmpeg) {
+        Write-Host 'No pinned FFmpeg build for ARM64; DataForge uses a 7.1.x on PATH or its bundled copy.'
+    } elseif ((Test-Path -LiteralPath $FfmpegExe -PathType Leaf) -and (Test-StampMatches -File $FfmpegStampFile -Expected $FfmpegVer)) {
+        Write-Host ('FFmpeg {0} already present at .ffmpeg\' -f $FfmpegVer)
+    } else {
+        Install-PortableFfmpeg
     }
 
     $env:PATH = "$PyDir;$NodeDir;$env:PATH"

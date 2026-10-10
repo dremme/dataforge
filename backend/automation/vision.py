@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import itertools
 import logging
 import math
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from automation.audio import AUDIO_FORMAT
 from automation.llm import run_chat_completion
 from constants import GIF_EXTENSION, VIDEO_EXTENSIONS
 from gif_frames import extract_gif_first_frame, keyframe_indices
+from image_io import displayed_image
 from openai_settings import (
     DEFAULT_PRESERVE_THINKING,
     DEFAULT_REASONING_EFFORT,
@@ -90,16 +92,24 @@ def media_kind_max_pixels(media_kind: MediaKind, *, seconds: float | None = None
 
 
 def resize_for_qwen(image: Image.Image, max_pixels: int) -> Image.Image:
-    """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid."""
+    """Downscale to ``max_pixels``, keeping both sides on Qwen's 32-pixel patch grid.
+
+    The short side never drops below the side floor, even past the budget, but both sides scale
+    together, so the frame keeps its shape. A panorama the floor reaches is not upscaled.
+    """
     width, height = image.size
     current_pixels = width * height
     if current_pixels <= max_pixels:
         return image
 
     scale = (max_pixels / current_pixels) ** 0.5
+    short_side = min(width, height)
     min_side = get_qwen_min_side_px()
-    new_width = max((int(width * scale) // 32) * 32, min_side)
-    new_height = max((int(height * scale) // 32) * 32, min_side)
+    if short_side * scale < min_side:
+        scale = min(1.0, min_side / short_side)
+    # The epsilon keeps a side scaled exactly onto the floor from rounding down a whole cell.
+    new_width = max(32, int(width * scale + 1e-6) // 32 * 32)
+    new_height = max(32, int(height * scale + 1e-6) // 32 * 32)
     return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
@@ -135,7 +145,7 @@ def load_image_rgb(media_path: Path) -> tuple[list[Image.Image] | None, str | No
     """Open a still and close the handle; Pillow otherwise locks multi-frame files on Windows."""
     try:
         with Image.open(media_path) as image:
-            return [image.convert("RGB")], None
+            return [displayed_image(image).convert("RGB")], None
     except Exception as exc:
         logger.error("Image read error for %s: %s", media_path.name, exc)
         return None, str(exc)
@@ -181,12 +191,32 @@ def _capped(image: Image.Image, seconds: float | None = None) -> Image.Image:
     return resize_for_qwen(image, max_pixels=video_frame_max_pixels_for_seconds(seconds))
 
 
-def _read_frame_at(cap, cv2, frame_index: int, seconds: float | None = None) -> Image.Image | None:
+def _read_frame_at(
+    cap, cv2, frame_index: int, seconds: float | None = None
+) -> tuple[Image.Image, float] | None:
+    """The frame and its presentation time in seconds, read back right after decoding it."""
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
     ok, frame = cap.read()
     if not ok:
         return None
-    return _capped(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), seconds)
+    presented = float(cap.get(cv2.CAP_PROP_POS_MSEC) or 0.0) / 1000
+    return _capped(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), seconds), presented
+
+
+def _frame_timestamps(
+    indices: list[int], presented: list[float], fps: float | None
+) -> list[float] | None:
+    """Each frame's own time; ``index / fps`` only when the decoder's times are unusable.
+
+    The average rate mislabels a variable-rate clip, so the decoder's times win when they rise
+    strictly from frame to frame. Some backends report none, which is where the rate is needed.
+    """
+    usable = all(math.isfinite(time) and time >= 0 for time in presented) and all(
+        later > earlier for earlier, later in itertools.pairwise(presented)
+    )
+    if usable and len(presented) > 1:
+        return presented
+    return None if fps is None else [index / fps for index in indices]
 
 
 def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) -> MediaFrames:
@@ -194,7 +224,7 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) 
     seconds = _video_seconds(fps, total_frames)
     wanted = keyframe_indices(total_frames, count)
     captured = {
-        index: image for index in wanted if (image := _read_frame_at(cap, cv2, index, seconds))
+        index: frame for index in wanted if (frame := _read_frame_at(cap, cv2, index, seconds))
     }
 
     last_wanted = wanted[-1] if wanted else 0
@@ -203,15 +233,15 @@ def _seek_keyframes(cap, cv2, total_frames: int, count: int, fps: float | None) 
         floor = max(captured, default=-1)
         limit = max(floor, last_wanted - TAIL_SEEK_LIMIT)
         for index in range(last_wanted - 1, limit, -1):
-            image = _read_frame_at(cap, cv2, index, seconds)
-            if image is not None:
-                captured[index] = image
+            frame = _read_frame_at(cap, cv2, index, seconds)
+            if frame is not None:
+                captured[index] = frame
                 break
 
     indices = sorted(captured)
     return MediaFrames(
-        images=[captured[index] for index in indices],
-        timestamps=None if fps is None else [index / fps for index in indices],
+        images=[captured[index][0] for index in indices],
+        timestamps=_frame_timestamps(indices, [captured[index][1] for index in indices], fps),
     )
 
 

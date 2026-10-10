@@ -19,7 +19,7 @@ from constants import (
     EDIT_STALE_SUFFIX,
     EDIT_TEMP_SUFFIX,
 )
-from file_publish import publish_replacing
+from file_publish import publish_replacing, sweep_publish_leftovers
 from file_write import write_text_atomic
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ def read_spec[SpecT: BaseModel](media: Path, model: type[SpecT]) -> SpecT | None
     path = edit_spec_path(media)
     try:
         raw = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
 
     try:
@@ -116,16 +116,39 @@ def write_spec(media: Path, spec: BaseModel) -> None:
     write_text_atomic(edit_spec_path(media), json.dumps(spec.model_dump(), indent=2))
 
 
+def publish_with_spec(temp_path: Path, media: Path, spec: BaseModel) -> None:
+    """Publish a render and the spec it was made from, so neither outlives a failure of the other.
+
+    The spec goes first: a failed write leaves the live file untouched, and a failed publish puts
+    the previous spec back.
+    """
+    spec_path = edit_spec_path(media)
+    try:
+        previous = spec_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        previous = None
+
+    write_spec(media, spec)
+    try:
+        publish_replacing(temp_path, media, stale_path_for(media))
+    except Exception:
+        with suppress(OSError):
+            if previous is None:
+                spec_path.unlink(missing_ok=True)
+            else:
+                write_text_atomic(spec_path, previous)
+        raise
+
+
 def clear_spec(media: Path) -> None:
     with suppress(OSError):
         edit_spec_path(media).unlink(missing_ok=True)
 
 
 def sweep_edit_temp_files(folder: Path) -> None:
-    with suppress(OSError):
-        for suffix in (EDIT_TEMP_SUFFIX, EDIT_STALE_SUFFIX):
-            for leftover in folder.glob(f"*{suffix}"):
-                leftover.unlink(missing_ok=True)
+    sweep_publish_leftovers(
+        folder, temp_suffix=EDIT_TEMP_SUFFIX, stale_suffix=EDIT_STALE_SUFFIX, is_busy=is_rendering
+    )
 
 
 def ensure_backup(media: Path) -> Path:

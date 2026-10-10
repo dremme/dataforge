@@ -17,7 +17,13 @@ from automation.llm import (
     strip_code_fences,
 )
 from automation.selection import filter_media_list, list_folder_media
-from captions import NO_CAPTION_STATUS, load_reference_caption, save_caption
+from captions import (
+    CAPTION_CHANGED_STATUS,
+    NO_CAPTION_STATUS,
+    caption_changed_since,
+    load_reference_caption,
+    save_caption,
+)
 from constants import CAPTION_EDIT_PREVIEW_LIMIT, MEDIA_EXTENSIONS
 from file_write import copy_file_atomic
 from openai_settings import (
@@ -39,6 +45,7 @@ PROCESSED_STAT_KEYS = (
     "read_error",
     "api_error",
     "write_error",
+    CAPTION_CHANGED_STATUS,
 )
 
 MIN_EDIT_LENGTH_RATIO = 0.25
@@ -288,6 +295,7 @@ def _initial_job_stats(total: int) -> dict[str, int]:
         "read_error": 0,
         "api_error": 0,
         "write_error": 0,
+        CAPTION_CHANGED_STATUS: 0,
         "cancelled": 0,
     }
 
@@ -321,6 +329,8 @@ def run_edit_captions_job(
     with model_client() as client:
 
         def process(media_path: Path) -> FileOutcome:
+            # The text the edit is built from; the write is skipped if it changes meanwhile.
+            draft, _status = load_reference_caption(media_path)
             edited, status, message = process_media(
                 client,
                 media_path,
@@ -338,14 +348,17 @@ def run_edit_captions_job(
             if status != "success" or edited is None:
                 return FileOutcome.counted(status, message)
 
-            original, _status = load_reference_caption(media_path)
-            if original is not None and edited.strip() == original.strip():
+            if draft is not None and edited.strip() == draft.strip():
                 return FileOutcome.counted(
                     UNCHANGED, message="The edit did not change this caption"
                 )
 
             if should_cancel and should_cancel():
                 return FileOutcome.cancelled()
+
+            changed = caption_changed_since(media_path, draft)
+            if changed is not None:
+                return FileOutcome.counted(CAPTION_CHANGED_STATUS, changed)
 
             if backup:
                 try:

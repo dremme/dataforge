@@ -16,8 +16,10 @@ export function useGalleryItemModal(
 
   const modalItems = useMemo(() => {
     if (!modalNavigationPaths) return [];
+    // One lookup table per listing: a find per path is quadratic on a 10k-item folder.
+    const byPath = new Map(images.map((item) => [item.path, item]));
     return modalNavigationPaths
-      .map((path) => images.find((item) => item.path === path))
+      .map((path) => byPath.get(path))
       .filter((item): item is GalleryItem => item != null);
   }, [images, modalNavigationPaths]);
 

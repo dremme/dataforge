@@ -67,6 +67,18 @@ class SetCaptionsJobTests(unittest.TestCase):
             self.assertEqual(result["stats"]["success"], 0)
             self.assertEqual(media.with_suffix(".txt").read_text(encoding="utf-8"), "Keep me.")
 
+    def test_an_unreadable_caption_is_not_treated_as_missing(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_media(root, "photo.png")
+            caption = media.with_suffix(".txt")
+            caption.write_bytes("Keep me.".encode("utf-16"))
+            original = caption.read_bytes()
+
+            result = run_set_captions_job(root, caption="Replace me.", overwrite=False)
+
+            self.assertEqual(result["stats"]["skipped"], 1)
+            self.assertEqual(caption.read_bytes(), original)
+
     def test_overwrites_existing_txt_caption_when_requested(self) -> None:
         with TempMediaFolder() as root:
             media = write_media(root, "photo.png")

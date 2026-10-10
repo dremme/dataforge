@@ -221,15 +221,36 @@ class RestoreBackupTests(unittest.TestCase):
 class SweepTests(unittest.TestCase):
     def test_leftovers_from_a_hard_kill_are_dropped(self) -> None:
         with TempMediaFolder() as root:
-            (root / "clip.mp4.edit-tmp").write_bytes(b"junk")
-            (root / "clip.mp4.edit-stale").write_bytes(b"junk")
             keeper = write_media(root, "sunset.png")
+            (root / "sunset.png.edit-tmp").write_bytes(b"junk")
+            (root / "sunset.png.edit-stale").write_bytes(b"junk")
 
             edit_sidecars.sweep_edit_temp_files(root)
 
             self.assertEqual(list(root.glob("*.edit-tmp")), [])
             self.assertEqual(list(root.glob("*.edit-stale")), [])
             self.assertTrue(keeper.is_file())
+
+    def test_another_files_render_in_progress_is_left_alone(self) -> None:
+        with TempMediaFolder() as root:
+            rendering = write_media(root, "busy.png")
+            temp = edit_sidecars.temp_path_for(rendering)
+            temp.write_bytes(b"half-written")
+
+            with edit_sidecars.render_slot(rendering):
+                edit_sidecars.sweep_edit_temp_files(root)
+
+            self.assertEqual(temp.read_bytes(), b"half-written")
+
+    def test_a_parked_original_with_no_live_file_is_moved_back(self) -> None:
+        with TempMediaFolder() as root:
+            stale = edit_sidecars.stale_path_for(root / "clip.mp4")
+            stale.write_bytes(b"only-copy")
+
+            edit_sidecars.sweep_edit_temp_files(root)
+
+            self.assertEqual((root / "clip.mp4").read_bytes(), b"only-copy")
+            self.assertFalse(stale.exists())
 
 
 class RenderSlotTests(unittest.TestCase):

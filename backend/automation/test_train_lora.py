@@ -356,6 +356,20 @@ class RunTrainLoraJobTests(unittest.TestCase):
         self.assertEqual(patches.created, [])
         self.assertEqual(result["processed"], 100)
 
+    def test_a_new_run_refuses_a_name_another_live_run_already_uses(self) -> None:
+        """A name says nothing about the dataset or model, so tracking it could cancel that run."""
+        with TrainLoraPatches(
+            poll_jobs=[_job("running", step=80)],
+            existing=_job("running", step=80),
+        ) as patches:
+            with self.assertRaises(OstrisTrainingError) as caught:
+                self._run(patches, should_cancel=lambda: True)
+
+        self.assertIn("already running", str(caught.exception))
+        self.assertEqual(patches.created, [])
+        self.assertEqual(patches.stopped_with_checkpoint, [])
+        self.assertEqual(patches.marked_stopped, [])
+
     def test_attaching_to_a_finished_run_reports_it_as_finished(self) -> None:
         with TrainLoraPatches(
             poll_jobs=[],

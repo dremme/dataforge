@@ -94,6 +94,8 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   const [aspectId, setAspectId] = useState("free");
   const [applying, setApplying] = useState(false);
   const [cropActive, setCropActive] = useState(false);
+  // The saved spec has been read; editing before then would apply a draft missing it.
+  const [stateLoaded, setStateLoaded] = useState(false);
 
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -113,7 +115,10 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   } = useMaskRegions(draft.masks, setMasks);
 
   const path = item?.path;
-  const ready = sourceWidth > 0 && sourceHeight > 0;
+  const sized = sourceWidth > 0 && sourceHeight > 0;
+  const ready = sized && stateLoaded;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -129,6 +134,7 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
     setSourceHeight(0);
     setDraft(emptyDraft());
     setSavedSpec(null);
+    setStateLoaded(false);
     setAspectId("free");
     clearMaskSelection();
   }, [path, clearMaskSelection]);
@@ -156,9 +162,10 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
   // Wait for a real size: seeding 0x0 makes aspectIdForCrop answer "free" over a locked rect.
   // Keyed on path, not the item object, so a folder refresh cannot throw away a draft in progress.
   useEffect(() => {
-    if (!editMode || !path || !ready) return;
+    if (!editMode || !path || !sized) return;
 
     let cancelled = false;
+    setStateLoaded(false);
     void (async () => {
       try {
         const state = await fetchImageEditState(path);
@@ -169,12 +176,13 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       } catch {
         // Missing spec: open on an empty draft like an unedited file.
       }
+      if (!cancelled && mountedRef.current) setStateLoaded(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [editMode, path, ready, seedDraft]);
+  }, [editMode, path, sized, seedDraft]);
 
   const setCrop = useCallback((crop: CropRect) => {
     setDraft((current) => ({ ...current, crop }));
@@ -263,8 +271,9 @@ export function useImageEdit(options: UseImageEditOptions): ImageEdit {
       describe: (name: string) => string,
       settle: () => void,
     ) => {
-      // Ref guard: a double click lands before applying has re-rendered the button disabled.
-      if (applyingRef.current) return;
+      // Ref guards: a double click lands before applying has re-rendered the button disabled,
+      // and a shortcut can fire before the saved spec has seeded the draft.
+      if (applyingRef.current || !readyRef.current) return;
 
       const { item: currentItem, onEdited } = optionsRef.current;
       if (!currentItem) return;

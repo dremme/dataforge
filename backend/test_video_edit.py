@@ -969,6 +969,7 @@ class ApplyVideoEditTests(unittest.TestCase):
     def test_leftovers_from_a_hard_kill_are_swept_first(self) -> None:
         with TempMediaFolder() as root:
             media = write_mp4_video(root, "clip.mp4")
+            (root / "other.mp4").write_bytes(b"live")
             (root / f"other.mp4{EDIT_TEMP_SUFFIX}").write_bytes(b"junk")
             (root / f"other.mp4{EDIT_STALE_SUFFIX}").write_bytes(b"junk")
 

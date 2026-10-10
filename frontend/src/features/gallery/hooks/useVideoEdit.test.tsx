@@ -1,7 +1,11 @@
 import { StrictMode, type ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchVideoAutoAdjust, fetchVideoEditState } from "@/features/gallery/api/videoEdit";
+import {
+  applyVideoEdit,
+  fetchVideoAutoAdjust,
+  fetchVideoEditState,
+} from "@/features/gallery/api/videoEdit";
 import { useVideoEdit, type UseVideoEditOptions } from "./useVideoEdit";
 import { AppProviders } from "@/test/AppProviders";
 import { makeItem } from "@/test/galleryItemModal";
@@ -88,6 +92,27 @@ beforeEach(() => {
 });
 
 describe("useVideoEdit", () => {
+  it("waits for the saved edit before it can apply over it", async () => {
+    let answer!: (state: VideoEditStateResponse) => void;
+    fetchStateMock.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { result } = renderEdit();
+
+    await act(async () => {
+      result.current.handleLoadedMetadata(videoMeta(12));
+    });
+    expect(result.current.ready).toBe(false);
+    act(() => result.current.setTrimStart(1));
+    act(() => result.current.apply());
+    expect(vi.mocked(applyVideoEdit)).not.toHaveBeenCalled();
+
+    await act(async () => answer({ path: CLIP, has_backup: true, spec: null }));
+    expect(result.current.ready).toBe(true);
+  });
+
   it("keeps an in-progress draft when duration updates after the first real value", async () => {
     const { result } = renderEdit();
 

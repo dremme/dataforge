@@ -136,6 +136,9 @@ if __name__ == "__main__":
     # Parsed after .env so DATAFORGE_API_PORT can come from there.
     options = _parse_args()
 
+    # The request guard reads the bound address from here, and --host may have overridden it.
+    os.environ["DATAFORGE_API_HOST"] = options.host
+
     reload_state = "on" if options.reload else "off (--no-reload)"
     print(
         f"DataForge API on http://{options.host}:{options.port}  |  hot reload: {reload_state}",

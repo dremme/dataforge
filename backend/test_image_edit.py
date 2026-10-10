@@ -764,5 +764,44 @@ class ResolveImageFormatTests(unittest.TestCase):
             image_edit.resolve_image_format(Path("loop.gif"))
 
 
+class EditSpecCommitTests(unittest.TestCase):
+    """The live file and its spec must agree, whichever of the two writes fails."""
+
+    def test_a_failed_spec_write_leaves_the_live_file_untouched(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=32, height=16)
+            original = media.read_bytes()
+
+            with patch("edit_sidecars.write_text_atomic", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    image_edit.apply_image_edit(media, ImageEditSpec(rotate=90))
+
+            self.assertEqual(media.read_bytes(), original)
+
+    def test_a_failed_publish_keeps_the_previous_spec(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=32, height=16)
+            image_edit.apply_image_edit(media, ImageEditSpec(rotate=90))
+
+            with patch("edit_sidecars.publish_replacing", side_effect=OSError("denied")):
+                with self.assertRaises(OSError):
+                    image_edit.apply_image_edit(media, ImageEditSpec(rotate=180))
+
+            saved = edit_sidecars.read_spec(media, ImageEditSpec)
+            self.assertIsNotNone(saved)
+            assert saved is not None
+            self.assertEqual(saved.rotate, 90)
+
+    def test_a_failed_first_publish_leaves_no_spec(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "photo.png", width=32, height=16)
+
+            with patch("edit_sidecars.publish_replacing", side_effect=OSError("denied")):
+                with self.assertRaises(OSError):
+                    image_edit.apply_image_edit(media, ImageEditSpec(rotate=90))
+
+            self.assertFalse(edit_sidecars.edit_spec_path(media).exists())
+
+
 if __name__ == "__main__":
     unittest.main()

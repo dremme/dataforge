@@ -99,6 +99,8 @@ if __name__ == "__main__":
 
     # Parsed after .env so DATAFORGE_UI_PORT can come from there.
     options = _parse_args(None, default_port=get_ui_port())
+    # The request guard reads the bound address from here, and --host may have overridden it.
+    os.environ["DATAFORGE_API_HOST"] = options.host
 
     print(
         f"DataForge on http://{options.host}:{options.port}  |  bundled UI, no hot reload",

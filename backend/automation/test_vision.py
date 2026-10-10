@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -45,6 +46,7 @@ from automation.vision import (
     video_frame_max_pixels_for_seconds,
     vision_messages,
 )
+from ffmpeg_bin import ffmpeg_path
 from testing_fixtures import (
     FakeChatClient,
     TempMediaFolder,
@@ -328,6 +330,32 @@ class VideoFramePixelScaleTests(unittest.TestCase):
             self.assertEqual(resized.size, (256, 256))
 
 
+class ResizeForQwenShapeTests(unittest.TestCase):
+    """The side floor may outgrow the budget, but never by stretching one side alone."""
+
+    def _resized(self, width: int, height: int, max_pixels: int) -> tuple[int, int]:
+        return resize_for_qwen(Image.new("RGB", (width, height)), max_pixels=max_pixels).size
+
+    def test_a_widescreen_frame_keeps_its_shape_at_the_side_floor(self) -> None:
+        width, height = self._resized(1920, 1080, 512 * 512)
+
+        self.assertEqual(height, QWEN_MIN_SIDE_PX)
+        self.assertAlmostEqual(width / height, 1920 / 1080, delta=0.07)
+        self.assertEqual(width % 32, 0)
+
+    def test_a_panorama_keeps_its_shape(self) -> None:
+        width, height = self._resized(4096, 512, 500_000)
+
+        self.assertEqual((width, height), (4096, 512))
+
+    def test_an_ordinary_downscale_stays_within_the_budget(self) -> None:
+        width, height = self._resized(4000, 3000, 1_000_000)
+
+        self.assertLessEqual(width * height, 1_000_000)
+        self.assertAlmostEqual(width / height, 4 / 3, delta=0.05)
+        self.assertEqual((width % 32, height % 32), (0, 0))
+
+
 class KeyframeSentenceTests(unittest.TestCase):
     def test_states_the_real_frame_count(self) -> None:
         sentence = keyframe_sentence(5)
@@ -546,6 +574,7 @@ class ExtractVideoKeyframesTests(unittest.TestCase):
 
 
 # The real cv2 values, so a capture that is handed the wrong one is still recognisable.
+FAKE_CAP_PROP_POS_MSEC = 0
 FAKE_CAP_PROP_POS_FRAMES = 1
 FAKE_CAP_PROP_FPS = 5
 FAKE_CAP_PROP_FRAME_COUNT = 7
@@ -606,6 +635,7 @@ def _fake_cv2_for(capture: FakeCapture):
             "CAP_PROP_FRAME_COUNT": FAKE_CAP_PROP_FRAME_COUNT,
             "CAP_PROP_POS_FRAMES": FAKE_CAP_PROP_POS_FRAMES,
             "CAP_PROP_FPS": FAKE_CAP_PROP_FPS,
+            "CAP_PROP_POS_MSEC": FAKE_CAP_PROP_POS_MSEC,
             "COLOR_BGR2RGB": 4,
             "cvtColor": staticmethod(lambda frame, _code: frame),
         },
@@ -622,6 +652,46 @@ def _extract_from(capture: FakeCapture, count: int | None):
         video = write_mp4_video(root, "clip.mp4")
         with patch.dict("sys.modules", {"cv2": _fake_cv2_for(capture)}):
             return extract_video_keyframes(video, count)
+
+
+class VariableFrameRateTimestampTests(unittest.TestCase):
+    """Frame labels are presentation times; index / average fps is wrong once the rate varies."""
+
+    def test_labels_are_each_frames_own_time(self) -> None:
+        with TempMediaFolder() as root:
+            clip = root / "vfr.mp4"
+            # Ten frames 0.1 s apart, then ten 0.5 s apart.
+            subprocess.run(
+                [
+                    str(ffmpeg_path()),
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc2=size=64x48:rate=10:duration=2",
+                    "-vf",
+                    "setpts='if(lt(N,10),N/10,1+(N-10)*0.5)/TB'",
+                    "-fps_mode",
+                    "passthrough",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    str(clip),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+
+            frames = extract_video_keyframes(clip, count=3)
+
+        assert frames is not None and frames.timestamps is not None
+        # Frames 0, 10 and 18: the last reported frame does not decode, so the walk-back finds 18.
+        for label, expected in zip(frames.timestamps, (0.0, 1.0, 5.0), strict=True):
+            self.assertAlmostEqual(label, expected, places=2)
 
 
 class VideoKeyframeSpanTests(unittest.TestCase):
@@ -804,14 +874,13 @@ class AdaptiveKeyframeCountTests(unittest.TestCase):
             self.assertGreater(frame.width * frame.height, SETTING_DEFAULTS.video_frame_max_pixels)
 
     def test_a_budget_under_the_resize_floor_cannot_shrink_a_frame(self) -> None:
-        # Below the floor the knob buys no frames and a 16:9 source comes back square.
+        # Below the floor the knob buys no frames; the short side holds and the shape is kept.
         with patch.dict(os.environ, {"VIDEO_FRAME_MAX_PIXELS": "125000"}):
             frames = self._extract(FakeCapture(decodable=1, width=1920, height=1080))
 
         assert frames is not None
         frame = frames.images[0]
-        self.assertEqual(frame.size, (QWEN_MIN_SIDE_PX, QWEN_MIN_SIDE_PX))
-        self.assertEqual(frame.width * frame.height, SETTING_DEFAULTS.video_frame_min_pixels)
+        self.assertEqual(frame.size, (896, QWEN_MIN_SIDE_PX))
 
     def test_a_seven_second_clip_keeps_the_full_frame_budget(self) -> None:
         frames = self._extract(FakeCapture(decodable=210, fps=30, width=1200, height=1200))

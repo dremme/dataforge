@@ -28,7 +28,7 @@ from constants import (
 )
 from duplicates import duplicate_file_path
 from edit_sidecars import backup_path_for, edit_spec_path
-from file_publish import publish_replacing
+from file_publish import publish_replacing, sweep_publish_leftovers
 from file_write import write_text_atomic
 from folder_scan import get_media_type
 from media_delete import delete_path
@@ -71,20 +71,25 @@ def is_settling(media: Path) -> bool:
 
 
 @contextmanager
-def settle_slot(media: Path) -> Generator[None]:
-    """One accept/reject slot; a batch and a single accept must not publish over each other."""
-    key = _settle_key(media)
+def settle_slot(media: Path, *also: Path) -> Generator[None]:
+    """One accept/reject slot; a batch and a single accept must not publish over each other.
+
+    ``also`` claims further names, such as the target of an accept that changes the extension,
+    so a folder sweep treats their temp files as in use.
+    """
+    keys = {_settle_key(path) for path in (media, *also)}
 
     with _settling_lock:
-        if key in _settling:
+        if keys & _settling.keys():
             raise CandidateBusyError(BUSY_MESSAGE)
-        _settling[key] = None
+        _settling.update(dict.fromkeys(keys))
 
     try:
         yield
     finally:
         with _settling_lock:
-            _settling.pop(key, None)
+            for key in keys:
+                _settling.pop(key, None)
 
 
 def difference_percent(before: Image.Image, after: Image.Image) -> float:
@@ -174,10 +179,9 @@ def has_candidate(media: Path) -> bool:
 
 
 def sweep_comfy_temp_files(folder: Path) -> None:
-    with suppress(OSError):
-        for suffix in (COMFY_TEMP_SUFFIX, COMFY_STALE_SUFFIX):
-            for leftover in folder.glob(f"*{suffix}"):
-                leftover.unlink(missing_ok=True)
+    sweep_publish_leftovers(
+        folder, temp_suffix=COMFY_TEMP_SUFFIX, stale_suffix=COMFY_STALE_SUFFIX, is_busy=is_settling
+    )
 
 
 def write_candidate_sidecar(candidate: Path, sidecar: ComfyCandidateSidecar) -> None:
@@ -188,7 +192,7 @@ def read_candidate_sidecar(candidate: Path) -> ComfyCandidateSidecar | None:
     path = candidate_sidecar_path(candidate)
     try:
         raw = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
 
     try:
@@ -299,12 +303,9 @@ def accept_candidate(
     # The published file keeps the candidate's format (ComfyUI writes PNG), not the source's.
     target = media.with_suffix(candidate.suffix)
 
-    with settle_slot(media):
+    with settle_slot(media, target):
         validate_candidate_destination(media, candidate)
-        validate_candidate_media(candidate)
-        # Before publishing: a failure here must leave the file and its edit record intact.
-        if discard_edit:
-            _discard_edit(media)
+        validate_candidate_media(candidate, complete=True)
         sweep_comfy_temp_files(media.parent)
 
         temp_path = temp_path_for(target)
@@ -313,6 +314,9 @@ def accept_candidate(
                 write_with_source_metadata(media, candidate, temp_path)
             else:
                 shutil.copy2(candidate, temp_path)
+            # Only once the replacement is ready: a failure before here keeps the edit record.
+            if discard_edit:
+                _discard_edit(media)
             publish_replacing(temp_path, target, stale_path_for(target))
         finally:
             with suppress(OSError):

@@ -460,7 +460,8 @@ class RememberedDataResponse(BaseModel):
     display_mode_folders: int
 
 
-type FfmpegSource = Literal["path", "bundled"]
+#: ``setup`` is the checksum-verified build setup installs into the clone.
+type FfmpegSource = Literal["setup", "path", "bundled"]
 
 
 class AboutResponse(BaseModel):

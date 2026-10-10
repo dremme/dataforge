@@ -429,3 +429,35 @@ class RenameMediaJobTests(unittest.TestCase):
             self.assertFalse((root / "sample_001.txt").exists())
             self.assertFalse((root / "sample_002.png").exists())
             self.assertFalse((root / "sample_003.png").exists())
+
+
+class SharedStemRenameTests(unittest.TestCase):
+    def test_each_renamed_sibling_keeps_the_caption_they_shared(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_media(root, "pair.jpg")
+            png = write_media(root, "pair.png")
+            write_txt_caption(jpg, "Shared.")
+            now = time.time()
+            os.utime(jpg, (now - 20, now - 20))
+            os.utime(png, (now - 10, now - 10))
+
+            result = run_rename_media_job(root, stem="sample")
+
+            self.assertEqual(result["stats"]["success"], 2)
+            for name in ("sample_001.txt", "sample_002.txt"):
+                self.assertEqual((root / name).read_text(encoding="utf-8").strip(), "Shared.")
+            self.assertFalse((root / "pair.txt").exists())
+
+    def test_renaming_one_sibling_leaves_the_other_its_caption(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_media(root, "pair.jpg")
+            png = write_media(root, "pair.png")
+            write_txt_caption(jpg, "Shared.")
+
+            run_rename_media_job(root, stem="sample", selected_paths=[jpg])
+
+            self.assertTrue(png.is_file())
+            self.assertEqual((root / "pair.txt").read_text(encoding="utf-8").strip(), "Shared.")
+            self.assertEqual(
+                (root / "sample_001.txt").read_text(encoding="utf-8").strip(), "Shared."
+            )

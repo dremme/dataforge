@@ -15,12 +15,14 @@ export const SKIPPED_STATUSES: ReadonlySet<string> = new Set([
   "already_backed_up",
   "orphaned",
   "unchanged",
+  "caption_changed",
 ]);
 
 const STATUS_LABELS: Record<string, string> = {
   already_backed_up: "Already backed up",
   api_error: "Model error",
   cancelled: "Cancelled",
+  caption_changed: "Edited meanwhile",
   comfy_error: "ComfyUI error",
   ffmpeg_error: "FFmpeg error",
   frame_error: "Frame error",

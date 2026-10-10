@@ -17,9 +17,10 @@ from file_write import write_text_atomic
 
 
 def _read_caption_text(path: Path) -> str | None:
+    """``None`` when the file cannot be read, including text that is not UTF-8."""
     try:
         return path.read_text(encoding="utf-8-sig")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
 
 
@@ -117,6 +118,8 @@ def media_has_caption_text(media_path: Path) -> bool:
 
 NO_CAPTION_STATUS = "no_caption"
 CAPTION_READ_ERROR = "read_error"
+#: A model reply not written because the caption or its file changed while the model ran.
+CAPTION_CHANGED_STATUS = "caption_changed"
 
 
 def load_reference_caption(media_path: Path) -> tuple[str | None, str]:
@@ -134,6 +137,19 @@ def load_reference_caption(media_path: Path) -> tuple[str | None, str]:
         return None, NO_CAPTION_STATUS
 
     return text, "ok"
+
+
+def caption_changed_since(media_path: Path, baseline: str | None) -> str | None:
+    """Why a reply built from ``baseline`` must not be written, or ``None`` when it may be.
+
+    Read just before the write, so a caption saved while the model ran is not overwritten.
+    """
+    if not media_path.is_file():
+        return "The file was moved or deleted while the model was running"
+    current, _status = load_reference_caption(media_path)
+    if current != baseline:
+        return "The caption was edited while the model was running; that edit was kept"
+    return None
 
 
 def build_caption_response(media_path: Path) -> dict[str, object]:
@@ -262,7 +278,7 @@ def _findings_from_file(issue_path: Path) -> dict[IssueSource, list[str]]:
     """An unreadable sidecar reads as empty; callers still count the file as present."""
     try:
         data = json.loads(issue_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         data = None
 
     if not isinstance(data, dict):

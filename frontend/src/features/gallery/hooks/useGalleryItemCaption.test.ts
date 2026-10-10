@@ -324,6 +324,45 @@ describe("useGalleryItemCaption", () => {
     expect(result.current.caption).toBe("Hello world");
   });
 
+  it("syncs a caption changed back to text it showed before", async () => {
+    vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("A"));
+    const onCaptionSaved = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ item }: { item: GalleryItem }) => useGalleryItemCaption({ item, onCaptionSaved }),
+      { initialProps: { item: makeItem("sunset.png", { description: "A" }) } },
+    );
+    await waitFor(() => expect(result.current.caption).toBe("A"));
+
+    rerender({ item: makeItem("sunset.png", { description: "B" }) });
+    await waitFor(() => expect(result.current.caption).toBe("B"));
+
+    // A backup restore puts the earlier text back; it is newer than B, not a stale echo.
+    rerender({ item: makeItem("sunset.png", { description: "A" }) });
+    await waitFor(() => expect(result.current.caption).toBe("A"));
+  });
+
+  it("syncs a restore of the pre-save text once the save has been echoed", async () => {
+    vi.spyOn(api, "fetchCaption").mockResolvedValue(captionResponse("Hello"));
+    vi.spyOn(api, "saveCaption").mockImplementation(async (_path, text) => captionResponse(text));
+    const onCaptionSaved = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ item }: { item: GalleryItem }) => useGalleryItemCaption({ item, onCaptionSaved }),
+      { initialProps: { item: makeItem("sunset.png", { description: "Hello" }) } },
+    );
+    await waitFor(() => expect(result.current.caption).toBe("Hello"));
+
+    await advanceFakeClock(DEFAULT_DEBOUNCE_MS, () => {
+      result.current.handleCaptionChange("Hello world");
+    });
+    rerender({ item: makeItem("sunset.png", { description: "Hello world" }) });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    rerender({ item: makeItem("sunset.png", { description: "Hello" }) });
+    await waitFor(() => expect(result.current.caption).toBe("Hello"));
+  });
+
   it("keeps characters typed before the initial caption fetch resolves", async () => {
     let resolveFetch: (() => void) | undefined;
     vi.spyOn(api, "fetchCaption").mockImplementation(

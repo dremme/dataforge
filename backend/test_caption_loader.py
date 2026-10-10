@@ -34,5 +34,38 @@ class CaptionLoaderTests(unittest.TestCase):
             self.assertEqual(read_calls["count"], 2)
 
 
+class UnreadableSidecarTests(unittest.TestCase):
+    def test_a_non_utf8_caption_does_not_break_the_folder_listing(self) -> None:
+        from folder_contents import build_folder_response
+
+        with TempMediaFolder() as root:
+            broken = write_media(root, "broken.png")
+            broken.with_suffix(".txt").write_bytes("caption".encode("utf-16"))
+            fine = write_media(root, "fine.png")
+            write_txt_caption(fine, "Readable.")
+
+            response = build_folder_response(root, remember_last=False)
+
+            by_name = {Path(item.path).name: item for item in response.items}
+            self.assertEqual(by_name["fine.png"].description, "Readable.")
+            self.assertIsNone(by_name["broken.png"].description)
+
+    def test_non_utf8_finding_sidecars_read_as_absent(self) -> None:
+        from captions import issue_file_path, load_issue_summary
+        from duplicates import duplicate_file_path, duplicate_finding_from_sidecar
+
+        with TempMediaFolder() as root:
+            media = write_media(root)
+            issue_file_path(media).write_bytes('{"fixes": ["x"]}'.encode("utf-16"))
+            duplicate_file_path(media).write_bytes(bytes([0xFF, 0xFE, 0x00]) + b"garbage")
+
+            load_issue_summary(media)
+            sidecar = duplicate_file_path(media)
+            stat = sidecar.stat()
+            self.assertIsNone(
+                duplicate_finding_from_sidecar(sidecar, stat.st_mtime_ns, stat.st_size)
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

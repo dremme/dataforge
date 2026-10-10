@@ -4,7 +4,7 @@ import unittest
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from automation.strip_metadata import iter_png_chunks
 from candidate_metadata import write_with_source_metadata
@@ -95,6 +95,24 @@ class StillMetadataTests(unittest.TestCase):
 
         with Image.open(BytesIO(self.output.read_bytes())) as image:
             self.assertEqual(image.getexif()[0x010E], "A ridge")
+
+    def test_an_oriented_sources_exif_does_not_turn_the_upright_candidate(self) -> None:
+        """ComfyUI loads the source upright, so its Orientation describes pixels already turned."""
+        for suffix in (".jpg", ".png"):
+            with self.subTest(source=suffix):
+                exif = Image.Exif()
+                exif[0x0112] = 6
+                exif[0x010E] = "A lake at dawn"
+                source = self.root / f"photo{suffix}"
+                Image.new("RGB", (64, 32)).save(source, exif=exif.tobytes())
+                candidate = self.root / "upright.png"
+                Image.new("RGB", (32, 64)).save(candidate)
+
+                write_with_source_metadata(source, candidate, self.output)
+
+                with Image.open(BytesIO(self.output.read_bytes())) as image:
+                    self.assertEqual(ImageOps.exif_transpose(image).size, (32, 64))
+                    self.assertEqual(image.getexif()[0x010E], "A lake at dawn")
 
     def test_a_bmp_source_leaves_the_candidate_without_metadata(self) -> None:
         source = self.root / "photo.bmp"

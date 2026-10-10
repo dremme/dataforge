@@ -57,7 +57,7 @@ def _finding_from_file(sidecar_path: Path) -> DuplicateFinding | None:
     # utf-8-sig: a sidecar hand-edited in Notepad picks up a BOM.
     try:
         data = json.loads(sidecar_path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return None
 
     return _finding_from_data(data)

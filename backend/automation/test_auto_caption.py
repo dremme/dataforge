@@ -345,6 +345,42 @@ class AutoCaptionJobRunTests(unittest.TestCase):
         self.assertEqual(result["stats"]["success"], 1)
         self.assertEqual(result["results"][0]["description"], POLISHED_CAPTION)
 
+    def test_a_caption_saved_while_the_model_runs_is_kept(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            media = write_media(root, "photo.png")
+            write_txt_caption(media, "Draft.")
+
+            def complete(*_args, **_kwargs) -> str:
+                write_txt_caption(media, "Typed by hand meanwhile.")
+                return POLISHED_CAPTION
+
+            with patch("automation.auto_caption.complete_caption", side_effect=complete):
+                result = run_auto_caption_job(root)
+
+            self.assertEqual(
+                media.with_suffix(".txt").read_text(encoding="utf-8"), "Typed by hand meanwhile."
+            )
+        self.assertEqual(result["stats"]["caption_changed"], 1)
+        self.assertEqual(result["stats"]["success"], 0)
+
+    def test_a_file_moved_while_the_model_runs_gets_no_caption_behind(self) -> None:
+        with TempMediaFolder() as root:
+            write_sysprompt(root, "Describe the scene.")
+            media = write_media(root, "photo.png")
+            caption = write_txt_caption(media, "Draft.")
+
+            def complete(*_args, **_kwargs) -> str:
+                media.unlink()
+                caption.unlink()
+                return POLISHED_CAPTION
+
+            with patch("automation.auto_caption.complete_caption", side_effect=complete):
+                result = run_auto_caption_job(root)
+
+            self.assertFalse(caption.exists())
+        self.assertEqual(result["stats"]["caption_changed"], 1)
+
     def test_run_job_reads_the_txt_draft_and_leaves_leftover_json_alone(self) -> None:
         with TempMediaFolder() as root:
             write_sysprompt(root, "Describe the scene.")

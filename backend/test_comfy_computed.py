@@ -38,5 +38,21 @@ class MathExpressionTests(unittest.TestCase):
         self.assertIsNone(math_expression("a / 0", {"a": 2}))
 
 
+class OutOfRangeNumberTests(unittest.TestCase):
+    """A small workflow can still name a number no float holds; that is unavailable, not a crash."""
+
+    def test_an_integer_too_large_for_a_float_is_unavailable(self) -> None:
+        self.assertIsNone(math_expression("2**4000", {}))
+
+    def test_an_integer_a_float_holds_still_evaluates(self) -> None:
+        self.assertEqual(math_expression("2**10", {}), 1024)
+
+    def test_non_finite_resolution_inputs_are_unavailable(self) -> None:
+        for megapixels in (float("nan"), float("inf"), 2**4000):
+            with self.subTest(megapixels=megapixels):
+                self.assertIsNone(resolution_selector("1:1 (Square)", megapixels, 64))
+        self.assertIsNone(resolution_selector("1:1 (Square)", 1.0, float("nan")))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -7,7 +8,17 @@ import tempfile
 from pathlib import Path
 from typing import BinaryIO
 
-from constants import IMPORT_EXTENSIONS, SYSPROMPT_FILENAME
+from constants import (
+    CAPTION_BACKUP_DIR_NAME,
+    IMPORT_EXTENSIONS,
+    MEDIA_EXTENSIONS,
+    SIDECAR_EXTENSIONS,
+    SYSPROMPT_FILENAME,
+)
+from media_delete import delete_path
+from media_group import media_group_paths, shared_stem_paths
+
+logger = logging.getLogger(__name__)
 
 _INVALID_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -57,6 +68,32 @@ def preview_import(folder: Path, filenames: list[str]) -> dict[str, list[str]]:
     }
 
 
+def _replaced_media_state(media: Path) -> list[Path]:
+    """What describes the replaced file's pixels: its edit original and spec, findings, candidate.
+
+    Left in place, the next edit would render from the old original and discard the import.
+    The caption stays, and so does an edit spec a same-stem sibling still shares.
+    """
+    kept = {
+        media,
+        *(media.with_suffix(extension) for extension in SIDECAR_EXTENSIONS),
+        *shared_stem_paths(media),
+    }
+    return [
+        path
+        for path in media_group_paths(media)
+        if path not in kept and path.parent.name != CAPTION_BACKUP_DIR_NAME
+    ]
+
+
+def _discard_replaced_media_state(paths: list[Path]) -> None:
+    for path in paths:
+        try:
+            delete_path(path)
+        except OSError as error:
+            logger.warning("Failed to discard %s after an overwrite: %s", path.name, error)
+
+
 def import_uploaded_files(
     folder: Path,
     uploads: list[tuple[str, BinaryIO]],
@@ -86,7 +123,13 @@ def import_uploaded_files(
                 shutil.copyfileobj(stream, handle)
 
             if overwrite:
+                replaced = (
+                    _replaced_media_state(destination)
+                    if destination.suffix.lower() in MEDIA_EXTENSIONS and destination.is_file()
+                    else []
+                )
                 os.replace(temporary, destination)
+                _discard_replaced_media_state(replaced)
             else:
                 try:
                     if os.name == "nt":

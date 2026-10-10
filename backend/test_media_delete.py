@@ -144,5 +144,29 @@ class DeleteNameLinkedFilesTests(unittest.TestCase):
             self.assertTrue(unrelated.is_file())
 
 
+class SharedStemDeleteTests(unittest.TestCase):
+    def test_a_sibling_keeps_the_caption_they_share(self) -> None:
+        with TempMediaFolder() as root:
+            jpg = write_media(root, "item.jpg")
+            png = write_media(root, "item.png")
+            caption = write_txt_caption(png, "Shared.")
+
+            with patch("media_delete.sys.platform", "linux"):
+                delete_media_with_sidecars(jpg)
+
+            self.assertFalse(jpg.exists())
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Shared.")
+
+    def test_the_last_owner_takes_the_caption_with_it(self) -> None:
+        with TempMediaFolder() as root:
+            png = write_media(root, "item.png")
+            caption = write_txt_caption(png, "Mine.")
+
+            with patch("media_delete.sys.platform", "linux"):
+                delete_media_with_sidecars(png)
+
+            self.assertFalse(caption.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

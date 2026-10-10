@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import filecmp
 import logging
 import os
 import shutil
@@ -14,11 +15,30 @@ from fastapi import HTTPException
 
 from candidate_pairing import candidate_path_for
 from file_import import _existing_file_names
-from media_group import group_target, media_group_paths
+from media_group import (
+    group_target,
+    media_group_paths,
+    shared_stem_paths,
+    stem_keyed_paths,
+    stem_siblings,
+)
 
 logger = logging.getLogger(__name__)
 
 TransferMode = Literal["copy", "move"]
+
+
+def colliding_sidecars(source: Path, destination_media: Path) -> list[Path]:
+    """Existing destination files the source's related files would replace.
+
+    A byte-identical file is not a collision: it is the copy a same-stem sibling already brought.
+    """
+    collisions: list[Path] = []
+    for path in media_group_paths(source)[1:]:
+        target = group_target(source, destination_media, path)
+        if target.is_file() and not filecmp.cmp(path, target, shallow=False):
+            collisions.append(target)
+    return collisions
 
 
 def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[str, list[str]]:
@@ -36,7 +56,7 @@ def preview_media_transfer(destination: Path, source_paths: list[Path]) -> dict[
             continue
 
         name = source.name
-        if name in existing_names:
+        if name in existing_names or colliding_sidecars(source, destination / name):
             conflicts.append(name)
         else:
             eligible.append(name)
@@ -96,9 +116,10 @@ def backup_transfer_destination(destination: Path) -> Path | None:
     return backup
 
 
-def undo_transfer(done: list[tuple[Path, Path]], mode: TransferMode) -> set[Path]:
+def undo_transfer(done: list[tuple[Path, Path, TransferMode]]) -> set[Path]:
+    """Each entry carries its own mode: a move copies what a same-stem sibling still shares."""
     unrestored: set[Path] = set()
-    for origin, destination in reversed(done):
+    for origin, destination, mode in reversed(done):
         try:
             if mode == "copy":
                 destination.unlink(missing_ok=True)
@@ -124,8 +145,10 @@ def restore_transfer_backups(backups: list[tuple[Path, Path]], unrestored: set[P
 
 
 def discard_replaced_sidecars(destination_media: Path, arrived: set[Path]) -> None:
+    """Drop what the replaced file left behind, except what a same-stem sibling still shares."""
+    shared = shared_stem_paths(destination_media)
     for path in media_group_paths(destination_media):
-        if path in arrived:
+        if path in arrived or path in shared:
             continue
         try:
             path.unlink()
@@ -147,11 +170,27 @@ def transfer_media_with_sidecars(
         raise HTTPException(status_code=400, detail="File is already in the destination folder")
 
     destination_media = destination_folder / source.name
-    if destination_media.exists() and not overwrite:
+    replacing = destination_media.exists()
+    if replacing and not overwrite:
         raise HTTPException(
             status_code=409,
             detail="File already exists in the destination folder",
         )
+
+    collisions = colliding_sidecars(source, destination_media)
+    if collisions and not overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{collisions[0].name} already exists in the destination folder",
+        )
+    owners = stem_siblings(destination_media)
+    owned = stem_keyed_paths(owners[0]) if owners else set()
+    for collision in collisions:
+        if collision in owned:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{collision.name} belongs to {owners[0].name} in the destination",
+            )
 
     candidate = candidate_path_for(source)
     # A destination file of the candidate's exact name would claim it on arrival.
@@ -165,12 +204,15 @@ def transfer_media_with_sidecars(
             detail=f"Its staged candidate would pair with {candidate.name} in the destination",
         )
 
-    done: list[tuple[Path, Path]] = []
+    # A move leaves behind a copy of what a same-stem sibling in the source still shares.
+    shared = shared_stem_paths(source) if mode == "move" else set()
+    done: list[tuple[Path, Path, TransferMode]] = []
     backups: list[tuple[Path, Path]] = []
     created_dirs: list[Path] = []
 
     for path in media_group_paths(source):
         destination = group_target(source, destination_media, path)
+        path_mode: TransferMode = "copy" if path in shared else mode
         try:
             if not destination.parent.exists():
                 destination.parent.mkdir()
@@ -178,9 +220,9 @@ def transfer_media_with_sidecars(
             backup = backup_transfer_destination(destination)
             if backup is not None:
                 backups.append((destination, backup))
-            transfer_one_file(path, destination, mode)
+            transfer_one_file(path, destination, path_mode)
         except OSError as exc:
-            unrestored = undo_transfer(done, mode)
+            unrestored = undo_transfer(done)
             restore_transfer_backups(backups, unrestored)
             for created in reversed(created_dirs):
                 with suppress(OSError):
@@ -189,16 +231,17 @@ def transfer_media_with_sidecars(
                 status_code=500, detail=f"Failed to {mode} {path.name}: {exc}"
             ) from exc
 
-        done.append((path, destination))
+        done.append((path, destination, path_mode))
 
     for _, backup in backups:
         remove_transfer_file(backup)
-    discard_replaced_sidecars(destination_media, {destination for _, destination in done})
+    if replacing:
+        discard_replaced_sidecars(destination_media, {destination for _, destination, _ in done})
 
     return {
         "source": str(source),
         "destination": str(destination_media),
-        "files": [origin.name for origin, _ in done],
+        "files": [origin.name for origin, _, _ in done],
     }
 
 

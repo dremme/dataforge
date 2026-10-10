@@ -132,13 +132,21 @@ def _resolve_training_job(
     template: str | None,
     attach_only: bool,
 ) -> tuple[str, dict[str, Any]]:
-    """The AI-Toolkit job to track, creating it unless we are re-attaching to a live one."""
+    """The AI-Toolkit job to track: the named one when re-attaching, otherwise a new one.
+
+    A new run refuses a name a live job already uses. The name alone says nothing about that
+    job's dataset or model, and cancelling this run would stop it.
+    """
     existing = fetch_ostris_job_by_name(client, name)
     existing_id = _job_id(existing)
     if existing is not None and existing_id is not None:
-        still_live = existing.get("status") not in TERMINAL_OSTRIS_STATUSES
-        if attach_only or still_live:
+        if attach_only:
             return existing_id, existing
+        if existing.get("status") not in TERMINAL_OSTRIS_STATUSES:
+            raise OstrisTrainingError(
+                f'AI-Toolkit is already running a training job named "{name}". '
+                "Choose another LoRA name."
+            )
 
     if attach_only:
         raise OstrisTrainingError(f'AI-Toolkit no longer has a training job named "{name}".')

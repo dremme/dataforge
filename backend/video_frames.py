@@ -10,10 +10,11 @@ from pathlib import Path
 
 from PIL import Image
 
-from constants import GIF_EXTENSION, IMAGE_EXTENSIONS
+from constants import COMFY_ACCEPT_DECODE_TIMEOUT_SECONDS, GIF_EXTENSION, IMAGE_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from folder_scan import get_media_type
 from gif_frames import extract_gif_first_frame, gif_frame_rate
+from image_io import displayed_image
 from video_edit import probe_source
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ def media_first_frame(media: Path, *, suffix: str | None = None) -> Image.Image 
     try:
         with Image.open(media) as opened:
             opened.load()
-            return opened.convert("RGB")
+            return displayed_image(opened).convert("RGB")
     except Exception:
         logger.debug("No first frame for %s", media.name, exc_info=True)
         return None
@@ -73,7 +74,13 @@ def source_frame_rate(media: Path) -> float | None:
     return None
 
 
-def validate_candidate_media(media: Path, *, suffix: str | None = None) -> None:
+def validate_candidate_media(
+    media: Path, *, suffix: str | None = None, complete: bool = False
+) -> None:
+    """Raise ``ValueError`` unless ``media`` decodes. A clip is checked on its first frame only,
+    unless ``complete``: then every video and audio packet must decode, as an accept replaces
+    the source with no backup.
+    """
     extension = (suffix or media.suffix).lower()
     try:
         if extension in IMAGE_EXTENSIONS or extension == GIF_EXTENSION:
@@ -85,6 +92,29 @@ def validate_candidate_media(media: Path, *, suffix: str | None = None) -> None:
         executable = ffmpeg_path()
         if executable is None:
             raise ValueError("FFmpeg is required to validate video candidates")
+        if complete:
+            subprocess.run(
+                [
+                    executable,
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-xerror",
+                    "-i",
+                    str(media),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "0:a?",
+                    "-f",
+                    "null",
+                    "-",
+                ],
+                capture_output=True,
+                timeout=COMFY_ACCEPT_DECODE_TIMEOUT_SECONDS,
+                check=True,
+            )
+            return
         result = subprocess.run(
             [
                 executable,

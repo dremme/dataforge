@@ -13,6 +13,7 @@ from PIL import Image, UnidentifiedImageError
 
 from caption_cache import cached_by_stat
 from constants import ISOBMFF_EXTENSIONS
+from image_io import displayed_size
 
 __all__ = ["MediaInfo", "media_dimensions", "media_info"]
 
@@ -51,7 +52,7 @@ def _checked(width: int, height: int) -> Dimensions:
 def _image_dimensions(path: Path) -> Dimensions:
     try:
         with Image.open(path) as image:
-            return _checked(*image.size)
+            return _checked(*displayed_size(image))
     except (OSError, UnidentifiedImageError, ValueError):
         logger.debug("No image dimensions for %s", path, exc_info=True)
         return None
@@ -126,6 +127,8 @@ def _find_box(data: bytes, start: int, end: int, box_type: bytes) -> tuple[int, 
 
 def _track_dimensions(data: bytes, start: int, end: int) -> Dimensions:
     """A `tkhd` box's display size, which is 16.16 fixed point."""
+    if start >= end:
+        return None
     version = data[start]
     # Version 1 widens the creation, modification, and duration fields to 64 bits.
     offset = start + 4 + (32 if version == 1 else 20) + 52

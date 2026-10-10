@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import zlib
 from collections.abc import Callable, Iterator
+from io import BytesIO
 from pathlib import Path
+from typing import Literal
 
-from PIL import UnidentifiedImageError
+from PIL import Image, UnidentifiedImageError
 
 from automation.job_runner import FileOutcome, ProgressCallback, run_media_job
 from automation.selection import filter_media_list, list_folder_media
@@ -39,10 +42,69 @@ _WEBP_VP8X_CHUNK = b"VP8X"
 _WEBP_VP8X_METADATA_FLAGS = 0x08 | 0x04
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_PNG_IHDR = b"IHDR"
 _PNG_IEND = b"IEND"
 # Text, EXIF and modification time identify the source; iCCP/gAMA/cHRM/sRGB/pHYs/tRNS and the
 # animation chunks all change how the image renders, so only the provenance chunks are dropped.
 PNG_PROVENANCE_CHUNKS = frozenset({b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME"})
+
+
+#: What prefixes the TIFF block in a JPEG APP1 segment; PNG eXIf and WebP EXIF carry it bare.
+EXIF_HEADER = b"Exif\x00\x00"
+_JPEG_APP0 = 0xE0
+_JPEG_APP1 = 0xE1
+_WEBP_VP8X_EXIF_FLAG = 0x08
+_ORIENTATION_TAG = 0x0112
+
+
+def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    crc = zlib.crc32(chunk_type + data) & 0xFFFFFFFF
+    return len(data).to_bytes(4, "big") + chunk_type + data + crc.to_bytes(4, "big")
+
+
+def orientation_of(data: bytes) -> int:
+    """The EXIF Orientation an image displays with; 1 when it has none or it cannot be read."""
+    try:
+        with Image.open(BytesIO(data)) as image:
+            value = image.getexif().get(_ORIENTATION_TAG, 1)
+    except (OSError, ValueError, SyntaxError):
+        return 1
+    return value if isinstance(value, int) and 1 <= value <= 8 else 1
+
+
+def orientation_exif(orientation: int) -> bytes:
+    """A bare TIFF block holding only Orientation: what stripping keeps so the pixels still turn."""
+    exif = Image.Exif()
+    exif[_ORIENTATION_TAG] = orientation
+    return exif.tobytes().removeprefix(EXIF_HEADER)
+
+
+def upright_exif(tiff: bytes) -> bytes:
+    """``tiff`` with its Orientation set to 1, patched in place so no other tag is re-encoded.
+
+    For metadata moved onto pixels that are already upright, such as a ComfyUI result.
+    """
+    endian: Literal["little", "big"]
+    if tiff[:2] == b"II":
+        endian = "little"
+    elif tiff[:2] == b"MM":
+        endian = "big"
+    else:
+        return tiff
+    if len(tiff) < 8:
+        return tiff
+    ifd = int.from_bytes(tiff[4:8], endian)
+    if ifd + 2 > len(tiff):
+        return tiff
+    for index in range(int.from_bytes(tiff[ifd : ifd + 2], endian)):
+        entry = ifd + 2 + 12 * index
+        if entry + 12 > len(tiff):
+            break
+        if int.from_bytes(tiff[entry : entry + 2], endian) == _ORIENTATION_TAG:
+            # A SHORT sits left-justified in the entry's 4-byte value field.
+            value = entry + 8
+            return tiff[:value] + (1).to_bytes(2, endian) + tiff[value + 2 :]
+    return tiff
 
 
 def list_strip_metadata_files(folder: Path) -> list[Path]:
@@ -91,22 +153,41 @@ def iter_png_chunks(data: bytes) -> Iterator[tuple[bytes, bytes]]:
     raise UnidentifiedImageError("PNG ended before the IEND chunk")
 
 
-def strip_png_chunks(data: bytes) -> bytes:
-    """Drop the text, EXIF and time chunks; a Pillow re-save would lose iCCP/gAMA and APNG frames."""
-    kept = [
-        chunk
-        for chunk_type, chunk in iter_png_chunks(data)
-        if chunk_type not in PNG_PROVENANCE_CHUNKS
-    ]
+def strip_png_chunks(data: bytes, *, orientation: int = 1) -> bytes:
+    """Drop the text, EXIF and time chunks; a Pillow re-save would lose iCCP/gAMA and APNG frames.
+
+    An ``orientation`` other than 1 is written back as an Orientation-only ``eXIf``.
+    """
+    kept: list[bytes] = []
+    for chunk_type, chunk in iter_png_chunks(data):
+        if chunk_type in PNG_PROVENANCE_CHUNKS:
+            continue
+        kept.append(chunk)
+        if chunk_type == _PNG_IHDR and orientation != 1:
+            kept.append(png_chunk(b"eXIf", orientation_exif(orientation)))
     return PNG_SIGNATURE + b"".join(kept)
 
 
-def strip_jpeg_segments(data: bytes) -> bytes:
-    """Drop the APPn and COM segments. A Pillow round-trip would re-encode the scan instead."""
+def strip_jpeg_segments(data: bytes, *, orientation: int = 1) -> bytes:
+    """Drop the APPn and COM segments. A Pillow round-trip would re-encode the scan instead.
+
+    An ``orientation`` other than 1 is written back as an Orientation-only APP1, after any JFIF.
+    """
     if not data.startswith(JPEG_SOI):
         raise UnidentifiedImageError("Not a JPEG file")
 
     kept = [JPEG_SOI]
+    pending: bytes | None = None
+    if orientation != 1:
+        payload = EXIF_HEADER + orientation_exif(orientation)
+        pending = bytes([0xFF, _JPEG_APP1]) + (len(payload) + 2).to_bytes(2, "big") + payload
+
+    def flush_pending() -> None:
+        nonlocal pending
+        if pending is not None:
+            kept.append(pending)
+            pending = None
+
     index = 2
     while index + 1 < len(data):
         if data[index] != 0xFF:
@@ -119,11 +200,13 @@ def strip_jpeg_segments(data: bytes) -> bytes:
             continue
 
         if marker in _JPEG_STANDALONE:
+            flush_pending()
             kept.append(data[index : index + 2])
             index += 2
             continue
 
         if marker == _JPEG_SOS:
+            flush_pending()
             # Entropy-coded data has no length; copying the tail verbatim is what keeps this lossless.
             kept.append(data[index:])
             return b"".join(kept)
@@ -134,14 +217,20 @@ def strip_jpeg_segments(data: bytes) -> bytes:
             raise UnidentifiedImageError("Truncated JPEG segment")
 
         if marker not in _JPEG_DROPPED or marker in _JPEG_KEPT_APP:
+            if marker != _JPEG_APP0:
+                flush_pending()
             kept.append(data[index:end])
         index = end
 
     raise UnidentifiedImageError("JPEG ended before the image scan")
 
 
-def strip_webp_chunks(data: bytes) -> bytes:
-    """Drop the EXIF and XMP RIFF chunks. Re-saving through Pillow would re-compress the image."""
+def strip_webp_chunks(data: bytes, *, orientation: int = 1) -> bytes:
+    """Drop the EXIF and XMP RIFF chunks. Re-saving through Pillow would re-compress the image.
+
+    An ``orientation`` other than 1 is written back as an Orientation-only EXIF chunk. Only an
+    extended (VP8X) file can carry EXIF, so a simple file never had an orientation to keep.
+    """
     if len(data) < 12 or data[:4] != _RIFF_SIGNATURE or data[8:12] != _WEBP_SIGNATURE:
         raise UnidentifiedImageError("Not a WebP file")
 
@@ -163,6 +252,8 @@ def strip_webp_chunks(data: bytes) -> bytes:
         if chunk_type == _WEBP_VP8X_CHUNK and size >= 1:
             # The flags must agree with the chunks that remain or decoders look for a missing EXIF.
             flags = data[index + 8] & ~_WEBP_VP8X_METADATA_FLAGS
+            if orientation != 1:
+                flags |= _WEBP_VP8X_EXIF_FLAG
             payload = payload[:8] + bytes([flags]) + payload[9:]
         kept.append(payload)
         index = end
@@ -170,23 +261,29 @@ def strip_webp_chunks(data: bytes) -> bytes:
     if index != len(data):
         raise UnidentifiedImageError("Truncated WebP chunk")
 
+    if orientation != 1 and kept and kept[0][:4] == _WEBP_VP8X_CHUNK:
+        # EXIF goes after the image data, where the stripped chunk sat.
+        exif = orientation_exif(orientation)
+        padding = b"\x00" * (len(exif) & 1)
+        kept.append(b"EXIF" + len(exif).to_bytes(4, "little") + exif + padding)
+
     body = b"".join(kept)
     return _RIFF_SIGNATURE + (len(body) + 4).to_bytes(4, "little") + _WEBP_SIGNATURE + body
 
 
-_IMAGE_STRIPPERS: dict[str, Callable[[bytes], bytes]] = {
+_IMAGE_STRIPPERS: dict[str, Callable[..., bytes]] = {
     **dict.fromkeys(JPEG_SUFFIXES, strip_jpeg_segments),
     ".png": strip_png_chunks,
     ".webp": strip_webp_chunks,
 }
 
 
-def _strip_image_bytes(path: Path, strip: Callable[[bytes], bytes]) -> None:
+def _strip_image_bytes(path: Path, strip: Callable[..., bytes]) -> None:
     try:
         data = path.read_bytes()
     except OSError as exc:
         raise UnidentifiedImageError(str(exc)) from exc
-    _replace_with_bytes(path, strip(data))
+    _replace_with_bytes(path, strip(data, orientation=orientation_of(data)))
 
 
 def strip_isobmff_metadata(

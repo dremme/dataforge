@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -230,6 +231,19 @@ class CandidatePathTests(unittest.TestCase):
                 self.assertNotIn(Path(f"photo.png{marker}").suffix, MEDIA_EXTENSIONS)
 
 
+def _zero_mdat_tail(data: bytes, fraction: float = 0.1) -> bytes:
+    """Zero the end of the media payload, leaving the header and the opening frames decodable."""
+    index = 0
+    while index + 8 <= len(data):
+        size = int.from_bytes(data[index : index + 4], "big")
+        if data[index + 4 : index + 8] == b"mdat":
+            end = index + size
+            start = end - int((size - 8) * fraction)
+            return data[:start] + bytes(end - start) + data[end:]
+        index += size
+    raise AssertionError("No mdat box")
+
+
 class VideoCandidateTests(unittest.TestCase):
     def test_a_clip_pairs_with_an_mp4_candidate_of_another_container(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -283,6 +297,25 @@ class VideoCandidateTests(unittest.TestCase):
                 self.assertFalse(source.exists())
                 self.assertTrue((folder / published_name).is_file())
                 self.assertFalse(candidate.exists())
+
+    def test_a_clip_corrupt_after_its_first_frame_is_refused(self) -> None:
+        """Accept keeps no backup, so a candidate must decode to the end before it replaces a clip."""
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            source = folder / "clip.mp4"
+            source.write_bytes(playable_video_bytes())
+            original = source.read_bytes()
+            staging = staging_dir(folder)
+            staging.mkdir()
+            candidate = staging / "clip.mp4"
+            candidate.write_bytes(_zero_mdat_tail(playable_video_bytes(duration=10)))
+            write_candidate_sidecar(candidate, sidecar(source_name="clip.mp4"))
+
+            with self.assertRaises(ValueError):
+                accept_candidate(source)
+
+            self.assertEqual(source.read_bytes(), original)
+            self.assertTrue(candidate.is_file())
 
     def test_accepting_a_clip_is_refused_while_an_editor_backup_exists(self) -> None:
         """video_edit renders from the .bak, so publishing over it would throw this pass away."""
@@ -343,6 +376,26 @@ class DiscardEditOnAcceptTests(unittest.TestCase):
                 accept_candidate(fixture.media, discard_edit=True)
 
             self.assertTrue(backup.is_file())
+
+    def test_a_failed_metadata_transfer_keeps_the_edit_record(self) -> None:
+        with CandidateFolder() as fixture:
+            backup = backup_path_for(fixture.media)
+            backup.write_bytes(b"pre-edit original")
+            spec = edit_spec_path(fixture.media)
+            spec.write_text("{}", encoding="utf-8")
+            live = fixture.media.read_bytes()
+
+            with patch(
+                "comfy_candidates.write_with_source_metadata",
+                side_effect=ValueError("Could not keep the original metadata"),
+            ):
+                with self.assertRaises(ValueError):
+                    accept_candidate(fixture.media, discard_edit=True, keep_metadata=True)
+
+            self.assertEqual(backup.read_bytes(), b"pre-edit original")
+            self.assertTrue(spec.is_file())
+            self.assertEqual(fixture.media.read_bytes(), live)
+            self.assertTrue(fixture.candidate.is_file())
 
 
 class AcceptCandidateTests(unittest.TestCase):
@@ -589,6 +642,18 @@ class SweepTests(unittest.TestCase):
             self.assertFalse(stale.exists())
             # The real files are untouched.
             self.assertTrue(fixture.media.is_file())
+
+    def test_the_sweep_keeps_the_temp_of_an_accept_in_progress(self) -> None:
+        with CandidateFolder() as fixture:
+            other = fixture.folder / "other.png"
+            other.write_bytes(b"live")
+            temp = fixture.folder / f"other.png{COMFY_TEMP_SUFFIX}"
+            temp.write_bytes(b"half-written")
+
+            with settle_slot(fixture.folder / "other.jpg", other):
+                sweep_comfy_temp_files(fixture.folder)
+
+            self.assertEqual(temp.read_bytes(), b"half-written")
 
     def test_the_sweep_survives_a_folder_that_is_not_there(self) -> None:
         with CandidateFolder() as fixture:
