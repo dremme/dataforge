@@ -80,7 +80,7 @@ class LoadIssueSummaryTests(unittest.TestCase):
             self.assertTrue(has_issue_file)
 
     def test_superseded_sidecars_read_as_broken_rather_than_resolved(self) -> None:
-        """The pre-fixes format is not translated: a re-run of the job rewrites it."""
+        """An unknown shape is not translated: a re-run of the job rewrites it."""
         with TempMediaFolder() as root:
             media = write_media(root, "sunset.png")
             issue_file_path(media).write_text(

@@ -35,7 +35,7 @@ interface WorkspaceSidebarProps {
   createDisabled: boolean;
 }
 
-// Medium windows default to the rail so the gallery keeps the width the old centred layout had.
+// Medium windows default to the rail so the gallery keeps most of the width.
 const COLLAPSED_KEY = "workspace-sidebar-collapsed";
 const COLLAPSED_MEDIUM_KEY = "workspace-sidebar-collapsed-medium";
 

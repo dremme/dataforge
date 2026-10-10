@@ -34,10 +34,6 @@ RENAMES = {
 
 #: Deliberate divergences from the published schema.
 FIELD_TYPES = {
-    # Backend keeps ``str``: narrowing would fail the whole list on one legacy row.
-    ("JobResponse", "job_type"): "JobType",
-    ("JobResponse", "status"): "JobStatus",
-    ("JobResponse", "effective_status"): "JobStatus",
     ("MediaTransferRequest", "paths"): "readonly string[]",
 }
 
@@ -361,10 +357,6 @@ def render_guards(spec: dict[str, Any], schemas: Any) -> str:
             "backend/schemas.py",
             "Guards for schemas.GUARDED_WIRE_MODELS: what arrives unvalidated, checked.",
         ),
-        "// These check the wire schema, not the narrower types.ts view of it. Where the\n"
-        "// frontend narrows a deliberately loose backend `str` (Job.job_type, Job.status),\n"
-        "// the guard stays at `str`: rejecting a job type retired since a row was written\n"
-        "// would drop the whole frame, which is worse than the narrowing being optimistic.",
         "import type {\n" + "".join(f"  {name},\n" for name in imported) + '} from "@/shared/types";',
         GUARD_PRELUDE,
         *guards,

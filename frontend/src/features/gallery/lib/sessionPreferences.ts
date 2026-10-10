@@ -31,44 +31,19 @@ const DEFAULT_SESSION_QUERY: GallerySessionQuery = {
 function parseStoredSessionQuery(value: unknown): GallerySessionQuery | null {
   if (!value || typeof value !== "object") return null;
 
-  // searchFolders is the pre-rename key; filter/fileFilter hold retired values not in the unions.
-  const parsed = value as Omit<Partial<GallerySessionQuery>, "filter" | "fileFilter"> & {
-    filter?: unknown;
-    fileFilter?: unknown;
-    searchFolders?: unknown;
-    duplicatesOnly?: unknown;
-    pendingOnly?: unknown;
-  };
-  const storedNames =
-    typeof parsed.searchNames === "boolean"
-      ? parsed.searchNames
-      : typeof parsed.searchFolders === "boolean"
-        ? parsed.searchFolders
-        : true;
-  // Retired filter: "duplicate"; without this a session in flight would silently lose it.
-  const storedDuplicateFilter = parsed.filter === "duplicate";
+  const parsed = value as Record<keyof GallerySessionQuery, unknown>;
   const filter = typeof parsed.filter === "string" ? parsed.filter : null;
-
-  // Retired booleans: duplicates wins where a session had both on.
-  const storedFileFilter: FileFilter =
-    parsed.duplicatesOnly === true || storedDuplicateFilter
-      ? "duplicates"
-      : parsed.pendingOnly === true
-        ? "candidates"
-        : "all";
-  // Retired fileFilter: "pending"; without this a session in flight would widen to every file.
-  const rawFileFilter = typeof parsed.fileFilter === "string" ? parsed.fileFilter : null;
-  const fileFilter = rawFileFilter === "pending" ? "candidates" : rawFileFilter;
+  const mediaTypeFilter =
+    typeof parsed.mediaTypeFilter === "string" ? parsed.mediaTypeFilter : null;
+  const fileFilter = typeof parsed.fileFilter === "string" ? parsed.fileFilter : null;
 
   return {
     filter: isItemFilter(filter) ? filter : "all",
-    mediaTypeFilter: isMediaTypeFilter(parsed.mediaTypeFilter ?? null)
-      ? parsed.mediaTypeFilter!
-      : "all",
-    fileFilter: isFileFilter(fileFilter) ? fileFilter : storedFileFilter,
+    mediaTypeFilter: isMediaTypeFilter(mediaTypeFilter) ? mediaTypeFilter : "all",
+    fileFilter: isFileFilter(fileFilter) ? fileFilter : "all",
     searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : "",
     searchRegex: typeof parsed.searchRegex === "boolean" ? parsed.searchRegex : false,
-    searchNames: storedNames,
+    searchNames: typeof parsed.searchNames === "boolean" ? parsed.searchNames : true,
   };
 }
 

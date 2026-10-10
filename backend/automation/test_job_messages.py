@@ -93,7 +93,7 @@ class JobErrorResolutionTests(unittest.TestCase):
 
         self.assertEqual(job.to_dict()["error"], "Stored failure message.")
 
-    def test_a_legacy_row_without_an_error_has_it_rebuilt_from_its_stats(self) -> None:
+    def test_a_job_without_a_stored_error_derives_it_from_its_stats(self) -> None:
         for job_type, stats, expected in (
             ("verify_captions", {"parse_error": 2}, verify_captions_failure_message),
             ("auto_caption", {"api_error": 2}, auto_caption_failure_message),

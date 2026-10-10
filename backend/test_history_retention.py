@@ -29,7 +29,8 @@ def sqlite_days_ago(days: float) -> str:
 def add_job(job_id: str, status: str, *, created_at: str, finished_at: str | None) -> None:
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO jobs (id, folder, status, created_at, finished_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO jobs (id, folder, job_type, status, created_at, finished_at)"
+            " VALUES (?, ?, 'auto_caption', ?, ?, ?)",
             (job_id, FOLDER, status, created_at, finished_at),
         )
         conn.commit()

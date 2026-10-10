@@ -45,10 +45,6 @@ describe("isJobAvailable", () => {
       expect(isJobAvailable(type, withBackup)).toBe(true);
     }
   });
-
-  it("tolerates a job type the registry does not know", () => {
-    expect(isJobAvailable("legacy_job" as JobType, withoutBackup)).toBe(true);
-  });
 });
 
 describe("JOB_START_CONFIRM", () => {

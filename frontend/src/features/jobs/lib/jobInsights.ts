@@ -7,7 +7,6 @@ import {
   isActiveJobStatus,
   isTerminalJobStatus,
   jobElapsedSeconds,
-  jobTypeOf,
   parseJobTimestamp,
 } from "./jobs";
 
@@ -28,7 +27,7 @@ function plural(count: number, one: string, many = `${one}s`): string {
 }
 
 export function jobUnitWord(job: Job, count: number): string {
-  return jobTypeOf(job) === "train_lora"
+  return job.job_type === "train_lora"
     ? count === 1
       ? "step"
       : "steps"
@@ -42,7 +41,7 @@ export function jobUnitWord(job: Job, count: number): string {
  * `done` is the remainder: sub-stats such as `image_success` would otherwise count twice.
  */
 export function jobOutcomeMix(job: Job): JobOutcomeMix | null {
-  if (!isTerminalJobStatus(job.status) || jobTypeOf(job) === "train_lora") return null;
+  if (!isTerminalJobStatus(job.status) || job.job_type === "train_lora") return null;
 
   const failed = failedCountFromStats(job.stats);
   const notRun = cancelledCountFromStats(job.stats);
@@ -66,7 +65,7 @@ export function jobHeadline(job: Job): string | null {
   if (!isTerminalJobStatus(job.status)) return null;
   const completed = job.status === "completed";
 
-  switch (jobTypeOf(job)) {
+  switch (job.job_type) {
     case "find_duplicates": {
       const duplicates = stat(job, "duplicate");
       if (duplicates === 0) return completed ? "No duplicates found" : null;
@@ -93,7 +92,7 @@ function formatRate(secondsPerUnit: number, unit: string): string {
 export function jobThroughputLabel(job: Job): string | null {
   if (!isTerminalJobStatus(job.status)) return null;
 
-  if (jobTypeOf(job) === "train_lora") {
+  if (job.job_type === "train_lora") {
     const speedMs = stat(job, "speed_ms_per_step");
     return speedMs > 0 ? formatRate(speedMs / 1000, "step") : null;
   }
@@ -115,7 +114,7 @@ export interface JobWorkflow {
 export function jobWorkflow(job: Job): JobWorkflow | null {
   if (!job.workflow) return null;
 
-  switch (jobTypeOf(job)) {
+  switch (job.job_type) {
     case "comfy_process":
       return { kind: "Workflow", name: job.workflow, edited: false };
     case "train_lora":

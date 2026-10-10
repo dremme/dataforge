@@ -1,11 +1,7 @@
 import type { AppIcon } from "@/shared/icons";
 import type { Job, JobStatus, JobType } from "@/shared/types";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
-import { isKnownJobType, jobTypeIconFor, jobTypeLabelFor, PRIMARY_JOB_TYPE } from "./jobMeta";
-
-export function jobTypeOf(job: Job): JobType {
-  return isKnownJobType(job.job_type) ? job.job_type : PRIMARY_JOB_TYPE;
-}
+import { jobTypeIconFor, jobTypeLabelFor } from "./jobMeta";
 
 export function jobTypeLabel(job: Job): string {
   return jobTypeLabelFor(job.job_type);
@@ -31,7 +27,7 @@ export function selectFolderJob(
   if (!folderPath) return null;
 
   const folderJobs = jobs.filter(
-    (job) => foldersMatch(job.folder, folderPath) && (!jobType || jobTypeOf(job) === jobType),
+    (job) => foldersMatch(job.folder, folderPath) && (!jobType || job.job_type === jobType),
   );
   if (folderJobs.length === 0) return null;
 
@@ -60,7 +56,7 @@ export function isTrainLoraCoTrackedByExternal(
   job: Job,
   externalJobs: ReadonlyArray<{ name: string }>,
 ): boolean {
-  if (jobTypeOf(job) !== "train_lora") return false;
+  if (job.job_type !== "train_lora") return false;
 
   const ref = job.external_ref?.trim();
   if (!ref) return false;
@@ -309,7 +305,7 @@ const TIMING_SPLITS: Partial<Record<JobType, TimingSplit>> = {
 };
 
 export function jobTimingCounts(job: Job): { fast: number; slow: number } {
-  const split = TIMING_SPLITS[jobTypeOf(job)];
+  const split = TIMING_SPLITS[job.job_type];
   const stats = job.stats ?? {};
   const total = (keys: readonly string[] = []) =>
     keys.reduce((sum, key) => sum + (stats[key] ?? 0), 0);
@@ -431,7 +427,7 @@ export function jobRemainingSeconds(
 
   const elapsedSeconds = Math.max(1, (nowMs - startedMs) / 1000);
   const steadyRateSeconds = Math.ceil(remainingItems * (elapsedSeconds / job.processed));
-  if (STEADY_RATE_JOB_TYPES.has(jobTypeOf(job))) {
+  if (STEADY_RATE_JOB_TYPES.has(job.job_type)) {
     return steadyRateSeconds;
   }
 
@@ -441,7 +437,7 @@ export function jobRemainingSeconds(
 
   if (slowCompleted < 1) {
     const noCounts = counts.fast + counts.slow === 0 && trackedSlow < 1;
-    return noCounts || TIMING_SPLITS[jobTypeOf(job)]?.fastIsWork ? steadyRateSeconds : null;
+    return noCounts || TIMING_SPLITS[job.job_type]?.fastIsWork ? steadyRateSeconds : null;
   }
 
   const fastCompleted = counts.fast > 0 ? counts.fast : Math.max(0, job.processed - slowCompleted);
@@ -471,7 +467,7 @@ export function jobRemainingTimeLabel(
   }
 
   // Training remaining time uses Ostris sec/iter; wall-clock includes queue/load before step 1.
-  if (jobTypeOf(job) === "train_lora") {
+  if (job.job_type === "train_lora") {
     return trainingRemainingTimeLabel(job.processed, job.total, jobSecondsPerStep(job));
   }
 

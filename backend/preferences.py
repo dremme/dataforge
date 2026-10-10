@@ -1,31 +1,18 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from db import get_preference, set_preference
 
 
-def validate_or_salvage[T: BaseModel](model: type[T], data: dict) -> T:
-    """Keep each field that validates on its own. ``model`` must be constructible with no arguments."""
+def validated_or_default[T: BaseModel](model: type[T], data: dict) -> T:
+    """``model`` must be constructible with no arguments; a stored value it rejects reads as that."""
     try:
         return model.model_validate(data)
     except ValidationError:
-        pass
-
-    salvaged: dict[str, object] = {}
-
-    for name, field in model.model_fields.items():
-        if name not in data:
-            continue
-        try:
-            salvaged[name] = TypeAdapter(field.annotation or Any).validate_python(data[name])
-        except ValidationError:
-            continue
-
-    return model().model_copy(update=salvaged)
+        return model()
 
 
 def _stored_mapping(key: str) -> dict | None:
@@ -50,7 +37,7 @@ class JsonPreference[T: BaseModel]:
 
     def get(self) -> T:
         data = _stored_mapping(self.key)
-        return self._model() if data is None else validate_or_salvage(self._model, data)
+        return self._model() if data is None else validated_or_default(self._model, data)
 
     def save(self, settings: T) -> T:
         set_preference(self.key, settings.model_dump_json())
@@ -83,7 +70,7 @@ class FolderScopedPreference[T: BaseModel]:
         payload = envelope.by_folder.get(folder_key)
         if payload is None:
             payload = envelope.latest
-        return self._model() if payload is None else validate_or_salvage(self._model, payload)
+        return self._model() if payload is None else validated_or_default(self._model, payload)
 
     def folder_keys(self) -> set[str]:
         return set(self._envelope.get().by_folder)
@@ -94,7 +81,7 @@ class FolderScopedPreference[T: BaseModel]:
 
     def latest(self) -> T:
         payload = self._envelope.get().latest
-        return self._model() if payload is None else validate_or_salvage(self._model, payload)
+        return self._model() if payload is None else validated_or_default(self._model, payload)
 
     def save(self, folder_key: str, settings: T) -> T:
         payload = settings.model_dump(mode="json")

@@ -5,7 +5,6 @@ import {
   iconAiToolkit,
   iconArchive,
   iconArchiveRestore,
-  iconCircleQuestionMark,
   iconComfyUi,
   iconFilePen,
   iconFiles,
@@ -211,10 +210,6 @@ export type ConfirmableJobType = JobTypeWithStartUi<"confirm">;
 
 const JOB_TYPES = Object.keys(JOB_TYPE_META) as JobType[];
 
-export function isKnownJobType(value: string): value is JobType {
-  return Object.hasOwn(JOB_TYPE_META, value);
-}
-
 function jobTypeMeta(type: JobType): JobTypeMeta {
   return JOB_TYPE_META[type] as JobTypeMeta;
 }
@@ -239,8 +234,8 @@ export const SECONDARY_JOB_GROUPS: Array<{
   types: SECONDARY_JOB_TYPES.filter((type) => jobTypeMeta(type).group === group.id),
 })).filter((group) => group.types.length > 0);
 
-export function jobTypeLabelFor(type: string): string {
-  return isKnownJobType(type) ? JOB_TYPE_LABELS[type] : type.trim();
+export function jobTypeLabelFor(type: JobType): string {
+  return JOB_TYPE_LABELS[type];
 }
 
 /** The name a job is offered under in menus, e.g. "Quick LoRA training". */
@@ -290,16 +285,15 @@ export function jobStartBlock(type: JobType, context: JobStartContext): JobStart
   };
 }
 
-export function jobTypeIconFor(type: string): AppIcon {
-  return isKnownJobType(type) ? JOB_TYPE_META[type].icon : iconCircleQuestionMark;
+export function jobTypeIconFor(type: JobType): AppIcon {
+  return JOB_TYPE_META[type].icon;
 }
 
 export function isConfirmableJobType(type: JobType): type is ConfirmableJobType {
-  return isKnownJobType(type) && JOB_TYPE_META[type].startUi === "confirm";
+  return JOB_TYPE_META[type].startUi === "confirm";
 }
 
 export function isJobAvailable(type: JobType, availability: JobAvailability): boolean {
-  if (!isKnownJobType(type)) return true;
   return jobTypeMeta(type).isAvailable?.(availability) ?? true;
 }
 

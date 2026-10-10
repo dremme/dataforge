@@ -139,11 +139,11 @@ class FfmpegVersionTests(unittest.TestCase):
     def test_a_version_command_failure_cannot_masquerade_as_the_pinned_release(self) -> None:
         result = subprocess.CompletedProcess([], 1, stdout="ffmpeg version 7.1")
         with patch("ffmpeg_bin.subprocess.run", return_value=result):
-            self.assertFalse(ffmpeg_bin._is_pinned(str(self.on_path)))
+            self.assertIsNone(ffmpeg_bin._pinned_version(str(self.on_path)))
 
     def test_an_unreadable_binary_does_not_satisfy_the_pin(self) -> None:
         with patch("ffmpeg_bin.Path.stat", side_effect=OSError):
-            self.assertFalse(ffmpeg_bin._is_pinned(str(self.on_path)))
+            self.assertIsNone(ffmpeg_bin._pinned_version(str(self.on_path)))
 
     def test_the_version_is_read_once_per_binary(self) -> None:
         banner = "ffmpeg version 7.1.5"

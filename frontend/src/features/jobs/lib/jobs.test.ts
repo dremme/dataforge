@@ -19,7 +19,6 @@ import {
   jobStatusTone,
   jobTimeLabel,
   jobTypeLabel,
-  jobTypeOf,
   jobWarningMessage,
   progressPercent,
   selectFolderJob,
@@ -30,7 +29,7 @@ import {
 } from "./jobs";
 import type { ExternalOstrisJob } from "@/shared/types";
 import { job } from "@/test/fixtures";
-import { iconCircleQuestionMark, iconSparkles } from "@/shared/icons";
+import { iconSparkles } from "@/shared/icons";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return job({
@@ -76,16 +75,8 @@ describe("upsertJob", () => {
 describe("job type display", () => {
   it("uses registry metadata for known job types", () => {
     const job = makeJob({ job_type: "auto_caption" });
-    expect(jobTypeOf(job)).toBe("auto_caption");
     expect(jobTypeLabel(job)).toBe("Auto-caption");
     expect(jobIcon(job)).toBe(iconSparkles);
-  });
-
-  it("tolerates a job type retired since the row was written", () => {
-    const retired = makeJob({ job_type: "legacy_job" as Job["job_type"] });
-    expect(jobTypeOf(retired)).toBe("auto_caption");
-    expect(jobTypeLabel(retired)).toBe("legacy_job");
-    expect(jobIcon(retired)).toBe(iconCircleQuestionMark);
   });
 });
 

@@ -72,11 +72,9 @@ describe("folderHistory", () => {
     expect(getEntryKeyFromHistoryEvent(event)).toBe("fs-abc-1");
   });
 
-  it("reports no entry key for state written before entry keys existed", () => {
-    const legacy = new PopStateEvent("popstate", { state: { folderPath: HOME_PATH } });
+  it("reports no entry key for state this app did not write", () => {
     const foreign = new PopStateEvent("popstate", { state: null });
 
-    expect(getEntryKeyFromHistoryEvent(legacy)).toBeUndefined();
     expect(getEntryKeyFromHistoryEvent(foreign)).toBeUndefined();
   });
 

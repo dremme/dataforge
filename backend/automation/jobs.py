@@ -107,16 +107,13 @@ def _stored_int(data: dict[str, object], key: str) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
-def _stored_literal[T: str](
-    data: dict[str, object], key: str, allowed: tuple[T, ...], fallback: T
-) -> T:
-    """One of ``allowed``, or the fallback, so a retired value in an old row still renders."""
+def _stored_literal[T: str](data: dict[str, object], key: str, allowed: tuple[T, ...]) -> T:
     value = data.get(key)
     # Returns the member itself: a comparison narrows nothing, so `value` stays a plain str.
     for option in allowed:
         if value == option:
             return option
-    return fallback
+    raise ValueError(f"Stored job {data.get('id')} has an unknown {key}: {value!r}")
 
 
 @dataclass
@@ -152,7 +149,7 @@ class Job:
         return cls(
             id=str(data["id"]),
             folder=str(data["folder"]),
-            status=_stored_literal(data, "status", JOB_STATUSES, "queued"),
+            status=_stored_literal(data, "status", JOB_STATUSES),
             total=_stored_int(data, "total"),
             processed=_stored_int(data, "processed"),
             current_file=_stored_text(data, "current_file"),
@@ -163,7 +160,7 @@ class Job:
             created_at=str(data["created_at"]),
             started_at=_stored_text(data, "started_at"),
             finished_at=_stored_text(data, "finished_at"),
-            job_type=_stored_literal(data, "job_type", JOB_TYPES, "auto_caption"),
+            job_type=_stored_literal(data, "job_type", JOB_TYPES),
             auto_caption_mode=_stored_text(data, "auto_caption_mode"),
             external_ref=_stored_text(data, "external_ref"),
             workflow=_stored_text(data, "workflow"),

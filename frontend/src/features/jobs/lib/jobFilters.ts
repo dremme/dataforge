@@ -1,7 +1,7 @@
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import type { Job, JobHistoryStatus, JobStatus, JobType } from "@/shared/types";
 import { jobTypeLabelFor, PRIMARY_JOB_TYPE, SECONDARY_JOB_TYPES } from "./jobMeta";
-import { isActiveJobStatus, jobTypeOf } from "./jobs";
+import { isActiveJobStatus } from "./jobs";
 
 export type JobFolderFilter = "all" | "current";
 
@@ -74,7 +74,7 @@ export function matchesJobFilters(
   currentFolder: string | undefined,
 ): boolean {
   const query = jobsQueryFor(filters, currentFolder);
-  if (query.jobTypes && !query.jobTypes.includes(jobTypeOf(job))) return false;
+  if (query.jobTypes && !query.jobTypes.includes(job.job_type)) return false;
   if (query.status && jobHistoryStatusOf(job.status) !== query.status) return false;
   if (query.folder && !foldersMatch(job.folder, query.folder)) return false;
   return true;

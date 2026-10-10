@@ -111,11 +111,6 @@ def load_caption_summary(media_path: Path) -> tuple[str | None, str]:
     return (bundle.description, bundle.caption_status)
 
 
-def media_has_caption_text(media_path: Path) -> bool:
-    description, caption_status = load_caption_summary(media_path)
-    return description is not None and caption_status == "text"
-
-
 NO_CAPTION_STATUS = "no_caption"
 CAPTION_READ_ERROR = "read_error"
 #: A model reply not written because the caption or its file changed while the model ran.

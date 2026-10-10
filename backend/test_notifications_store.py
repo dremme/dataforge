@@ -1,12 +1,5 @@
-import os
-import sqlite3
-import tempfile
 import unittest
-from collections.abc import Generator
-from contextlib import contextmanager
-from pathlib import Path
 
-from db import close_all_connections, get_connection
 from notifications_store import (
     MAX_NOTIFICATIONS,
     clear_notifications_for_tests,
@@ -19,33 +12,6 @@ from notifications_store import (
 from testing_fixtures import isolate_test_database
 
 isolate_test_database()
-
-_NOTIFICATIONS_TABLE_WITHOUT_COUNT = """
-    CREATE TABLE notifications (
-        id TEXT PRIMARY KEY,
-        message TEXT NOT NULL,
-        variant TEXT NOT NULL DEFAULT 'success',
-        source TEXT NOT NULL DEFAULT 'client',
-        job_id TEXT,
-        created_at TEXT NOT NULL,
-        read_at TEXT
-    )
-"""
-
-
-@contextmanager
-def _database_at(db_path: Path) -> Generator[None]:
-    previous = os.environ.get("DATAFORGE_DB_PATH")
-    os.environ["DATAFORGE_DB_PATH"] = str(db_path)
-    close_all_connections()
-    try:
-        yield
-    finally:
-        close_all_connections()
-        if previous is None:
-            os.environ.pop("DATAFORGE_DB_PATH", None)
-        else:
-            os.environ["DATAFORGE_DB_PATH"] = previous
 
 
 def _record(message: str, *, variant: str = "success", source: str = "client") -> dict[str, object]:
@@ -121,43 +87,6 @@ class NotificationsStoreTests(unittest.TestCase):
 
         self.assertEqual(delete_all_notifications(), 2)
         self.assertEqual(list_notifications(), [])
-
-
-class NotificationsSchemaMigrationTests(unittest.TestCase):
-    def test_a_table_predating_the_count_column_gains_it(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            db_path = Path(tmp) / "old.db"
-            conn = sqlite3.connect(db_path)
-            conn.execute(_NOTIFICATIONS_TABLE_WITHOUT_COUNT)
-            conn.execute(
-                "INSERT INTO notifications (id, message, variant, source, created_at)"
-                " VALUES ('old-1', 'Older message.', 'success', 'client', '2026-01-01T00:00:00Z')"
-            )
-            conn.commit()
-            conn.close()
-
-            with _database_at(db_path):
-                init_notifications_table()
-
-                stored = list_notifications()
-                self.assertEqual(len(stored), 1)
-                self.assertEqual(stored[0]["count"], 1)
-
-    def test_a_retired_column_is_rebuilt_away(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            db_path = Path(tmp) / "extra.db"
-
-            with _database_at(db_path):
-                init_notifications_table()
-                with get_connection() as conn:
-                    conn.execute("ALTER TABLE notifications ADD COLUMN retired TEXT")
-                    conn.commit()
-
-                init_notifications_table()
-
-                with get_connection() as conn:
-                    columns = {row[1] for row in conn.execute("PRAGMA table_info(notifications)")}
-                self.assertNotIn("retired", columns)
 
 
 if __name__ == "__main__":

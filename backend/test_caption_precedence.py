@@ -12,7 +12,6 @@ from pathlib import Path
 from captions import (
     load_caption_summary,
     load_reference_caption,
-    media_has_caption_text,
     resolve_caption_file,
     save_caption,
 )
@@ -116,7 +115,7 @@ class CaptionTxtOnlyTests(unittest.TestCase):
             media = write_media(root, "sunset.png")
             _write_leftover_json(media)
 
-            self.assertFalse(media_has_caption_text(media))
+            self.assertIsNone(load_caption_summary(media)[0])
 
 
 if __name__ == "__main__":

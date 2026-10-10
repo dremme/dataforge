@@ -110,25 +110,6 @@ describe("gallery session preferences", () => {
     expect(readGallerySessionQuery().searchNames).toBe(true);
   });
 
-  // Retired filter: "duplicate"; without the migration a session in flight would silently drop it.
-  it("carries the retired duplicate filter value over to its own axis", () => {
-    window.sessionStorage.setItem(
-      SESSION_QUERY_CACHE_KEY,
-      JSON.stringify({
-        filter: "duplicate",
-        mediaTypeFilter: "all",
-        searchQuery: "",
-        searchRegex: false,
-        searchNames: true,
-      }),
-    );
-
-    const query = readGallerySessionQuery();
-
-    expect(query.fileFilter).toBe("duplicates");
-    expect(query.filter).toBe("all");
-  });
-
   it("reads and writes the file filter", () => {
     cacheGallerySessionQuery({ fileFilter: "candidates" });
 
@@ -137,58 +118,5 @@ describe("gallery session preferences", () => {
     cacheGallerySessionQuery({ searchQuery: "river" });
 
     expect(readGallerySessionQuery().fileFilter).toBe("candidates");
-  });
-
-  // Retired fileFilter "pending"; without the migration a session widens to every file.
-  it("carries the retired pending value onto the candidates axis", () => {
-    window.sessionStorage.setItem(
-      SESSION_QUERY_CACHE_KEY,
-      JSON.stringify({ filter: "all", fileFilter: "pending" }),
-    );
-
-    expect(readGallerySessionQuery().fileFilter).toBe("candidates");
-  });
-
-  // The pre-merge shape, from when Files held two independent checkboxes.
-  it("carries a stored duplicatesOnly onto the file filter", () => {
-    window.sessionStorage.setItem(
-      SESSION_QUERY_CACHE_KEY,
-      JSON.stringify({ filter: "all", duplicatesOnly: true }),
-    );
-
-    expect(readGallerySessionQuery().fileFilter).toBe("duplicates");
-  });
-
-  it("carries a stored pendingOnly onto the file filter", () => {
-    window.sessionStorage.setItem(
-      SESSION_QUERY_CACHE_KEY,
-      JSON.stringify({ filter: "all", pendingOnly: true }),
-    );
-
-    expect(readGallerySessionQuery().fileFilter).toBe("candidates");
-  });
-
-  it("keeps duplicates where a session had both toggles on", () => {
-    window.sessionStorage.setItem(
-      SESSION_QUERY_CACHE_KEY,
-      JSON.stringify({ filter: "all", duplicatesOnly: true, pendingOnly: true }),
-    );
-
-    expect(readGallerySessionQuery().fileFilter).toBe("duplicates");
-  });
-
-  it("honours the pre-rename searchFolders key", () => {
-    window.sessionStorage.setItem(
-      SESSION_QUERY_CACHE_KEY,
-      JSON.stringify({
-        filter: "all",
-        mediaTypeFilter: "all",
-        searchQuery: "",
-        searchRegex: false,
-        searchFolders: false,
-      }),
-    );
-
-    expect(readGallerySessionQuery().searchNames).toBe(false);
   });
 });

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 import uuid
 from datetime import UTC, datetime
 
@@ -11,7 +10,7 @@ from db import get_connection
 #: The feed is a tail, not an archive: anything older is dropped on write.
 MAX_NOTIFICATIONS = 50
 
-# CREATE, SELECT, INSERT, and the add-column migration are all derived from this.
+# CREATE, SELECT and INSERT are all derived from this.
 _NOTIFICATION_SCHEMA: tuple[tuple[str, str], ...] = (
     ("id", "TEXT PRIMARY KEY"),
     ("message", "TEXT NOT NULL"),
@@ -31,40 +30,10 @@ _PLACEHOLDERS = ", ".join("?" for _ in _COLUMN_NAMES)
 _NEWEST_FIRST = "ORDER BY created_at DESC, rowid DESC"
 
 
-def _create_table_sql(table: str, *, if_not_exists: bool = False) -> str:
-    exists_clause = "IF NOT EXISTS " if if_not_exists else ""
-    columns = ", ".join(f"{name} {definition}" for name, definition in _NOTIFICATION_SCHEMA)
-    return f"CREATE TABLE {exists_clause}{table} ({columns})"
-
-
-def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
-    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    return {row[1] for row in rows}
-
-
-def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
-    existing = _column_names(conn, "notifications")
-    for name, definition in _NOTIFICATION_SCHEMA:
-        if name not in existing:
-            conn.execute(f"ALTER TABLE notifications ADD COLUMN {name} {definition}")
-
-
-def _migrate_rebuild_table_if_needed(conn: sqlite3.Connection) -> None:
-    """Drop columns the schema no longer declares. SQLite cannot ALTER them away."""
-    if _column_names(conn, "notifications") == set(_COLUMN_NAMES):
-        return
-
-    conn.execute(_create_table_sql("notifications_new"))
-    conn.execute(f"INSERT INTO notifications_new ({_COLUMNS}) SELECT {_COLUMNS} FROM notifications")
-    conn.execute("DROP TABLE notifications")
-    conn.execute("ALTER TABLE notifications_new RENAME TO notifications")
-
-
 def init_notifications_table() -> None:
+    columns = ", ".join(f"{name} {definition}" for name, definition in _NOTIFICATION_SCHEMA)
     with get_connection() as conn:
-        conn.execute(_create_table_sql("notifications", if_not_exists=True))
-        _migrate_add_missing_columns(conn)
-        _migrate_rebuild_table_if_needed(conn)
+        conn.execute(f"CREATE TABLE IF NOT EXISTS notifications ({columns})")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC)"
         )

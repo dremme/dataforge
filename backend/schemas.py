@@ -1,12 +1,10 @@
-import math
-from typing import Annotated, Literal, get_args
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from constants import (
     ADJUST_MAX_HUE,
     AUTO_ADJUST_DEFAULT_AMOUNT,
-    COLOR_ADJUST,
     DEFAULT_GALLERY_SORT,
     DEFAULT_RESIZE_MEGAPIXELS,
     DEFAULT_RESIZE_MULTIPLE,
@@ -284,14 +282,6 @@ class JobsDrawerFilters(BaseModel):
     job_types: list[JobType] = Field(default_factory=list)
     status: JobHistoryStatus | Literal["all"] = "all"
     folder: Literal["all", "current"] = "all"
-
-    @field_validator("job_types", mode="before")
-    @classmethod
-    def _drop_unknown_job_types(cls, value: object) -> object:
-        """A saved filter outlives a retired job type; drop it rather than the whole filter."""
-        if not isinstance(value, list):
-            return value
-        return [item for item in value if item in get_args(JobType.__value__)]
 
 
 class UiSettingsResponse(BaseModel):
@@ -877,9 +867,8 @@ class JobResponse(BaseModel):
     id: str
     folder: str
     folder_name: str = ""
-    # Not ``JobType``/``JobStatus``: persisted rows can hold types this build no longer defines.
-    job_type: str = "auto_caption"
-    status: str
+    job_type: JobType
+    status: JobStatus
     total: int
     processed: int
     current_file: str | None = None
@@ -887,7 +876,7 @@ class JobResponse(BaseModel):
     stats: dict[str, int] = Field(default_factory=dict)
     error: str | None = None
     #: ``status`` once stats are weighed: a completed job holding API errors reads as failed.
-    effective_status: str = "queued"
+    effective_status: JobStatus = "queued"
     #: Set when the job finished cleanly but skipped work the user should know about.
     warning: str | None = None
     created_at: str
@@ -1273,52 +1262,6 @@ class AutoAdjustResponse(BaseModel):
     suggestion: ColorAdjust
 
 
-#: The pre-Adjust flat color fields, mapped to their nearest tools when an old sidecar is read.
-_LEGACY_COLOR_FIELDS = ("brightness", "contrast", "saturation", "warmth", "hue")
-#: The old warmth scaled encoded red and blue by this much at full push.
-_LEGACY_WARMTH_GAIN = 0.2
-_SRGB_GAMMA = 2.2
-
-
-def _clamp_tone(value: float) -> float:
-    return max(-1.0, min(1.0, value))
-
-
-def _legacy_adjust(raw: dict[str, object]) -> dict[str, float]:
-    def number(key: str, default: float) -> float:
-        value = raw.get(key, default)
-        return float(value) if isinstance(value, int | float) else default
-
-    brightness = number("brightness", 1.0)
-    warmth = number("warmth", 0.0) * _LEGACY_WARMTH_GAIN
-    hue = number("hue", 0.0) % 360.0
-    return {
-        "exposure": (
-            _clamp_tone(_SRGB_GAMMA * math.log2(brightness) / COLOR_ADJUST["exposure_stops"])
-            if brightness > 0
-            else -1.0
-        ),
-        "contrast": _clamp_tone(number("contrast", 1.0) - 1.0),
-        "saturation": _clamp_tone(number("saturation", 1.0) - 1.0),
-        "warmth": _clamp_tone(
-            _SRGB_GAMMA * math.log((1 + warmth) / (1 - warmth)) / (2 * COLOR_ADJUST["warmth_gain"])
-        ),
-        "hue": hue - 360.0 if hue > ADJUST_MAX_HUE else hue,
-    }
-
-
-def migrated_legacy_color(data: object) -> object:
-    """Old sidecars carry flat color fields; unmigrated, the next Apply would silently drop them."""
-    if not isinstance(data, dict) or "adjust" in data:
-        return data
-    if not any(key in data for key in _LEGACY_COLOR_FIELDS):
-        return data
-
-    migrated = {key: value for key, value in data.items() if key not in _LEGACY_COLOR_FIELDS}
-    migrated["adjust"] = _legacy_adjust(data)
-    return migrated
-
-
 def validated_masks(masks: list[MaskRegion]) -> list[MaskRegion]:
     """Unlike a crop, a full-frame region stands: obscuring the whole picture is a real request."""
     for mask in masks:
@@ -1345,11 +1288,6 @@ class VideoEditSpec(BaseModel):
     volume: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
     adjust: ColorAdjust = Field(default_factory=ColorAdjust)
     auto_adjust: AutoAdjust | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate(cls, data: object) -> object:
-        return migrated_legacy_color(data)
 
     @model_validator(mode="after")
     def _check(self) -> "VideoEditSpec":
@@ -1396,11 +1334,6 @@ class ImageEditSpec(BaseModel):
     fit: SizeFit | None = None
     adjust: ColorAdjust = Field(default_factory=ColorAdjust)
     auto_adjust: AutoAdjust | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate(cls, data: object) -> object:
-        return migrated_legacy_color(data)
 
     @model_validator(mode="after")
     def _check(self) -> "ImageEditSpec":

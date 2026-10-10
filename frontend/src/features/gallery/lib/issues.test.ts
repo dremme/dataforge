@@ -50,7 +50,7 @@ describe("flaggedCaptionPhrases", () => {
     ]);
   });
 
-  it("reads typographic quotes from older sidecars", () => {
+  it("reads typographic quotes the model used instead of straight ones", () => {
     expect(flaggedCaptionPhrases(["Remove “parked at the curb” - the car is moving."])).toEqual([
       "parked at the curb",
     ]);

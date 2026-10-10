@@ -8,7 +8,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from filesystem import preference_folder_key
-from preferences import FolderScopedPreference, JsonPreference, validate_or_salvage
+from preferences import FolderScopedPreference, JsonPreference, validated_or_default
 from schemas import (
     AutoCaptionJobSettings,
     AutomationSettingsResponse,
@@ -72,7 +72,7 @@ class _ComfyFolderSettings(BaseModel):
     overwrite_candidates: bool = False
 
 
-# The per-folder half keeps the job's original key, so earlier saves still read back.
+# The per-folder half lives under the job's own key; the per-preset half under ``.presets``.
 _COMFY_FOLDER_STORE: FolderScopedPreference[_ComfyFolderSettings] = FolderScopedPreference(
     automation_settings_key(COMFY_PROCESS_JOB_TYPE), _ComfyFolderSettings
 )
@@ -96,7 +96,7 @@ def _get_comfy_process_settings(folder_key: str) -> ComfyProcessSettingsResponse
         preset=envelope.preset,
         overwrite_candidates=_COMFY_FOLDER_STORE.get(folder_key).overwrite_candidates,
         by_preset={
-            name: validate_or_salvage(ComfyPresetSettings, payload)
+            name: validated_or_default(ComfyPresetSettings, payload)
             for name, payload in envelope.by_preset.items()
         },
     )

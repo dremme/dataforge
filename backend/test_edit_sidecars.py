@@ -103,54 +103,6 @@ class SidecarPathTests(unittest.TestCase):
             )
 
 
-class LegacyColorSidecarTests(unittest.TestCase):
-    """Sidecars written before the Adjust tool carried five flat color fields."""
-
-    def test_old_color_fields_reopen_as_the_nearest_tools(self) -> None:
-        with TempMediaFolder() as root:
-            media = write_media(root, "photo.jpg")
-            edit_sidecars.edit_spec_path(media).write_text(
-                '{"rotate": 90, "brightness": 1.2, "contrast": 0.9, "saturation": 1.3,'
-                ' "warmth": 0.5, "hue": 300.0}',
-                encoding="utf-8",
-            )
-
-            spec = edit_sidecars.read_spec(media, ImageEditSpec)
-
-        assert spec is not None
-        self.assertEqual(spec.rotate, 90)
-        self.assertGreater(spec.adjust.exposure, 0.2)
-        self.assertAlmostEqual(spec.adjust.contrast, -0.1)
-        self.assertAlmostEqual(spec.adjust.saturation, 0.3)
-        self.assertGreater(spec.adjust.warmth, 0.5)
-        self.assertAlmostEqual(spec.adjust.hue, -60.0)
-
-    def test_untouched_old_color_fields_migrate_to_resting_tools(self) -> None:
-        spec = VideoEditSpec.model_validate(
-            {
-                "speed": 2.0,
-                "brightness": 1.0,
-                "contrast": 1.0,
-                "saturation": 1.0,
-                "warmth": 0.0,
-                "hue": 0.0,
-            }
-        )
-
-        self.assertEqual(spec.speed, 2.0)
-        self.assertEqual(spec.adjust, ColorAdjust())
-
-    def test_blacking_out_a_file_migrates_to_the_darkest_exposure(self) -> None:
-        spec = ImageEditSpec.model_validate({"brightness": 0.0})
-
-        self.assertEqual(spec.adjust.exposure, -1.0)
-
-    def test_a_current_sidecar_is_read_as_written(self) -> None:
-        spec = ImageEditSpec(adjust=ColorAdjust(contrast=0.4))
-
-        self.assertEqual(ImageEditSpec.model_validate(spec.model_dump()), spec)
-
-
 class EnsureBackupTests(unittest.TestCase):
     def test_the_first_edit_stores_the_original(self) -> None:
         with TempMediaFolder() as root:

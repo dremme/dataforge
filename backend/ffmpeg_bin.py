@@ -87,10 +87,6 @@ def _pinned_version(executable: str) -> tuple[int, int, int] | None:
     return version if version is not None and version[:2] == PINNED_VERSION else None
 
 
-def _is_pinned(executable: str) -> bool:
-    return _pinned_version(executable) is not None
-
-
 @functools.cache
 def _ffmpeg_version(executable: str, _modified_ns: int) -> tuple[int, int, int] | None:
     """``(major, minor, patch)``; a banner without a patch number is patch 0."""

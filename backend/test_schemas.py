@@ -34,6 +34,7 @@ def _job(**overrides: object) -> JobResponse:
     fields: dict[str, object] = {
         "id": "job-1",
         "folder": "C:\\datasets\\sample",
+        "job_type": "auto_caption",
         "status": "running",
         "total": 4,
         "processed": 1,
@@ -94,13 +95,6 @@ class JobResponseSchemaTests(unittest.TestCase):
     def test_accepts_every_current_job_status(self) -> None:
         for status in ("queued", "running", "completed", "failed", "cancelled", "interrupted"):
             self.assertEqual(_job(status=status).status, status)
-
-    def test_keeps_a_retired_job_type_from_persisted_history(self) -> None:
-        """Persisted job rows can hold types this build no longer defines."""
-        self.assertEqual(_job(job_type="body_parts").job_type, "body_parts")
-
-    def test_keeps_a_retired_job_status_from_persisted_history(self) -> None:
-        self.assertEqual(_job(status="paused").status, "paused")
 
 
 class ReasoningEffortSchemaTests(unittest.TestCase):

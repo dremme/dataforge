@@ -26,15 +26,10 @@ describe("isServerEvent", () => {
     expect(isServerEvent({ type: "job", job: withoutError })).toBe(true);
   });
 
-  it("keeps a job type retired since the row was written", () => {
-    // The backend serves job_type as a bare str for exactly this reason, so rejecting
-    // the frame would lose a real job rather than tolerate an old label.
-    expect(isServerEvent({ type: "job", job: { ...job(), job_type: "retired_type" } })).toBe(true);
-  });
-
   it.each([
     ["an unknown event type", { type: "banana" }],
     ["a missing required field", { type: "job", job: { ...job(), id: undefined } }],
+    ["an unknown job type", { type: "job", job: { ...job(), job_type: "unknown_type" } }],
     ["a nested value of the wrong type", { type: "job", job: 42 }],
     ["a wrongly typed nullable field", { type: "job", job: { ...job(), error: 5 } }],
     ["a null where a number belongs", { type: "job", job: { ...job(), total: null } }],

@@ -273,8 +273,8 @@ function Test-BackendDependencyDrift {
     $paths = Get-DevPaths
     $stale = $false
 
-    # Written by setup.bat after a successful pip install. Absent on installs
-    # that predate it, in which case there is nothing to compare against.
+    # Written by setup.bat after a successful pip install. Absent until setup
+    # has run, in which case there is nothing to compare against.
     $stamp = Join-Path $paths.Backend '.venv\.dataforge-deps-stamp'
     if (Test-Path $stamp) {
         $stampTime = (Get-Item $stamp).LastWriteTimeUtc

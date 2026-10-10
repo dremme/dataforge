@@ -54,7 +54,11 @@ import {
   upsertByRevision,
   type LiveJobs,
 } from "@/features/jobs/lib/jobsCache";
-import type { StartingJob } from "@/features/jobs/lib/jobStartHelpers";
+
+type StartingJob = {
+  folder: string;
+  jobType: JobType;
+};
 
 // Fast poll only when the push stream is down.
 export const DISCONNECTED_ACTIVE_POLL_MS = 1000;

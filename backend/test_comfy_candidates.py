@@ -15,7 +15,6 @@ from comfy_candidates import (
     CandidateBusyError,
     NoCandidateError,
     accept_candidate,
-    candidate_difference,
     candidate_sidecar_path,
     candidate_write_path,
     describe_candidate_state,
@@ -541,25 +540,11 @@ class CandidateStateTests(unittest.TestCase):
             self.assertEqual(state.prompt_id, "abc123")
             self.assertEqual(state.seed, 7)
 
-    def test_state_prefers_the_score_the_job_recorded(self) -> None:
+    def test_state_reports_the_score_the_job_recorded(self) -> None:
         with CandidateFolder() as fixture:
             write_candidate_sidecar(fixture.candidate, sidecar(difference_percent=41.5))
 
-            # Not recomputed: the two fixture images are flat colours and would score 0,
-            # so a returned 41.5 can only have come from the record.
             self.assertEqual(describe_candidate_state(fixture.media).difference_percent, 41.5)
-
-    def test_state_scores_the_pair_when_the_record_has_none(self) -> None:
-        # What gives candidates staged before the score existed one anyway.
-        with CandidateFolder() as fixture:
-            noise_image(1).save(fixture.media)
-            noise_image(2).save(fixture.candidate)
-
-            scored = describe_candidate_state(fixture.media).difference_percent
-
-            self.assertIsNotNone(scored)
-            assert scored is not None
-            self.assertGreater(scored, 25.0)
 
     def test_state_is_empty_where_nothing_is_staged(self) -> None:
         with CandidateFolder(staged=False) as fixture:
@@ -610,22 +595,6 @@ class DifferenceScoreTests(unittest.TestCase):
         original = noise_image(1)
 
         self.assertGreater(difference_percent(original, noise_image(2)), 25.0)
-
-    def test_scoring_two_files_reads_them_from_disk(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            folder = Path(temp)
-            noise_image(1).save(folder / "before.png")
-            noise_image(2).save(folder / "after.png")
-
-            score = candidate_difference(folder / "before.png", folder / "after.png")
-
-            self.assertIsNotNone(score)
-            assert score is not None
-            self.assertGreater(score, 25.0)
-
-    def test_a_file_that_cannot_be_read_scores_nothing_rather_than_raising(self) -> None:
-        with CandidateFolder() as fixture:
-            self.assertIsNone(candidate_difference(fixture.media, fixture.folder / "gone.png"))
 
 
 class SweepTests(unittest.TestCase):

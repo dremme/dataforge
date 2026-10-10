@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections.abc import Sequence
 
 from db import get_connection
@@ -19,11 +18,11 @@ _HISTORY_STATUSES: dict[JobHistoryStatus, tuple[str, ...]] = {
     "stopped": ("cancelled", "interrupted"),
 }
 
-# CREATE, SELECT, INSERT, and the add-column migration are all derived from this.
+# CREATE, SELECT and INSERT are all derived from this.
 _JOB_SCHEMA: tuple[tuple[str, str], ...] = (
     ("id", "TEXT PRIMARY KEY"),
     ("folder", "TEXT NOT NULL"),
-    ("job_type", "TEXT NOT NULL DEFAULT 'auto_caption'"),
+    ("job_type", "TEXT NOT NULL"),
     ("status", "TEXT NOT NULL"),
     ("total", "INTEGER NOT NULL DEFAULT 0"),
     ("processed", "INTEGER NOT NULL DEFAULT 0"),
@@ -51,53 +50,10 @@ _JOB_SUMMARY_COLUMNS = ", ".join(_JOB_SUMMARY_COLUMN_NAMES)
 _IMMUTABLE_JOB_COLUMNS = frozenset({"id", "created_at"})
 
 
-def _create_jobs_table_sql(table: str, *, if_not_exists: bool = False) -> str:
-    exists_clause = "IF NOT EXISTS " if if_not_exists else ""
-    columns = ", ".join(f"{name} {definition}" for name, definition in _JOB_SCHEMA)
-    return f"CREATE TABLE {exists_clause}{table} ({columns})"
-
-
-def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
-    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    return {row[1] for row in rows}
-
-
-def _migrate_add_missing_columns(conn: sqlite3.Connection) -> None:
-    """Add any schema column the live table lacks so the rebuild can SELECT them all."""
-    existing = _column_names(conn, "jobs")
-    for name, definition in _JOB_SCHEMA:
-        if name not in existing:
-            conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
-
-
-def _migrate_rebuild_jobs_table_if_needed(conn: sqlite3.Connection) -> None:
-    """Drop columns the schema no longer declares. SQLite cannot ALTER them away."""
-    if _column_names(conn, "jobs") == set(_JOB_COLUMN_NAMES):
-        return
-
-    conn.execute(_create_jobs_table_sql("jobs_new"))
-    conn.execute(
-        f"INSERT INTO jobs_new ({_JOB_COLUMNS}) SELECT {_JOB_COLUMNS} FROM jobs",
-    )
-    conn.execute("DROP TABLE jobs")
-    conn.execute("ALTER TABLE jobs_new RENAME TO jobs")
-    conn.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_jobs_folder
-        ON jobs(folder, created_at DESC)
-        """
-    )
-    conn.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_jobs_status
-        ON jobs(status, created_at DESC)
-        """
-    )
-
-
 def init_jobs_table() -> None:
+    columns = ", ".join(f"{name} {definition}" for name, definition in _JOB_SCHEMA)
     with get_connection() as conn:
-        conn.execute(_create_jobs_table_sql("jobs", if_not_exists=True))
+        conn.execute(f"CREATE TABLE IF NOT EXISTS jobs ({columns})")
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_jobs_folder
@@ -116,8 +72,6 @@ def init_jobs_table() -> None:
             ON jobs(job_type, created_at DESC)
             """
         )
-        _migrate_add_missing_columns(conn)
-        _migrate_rebuild_jobs_table_if_needed(conn)
         conn.commit()
 
 
@@ -182,7 +136,7 @@ def _row_to_dict(row: tuple, columns: tuple[str, ...] = _JOB_COLUMN_NAMES) -> di
     job: dict[str, object] = {
         **values,
         "folder_name": path_leaf_name(str(values["folder"] or "")),
-        "job_type": str(values["job_type"] or "auto_caption"),
+        "job_type": str(values["job_type"]),
         "total": int(values["total"] or 0),
         "processed": int(values["processed"] or 0),
         "revision": int(values["revision"] or 0),
@@ -211,8 +165,6 @@ def _job_column_value(job: dict[str, object], column: str) -> object:
     """The stored value for one column, applying the few per-column conversions."""
     if column == "folder":
         return _normalize_folder(str(job["folder"]))
-    if column == "job_type":
-        return job.get("job_type") or "auto_caption"
     if column in {"total", "processed", "revision"}:
         value = job.get(column)
         return value if isinstance(value, int) and not isinstance(value, bool) else 0

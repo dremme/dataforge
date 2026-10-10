@@ -108,22 +108,6 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         self.assertEqual(read_back["jobs_drawer_filters"], filters)
         self.assertEqual(read_back["sort"], "date-desc")
 
-    def test_a_retired_job_type_drops_out_of_saved_filters(self) -> None:
-        stored = {
-            "jobs_drawer_filters": {"job_types": ["body_parts", "watermark"], "status": "failed"}
-        }
-        with get_connection() as conn:
-            conn.execute(
-                "INSERT INTO preferences (key, value) VALUES (?, ?)",
-                (UI_SETTINGS_KEY, json.dumps(stored)),
-            )
-            conn.commit()
-
-        self.assertEqual(
-            client.get("/api/preferences/ui").json()["jobs_drawer_filters"],
-            {"job_types": ["watermark"], "status": "failed", "folder": "all"},
-        )
-
 
 class GalleryDisplayPreferencesEndpointTests(unittest.TestCase):
     def tearDown(self) -> None:

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requestJson } from "@/shared/api/http";
-import { TRAINING_MODELS } from "@/features/automation/lib/training";
 import { createTestQueryClient } from "@/test/queryClient";
 import {
   emptyAutomationSettings,
@@ -113,54 +112,6 @@ describe("loadAutomationSettings", () => {
       strip_metadata: true,
     });
     expect(settings.resize).toEqual({ megapixels: 1.5, multiple: 8 });
-  });
-
-  it.each(TRAINING_MODELS)("restores the saved %s training model", async (model) => {
-    respondWith({ train_lora: { model } });
-
-    const settings = await loadAutomationSettings(FOLDER);
-
-    expect(settings.train_lora.model).toBe(model);
-  });
-
-  it("falls back to the default for a value the backend no longer recognises", async () => {
-    // A value nothing matches would leave its RadioTileGroup with nothing checked.
-    respondWith({
-      auto_caption: { mode: "psychic", reasoning_effort: "colossal" },
-      replace_captions: { mode: "obliterate" },
-      edit_captions: { mode: "psychic", reasoning_effort: "colossal" },
-      find_duplicates: { threshold: "vague" },
-      train_lora: { model: "no_such_model" },
-      watermark: { size: "huge", opacity: 33, position: "side" },
-      resize: { megapixels: -1, multiple: 7.5 },
-    });
-
-    const settings = await loadAutomationSettings(FOLDER);
-
-    expect(settings.auto_caption.mode).toBe("thinking");
-    expect(settings.auto_caption.reasoning_effort).toBe("medium");
-    expect(settings.verify_captions.mode).toBe("thinking");
-    expect(settings.verify_captions.reasoning_effort).toBe("medium");
-    expect(settings.verify_captions.preserve_thinking).toBe(true);
-    expect(settings.replace_captions.mode).toBe("replace");
-    expect(settings.edit_captions.mode).toBe("instruct");
-    expect(settings.edit_captions.reasoning_effort).toBe("medium");
-    expect(settings.find_duplicates.threshold).toBe("near");
-    expect(settings.train_lora.model).toBe("krea2_turbo");
-    expect(settings.watermark).toEqual({
-      text: "",
-      size: "medium",
-      opacity: 50,
-      position: "bottom",
-      strip_metadata: false,
-    });
-    expect(settings.resize).toEqual({ megapixels: 2, multiple: 32 });
-  });
-
-  it("keeps only the string prompts a stored list holds", async () => {
-    respondWith({ train_lora: { prompts: ["a lake", 7, null, "a city"] } });
-
-    expect((await loadAutomationSettings(FOLDER)).train_lora.prompts).toEqual(["a lake", "a city"]);
   });
 
   it("resolves to the defaults instead of rejecting when preferences are unreachable", async () => {

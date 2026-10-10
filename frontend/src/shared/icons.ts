@@ -57,7 +57,6 @@ export {
   CircleAlert as iconCircleAlert,
   CircleCheck as iconCircleCheck,
   CircleDashed as iconCircleDashed,
-  CircleQuestionMark as iconCircleQuestionMark,
   Code as iconCode,
   Copy as iconCopy,
   Cpu as iconCpu,

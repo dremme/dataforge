@@ -12,7 +12,7 @@ from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from automation.find_duplicates import difference_hash, hamming_distance
 from candidate_metadata import write_with_source_metadata
@@ -34,7 +34,7 @@ from folder_scan import get_media_type
 from media_delete import delete_path
 from media_dimensions import media_info
 from schemas import ComfyCandidateResponse, ComfyCandidateSidecar, ComfyCandidateStateResponse
-from video_frames import media_first_frame, validate_candidate_media
+from video_frames import validate_candidate_media
 
 logger = logging.getLogger(__name__)
 
@@ -100,25 +100,6 @@ def difference_percent(before: Image.Image, after: Image.Image) -> float:
         difference_hash(after, CANDIDATE_HASH_SIZE),
     )
     return round(distance / bits * 100, 1)
-
-
-def candidate_difference(source: Path, candidate: Path) -> float | None:
-    """:func:`difference_percent` for two files, or None when either cannot be read. Never raises.
-
-    A clip is scored on frame zero, which is what makes an upscale comparable to a still.
-    """
-    try:
-        before = media_first_frame(source)
-        after = media_first_frame(candidate)
-    except (OSError, UnidentifiedImageError) as error:
-        # No traceback: a missing or undecodable file is ordinary here.
-        logger.warning("Could not score %s against its candidate: %s", source.name, error)
-        return None
-
-    if before is None or after is None:
-        return None
-
-    return difference_percent(before, after)
 
 
 def staging_dir(folder: Path) -> Path:
@@ -221,11 +202,6 @@ def describe_candidate_state(media: Path) -> ComfyCandidateStateResponse:
     present = candidate is not None
     sidecar = read_candidate_sidecar(candidate) if candidate else None
 
-    # Sidecar normally has the score; fallback is uncached so pre-score candidates still get one.
-    difference = sidecar.difference_percent if sidecar else None
-    if candidate and difference is None:
-        difference = candidate_difference(media, candidate)
-
     return ComfyCandidateStateResponse(
         path=str(media),
         candidate_path=str(candidate) if candidate else None,
@@ -233,7 +209,7 @@ def describe_candidate_state(media: Path) -> ComfyCandidateStateResponse:
         preset=sidecar.preset if sidecar else None,
         prompt_id=sidecar.prompt_id if sidecar else None,
         seed=sidecar.seed if sidecar else None,
-        difference_percent=difference,
+        difference_percent=sidecar.difference_percent if sidecar else None,
         frame_rate=sidecar.frame_rate if sidecar else None,
         source_frame_rate=sidecar.source_frame_rate if sidecar else None,
         frame_count=sidecar.frame_count if sidecar else None,

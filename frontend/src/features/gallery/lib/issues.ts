@@ -12,7 +12,7 @@ export function countResolvableIssues(items: GalleryItem[]): number {
   return listResolvableIssueItems(items).length;
 }
 
-// Sidecars predating the straight-quote prompt still carry typographic quotes.
+// The prompt asks for straight quotes; a model can still answer with typographic ones.
 const FIRST_QUOTED_SPAN = /["“”„‟]([^"“”„‟]+)["“”„‟]/;
 
 /**

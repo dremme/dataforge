@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from db import get_connection, set_preference
 from preferences import FolderScopedPreference, JsonPreference
@@ -12,7 +12,7 @@ TEST_KEY = "test_preferences_settings"
 
 class Sample(BaseModel):
     name: str = ""
-    size: int = 1
+    size: int = Field(1, ge=1)
     flag: bool = False
 
 
@@ -39,13 +39,15 @@ class JsonPreferenceTests(unittest.TestCase):
 
                 self.assertEqual(JsonPreference(TEST_KEY, Sample).get(), Sample())
 
-    def test_a_bad_field_falls_back_without_losing_the_good_ones(self) -> None:
-        set_preference(TEST_KEY, '{"name": "kept", "size": "not a number"}')
+    def test_a_row_the_model_rejects_reads_as_the_defaults(self) -> None:
+        set_preference(TEST_KEY, '{"name": "dropped", "size": "not a number"}')
 
-        settings = JsonPreference(TEST_KEY, Sample).get()
+        self.assertEqual(JsonPreference(TEST_KEY, Sample).get(), Sample())
 
-        self.assertEqual(settings.name, "kept")
-        self.assertEqual(settings.size, 1)
+    def test_an_out_of_bounds_field_is_rejected_with_its_row(self) -> None:
+        set_preference(TEST_KEY, '{"name": "dropped", "size": -1}')
+
+        self.assertEqual(JsonPreference(TEST_KEY, Sample).get(), Sample())
 
     def test_a_saved_value_survives_a_read_back(self) -> None:
         store: JsonPreference[Sample] = JsonPreference(TEST_KEY, Sample)
@@ -107,8 +109,7 @@ class FolderScopedPreferenceTests(unittest.TestCase):
 
         self.assertEqual(self.store.get("A").name, "good")
         self.assertEqual(self.store.latest().name, "fallback")
-        # B's bad name defaults, but its valid size is still kept.
-        self.assertEqual(self.store.get("B"), Sample(name="", size=3))
+        self.assertEqual(self.store.get("B"), Sample())
 
     def test_an_unusable_envelope_reads_as_the_defaults(self) -> None:
         set_preference(TEST_KEY, '{"by_folder": "not a map"}')

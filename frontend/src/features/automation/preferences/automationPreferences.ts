@@ -2,14 +2,9 @@ import type { QueryClient } from "@tanstack/react-query";
 import { folderKey } from "@/features/folder/lib/folderPath";
 import { requestJson } from "@/shared/api/http";
 import { normalizeFolderPath } from "@/features/folder/lib/folderPath";
-import { DEFAULT_TRAINING_MODEL, TRAINING_MODELS } from "@/features/automation/lib/training";
-import { MAX_RESIZE_MEGAPIXELS, MAX_RESIZE_MULTIPLE } from "@/shared/constants";
+import { DEFAULT_TRAINING_MODEL } from "@/features/automation/lib/training";
 import type {
-  AutomationMode,
   AutomationSettingsResponse,
-  CaptionReplaceMode,
-  ComfyPresetSettings,
-  DuplicateThreshold,
   ReasoningEffort,
   WatermarkOpacity,
   WatermarkPosition,
@@ -35,68 +30,13 @@ export type JobSettingsByType = {
 
 export type JobSettingsType = keyof JobSettingsByType;
 
-export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
-export const DEFAULT_PRESERVE_THINKING = true;
-export const DEFAULT_WATERMARK_SIZE: WatermarkSizeName = "medium";
-export const DEFAULT_WATERMARK_OPACITY: WatermarkOpacity = 50;
-export const DEFAULT_WATERMARK_POSITION: WatermarkPosition = "bottom";
-export const DEFAULT_RESIZE_MEGAPIXELS = 2;
-export const DEFAULT_RESIZE_MULTIPLE = 32;
-
-const AUTOMATION_MODES: readonly AutomationMode[] = ["thinking", "instruct"];
-const REASONING_EFFORTS: readonly ReasoningEffort[] = ["low", "medium", "xhigh"];
-const REPLACE_MODES: readonly CaptionReplaceMode[] = ["replace", "prepend", "append"];
-const DUPLICATE_THRESHOLDS: readonly DuplicateThreshold[] = ["exact", "near", "loose"];
-const WATERMARK_SIZES: readonly WatermarkSizeName[] = ["small", "medium", "large"];
-const WATERMARK_OPACITIES: readonly WatermarkOpacity[] = [25, 50, 75];
-const WATERMARK_POSITIONS: readonly WatermarkPosition[] = ["top", "center", "bottom"];
-
-function oneOf<T extends string | number>(options: readonly T[], value: unknown, fallback: T): T {
-  return options.includes(value as T) ? (value as T) : fallback;
-}
-
-function text(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function flag(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function numberWithin(value: unknown, max: number, fallback: number, integer = false): number {
-  return typeof value === "number" &&
-    value > 0 &&
-    value <= max &&
-    (!integer || Number.isInteger(value))
-    ? value
-    : fallback;
-}
-
-function comfyPresetSettings(value: unknown): Record<string, ComfyPresetSettings> {
-  if (typeof value !== "object" || value === null) return {};
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([name, entry]) => {
-      const saved =
-        typeof entry === "object" && entry !== null ? (entry as Record<string, unknown>) : {};
-      return [
-        name,
-        {
-          seed: typeof saved.seed === "number" && Number.isFinite(saved.seed) ? saved.seed : null,
-          prompt_text: text(saved.prompt_text),
-        },
-      ];
-    }),
-  );
-}
-
-function block(
-  settings: Partial<AutomationSettings>,
-  key: JobSettingsType,
-): Record<string, unknown> {
-  const value = settings[key];
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
+const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
+const DEFAULT_PRESERVE_THINKING = true;
+const DEFAULT_WATERMARK_SIZE: WatermarkSizeName = "medium";
+const DEFAULT_WATERMARK_OPACITY: WatermarkOpacity = 50;
+const DEFAULT_WATERMARK_POSITION: WatermarkPosition = "bottom";
+const DEFAULT_RESIZE_MEGAPIXELS = 2;
+const DEFAULT_RESIZE_MULTIPLE = 32;
 
 export function emptyAutomationSettings(folderPath: string): AutomationSettings {
   return {
@@ -143,111 +83,9 @@ export function emptyAutomationSettings(folderPath: string): AutomationSettings 
   };
 }
 
-function parseSettings(data: Partial<AutomationSettings>, folderPath: string): AutomationSettings {
-  const defaults = emptyAutomationSettings(folderPath);
-
-  const autoCaption = block(data, "auto_caption");
-  const setCaptions = block(data, "set_captions");
-  const replaceCaptions = block(data, "replace_captions");
-  const verifyCaptions = block(data, "verify_captions");
-  const editCaptions = block(data, "edit_captions");
-  const batchRename = block(data, "batch_rename");
-  const findDuplicates = block(data, "find_duplicates");
-  const trainLora = block(data, "train_lora");
-  const watermark = block(data, "watermark");
-  const resize = block(data, "resize");
-  const comfyProcess = block(data, "comfy_process");
-
-  return {
-    folder_path:
-      typeof data.folder_path === "string" && data.folder_path
-        ? data.folder_path
-        : defaults.folder_path,
-    auto_caption: {
-      mode: oneOf(AUTOMATION_MODES, autoCaption.mode, defaults.auto_caption.mode),
-      reasoning_effort: oneOf(
-        REASONING_EFFORTS,
-        autoCaption.reasoning_effort,
-        DEFAULT_REASONING_EFFORT,
-      ),
-      preserve_thinking: flag(autoCaption.preserve_thinking, DEFAULT_PRESERVE_THINKING),
-      caption_audio: flag(autoCaption.caption_audio, false),
-    },
-    set_captions: { caption: text(setCaptions.caption) },
-    replace_captions: {
-      mode: oneOf(REPLACE_MODES, replaceCaptions.mode, defaults.replace_captions.mode),
-      search: text(replaceCaptions.search),
-      replacement: text(replaceCaptions.replacement),
-      use_regex: flag(replaceCaptions.use_regex, false),
-      case_sensitive: flag(replaceCaptions.case_sensitive, false),
-    },
-    backup_captions: {},
-    verify_captions: {
-      mode: oneOf(AUTOMATION_MODES, verifyCaptions.mode, defaults.verify_captions.mode),
-      reasoning_effort: oneOf(
-        REASONING_EFFORTS,
-        verifyCaptions.reasoning_effort,
-        DEFAULT_REASONING_EFFORT,
-      ),
-      preserve_thinking: flag(verifyCaptions.preserve_thinking, DEFAULT_PRESERVE_THINKING),
-      context: text(verifyCaptions.context),
-    },
-    edit_captions: {
-      mode: oneOf(AUTOMATION_MODES, editCaptions.mode, defaults.edit_captions.mode),
-      reasoning_effort: oneOf(
-        REASONING_EFFORTS,
-        editCaptions.reasoning_effort,
-        DEFAULT_REASONING_EFFORT,
-      ),
-      preserve_thinking: flag(editCaptions.preserve_thinking, DEFAULT_PRESERVE_THINKING),
-      instruction: text(editCaptions.instruction),
-    },
-    batch_rename: {
-      stem: text(batchRename.stem),
-      start_number:
-        typeof batchRename.start_number === "number" && Number.isFinite(batchRename.start_number)
-          ? batchRename.start_number
-          : defaults.batch_rename.start_number,
-    },
-    find_duplicates: {
-      threshold: oneOf(
-        DUPLICATE_THRESHOLDS,
-        findDuplicates.threshold,
-        defaults.find_duplicates.threshold,
-      ),
-    },
-    train_lora: {
-      trigger_word: text(trainLora.trigger_word),
-      prompts: Array.isArray(trainLora.prompts)
-        ? trainLora.prompts.filter((prompt): prompt is string => typeof prompt === "string")
-        : [],
-      model: oneOf(TRAINING_MODELS, trainLora.model, DEFAULT_TRAINING_MODEL),
-    },
-    watermark: {
-      text: text(watermark.text),
-      size: oneOf(WATERMARK_SIZES, watermark.size, DEFAULT_WATERMARK_SIZE),
-      opacity: oneOf(WATERMARK_OPACITIES, watermark.opacity, DEFAULT_WATERMARK_OPACITY),
-      position: oneOf(WATERMARK_POSITIONS, watermark.position, DEFAULT_WATERMARK_POSITION),
-      strip_metadata: flag(watermark.strip_metadata, false),
-    },
-    resize: {
-      megapixels: numberWithin(resize.megapixels, MAX_RESIZE_MEGAPIXELS, DEFAULT_RESIZE_MEGAPIXELS),
-      multiple: numberWithin(resize.multiple, MAX_RESIZE_MULTIPLE, DEFAULT_RESIZE_MULTIPLE, true),
-    },
-    comfy_process: {
-      preset: text(comfyProcess.preset),
-      overwrite_candidates: flag(comfyProcess.overwrite_candidates, false),
-      by_preset: comfyPresetSettings(comfyProcess.by_preset),
-    },
-  };
-}
-
 async function fetchAutomationSettings(folderPath: string): Promise<AutomationSettings> {
   const params = new URLSearchParams({ path: folderPath });
-  return parseSettings(
-    await requestJson<Partial<AutomationSettings>>(`/api/preferences/automation?${params}`),
-    folderPath,
-  );
+  return requestJson<AutomationSettings>(`/api/preferences/automation?${params}`);
 }
 
 /**
