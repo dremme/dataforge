@@ -10,7 +10,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from automation.resize import run_resize_job, validate_resize_folder
-from edit_sidecars import backup_path_for, render_slot, write_spec
+from edit_sidecars import backup_path_for, edit_spec_path, ensure_backup, render_slot, write_spec
 from ffmpeg_run import FfmpegCancelled
 from image_edit import apply_image_edit, read_image_edit_spec, revert_image_edit
 from schemas import EditCropRect, ImageEditSpec, SizeFit, VideoEditSpec
@@ -100,6 +100,49 @@ class ImageTests(unittest.TestCase):
             self.assertFalse(backup_path_for(other).exists())
 
 
+class ResetTests(unittest.TestCase):
+    def test_reset_clears_the_fit_and_scale_but_keeps_other_edits(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "shot.png", width=400, height=300)
+            crop = EditCropRect(x=0, y=0, width=0.5, height=1)
+            apply_image_edit(media, ImageEditSpec(crop=crop, rotate=90, scale=0.5))
+            run_resize_job(root, megapixels=0.02, multiple=8)
+
+            result = run_resize_job(root, megapixels=0.02, multiple=8, reset_size=True)
+
+            self.assertEqual(result["stats"]["image_success"], 1)
+            spec = read_image_edit_spec(media)
+            assert spec is not None
+            self.assertEqual((spec.fit, spec.scale), (None, 1.0))
+            self.assertEqual((spec.crop, spec.rotate), (crop, 90))
+            with Image.open(media) as reset:
+                self.assertEqual(reset.size, (300, 200))
+
+    def test_resetting_the_only_edit_restores_the_original(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "wide.png", width=400, height=150)
+            original = media.read_bytes()
+            run_resize_job(root, megapixels=0.02, multiple=32)
+
+            result = run_resize_job(root, megapixels=0.02, multiple=32, reset_size=True)
+
+            self.assertEqual(result["stats"]["image_success"], 1)
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(backup_path_for(media).exists())
+            self.assertFalse(edit_spec_path(media).exists())
+
+    def test_reset_leaves_unresized_files_untouched(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_image(root, "wide.png", width=400, height=150)
+            original = media.read_bytes()
+
+            result = run_resize_job(root, megapixels=0.02, multiple=32, reset_size=True)
+
+            self.assertEqual(result["stats"]["unchanged"], 1)
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(edit_spec_path(media).exists())
+
+
 @patch("automation.resize.probe_source", return_value=SourceProbe(size=(3840, 2160)))
 class VideoTests(unittest.TestCase):
     def test_stores_the_fit_and_renders_with_the_probe(self, probe) -> None:
@@ -137,6 +180,41 @@ class VideoTests(unittest.TestCase):
                 result = run_resize_job(root, megapixels=2.0, multiple=32, ffmpeg="ffmpeg")
 
             self.assertEqual(result["stats"]["cancelled"], 2)
+
+    def test_reset_keeps_other_video_edits_without_probing(self, probe) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root)
+            ensure_backup(media)
+            fit = SizeFit(megapixels=2.0, multiple=32)
+            write_spec(media, VideoEditSpec(trim_start=1.0, fit=fit))
+
+            with patch("automation.resize.apply_video_edit") as apply:
+                result = run_resize_job(
+                    root, megapixels=2.0, multiple=32, reset_size=True, ffmpeg="ffmpeg"
+                )
+
+            self.assertEqual(result["stats"]["video_success"], 1)
+            spec = apply.call_args.args[1]
+            self.assertEqual((spec.fit, spec.scale, spec.trim_start), (None, 1.0, 1.0))
+            probe.assert_not_called()
+
+    def test_resetting_the_only_video_edit_restores_the_original(self, _probe) -> None:
+        with TempMediaFolder() as root:
+            media = write_mp4_video(root)
+            original = media.read_bytes()
+            ensure_backup(media)
+            media.write_bytes(b"rendered")
+            write_spec(media, VideoEditSpec(fit=SizeFit(megapixels=2.0, multiple=32)))
+
+            with patch("automation.resize.apply_video_edit") as apply:
+                result = run_resize_job(
+                    root, megapixels=2.0, multiple=32, reset_size=True, ffmpeg="ffmpeg"
+                )
+
+            self.assertEqual(result["stats"]["video_success"], 1)
+            apply.assert_not_called()
+            self.assertEqual(media.read_bytes(), original)
+            self.assertFalse(edit_spec_path(media).exists())
 
 
 class ValidationTests(unittest.TestCase):

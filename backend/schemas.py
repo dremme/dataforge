@@ -694,7 +694,11 @@ class ResizeJobSettings(BaseModel):
 
 
 class ResizeStartRequest(JobSelectionRequest, ResizeJobSettings):
-    pass
+    # Never remembered: discarding earlier sizing must be re-chosen every run.
+    reset_size: bool = Field(
+        default=False,
+        description="Clear the size fit and scale instead of applying the budget.",
+    )
 
 
 class ComfyPresetSettings(BaseModel):

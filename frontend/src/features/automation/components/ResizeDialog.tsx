@@ -16,7 +16,7 @@ interface ResizeDialogProps {
   scope: DialogScopeInfo;
   initialSettings: JobSettingsByType["resize"];
   busy?: boolean;
-  onConfirm: (megapixels: number, multiple: number) => void;
+  onConfirm: (megapixels: number, multiple: number, resetSize: boolean) => void;
   onCancel: () => void;
 }
 
@@ -41,8 +41,11 @@ export function ResizeDialog({
   const [megapixels, setMegapixels] = useState(String(initialSettings.megapixels));
   const [multiple, setMultiple] = useState(String(initialSettings.multiple));
   const [error, setError] = useState<string | null>(null);
+  // Never restored: discarding earlier sizing is destructive, so it is re-chosen every run.
+  const [reset, setReset] = useState(false);
   const megapixelsId = useId();
   const multipleId = useId();
+  const resetId = useId();
   const errorId = useId();
 
   const parsedMegapixels = parseMegapixels(megapixels);
@@ -61,6 +64,12 @@ export function ResizeDialog({
   const handleConfirm = useCallback(() => {
     if (busy) return;
 
+    // The fields are ignored on a reset, so the remembered settings travel unchanged.
+    if (reset) {
+      setError(null);
+      onConfirm(initialSettings.megapixels, initialSettings.multiple, true);
+      return;
+    }
     if (parsedMegapixels === null) {
       setError(`Megapixels must be above 0 and at most ${MAX_RESIZE_MEGAPIXELS}.`);
       return;
@@ -71,19 +80,23 @@ export function ResizeDialog({
     }
 
     setError(null);
-    onConfirm(parsedMegapixels, parsedMultiple);
-  }, [busy, onConfirm, parsedMegapixels, parsedMultiple]);
+    onConfirm(parsedMegapixels, parsedMultiple, false);
+  }, [busy, initialSettings, onConfirm, parsedMegapixels, parsedMultiple, reset]);
 
   return (
     <Dialog
       scope={scope}
-      title="Resize media?"
+      title={reset ? "Reset size?" : "Resize media?"}
       description={
-        <>
-          Scales each image and MP4 to about this many megapixels at its own aspect ratio, with both
-          sides on the pixel grid. The few pixels left over are trimmed from the center, and smaller
-          files are never upscaled. Each original is stored so the editor can revert it.
-        </>
+        reset ? (
+          <>Resets the size of each image and video. All other edits are kept.</>
+        ) : (
+          <>
+            Scales each image and MP4 to about this many megapixels at its own aspect ratio, with
+            both sides on the pixel grid. The few pixels left over are trimmed from the center, and
+            smaller files are never upscaled. Each original is stored so the editor can revert it.
+          </>
+        )
       }
       panelClassName="resize-dialog"
       busy={busy}
@@ -92,7 +105,7 @@ export function ResizeDialog({
       describedById={error ? errorId : undefined}
       footer={
         <DialogActions
-          confirmLabel="Resize"
+          confirmLabel={reset ? "Reset size" : "Resize"}
           busyLabel="Starting..."
           busy={busy}
           onConfirm={handleConfirm}
@@ -119,7 +132,7 @@ export function ResizeDialog({
                 setError(null);
               }}
               autoComplete="off"
-              disabled={busy}
+              disabled={busy || reset}
             />
           </div>
           <div>
@@ -139,7 +152,7 @@ export function ResizeDialog({
                 setError(null);
               }}
               autoComplete="off"
-              disabled={busy}
+              disabled={busy || reset}
             />
           </div>
         </div>
@@ -156,6 +169,27 @@ export function ResizeDialog({
             {error}
           </p>
         )}
+      </div>
+      <div className="dialog__field">
+        <label className="dialog__checkbox" htmlFor={resetId}>
+          <input
+            id={resetId}
+            type="checkbox"
+            className="dialog__checkbox-input"
+            checked={reset}
+            onChange={(event) => {
+              setReset(event.target.checked);
+              setError(null);
+            }}
+            disabled={busy}
+          />
+          <span className="dialog__checkbox-box" aria-hidden="true" />
+          <span className="dialog__checkbox-label">Reset size to the original</span>
+        </label>
+        <p className="dialog__hint">
+          Clears earlier resizes and manual scaling without applying the budget. Crops, masks and
+          all other edits are kept.
+        </p>
       </div>
     </Dialog>
   );

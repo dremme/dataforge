@@ -7,6 +7,7 @@ import {
   type JobSettingsByType,
 } from "@/features/automation/preferences/automationPreferences";
 
+const RESET_LABEL = "Reset size to the original";
 const DEFAULTS: JobSettingsByType["resize"] = emptyAutomationSettings("C:/datasets/photos").resize;
 
 function renderDialog(overrides: Partial<JobSettingsByType["resize"]> = {}) {
@@ -29,7 +30,8 @@ describe("ResizeDialog", () => {
 
     await user.click(screen.getByRole("button", { name: "Resize" }));
 
-    expect(onConfirm).toHaveBeenCalledWith(1.5, 8);
+    expect(screen.getByLabelText(RESET_LABEL)).not.toBeChecked();
+    expect(onConfirm).toHaveBeenCalledWith(1.5, 8, false);
   });
 
   it("submits the values typed into the fields", async () => {
@@ -42,7 +44,21 @@ describe("ResizeDialog", () => {
     await user.type(screen.getByLabelText("Multiple of (px)"), "64");
     await user.click(screen.getByRole("button", { name: "Resize" }));
 
-    expect(onConfirm).toHaveBeenCalledWith(4, 64);
+    expect(onConfirm).toHaveBeenCalledWith(4, 64, false);
+  });
+
+  it("resets with the remembered settings even while a field cannot be read", async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog({ megapixels: 1.5, multiple: 8 });
+
+    await user.clear(screen.getByLabelText("Megapixels"));
+    await user.click(screen.getByLabelText(RESET_LABEL));
+
+    expect(screen.getByLabelText("Megapixels")).toBeDisabled();
+    expect(screen.getByLabelText("Multiple of (px)")).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Reset size" }));
+    expect(onConfirm).toHaveBeenCalledWith(1.5, 8, true);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("previews what each aspect ratio comes out at, without the old preset dropdowns", () => {

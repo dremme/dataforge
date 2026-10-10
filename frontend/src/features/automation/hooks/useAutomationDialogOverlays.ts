@@ -233,8 +233,8 @@ export function useAutomationDialogOverlays({
       },
       resize: {
         ...shared("resize"),
-        onConfirm: (megapixels: number, multiple: number) =>
-          startJobFromDialog("resize", { megapixels, multiple }),
+        onConfirm: (megapixels: number, multiple: number, resetSize: boolean) =>
+          startJobFromDialog("resize", { megapixels, multiple, reset_size: resetSize }),
       },
       autoAdjust: {
         open: openJobType === "auto_adjust",

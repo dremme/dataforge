@@ -99,7 +99,7 @@ export type AutomationDialogsState = {
     JobSettingsByType["comfy_process"]
   >;
   resize: FolderBusyDialogState<
-    (megapixels: number, multiple: number) => void,
+    (megapixels: number, multiple: number, resetSize: boolean) => void,
     JobSettingsByType["resize"]
   >;
   autoAdjust: {
