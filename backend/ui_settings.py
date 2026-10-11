@@ -4,7 +4,13 @@ from typing import get_args
 
 from constants import DEFAULT_GALLERY_SORT
 from preferences import JsonPreference
-from schemas import GallerySort, JobsDrawerFilters, ThemePreference, UiSettingsResponse
+from schemas import (
+    GalleryCardSettings,
+    GallerySort,
+    JobsDrawerFilters,
+    ThemePreference,
+    UiSettingsResponse,
+)
 
 UI_SETTINGS_KEY = "ui_settings"
 DEFAULT_SORT: GallerySort = DEFAULT_GALLERY_SORT
@@ -32,6 +38,7 @@ def update_ui_settings(
     theme: ThemePreference | None = None,
     keep_candidate_metadata: bool | None = None,
     jobs_drawer_filters: JobsDrawerFilters | None = None,
+    gallery_cards: GalleryCardSettings | None = None,
 ) -> UiSettingsResponse:
     return _settings.update(
         sort=_normalized_sort(sort),
@@ -39,4 +46,5 @@ def update_ui_settings(
         theme=theme,
         keep_candidate_metadata=keep_candidate_metadata,
         jobs_drawer_filters=jobs_drawer_filters,
+        gallery_cards=gallery_cards,
     )

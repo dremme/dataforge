@@ -399,6 +399,18 @@
     display: flex;
     flex-direction: column;
     gap: 0.875rem;
+
+    // Dialog fields space themselves for a dialog's flow layout; the gap spaces them here.
+    .dialog__field {
+      margin-top: 0;
+    }
+  }
+
+  // Related checkboxes read as one list rather than separate fields.
+  &__checks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
   }
 }
 

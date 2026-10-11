@@ -45,6 +45,80 @@ describe("GalleryCard", () => {
     expect(screen.getByText("Golden hour over the harbour")).toBeInTheDocument();
   });
 
+  it("clamps the caption to the configured line count", () => {
+    render(<GalleryCard item={captionedItem} onSelect={vi.fn()} captionLines={6} />);
+
+    expect(
+      screen
+        .getByText("Golden hour over the harbour")
+        .style.getPropertyValue("--card-caption-lines"),
+    ).toBe("6");
+  });
+
+  it("hides the caption when its line count is off, without a status pill", () => {
+    const { container } = render(
+      <GalleryCard item={captionedItem} onSelect={vi.fn()} captionLines={0} />,
+    );
+
+    expect(screen.queryByText("Golden hour over the harbour")).toBeNull();
+    expect(container.querySelector(".card__caption-status")).toBeNull();
+  });
+
+  it("hides the status pill too when captions are off, keeping the seam", () => {
+    const empty = { ...uncaptionedItem, has_caption_file: true, caption_status: "empty" as const };
+    const { container, rerender } = render(
+      <GalleryCard item={uncaptionedItem} onSelect={vi.fn()} captionLines={0} />,
+    );
+
+    expect(container.querySelector(".card__caption-status")).toBeNull();
+
+    rerender(<GalleryCard item={empty} onSelect={vi.fn()} captionLines={0} />);
+    expect(container.querySelector(".card__caption-status")).toBeNull();
+    expect(container.querySelector(".card")).toHaveClass("card--partial");
+  });
+
+  it("keeps the badges over the media when captions are off", () => {
+    const item = {
+      ...uncaptionedItem,
+      has_issue_file: true,
+      has_candidate: true,
+      has_duplicate_file: true,
+    };
+    const { container } = render(<GalleryCard item={item} onSelect={vi.fn()} captionLines={0} />);
+
+    const media = container.querySelector(".card__media");
+    expect(media?.querySelector(".card__badge--video")).toBeInTheDocument();
+    expect(media?.querySelector(".card__badge--issue")).toBeInTheDocument();
+    expect(media?.querySelector(".card__badge--candidate")).toBeInTheDocument();
+    expect(media?.querySelector(".card__badge--duplicate")).toBeInTheDocument();
+  });
+
+  it("adds the aspect ratio beside the megapixels when asked", () => {
+    const { container } = render(
+      <GalleryCard item={captionedItem} onSelect={vi.fn()} showAspectRatio />,
+    );
+
+    expect(container.querySelector(".card__meta")).toHaveTextContent("2.1 MP · 16:9");
+  });
+
+  it("hides the megapixels when asked, keeping the aspect ratio", () => {
+    const { container, rerender } = render(
+      <GalleryCard item={captionedItem} onSelect={vi.fn()} showMegapixels={false} />,
+    );
+
+    expect(container.querySelector(".card__meta")).toBeNull();
+
+    rerender(
+      <GalleryCard
+        item={captionedItem}
+        onSelect={vi.fn()}
+        showMegapixels={false}
+        showAspectRatio
+      />,
+    );
+    expect(container.querySelector(".card__meta")).toHaveTextContent(/^16:9$/);
+  });
+
   it("never starts a native drag of the card", () => {
     render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
 

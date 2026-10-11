@@ -518,7 +518,7 @@
     font-weight: var(--font-normal);
     line-height: var(--leading-relaxed);
     color: var(--text-muted);
-    @include line-clamp(3);
+    @include line-clamp(var(--card-caption-lines));
   }
 
   &__caption-status {
@@ -575,7 +575,6 @@
 
   .card__description {
     font-size: var(--text-xs);
-    @include line-clamp(2);
   }
 
   .card__caption-status {
@@ -716,6 +715,22 @@ $gallery-list-columns: $gallery-list-col-thumb minmax($gallery-list-col-name-min
   &__name-text {
     min-width: 0;
     @include truncate;
+
+    // A caption after the name takes what the name leaves, but never more than half the cell.
+    &:not(:last-child) {
+      flex-shrink: 0;
+      max-width: 50%;
+    }
+  }
+
+  &__caption {
+    flex: 1 1 0;
+    min-width: 0;
+    margin-left: 0.25rem;
+    @include truncate;
+    font-size: var(--text-xs);
+    font-weight: var(--font-normal);
+    color: var(--text-subtle);
   }
 
   &__markers {

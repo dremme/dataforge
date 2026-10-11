@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { VISION_MODEL_QUERY_KEY } from "@/features/automation/api/visionLlm";
+import { sameCardOptions } from "@/features/gallery/lib/cardOptions";
 import { formatApiError } from "@/shared/api/http";
 import { useTabList } from "@/shared/hooks/useTabList";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { SHORTCUTS } from "@/shared/lib/shortcuts";
+import { useUiSettings, useUpdateUiSettings } from "@/shared/preferences/uiPreferences";
 import {
   previewThemePreference,
   setThemePreference,
@@ -45,6 +47,7 @@ import {
 } from "../lib/settingsForm";
 import { AboutSection } from "./AboutSection";
 import { ConnectionStatus, type ProbeState } from "./ConnectionStatus";
+import { GalleryCardSettings } from "./GalleryCardSettings";
 import { RememberedDataGroup } from "./RememberedDataGroup";
 import { SettingInput } from "./SettingInput";
 import { SettingsActionButton } from "./SettingsActionButton";
@@ -56,7 +59,15 @@ import { ThemePicker } from "./ThemePicker";
 type SectionId = "appearance" | "vision" | "integrations" | "storage" | "data" | "about";
 
 type PageId =
-  "appearance" | "server" | "sampling" | "media" | "integrations" | "storage" | "data" | "about";
+  | "appearance"
+  | "gallery"
+  | "server"
+  | "sampling"
+  | "media"
+  | "integrations"
+  | "storage"
+  | "data"
+  | "about";
 
 interface Group {
   title: string;
@@ -96,13 +107,19 @@ const SECTIONS: Section[] = [
   {
     id: "appearance",
     label: "Appearance",
-    caption: "Color scheme",
+    caption: "Color scheme and gallery",
     icon: iconPalette,
     pages: [
       {
         id: "appearance",
-        label: "Appearance",
+        label: "Color scheme",
         description: "Pick a color scheme, or let DataForge follow the one your system uses.",
+        groups: [],
+      },
+      {
+        id: "gallery",
+        label: "Gallery",
+        description: "How much of each caption the gallery shows, and what large cards list.",
         groups: [],
       },
     ],
@@ -325,6 +342,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const saving = save.isPending;
   const savedTheme = useThemePreference();
   const [theme, setTheme] = useState(savedTheme);
+  const savedCards = useUiSettings().galleryCards;
+  const [cards, setCards] = useState(savedCards);
+  const updateUiSettings = useUpdateUiSettings();
   const [section, setSection] = useState<SectionId>("appearance");
   const [openPages, setOpenPages] = useState<Partial<Record<SectionId, PageId>>>({});
   const [error, setError] = useState<SaveError | null>(null);
@@ -337,6 +357,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setOpenPages((current) => ({ ...current, [entry]: page }));
 
   const themeEdited = theme !== savedTheme;
+  const cardsEdited = !sameCardOptions(cards, savedCards);
 
   useEffect(() => {
     previewThemePreference(themeEdited ? theme : null);
@@ -344,9 +365,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }, [theme, themeEdited]);
 
   const editedKeys = state.status === "ready" ? editedSettingKeys(state.settings, state.draft) : [];
-  const editedCount = editedKeys.length + (themeEdited ? 1 : 0);
+  const editedCount = editedKeys.length + (themeEdited ? 1 : 0) + (cardsEdited ? 1 : 0);
   const isPageEdited = (page: Page) =>
-    page.id === "appearance" ? themeEdited : keysOf(page).some((key) => editedKeys.includes(key));
+    page.id === "appearance"
+      ? themeEdited
+      : page.id === "gallery"
+        ? cardsEdited
+        : keysOf(page).some((key) => editedKeys.includes(key));
   const isSectionEdited = (entry: Section) => entry.pages.some(isPageEdited);
 
   const updateDraft = (next: SettingsDraft) => {
@@ -401,6 +426,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     try {
       if (Object.keys(built.update).length > 0) await save.mutateAsync(built.update);
       if (themeEdited) setThemePreference(theme);
+      if (cardsEdited) updateUiSettings({ galleryCards: cards });
       onClose();
     } catch (saveError) {
       setError({ message: formatApiError(saveError) });
@@ -476,6 +502,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <ThemePicker value={theme} disabled={saving} onChange={setTheme} />
         </SettingsGroup>
       );
+    }
+    if (page.id === "gallery") {
+      return <GalleryCardSettings value={cards} disabled={saving} onChange={setCards} />;
     }
     if (page.id === "about") {
       return (

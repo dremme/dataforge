@@ -1,4 +1,11 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  cacheCardOptions,
+  cardOptionsFromWire,
+  cardOptionsToWire,
+  readCardOptions,
+  type GalleryCardOptions,
+} from "@/features/gallery/lib/cardOptions";
 import type { JobFilters } from "@/features/jobs/lib/jobFilters";
 import {
   cacheJobFilters,
@@ -17,6 +24,7 @@ export interface UiSettings {
   theme: ThemePreference;
   keepCandidateMetadata: boolean;
   jobsDrawerFilters: JobFilters;
+  galleryCards: GalleryCardOptions;
 }
 
 const SORT_CACHE_KEY = "gallery-sort";
@@ -45,6 +53,7 @@ function readCachedUiSettings(): UiSettings {
     // On unless turned off: accepting without it loses the original's metadata.
     keepCandidateMetadata: readStored(KEEP_CANDIDATE_METADATA_CACHE_KEY) !== "false",
     jobsDrawerFilters: readJobFilters(),
+    galleryCards: readCardOptions(),
   };
 }
 
@@ -53,6 +62,7 @@ function cacheUiSettings({
   showAutomationSpecs,
   keepCandidateMetadata,
   jobsDrawerFilters,
+  galleryCards,
 }: Partial<UiSettings>): void {
   if (sort !== undefined) writeStored(SORT_CACHE_KEY, sort);
   if (showAutomationSpecs !== undefined) {
@@ -62,6 +72,7 @@ function cacheUiSettings({
     writeStored(KEEP_CANDIDATE_METADATA_CACHE_KEY, String(keepCandidateMetadata));
   }
   if (jobsDrawerFilters !== undefined) cacheJobFilters(jobsDrawerFilters);
+  if (galleryCards !== undefined) cacheCardOptions(galleryCards);
 }
 
 function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
@@ -71,6 +82,7 @@ function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
     theme: data.theme,
     keepCandidateMetadata: data.keep_candidate_metadata,
     jobsDrawerFilters: jobFiltersFromWire(data.jobs_drawer_filters),
+    galleryCards: cardOptionsFromWire(data.gallery_cards),
   };
 }
 
@@ -102,6 +114,9 @@ export function updateUiSettings(partial: Partial<UiSettings>): Promise<UiSettin
   }
   if (partial.jobsDrawerFilters !== undefined) {
     body.jobs_drawer_filters = jobFiltersToWire(partial.jobsDrawerFilters);
+  }
+  if (partial.galleryCards !== undefined) {
+    body.gallery_cards = cardOptionsToWire(partial.galleryCards);
   }
 
   const save = pendingUiSave.then(async () =>

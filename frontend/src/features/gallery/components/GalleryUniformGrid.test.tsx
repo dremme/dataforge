@@ -10,10 +10,17 @@ import { GalleryUniformGrid } from "./GalleryUniformGrid";
 vi.unmock("@tanstack/react-virtual");
 
 /** The height the grid reserves before any row is measured. */
-function reservedHeight(items: GalleryItem[]): string | undefined {
+function reservedHeight(items: GalleryItem[], captionLines = 2): string | undefined {
   const { container } = render(
     withGallerySelection(
-      <GalleryUniformGrid items={items} onSelect={vi.fn()} displayMode="small" />,
+      <GalleryUniformGrid
+        items={items}
+        onSelect={vi.fn()}
+        displayMode="small"
+        captionLines={captionLines}
+        showMegapixels
+        captionPreview={false}
+      />,
     ),
   );
   return container.querySelector<HTMLElement>(".gallery-virtual__inner")?.style.height;
@@ -32,5 +39,11 @@ describe("GalleryUniformGrid", () => {
     const plain = mediaItem("beach.jpg", HOME_PATH, { description: null });
 
     expect(reservedHeight([plain])).toBe(`${rowEstimate}px`);
+  });
+
+  it("reserves the plain estimate for a caption the cards hide", () => {
+    const captioned = mediaItem("sunset.png", HOME_PATH, { description: "Golden hour" });
+
+    expect(reservedHeight([captioned], 0)).toBe(`${rowEstimate}px`);
   });
 });

@@ -10,6 +10,7 @@ import { useGallerySelectionContext } from "@/features/gallery/context/GallerySe
 import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { FolderError } from "@/shared/api/http";
 import { iconCheck, iconFolderOpen, iconImages, iconTrash2 } from "@/shared/icons";
+import { useUiSettings } from "@/shared/preferences/uiPreferences";
 import type { FolderResponse, GalleryDisplayMode, GalleryItem, Subfolder } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
@@ -65,6 +66,7 @@ export function AppFolderContent({
   fileDrop,
 }: AppFolderContentProps) {
   const { selectionMode, visibleSelectedCount } = useGallerySelectionContext();
+  const { galleryCards } = useUiSettings();
   const folderNotFound = error?.kind === "folder-not-found";
   const globalError = error?.kind === "other" ? error : null;
   const showEmptyFolder = !error && items.length === 0;
@@ -133,6 +135,7 @@ export function AppFolderContent({
                       items={filteredItems}
                       onSelect={onOpenGalleryItem}
                       displayMode={displayMode}
+                      cardOptions={galleryCards}
                     />
                   ) : showEmptyFolder ? (
                     <EmptyState

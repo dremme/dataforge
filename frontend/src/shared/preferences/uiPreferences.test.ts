@@ -25,6 +25,13 @@ const serverCopy = {
   theme: "dark",
   keep_candidate_metadata: false,
   jobs_drawer_filters: { job_types: ["watermark"], status: "failed", folder: "all" },
+  gallery_cards: {
+    small_caption_lines: 0,
+    large_caption_lines: 6,
+    megapixels: false,
+    large_aspect_ratio: false,
+    list_caption_preview: false,
+  },
 };
 
 function respond(body: unknown) {
@@ -55,9 +62,19 @@ describe("useUiSettings", () => {
         theme: "dark",
         keepCandidateMetadata: false,
         jobsDrawerFilters: { jobTypes: ["watermark"], status: "failed", folder: "all" },
+        galleryCards: {
+          smallCaptionLines: 0,
+          largeCaptionLines: 6,
+          megapixels: false,
+          largeAspectRatio: false,
+          listCaptionPreview: false,
+        },
       }),
     );
     expect(localStorage.getItem("gallery-sort")).toBe("name-asc");
+    expect(JSON.parse(localStorage.getItem("gallery-card-options") ?? "null")).toEqual(
+      result.current.galleryCards,
+    );
     expect(localStorage.getItem("automation-specs-visible")).toBe("true");
     expect(localStorage.getItem("keep-candidate-metadata")).toBe("false");
   });
@@ -69,6 +86,33 @@ describe("useUiSettings", () => {
     const { result } = renderHook(() => useUiSettings(), { wrapper });
 
     expect(result.current.keepCandidateMetadata).toBe(true);
+  });
+
+  it("paints the mirrored card options before the server answers", async () => {
+    const cards = {
+      smallCaptionLines: 4,
+      largeCaptionLines: 2,
+      megapixels: false,
+      largeAspectRatio: false,
+      listCaptionPreview: true,
+    };
+    localStorage.setItem("gallery-card-options", JSON.stringify(cards));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const { wrapper } = queryWrapper(createTestQueryClient({ retry: false }));
+
+    const { result } = renderHook(() => useUiSettings(), { wrapper });
+
+    expect(result.current.galleryCards).toEqual(cards);
+  });
+
+  it("drops a mirrored caption line count the build does not offer", async () => {
+    localStorage.setItem("gallery-card-options", JSON.stringify({ largeCaptionLines: 3 }));
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const { wrapper } = queryWrapper(createTestQueryClient({ retry: false }));
+
+    const { result } = renderHook(() => useUiSettings(), { wrapper });
+
+    expect(result.current.galleryCards.largeCaptionLines).toBe(4);
   });
 
   it("keeps the local copy when the backend cannot be reached", async () => {

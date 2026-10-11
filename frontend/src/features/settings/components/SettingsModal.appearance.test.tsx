@@ -47,4 +47,44 @@ describe("SettingsModal: appearance", () => {
     expect(JSON.parse(init?.body as string)).toEqual({ theme: "light" });
     expect(requests("/api/settings", "PUT")).toHaveLength(0);
   });
+
+  it("saves the gallery card options together as a UI preference", async () => {
+    const { onClose, user } = await openAppearance();
+
+    await user.click(screen.getByRole("tab", { name: "Gallery" }));
+    await user.selectOptions(screen.getByLabelText("Large card caption"), "6 lines");
+    await user.selectOptions(screen.getByLabelText("Small card caption"), "Off");
+    await user.click(screen.getByRole("checkbox", { name: "Show megapixels" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Show the aspect ratio on large cards" }),
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Show a caption preview" }));
+
+    expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(requests("/api/preferences/ui", "PUT")).toHaveLength(1));
+    const [[, init]] = requests("/api/preferences/ui", "PUT");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      gallery_cards: {
+        small_caption_lines: 0,
+        large_caption_lines: 6,
+        megapixels: false,
+        large_aspect_ratio: false,
+        list_caption_preview: true,
+      },
+    });
+  });
+
+  it("does not count gallery options put back as they were", async () => {
+    const { user } = await openAppearance();
+
+    await user.click(screen.getByRole("tab", { name: "Gallery" }));
+    const large = screen.getByLabelText("Large card caption");
+    await user.selectOptions(large, "Off");
+    await user.selectOptions(large, "4 lines");
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
 });

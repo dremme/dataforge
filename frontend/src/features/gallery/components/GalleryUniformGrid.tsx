@@ -17,15 +17,32 @@ interface GalleryUniformGridProps {
   items: GalleryItem[];
   onSelect: (path: string) => void;
   displayMode: Exclude<GalleryDisplayMode, "large">;
+  /** Small cards only; 0 hides the caption and its status pill. */
+  captionLines: number;
+  /** Small cards only. */
+  showMegapixels: boolean;
+  /** List rows only. */
+  captionPreview: boolean;
 }
 
-function estimateRowSize(row: GalleryItem[], layout: GalleryModeLayout): number {
-  return row.some((item) => Boolean(item.description))
+function estimateRowSize(
+  row: GalleryItem[],
+  layout: GalleryModeLayout,
+  captionLines: number,
+): number {
+  return captionLines > 0 && row.some((item) => Boolean(item.description))
     ? layout.captionRowEstimate
     : layout.rowEstimate;
 }
 
-export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUniformGridProps) {
+export function GalleryUniformGrid({
+  items,
+  onSelect,
+  displayMode,
+  captionLines,
+  showMegapixels,
+  captionPreview,
+}: GalleryUniformGridProps) {
   const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
     useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
@@ -42,7 +59,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
   const virtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollElement,
-    estimateSize: (index) => estimateRowSize(rows[index] ?? [], layout),
+    estimateSize: (index) => estimateRowSize(rows[index] ?? [], layout, captionLines),
     gap: layout.gap,
     overscan: layout.overscan,
     scrollMargin,
@@ -51,11 +68,12 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
     enabled: rowCount > 0,
   });
 
-  // Row keys are path-based; a mode switch at the same column count would reuse old heights.
+  // Row keys are path-based; a mode or caption switch at the same column count would reuse old
+  // heights.
   const { measure } = virtualizer;
   useEffect(() => {
     measure();
-  }, [displayMode, measure]);
+  }, [captionLines, displayMode, measure]);
 
   const rowAt = useCallback((index: number) => rows[index] ?? [], [rows]);
   useGalleryVisiblePrefetch(scrollElement, rowAt, rows.length, virtualizer);
@@ -98,6 +116,7 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}
                       onExtendSelect={extendSelectionTo}
+                      captionPreview={captionPreview}
                     />
                   ) : (
                     <GalleryCard
@@ -106,6 +125,8 @@ export function GalleryUniformGrid({ items, onSelect, displayMode }: GalleryUnif
                       item={item}
                       onSelect={onSelect}
                       displayMode={displayMode}
+                      captionLines={captionLines}
+                      showMegapixels={showMegapixels}
                       selectionMode={selectionMode}
                       selected={selectedPaths.has(item.path)}
                       onToggleSelect={toggleSelectedPath}

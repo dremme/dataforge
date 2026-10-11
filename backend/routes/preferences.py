@@ -33,6 +33,7 @@ def write_ui_settings(body: UiSettingsUpdate) -> UiSettingsResponse:
         theme=body.theme,
         keep_candidate_metadata=body.keep_candidate_metadata,
         jobs_drawer_filters=body.jobs_drawer_filters,
+        gallery_cards=body.gallery_cards,
     )
 
 

@@ -67,6 +67,13 @@ describe("useGalleryQuery", () => {
           theme: "system",
           show_automation_specs: false,
           jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
+          gallery_cards: {
+            small_caption_lines: 2,
+            large_caption_lines: 4,
+            megapixels: true,
+            large_aspect_ratio: true,
+            list_caption_preview: false,
+          },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );

@@ -303,6 +303,13 @@ describe("JobsDrawer", () => {
               theme: "system",
               keep_candidate_metadata: true,
               jobs_drawer_filters: { job_types: ["watermark"], status: "all", folder: "all" },
+              gallery_cards: {
+                small_caption_lines: 2,
+                large_caption_lines: 4,
+                megapixels: true,
+                large_aspect_ratio: true,
+                list_caption_preview: false,
+              },
             }),
           ),
         ),

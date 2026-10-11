@@ -1,4 +1,6 @@
-import { memo, useState, type MouseEvent } from "react";
+import { memo, useState, type CSSProperties, type MouseEvent } from "react";
+import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
+import { DEFAULT_CARD_OPTIONS } from "@/features/gallery/lib/cardOptions";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
   iconCheck,
@@ -28,6 +30,11 @@ interface GalleryCardProps {
   item: GalleryItem;
   onSelect: (path: string) => void;
   displayMode?: GalleryCardMode;
+  /** 0 hides the caption and its status pill. */
+  captionLines?: number;
+  showMegapixels?: boolean;
+  /** Adds the aspect ratio beside the megapixels. */
+  showAspectRatio?: boolean;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
@@ -39,6 +46,11 @@ export const GalleryCard = memo(function GalleryCard({
   item,
   onSelect,
   displayMode = "large",
+  captionLines = displayMode === "small"
+    ? DEFAULT_CARD_OPTIONS.smallCaptionLines
+    : DEFAULT_CARD_OPTIONS.largeCaptionLines,
+  showMegapixels = true,
+  showAspectRatio = false,
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -68,7 +80,15 @@ export const GalleryCard = memo(function GalleryCard({
 
   const compactBadges = displayMode === "small";
   const videoLength = formatDurationSeconds(item.duration);
-  const megapixels = item.width && item.height ? formatMegapixels(item.width, item.height) : null;
+  const meta =
+    item.width && item.height
+      ? [
+          showMegapixels && formatMegapixels(item.width, item.height),
+          showAspectRatio && formatAspectRatio(item.width, item.height),
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
 
   return (
     <button
@@ -156,10 +176,15 @@ export const GalleryCard = memo(function GalleryCard({
           <span className="card__title" title={item.name}>
             {item.name}
           </span>
-          {megapixels && <span className="card__meta">{megapixels}</span>}
+          {meta && <span className="card__meta">{meta}</span>}
         </span>
-        {item.description ? (
-          <p className="card__description">{item.description}</p>
+        {captionLines === 0 ? null : item.description ? (
+          <p
+            className="card__description"
+            style={{ "--card-caption-lines": captionLines } as CSSProperties}
+          >
+            {item.description}
+          </p>
         ) : captionDisplay ? (
           <div className={`card__caption-status card__caption-status--${captionDisplay.variant}`}>
             <Icon icon={statusIcon} className="card__caption-status__icon" />

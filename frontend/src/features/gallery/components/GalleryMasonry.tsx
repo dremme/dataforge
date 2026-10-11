@@ -24,11 +24,21 @@ import { GalleryCard } from "./GalleryCard";
 interface GalleryMasonryProps {
   items: GalleryItem[];
   onSelect: (path: string) => void;
+  /** 0 hides the caption and its status pill. */
+  captionLines: number;
+  showMegapixels: boolean;
+  showAspectRatio: boolean;
 }
 
 const UNMEASURED: PackedMasonryLayout<GalleryItem> = { cards: [], columnCount: 1, totalHeight: 0 };
 
-export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
+export function GalleryMasonry({
+  items,
+  onSelect,
+  captionLines,
+  showMegapixels,
+  showAspectRatio,
+}: GalleryMasonryProps) {
   const { selectionMode, selectedPaths, toggleSelectedPath, extendSelectionTo, inspectedPath } =
     useGallerySelectionContext();
   const listRef = useRef<HTMLDivElement>(null);
@@ -51,10 +61,10 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
         ? packColumnMasonry(items, {
             columnCount,
             gap: layout.gap,
-            heightOf: (item) => largeCardHeight(item, columnWidth),
+            heightOf: (item) => largeCardHeight(item, columnWidth, captionLines),
           })
         : UNMEASURED,
-    [columnCount, columnWidth, items, layout.gap],
+    [captionLines, columnCount, columnWidth, items, layout.gap],
   );
 
   const overscanPx = layout.overscan * layout.rowEstimate;
@@ -85,6 +95,9 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
               key={card.item.path}
               card={card}
               columnWidth={columnWidth}
+              captionLines={captionLines}
+              showMegapixels={showMegapixels}
+              showAspectRatio={showAspectRatio}
               gap={layout.gap}
               onSelect={onSelect}
               selectionMode={selectionMode}
@@ -104,6 +117,9 @@ export function GalleryMasonry({ items, onSelect }: GalleryMasonryProps) {
 interface MasonryCardProps {
   card: PackedMasonryCard<GalleryItem>;
   columnWidth: number;
+  captionLines: number;
+  showMegapixels: boolean;
+  showAspectRatio: boolean;
   gap: number;
   onSelect: (path: string) => void;
   selectionMode: boolean;
@@ -116,6 +132,9 @@ interface MasonryCardProps {
 function MasonryCard({
   card,
   columnWidth,
+  captionLines,
+  showMegapixels,
+  showAspectRatio,
   gap,
   onSelect,
   selectionMode,
@@ -124,7 +143,7 @@ function MasonryCard({
   onToggleSelect,
   onExtendSelect,
 }: MasonryCardProps) {
-  const box = largeCardBox(card.item, columnWidth);
+  const box = largeCardBox(card.item, columnWidth, captionLines);
 
   return (
     <div
@@ -145,6 +164,9 @@ function MasonryCard({
         item={card.item}
         onSelect={onSelect}
         displayMode="large"
+        captionLines={captionLines}
+        showMegapixels={showMegapixels}
+        showAspectRatio={showAspectRatio}
         selectionMode={selectionMode}
         selected={selected}
         inspected={inspected}

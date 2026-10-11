@@ -16,6 +16,8 @@ interface GalleryListRowProps {
   selected?: boolean;
   onToggleSelect?: (path: string) => void;
   onExtendSelect?: (path: string) => void;
+  /** Shows the caption after the file name. */
+  captionPreview?: boolean;
 }
 
 export const GalleryListRow = memo(function GalleryListRow({
@@ -26,6 +28,7 @@ export const GalleryListRow = memo(function GalleryListRow({
   selected = false,
   onToggleSelect,
   onExtendSelect,
+  captionPreview = false,
 }: GalleryListRowProps) {
   const status = rowStatus(item);
   const markers = rowMarkers(item);
@@ -76,6 +79,11 @@ export const GalleryListRow = memo(function GalleryListRow({
           className="gallery-list-row__name-icon"
         />
         <span className="gallery-list-row__name-text">{item.name}</span>
+        {captionPreview && item.description && (
+          <span className="gallery-list-row__caption" title={item.description}>
+            {item.description}
+          </span>
+        )}
       </span>
       <span className="gallery-list-row__markers">
         {markers.map((marker) => (

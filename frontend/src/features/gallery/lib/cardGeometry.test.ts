@@ -5,11 +5,17 @@ import {
   galleryColumnWidth,
   largeCardBodyHeight,
   largeCardBox,
+  largeCardCaptionBodyHeight,
   largeCardHeight,
   mediaAspectRatio,
 } from "./cardGeometry";
 import { HOME_PATH } from "@/test/fixtures";
 import type { GalleryItem } from "@/shared/types";
+
+const CAPTION_LINES = 4;
+
+const captioned = (overrides: Partial<GalleryItem> = {}) =>
+  makeItem({ description: "Golden hour", has_description: true, ...overrides });
 
 function makeItem(overrides: Partial<GalleryItem> = {}): GalleryItem {
   return {
@@ -56,23 +62,41 @@ describe("galleryColumnWidth", () => {
 
 describe("largeCardBodyHeight", () => {
   it("reserves the caption lines when the file has a description", () => {
-    expect(
-      largeCardBodyHeight(makeItem({ description: "Golden hour", has_description: true })),
-    ).toBe(LARGE_CARD_BODY_PX.titleAndCaption);
+    expect(largeCardBodyHeight(captioned(), 4)).toBe(largeCardCaptionBodyHeight(4));
+  });
+
+  it("grows by the same step for every two caption lines", () => {
+    const step = largeCardCaptionBodyHeight(4) - largeCardCaptionBodyHeight(2);
+
+    expect(step).toBeGreaterThan(0);
+    expect(largeCardCaptionBodyHeight(6) - largeCardCaptionBodyHeight(4)).toBeCloseTo(step);
+  });
+
+  it("reserves the title alone when the caption is hidden", () => {
+    expect(largeCardBodyHeight(captioned(), 0)).toBe(LARGE_CARD_BODY_PX.title);
+  });
+
+  it("reserves no status pill when the caption is hidden", () => {
+    expect(largeCardBodyHeight(makeItem({ caption_status: "none" }), 0)).toBe(
+      LARGE_CARD_BODY_PX.title,
+    );
+    expect(largeCardBodyHeight(makeItem({ caption_status: "empty" }), 0)).toBe(
+      LARGE_CARD_BODY_PX.title,
+    );
   });
 
   it("reserves the status pill when the card shows one instead", () => {
-    expect(largeCardBodyHeight(makeItem({ caption_status: "none" }))).toBe(
+    expect(largeCardBodyHeight(makeItem({ caption_status: "none" }), 4)).toBe(
       LARGE_CARD_BODY_PX.titleAndPill,
     );
-    expect(largeCardBodyHeight(makeItem({ caption_status: "empty" }))).toBe(
+    expect(largeCardBodyHeight(makeItem({ caption_status: "empty" }), 4)).toBe(
       LARGE_CARD_BODY_PX.titleAndPill,
     );
   });
 
   it("reserves the title alone when the card renders nothing under it", () => {
     // `text` with no description resolves to no pill, so the body is the title.
-    expect(largeCardBodyHeight(makeItem({ caption_status: "text" }))).toBe(
+    expect(largeCardBodyHeight(makeItem({ caption_status: "text" }), 4)).toBe(
       LARGE_CARD_BODY_PX.title,
     );
   });
@@ -80,7 +104,7 @@ describe("largeCardBodyHeight", () => {
 
 describe("largeCardBox", () => {
   it("measures the media inside the card's borders, not across them", () => {
-    const box = largeCardBox(makeItem({ width: 1000, height: 1000 }), 300);
+    const box = largeCardBox(makeItem({ width: 1000, height: 1000 }), 300, CAPTION_LINES);
 
     expect(box.media).toBeCloseTo(300 - 2 * CARD_BORDER_PX);
     expect(box.body).toBe(LARGE_CARD_BODY_PX.titleAndPill);
@@ -88,16 +112,16 @@ describe("largeCardBox", () => {
   });
 
   it("makes portraits taller and landscapes shorter at the same column width", () => {
-    const landscape = largeCardHeight(makeItem({ width: 1600, height: 900 }), 300);
-    const square = largeCardHeight(makeItem({ width: 1000, height: 1000 }), 300);
-    const portrait = largeCardHeight(makeItem({ width: 900, height: 1600 }), 300);
+    const landscape = largeCardHeight(makeItem({ width: 1600, height: 900 }), 300, CAPTION_LINES);
+    const square = largeCardHeight(makeItem({ width: 1000, height: 1000 }), 300, CAPTION_LINES);
+    const portrait = largeCardHeight(makeItem({ width: 900, height: 1600 }), 300, CAPTION_LINES);
 
     expect(landscape).toBeLessThan(square);
     expect(square).toBeLessThan(portrait);
   });
 
   it("keeps a dimensionless file at the 4:3 fallback the card also draws", () => {
-    const box = largeCardBox(makeItem({ width: null, height: null }), 300);
+    const box = largeCardBox(makeItem({ width: null, height: null }), 300, CAPTION_LINES);
 
     expect(box.media).toBeCloseTo((300 - 2 * CARD_BORDER_PX) / (4 / 3));
   });

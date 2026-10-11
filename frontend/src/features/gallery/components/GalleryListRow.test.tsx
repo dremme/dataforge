@@ -50,6 +50,22 @@ describe("GalleryListRow", () => {
     expect(status?.querySelector(".gallery-list-row__status-icon")).toBeInTheDocument();
   });
 
+  it("previews the caption after the file name when asked", () => {
+    render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} captionPreview />);
+
+    const preview = screen.getByText("Golden hour over the harbour");
+    expect(preview).toHaveClass("gallery-list-row__caption");
+    expect(preview.previousElementSibling).toHaveTextContent("sunset.png");
+  });
+
+  it("previews nothing for a file without a caption", () => {
+    const { container } = render(
+      <GalleryListRow item={uncaptionedVideo} onSelect={vi.fn()} captionPreview />,
+    );
+
+    expect(container.querySelector(".gallery-list-row__caption")).toBeNull();
+  });
+
   it("never starts a native drag of the row", () => {
     render(<GalleryListRow item={captionedItem} onSelect={vi.fn()} />);
 

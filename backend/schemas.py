@@ -292,6 +292,21 @@ class JobsDrawerFilters(BaseModel):
     folder: Literal["all", "current"] = "all"
 
 
+# 0 hides the caption and its status pill.
+type SmallCardCaptionLines = Literal[0, 1, 2, 4]
+type LargeCardCaptionLines = Literal[0, 2, 4, 6]
+
+
+class GalleryCardSettings(BaseModel):
+    small_caption_lines: SmallCardCaptionLines = 2
+    large_caption_lines: LargeCardCaptionLines = 4
+    #: Shown beside the file name on small and large cards.
+    megapixels: bool = True
+    #: Large cards only; shown beside the megapixels.
+    large_aspect_ratio: bool = True
+    list_caption_preview: bool = False
+
+
 class UiSettingsResponse(BaseModel):
     sort: GallerySort = DEFAULT_GALLERY_SORT
     show_automation_specs: bool = False
@@ -299,6 +314,7 @@ class UiSettingsResponse(BaseModel):
     #: On by default: accepting a ComfyUI candidate would otherwise lose the original's metadata.
     keep_candidate_metadata: bool = True
     jobs_drawer_filters: JobsDrawerFilters = Field(default_factory=JobsDrawerFilters)
+    gallery_cards: GalleryCardSettings = Field(default_factory=GalleryCardSettings)
 
 
 class UiSettingsUpdate(BaseModel):
@@ -308,6 +324,7 @@ class UiSettingsUpdate(BaseModel):
     theme: ThemePreference | None = None
     keep_candidate_metadata: bool | None = None
     jobs_drawer_filters: JobsDrawerFilters | None = None
+    gallery_cards: GalleryCardSettings | None = None
 
 
 type AppSettingKey = Literal[

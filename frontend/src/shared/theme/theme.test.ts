@@ -31,6 +31,13 @@ function respond(theme: string) {
     show_automation_specs: false,
     theme,
     jobs_drawer_filters: { job_types: [], status: "all", folder: "all" },
+    gallery_cards: {
+      small_caption_lines: 2,
+      large_caption_lines: 4,
+      megapixels: true,
+      large_aspect_ratio: true,
+      list_caption_preview: false,
+    },
   };
   return new Response(JSON.stringify(body), {
     status: 200,

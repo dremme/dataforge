@@ -10,6 +10,7 @@ import {
   galleryColumnWidth,
   largeCardHeight,
 } from "@/features/gallery/lib/cardGeometry";
+import { DEFAULT_CARD_OPTIONS } from "@/features/gallery/lib/cardOptions";
 import { HOME_PATH } from "@/test/fixtures";
 import { withGallerySelection } from "@/test/gallerySelection";
 import type { GalleryItem } from "@/shared/types";
@@ -56,6 +57,8 @@ const videoItem: GalleryItem = {
   caption_status: "none",
   media_type: "video",
 };
+
+const CAPTION_LINES = DEFAULT_CARD_OPTIONS.largeCaptionLines;
 
 const LARGE_ITEMS: GalleryItem[] = [
   { ...imageItem, name: "alpha.png", path: `${HOME_PATH}\\alpha.png`, width: 1600, height: 900 },
@@ -105,7 +108,12 @@ function captureResizeObservers() {
   };
 }
 
-function expectMasonryGeometry(container: HTMLElement, items: GalleryItem[], width: number): void {
+function expectMasonryGeometry(
+  container: HTMLElement,
+  items: GalleryItem[],
+  width: number,
+  captionLines: number = CAPTION_LINES,
+): void {
   const layout = galleryLayoutFor("large");
   const minColumnWidth = layout.minColumnWidth ?? 0;
   const columnCount = Math.max(1, Math.floor((width + layout.gap) / (minColumnWidth + layout.gap)));
@@ -121,7 +129,7 @@ function expectMasonryGeometry(container: HTMLElement, items: GalleryItem[], wid
   items.forEach((item, index) => {
     const cell = cells[index];
     const lane = index % columnCount;
-    const height = largeCardHeight(item, columnWidth);
+    const height = largeCardHeight(item, columnWidth, captionLines);
 
     expect(cell.dataset.lane).toBe(String(lane));
     expect(Number.parseFloat(cell.style.left)).toBeCloseTo(lane * (columnWidth + layout.gap));
@@ -231,8 +239,31 @@ describe("Gallery", () => {
     const cells = [...container.querySelectorAll(".gallery-masonry-item")] as HTMLElement[];
     expect(cells.map((cell) => cell.dataset.lane)).toEqual(["0", "1", "2", "0"]);
     expect(Number.parseFloat(cells[3].style.top)).toBeLessThan(
-      largeCardHeight(LARGE_ITEMS[1], galleryColumnWidth(1000, 3, galleryLayoutFor("large").gap)),
+      largeCardHeight(
+        LARGE_ITEMS[1],
+        galleryColumnWidth(1000, 3, galleryLayoutFor("large").gap),
+        CAPTION_LINES,
+      ),
     );
+  });
+
+  it("packs large cards without the caption when its lines are off", () => {
+    const cardOptions = { ...DEFAULT_CARD_OPTIONS, largeCaptionLines: 0 as const };
+    const { container } = render(
+      withGallerySelection(
+        <main className="main">
+          <Gallery
+            items={LARGE_ITEMS}
+            onSelect={vi.fn()}
+            displayMode="large"
+            cardOptions={cardOptions}
+          />
+        </main>,
+      ),
+    );
+
+    expectMasonryGeometry(container, LARGE_ITEMS, 1000, 0);
+    expect(container.querySelector(".card__description")).toBeNull();
   });
 
   it("re-lays out large cards from the new column width when the gallery resizes", () => {

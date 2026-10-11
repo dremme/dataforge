@@ -108,6 +108,38 @@ class UiPreferencesEndpointTests(unittest.TestCase):
         self.assertEqual(read_back["jobs_drawer_filters"], filters)
         self.assertEqual(read_back["sort"], "date-desc")
 
+    def test_gallery_cards_default_to_captions_and_file_facts_without_list_preview(self) -> None:
+        self.assertEqual(
+            client.get("/api/preferences/ui").json()["gallery_cards"],
+            {
+                "small_caption_lines": 2,
+                "large_caption_lines": 4,
+                "megapixels": True,
+                "large_aspect_ratio": True,
+                "list_caption_preview": False,
+            },
+        )
+
+    def test_update_gallery_cards(self) -> None:
+        cards = {
+            "small_caption_lines": 0,
+            "large_caption_lines": 6,
+            "megapixels": False,
+            "large_aspect_ratio": False,
+            "list_caption_preview": True,
+        }
+
+        client.put("/api/preferences/ui", json={"gallery_cards": cards})
+
+        self.assertEqual(client.get("/api/preferences/ui").json()["gallery_cards"], cards)
+
+    def test_a_caption_line_count_outside_the_options_is_refused(self) -> None:
+        response = client.put(
+            "/api/preferences/ui", json={"gallery_cards": {"large_caption_lines": 3}}
+        )
+
+        self.assertEqual(response.status_code, 422)
+
 
 class GalleryDisplayPreferencesEndpointTests(unittest.TestCase):
     def tearDown(self) -> None:
