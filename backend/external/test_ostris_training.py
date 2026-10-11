@@ -41,6 +41,35 @@ def _template() -> dict[str, object]:
 
 
 class LoadTrainingTemplateTests(unittest.TestCase):
+    def test_loads_the_shipped_krea2_raw_template(self) -> None:
+        process = load_training_template("krea2_raw")["config"]["process"][0]
+
+        self.assertEqual(process["model"]["name_or_path"], "krea/Krea-2-Raw")
+        self.assertEqual(process["model"]["arch"], "krea2")
+        self.assertNotIn("assistant_lora_path", process["model"])
+        self.assertEqual(process["train"]["timestep_type"], "linear")
+        self.assertEqual(process["sample"]["guidance_scale"], 4)
+        self.assertEqual(process["sample"]["sample_steps"], 25)
+
+    def test_loads_the_shipped_qwen_image_2_turbo_template(self) -> None:
+        process = load_training_template("qwen_image_2_turbo")["config"]["process"][0]
+        model = process["model"]
+
+        self.assertEqual(
+            model["name_or_path"],
+            "Comfy-Org/Qwen-Image-2.1/diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors",
+        )
+        self.assertEqual(model["arch"], "qwen_image_2:turbo")
+        self.assertEqual((model["qtype"], model["qtype_te"]), ("convrot8", "convrot8"))
+        self.assertTrue(model["model_kwargs"]["turbo"])
+        self.assertEqual(
+            model["assistant_lora_path"],
+            "ostris/qwen_image_2_turbo_training_adapter/"
+            "qwen_image_2_turbo_training_adapter_v1.safetensors",
+        )
+        self.assertEqual(process["sample"]["guidance_scale"], 1)
+        self.assertEqual(process["sample"]["sample_steps"], 8)
+
     def test_loads_the_shipped_krea2_turbo_template(self) -> None:
         template = load_training_template()
 

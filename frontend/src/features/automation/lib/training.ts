@@ -5,8 +5,10 @@ const TRAINING_MODEL_ENTRIES: Record<
   TrainingModel,
   Omit<DialogSelectOption<TrainingModel>, "value">
 > = {
+  krea2_raw: { title: "Krea 2 Raw", group: "Image" },
   krea2_turbo: { title: "Krea 2 Turbo", group: "Image" },
   qwen_image_2: { title: "Qwen Image 2.1", group: "Image" },
+  qwen_image_2_turbo: { title: "Qwen Image 2.1 Turbo", group: "Image" },
   h3_fl2va: { title: "MiniMax H3", group: "Video" },
   h3_ref2va: { title: "MiniMax H3 Ref2VA", group: "Video" },
 };

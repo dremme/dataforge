@@ -450,6 +450,20 @@ class EditCaptionsPreviewEndpointTests(unittest.TestCase):
 class TrainingTemplateEndpointTests(unittest.TestCase):
     """The editor reads a template here and checks its edit before the job is started."""
 
+    def test_returns_the_new_image_model_templates(self) -> None:
+        for model, architecture in (
+            ("krea2_raw", "krea2"),
+            ("qwen_image_2_turbo", "qwen_image_2:turbo"),
+        ):
+            with self.subTest(model=model):
+                response = client.get(
+                    "/api/automation/train-lora/template", params={"model": model}
+                )
+
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["model"], model)
+                self.assertIn(f'arch: "{architecture}"', response.json()["yaml"])
+
     def test_returns_the_template_as_written(self) -> None:
         response = client.get("/api/automation/train-lora/template?model=h3_fl2va")
 

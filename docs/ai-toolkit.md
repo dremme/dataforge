@@ -30,12 +30,14 @@ Environment changes require a restart. A saved URL in Settings takes precedence 
 1. Open the dataset. Training uses **the whole folder** and its `.txt` captions, regardless of selection or filters.
 2. Choose **Quick LoRA training** and a template that matches your media:
 
-   | Model                 | Media  | Template                                                   |
-   | --------------------- | ------ | ---------------------------------------------------------- |
-   | **Krea 2 Turbo**      | Images | [`krea2_turbo.yml`](../ostris_templates/krea2_turbo.yml)   |
-   | **Qwen Image 2.1**    | Images | [`qwen_image_2.yml`](../ostris_templates/qwen_image_2.yml) |
-   | **MiniMax H3**        | Videos | [`h3_fl2va.yml`](../ostris_templates/h3_fl2va.yml)         |
-   | **MiniMax H3 Ref2VA** | Videos | [`h3_ref2va.yml`](../ostris_templates/h3_ref2va.yml)       |
+   | Model                    | Media  | Template                                                               |
+   | ------------------------ | ------ | ---------------------------------------------------------------------- |
+   | **Krea 2 Raw**           | Images | [`krea2_raw.yml`](../ostris_templates/krea2_raw.yml)                   |
+   | **Krea 2 Turbo**         | Images | [`krea2_turbo.yml`](../ostris_templates/krea2_turbo.yml)               |
+   | **Qwen Image 2.1**       | Images | [`qwen_image_2.yml`](../ostris_templates/qwen_image_2.yml)             |
+   | **Qwen Image 2.1 Turbo** | Images | [`qwen_image_2_turbo.yml`](../ostris_templates/qwen_image_2_turbo.yml) |
+   | **MiniMax H3**           | Videos | [`h3_fl2va.yml`](../ostris_templates/h3_fl2va.yml)                     |
+   | **MiniMax H3 Ref2VA**    | Videos | [`h3_ref2va.yml`](../ostris_templates/h3_ref2va.yml)                   |
 
 3. Enter a unique LoRA name and optional trigger word. An empty trigger means no trigger.
 4. Add at least one sample prompt; training generates samples from these prompts at the template's sample intervals.
@@ -44,6 +46,8 @@ Environment changes require a restart. A saved URL in Settings takes precedence 
 ### Template settings
 
 Templates define architecture, resolution, steps, optimizer, learning rate, sampling, and, for video, frame counts. Review these for your data rather than assuming all models use the same settings. The H3 templates currently train on 39 frames and generate 56-frame samples; training and sample lengths are separate settings.
+
+The Qwen Image 2.1 Turbo template includes its training adapter and uses 8-step samples at guidance scale 1. Krea 2 Raw uses the base model without a training adapter. AI-Toolkit must support the selected model and adapter.
 
 Dialog edits apply to that run only; switching models restores the selected model's stock template. The files in `ostris_templates/` are unchanged. DataForge validates YAML and requires a `config.process` list whose first entry contains dataset and sample sections. It fills in the name, training folder, first dataset's path, trigger word, and sample prompts; other template values remain yours.
 

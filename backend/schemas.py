@@ -37,8 +37,10 @@ type ComfyPassStatus = Literal["ran", "switched_off", "bypassed"]
 type ComfyMapNodeKind = Literal["pass", "model", "loras", "vae", "prompt", "input", "output"]
 type ComfyMediaKind = Literal["image", "video", "audio"]
 
-#: Keys of ``TRAINING_TEMPLATES``; ``h3_*`` are video, ``krea2_turbo`` and ``qwen_image_2`` image.
-type TrainingModel = Literal["krea2_turbo", "qwen_image_2", "h3_fl2va", "h3_ref2va"]
+#: Keys of ``TRAINING_TEMPLATES``; ``h3_*`` are video, ``krea2_*`` and ``qwen_image_2*`` image.
+type TrainingModel = Literal[
+    "krea2_raw", "krea2_turbo", "qwen_image_2", "qwen_image_2_turbo", "h3_fl2va", "h3_ref2va"
+]
 
 #: Chat template set; there is no ``high``. Template default ``xhigh``, ours ``medium``.
 type ReasoningEffort = Literal["low", "medium", "xhigh"]

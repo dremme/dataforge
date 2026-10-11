@@ -94,17 +94,23 @@ describe("TrainLoraDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ model: "h3_fl2va" }));
   });
 
-  it("submits Qwen Image 2.1 and names it in the description", async () => {
+  it.each([
+    ["qwen_image_2", "Qwen Image 2.1"],
+    ["krea2_raw", "Krea 2 Raw"],
+    ["qwen_image_2_turbo", "Qwen Image 2.1 Turbo (w/ Training Adapter)"],
+  ])("submits %s and names it in the description", async (model, title) => {
     const user = userEvent.setup();
     const onConfirm = renderDialog();
 
-    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), "qwen_image_2");
-    expect(screen.getByText(/Trains a Qwen Image 2.1 LoRA on them/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Model" }), model);
+    expect(
+      screen.getByText(`Trains a ${title} LoRA on them in Ostris AI-Toolkit.`),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("LoRA name"), "sample_train_v1");
     await user.click(screen.getByRole("button", { name: "Start training" }));
 
-    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ model: "qwen_image_2" }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ model }));
   });
 
   it("groups the models into image and video", () => {
@@ -119,7 +125,15 @@ describe("TrainLoraDialog", () => {
           .map((option) => option.textContent),
       ]),
     ).toEqual([
-      ["Image", ["Krea 2 Turbo", "Qwen Image 2.1"]],
+      [
+        "Image",
+        [
+          "Krea 2 Raw",
+          "Krea 2 Turbo",
+          "Qwen Image 2.1",
+          "Qwen Image 2.1 Turbo (w/ Training Adapter)",
+        ],
+      ],
       ["Video", ["MiniMax H3", "MiniMax H3 Ref2VA"]],
     ]);
   });
