@@ -12,6 +12,7 @@ from api_errors import folder_not_found
 from constants import LAST_FOLDER_KEY
 from db import get_preference
 from folder_scan import scan_folder
+from media_delete import delete_empty_dir
 from media_listing import summarize_folder_contents
 
 _INVALID_FOLDER_NAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -192,6 +193,33 @@ def create_subfolder(parent: Path, name: str) -> dict[str, str | int]:
         raise HTTPException(status_code=500, detail=f"Failed to create folder: {exc}") from exc
 
     return _subfolder_with_stats(destination.resolve())
+
+
+def delete_empty_folder(folder: Path) -> Path:
+    """Delete ``folder`` only if it has no entries, hidden ones included; returns the parent."""
+    parent = folder.parent
+    if parent == folder:
+        raise HTTPException(status_code=400, detail="Cannot delete a drive root")
+
+    try:
+        with os.scandir(folder) as entries:
+            names = sorted((entry.name for entry in entries), key=lambda name: (name.lower(), name))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read folder: {exc}") from exc
+
+    if names:
+        extra = f" and {len(names) - 1} more" if len(names) > 1 else ""
+        raise HTTPException(
+            status_code=409,
+            detail=f"Folder is not empty: contains {names[0]}{extra}",
+        )
+
+    try:
+        delete_empty_dir(folder)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to delete folder: {exc}") from exc
+
+    return parent
 
 
 def list_subfolders(folder: Path) -> list[dict[str, str | int]]:

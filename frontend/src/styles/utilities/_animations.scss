@@ -80,6 +80,18 @@
   }
 }
 
+@keyframes drop-line-enter {
+  from {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes modal-backdrop-enter {
   from {
     opacity: 0;

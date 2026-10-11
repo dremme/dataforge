@@ -3,6 +3,7 @@ import type { AutomationDialogsState } from "@/features/automation/types";
 import type { ConfirmableJobType } from "@/features/jobs/lib/jobMeta";
 import type { SelectionActionOverlaysProps } from "@/features/gallery/components/SelectionActionOverlays";
 import type { SidecarSweepOverlayProps } from "@/features/gallery/components/SidecarSweepOverlay";
+import type { DeleteFolderOverlayState } from "@/features/folder/hooks/useDeleteFolderDialog";
 import type { SettleAllCandidatesDialogProps } from "@/features/gallery/components/SettleAllCandidatesDialog";
 import type { CandidateReviewEntry } from "@/features/gallery/lib/candidateReview";
 import type { QuickActionOverlayState } from "@/features/quickAction/hooks/useQuickActionHost";
@@ -141,6 +142,7 @@ export type AppOverlaysProps = {
   automation: AutomationDialogsState;
   fileImport: FileImportOverlayState;
   createFolder: CreateFolderOverlayState | null;
+  deleteFolder: DeleteFolderOverlayState | null;
   settings: SettingsOverlayState;
   shortcuts: ShortcutsOverlayState;
 };

@@ -118,6 +118,43 @@
   line-height: 1;
 }
 
+/// Reorder feedback on a draggable row: the dragged row eases back, and the drop target grows a
+/// line on the side the dragged row lands on. `$offset` puts the line in the middle of the gap.
+@mixin drag-reorder-row($inset, $offset) {
+  transition:
+    opacity var(--transition),
+    transform var(--transition);
+
+  &--dragging {
+    opacity: 0.5;
+    transform: scale(0.97);
+  }
+
+  &--drop-before,
+  &--drop-after {
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: $inset;
+      height: 2px;
+      border-radius: 1px;
+      background: var(--accent);
+      pointer-events: none;
+      animation: drop-line-enter var(--transition) both;
+    }
+  }
+
+  &--drop-before::after {
+    top: $offset;
+  }
+
+  &--drop-after::after {
+    bottom: $offset;
+  }
+}
+
 @mixin visually-hidden {
   position: absolute;
   width: 1px;

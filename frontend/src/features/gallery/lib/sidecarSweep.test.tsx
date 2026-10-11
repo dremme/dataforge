@@ -17,15 +17,23 @@ describe("sidecarCountPhrase", () => {
   it("uses the singular noun at one", () => {
     expect(sidecarCountPhrase("issue", 1)).toBe("1 caption issue file");
     expect(sidecarCountPhrase("duplicate", 1)).toBe("1 duplicate finding file");
+    expect(sidecarCountPhrase("empty_caption", 1)).toBe("1 empty caption file");
   });
 
   it("uses the plural noun for more than one", () => {
     expect(sidecarCountPhrase("issue", 3)).toBe("3 caption issue files");
     expect(sidecarCountPhrase("duplicate", 3)).toBe("3 duplicate finding files");
+    expect(sidecarCountPhrase("empty_caption", 3)).toBe("3 empty caption files");
   });
 });
 
 describe("sidecarSweepOutcome", () => {
+  it("names empty captions in the outcome of their sweep", () => {
+    expect(
+      sidecarSweepOutcome(result({ kind: "empty_caption", deleted: ["a.txt", "b.txt"] })),
+    ).toEqual({ variant: "success", message: "Moved 2 empty caption files to the Recycle Bin." });
+  });
+
   it("reports a partial sweep as danger and names the first failure", () => {
     expect(
       sidecarSweepOutcome(

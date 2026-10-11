@@ -3,6 +3,7 @@ import { useAutomationHost } from "@/features/automation/hooks/useAutomationHost
 import { useComfyPresetsAvailable } from "@/features/automation/hooks/useComfyPresets";
 import { useFolderAutomation } from "@/features/automation/hooks/useFolderAutomation";
 import { useCreateFolderDialog } from "@/features/folder/hooks/useCreateFolderDialog";
+import { useDeleteFolderDialog } from "@/features/folder/hooks/useDeleteFolderDialog";
 import { useFolderChangeDetection } from "@/features/folder/hooks/useFolderChangeDetection";
 import { useFolderFileDrop } from "@/features/folder/hooks/useFolderFileDrop";
 import { useFolderNavigation } from "@/features/folder/hooks/useFolderNavigation";
@@ -89,6 +90,19 @@ export function useAppWorkspace() {
 
   useSubfolderStats(folder?.path, folder?.fingerprint, subfolders, !folderNotFound);
 
+  const deleteFolder = useDeleteFolderDialog({
+    folderPath: folder?.path,
+    folderLabel,
+    // The backend still refuses a folder holding files the gallery does not list.
+    enabled:
+      Boolean(folder?.parent) &&
+      !folderNotFound &&
+      !loading &&
+      items.length === 0 &&
+      subfolders.length === 0,
+    onDeleted: navigateTo,
+  });
+
   useDocumentTitle(folder?.path, folder?.breadcrumbs ?? []);
 
   const gallery = useGallerySession({
@@ -121,11 +135,16 @@ export function useAppWorkspace() {
   });
 
   const duplicateFileCount = useMemo(() => countDuplicates(items), [items]);
+  const emptyCaptionCount = useMemo(
+    () => items.filter((item) => item.caption_status === "empty").length,
+    [items],
+  );
   const sidecarSweep = useSidecarSweep({
     folderPath: folder?.path,
     folderLabel,
     issueCount: gallery.issueCount,
     duplicateCount: duplicateFileCount,
+    emptyCaptionCount,
     onSwept: refreshFolder,
   });
 
@@ -273,6 +292,7 @@ export function useAppWorkspace() {
     refreshFolder,
     onOpenFolderPicker: openFolderPicker,
     onCreateFolder: createFolder.openDialog,
+    onDeleteFolder: deleteFolder.openDialog,
     panel: automation.actions,
     selection: selectionActions,
     selectedCount: gallery.visibleSelectedCount,
@@ -300,6 +320,7 @@ export function useAppWorkspace() {
     items,
     navigateTo,
     createFolder,
+    deleteFolder,
     folderPicker: {
       open: folderPickerOpen,
       openPicker: openFolderPicker,

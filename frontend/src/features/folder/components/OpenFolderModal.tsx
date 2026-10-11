@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type HTMLAttributes } from "react";
 import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
@@ -6,13 +6,17 @@ import {
   useToggleFolderFavorite,
 } from "@/features/folder/hooks/useFolderFavorites";
 import {
+  useFavoriteDragOrder,
+  type FavoriteDragMark,
+} from "@/features/folder/hooks/useFavoriteDragOrder";
+import {
   getRecentFoldersForPicker,
   readRecentFolderPaths,
   restoreRecentFolders,
   touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 import { ModalShell } from "@/shared/ui/ModalShell";
-import { iconFolder, iconHeart, iconHeartPlus, iconX } from "@/shared/icons";
+import { iconFolder, iconHeart, iconHeartMinus, iconHeartPlus, iconX } from "@/shared/icons";
 import {
   folderLeafName,
   folderPathsEqual,
@@ -34,6 +38,8 @@ interface FolderRowProps {
   isCurrent?: boolean;
   onOpen: (path: string) => void;
   onToggleFavorite: (path: string, isFavorite: boolean) => void;
+  dragProps?: HTMLAttributes<HTMLElement>;
+  dragMark?: FavoriteDragMark | null;
 }
 
 function FolderRow({
@@ -43,9 +49,17 @@ function FolderRow({
   isCurrent = false,
   onOpen,
   onToggleFavorite,
+  dragProps,
+  dragMark,
 }: FolderRowProps) {
   return (
-    <li className="open-folder-modal__row">
+    <li
+      {...dragProps}
+      className={classNames(
+        "open-folder-modal__row",
+        dragMark && `open-folder-modal__row--${dragMark}`,
+      )}
+    >
       <div
         className={classNames(
           "open-folder-modal__option",
@@ -80,10 +94,17 @@ function FolderRow({
           aria-pressed={isFavorite}
           tabIndex={-1}
         >
-          <Icon
-            icon={isFavorite ? iconHeart : iconHeartPlus}
-            className="open-folder-modal__favorite-icon"
-          />
+          {isFavorite ? (
+            <>
+              <Icon icon={iconHeart} className="open-folder-modal__favorite-icon" />
+              <Icon
+                icon={iconHeartMinus}
+                className="open-folder-modal__favorite-icon open-folder-modal__favorite-icon--remove"
+              />
+            </>
+          ) : (
+            <Icon icon={iconHeartPlus} className="open-folder-modal__favorite-icon" />
+          )}
         </button>
       </div>
     </li>
@@ -98,6 +119,7 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
   const favoritesQuery = useFolderFavorites();
   const favorites = favoritesQuery.data;
   const { mutateAsync: toggleFavoriteOnServer } = useToggleFolderFavorite();
+  const { dragProps, dragMark } = useFavoriteDragOrder(favorites);
   const [recentRevision, setRecentRevision] = useState(0);
   const notify = useNotify();
   const syncingFavoritePathsRef = useRef(new Set<string>());
@@ -231,7 +253,7 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
               Favorites
             </h3>
             <ul className="open-folder-modal__list">
-              {favorites.map((favorite) => (
+              {favorites.map((favorite, index) => (
                 <FolderRow
                   key={favorite.path}
                   path={favorite.path}
@@ -240,6 +262,8 @@ export function OpenFolderModal({ currentFolder, onClose, onOpenFolder }: OpenFo
                   isCurrent={folderPathsEqual(favorite.path, currentFolder)}
                   onOpen={submitPath}
                   onToggleFavorite={toggleFavorite}
+                  dragProps={dragProps(index)}
+                  dragMark={dragMark(index)}
                 />
               ))}
             </ul>

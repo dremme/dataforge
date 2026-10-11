@@ -259,6 +259,8 @@ export interface FolderCommandOptions {
   /** Whether the open folder is a favorite now, which picks the toggle row offered. */
   isFavorite: boolean;
   onCreateFolder: () => void;
+  /** Set only while the open folder is empty, which is when the row appears. */
+  onDeleteFolder?: () => void;
   onToggleFavorite: () => void;
   onRefresh: () => void;
 }
@@ -267,6 +269,7 @@ export function buildFolderCommandItems({
   folderFound,
   isFavorite,
   onCreateFolder,
+  onDeleteFolder,
   onToggleFavorite,
   onRefresh,
 }: FolderCommandOptions): QuickActionItem[] {
@@ -293,6 +296,19 @@ export function buildFolderCommandItems({
       shortcut: "newFolder",
       run: onCreateFolder,
     },
+    ...(onDeleteFolder
+      ? [
+          {
+            id: "cmd:delete-folder",
+            section: "commands",
+            label: "Delete folder",
+            detail: "Remove this empty folder",
+            icon: iconTrash2,
+            keywords: "remove rmdir trash empty directory",
+            run: onDeleteFolder,
+          } satisfies QuickActionItem,
+        ]
+      : []),
     isFavorite
       ? {
           id: "cmd:unfavorite-folder",
@@ -376,20 +392,19 @@ export function buildReviewCommandItems({
   return items;
 }
 
-const SIDECAR_SWEEP_COMMANDS: Record<
-  SidecarKind,
-  { label: string; icon: AppIcon; keywords: string }
-> = {
+const SIDECAR_SWEEP_COMMANDS: Record<SidecarKind, { label: string; keywords: string }> = {
   issue: {
     label: "Delete all .issue.json files",
-    icon: iconMessageWarning,
     keywords:
       "sidecar caption issues verify findings flags warnings clear remove sweep cleanup purge",
   },
   duplicate: {
     label: "Delete all .duplicate.json files",
-    icon: iconFiles,
     keywords: "sidecar duplicates dedupe findings flags clear remove sweep cleanup purge",
+  },
+  empty_caption: {
+    label: "Delete empty caption files",
+    keywords: "blank caption txt sidecar clear remove sweep cleanup purge",
   },
 };
 
@@ -418,7 +433,7 @@ export function buildSidecarSweepItems({
     section: "commands",
     label: SIDECAR_SWEEP_COMMANDS[kind].label,
     detail: sidecarSweepDetail(kind, counts[kind]),
-    icon: SIDECAR_SWEEP_COMMANDS[kind].icon,
+    icon: iconTrash2,
     keywords: SIDECAR_SWEEP_COMMANDS[kind].keywords,
     disabled: busy || counts[kind] === 0,
     run: () => onSweep(kind),
@@ -682,6 +697,7 @@ export interface CommandOptions {
   /** Whether the open folder is a favorite now. */
   isFavorite: boolean;
   onCreateFolder: () => void;
+  onDeleteFolder?: () => void;
   onToggleFavorite: () => void;
   onRefresh: () => void;
   onCopyPath: (path: string) => void;
@@ -703,6 +719,7 @@ export function buildCommandItems({
   onNavigate,
   isFavorite,
   onCreateFolder,
+  onDeleteFolder,
   onToggleFavorite,
   onRefresh,
   onCopyPath,
@@ -732,6 +749,7 @@ export function buildCommandItems({
       folderFound,
       isFavorite,
       onCreateFolder,
+      onDeleteFolder,
       onToggleFavorite,
       onRefresh,
     }),

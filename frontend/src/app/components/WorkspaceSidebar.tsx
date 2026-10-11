@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ButtonHTMLAttributes } from "react";
+import { useFavoriteDragOrder } from "@/features/folder/hooks/useFavoriteDragOrder";
 import {
   useFolderFavorites,
   useToggleFolderFavorite,
@@ -67,6 +68,7 @@ export function WorkspaceSidebar({
   useEscapeKey(() => setShowNarrow(false), overlay);
   const favorites = useFolderFavorites().data ?? [];
   const toggleFavorite = useToggleFolderFavorite();
+  const { dragProps, dragMark } = useFavoriteDragOrder(favorites);
   const notify = useNotify();
   const recent = getRecentFoldersForPicker(
     currentFolder ?? "",
@@ -87,8 +89,20 @@ export function WorkspaceSidebar({
       writeStored(COLLAPSED_KEY, String(!collapsed));
     }
   };
-  const folderButton = (path: string, name: string) => (
+  const favoriteDragProps = (index: number): ButtonHTMLAttributes<HTMLButtonElement> => {
+    const mark = dragMark(index);
+    return {
+      ...dragProps(index),
+      className: classNames(mark && `workspace-sidebar__folder--${mark}`),
+    };
+  };
+  const folderButton = (
+    path: string,
+    name: string,
+    { className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> = {},
+  ) => (
     <button
+      {...props}
       key={path}
       type="button"
       title={path}
@@ -96,6 +110,7 @@ export function WorkspaceSidebar({
       className={classNames(
         "workspace-sidebar__folder",
         folderPathsEqual(path, currentFolder ?? "") && "workspace-sidebar__folder--active",
+        className,
       )}
       onClick={() => {
         onNavigate(path);
@@ -169,7 +184,9 @@ export function WorkspaceSidebar({
                 <Icon icon={iconFolderHeart} />
                 <span>Favorites</span>
               </h2>
-              {favorites.map((entry) => folderButton(entry.path, entry.name))}
+              {favorites.map((entry, index) =>
+                folderButton(entry.path, entry.name, favoriteDragProps(index)),
+              )}
               {favorites.length === 0 && <p>No favorite folders yet.</p>}
             </section>
             <section aria-label="Recent folders">

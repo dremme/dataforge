@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOME_PATH, VACATION_PATH } from "@/test/fixtures";
@@ -9,18 +9,23 @@ import {
   touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 
-const { fetchFolderFavoritesMock, addFolderFavoriteMock, removeFolderFavoriteMock } = vi.hoisted(
-  () => ({
-    fetchFolderFavoritesMock: vi.fn(),
-    addFolderFavoriteMock: vi.fn(),
-    removeFolderFavoriteMock: vi.fn(),
-  }),
-);
+const {
+  fetchFolderFavoritesMock,
+  addFolderFavoriteMock,
+  removeFolderFavoriteMock,
+  reorderFolderFavoritesMock,
+} = vi.hoisted(() => ({
+  fetchFolderFavoritesMock: vi.fn(),
+  addFolderFavoriteMock: vi.fn(),
+  removeFolderFavoriteMock: vi.fn(),
+  reorderFolderFavoritesMock: vi.fn(),
+}));
 
 vi.mock("@/features/folder/api/folders", () => ({
   fetchFolderFavorites: fetchFolderFavoritesMock,
   addFolderFavorite: addFolderFavoriteMock,
   removeFolderFavorite: removeFolderFavoriteMock,
+  reorderFolderFavorites: reorderFolderFavoritesMock,
 }));
 
 import { renderWithProviders } from "@/test/renderWithProviders";
@@ -37,6 +42,7 @@ describe("OpenFolderModal", () => {
     fetchFolderFavoritesMock.mockReset();
     addFolderFavoriteMock.mockReset();
     removeFolderFavoriteMock.mockReset();
+    reorderFolderFavoritesMock.mockReset();
   });
 
   afterEach(() => {
@@ -58,6 +64,32 @@ describe("OpenFolderModal", () => {
 
     expect(onOpenFolder).toHaveBeenCalledExactlyOnceWith(VACATION_PATH);
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("reorders favorites by dragging a row onto another", async () => {
+    const home = { name: "Home", path: HOME_PATH };
+    const vacation = { name: "Vacation", path: VACATION_PATH };
+    cacheFolderFavorites([home, vacation]);
+    fetchFolderFavoritesMock.mockResolvedValue({ favorites: [home, vacation] });
+    reorderFolderFavoritesMock.mockResolvedValue({ favorites: [vacation, home] });
+    render(<OpenFolderModal currentFolder={HOME_PATH} onClose={vi.fn()} onOpenFolder={vi.fn()} />);
+    const favoritesSection = await screen.findByRole("region", { name: "Favorites" });
+    const row = (name: RegExp) =>
+      within(favoritesSection).getByRole("button", { name }).closest("li")!;
+    const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+
+    fireEvent.dragStart(row(/^Vacation/), { dataTransfer });
+    fireEvent.dragOver(row(/^Home/), { dataTransfer });
+    fireEvent.drop(row(/^Home/), { dataTransfer });
+
+    await waitFor(() =>
+      expect(reorderFolderFavoritesMock).toHaveBeenCalledWith([VACATION_PATH, HOME_PATH]),
+    );
+    expect(
+      within(favoritesSection)
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector(".open-folder-modal__option-name")?.textContent),
+    ).toEqual(["Vacation", "Home"]);
   });
 
   it("unlocks every folder after overlapping favorite toggles settle", async () => {

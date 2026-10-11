@@ -5,6 +5,7 @@ import unittest
 from unittest import mock
 from urllib.parse import quote
 
+from filesystem import get_home_folder
 from routes._test_client import client
 from testing_fixtures import TempMediaFolder
 
@@ -116,6 +117,46 @@ class FolderFavoritesEndpointTests(unittest.TestCase):
             remaining = {entry["path"] for entry in remove_response.json()["favorites"]}
             self.assertNotIn(str(root.resolve()), remaining)
 
+    def test_reorder_favorites(self) -> None:
+        with TempMediaFolder() as root:
+            first = root / "First"
+            second = root / "Second"
+            first.mkdir()
+            second.mkdir()
+            client.delete(f"/api/folders/favorites?path={quote(str(get_home_folder()))}")
+            client.post(f"/api/folders/favorites?path={quote(str(first))}")
+            client.post(f"/api/folders/favorites?path={quote(str(second))}")
+
+            response = client.put(
+                "/api/folders/favorites", json={"paths": [str(second), str(first)]}
+            )
+
+            self.assertEqual(response.status_code, 200)
+            paths = [entry["path"] for entry in response.json()["favorites"]]
+            self.assertEqual(paths, [str(second.resolve()), str(first.resolve())])
+            stored = [
+                entry["path"] for entry in client.get("/api/folders/favorites").json()["favorites"]
+            ]
+            self.assertEqual(stored, paths)
+
+    def test_reorder_keeps_favorites_the_request_omits_and_ignores_unknown_paths(self) -> None:
+        with TempMediaFolder() as root:
+            first = root / "First"
+            second = root / "Second"
+            stranger = root / "Stranger"
+            for folder in (first, second, stranger):
+                folder.mkdir()
+            client.delete(f"/api/folders/favorites?path={quote(str(get_home_folder()))}")
+            client.post(f"/api/folders/favorites?path={quote(str(first))}")
+            client.post(f"/api/folders/favorites?path={quote(str(second))}")
+
+            response = client.put(
+                "/api/folders/favorites", json={"paths": [str(stranger), str(second)]}
+            )
+
+            paths = [entry["path"] for entry in response.json()["favorites"]]
+            self.assertEqual(paths, [str(second.resolve()), str(first.resolve())])
+
     def test_add_favorite_rejects_missing_folder(self) -> None:
         with TempMediaFolder() as root:
             missing = root / "does-not-exist"
@@ -185,6 +226,67 @@ class FolderCreateEndpointTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 409)
             self.assertEqual(response.json()["detail"], "Folder already exists")
+
+
+def delete_folder(folder: object):
+    return client.post(f"/api/folders/delete?path={quote(str(folder))}")
+
+
+class FolderDeleteEndpointTests(unittest.TestCase):
+    def test_deletes_an_empty_folder_and_returns_its_parent(self) -> None:
+        with TempMediaFolder() as root:
+            empty = root / "Album"
+            empty.mkdir()
+
+            response = delete_folder(empty)
+
+            self.assertEqual(response.status_code, 200, response.text)
+            payload = response.json()
+            self.assertEqual(payload["path"], str(empty.resolve()))
+            self.assertEqual(payload["parent"], str(root.resolve()))
+            self.assertFalse(empty.exists())
+
+    def test_forgets_a_favorite_it_deletes(self) -> None:
+        with TempMediaFolder() as root:
+            empty = root / "Album"
+            empty.mkdir()
+            client.post(f"/api/folders/favorites?path={quote(str(empty))}")
+
+            self.assertEqual(delete_folder(empty).status_code, 200)
+            empty.mkdir()
+
+            favorites = client.get("/api/folders/favorites").json()["favorites"]
+            self.assertNotIn(str(empty.resolve()), {entry["path"] for entry in favorites})
+
+    def test_refuses_a_folder_holding_a_file(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            folder.mkdir()
+            (folder / "notes.txt").write_text("", encoding="utf-8")
+            (folder / "Thumbs.db").write_bytes(b"")
+
+            response = delete_folder(folder)
+
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(
+                response.json()["detail"], "Folder is not empty: contains notes.txt and 1 more"
+            )
+            self.assertTrue((folder / "notes.txt").is_file())
+
+    def test_refuses_a_folder_holding_only_a_hidden_folder(self) -> None:
+        with TempMediaFolder() as root:
+            folder = root / "Album"
+            (folder / ".git").mkdir(parents=True)
+
+            response = delete_folder(folder)
+
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(response.json()["detail"], "Folder is not empty: contains .git")
+            self.assertTrue((folder / ".git").is_dir())
+
+    def test_returns_404_for_a_missing_folder(self) -> None:
+        with TempMediaFolder() as root:
+            self.assertEqual(delete_folder(root / "does-not-exist").status_code, 404)
 
 
 if __name__ == "__main__":

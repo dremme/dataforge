@@ -61,6 +61,14 @@ def delete_path(path: Path) -> None:
     path.unlink()
 
 
+def delete_empty_dir(path: Path) -> None:
+    """Like :func:`delete_path`; elsewhere ``rmdir`` refuses a folder that gained an entry."""
+    if sys.platform == "win32":
+        _send_to_recycle_bin(path)
+        return
+    path.rmdir()
+
+
 def deletes_to_trash() -> bool:
     """Whether :func:`delete_path` puts a file somewhere it can be recovered from."""
     return sys.platform == "win32"

@@ -24,6 +24,12 @@ def _read_caption_text(path: Path) -> str | None:
         return None
 
 
+def is_blank_caption_file(path: Path) -> bool:
+    """Whitespace only. An unreadable file is not blank: its text may still be worth keeping."""
+    raw = _read_caption_text(path)
+    return raw is not None and not raw.strip()
+
+
 def resolve_caption_file_name(stem: str, exists: Callable[[str], bool]) -> str | None:
     for extension in CAPTION_SIDECAR_EXTENSIONS:
         name = f"{stem}{extension}"

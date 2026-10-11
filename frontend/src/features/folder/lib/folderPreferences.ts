@@ -98,6 +98,10 @@ export function touchRecentFolder(path: string): void {
   writeRecentFolders(recent);
 }
 
+export function forgetRecentFolder(path: string): void {
+  writeRecentFolders(readRecentFolderPaths().filter((entry) => !folderPathsEqual(entry, path)));
+}
+
 /** A folder the user opened: the next start lands here, and it heads the recent list. */
 export function rememberOpenedFolder(path: string): void {
   cacheLastFolder(path);

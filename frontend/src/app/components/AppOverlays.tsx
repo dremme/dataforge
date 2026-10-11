@@ -39,6 +39,7 @@ export function AppOverlays({
   automation,
   fileImport,
   createFolder,
+  deleteFolder,
   settings,
   shortcuts,
 }: AppOverlaysProps) {
@@ -175,6 +176,25 @@ export function AppOverlays({
           error={createFolder.error}
           onConfirm={createFolder.onConfirm}
           onCancel={createFolder.onCancel}
+        />
+      )}
+
+      {deleteFolder && (
+        <ConfirmDialog
+          title="Delete this folder?"
+          description={
+            <>
+              <strong>{deleteFolder.folderLabel}</strong> is empty. On Windows, it is moved to the
+              Recycle Bin.
+            </>
+          }
+          confirmLabel={deleteFolder.busy ? "Deleting..." : "Delete"}
+          confirmVariant="danger"
+          busy={deleteFolder.busy}
+          onConfirm={() => {
+            void deleteFolder.onConfirm();
+          }}
+          onCancel={deleteFolder.onCancel}
         />
       )}
 

@@ -32,6 +32,7 @@ function renderSweep(onSwept = vi.fn()) {
         folderLabel: "Photos",
         issueCount: 2,
         duplicateCount: 1,
+        emptyCaptionCount: 3,
         onSwept,
       }),
     { wrapper },
@@ -53,6 +54,15 @@ describe("useSidecarSweep", () => {
     expect(result.current.overlay.folderLabel).toBe("Photos");
   });
 
+  it("opens the empty caption sweep with its own count", () => {
+    const { result } = renderSweep();
+
+    act(() => result.current.openSweep("empty_caption"));
+
+    expect(result.current.overlay.pending).toBe("empty_caption");
+    expect(result.current.overlay.count).toBe(3);
+  });
+
   it("does not open a sweep when the count is zero", () => {
     const { result } = renderHook(
       () =>
@@ -61,6 +71,7 @@ describe("useSidecarSweep", () => {
           folderLabel: "Photos",
           issueCount: 0,
           duplicateCount: 0,
+          emptyCaptionCount: 0,
           onSwept: vi.fn(),
         }),
       { wrapper },
@@ -79,6 +90,7 @@ describe("useSidecarSweep", () => {
           folderLabel: "this folder",
           issueCount: 2,
           duplicateCount: 1,
+          emptyCaptionCount: 0,
           onSwept: vi.fn(),
         }),
       { wrapper },
@@ -92,7 +104,7 @@ describe("useSidecarSweep", () => {
   it("counts each kind separately", () => {
     const { result } = renderSweep();
 
-    expect(result.current.counts).toEqual({ issue: 2, duplicate: 1 });
+    expect(result.current.counts).toEqual({ issue: 2, duplicate: 1, empty_caption: 3 });
 
     act(() => result.current.openSweep("duplicate"));
     expect(result.current.overlay.count).toBe(1);

@@ -80,7 +80,7 @@ type CaptionReplaceMode = Literal["replace", "prepend", "append"]
 type DuplicateThreshold = Literal["exact", "near", "loose"]
 
 #: The suffix never crosses the wire; the backend resolves the filename.
-type SidecarKind = Literal["issue", "duplicate"]
+type SidecarKind = Literal["issue", "duplicate", "empty_caption"]
 
 
 class Breadcrumb(BaseModel):
@@ -200,6 +200,12 @@ class SidecarDeleteResponse(BaseModel):
     deleted: list[str]
     #: A locked file lands here rather than aborting the sweep.
     failed: list[str]
+    deletes_to_trash: bool
+
+
+class FolderDeleteResponse(BaseModel):
+    path: str
+    parent: str
     deletes_to_trash: bool
 
 
@@ -985,6 +991,10 @@ class FolderChildrenResponse(BaseModel):
 class FolderFavorite(BaseModel):
     name: str
     path: str
+
+
+class FolderFavoritesOrderRequest(BaseModel):
+    paths: list[str]
 
 
 class FolderFavoritesResponse(BaseModel):

@@ -8,7 +8,12 @@ from captions import issue_file_path
 from duplicates import DuplicateFinding, duplicate_file_path, save_duplicate_finding
 from media_delete import delete_path
 from routes._test_client import client
-from testing_fixtures import TempMediaFolder, write_issue_sidecar, write_media
+from testing_fixtures import (
+    TempMediaFolder,
+    write_issue_sidecar,
+    write_media,
+    write_txt_caption,
+)
 
 FINDING = DuplicateFinding(group="abc123", max_distance=0, threshold="exact")
 
@@ -176,6 +181,38 @@ class DeleteSidecarsTests(unittest.TestCase):
                 payload["deleted"],
                 ["Alpha.png.issue.json", "beta.png.issue.json", "gamma.png.issue.json"],
             )
+
+    def test_deletes_blank_captions_and_keeps_the_rest(self) -> None:
+        with TempMediaFolder() as root:
+            blank = write_txt_caption(write_media(root, "blank.png"), "  \n")
+            texted = write_txt_caption(write_media(root, "texted.png"), "A harbour at dusk.")
+            unreadable = write_media(root, "latin.png").with_suffix(".txt")
+            unreadable.write_bytes(b"\xff\xfe\xfa")
+            orphan = root / "orphan.txt"
+            orphan.write_text("", encoding="utf-8")
+
+            payload = delete_sidecars(root, "empty_caption")
+
+            self.assertEqual(payload["deleted"], ["blank.txt"])
+            self.assertEqual(payload["kind"], "empty_caption")
+            self.assertFalse(blank.exists())
+            self.assertTrue((root / "blank.png").is_file())
+            self.assertTrue(texted.is_file())
+            # An unreadable caption also lists as empty, but its text may be worth keeping.
+            self.assertTrue(unreadable.is_file())
+            # The gallery never showed it, so the confirmation never counted it.
+            self.assertTrue(orphan.is_file())
+
+    def test_reports_a_caption_shared_by_two_media_once(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "clip.png")
+            (root / "clip.jpg").write_bytes((root / "clip.png").read_bytes())
+            write_txt_caption(root / "clip.png", "")
+
+            payload = delete_sidecars(root, "empty_caption")
+
+            self.assertEqual(payload["deleted"], ["clip.txt"])
+            self.assertFalse((root / "clip.txt").exists())
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import {
   addFolderFavorite,
   fetchFolderFavorites,
   removeFolderFavorite,
+  reorderFolderFavorites,
 } from "@/features/folder/api/folders";
 import {
   cacheFolderFavorites,
@@ -14,7 +15,7 @@ import { folderPathsEqual, normalizeFolderPath } from "@/features/folder/lib/fol
 import { mirroredPreference } from "@/shared/query/refreshPolicies";
 import type { FolderFavorite } from "@/shared/types";
 
-const FAVORITES_QUERY_KEY = ["folder-favorites"] as const;
+export const FAVORITES_QUERY_KEY = ["folder-favorites"] as const;
 
 /** Reconciles only this folder, preserving other pending or completed toggles. */
 function mergeFavorite(
@@ -82,6 +83,24 @@ export function useToggleFolderFavorite() {
       queryClient.setQueryData<FolderFavorite[]>(FAVORITES_QUERY_KEY, (current) =>
         adopt(mergeFavorite(current ?? [], path, favorites)),
       );
+    },
+  });
+}
+
+/** Shows the new order at once; a failed save re-reads the server's order. */
+export function useReorderFolderFavorites() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (favorites: FolderFavorite[]) =>
+      (await reorderFolderFavorites(favorites.map((entry) => entry.path))).favorites,
+    onMutate: async (favorites) => {
+      await queryClient.cancelQueries({ queryKey: FAVORITES_QUERY_KEY });
+      queryClient.setQueryData(FAVORITES_QUERY_KEY, adopt(favorites));
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: FAVORITES_QUERY_KEY }),
+    onSuccess: (favorites) => {
+      queryClient.setQueryData(FAVORITES_QUERY_KEY, adopt(favorites));
     },
   });
 }

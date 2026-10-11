@@ -42,6 +42,8 @@ interface UseQuickActionHostOptions {
   refreshFolder: () => void | Promise<void>;
   onOpenFolderPicker: () => void;
   onCreateFolder: () => void;
+  /** Set only while the open folder is empty. */
+  onDeleteFolder?: () => void;
   panel: AutomationActions;
   selection: GallerySelectionActions;
   selectedCount: number;
@@ -63,6 +65,7 @@ export function useQuickActionHost({
   refreshFolder,
   onOpenFolderPicker,
   onCreateFolder,
+  onDeleteFolder,
   panel,
   selection,
   selectedCount,
@@ -167,6 +170,7 @@ export function useQuickActionHost({
         onNavigate: goTo,
         isFavorite,
         onCreateFolder,
+        onDeleteFolder,
         onToggleFavorite: toggleFavorite,
         onRefresh: () => void refreshFolder(),
         onCopyPath: copyFolderPath,
@@ -218,6 +222,7 @@ export function useQuickActionHost({
       goTo,
       isFavorite,
       onCreateFolder,
+      onDeleteFolder,
       onInvertSelection,
       onOpenFolderPicker,
       onOpenSettings,

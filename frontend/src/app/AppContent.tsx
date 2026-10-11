@@ -22,6 +22,7 @@ export function AppContent() {
     items,
     navigateTo,
     createFolder,
+    deleteFolder,
     folderPicker,
     fileDrop,
     gallery,
@@ -136,6 +137,7 @@ export function AppContent() {
                 subfolders={subfolders}
                 filteredSubfolders={filteredSubfolders}
                 onNavigate={navigateTo}
+                onDeleteFolder={deleteFolder.openDialog}
                 items={items}
                 filteredItems={query.filteredItems}
                 filterEmptyState={query.filterEmptyState}
@@ -228,6 +230,7 @@ export function AppContent() {
               onCancel: fileDrop.dismissOverwritePrompt,
             }}
             createFolder={createFolder.overlay}
+            deleteFolder={deleteFolder.overlay}
             settings={{ open: settings.open, onClose: settings.closeSettings }}
             shortcuts={{ open: shortcuts.open, onClose: shortcuts.closeShortcuts }}
           />

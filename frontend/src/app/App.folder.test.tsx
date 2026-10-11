@@ -351,4 +351,21 @@ describe("App: folder navigation", () => {
     });
     expect(main.scrollTop).toBe(0);
   });
+
+  it("deletes an empty folder from its empty state and lands on the parent", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", `/?path=${encodeURIComponent(EMPTY_PATH)}`);
+    installMockBackend();
+    await renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "Delete folder" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Delete this folder?" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await screen.findByRole("button", { name: "View sunset.png" });
+    expect(new URLSearchParams(window.location.search).get("path")).toBe(HOME_PATH);
+    expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Empty/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete folder" })).not.toBeInTheDocument();
+  });
 });

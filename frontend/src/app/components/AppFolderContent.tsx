@@ -9,10 +9,11 @@ import { GallerySelectionControls } from "@/features/gallery/components/GalleryS
 import { useGallerySelectionContext } from "@/features/gallery/context/GallerySelectionContext";
 import type { FilterEmptyState } from "@/features/gallery/lib/filters";
 import type { FolderError } from "@/shared/api/http";
-import { iconCheck, iconFolderOpen, iconImages } from "@/shared/icons";
+import { iconCheck, iconFolderOpen, iconImages, iconTrash2 } from "@/shared/icons";
 import type { FolderResponse, GalleryDisplayMode, GalleryItem, Subfolder } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
+import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
 import { AppInitialLoading } from "./AppInitialLoading";
 
@@ -23,6 +24,8 @@ type AppFolderContentProps = {
   subfolders: Subfolder[];
   filteredSubfolders: Subfolder[];
   onNavigate: (path: string) => void;
+  /** Set only while the open folder has no media and no subfolders. */
+  onDeleteFolder?: () => void;
   items: GalleryItem[];
   filteredItems: GalleryItem[];
   filterEmptyState: FilterEmptyState;
@@ -51,6 +54,7 @@ export function AppFolderContent({
   subfolders,
   filteredSubfolders,
   onNavigate,
+  onDeleteFolder,
   items,
   filteredItems,
   filterEmptyState,
@@ -136,6 +140,18 @@ export function AppFolderContent({
                       title="Empty folder"
                       description={emptyFolderDescription}
                       variant="muted"
+                      action={
+                        onDeleteFolder && (
+                          <button
+                            type="button"
+                            className="workspace-button"
+                            onClick={onDeleteFolder}
+                          >
+                            <Icon icon={iconTrash2} />
+                            Delete folder
+                          </button>
+                        )
+                      }
                     />
                   ) : showFilterEmptyState ? (
                     <EmptyState

@@ -139,6 +139,28 @@ describe("buildFolderCommandItems", () => {
     expect(toggle?.label).toBe(label);
     expect(onToggleFavorite).toHaveBeenCalledOnce();
   });
+
+  it("offers deleting the folder only while a delete handler is set", () => {
+    const options = {
+      folderFound: true,
+      isFavorite: false,
+      onCreateFolder: vi.fn(),
+      onToggleFavorite: vi.fn(),
+      onRefresh: vi.fn(),
+    };
+    const onDeleteFolder = vi.fn();
+
+    expect(buildFolderCommandItems(options).map((item) => item.id)).not.toContain(
+      "cmd:delete-folder",
+    );
+
+    const items = buildFolderCommandItems({ ...options, onDeleteFolder });
+    expect(idsFor(items, "rmdir")).toEqual(["cmd:delete-folder"]);
+    const row = items.find((item) => item.id === "cmd:delete-folder");
+    expect(row?.icon).toBe(iconTrash2);
+    row?.run();
+    expect(onDeleteFolder).toHaveBeenCalledOnce();
+  });
 });
 
 describe("buildReviewCommandItems", () => {
@@ -261,7 +283,11 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
       onAccept: vi.fn(),
       onDelete: vi.fn(),
     },
-    sidecarSweep: { counts: { issue: 1, duplicate: 0 }, busy: false, onSweep: vi.fn() },
+    sidecarSweep: {
+      counts: { issue: 1, duplicate: 0, empty_caption: 0 },
+      busy: false,
+      onSweep: vi.fn(),
+    },
     selection: {
       selectionMode: false,
       selectedCount: 0,
@@ -297,6 +323,7 @@ describe("buildCommandItems", () => {
       "cmd:delete-all-candidates",
       "cmd:delete-issue-sidecars",
       "cmd:delete-duplicate-sidecars",
+      "cmd:delete-empty_caption-sidecars",
       "cmd:select-all",
       "cmd:invert-selection",
       "cmd:move-selected",
@@ -356,7 +383,7 @@ describe("buildCommandItems", () => {
 function sweepItems(overrides: Partial<SidecarSweepOptions> = {}) {
   return buildSidecarSweepItems({
     hasFolder: true,
-    counts: { issue: 3, duplicate: 2 },
+    counts: { issue: 3, duplicate: 2, empty_caption: 5 },
     busy: false,
     onSweep: vi.fn(),
     ...overrides,
@@ -368,27 +395,33 @@ describe("buildSidecarSweepItems", () => {
     expect(sweepItems({ hasFolder: false })).toEqual([]);
   });
 
-  it.each(["cleanup", "purge", "sidecar"])("finds both sweeps by %s", (query) => {
+  it.each(["cleanup", "purge", "sidecar"])("finds every sweep by %s", (query) => {
     expect(flattenGroups(rankQuickActionItems(sweepItems(), query)).map((item) => item.id)).toEqual(
-      ["cmd:delete-issue-sidecars", "cmd:delete-duplicate-sidecars"],
+      [
+        "cmd:delete-issue-sidecars",
+        "cmd:delete-duplicate-sidecars",
+        "cmd:delete-empty_caption-sidecars",
+      ],
     );
   });
 
   it.each([
     ["warnings", "cmd:delete-issue-sidecars"],
     ["dedupe", "cmd:delete-duplicate-sidecars"],
+    ["blank", "cmd:delete-empty_caption-sidecars"],
   ])("tells the sweeps apart by %s", (query, id) => {
     expect(flattenGroups(rankQuickActionItems(sweepItems(), query)).map((item) => item.id)).toEqual(
       [id],
     );
   });
 
-  it("lists both sweeps, issue first, under stable ids", () => {
+  it("lists every sweep, issue first, under stable ids", () => {
     const items = sweepItems();
 
     expect(items.map((item) => item.id)).toEqual([
       "cmd:delete-issue-sidecars",
       "cmd:delete-duplicate-sidecars",
+      "cmd:delete-empty_caption-sidecars",
     ]);
     expect(items.every((item) => item.section === "commands")).toBe(true);
   });
@@ -397,11 +430,14 @@ describe("buildSidecarSweepItems", () => {
     expect(sweepItems().map((item) => item.label)).toEqual([
       "Delete all .issue.json files",
       "Delete all .duplicate.json files",
+      "Delete empty caption files",
     ]);
   });
 
   it("still lists a sweep the folder has nothing for, disabled", () => {
-    const [issue, duplicate] = sweepItems({ counts: { issue: 0, duplicate: 2 } });
+    const [issue, duplicate] = sweepItems({
+      counts: { issue: 0, duplicate: 2, empty_caption: 0 },
+    });
 
     expect(issue.disabled).toBe(true);
     expect(issue.detail).toBe("Nothing to delete");
@@ -410,10 +446,13 @@ describe("buildSidecarSweepItems", () => {
   });
 
   it("counts each kind on its own line", () => {
-    const [issue, duplicate] = sweepItems({ counts: { issue: 1, duplicate: 4 } });
+    const [issue, duplicate, emptyCaption] = sweepItems({
+      counts: { issue: 1, duplicate: 4, empty_caption: 1 },
+    });
 
     expect(issue.detail).toBe("1 caption issue file");
     expect(duplicate.detail).toBe("4 duplicate finding files");
+    expect(emptyCaption.detail).toBe("1 empty caption file");
   });
 
   it("disables both while a sweep is already running", () => {
@@ -422,19 +461,20 @@ describe("buildSidecarSweepItems", () => {
 
   it("sweeps its own kind", () => {
     const onSweep = vi.fn();
-    const [issue, duplicate] = sweepItems({ onSweep });
+    const [issue, duplicate, emptyCaption] = sweepItems({ onSweep });
 
     issue.run();
     expect(onSweep).toHaveBeenLastCalledWith("issue");
 
     duplicate.run();
     expect(onSweep).toHaveBeenLastCalledWith("duplicate");
+
+    emptyCaption.run();
+    expect(onSweep).toHaveBeenLastCalledWith("empty_caption");
   });
 
-  it("gives the two different icons, so neither reads as the other", () => {
-    const [issue, duplicate] = sweepItems();
-
-    expect(issue.icon).not.toBe(duplicate.icon);
+  it("wears the trash icon on every sweep, since each deletes files", () => {
+    expect(sweepItems().every((item) => item.icon === iconTrash2)).toBe(true);
   });
 });
 

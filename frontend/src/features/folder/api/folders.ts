@@ -1,7 +1,9 @@
-import { requestJson } from "@/shared/api/http";
+import { putJson, requestJson } from "@/shared/api/http";
 import type {
   FolderChildrenResponse,
   FolderCreateResponse,
+  FolderDeleteResponse,
+  FolderFavoritesOrderRequest,
   FolderFavoritesResponse,
   FolderOpenResponse,
   FolderReviewCountsResponse,
@@ -42,6 +44,11 @@ export async function addFolderFavorite(folderPath: string): Promise<FolderFavor
   });
 }
 
+export async function reorderFolderFavorites(paths: string[]): Promise<FolderFavoritesResponse> {
+  const body: FolderFavoritesOrderRequest = { paths };
+  return putJson<FolderFavoritesResponse>("/api/folders/favorites", body);
+}
+
 export async function removeFolderFavorite(folderPath: string): Promise<FolderFavoritesResponse> {
   const params = new URLSearchParams({ path: folderPath });
   return requestJson<FolderFavoritesResponse>(`/api/folders/favorites?${params}`, {
@@ -62,6 +69,14 @@ export async function createFolder(
 ): Promise<FolderCreateResponse> {
   const params = new URLSearchParams({ path: parentPath, name });
   return requestJson<FolderCreateResponse>(`/api/folders/create?${params}`, {
+    method: "POST",
+  });
+}
+
+/** The backend refuses (409) unless the folder has no entries at all. */
+export async function deleteFolder(folderPath: string): Promise<FolderDeleteResponse> {
+  const params = new URLSearchParams({ path: folderPath });
+  return requestJson<FolderDeleteResponse>(`/api/folders/delete?${params}`, {
     method: "POST",
   });
 }

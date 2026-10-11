@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { AppIcon } from "@/shared/icons";
 import { Icon } from "./Icon";
 
@@ -7,6 +8,7 @@ interface EmptyStateProps {
   description: string;
   variant?: "default" | "success" | "muted" | "error";
   role?: "alert" | "status";
+  action?: ReactNode;
 }
 
 export function EmptyState({
@@ -15,6 +17,7 @@ export function EmptyState({
   description,
   variant = "default",
   role,
+  action,
 }: EmptyStateProps) {
   return (
     <div className={`empty-state empty-state--${variant}`} role={role}>
@@ -23,6 +26,7 @@ export function EmptyState({
       </div>
       <h2 className="empty-state__title">{title}</h2>
       <p className="empty-state__description">{description}</p>
+      {action && <div className="empty-state__action">{action}</div>}
     </div>
   );
 }

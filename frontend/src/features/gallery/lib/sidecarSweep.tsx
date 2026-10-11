@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { NotifyOptions } from "@/shared/notifications/notifications";
 import type { SidecarDeleteResponse, SidecarKind } from "@/shared/types";
 
-export const SIDECAR_SWEEP_KINDS = ["issue", "duplicate"] as const;
+export const SIDECAR_SWEEP_KINDS = ["issue", "duplicate", "empty_caption"] as const;
 
 type SidecarSweepCopy = {
   singular: string;
@@ -33,6 +33,18 @@ export const SIDECAR_SWEEP_COPY: Record<SidecarKind, SidecarSweepCopy> = {
         This will delete <strong>{sidecarCountPhrase("duplicate", count)}</strong> in{" "}
         <strong>{folderLabel}</strong>. The duplicate media themselves are left untouched. On
         Windows, files are moved to the Recycle Bin.
+      </>
+    ),
+  },
+  empty_caption: {
+    singular: "empty caption file",
+    plural: "empty caption files",
+    title: "Delete all empty caption files?",
+    description: (count, folderLabel) => (
+      <>
+        This will delete <strong>{sidecarCountPhrase("empty_caption", count)}</strong> in{" "}
+        <strong>{folderLabel}</strong>. Media and captions with text are left untouched. On Windows,
+        files are moved to the Recycle Bin.
       </>
     ),
   },

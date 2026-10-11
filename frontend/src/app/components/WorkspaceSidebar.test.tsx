@@ -1,8 +1,8 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotificationsProvider } from "@/shared/notifications/NotificationsProvider";
-import { HOME_PATH } from "@/test/fixtures";
+import { EMPTY_PATH, HOME_PATH, VACATION_PATH } from "@/test/fixtures";
 import { installMockBackend } from "@/test/mockBackend";
 import { renderWithQueryClient } from "@/test/queryClient";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
@@ -19,8 +19,8 @@ function stubViewportWidth(width: number) {
   });
 }
 
-function renderSidebar() {
-  installMockBackend();
+function renderSidebar(options: Parameters<typeof installMockBackend>[0] = {}) {
+  const backend = installMockBackend(options);
   const onNavigate = vi.fn();
   renderWithQueryClient(
     <NotificationsProvider>
@@ -34,7 +34,10 @@ function renderSidebar() {
       />
     </NotificationsProvider>,
   );
-  return { sidebar: screen.getByRole("complementary", { name: "Folder navigation" }) };
+  return {
+    backend,
+    sidebar: screen.getByRole("complementary", { name: "Folder navigation" }),
+  };
 }
 
 afterEach(() => {
@@ -100,5 +103,63 @@ describe("WorkspaceSidebar", () => {
     expect(backdrop).toBeInstanceOf(HTMLElement);
     await user.click(backdrop!);
     expect(sidebar).toHaveClass("workspace-sidebar--collapsed");
+  });
+
+  describe("reordering favorites", () => {
+    const favoriteNames = () =>
+      within(screen.getByRole("region", { name: "Favorite folders" }))
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"));
+
+    async function dragFavorite(from: string, to: string) {
+      const dataTransfer = { setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+      const source = await screen.findByRole("button", { name: from });
+      const target = screen.getByRole("button", { name: to });
+      fireEvent.dragStart(source, { dataTransfer });
+      fireEvent.dragOver(target, { dataTransfer });
+      fireEvent.drop(target, { dataTransfer });
+      fireEvent.dragEnd(source, { dataTransfer });
+    }
+
+    it.each([
+      ["up", "Empty", "Home", ["Empty", "Home", "Vacation"]],
+      ["down", "Home", "Empty", ["Vacation", "Empty", "Home"]],
+    ])("moves a favorite %s onto the one it is dropped on", async (_, from, to, order) => {
+      stubViewportWidth(1920);
+      const { backend } = renderSidebar({
+        folderFavorites: [HOME_PATH, VACATION_PATH, EMPTY_PATH],
+      });
+
+      await dragFavorite(from, to);
+
+      await waitFor(() => expect(favoriteNames()).toEqual(order));
+      const byName: Record<string, string> = {
+        Home: HOME_PATH,
+        Vacation: VACATION_PATH,
+        Empty: EMPTY_PATH,
+      };
+      await waitFor(() =>
+        expect(backend.fetchMock).toHaveBeenCalledWith(
+          "/api/folders/favorites",
+          expect.objectContaining({
+            method: "PUT",
+            body: JSON.stringify({ paths: order.map((name) => byName[name]) }),
+          }),
+        ),
+      );
+    });
+
+    it("ignores a drop that leaves the order unchanged", async () => {
+      stubViewportWidth(1920);
+      const { backend } = renderSidebar({ folderFavorites: [HOME_PATH, VACATION_PATH] });
+
+      await dragFavorite("Home", "Home");
+
+      expect(favoriteNames()).toEqual(["Home", "Vacation"]);
+      expect(backend.fetchMock).not.toHaveBeenCalledWith(
+        "/api/folders/favorites",
+        expect.objectContaining({ method: "PUT" }),
+      );
+    });
   });
 });

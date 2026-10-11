@@ -76,4 +76,10 @@
     line-height: var(--leading-relaxed);
     color: var(--text-muted);
   }
+
+  &__action {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.25rem;
+  }
 }

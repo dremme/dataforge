@@ -3,16 +3,25 @@ from fastapi import APIRouter, HTTPException, Query
 from filesystem import (
     FolderExplorerError,
     create_subfolder,
+    delete_empty_folder,
     get_home_folder,
     list_child_folders,
     list_folder_roots,
     open_folder_in_file_manager,
 )
-from folder_favorites import add_folder_favorite, list_folder_favorites, remove_folder_favorite
+from folder_favorites import (
+    add_folder_favorite,
+    list_folder_favorites,
+    remove_folder_favorite,
+    reorder_folder_favorites,
+)
+from media_delete import deletes_to_trash
 from routes._helpers import resolve_folder
 from schemas import (
     FolderChildrenResponse,
     FolderCreateResponse,
+    FolderDeleteResponse,
+    FolderFavoritesOrderRequest,
     FolderFavoritesResponse,
     FolderOpenResponse,
     FolderRootsResponse,
@@ -49,6 +58,11 @@ def create_folder_favorite(
     return FolderFavoritesResponse(favorites=favorites)
 
 
+@router.put("/folders/favorites", response_model=FolderFavoritesResponse)
+def update_folder_favorite_order(request: FolderFavoritesOrderRequest) -> FolderFavoritesResponse:
+    return FolderFavoritesResponse(favorites=reorder_folder_favorites(request.paths))
+
+
 @router.delete("/folders/favorites", response_model=FolderFavoritesResponse)
 def delete_folder_favorite(
     path: str = Query(..., description="Absolute path to folder"),
@@ -79,3 +93,18 @@ def create_folder(
     parent = resolve_folder(path)
     created = create_subfolder(parent, name)
     return FolderCreateResponse.model_validate(created)
+
+
+@router.post("/folders/delete", response_model=FolderDeleteResponse)
+def delete_folder(
+    path: str = Query(..., description="Absolute path to an empty folder"),
+) -> FolderDeleteResponse:
+    folder = resolve_folder(path)
+    parent = delete_empty_folder(folder)
+    # Otherwise a folder recreated under the same name would come back as a favorite.
+    remove_folder_favorite(str(folder))
+    return FolderDeleteResponse(
+        path=str(folder),
+        parent=str(parent),
+        deletes_to_trash=deletes_to_trash(),
+    )

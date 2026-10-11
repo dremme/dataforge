@@ -34,6 +34,8 @@ export interface MockBackendOptions {
   jobs?: Job[];
   /** Per-file results keyed by job id. */
   jobResults?: Record<string, JobFileResult[]>;
+  /** Favorite folder paths; the home folder alone when absent. */
+  folderFavorites?: string[];
 }
 
 function normalizeFolderKey(path: string | null | undefined): string | undefined {
@@ -87,7 +89,7 @@ function createMockJob(folderPath: string, jobType: Job["job_type"] = "auto_capt
 }
 
 export function installMockBackend(options: MockBackendOptions = {}) {
-  let folderFavorites: string[] | null = null;
+  let folderFavorites: string[] | null = options.folderFavorites ?? null;
   let savedSettings = appSettings();
   let remembered = { job_option_folders: 3, display_mode_folders: 2 };
   let thumbnailCache = {
@@ -206,6 +208,14 @@ export function installMockBackend(options: MockBackendOptions = {}) {
         return jsonResponse(buildFavoritesResponse());
       }
 
+      if (method === "PUT") {
+        const { paths } = JSON.parse(String(init?.body)) as { paths: string[] };
+        const stored = getFavoritePaths();
+        const front = paths.filter((path) => stored.includes(path));
+        folderFavorites = [...front, ...stored.filter((path) => !front.includes(path))];
+        return jsonResponse(buildFavoritesResponse());
+      }
+
       if (method === "DELETE") {
         if (!favoritePath) {
           return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
@@ -279,6 +289,29 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       };
 
       return jsonResponse(createdSubfolder);
+    }
+
+    if (url.pathname === "/api/folders/delete" && method === "POST") {
+      const folderPath = normalizeFolderKey(url.searchParams.get("path"));
+      const target = folderPath ? folderResponses[folderPath] : undefined;
+      if (!folderPath || !target) {
+        return jsonResponse(FOLDER_NOT_FOUND_BODY, 404);
+      }
+      if (target.items.length > 0 || target.subfolders.length > 0) {
+        return jsonResponse({ detail: "Folder is not empty" }, 409);
+      }
+
+      const parentPath = target.parent ?? "";
+      const parentFolder = folderResponses[parentPath];
+      if (parentFolder) {
+        parentFolder.subfolders = parentFolder.subfolders.filter(
+          (entry) => normalizeFolderKey(entry.path) !== folderPath,
+        );
+        parentFolder.subfolder_count = parentFolder.subfolders.length;
+      }
+      delete folderResponses[folderPath];
+
+      return jsonResponse({ path: folderPath, parent: parentPath, deletes_to_trash: true });
     }
 
     if (url.pathname === "/api/folders/roots") {

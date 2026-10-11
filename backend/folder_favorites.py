@@ -82,6 +82,19 @@ def add_folder_favorite(path: str) -> list[dict[str, str]]:
     return list_folder_favorites()
 
 
+def reorder_folder_favorites(order: list[str]) -> list[dict[str, str]]:
+    """Moves the listed favorites to the front in that order; omitted ones keep their order after.
+
+    Unknown paths are dropped, so a reorder racing a removal cannot re-add the folder.
+    """
+    stored = get_folder_favorite_paths()
+    known = set(stored)
+    front = [path for path in _normalize_stored_paths(order) if path in known]
+    placed = set(front)
+    _save_paths(front + [path for path in stored if path not in placed])
+    return list_folder_favorites()
+
+
 def remove_folder_favorite(path: str) -> list[dict[str, str]]:
     folder_str = str(normalize_user_path(path))
     paths = [entry for entry in get_folder_favorite_paths() if entry != folder_str]

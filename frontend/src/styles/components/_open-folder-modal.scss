@@ -178,6 +178,11 @@
     list-style: none;
   }
 
+  // Half the list gap, less half the line.
+  &__row {
+    @include drag-reorder-row(0, calc(-0.1875rem - 1px));
+  }
+
   &__option {
     display: flex;
     align-items: stretch;
@@ -300,6 +305,16 @@
 
     &-icon {
       @include icon-size(var(--icon-size-base));
+    }
+
+    // A favorite's heart turns into the remove action under the pointer.
+    &-icon--remove,
+    &--active:hover:not(:disabled) &-icon {
+      display: none;
+    }
+
+    &--active:hover:not(:disabled) &-icon--remove {
+      display: block;
     }
   }
 }

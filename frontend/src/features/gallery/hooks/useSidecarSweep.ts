@@ -10,6 +10,7 @@ export interface UseSidecarSweepOptions {
   folderLabel: string;
   issueCount: number;
   duplicateCount: number;
+  emptyCaptionCount: number;
   onSwept: () => void | Promise<void>;
 }
 
@@ -18,6 +19,7 @@ export function useSidecarSweep({
   folderLabel,
   issueCount,
   duplicateCount,
+  emptyCaptionCount,
   onSwept,
 }: UseSidecarSweepOptions) {
   const notify = useNotify();
@@ -25,8 +27,8 @@ export function useSidecarSweep({
   const [busy, setBusy] = useState(false);
 
   const counts = useMemo<Record<SidecarKind, number>>(
-    () => ({ issue: issueCount, duplicate: duplicateCount }),
-    [duplicateCount, issueCount],
+    () => ({ issue: issueCount, duplicate: duplicateCount, empty_caption: emptyCaptionCount }),
+    [duplicateCount, emptyCaptionCount, issueCount],
   );
 
   const openSweep = useCallback(
