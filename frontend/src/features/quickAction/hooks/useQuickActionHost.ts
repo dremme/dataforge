@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AutomationActions } from "@/features/automation/lib/automationActions";
-import { useFolderFavorites } from "@/features/folder/hooks/useFolderFavorites";
+import {
+  useFolderFavorites,
+  useToggleFolderFavorite,
+} from "@/features/folder/hooks/useFolderFavorites";
+import { folderPathsEqual } from "@/features/folder/lib/folderPath";
 import type { SettleAllCandidatesActions } from "@/features/gallery/hooks/useSettleAllCandidates";
 import type { GallerySelectionActions } from "@/features/gallery/hooks/useGallerySelectionActions";
 import type { SidecarSweepActions } from "@/features/gallery/hooks/useSidecarSweep";
@@ -79,6 +83,7 @@ export function useQuickActionHost({
 
   // Re-read whenever the palette opens; the cached list shows meanwhile.
   const favorites = useFolderFavorites({ enabled: open }).data;
+  const { mutate: mutateFavorite } = useToggleFolderFavorite();
   const [recentFolderPaths, setRecentFolderPaths] = useState<string[]>([]);
   const [recentActionIds, setRecentActionIds] = useState<string[]>([]);
 
@@ -129,6 +134,18 @@ export function useQuickActionHost({
   );
 
   const favoritePaths = useMemo(() => favorites.map((favorite) => favorite.path), [favorites]);
+  const folderPath = folder?.path;
+  const isFavorite = Boolean(
+    folderPath && favoritePaths.some((path) => folderPathsEqual(path, folderPath)),
+  );
+
+  const toggleFavorite = useCallback(() => {
+    if (!folderPath) return;
+    mutateFavorite(
+      { path: folderPath, isFavorite },
+      { onError: (error) => notify({ variant: "danger", message: formatApiError(error) }) },
+    );
+  }, [folderPath, isFavorite, mutateFavorite, notify]);
 
   const subfolderItems = useMemo(
     () => buildSubfolderItems(folder?.subfolders ?? [], goTo),
@@ -148,7 +165,9 @@ export function useQuickActionHost({
         onOpenFolderPicker,
         onGoHome: goHome,
         onNavigate: goTo,
+        isFavorite,
         onCreateFolder,
+        onToggleFavorite: toggleFavorite,
         onRefresh: () => void refreshFolder(),
         onCopyPath: copyFolderPath,
         onRevealInExplorer: revealInExplorer,
@@ -197,6 +216,7 @@ export function useQuickActionHost({
       folderNotFound,
       goHome,
       goTo,
+      isFavorite,
       onCreateFolder,
       onInvertSelection,
       onOpenFolderPicker,
@@ -218,6 +238,7 @@ export function useQuickActionHost({
       settleAllCandidates,
       sidecarSweep,
       themePreference,
+      toggleFavorite,
       visibleCount,
     ],
   );

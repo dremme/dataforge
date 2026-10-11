@@ -23,7 +23,7 @@ export function FolderLoadingState() {
               style={{ animationDelay: `${index * 0.07}s` }}
               aria-hidden="true"
             >
-              <span className="folder-card__icon folder-card__skeleton-block skeleton-shimmer" />
+              <span className="folder-card__tile folder-card__skeleton-block skeleton-shimmer" />
               <span className="folder-card__body">
                 <span className="folder-card__skeleton-line skeleton-shimmer" />
                 <span className="folder-card__skeleton-line folder-card__skeleton-line--short skeleton-shimmer" />

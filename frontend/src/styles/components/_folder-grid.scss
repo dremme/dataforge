@@ -19,6 +19,9 @@
 
 .folder-card {
   @include control-interactive;
+  // Clips the coverage bar to the rounded corners.
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 0.625rem;
@@ -50,10 +53,34 @@
     }
   }
 
-  &__icon {
+  &__tile {
+    display: inline-flex;
     flex-shrink: 0;
-    @include icon-size(var(--icon-size-lg));
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
     color: var(--accent);
+  }
+
+  &__icon {
+    @include icon-size(var(--icon-size-lg));
+
+    &--open {
+      display: none;
+    }
+  }
+
+  &:is(:hover, :focus-visible):not(:disabled) {
+    .folder-card__icon--closed {
+      display: none;
+    }
+
+    .folder-card__icon--open {
+      display: block;
+    }
   }
 
   &__body {
@@ -64,7 +91,16 @@
     min-width: 0;
   }
 
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
   &__name {
+    flex: 1;
+    min-width: 0;
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     line-height: var(--leading-snug);
@@ -114,10 +150,59 @@
     @include skeleton-shimmer;
   }
 
-  &__issue-icon {
+  &__findings {
+    display: inline-flex;
     flex-shrink: 0;
-    @include icon-size-sm;
-    color: var(--warning);
+    gap: 0.25rem;
+  }
+
+  &__finding {
+    @include tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1875rem;
+    padding: 0.0625rem 0.3125rem;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-2xs);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+
+    &--issue {
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+
+    &--duplicate {
+      background: var(--surface-hover);
+      color: var(--text-muted);
+    }
+
+    &-icon {
+      @include icon-size-sm;
+    }
+  }
+
+  &__coverage {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: var(--border);
+
+    &--success {
+      --coverage-fill: var(--success);
+    }
+
+    &--warning {
+      --coverage-fill: var(--warning);
+    }
+  }
+
+  &__coverage-fill {
+    display: block;
+    height: 100%;
+    background: var(--coverage-fill);
   }
 
   &__tip {
@@ -139,10 +224,9 @@
     font-style: italic;
   }
 
+  // Takes the tile's footprint; the shimmer replaces its accent fill.
   &__skeleton-block {
-    width: 1rem;
-    height: 1rem;
-    border-radius: var(--radius-sm);
+    @include skeleton-shimmer;
   }
 
   &__skeleton-line {

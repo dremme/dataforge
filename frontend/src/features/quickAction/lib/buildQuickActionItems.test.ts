@@ -96,7 +96,9 @@ describe("buildFolderCommandItems", () => {
   it("offers only refresh for a folder that has gone missing", () => {
     const items = buildFolderCommandItems({
       folderFound: false,
+      isFavorite: false,
       onCreateFolder: vi.fn(),
+      onToggleFavorite: vi.fn(),
       onRefresh: vi.fn(),
     });
 
@@ -105,15 +107,37 @@ describe("buildFolderCommandItems", () => {
 
   it.each([
     ["mkdir", "cmd:new-folder"],
+    ["bookmark", "cmd:favorite-folder"],
     ["reload", "cmd:refresh-folder"],
   ])("finds %s as %s", (query, id) => {
     const items = buildFolderCommandItems({
       folderFound: true,
+      isFavorite: false,
       onCreateFolder: vi.fn(),
+      onToggleFavorite: vi.fn(),
       onRefresh: vi.fn(),
     });
 
     expect(idsFor(items, query)).toEqual([id]);
+  });
+
+  it.each([
+    [false, "cmd:favorite-folder", "Favorite folder"],
+    [true, "cmd:unfavorite-folder", "Unfavorite folder"],
+  ])("offers the favorite toggle that applies when favorite is %s", (isFavorite, id, label) => {
+    const onToggleFavorite = vi.fn();
+    const toggle = buildFolderCommandItems({
+      folderFound: true,
+      isFavorite,
+      onCreateFolder: vi.fn(),
+      onToggleFavorite,
+      onRefresh: vi.fn(),
+    }).find((item) => item.id === id);
+
+    toggle?.run();
+
+    expect(toggle?.label).toBe(label);
+    expect(onToggleFavorite).toHaveBeenCalledOnce();
   });
 });
 
@@ -217,7 +241,9 @@ function commandItems(overrides: Partial<CommandOptions> = {}) {
     onOpenFolderPicker: vi.fn(),
     onGoHome: vi.fn(),
     onNavigate: vi.fn(),
+    isFavorite: false,
     onCreateFolder: vi.fn(),
+    onToggleFavorite: vi.fn(),
     onRefresh: vi.fn(),
     onCopyPath: vi.fn(),
     onRevealInExplorer: vi.fn(),
@@ -264,6 +290,7 @@ describe("buildCommandItems", () => {
       "cmd:home-folder",
       "cmd:parent-folder",
       "cmd:new-folder",
+      "cmd:favorite-folder",
       "cmd:refresh-folder",
       "cmd:resolve-issues",
       "cmd:accept-all-candidates",

@@ -12,7 +12,7 @@ import {
   touchRecentFolder,
 } from "@/features/folder/lib/folderPreferences";
 import { ModalShell } from "@/shared/ui/ModalShell";
-import { iconFolder, iconStar, iconStarPlusIcon, iconX } from "@/shared/icons";
+import { iconFolder, iconHeart, iconHeartPlus, iconX } from "@/shared/icons";
 import {
   folderLeafName,
   folderPathsEqual,
@@ -81,7 +81,7 @@ function FolderRow({
           tabIndex={-1}
         >
           <Icon
-            icon={isFavorite ? iconStar : iconStarPlusIcon}
+            icon={isFavorite ? iconHeart : iconHeartPlus}
             className="open-folder-modal__favorite-icon"
           />
         </button>

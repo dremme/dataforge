@@ -13,7 +13,7 @@ async function openLintDialog(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("App: dialogs", () => {
-  it("shows favorites and lets a recent folder be starred in the folder picker", async () => {
+  it("shows favorites and lets a recent folder be favorited in the folder picker", async () => {
     const user = userEvent.setup();
     installMockBackend();
     touchRecentFolder(VACATION_PATH);

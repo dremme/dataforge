@@ -112,6 +112,44 @@ describe("GalleryCard", () => {
     expect(stack?.firstElementChild).toHaveClass(`card__badge--${variant}`);
   });
 
+  it("stacks the duplicate badge last, with the other findings", () => {
+    const { container } = render(
+      <GalleryCard
+        item={{ ...captionedItem, has_issue_file: true, has_duplicate_file: true }}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const stack = container.querySelector(".card__badge-stack");
+    expect(stack?.children).toHaveLength(2);
+    expect(stack?.lastElementChild).toHaveClass("card__badge--duplicate");
+  });
+
+  it("labels a video badge with the clip length when it is known", () => {
+    const { container, rerender } = render(
+      <GalleryCard item={{ ...uncaptionedItem, duration: 12.4 }} onSelect={vi.fn()} />,
+    );
+
+    expect(container.querySelector(".card__badge--video")).toHaveTextContent("12 s");
+
+    rerender(<GalleryCard item={{ ...uncaptionedItem, duration: null }} onSelect={vi.fn()} />);
+
+    expect(container.querySelector(".card__badge--video")).toHaveTextContent("Video");
+  });
+
+  it("shows the megapixel count beside the title on large and small cards", () => {
+    const { container, rerender } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
+
+    expect(container.querySelector(".card__title")).toHaveTextContent(/^sunset\.png$/);
+    expect(container.querySelector(".card__meta")).toHaveTextContent("2.1 MP");
+
+    rerender(<GalleryCard item={captionedItem} onSelect={vi.fn()} displayMode="small" />);
+    expect(container.querySelector(".card__meta")).toHaveTextContent("2.1 MP");
+
+    rerender(<GalleryCard item={{ ...captionedItem, width: null }} onSelect={vi.fn()} />);
+    expect(container.querySelector(".card__meta")).toBeNull();
+  });
+
   it("renders no stack when neither badge applies", () => {
     const { container } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
 

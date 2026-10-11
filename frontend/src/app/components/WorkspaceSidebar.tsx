@@ -13,9 +13,11 @@ import { formatApiError } from "@/shared/api/http";
 import { useNotify } from "@/shared/notifications/notifications";
 import {
   iconFolder,
+  iconFolderClock,
+  iconFolderHeart,
   iconFolderOpen,
-  iconStar,
-  iconPlus,
+  iconHeart,
+  iconFolderPlus,
   iconChevronLeft,
   iconChevronRight,
   iconHammer,
@@ -163,12 +165,18 @@ export function WorkspaceSidebar({
         ) : (
           <div className="workspace-sidebar__scroll">
             <section aria-label="Favorite folders">
-              <h2>Favorites</h2>
+              <h2>
+                <Icon icon={iconFolderHeart} />
+                <span>Favorites</span>
+              </h2>
               {favorites.map((entry) => folderButton(entry.path, entry.name))}
               {favorites.length === 0 && <p>No favorite folders yet.</p>}
             </section>
             <section aria-label="Recent folders">
-              <h2>Recent</h2>
+              <h2>
+                <Icon icon={iconFolderClock} />
+                <span>Recent</span>
+              </h2>
               {recent.map((path) => folderButton(path, folderLeafName(path)))}
             </section>
           </div>
@@ -187,11 +195,11 @@ export function WorkspaceSidebar({
               aria-label="New folder"
               aria-keyshortcuts={ariaKeyShortcuts(SHORTCUTS.newFolder)}
             >
-              <Icon icon={iconPlus} />
+              <Icon icon={iconFolderPlus} />
               {!hidden && "New folder"}
             </button>
           </Tooltip>
-          {/* The label names the action; the accent star shows the state in the rail. */}
+          {/* The label names the action; the accent heart shows the state in the rail. */}
           <Tooltip content={favoriteLabel} placement="right">
             <button
               type="button"
@@ -212,7 +220,7 @@ export function WorkspaceSidebar({
                   );
               }}
             >
-              <Icon icon={iconStar} />
+              <Icon icon={iconHeart} />
               {!hidden && favoriteLabel}
             </button>
           </Tooltip>

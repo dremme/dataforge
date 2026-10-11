@@ -16,6 +16,7 @@ import { useHoverVideoPreview } from "@/features/gallery/hooks/useHoverVideoPrev
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
+import { formatDurationSeconds, formatMegapixels } from "@/shared/lib/format";
 import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
 import { Icon } from "@/shared/ui/Icon";
@@ -66,6 +67,8 @@ export const GalleryCard = memo(function GalleryCard({
   };
 
   const compactBadges = displayMode === "small";
+  const videoLength = formatDurationSeconds(item.duration);
+  const megapixels = item.width && item.height ? formatMegapixels(item.width, item.height) : null;
 
   return (
     <button
@@ -108,12 +111,18 @@ export const GalleryCard = memo(function GalleryCard({
           </span>
         </span>
         {itemIsVideo && (
-          <CardBadge icon={iconVideo} compact={compactBadges} label="Video" variant="video" />
+          <CardBadge
+            icon={iconVideo}
+            compact={compactBadges}
+            label={videoLength || "Video"}
+            variant="video"
+            numeric={!!videoLength}
+          />
         )}
         {itemIsGif && (
           <CardBadge icon={iconFileImage} compact={compactBadges} label="GIF" variant="gif" />
         )}
-        {(item.has_issue_file || item.has_candidate) && (
+        {(item.has_issue_file || item.has_candidate || item.has_duplicate_file) && (
           <span className="card__badge-stack">
             {item.has_issue_file && (
               <CardBadge
@@ -131,20 +140,23 @@ export const GalleryCard = memo(function GalleryCard({
                 variant="candidate"
               />
             )}
+            {item.has_duplicate_file && (
+              <CardBadge
+                icon={iconFiles}
+                compact={compactBadges}
+                label="Duplicate"
+                variant="duplicate"
+              />
+            )}
           </span>
-        )}
-        {item.has_duplicate_file && (
-          <CardBadge
-            icon={iconFiles}
-            compact={compactBadges}
-            label="Duplicate"
-            variant="duplicate"
-          />
         )}
       </div>
       <div className="card__body">
-        <span className="card__title" title={item.name}>
-          {item.name}
+        <span className="card__head">
+          <span className="card__title" title={item.name}>
+            {item.name}
+          </span>
+          {megapixels && <span className="card__meta">{megapixels}</span>}
         </span>
         {item.description ? (
           <p className="card__description">{item.description}</p>

@@ -1,13 +1,15 @@
 import { useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useFolderPrefetch } from "@/features/folder/hooks/useFolderPrefetch";
-import { clampFolders, folderCardLabel, folderFindings } from "@/features/folder/lib/folderCards";
+import { clampFolders, folderCardLabel } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
 import { folderReviewCountsQueryOptions } from "@/features/folder/lib/folderQuery";
 import {
   iconChevronDown,
   iconChevronUp,
+  iconFiles,
   iconFolder,
+  iconFolderOpen,
   iconFolderTree,
   iconImage,
   iconTriangleAlert,
@@ -37,9 +39,44 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
     >
       <Icon icon={iconImage} className="folder-card__stat-icon" />
       <strong>{captionedCount}</strong> / {fileCount} captioned
-      {folderFindings(folder).length > 0 && (
-        <Icon icon={iconTriangleAlert} className="folder-card__issue-icon" aria-hidden="true" />
+    </span>
+  );
+}
+
+/** Issues and duplicates stay separate badges: one file can carry both, so a sum would mislead. */
+function FolderCardFindings({ folder }: { folder: Subfolder }) {
+  const { issue_count: issues, duplicate_count: duplicates } = folder;
+  if (!issues && !duplicates) return null;
+
+  return (
+    <span className="folder-card__findings" aria-hidden="true">
+      {!!issues && (
+        <span className="folder-card__finding folder-card__finding--issue">
+          <Icon icon={iconTriangleAlert} className="folder-card__finding-icon" />
+          {formatCount(issues)}
+        </span>
       )}
+      {!!duplicates && (
+        <span className="folder-card__finding folder-card__finding--duplicate">
+          <Icon icon={iconFiles} className="folder-card__finding-icon" />
+          {formatCount(duplicates)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function FolderCardCoverage({ folder }: { folder: Subfolder }) {
+  const { file_count: fileCount, captioned_count: captionedCount } = folder;
+  if (!fileCount || typeof captionedCount !== "number") return null;
+
+  const tone = captionedCount === fileCount ? "success" : "warning";
+  return (
+    <span className={`folder-card__coverage folder-card__coverage--${tone}`} aria-hidden="true">
+      <span
+        className="folder-card__coverage-fill"
+        style={{ width: `${(captionedCount / fileCount) * 100}%` }}
+      />
     </span>
   );
 }
@@ -90,11 +127,18 @@ function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: stri
         onFocus={loadCounts}
         aria-label={folderCardLabel(folder)}
       >
-        <Icon icon={iconFolder} className="folder-card__icon" />
+        <span className="folder-card__tile" aria-hidden="true">
+          <Icon icon={iconFolder} className="folder-card__icon folder-card__icon--closed" />
+          <Icon icon={iconFolderOpen} className="folder-card__icon folder-card__icon--open" />
+        </span>
         <span className="folder-card__body">
-          <span className="folder-card__name">{folder.name}</span>
+          <span className="folder-card__head">
+            <span className="folder-card__name">{folder.name}</span>
+            <FolderCardFindings folder={folder} />
+          </span>
           {folder.file_count !== 0 && <FolderCardStats folder={folder} />}
         </span>
+        <FolderCardCoverage folder={folder} />
       </button>
     </Tooltip>
   );

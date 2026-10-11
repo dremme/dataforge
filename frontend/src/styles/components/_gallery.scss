@@ -217,7 +217,7 @@
 
     .card__img,
     .card__video-preview {
-      transform: scale(1.15);
+      transform: scale(1.05);
     }
 
     .card__overlay {
@@ -234,16 +234,14 @@
     }
   }
 
+  // Caption state reads as a line where the media meets the body; uncaptioned cards draw none.
   &--captioned {
-    border-color: var(--captioned-border);
+    --card-seam: var(--success);
   }
 
-  &--partial {
-    border-color: var(--partial-border);
-  }
-
+  &--partial,
   &--issue {
-    border-color: var(--warning-border);
+    --card-seam: var(--warning);
   }
 
   &--skeleton {
@@ -281,6 +279,19 @@
     aspect-ratio: 4 / 3;
     background: var(--bg-media);
     overflow: hidden;
+
+    // Drawn over the media's last pixels, so it adds nothing to the masonry's packed heights.
+    &::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 2;
+      height: 2px;
+      background: var(--card-seam, transparent);
+      pointer-events: none;
+    }
   }
 
   // Masonry hands each large card the exact height of its two parts; 4:3 is the small grid's crop.
@@ -429,27 +440,23 @@
     letter-spacing: var(--tracking-caps);
 
     &--video,
-    &--gif,
-    &--duplicate {
+    &--gif {
       position: absolute;
+      top: 0.625rem;
+      left: 0.625rem;
       z-index: 2;
     }
 
-    &--video,
-    &--gif {
-      top: 0.625rem;
-      left: 0.625rem;
+    &--numeric {
+      @include tabular-nums;
+      text-transform: none;
+      letter-spacing: normal;
     }
 
     &--issue {
       color: var(--media-warning);
       background: color-mix(in srgb, var(--media-warning-deep) 40%, transparent);
       border-color: color-mix(in srgb, var(--media-warning) 60%, transparent);
-    }
-
-    &--duplicate {
-      bottom: 0.625rem;
-      left: 0.625rem;
     }
 
     &-icon {
@@ -480,11 +487,29 @@
     padding: 0.875rem 1rem 1rem;
   }
 
+  &__head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
   &__title {
+    flex: 1;
+    min-width: 0;
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     line-height: var(--leading-snug);
     @include truncate;
+  }
+
+  &__meta {
+    flex-shrink: 0;
+    @include tabular-nums;
+    font-size: var(--text-2xs);
+    line-height: var(--leading-snug);
+    color: var(--text-subtle);
+    white-space: nowrap;
   }
 
   &__description {
@@ -562,11 +587,6 @@
     &--video,
     &--gif {
       top: 0.4375rem;
-      left: 0.4375rem;
-    }
-
-    &--duplicate {
-      bottom: 0.4375rem;
       left: 0.4375rem;
     }
   }

@@ -33,7 +33,7 @@ describe("FolderGrid", () => {
     expect(screen.getByLabelText("1 of 4")).toHaveClass("folder-section__count");
   });
 
-  it("shows a warning triangle when a folder has issue files", () => {
+  it("badges a folder that has issue files with its issue count", () => {
     renderWithQueryClient(
       <FolderGrid
         folders={[
@@ -55,12 +55,9 @@ describe("FolderGrid", () => {
 
     expect(clean).toBeInTheDocument();
     expect(needsReview).toBeInTheDocument();
-    expect(clean.querySelector(".folder-card__issue-icon")).toBeNull();
-
-    const issueIcon = needsReview.querySelector(".folder-card__issue-icon");
-    expect(issueIcon).not.toBeNull();
-    expect(issueIcon?.parentElement).toHaveClass("folder-card__stat");
-    expect(issueIcon?.previousSibling?.textContent).toContain("captioned");
+    expect(issueBadge(clean)).toBeNull();
+    expect(issueBadge(needsReview)).toHaveTextContent("3");
+    expect(duplicateBadge(needsReview)).toBeNull();
   });
 
   it("warns about duplicates on their own, with no caption issues", () => {
@@ -73,7 +70,8 @@ describe("FolderGrid", () => {
 
     const card = screen.getByRole("button", { name: "Album (2 duplicates)" });
 
-    expect(card.querySelector(".folder-card__issue-icon")).not.toBeNull();
+    expect(duplicateBadge(card)).toHaveTextContent("2");
+    expect(issueBadge(card)).toBeNull();
   });
 
   it("names caption issues and duplicates separately rather than as a total", () => {
@@ -86,9 +84,10 @@ describe("FolderGrid", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Album (2 caption issues, 2 duplicates)" }),
-    ).toBeInTheDocument();
+    const card = screen.getByRole("button", { name: "Album (2 caption issues, 2 duplicates)" });
+
+    expect(issueBadge(card)).toHaveTextContent("2");
+    expect(duplicateBadge(card)).toHaveTextContent("2");
   });
 
   it("puts a lone issue and a lone duplicate in the singular", () => {
@@ -116,7 +115,7 @@ describe("FolderGrid", () => {
 
     const card = screen.getByRole("button", { name: "Album (3 caption issues)" });
 
-    expect(card.querySelector(".folder-card__issue-icon")).not.toBeNull();
+    expect(issueBadge(card)).toHaveTextContent("3");
   });
 
   it("leaves a folder with no findings unlabelled and unmarked", () => {
@@ -129,7 +128,7 @@ describe("FolderGrid", () => {
 
     const card = screen.getByRole("button", { name: "Album" });
 
-    expect(card.querySelector(".folder-card__issue-icon")).toBeNull();
+    expect(card.querySelector(".folder-card__finding")).toBeNull();
   });
 
   it("holds the stat slot with a placeholder until counts arrive", () => {
@@ -164,7 +163,69 @@ describe("FolderGrid", () => {
     expect(card.querySelector(".folder-card__stat")).toHaveClass("folder-card__stat--success");
     expect(card.textContent).toContain("captioned");
   });
+
+  it("fills the coverage bar to the captioned share of the folder", () => {
+    renderWithQueryClient(
+      <FolderGrid
+        folders={[
+          makeFolder({
+            name: "Partial",
+            path: "C:\\Photos\\Partial",
+            file_count: 4,
+            captioned_count: 1,
+          }),
+          makeFolder({ name: "Done", path: "C:\\Photos\\Done", file_count: 3, captioned_count: 3 }),
+        ]}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const partial = coverage(screen.getByRole("button", { name: "Partial" }));
+    const done = coverage(screen.getByRole("button", { name: "Done" }));
+
+    expect(partial).toHaveClass("folder-card__coverage--warning");
+    expect(partial?.firstElementChild).toHaveStyle({ width: "25%" });
+    expect(done).toHaveClass("folder-card__coverage--success");
+    expect(done?.firstElementChild).toHaveStyle({ width: "100%" });
+  });
+
+  it("draws no coverage bar while counts are pending or for an empty folder", () => {
+    renderWithQueryClient(
+      <FolderGrid
+        folders={[
+          makeFolder({
+            name: "Pending",
+            path: "C:\\Photos\\Pending",
+            file_count: null,
+            captioned_count: null,
+          }),
+          makeFolder({
+            name: "Empty",
+            path: "C:\\Photos\\Empty",
+            file_count: 0,
+            captioned_count: 0,
+          }),
+        ]}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(coverage(screen.getByRole("button", { name: "Pending" }))).toBeNull();
+    expect(coverage(screen.getByRole("button", { name: "Empty" }))).toBeNull();
+  });
 });
+
+function issueBadge(card: HTMLElement) {
+  return card.querySelector(".folder-card__finding--issue");
+}
+
+function duplicateBadge(card: HTMLElement) {
+  return card.querySelector(".folder-card__finding--duplicate");
+}
+
+function coverage(card: HTMLElement) {
+  return card.querySelector(".folder-card__coverage");
+}
 
 describe("FolderGrid card tooltip", () => {
   function stubReviewCounts(counts: { issue_count: number; candidate_count: number }) {

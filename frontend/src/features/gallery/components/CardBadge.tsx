@@ -9,15 +9,18 @@ interface CardBadgeProps {
   compact: boolean;
   label: string;
   variant: CardBadgeVariant;
+  /** A measurement such as `12 s`, kept in its own case instead of the badge's capitals. */
+  numeric?: boolean;
 }
 
-export function CardBadge({ icon, compact, label, variant }: CardBadgeProps) {
+export function CardBadge({ icon, compact, label, variant, numeric = false }: CardBadgeProps) {
   return (
     <span
       className={classNames(
         "card__badge",
         `card__badge--${variant}`,
         compact && "card__badge--compact",
+        numeric && "card__badge--numeric",
       )}
       aria-hidden="true"
     >

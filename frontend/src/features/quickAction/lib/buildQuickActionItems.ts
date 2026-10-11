@@ -50,7 +50,9 @@ import {
   iconRefresh,
   iconScanSquare,
   iconSettings,
-  iconStar,
+  iconHeart,
+  iconHeartMinus,
+  iconHeartPlus,
   iconSun,
   iconTrash2,
   type AppIcon,
@@ -130,7 +132,7 @@ export function buildFavoriteItems(
   return favorites.map((favorite) =>
     folderQuickAction(favorite.path, "favorites", onNavigate, {
       name: favorite.name,
-      icon: iconStar,
+      icon: iconHeart,
     }),
   );
 }
@@ -254,13 +256,18 @@ export function buildNavigationCommandItems({
 
 export interface FolderCommandOptions {
   folderFound: boolean;
+  /** Whether the open folder is a favorite now, which picks the toggle row offered. */
+  isFavorite: boolean;
   onCreateFolder: () => void;
+  onToggleFavorite: () => void;
   onRefresh: () => void;
 }
 
 export function buildFolderCommandItems({
   folderFound,
+  isFavorite,
   onCreateFolder,
+  onToggleFavorite,
   onRefresh,
 }: FolderCommandOptions): QuickActionItem[] {
   const refresh: QuickActionItem = {
@@ -286,6 +293,25 @@ export function buildFolderCommandItems({
       shortcut: "newFolder",
       run: onCreateFolder,
     },
+    isFavorite
+      ? {
+          id: "cmd:unfavorite-folder",
+          section: "commands",
+          label: "Unfavorite folder",
+          detail: "Remove this folder from favorites",
+          icon: iconHeartMinus,
+          keywords: "remove unstar unpin bookmark",
+          run: onToggleFavorite,
+        }
+      : {
+          id: "cmd:favorite-folder",
+          section: "commands",
+          label: "Favorite folder",
+          detail: "Add this folder to favorites",
+          icon: iconHeartPlus,
+          keywords: "add star pin bookmark",
+          run: onToggleFavorite,
+        },
     refresh,
   ];
 }
@@ -653,7 +679,10 @@ export interface CommandOptions {
   onOpenFolderPicker: () => void;
   onGoHome: () => void;
   onNavigate: (path: string) => void;
+  /** Whether the open folder is a favorite now. */
+  isFavorite: boolean;
   onCreateFolder: () => void;
+  onToggleFavorite: () => void;
   onRefresh: () => void;
   onCopyPath: (path: string) => void;
   onRevealInExplorer: (path: string) => void;
@@ -672,7 +701,9 @@ export function buildCommandItems({
   onOpenFolderPicker,
   onGoHome,
   onNavigate,
+  isFavorite,
   onCreateFolder,
+  onToggleFavorite,
   onRefresh,
   onCopyPath,
   onRevealInExplorer,
@@ -697,7 +728,13 @@ export function buildCommandItems({
 
   return [
     ...navigation,
-    ...buildFolderCommandItems({ folderFound, onCreateFolder, onRefresh }),
+    ...buildFolderCommandItems({
+      folderFound,
+      isFavorite,
+      onCreateFolder,
+      onToggleFavorite,
+      onRefresh,
+    }),
     ...buildReviewCommandItems(review),
     ...buildSettleAllCandidatesItems({ ...settleAllCandidates, hasFolder: folderFound }),
     ...buildSidecarSweepItems({ ...sidecarSweep, hasFolder: folderFound }),

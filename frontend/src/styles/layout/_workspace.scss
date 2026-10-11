@@ -137,10 +137,17 @@
     fill: currentColor;
   }
   h2 {
+    @include section-label;
+    display: flex;
     margin: 1.25rem 0 0.5rem;
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    color: var(--text-muted);
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+      flex-shrink: 0;
+    }
+    span {
+      @include trim-to-caps;
+    }
   }
   p {
     font-size: var(--text-xs);
