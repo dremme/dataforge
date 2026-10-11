@@ -14,6 +14,13 @@ import {
   readJobFilters,
 } from "@/features/jobs/lib/jobFilterPreferences";
 import { putJson, requestJson } from "@/shared/api/http";
+import {
+  cacheEditorOptions,
+  editorOptionsFromWire,
+  editorOptionsToWire,
+  readEditorOptions,
+  type EditorOptions,
+} from "@/shared/preferences/editorPreferences";
 import { readStored, writeStored } from "@/shared/lib/storage";
 import { mirroredPreference } from "@/shared/query/refreshPolicies";
 import type { ThemePreference, UiSettingsResponse, UiSettingsUpdate } from "@/shared/types";
@@ -25,6 +32,7 @@ export interface UiSettings {
   keepCandidateMetadata: boolean;
   jobsDrawerFilters: JobFilters;
   galleryCards: GalleryCardOptions;
+  editor: EditorOptions;
 }
 
 const SORT_CACHE_KEY = "gallery-sort";
@@ -54,6 +62,7 @@ function readCachedUiSettings(): UiSettings {
     keepCandidateMetadata: readStored(KEEP_CANDIDATE_METADATA_CACHE_KEY) !== "false",
     jobsDrawerFilters: readJobFilters(),
     galleryCards: readCardOptions(),
+    editor: readEditorOptions(),
   };
 }
 
@@ -63,6 +72,7 @@ function cacheUiSettings({
   keepCandidateMetadata,
   jobsDrawerFilters,
   galleryCards,
+  editor,
 }: Partial<UiSettings>): void {
   if (sort !== undefined) writeStored(SORT_CACHE_KEY, sort);
   if (showAutomationSpecs !== undefined) {
@@ -73,6 +83,7 @@ function cacheUiSettings({
   }
   if (jobsDrawerFilters !== undefined) cacheJobFilters(jobsDrawerFilters);
   if (galleryCards !== undefined) cacheCardOptions(galleryCards);
+  if (editor !== undefined) cacheEditorOptions(editor);
 }
 
 function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
@@ -83,6 +94,7 @@ function parseUiSettingsResponse(data: UiSettingsResponse): UiSettings {
     keepCandidateMetadata: data.keep_candidate_metadata,
     jobsDrawerFilters: jobFiltersFromWire(data.jobs_drawer_filters),
     galleryCards: cardOptionsFromWire(data.gallery_cards),
+    editor: editorOptionsFromWire(data.editor),
   };
 }
 
@@ -118,6 +130,7 @@ export function updateUiSettings(partial: Partial<UiSettings>): Promise<UiSettin
   if (partial.galleryCards !== undefined) {
     body.gallery_cards = cardOptionsToWire(partial.galleryCards);
   }
+  if (partial.editor !== undefined) body.editor = editorOptionsToWire(partial.editor);
 
   const save = pendingUiSave.then(async () =>
     parseUiSettingsResponse(await putJson<UiSettingsResponse>("/api/preferences/ui", body)),

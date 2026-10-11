@@ -5,13 +5,14 @@ import type { VocabularyEntry } from "@/features/gallery/lib/captionVocabulary";
 import { leaveModEnterToHost } from "@/shared/lib/codeEditorCommitKey";
 import { vocabularyCompletion } from "@/shared/lib/codeEditorCompletion";
 import { literalMatchHighlight, queryMatchHighlight } from "@/shared/lib/codeEditorQueryHighlight";
+import { useEditorOptions } from "@/shared/preferences/editorPreferences";
 import { CodeMirrorEditor, type CodeMirrorEditorProps } from "./CodeMirrorEditor";
 
 export type CaptionEditorVariant = "success" | "warning" | "muted";
 
 export type CaptionEditorProps = Omit<
   CodeMirrorEditorProps,
-  "language" | "onBlur" | "extensions"
+  "language" | "onBlur" | "extensions" | "spellcheck" | "spellcheckLanguage"
 > & {
   /** Placeholder / empty-state tone from caption status display. */
   variant?: CaptionEditorVariant;
@@ -41,6 +42,8 @@ export function CaptionEditor({
   onChange,
   ...props
 }: CaptionEditorProps) {
+  const { captionSpellcheck, captionSpellcheckLanguage, captionSuggestions } = useEditorOptions();
+
   const handleBlur = useCallback(() => {
     const trimmed = value.trim();
     if (trimmed !== value) {
@@ -53,9 +56,9 @@ export function CaptionEditor({
       leaveModEnterToHost,
       queryMatchHighlight(searchQuery, searchRegex),
       literalMatchHighlight(highlightTerms),
-      ...(completions.length > 0 ? [vocabularyCompletion(completions)] : []),
+      ...(completions.length > 0 ? [vocabularyCompletion(completions, captionSuggestions)] : []),
     ],
-    [searchQuery, searchRegex, highlightTerms, completions],
+    [searchQuery, searchRegex, highlightTerms, completions, captionSuggestions],
   );
 
   return (
@@ -71,6 +74,8 @@ export function CaptionEditor({
       onChange={onChange}
       onBlur={handleBlur}
       extensions={extensions}
+      spellcheck={captionSpellcheck}
+      spellcheckLanguage={captionSpellcheckLanguage}
       {...props}
     />
   );

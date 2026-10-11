@@ -16,6 +16,7 @@ import {
 } from "react";
 import { classNames } from "@/shared/lib/classNames";
 import { closeCodeEditorSearchPanel } from "@/shared/lib/codeEditorSearch";
+import { useEditorOptions } from "@/shared/preferences/editorPreferences";
 import {
   getCodeEditorHighlightExtension,
   type CodeEditorLanguage,
@@ -48,6 +49,9 @@ export interface CodeMirrorEditorProps {
   editable?: boolean;
   /** Extra extensions merged after the built-in language/search setup. */
   extensions?: Extension[];
+  /** Defaults to on, in English, for Markdown and plain text. */
+  spellcheck?: boolean;
+  spellcheckLanguage?: string;
   "aria-label"?: string;
   "aria-invalid"?: boolean;
   title?: string;
@@ -65,6 +69,8 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       className,
       editable = true,
       extensions: extraExtensions,
+      spellcheck = language === "markdown" || language === "plaintext",
+      spellcheckLanguage = "en",
       "aria-label": ariaLabel,
       "aria-invalid": ariaInvalid,
       title,
@@ -82,6 +88,9 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
     const handleChange = useCallback((next: string) => {
       onChangeRef.current(next);
     }, []);
+
+    const { lineWrap, lineNumbers } = useEditorOptions();
+    const basicSetup = useMemo(() => ({ ...CODE_MIRROR_BASIC_SETUP, lineNumbers }), [lineNumbers]);
 
     const onBlurRef = useRef(onBlur);
     onBlurRef.current = onBlur;
@@ -111,9 +120,11 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       const attrs: Record<string, string> = {
         tabindex: "0",
       };
-      if (language === "markdown" || language === "plaintext") {
+      if (spellcheck) {
         attrs.spellcheck = "true";
-        attrs.lang = "en";
+        attrs.lang = spellcheckLanguage;
+      } else {
+        attrs.spellcheck = "false";
       }
       if (ariaLabel) {
         attrs["aria-label"] = ariaLabel;
@@ -131,7 +142,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
         languageExtension(language),
         getCodeEditorHighlightExtension(language),
         search(),
-        EditorView.lineWrapping,
+        lineWrap ? EditorView.lineWrapping : [],
         EditorView.contentAttributes.of(attrs),
         EditorView.domEventHandlers({
           wheel(event) {
@@ -147,7 +158,17 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
       }
 
       return viewExtensions;
-    }, [ariaInvalid, ariaLabel, extraExtensions, id, language, title]);
+    }, [
+      ariaInvalid,
+      ariaLabel,
+      extraExtensions,
+      id,
+      language,
+      lineWrap,
+      spellcheck,
+      spellcheckLanguage,
+      title,
+    ]);
 
     return (
       <div
@@ -173,7 +194,7 @@ export const CodeMirrorEditor = forwardRef<ReactCodeMirrorRef, CodeMirrorEditorP
           editable={editable}
           extensions={extensions}
           theme="none"
-          basicSetup={CODE_MIRROR_BASIC_SETUP}
+          basicSetup={basicSetup}
           onChange={handleChange}
         />
       </div>

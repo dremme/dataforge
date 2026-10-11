@@ -25,6 +25,7 @@ import {
 } from "@/shared/icons";
 import { classNames } from "@/shared/lib/classNames";
 import { SHORTCUTS } from "@/shared/lib/shortcuts";
+import { sameEditorOptions } from "@/shared/preferences/editorPreferences";
 import { useUiSettings, useUpdateUiSettings } from "@/shared/preferences/uiPreferences";
 import {
   previewThemePreference,
@@ -47,6 +48,7 @@ import {
 } from "../lib/settingsForm";
 import { AboutSection } from "./AboutSection";
 import { ConnectionStatus, type ProbeState } from "./ConnectionStatus";
+import { EditorPreferenceSettings } from "./EditorPreferenceSettings";
 import { GalleryCardSettings } from "./GalleryCardSettings";
 import { RememberedDataGroup } from "./RememberedDataGroup";
 import { SettingInput } from "./SettingInput";
@@ -61,6 +63,7 @@ type SectionId = "appearance" | "vision" | "integrations" | "storage" | "data" |
 type PageId =
   | "appearance"
   | "gallery"
+  | "editor"
   | "server"
   | "sampling"
   | "media"
@@ -107,7 +110,7 @@ const SECTIONS: Section[] = [
   {
     id: "appearance",
     label: "Appearance",
-    caption: "Color scheme and gallery",
+    caption: "Color scheme, gallery, editor",
     icon: iconPalette,
     pages: [
       {
@@ -120,6 +123,12 @@ const SECTIONS: Section[] = [
         id: "gallery",
         label: "Gallery",
         description: "How much of each caption the gallery shows, and what large cards list.",
+        groups: [],
+      },
+      {
+        id: "editor",
+        label: "Editor",
+        description: "How text editors lay out lines, and what the caption editor helps with.",
         groups: [],
       },
     ],
@@ -342,8 +351,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const saving = save.isPending;
   const savedTheme = useThemePreference();
   const [theme, setTheme] = useState(savedTheme);
-  const savedCards = useUiSettings().galleryCards;
+  const { galleryCards: savedCards, editor: savedEditor } = useUiSettings();
   const [cards, setCards] = useState(savedCards);
+  const [editor, setEditor] = useState(savedEditor);
   const updateUiSettings = useUpdateUiSettings();
   const [section, setSection] = useState<SectionId>("appearance");
   const [openPages, setOpenPages] = useState<Partial<Record<SectionId, PageId>>>({});
@@ -358,6 +368,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const themeEdited = theme !== savedTheme;
   const cardsEdited = !sameCardOptions(cards, savedCards);
+  const editorEdited = !sameEditorOptions(editor, savedEditor);
 
   useEffect(() => {
     previewThemePreference(themeEdited ? theme : null);
@@ -365,13 +376,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }, [theme, themeEdited]);
 
   const editedKeys = state.status === "ready" ? editedSettingKeys(state.settings, state.draft) : [];
-  const editedCount = editedKeys.length + (themeEdited ? 1 : 0) + (cardsEdited ? 1 : 0);
-  const isPageEdited = (page: Page) =>
-    page.id === "appearance"
-      ? themeEdited
-      : page.id === "gallery"
-        ? cardsEdited
-        : keysOf(page).some((key) => editedKeys.includes(key));
+  const editedCount =
+    editedKeys.length + [themeEdited, cardsEdited, editorEdited].filter(Boolean).length;
+  const isPageEdited = (page: Page) => {
+    if (page.id === "appearance") return themeEdited;
+    if (page.id === "gallery") return cardsEdited;
+    if (page.id === "editor") return editorEdited;
+    return keysOf(page).some((key) => editedKeys.includes(key));
+  };
   const isSectionEdited = (entry: Section) => entry.pages.some(isPageEdited);
 
   const updateDraft = (next: SettingsDraft) => {
@@ -426,7 +438,12 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     try {
       if (Object.keys(built.update).length > 0) await save.mutateAsync(built.update);
       if (themeEdited) setThemePreference(theme);
-      if (cardsEdited) updateUiSettings({ galleryCards: cards });
+      if (cardsEdited || editorEdited) {
+        updateUiSettings({
+          ...(cardsEdited && { galleryCards: cards }),
+          ...(editorEdited && { editor }),
+        });
+      }
       onClose();
     } catch (saveError) {
       setError({ message: formatApiError(saveError) });
@@ -505,6 +522,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     }
     if (page.id === "gallery") {
       return <GalleryCardSettings value={cards} disabled={saving} onChange={setCards} />;
+    }
+    if (page.id === "editor") {
+      return <EditorPreferenceSettings value={editor} disabled={saving} onChange={setEditor} />;
     }
     if (page.id === "about") {
       return (

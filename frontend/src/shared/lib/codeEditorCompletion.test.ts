@@ -1,7 +1,17 @@
-import { describe, expect, it } from "vitest";
-import type { CompletionContext } from "@codemirror/autocomplete";
+import { describe, expect, it, vi } from "vitest";
+import {
+  completionStatus,
+  startCompletion,
+  type CompletionContext,
+} from "@codemirror/autocomplete";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { waitFor } from "@testing-library/react";
 import type { VocabularyEntry } from "@/features/gallery/lib/captionVocabulary";
-import { captionCompletionSource } from "./codeEditorCompletion";
+import { captionCompletionSource, vocabularyCompletion } from "./codeEditorCompletion";
+
+vi.unmock("@codemirror/state");
+vi.unmock("@codemirror/view");
 
 const VOCABULARY: VocabularyEntry[] = [
   { label: "harbour", count: 9, kind: "word" },
@@ -74,5 +84,38 @@ describe("captionCompletionSource", () => {
 
   it("answers an explicit request even for a short prefix", () => {
     expect(source(contextFor("h", true))?.options).toHaveLength(2);
+  });
+});
+
+describe("vocabularyCompletion", () => {
+  function editorTyping(activateOnTyping: boolean): EditorView {
+    const view = new EditorView({
+      state: EditorState.create({ extensions: vocabularyCompletion(VOCABULARY, activateOnTyping) }),
+      parent: document.body,
+    });
+    view.dispatch({
+      changes: { from: 0, insert: "har" },
+      selection: { anchor: 3 },
+      userEvent: "input.type",
+    });
+    return view;
+  }
+
+  it("suggests while typing by default", async () => {
+    const view = editorTyping(true);
+
+    await waitFor(() => expect(completionStatus(view.state)).toBe("active"));
+    view.destroy();
+  });
+
+  it("waits for an explicit request when typing does not activate it", async () => {
+    const view = editorTyping(false);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(completionStatus(view.state)).toBeNull();
+
+    startCompletion(view);
+    await waitFor(() => expect(completionStatus(view.state)).toBe("active"));
+    view.destroy();
   });
 });

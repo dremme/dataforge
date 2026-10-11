@@ -310,6 +310,13 @@ describe("JobsDrawer", () => {
                 large_aspect_ratio: true,
                 list_caption_preview: false,
               },
+              editor: {
+                line_wrap: true,
+                line_numbers: true,
+                caption_spellcheck: true,
+                caption_spellcheck_language: "en-US",
+                caption_suggestions: true,
+              },
             }),
           ),
         ),

@@ -32,6 +32,13 @@ const serverCopy = {
     large_aspect_ratio: false,
     list_caption_preview: false,
   },
+  editor: {
+    line_wrap: false,
+    line_numbers: false,
+    caption_spellcheck: false,
+    caption_spellcheck_language: "de",
+    caption_suggestions: false,
+  },
 };
 
 function respond(body: unknown) {
@@ -69,7 +76,17 @@ describe("useUiSettings", () => {
           largeAspectRatio: false,
           listCaptionPreview: false,
         },
+        editor: {
+          lineWrap: false,
+          lineNumbers: false,
+          captionSpellcheck: false,
+          captionSpellcheckLanguage: "de",
+          captionSuggestions: false,
+        },
       }),
+    );
+    expect(JSON.parse(localStorage.getItem("editor-options") ?? "null")).toEqual(
+      result.current.editor,
     );
     expect(localStorage.getItem("gallery-sort")).toBe("name-asc");
     expect(JSON.parse(localStorage.getItem("gallery-card-options") ?? "null")).toEqual(
@@ -103,6 +120,20 @@ describe("useUiSettings", () => {
     const { result } = renderHook(() => useUiSettings(), { wrapper });
 
     expect(result.current.galleryCards).toEqual(cards);
+  });
+
+  it("drops a mirrored spelling language the build does not offer", async () => {
+    localStorage.setItem(
+      "editor-options",
+      JSON.stringify({ lineWrap: false, captionSpellcheckLanguage: "xx" }),
+    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const { wrapper } = queryWrapper(createTestQueryClient({ retry: false }));
+
+    const { result } = renderHook(() => useUiSettings(), { wrapper });
+
+    expect(result.current.editor.lineWrap).toBe(false);
+    expect(result.current.editor.captionSpellcheckLanguage).toBe("en-US");
   });
 
   it("drops a mirrored caption line count the build does not offer", async () => {

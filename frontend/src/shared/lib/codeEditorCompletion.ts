@@ -70,10 +70,14 @@ export function captionCompletionSource(entries: readonly VocabularyEntry[]) {
   };
 }
 
-export function vocabularyCompletion(entries: readonly VocabularyEntry[]): Extension {
+/** With `activateOnTyping` off, suggestions open only on request (Ctrl+Space). */
+export function vocabularyCompletion(
+  entries: readonly VocabularyEntry[],
+  activateOnTyping = true,
+): Extension {
   return autocompletion({
     override: [captionCompletionSource(entries)],
-    activateOnTyping: true,
+    activateOnTyping,
     closeOnBlur: true,
     icons: false,
     maxRenderedOptions: MAX_OPTIONS,

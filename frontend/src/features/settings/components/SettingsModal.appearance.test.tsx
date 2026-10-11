@@ -87,4 +87,37 @@ describe("SettingsModal: appearance", () => {
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
+
+  it("saves the editor preferences as a UI preference", async () => {
+    const { onClose, user } = await openAppearance();
+
+    await user.click(screen.getByRole("tab", { name: "Editor" }));
+    await user.click(screen.getByRole("checkbox", { name: "Wrap long lines" }));
+    await user.click(screen.getByRole("checkbox", { name: "Show line numbers" }));
+    await user.selectOptions(screen.getByLabelText("Spelling language"), "German");
+    await user.click(screen.getByRole("checkbox", { name: "Suggest words while typing" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(requests("/api/preferences/ui", "PUT")).toHaveLength(1));
+    const [[, init]] = requests("/api/preferences/ui", "PUT");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      editor: {
+        line_wrap: false,
+        line_numbers: false,
+        caption_spellcheck: true,
+        caption_spellcheck_language: "de",
+        caption_suggestions: false,
+      },
+    });
+  });
+
+  it("disables the spelling language while spelling is off", async () => {
+    const { user } = await openAppearance();
+
+    await user.click(screen.getByRole("tab", { name: "Editor" }));
+    await user.click(screen.getByRole("checkbox", { name: "Check spelling" }));
+
+    expect(screen.getByLabelText("Spelling language")).toBeDisabled();
+  });
 });

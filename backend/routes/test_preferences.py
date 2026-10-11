@@ -133,6 +133,42 @@ class UiPreferencesEndpointTests(unittest.TestCase):
 
         self.assertEqual(client.get("/api/preferences/ui").json()["gallery_cards"], cards)
 
+    def test_editor_defaults_to_wrapped_numbered_lines_with_spelling_and_suggestions(
+        self,
+    ) -> None:
+        self.assertEqual(
+            client.get("/api/preferences/ui").json()["editor"],
+            {
+                "line_wrap": True,
+                "line_numbers": True,
+                "caption_spellcheck": True,
+                "caption_spellcheck_language": "en-US",
+                "caption_suggestions": True,
+            },
+        )
+
+    def test_update_editor(self) -> None:
+        editor = {
+            "line_wrap": False,
+            "line_numbers": False,
+            "caption_spellcheck": False,
+            "caption_spellcheck_language": "de",
+            "caption_suggestions": False,
+        }
+
+        client.put("/api/preferences/ui", json={"editor": editor})
+
+        read_back = client.get("/api/preferences/ui").json()
+        self.assertEqual(read_back["editor"], editor)
+        self.assertEqual(read_back["gallery_cards"]["small_caption_lines"], 2)
+
+    def test_an_unknown_spellcheck_language_is_refused(self) -> None:
+        response = client.put(
+            "/api/preferences/ui", json={"editor": {"caption_spellcheck_language": "xx"}}
+        )
+
+        self.assertEqual(response.status_code, 422)
+
     def test_a_caption_line_count_outside_the_options_is_refused(self) -> None:
         response = client.put(
             "/api/preferences/ui", json={"gallery_cards": {"large_caption_lines": 3}}

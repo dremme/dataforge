@@ -307,6 +307,38 @@ class GalleryCardSettings(BaseModel):
     list_caption_preview: bool = False
 
 
+# Languages browsers commonly ship spelling dictionaries for.
+type SpellcheckLanguage = Literal[
+    "en-US",
+    "en-GB",
+    "de",
+    "fr",
+    "es",
+    "it",
+    "pt",
+    "nl",
+    "pl",
+    "sv",
+    "da",
+    "nb",
+    "fi",
+    "cs",
+    "ru",
+    "uk",
+    "tr",
+]
+
+
+class EditorSettings(BaseModel):
+    line_wrap: bool = True
+    line_numbers: bool = True
+    #: Caption editor only.
+    caption_spellcheck: bool = True
+    caption_spellcheck_language: SpellcheckLanguage = "en-US"
+    #: Caption editor only; Ctrl+Space still asks for suggestions when off.
+    caption_suggestions: bool = True
+
+
 class UiSettingsResponse(BaseModel):
     sort: GallerySort = DEFAULT_GALLERY_SORT
     show_automation_specs: bool = False
@@ -315,6 +347,7 @@ class UiSettingsResponse(BaseModel):
     keep_candidate_metadata: bool = True
     jobs_drawer_filters: JobsDrawerFilters = Field(default_factory=JobsDrawerFilters)
     gallery_cards: GalleryCardSettings = Field(default_factory=GalleryCardSettings)
+    editor: EditorSettings = Field(default_factory=EditorSettings)
 
 
 class UiSettingsUpdate(BaseModel):
@@ -325,6 +358,7 @@ class UiSettingsUpdate(BaseModel):
     keep_candidate_metadata: bool | None = None
     jobs_drawer_filters: JobsDrawerFilters | None = None
     gallery_cards: GalleryCardSettings | None = None
+    editor: EditorSettings | None = None
 
 
 type AppSettingKey = Literal[

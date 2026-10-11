@@ -5,6 +5,7 @@ from typing import get_args
 from constants import DEFAULT_GALLERY_SORT
 from preferences import JsonPreference
 from schemas import (
+    EditorSettings,
     GalleryCardSettings,
     GallerySort,
     JobsDrawerFilters,
@@ -39,6 +40,7 @@ def update_ui_settings(
     keep_candidate_metadata: bool | None = None,
     jobs_drawer_filters: JobsDrawerFilters | None = None,
     gallery_cards: GalleryCardSettings | None = None,
+    editor: EditorSettings | None = None,
 ) -> UiSettingsResponse:
     return _settings.update(
         sort=_normalized_sort(sort),
@@ -47,4 +49,5 @@ def update_ui_settings(
         keep_candidate_metadata=keep_candidate_metadata,
         jobs_drawer_filters=jobs_drawer_filters,
         gallery_cards=gallery_cards,
+        editor=editor,
     )
