@@ -38,6 +38,27 @@ describe("App: folder navigation", () => {
     });
   });
 
+  it("recovers on its own when a missing folder comes back", async () => {
+    const { removeFolder } = installMockBackend();
+    await renderApp();
+    await screen.findByRole("button", { name: /Vacation/ });
+
+    const restore = removeFolder(HOME_PATH);
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Folder not found");
+    });
+
+    // A drive reconnected or the folder was recreated; the next check must still run.
+    restore();
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Vacation/ })).toBeInTheDocument();
+    });
+  });
+
   it("drops a selected file from the selection when it is renamed in the background", async () => {
     const user = userEvent.setup();
     const { renameItem } = installMockBackend();

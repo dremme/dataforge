@@ -11,10 +11,17 @@ from pathlib import Path
 from caption_cache import clear_caption_cache_for_tests
 from captions import caption_summary_from_sidecar, issue_file_path, issue_summary_from_sidecar
 from constants import STAGING_DIR_NAME
+from duplicates import (
+    DuplicateFinding,
+    duplicate_file_path,
+    duplicate_finding_from_sidecar,
+    save_duplicate_finding,
+)
 from folder_scan import get_media_type, scan_folder
 from media_listing import list_media_from_scan
 from testing_fixtures import (
     TempMediaFolder,
+    unreadable_files,
     write_gif,
     write_issue_sidecar,
     write_media,
@@ -307,6 +314,34 @@ class CaptionCacheTests(unittest.TestCase):
             )
 
             self.assertEqual(second[0], "A rather different caption.")
+
+    def test_a_sidecar_that_could_not_be_read_is_read_again(self) -> None:
+        # Unchanged stat, readable again: a locked file must not be remembered as an empty one.
+        with TempMediaFolder() as root:
+            media = write_media(root, "alpha.png")
+            caption = write_txt_caption(media, "First caption.")
+            write_issue_sidecar(media, 'Replace "a" with "b".')
+            save_duplicate_finding(media, DuplicateFinding("group-1", 0, "exact"))
+            sidecars = {
+                "caption": (caption_summary_from_sidecar, caption),
+                "issue": (issue_summary_from_sidecar, issue_file_path(media)),
+                "duplicate": (duplicate_finding_from_sidecar, duplicate_file_path(media)),
+            }
+
+            for name, (read, path) in sidecars.items():
+                with self.subTest(name):
+                    stat = path.stat()
+                    with unreadable_files():
+                        locked = read(path, stat.st_mtime_ns, stat.st_size)
+                    recovered = read(path, stat.st_mtime_ns, stat.st_size)
+
+                    self.assertNotEqual(recovered, locked)
+
+            stat = caption.stat()
+            self.assertEqual(
+                caption_summary_from_sidecar(caption, stat.st_mtime_ns, stat.st_size),
+                ("First caption.", "text"),
+            )
 
     def test_issue_fixes_are_copied_per_call(self) -> None:
         with TempMediaFolder() as root:

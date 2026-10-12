@@ -10,12 +10,14 @@ from caption_cache import clear_caption_cache_for_tests
 from media_dimensions import media_dimensions, media_info
 from testing_fixtures import (
     TempMediaFolder,
+    unreadable_files,
     write_gif,
     write_image,
     write_jpeg,
     write_media,
     write_mp4_video,
     write_sysprompt,
+    write_wav,
 )
 
 
@@ -207,6 +209,23 @@ class DimensionCacheTests(unittest.TestCase):
             )
 
             self.assertEqual(_dimensions(media, "image"), (64, 48))
+
+    def test_a_file_that_could_not_be_read_is_read_again(self) -> None:
+        # Unchanged stat, readable again: a locked file must not be remembered as headerless.
+        with TempMediaFolder() as root:
+            files = {
+                "image": write_media(root, "photo.png", width=800, height=600),
+                "video": write_mp4_video(root, "clip.mp4"),
+                "audio": write_wav(root, "voice.wav", seconds=2.0),
+            }
+
+            for media_type, path in files.items():
+                with self.subTest(media_type):
+                    with unreadable_files():
+                        locked = _info(path, media_type)
+                    recovered = _info(path, media_type)
+
+                    self.assertNotEqual(recovered, locked)
 
 
 if __name__ == "__main__":

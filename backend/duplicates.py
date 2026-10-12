@@ -53,14 +53,22 @@ def _finding_from_data(data: object) -> DuplicateFinding | None:
     return DuplicateFinding(group=group.strip(), max_distance=max_distance, threshold=threshold)
 
 
-def _finding_from_file(sidecar_path: Path) -> DuplicateFinding | None:
-    # utf-8-sig: a sidecar hand-edited in Notepad picks up a BOM.
+def _finding_from_json(raw: bytes) -> DuplicateFinding | None:
+    # Bytes, not text: ``json.loads`` skips the BOM a sidecar hand-edited in Notepad picks up.
     try:
-        data = json.loads(sidecar_path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
+        data = json.loads(raw)
+    except ValueError:
         return None
 
     return _finding_from_data(data)
+
+
+def _finding_from_file(sidecar_path: Path) -> DuplicateFinding | None:
+    try:
+        raw = sidecar_path.read_bytes()
+    except OSError:
+        return None
+    return _finding_from_json(raw)
 
 
 def duplicate_finding_from_sidecar(
@@ -74,7 +82,8 @@ def duplicate_finding_from_sidecar(
         sidecar_path,
         mtime_ns,
         size,
-        lambda: _finding_from_file(sidecar_path),
+        lambda: _finding_from_json(sidecar_path.read_bytes()),
+        lambda: None,
     )
 
 

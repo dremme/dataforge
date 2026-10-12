@@ -225,7 +225,7 @@ export function GalleryItemModal({
   const itemIsGif = item ? isGif(item) : false;
   const itemIsVideo = item ? isVideo(item) : false;
   const itemIsAudio = item ? isAudio(item) : false;
-  const gifFrameCount = useGifFrameCount(item?.path, itemIsGif);
+  const gifFrameCount = useGifFrameCount(item, itemIsGif);
 
   // Both hooks run unconditionally; hooks cannot be called behind a branch.
   const videoCapture = useVideoFrameCapture({

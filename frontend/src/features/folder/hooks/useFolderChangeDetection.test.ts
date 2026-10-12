@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
 import { folderKeys } from "@/features/folder/lib/folderQuery";
 import { ServerEventsProvider } from "@/shared/events/ServerEventsProvider";
+import { ApiError } from "@/shared/api/http";
 import type { FolderChangesResponse, FolderResponse } from "@/shared/types";
 import { installFakeEventSource, type FakeStream } from "@/test/fakeEventSource";
 import { homeFolder } from "@/test/fixtures";
@@ -13,7 +14,6 @@ import {
   RELOAD_THROTTLE_MS,
   VISIBLE_POLL_MS,
   useFolderChangeDetection,
-  type UseFolderChangeDetectionOptions,
 } from "./useFolderChangeDetection";
 
 const PATH = homeFolder.path;
@@ -23,10 +23,7 @@ function delta(fingerprint: string): FolderChangesResponse {
   return { full: false, fingerprint, changed: [], removed: [], stale_subfolders: [] };
 }
 
-function renderDetection(
-  options: UseFolderChangeDetectionOptions = {},
-  { seed = true }: { seed?: boolean } = {},
-) {
+function renderDetection({ seed = true }: { seed?: boolean } = {}) {
   const { client, wrapper: Queries } = queryWrapper();
   if (seed) client.setQueryData(folderKeys.folder(PATH), held);
 
@@ -34,7 +31,7 @@ function renderDetection(
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(Queries, null, createElement(ServerEventsProvider, null, children));
 
-  const view = renderHook(() => useFolderChangeDetection(PATH, options), { wrapper });
+  const view = renderHook(() => useFolderChangeDetection(PATH), { wrapper });
   return { ...view, client };
 }
 
@@ -93,14 +90,6 @@ describe("useFolderChangeDetection", () => {
     expect(api.fetchFolderChanges).toHaveBeenCalledTimes(1);
   });
 
-  it("stops checking once the folder is known to be missing", async () => {
-    renderDetection({ enabled: false });
-
-    await flush(VISIBLE_POLL_MS * 2);
-
-    expect(api.fetchFolderChanges).not.toHaveBeenCalled();
-  });
-
   describe("pushed folder events", () => {
     it("asks for the delta against the baseline held, not the pushed one", async () => {
       const stream = installFakeEventSource();
@@ -150,7 +139,7 @@ describe("useFolderChangeDetection", () => {
 
     it("checks a change pushed during the first listing once that listing lands", async () => {
       const stream = installFakeEventSource();
-      const { client } = renderDetection({}, { seed: false });
+      const { client } = renderDetection({ seed: false });
       await connect(stream);
 
       act(() => stream.push({ type: "folder", path: PATH, fingerprint: "fp-v2" }));
@@ -163,6 +152,25 @@ describe("useFolderChangeDetection", () => {
       await flush();
 
       expect(api.fetchFolderChanges).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-reads a folder that failed to load on any push that names it", async () => {
+      const stream = installFakeEventSource();
+      const { client } = renderDetection();
+      await connect(stream);
+      vi.mocked(api.fetchFolderChanges).mockRejectedValueOnce(
+        new ApiError(404, "Folder not found", "folder_not_found"),
+      );
+      await flush(VISIBLE_POLL_MS);
+      expect(client.getQueryState(folderKeys.folder(PATH))?.status).toBe("error");
+      vi.mocked(api.fetchFolderChanges).mockClear();
+
+      // Back with the same files, so the pushed fingerprint is the one the listing still holds.
+      act(() => stream.push({ type: "folder", path: PATH, fingerprint: "fp-v1" }));
+      await flush();
+
+      expect(api.fetchFolderChanges).toHaveBeenCalledTimes(1);
+      expect(client.getQueryState(folderKeys.folder(PATH))?.status).toBe("success");
     });
 
     it("ignores another folder but still matches its own by case and separator", async () => {

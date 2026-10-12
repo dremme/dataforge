@@ -16,11 +16,19 @@ from constants import (
 from file_write import write_text_atomic
 
 
+def _decode_caption_file(path: Path) -> str | None:
+    """``None`` for text that is not UTF-8; raises ``OSError`` when the file cannot be read."""
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return None
+
+
 def _read_caption_text(path: Path) -> str | None:
     """``None`` when the file cannot be read, including text that is not UTF-8."""
     try:
-        return path.read_text(encoding="utf-8-sig")
-    except (OSError, UnicodeDecodeError):
+        return _decode_caption_file(path)
+    except OSError:
         return None
 
 
@@ -87,11 +95,14 @@ def caption_summary_from_sidecar(
     size: int,
 ) -> tuple[str | None, str]:
     """:func:`load_caption_summary` for a sidecar the caller has already stat'ed."""
-
-    def load() -> tuple[str | None, str]:
-        return _caption_summary_from_raw(_read_caption_text(sidecar_path))
-
-    return cached_by_stat("caption", sidecar_path, mtime_ns, size, load)
+    return cached_by_stat(
+        "caption",
+        sidecar_path,
+        mtime_ns,
+        size,
+        lambda: _caption_summary_from_raw(_decode_caption_file(sidecar_path)),
+        lambda: _caption_summary_from_raw(None),
+    )
 
 
 class CaptionBundle(NamedTuple):
@@ -275,17 +286,29 @@ _NORMALIZERS: dict[IssueSource, Callable[[object], list[str]]] = {
 }
 
 
-def _findings_from_file(issue_path: Path) -> dict[IssueSource, list[str]]:
-    """An unreadable sidecar reads as empty; callers still count the file as present."""
+def _findings_from_json(raw: bytes | None) -> dict[IssueSource, list[str]]:
+    """An unusable sidecar reads as empty; callers still count the file as present."""
     try:
-        data = json.loads(issue_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = json.loads(raw) if raw is not None else None
+    except ValueError:
         data = None
 
     if not isinstance(data, dict):
         data = {}
 
     return {source: normalize(data.get(source)) for source, normalize in _NORMALIZERS.items()}
+
+
+def _findings_from_file(issue_path: Path) -> dict[IssueSource, list[str]]:
+    try:
+        raw = issue_path.read_bytes()
+    except OSError:
+        raw = None
+    return _findings_from_json(raw)
+
+
+def _frozen(findings: dict[IssueSource, list[str]]) -> dict[IssueSource, tuple[str, ...]]:
+    return {source: tuple(found) for source, found in findings.items()}
 
 
 def issue_summary_from_sidecar(issue_path: Path, mtime_ns: int, size: int) -> IssueSummary:
@@ -295,7 +318,8 @@ def issue_summary_from_sidecar(issue_path: Path, mtime_ns: int, size: int) -> Is
         issue_path,
         mtime_ns,
         size,
-        lambda: {source: tuple(found) for source, found in _findings_from_file(issue_path).items()},
+        lambda: _frozen(_findings_from_json(issue_path.read_bytes())),
+        lambda: _frozen(_findings_from_json(None)),
     )
     # Fresh lists per call: the cache hands back the same tuples every time.
     return IssueSummary(list(findings["fixes"]), list(findings["rules"]), True)

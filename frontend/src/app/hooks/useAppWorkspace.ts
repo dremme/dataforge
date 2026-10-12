@@ -44,6 +44,7 @@ export function useAppWorkspace() {
     navigateTo: navigateToBase,
     setFolder,
     reloadFolder: refreshFolder,
+    refreshFolderAndCounts,
     scrollIntent,
   } = useFolderNavigation(selection.clearSelection, requestTransition);
 
@@ -65,7 +66,8 @@ export function useAppWorkspace() {
 
   const folderAutomation = useFolderAutomation(folder?.path, refreshFolder);
 
-  const { syncBaseline } = useFolderChangeDetection(folder?.path, { enabled: !folderNotFound });
+  // Kept running while the folder is missing, so it recovers when a drive or folder comes back.
+  const { syncBaseline } = useFolderChangeDetection(folder?.path);
 
   const createFolder = useCreateFolderDialog({
     parentFolder: folder?.path,
@@ -288,7 +290,7 @@ export function useAppWorkspace() {
     folder,
     folderNotFound,
     navigateTo,
-    refreshFolder,
+    refreshFolder: refreshFolderAndCounts,
     onOpenFolderPicker: openFolderPicker,
     onCreateFolder: createFolder.openDialog,
     onDeleteFolder: deleteFolder.openDialog,

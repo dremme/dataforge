@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -220,6 +221,37 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
             event = await subscriber.next_event(2.0)
             self.assertEqual(event and event["fingerprint"], folder_watch.UNREADABLE_FINGERPRINT)
             self.assertIsNone(await subscriber.next_event(0.3))
+
+    async def test_a_blocked_scan_does_not_hold_up_other_folders(self) -> None:
+        """A dead network drive blocks for the SMB timeout; healthy folders keep their pushes."""
+        release = threading.Event()
+        self.addCleanup(release.set)
+        blocked_scans = 0
+
+        def scan(folder):
+            nonlocal blocked_scans
+            if "dead" in str(folder).lower():
+                blocked_scans += 1
+                release.wait(5.0)
+                return "fp-dead"
+            return "fp-photos"
+
+        with (
+            events.subscribe("tab-a") as subscriber,
+            patch("folder_watch.compute_folder_fingerprint", side_effect=scan),
+            patch("folder_watch.MIN_INTERVAL_SECONDS", 0.01),
+            patch("folder_watch.MAX_INTERVAL_SECONDS", 0.01),
+        ):
+            folder_watch.touch("tab-a", "D:\\Dead")
+            folder_watch.touch("tab-a", "C:\\Photos")
+            await self._run_feed()
+
+            event = await subscriber.next_event(2.0)
+            self.assertTrue(event and event["path"].endswith("photos"))
+
+            await asyncio.sleep(0.3)
+            # Still blocked, and never queued a second time behind itself.
+            self.assertEqual(blocked_scans, 1)
 
     async def test_two_tabs_on_different_folders_each_get_only_their_own(self) -> None:
         def scan(folder):

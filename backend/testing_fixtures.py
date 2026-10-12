@@ -8,7 +8,8 @@ import subprocess
 import tempfile
 import unittest
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -490,6 +491,14 @@ def write_caption_rules(folder: Path, text: str) -> Path:
     rules = folder / CAPTION_RULES_FILENAME
     rules.write_text(text, encoding="utf-8")
     return rules
+
+
+@contextmanager
+def unreadable_files() -> Generator[None]:
+    """Every open fails as a locked or offline file does. ``Path.open`` goes through ``io.open``."""
+    locked = PermissionError("locked")
+    with patch("builtins.open", side_effect=locked), patch("io.open", side_effect=locked):
+        yield
 
 
 class TempMediaFolder:

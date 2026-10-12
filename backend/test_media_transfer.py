@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from candidate_pairing import candidate_path_for, candidate_sidecar_path
 from captions import issue_file_path
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
+from folder_contents import build_folder_changes, build_folder_fingerprint
 from media_transfer import (
     preview_media_transfer,
     transfer_media_batch,
@@ -393,6 +394,24 @@ class CopyMediaWithSidecarsTests(unittest.TestCase):
 
             self.assertEqual(caught.exception.status_code, 409)
             self.assertTrue(media.is_file())
+
+    def test_a_replacing_copy_is_a_change_even_when_size_and_time_match(self) -> None:
+        # copy2 keeps the source's time, so the new bytes could arrive under the old stat.
+        with TempMediaFolder() as root:
+            source_dir, destination_dir = self._folders(root)
+            media = write_media(source_dir, "sunset.png")
+            target = destination_dir / "sunset.png"
+            target.write_bytes(bytes(reversed(media.read_bytes())))
+            stat = media.stat()
+            os.utime(target, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+            baseline = build_folder_fingerprint(destination_dir)
+            assert baseline is not None
+
+            transfer_media_with_sidecars(media, destination_dir, mode="copy", overwrite=True)
+
+            self.assertNotEqual(target.stat().st_mtime_ns, stat.st_mtime_ns)
+            changes = build_folder_changes(destination_dir, baseline)
+            self.assertEqual([item.name for item in changes.changed], ["sunset.png"])
 
     def test_rejects_copying_into_the_same_folder(self) -> None:
         with TempMediaFolder() as root:

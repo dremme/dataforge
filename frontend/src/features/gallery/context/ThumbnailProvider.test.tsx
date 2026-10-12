@@ -51,8 +51,8 @@ it("releases in-flight loads, retry timers and observers when it unmounts", () =
   loads.fail();
   loads.fail();
   store.setDemand({}, [lake]);
-  // The store's retry timer, plus the pending layout frame the visibility module queued.
-  expect(vi.getTimerCount()).toBe(2);
+  // The retry timer, the in-flight load's deadline and the visibility module's layout frame.
+  expect(vi.getTimerCount()).toBe(3);
   expect(intersections.count()).toBe(3);
   expect(loads.images.at(-1)?.onload).not.toBeNull();
 

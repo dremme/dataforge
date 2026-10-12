@@ -955,11 +955,16 @@ export function installMockBackend(options: MockBackendOptions = {}) {
     return new Response("Not found", { status: 404 });
   });
 
+  /** Returns a function that puts the folder back as it was. */
   const removeFolder = (path: string) => {
     const pathKey = normalizeFolderKey(path);
+    const removed = pathKey ? folderResponses[pathKey] : undefined;
     if (pathKey) {
       delete folderResponses[pathKey];
     }
+    return () => {
+      if (pathKey && removed) folderResponses[pathKey] = removed;
+    };
   };
 
   const renameItem = (folderPath: string, fromName: string, toName: string) => {

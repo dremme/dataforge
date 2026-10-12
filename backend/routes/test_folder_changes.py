@@ -201,6 +201,28 @@ class FolderChangesTests(unittest.TestCase):
 
             self.assertTrue(changes["full"])
 
+    def test_editing_an_inherited_instruction_file_asks_for_a_full_reload(self) -> None:
+        """A parent's prompt and rules apply here, so their readers must hear of an edit."""
+        with TempMediaFolder() as root:
+            child = root / "album"
+            child.mkdir()
+            write_media(child, "photo.png")
+            (root / SYSPROMPT_FILENAME).write_text("Describe the scene.", encoding="utf-8")
+            (root / CAPTION_RULES_FILENAME).write_text("repeated_phrases: 4\n", encoding="utf-8")
+            edits = {
+                SYSPROMPT_FILENAME: "Describe the morning light.",
+                CAPTION_RULES_FILENAME: "repeated_phrases: 4\ncolour: blue\n",
+            }
+
+            for name, text in edits.items():
+                with self.subTest(name):
+                    listed = self._listing(child)
+                    (root / name).write_text(text, encoding="utf-8")
+
+                    changes = self._changes(child, listed["fingerprint"])
+
+                    self.assertTrue(changes["full"])
+
     def test_a_new_caption_backup_asks_for_a_full_reload(self) -> None:
         """The backup lives in a skipped folder, so only the listing's flag can reveal it."""
         with TempMediaFolder() as root:

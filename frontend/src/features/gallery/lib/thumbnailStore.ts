@@ -20,10 +20,15 @@ interface Resource {
   fallback: boolean;
   retries: number;
   retryAt?: number;
+  deadline?: ReturnType<typeof setTimeout>;
 }
 
 const IDLE: ThumbnailSnapshot = { status: "idle" };
 const RETRY_DELAYS = [1000, 2000, 4000, 8000];
+/** Past the retry table a card shows as failed but still tries this often, so it can recover. */
+const FAILED_RETRY_MS = 30000;
+/** The browser may never settle a stalled request; without a deadline it holds a slot for good. */
+const LOAD_TIMEOUT_MS = 30000;
 
 export class ThumbnailStore {
   private resources = new Map<string, Resource>();
@@ -100,6 +105,7 @@ export class ThumbnailStore {
     if (!image) return;
     resource.image = undefined;
     this.inflight.delete(resource);
+    clearTimeout(resource.deadline);
     image.onload = null;
     image.onerror = null;
     image.removeAttribute("src");
@@ -114,7 +120,7 @@ export class ThumbnailStore {
       return;
     }
     const delay = RETRY_DELAYS[resource.retries];
-    resource.retryAt = delay === undefined ? undefined : Date.now() + delay;
+    resource.retryAt = Date.now() + (delay ?? FAILED_RETRY_MS);
     this.publish(resource, { status: delay === undefined ? "failed" : "waiting" });
   }
 
@@ -139,6 +145,7 @@ export class ThumbnailStore {
       if (resource.image !== image || this.resources.get(source.url) !== resource) return;
       resource.image = undefined;
       this.inflight.delete(resource);
+      clearTimeout(resource.deadline);
       image.onload = null;
       image.onerror = null;
       if (success) {
@@ -155,6 +162,10 @@ export class ThumbnailStore {
     image.decoding = "async";
     image.onload = () => finish(true);
     image.onerror = () => finish(false);
+    resource.deadline = setTimeout(() => {
+      finish(false);
+      image.removeAttribute("src");
+    }, LOAD_TIMEOUT_MS);
     image.src = src;
   }
 
@@ -225,19 +236,19 @@ export class ThumbnailStore {
         this.cancel(resource);
       }
     }
+    // A card still recovering goes behind ones never tried, or stalled loads hold every slot.
+    const recovering = (url: string) => {
+      const resource = this.resources.get(url)!;
+      return resource.fallback || resource.retries > 0 || resource.retryAt !== undefined ? 1 : 0;
+    };
     const candidates = [...demands.values()]
       .filter(eligible)
-      .sort((a, b) => rank[a.priority] - rank[b.priority]);
+      .sort((a, b) => rank[a.priority] - rank[b.priority] || recovering(a.url) - recovering(b.url));
     const limit = this.scrolling ? 8 : 24;
     let wakeAt = Infinity;
     for (const demand of candidates) {
       const resource = this.resources.get(demand.url)!;
-      if (
-        resource.image ||
-        resource.snapshot.status === "ready" ||
-        resource.snapshot.status === "failed"
-      )
-        continue;
+      if (resource.image || resource.snapshot.status === "ready") continue;
       if ((resource.fallback || resource.retryAt !== undefined) && !demand.recover) continue;
       if (resource.retryAt !== undefined && resource.retryAt > Date.now()) {
         wakeAt = Math.min(wakeAt, resource.retryAt);

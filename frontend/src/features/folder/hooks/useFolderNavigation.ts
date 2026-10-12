@@ -19,7 +19,12 @@ import {
 } from "@/features/folder/lib/folderHistory";
 import { foldersMatch } from "@/features/folder/lib/folderPath";
 import { getCachedLastFolder, rememberOpenedFolder } from "@/features/folder/lib/folderPreferences";
-import { folderKeys, folderQueryOptions, openFolderQuery } from "@/features/folder/lib/folderQuery";
+import {
+  folderKeys,
+  folderQueryOptions,
+  openFolderQuery,
+  oweSubfolderRecount,
+} from "@/features/folder/lib/folderQuery";
 import {
   forgetFolderScroll,
   recallFolderScroll,
@@ -202,6 +207,12 @@ export function useFolderNavigation(
     [queryClient, requestedPath],
   );
 
+  /** The user's own Refresh also recounts subfolders, which a re-read alone may not. */
+  const refreshFolderAndCounts = useCallback(async () => {
+    await reloadFolder();
+    if (requestedPath) oweSubfolderRecount(queryClient, requestedPath);
+  }, [queryClient, reloadFolder, requestedPath]);
+
   const setFolder = useCallback<Dispatch<SetStateAction<FolderResponse | null>>>(
     (update) => {
       queryClient.setQueryData<FolderResponse>(folderKeys.folder(requestedPath), (current) => {
@@ -212,5 +223,15 @@ export function useFolderNavigation(
     [queryClient, requestedPath],
   );
 
-  return { folder, loading, refreshing, error, reloadFolder, navigateTo, setFolder, scrollIntent };
+  return {
+    folder,
+    loading,
+    refreshing,
+    error,
+    reloadFolder,
+    refreshFolderAndCounts,
+    navigateTo,
+    setFolder,
+    scrollIntent,
+  };
 }

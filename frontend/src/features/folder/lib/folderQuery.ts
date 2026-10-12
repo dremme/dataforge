@@ -9,6 +9,7 @@ import { applyFolderDelta } from "@/features/folder/lib/applyFolderDelta";
 import { folderKey } from "@/features/folder/lib/folderPath";
 import { loadFolderContents } from "@/features/folder/lib/folderPreferences";
 import { carrySubfolderCounts } from "@/features/folder/lib/subfolderCounts";
+import { folderInstructionsKey } from "@/shared/hooks/useFolderInstructions";
 import type { FolderChild, FolderResponse, SubfolderStats } from "@/shared/types";
 
 /** A listing this young is shown as is; older ones are revalidated when shown again. */
@@ -62,6 +63,11 @@ async function readFolder(
   const fresh = await loadFolderContents(path, { signal });
   if (!held || folderKey(held.path) !== folderKey(fresh.path)) return fresh;
 
+  // Any instruction file edit, a parent's included, comes as a full listing.
+  if (fresh.fingerprint !== held.fingerprint) {
+    void queryClient.invalidateQueries({ queryKey: folderInstructionsKey(fresh.path) });
+  }
+
   // A full listing leaves subfolder counts out. A job writing into a subfolder moves its mtime
   // and forces one; showing the old counts until the recount lands keeps the cards steady.
   const { subfolders, carried } = carrySubfolderCounts(held.subfolders, fresh.subfolders);
@@ -106,6 +112,17 @@ export async function prefetchFolder(queryClient: QueryClient, path: string): Pr
     ...options,
     queryFn: ({ signal }) => loadFolderContents(path, { signal, prefetch: true }),
   });
+}
+
+/**
+ * Asks for the held listing's subfolder counts again. A caption rewritten in place inside a
+ * subfolder moves nothing the listing sees, so only the user's cue can catch it.
+ */
+export function oweSubfolderRecount(queryClient: QueryClient, path: string): void {
+  const fingerprint = queryClient.getQueryData<FolderResponse>(
+    folderKeys.folder(path),
+  )?.fingerprint;
+  if (fingerprint) queryClient.setQueryData(folderKeys.recount(path), fingerprint);
 }
 
 function mergeSubfolderStats(

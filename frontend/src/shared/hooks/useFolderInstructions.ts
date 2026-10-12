@@ -18,14 +18,17 @@ export const INSTRUCTION_READING_JOB_TYPES: ReadonlySet<JobType> = new Set([
   "check_caption_rules",
 ]);
 
-const instructionsKey = (folderPath: string) => [...FOLDER_INSTRUCTIONS_KEY, folderKey(folderPath)];
+export const folderInstructionsKey = (folderPath: string) => [
+  ...FOLDER_INSTRUCTIONS_KEY,
+  folderKey(folderPath),
+];
 
 /** The folder's instruction files; `setFile` takes the response of a save. */
 export function useFolderInstructions(folderPath: string) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: instructionsKey(folderPath),
+    queryKey: folderInstructionsKey(folderPath),
     queryFn: ({ signal }) => fetchFolderInstructions(folderPath, signal),
   });
 
@@ -38,7 +41,7 @@ export function useFolderInstructions(folderPath: string) {
   const setFile = useCallback(
     (kind: InstructionKind, saved: InstructionFileResponse) =>
       queryClient.setQueryData<FolderInstructionsResponse>(
-        instructionsKey(folderPath),
+        folderInstructionsKey(folderPath),
         (current) => current && { ...current, [kind]: saved },
       ),
     [folderPath, queryClient],

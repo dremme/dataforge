@@ -26,12 +26,18 @@ INTERVAL_SCAN_RATIO = 4.0
 
 IDLE_INTERVAL_SECONDS = 5.0
 
+#: How often the feed looks for folders that are due; well under ``MIN_INTERVAL_SECONDS``.
+TICK_SECONDS = 0.25
+
+#: Scans run side by side, so a folder on a dead drive delays only itself.
+WATCH_WORKERS = 4
+
 #: A disconnected network drive blocks for the SMB timeout; retrying every second helps nobody.
 #: Only an unreadable folder backs off: a big one on a slow drive is paced by its scan time.
 SLOW_SCAN_SECONDS = 1.0
 BACKOFF_SECONDS = 30.0
 
-#: Matches the fingerprint ``build_folder_changes`` returns for an unreadable folder.
+#: Pushed for a folder that cannot be read; the client's re-read then reports the error.
 UNREADABLE_FINGERPRINT = ""
 
 _watches: dict[str, dict[str, float]] = {}
@@ -93,11 +99,47 @@ def _scan(folder: str) -> str:
 async def run_folder_watch_feed() -> None:
     """Push every watched folder's fingerprint whenever it changes."""
     seen: dict[str, str] = {}
-    retry_after: dict[str, float] = {}
+    #: When each folder may be scanned again; each is paced by its own scan, not the slowest.
+    due: dict[str, float] = {}
+    scanning: dict[str, asyncio.Task[None]] = {}
 
     # Not the default executor: ``os.scandir`` on a disconnected drive would block the API.
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="folder-watch")
+    executor = ThreadPoolExecutor(max_workers=WATCH_WORKERS, thread_name_prefix="folder-watch")
     loop = asyncio.get_running_loop()
+
+    async def scan(folder: str) -> None:
+        started = time.monotonic()
+        try:
+            fingerprint = await loop.run_in_executor(executor, _scan, folder)
+        except Exception:
+            logger.debug("Folder scan failed for %s", folder, exc_info=True)
+            due[folder] = time.monotonic() + BACKOFF_SECONDS
+            return
+
+        elapsed = time.monotonic() - started
+        if elapsed >= SLOW_SCAN_SECONDS and fingerprint == UNREADABLE_FINGERPRINT:
+            pause = BACKOFF_SECONDS
+        else:
+            pause = min(
+                max(elapsed * INTERVAL_SCAN_RATIO, MIN_INTERVAL_SECONDS), MAX_INTERVAL_SECONDS
+            )
+        due[folder] = time.monotonic() + pause
+
+        # Asked now, not when the scan began: a slow scan outlives navigations and tabs.
+        tab_ids = watchers_by_folder().get(folder)
+        if not tab_ids or seen.get(folder) == fingerprint:
+            return
+
+        seen[folder] = fingerprint
+        events.publish_to_tabs(
+            tab_ids,
+            FolderEvent(path=folder, fingerprint=fingerprint).model_dump(),
+        )
+
+    def finished(folder: str, task: asyncio.Task[None]) -> None:
+        scanning.pop(folder, None)
+        if not task.cancelled() and task.exception() is not None:
+            logger.error("Folder watch failed for %s", folder, exc_info=task.exception())
 
     try:
         while True:
@@ -105,48 +147,25 @@ async def run_folder_watch_feed() -> None:
             if not watchers:
                 # Next watcher hydrates over REST and must not miss a change made while idle.
                 seen.clear()
-                retry_after.clear()
+                due.clear()
                 await asyncio.sleep(IDLE_INTERVAL_SECONDS)
                 continue
 
-            slowest = 0.0
             now = time.monotonic()
-
-            # Sequentially: one blocking folder must not take the private worker's whole queue.
-            for folder, tab_ids in watchers.items():
-                if retry_after.get(folder, 0.0) > now:
+            for folder in watchers:
+                # One scan per folder at a time: a blocked one holds a worker, never a queue.
+                if folder in scanning or due.get(folder, 0.0) > now:
                     continue
+                task = asyncio.create_task(scan(folder))
+                scanning[folder] = task
+                task.add_done_callback(lambda done, folder=folder: finished(folder, done))
 
-                started = time.monotonic()
-                try:
-                    fingerprint = await loop.run_in_executor(executor, _scan, folder)
-                except Exception:
-                    logger.debug("Folder scan failed for %s", folder, exc_info=True)
-                    retry_after[folder] = time.monotonic() + BACKOFF_SECONDS
-                    continue
+            for folder in [name for name in seen.keys() | due.keys() if name not in watchers]:
+                seen.pop(folder, None)
+                due.pop(folder, None)
 
-                elapsed = time.monotonic() - started
-                slowest = max(slowest, elapsed)
-                if elapsed >= SLOW_SCAN_SECONDS and fingerprint == UNREADABLE_FINGERPRINT:
-                    retry_after[folder] = time.monotonic() + BACKOFF_SECONDS
-
-                if seen.get(folder) == fingerprint:
-                    continue
-
-                seen[folder] = fingerprint
-                events.publish_to_tabs(
-                    tab_ids,
-                    FolderEvent(path=folder, fingerprint=fingerprint).model_dump(),
-                )
-
-            # Against the live set: a folder added mid-pass would otherwise lose its memo.
-            still_watched = watchers_by_folder()
-            for folder in [name for name in seen if name not in still_watched]:
-                del seen[folder]
-                retry_after.pop(folder, None)
-
-            await asyncio.sleep(
-                min(max(slowest * INTERVAL_SCAN_RATIO, MIN_INTERVAL_SECONDS), MAX_INTERVAL_SECONDS)
-            )
+            await asyncio.sleep(TICK_SECONDS)
     finally:
+        for task in scanning.values():
+            task.cancel()
         executor.shutdown(wait=False)

@@ -2,7 +2,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/features/folder/api/folderContents";
-import { folderKeys, folderQueryOptions } from "@/features/folder/lib/folderQuery";
+import {
+  folderKeys,
+  folderQueryOptions,
+  oweSubfolderRecount,
+} from "@/features/folder/lib/folderQuery";
 import * as preferences from "@/features/folder/lib/folderPreferences";
 import type { FolderResponse, Subfolder, SubfolderStatsResponse } from "@/shared/types";
 import { queryWrapper } from "@/test/queryClient";
@@ -168,6 +172,21 @@ describe("useSubfolderStats", () => {
     act(() => {
       window.dispatchEvent(new Event("focus"));
     });
+
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(5));
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+
+  it("recounts when a recount is owed for the fingerprint it already holds", async () => {
+    const fetchStats = vi
+      .spyOn(api, "fetchSubfolderStats")
+      .mockResolvedValueOnce(statsWith(3))
+      .mockResolvedValueOnce(statsWith(5));
+
+    const { view, client } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(3));
+
+    act(() => oweSubfolderRecount(client, FOLDER));
 
     await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(5));
     expect(fetchStats).toHaveBeenCalledTimes(2);

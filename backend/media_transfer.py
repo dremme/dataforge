@@ -221,6 +221,10 @@ def transfer_media_with_sidecars(
             if backup is not None:
                 backups.append((destination, backup))
             transfer_one_file(path, destination, path_mode)
+            if backup is not None:
+                # The source's time could match the replaced file's, hiding the change from
+                # change detection and from every cache keyed by stat.
+                os.utime(destination)
         except OSError as exc:
             unrestored = undo_transfer(done)
             restore_transfer_backups(backups, unrestored)

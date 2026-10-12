@@ -8,6 +8,14 @@ describe("galleryThumbnail", () => {
     );
   });
 
+  it("keeps the microseconds a millisecond timestamp would drop", () => {
+    // Two same-size saves within one millisecond are still two revisions to the server.
+    const first = mediaCacheKey("2026-06-19T12:00:00.123456+00:00", 4096);
+    const second = mediaCacheKey("2026-06-19T12:00:00.123789+00:00", 4096);
+
+    expect(first).not.toBe(second);
+  });
+
   it("builds preview URLs from gallery item fields", () => {
     const url = galleryThumbnailPreviewUrl(
       "C:\\Photos\\sunset.png",

@@ -22,7 +22,10 @@ export function mediaCacheKey(
     return size == null ? modifiedAt : `${modifiedAt}:${size}`;
   }
 
-  return size == null ? String(timestamp) : `${timestamp}-${size}`;
+  // `Date.parse` stops at milliseconds; the server tells apart revisions within one.
+  const finer = /\.\d{3}(\d+)/.exec(modifiedAt)?.[1];
+  const version = finer ? `${timestamp}.${finer}` : String(timestamp);
+  return size == null ? version : `${version}-${size}`;
 }
 
 export function galleryThumbnailPreviewUrl(

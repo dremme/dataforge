@@ -202,10 +202,46 @@ describe("thumbnail recovery", () => {
       expect(loads.images.at(-1)?.getAttribute("src")).toBe(frame.fallbackUrl);
     }
     loads.fail();
-    const count = loads.images.length;
-    vi.advanceTimersByTime(60000);
-    expect(loads.images).toHaveLength(count);
     expect(store.getSnapshot(frame.url).status).toBe("failed");
+  });
+
+  it("keeps retrying a failed card slowly, so it recovers once the server does", () => {
+    const owner = {};
+    const video = { ...frame, fallbackUrl: undefined };
+    store.setDemand(owner, [video]);
+    loads.fail();
+    for (const delay of [1000, 2000, 4000, 8000]) {
+      vi.advanceTimersByTime(delay);
+      loads.fail();
+    }
+    expect(store.getSnapshot(video.url).status).toBe("failed");
+    const count = loads.images.length;
+    vi.advanceTimersByTime(29999);
+    expect(loads.images).toHaveLength(count);
+    vi.advanceTimersByTime(1);
+    expect(loads.images.at(-1)?.getAttribute("src")).toBe(`${frame.url}&retry=5`);
+    loads.fail();
+    store.setDemand(owner, [{ ...video, priority: "prefetch", recover: false }]);
+    vi.advanceTimersByTime(60000);
+    expect(loads.images).toHaveLength(count + 1);
+    store.setDemand(owner, [video]);
+    loads.load();
+    expect(store.getSnapshot(video.url)).toEqual({
+      status: "ready",
+      src: `${frame.url}&retry=6`,
+    });
+  });
+
+  it("gives up on a load that never settles, so queued cards get its slot", () => {
+    store.setDemand(
+      {},
+      Array.from({ length: 25 }, (_, i) => ({ ...frame, url: `/frame-${i}.jpg` })),
+    );
+    expect(loads.images).toHaveLength(24);
+    vi.advanceTimersByTime(30000);
+    const sources = loads.images.map((image) => image.getAttribute("src"));
+    expect(sources).toContain("/frame-24.jpg");
+    expect(loads.images[0].hasAttribute("src")).toBe(false);
   });
 
   it("never uses full video files as image fallbacks", () => {

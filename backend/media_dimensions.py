@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import struct
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
@@ -51,10 +51,11 @@ def _checked(width: int, height: int) -> Dimensions:
 
 
 def _image_dimensions(path: Path) -> Dimensions:
+    """Raises ``OSError`` when the file cannot be read, or PIL fails partway through it."""
     try:
         with Image.open(path) as image:
             return _checked(*displayed_size(image))
-    except (OSError, UnidentifiedImageError, ValueError):
+    except (UnidentifiedImageError, ValueError):
         logger.debug("No image dimensions for %s", path, exc_info=True)
         return None
 
@@ -191,12 +192,8 @@ def _video_info(path: Path, file_size: int) -> MediaInfo:
     if path.suffix.lower() not in ISOBMFF_EXTENSIONS:
         return MediaInfo()
 
-    try:
-        with path.open("rb") as handle:
-            moov = _read_moov(handle, file_size)
-    except OSError:
-        logger.debug("No video header for %s", path, exc_info=True)
-        return MediaInfo()
+    with path.open("rb") as handle:
+        moov = _read_moov(handle, file_size)
 
     if moov is None:
         logger.debug("No video header for %s: no moov box", path)
@@ -236,15 +233,16 @@ def _image_info(path: Path) -> MediaInfo:
 
 def media_info(path: Path, media_type: str, mtime_ns: int, size: int) -> MediaInfo:
     """Pixel size and, for MP4-family video and audio, length in seconds. Missing facts are ``None``."""
-    if media_type == "video":
-        return cached_by_stat(_NAMESPACE, path, mtime_ns, size, lambda: _video_info(path, size))
-    if media_type in {"image", "gif"}:
-        return cached_by_stat(_NAMESPACE, path, mtime_ns, size, lambda: _image_info(path))
-    if media_type == "audio":
-        return cached_by_stat(
-            _NAMESPACE, path, mtime_ns, size, lambda: MediaInfo(duration=audio_duration(path))
-        )
-    return MediaInfo()
+    loaders: dict[str, Callable[[], MediaInfo]] = {
+        "video": lambda: _video_info(path, size),
+        "image": lambda: _image_info(path),
+        "gif": lambda: _image_info(path),
+        "audio": lambda: MediaInfo(duration=audio_duration(path)),
+    }
+    load = loaders.get(media_type)
+    if load is None:
+        return MediaInfo()
+    return cached_by_stat(_NAMESPACE, path, mtime_ns, size, load, MediaInfo)
 
 
 def media_dimensions(path: Path, media_type: str, mtime_ns: int, size: int) -> Dimensions:

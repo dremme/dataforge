@@ -10,10 +10,6 @@ export const HIDDEN_POLL_MS = 60000;
 /** Pushed changes re-read the folder at most this often; the last one in a burst always lands. */
 export const RELOAD_THROTTLE_MS = 1500;
 
-export type UseFolderChangeDetectionOptions = {
-  enabled?: boolean;
-};
-
 /** Leading and trailing: the first call runs at once, later ones fold into one at the end. */
 function useThrottled(run: () => void, intervalMs: number) {
   const lastRunRef = useRef(0);
@@ -49,12 +45,9 @@ function useThrottled(run: () => void, intervalMs: number) {
  * Keeps the open folder's listing current: server pushes, a slow poll as a safety net, and a
  * check when the tab comes back. Each re-read asks for changes since the listing it holds.
  */
-export function useFolderChangeDetection(
-  folderPath: string | undefined,
-  { enabled = true }: UseFolderChangeDetectionOptions = {},
-) {
+export function useFolderChangeDetection(folderPath: string | undefined) {
   const queryClient = useQueryClient();
-  const live = enabled && Boolean(folderPath);
+  const live = Boolean(folderPath);
   const key = useMemo(() => folderKeys.folder(folderPath), [folderPath]);
 
   const { data } = useQuery({
@@ -94,6 +87,12 @@ export function useFolderChangeDetection(
     // Watcher keys are folded; a just-navigated tab can still get an event for the old folder.
     if (!foldersMatch(event.path, folderPath)) return;
 
+    // A failed read retries on any news of its folder: it may be back with the same files.
+    if (queryClient.getQueryState(key)?.status === "error") {
+      schedule();
+      return;
+    }
+
     const held = queryClient.getQueryData<FolderResponse>(key);
     if (!held) {
       pendingFingerprintRef.current = event.fingerprint;
@@ -107,9 +106,9 @@ export function useFolderChangeDetection(
    * instead would also absorb whatever else changed meanwhile, such as a running job's files.
    */
   const syncBaseline = useCallback(async () => {
-    if (!folderPath || !enabled) return;
+    if (!folderPath) return;
     await queryClient.invalidateQueries({ queryKey: key, exact: true });
-  }, [enabled, folderPath, key, queryClient]);
+  }, [folderPath, key, queryClient]);
 
   return { syncBaseline };
 }

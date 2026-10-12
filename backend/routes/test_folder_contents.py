@@ -197,6 +197,18 @@ class FolderContentsEndpointTests(unittest.TestCase):
                         response.json(), {"detail": "Folder not found", "code": "folder_not_found"}
                     )
 
+    def test_an_unreadable_folder_is_an_error_not_an_empty_listing(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "alpha.png")
+
+            with patch("folder_contents.scan_folder", return_value=None):
+                for route in ("contents", "changes"):
+                    with self.subTest(route=route):
+                        response = client.get(
+                            f"/api/folders/{route}?path={quote(str(root))}&since=unknown"
+                        )
+                        self.assertEqual(response.status_code, 503)
+
     def test_returns_400_when_path_is_a_file(self) -> None:
         with TempMediaFolder() as root:
             file_path = root / "file.txt"

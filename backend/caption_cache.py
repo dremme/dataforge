@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
+
+logger = logging.getLogger(__name__)
 
 MAX_CACHE_ENTRIES = 20_000
 
@@ -28,8 +31,13 @@ def cached_by_stat[T](
     mtime_ns: int,
     size: int,
     load: Callable[[], T],
+    unreadable: Callable[[], T],
 ) -> T:
-    """``namespace`` separates readings of the same file (caption vs issue)."""
+    """``namespace`` separates readings of the same file (caption vs issue).
+
+    ``load`` raises ``OSError`` when the file cannot be read right now (locked, offline drive).
+    ``unreadable()`` answers then and is not kept, so a read under the same stat tries again.
+    """
     key: _CacheKey = (namespace, str(path), mtime_ns, size)
 
     with _lock:
@@ -38,7 +46,11 @@ def cached_by_stat[T](
             _cache.move_to_end(key)
             return cast(T, hit)
 
-    value = load()
+    try:
+        value = load()
+    except OSError:
+        logger.debug("Could not read %s", path, exc_info=True)
+        return unreadable()
 
     with _lock:
         _cache[key] = value

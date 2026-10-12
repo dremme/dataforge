@@ -6,23 +6,27 @@ import hashlib
 import json
 import threading
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import astuple, dataclass
 from pathlib import Path
 
 from automation.backup_captions import has_caption_backup
 from candidate_pairing import candidate_name_for
 from constants import (
+    CAPTION_RULES_FILENAME,
     CAPTION_SIDECAR_EXTENSIONS,
     DUPLICATE_SIDECAR_SUFFIX,
     EDIT_BACKUP_SUFFIX,
     ISSUE_SIDECAR_SUFFIX,
     STAGING_DIR_NAME,
+    SYSPROMPT_FILENAME,
 )
+from folder_instructions import find_instruction_file
 from folder_scan import FolderScan, folder_entries_in_order, scan_folder
 from sysprompt import load_sysprompt
 
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]
+FileIdentity = tuple[str, int, int]
 
 _SIDECAR_EXTENSIONS = CAPTION_SIDECAR_EXTENSIONS
 
@@ -66,22 +70,41 @@ def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
 
 @dataclass(frozen=True)
 class FolderFlags:
-    """Listing flags decided outside the folder's own entries, so no entry signature sees them."""
+    """Listing flags decided outside the folder's own entries, so no entry signature sees them.
+
+    The instruction files are the nearest ones, often a parent's: editing one must reach the
+    readers of this folder's instructions even when no flag here changes.
+    """
 
     sysprompt_applies: bool
     has_caption_backup: bool
+    sysprompt_file: FileIdentity | None
+    caption_rules_file: FileIdentity | None
+
+
+def _nearest_file_identity(folder: Path, filename: str) -> FileIdentity | None:
+    path = find_instruction_file(folder, filename)
+    if path is None:
+        return None
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (str(path), stat.st_mtime_ns, stat.st_size)
 
 
 def read_folder_flags(folder: Path) -> FolderFlags:
     return FolderFlags(
         sysprompt_applies=load_sysprompt(folder) is not None,
         has_caption_backup=has_caption_backup(folder),
+        sysprompt_file=_nearest_file_identity(folder, SYSPROMPT_FILENAME),
+        caption_rules_file=_nearest_file_identity(folder, CAPTION_RULES_FILENAME),
     )
 
 
 def fingerprint_from_scan(scan: FolderScan, flags: FolderFlags) -> str:
     payload = json.dumps(
-        [entry_signatures_from_scan(scan), [flags.sysprompt_applies, flags.has_caption_backup]],
+        [entry_signatures_from_scan(scan), astuple(flags)],
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

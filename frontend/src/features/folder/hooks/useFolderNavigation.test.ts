@@ -222,6 +222,16 @@ describe("useFolderNavigation", () => {
     expect(folderPreferences.loadFolderContents).toHaveBeenCalledTimes(listings);
   });
 
+  it("owes a subfolder recount after an explicit refresh with nothing changed", async () => {
+    const { result, client } = await renderAtHome();
+
+    await act(async () => {
+      await result.current.refreshFolderAndCounts();
+    });
+
+    expect(client.getQueryData(folderKeys.recount(HOME_PATH))).toBe(homeFolder.fingerprint);
+  });
+
   it("lists the folder again when the server cannot describe the change", async () => {
     const { result } = await renderAtHome();
     vi.spyOn(api, "fetchFolderChanges").mockResolvedValue(changedWholly("fp-home-2"));
