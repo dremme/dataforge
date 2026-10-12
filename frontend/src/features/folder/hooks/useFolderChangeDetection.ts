@@ -11,8 +11,6 @@ export const HIDDEN_POLL_MS = 60000;
 export const RELOAD_THROTTLE_MS = 1500;
 
 export type UseFolderChangeDetectionOptions = {
-  /** While a job rewrites the folder; its end re-reads the folder once instead. */
-  suspendReloads?: boolean;
   enabled?: boolean;
 };
 
@@ -53,10 +51,10 @@ function useThrottled(run: () => void, intervalMs: number) {
  */
 export function useFolderChangeDetection(
   folderPath: string | undefined,
-  { suspendReloads = false, enabled = true }: UseFolderChangeDetectionOptions = {},
+  { enabled = true }: UseFolderChangeDetectionOptions = {},
 ) {
   const queryClient = useQueryClient();
-  const live = enabled && !suspendReloads && Boolean(folderPath);
+  const live = enabled && Boolean(folderPath);
   const key = useMemo(() => folderKeys.folder(folderPath), [folderPath]);
 
   const { data } = useQuery({

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import os
+import shutil
 import unittest
 from urllib.parse import quote
 
-from constants import CAPTION_RULES_FILENAME, STAGING_DIR_NAME
+from automation.backup_captions import run_backup_captions_job
+from constants import (
+    CAPTION_BACKUP_DIR_NAME,
+    CAPTION_RULES_FILENAME,
+    STAGING_DIR_NAME,
+    SYSPROMPT_FILENAME,
+)
 from folder_fingerprint import clear_remembered_signatures_for_tests
 from routes._test_client import client
 from testing_fixtures import (
@@ -193,6 +200,45 @@ class FolderChangesTests(unittest.TestCase):
             changes = self._changes(root, listed["fingerprint"])
 
             self.assertTrue(changes["full"])
+
+    def test_a_new_caption_backup_asks_for_a_full_reload(self) -> None:
+        """The backup lives in a skipped folder, so only the listing's flag can reveal it."""
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
+            listed = self._listing(root)
+
+            run_backup_captions_job(root)
+
+            changes = self._changes(root, listed["fingerprint"])
+            self.assertTrue(changes["full"])
+            self.assertNotEqual(changes["fingerprint"], listed["fingerprint"])
+            self.assertTrue(self._listing(root)["has_caption_backup"])
+
+    def test_losing_the_caption_backup_asks_for_a_full_reload(self) -> None:
+        with TempMediaFolder() as root:
+            write_txt_caption(write_media(root, "photo.png"), "A plain caption.")
+            run_backup_captions_job(root)
+            listed = self._listing(root)
+
+            shutil.rmtree(root / CAPTION_BACKUP_DIR_NAME)
+
+            changes = self._changes(root, listed["fingerprint"])
+            self.assertTrue(changes["full"])
+            self.assertFalse(self._listing(root)["has_caption_backup"])
+
+    def test_a_parent_system_prompt_asks_the_subfolder_for_a_full_reload(self) -> None:
+        """An inherited prompt sits outside the subfolder, yet decides its sysprompt_applies."""
+        with TempMediaFolder() as root:
+            album = root / "album"
+            album.mkdir()
+            write_media(album, "photo.png")
+            listed = self._listing(album)
+
+            (root / SYSPROMPT_FILENAME).write_text("Describe the photo.", encoding="utf-8")
+
+            changes = self._changes(album, listed["fingerprint"])
+            self.assertTrue(changes["full"])
+            self.assertTrue(self._listing(album)["sysprompt_applies"])
 
     def test_the_returned_fingerprint_becomes_the_next_baseline(self) -> None:
         with TempMediaFolder() as root:

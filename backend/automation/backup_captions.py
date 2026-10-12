@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from automation.job_runner import FileOutcome, ProgressCallback, ShouldCancel, run_media_job
@@ -37,7 +38,20 @@ def list_backup_sidecars(folder: Path) -> list[Path]:
 
 
 def has_caption_backup(folder: Path) -> bool:
-    return bool(list_backup_sidecars(folder))
+    """Stops at the first caption: the folder watch asks on every scan."""
+    try:
+        with os.scandir(caption_backup_dir(folder)) as entries:
+            return any(_is_caption_file(entry) for entry in entries)
+    except OSError:
+        return False
+
+
+def _is_caption_file(entry: os.DirEntry) -> bool:
+    try:
+        is_file = entry.is_file()
+    except OSError:
+        return False
+    return is_file and Path(entry.name).suffix.lower() in CAPTION_SIDECAR_EXTENSIONS
 
 
 def _has_media_for(folder: Path, sidecar: Path) -> bool:

@@ -4,13 +4,13 @@ import logging
 from pathlib import Path
 from time import perf_counter
 
-from automation.backup_captions import has_caption_backup
 from candidate_pairing import candidate_name_for
 from constants import ISSUE_SIDECAR_SUFFIX, LAST_FOLDER_KEY, STAGING_DIR_NAME
 from db import get_preference, set_preference
 from filesystem import build_breadcrumbs, get_home_folder, list_subfolders
 from folder_fingerprint import (
     folder_signature_from_scan,
+    read_folder_flags,
     recall_folder_signature,
     remember_folder_signature,
 )
@@ -23,7 +23,6 @@ from schemas import (
     SubfolderStats,
     SubfolderStatsResponse,
 )
-from sysprompt import load_sysprompt
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +50,7 @@ def build_folder_response(folder: Path, *, remember_last: bool = True) -> Folder
         subfolders: list[dict[str, str]] = []
         items: list[dict] = []
         fingerprint = ""
+        flags = read_folder_flags(folder)
     else:
         # Names only: the counts come from /api/folders/subfolder-stats.
         subfolders = [{"name": entry.name, "path": str(entry.path)} for entry in scan.dirs]
@@ -58,6 +58,7 @@ def build_folder_response(folder: Path, *, remember_last: bool = True) -> Folder
         signature = folder_signature_from_scan(scan)
         remember_folder_signature(folder, signature)
         fingerprint = signature.fingerprint
+        flags = signature.flags
     listed = perf_counter()
 
     response = FolderResponse(
@@ -68,8 +69,8 @@ def build_folder_response(folder: Path, *, remember_last: bool = True) -> Folder
         subfolders=subfolders,
         items=items,
         has_sysprompt=scan is not None and scan.sysprompt is not None,
-        sysprompt_applies=load_sysprompt(folder) is not None,
-        has_caption_backup=has_caption_backup(folder),
+        sysprompt_applies=flags.sysprompt_applies,
+        has_caption_backup=flags.has_caption_backup,
         has_caption_rules=scan is not None and scan.caption_rules is not None,
         item_count=len(items),
         subfolder_count=len(subfolders),
@@ -102,7 +103,7 @@ def build_folder_fingerprint(folder: Path) -> str | None:
 def build_folder_changes(
     folder: Path, since: str, *, remember_last: bool = False
 ) -> FolderChangesResponse:
-    """Answers ``full`` when there is nothing to diff against (unknown baseline, unreadable folder, or a shell change)."""
+    """Answers ``full`` when there is nothing to diff against (unknown baseline, unreadable folder, or a shell or flag change)."""
     if remember_last:
         _remember_last_folder(folder)
     scan = scan_folder(folder)
@@ -113,7 +114,7 @@ def build_folder_changes(
     remember_folder_signature(folder, signature)
 
     baseline = recall_folder_signature(folder, since)
-    if baseline is None or baseline.shell != signature.shell:
+    if baseline is None or baseline.shell != signature.shell or baseline.flags != signature.flags:
         return FolderChangesResponse(full=True, fingerprint=signature.fingerprint)
 
     changed = {name for name, item in signature.items.items() if baseline.items.get(name) != item}

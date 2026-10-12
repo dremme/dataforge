@@ -93,18 +93,6 @@ describe("useFolderChangeDetection", () => {
     expect(api.fetchFolderChanges).toHaveBeenCalledTimes(1);
   });
 
-  it("asks nothing while reloads are suspended", async () => {
-    const stream = installFakeEventSource();
-    renderDetection({ suspendReloads: true });
-    await connect(stream);
-
-    // A job rewriting captions pushes about once a second; its end re-reads once instead.
-    act(() => stream.push({ type: "folder", path: PATH, fingerprint: "fp-v2" }));
-    await flush(VISIBLE_POLL_MS);
-
-    expect(api.fetchFolderChanges).not.toHaveBeenCalled();
-  });
-
   it("stops checking once the folder is known to be missing", async () => {
     renderDetection({ enabled: false });
 

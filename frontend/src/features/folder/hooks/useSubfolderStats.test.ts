@@ -155,6 +155,24 @@ describe("useSubfolderStats", () => {
     expect(fetchStats).toHaveBeenCalledTimes(2);
   });
 
+  it("recounts when the user comes back to the window", async () => {
+    // Another program rewriting a caption in place leaves the subfolder's mtime alone.
+    const fetchStats = vi
+      .spyOn(api, "fetchSubfolderStats")
+      .mockResolvedValueOnce(statsWith(3))
+      .mockResolvedValueOnce(statsWith(5));
+
+    const { view } = renderWithFolder(makeFolder([makeSubfolder()]));
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(3));
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    await waitFor(() => expect(view.result.current?.subfolders[0].file_count).toBe(5));
+    expect(fetchStats).toHaveBeenCalledTimes(2);
+  });
+
   it("refetches when a reload lands while the stats request is still in flight", async () => {
     // The in-flight answer predates the new files; letting it settle would strand a stale count.
     let settleFirst: (stats: SubfolderStatsResponse) => void = () => {};

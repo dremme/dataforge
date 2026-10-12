@@ -1,4 +1,5 @@
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { folderKeys, subfolderStatsQueryOptions } from "@/features/folder/lib/folderQuery";
 import type { Subfolder } from "@/shared/types";
 
@@ -9,6 +10,26 @@ export function useSubfolderStats(
   subfolders: Subfolder[],
   enabled = true,
 ): void {
+  const queryClient = useQueryClient();
+  const hasSubfolders = subfolders.length > 0;
+
+  // Another program rewriting a caption in place leaves the subfolder's mtime, and so this
+  // listing, untouched. Coming back from that program is the cue to count again.
+  useEffect(() => {
+    if (!enabled || !folderPath || !fingerprint || !hasSubfolders) return;
+
+    const owe = () => queryClient.setQueryData(folderKeys.recount(folderPath), fingerprint);
+    const oweIfShown = () => {
+      if (document.visibilityState === "visible") owe();
+    };
+    window.addEventListener("focus", owe);
+    document.addEventListener("visibilitychange", oweIfShown);
+    return () => {
+      window.removeEventListener("focus", owe);
+      document.removeEventListener("visibilitychange", oweIfShown);
+    };
+  }, [enabled, fingerprint, folderPath, hasSubfolders, queryClient]);
+
   // Written by the folder read when it kept old counts on screen; nothing fetches it.
   const { data: owedFingerprint } = useQuery<string | null>({
     queryKey: folderKeys.recount(folderPath ?? ""),

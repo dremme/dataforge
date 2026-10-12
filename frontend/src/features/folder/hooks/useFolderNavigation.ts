@@ -80,8 +80,7 @@ export function useFolderNavigation(
   const initialHistorySyncedRef = useRef(false);
   const lastFolderRef = useRef<FolderResponse | null>(null);
 
-  // Live updates (pushes, polling, focus) belong to useFolderChangeDetection, which can
-  // pause them while a job rewrites the folder.
+  // Live updates (pushes, polling, focus) belong to useFolderChangeDetection.
   const query = useQuery({
     ...folderQueryOptions(requestedPath),
     placeholderData: (previous) =>

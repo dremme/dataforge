@@ -174,6 +174,53 @@ class FolderWatchFeedTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(event)
             self.assertEqual(event["fingerprint"], "fp-1")
 
+    async def test_a_slow_but_readable_folder_keeps_being_watched(self) -> None:
+        """A big folder on a slow drive is still there; only its own scan time paces it."""
+        fingerprints = iter(["fp-1", "fp-2"])
+
+        with (
+            events.subscribe("tab-a") as subscriber,
+            patch(
+                "folder_watch.compute_folder_fingerprint",
+                side_effect=lambda _folder: next(fingerprints, "fp-2"),
+            ),
+            patch("folder_watch.MIN_INTERVAL_SECONDS", 0.01),
+            patch("folder_watch.MAX_INTERVAL_SECONDS", 0.01),
+            # Every scan counts as slow.
+            patch("folder_watch.SLOW_SCAN_SECONDS", 0.0),
+            patch("folder_watch.BACKOFF_SECONDS", 60.0),
+        ):
+            folder_watch.touch("tab-a", "C:\\Photos")
+            await self._run_feed()
+
+            first = await subscriber.next_event(2.0)
+            second = await subscriber.next_event(2.0)
+
+            self.assertEqual(first and first["fingerprint"], "fp-1")
+            self.assertEqual(second and second["fingerprint"], "fp-2")
+
+    async def test_a_slow_unreadable_folder_backs_off(self) -> None:
+        """A disconnected drive blocks for the SMB timeout on every try."""
+        fingerprints = iter([None, "fp-1"])
+
+        with (
+            events.subscribe("tab-a") as subscriber,
+            patch(
+                "folder_watch.compute_folder_fingerprint",
+                side_effect=lambda _folder: next(fingerprints, "fp-1"),
+            ),
+            patch("folder_watch.MIN_INTERVAL_SECONDS", 0.01),
+            patch("folder_watch.MAX_INTERVAL_SECONDS", 0.01),
+            patch("folder_watch.SLOW_SCAN_SECONDS", 0.0),
+            patch("folder_watch.BACKOFF_SECONDS", 60.0),
+        ):
+            folder_watch.touch("tab-a", "C:\\Gone")
+            await self._run_feed()
+
+            event = await subscriber.next_event(2.0)
+            self.assertEqual(event and event["fingerprint"], folder_watch.UNREADABLE_FINGERPRINT)
+            self.assertIsNone(await subscriber.next_event(0.3))
+
     async def test_two_tabs_on_different_folders_each_get_only_their_own(self) -> None:
         def scan(folder):
             return f"fp-{folder}"

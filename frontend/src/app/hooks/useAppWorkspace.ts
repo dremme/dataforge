@@ -64,10 +64,7 @@ export function useAppWorkspace() {
 
   const folderAutomation = useFolderAutomation(folder?.path, refreshFolder);
 
-  const { syncBaseline } = useFolderChangeDetection(folder?.path, {
-    suspendReloads: folderAutomation.folderHasActiveJob,
-    enabled: !folderNotFound,
-  });
+  const { syncBaseline } = useFolderChangeDetection(folder?.path, { enabled: !folderNotFound });
 
   const createFolder = useCreateFolderDialog({
     parentFolder: folder?.path,

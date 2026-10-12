@@ -27,6 +27,7 @@ INTERVAL_SCAN_RATIO = 4.0
 IDLE_INTERVAL_SECONDS = 5.0
 
 #: A disconnected network drive blocks for the SMB timeout; retrying every second helps nobody.
+#: Only an unreadable folder backs off: a big one on a slow drive is paced by its scan time.
 SLOW_SCAN_SECONDS = 1.0
 BACKOFF_SECONDS = 30.0
 
@@ -126,7 +127,7 @@ async def run_folder_watch_feed() -> None:
 
                 elapsed = time.monotonic() - started
                 slowest = max(slowest, elapsed)
-                if elapsed >= SLOW_SCAN_SECONDS:
+                if elapsed >= SLOW_SCAN_SECONDS and fingerprint == UNREADABLE_FINGERPRINT:
                     retry_after[folder] = time.monotonic() + BACKOFF_SECONDS
 
                 if seen.get(folder) == fingerprint:

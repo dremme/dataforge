@@ -9,6 +9,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
+from automation.backup_captions import has_caption_backup
 from candidate_pairing import candidate_name_for
 from constants import (
     CAPTION_SIDECAR_EXTENSIONS,
@@ -18,6 +19,7 @@ from constants import (
     STAGING_DIR_NAME,
 )
 from folder_scan import FolderScan, folder_entries_in_order, scan_folder
+from sysprompt import load_sysprompt
 
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]
@@ -62,8 +64,26 @@ def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
     return tuple(signatures)
 
 
-def fingerprint_from_scan(scan: FolderScan) -> str:
-    payload = json.dumps(entry_signatures_from_scan(scan), separators=(",", ":"))
+@dataclass(frozen=True)
+class FolderFlags:
+    """Listing flags decided outside the folder's own entries, so no entry signature sees them."""
+
+    sysprompt_applies: bool
+    has_caption_backup: bool
+
+
+def read_folder_flags(folder: Path) -> FolderFlags:
+    return FolderFlags(
+        sysprompt_applies=load_sysprompt(folder) is not None,
+        has_caption_backup=has_caption_backup(folder),
+    )
+
+
+def fingerprint_from_scan(scan: FolderScan, flags: FolderFlags) -> str:
+    payload = json.dumps(
+        [entry_signatures_from_scan(scan), [flags.sysprompt_applies, flags.has_caption_backup]],
+        separators=(",", ":"),
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -72,12 +92,13 @@ def compute_folder_fingerprint(folder: Path) -> str | None:
     if scan is None:
         return None
 
-    return fingerprint_from_scan(scan)
+    return fingerprint_from_scan(scan, read_folder_flags(folder))
 
 
 @dataclass(frozen=True)
 class FolderSignature:
-    """``items`` covers the file and its sidecars; a ``shell`` change forces a full refetch.
+    """``items`` covers the file and its sidecars; a ``shell`` or ``flags`` change forces a full
+    refetch, since a delta carries neither.
 
     ``staging`` covers every file in the staging folder, whose counts a delta must re-read.
     """
@@ -85,6 +106,7 @@ class FolderSignature:
     fingerprint: str
     items: dict[str, ItemSignature]
     shell: tuple[EntrySignature, ...]
+    flags: FolderFlags
     staging: tuple[tuple[str, int, int], ...]
 
 
@@ -117,6 +139,8 @@ def _item_signature(
 
 
 def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
+    """Reads the flags once, so a listing reports exactly the flags its fingerprint covers."""
+    flags = read_folder_flags(scan.folder)
     items = {
         entry.name: _item_signature(scan, entry.name, entry.path.stem, (entry.mtime_ns, entry.size))
         for entry in scan.media
@@ -137,9 +161,10 @@ def folder_signature_from_scan(scan: FolderScan) -> FolderSignature:
         shell.append(("caption_rules", rules.name, rules.mtime_ns, rules.size))
 
     return FolderSignature(
-        fingerprint=fingerprint_from_scan(scan),
+        fingerprint=fingerprint_from_scan(scan, flags),
         items=items,
         shell=tuple(shell),
+        flags=flags,
         staging=tuple(
             sorted((entry.name, entry.mtime_ns, entry.size) for entry in scan.candidates.values())
         ),
