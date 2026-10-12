@@ -89,16 +89,40 @@ export function Tooltip({
     }
   }, []);
 
-  const show = useCallback(() => {
-    if (disabled || childExpanded || content == null || content === "") return;
+  const stopScrollWatchRef = useRef<(() => void) | undefined>(undefined);
+
+  const stopScrollWatch = useCallback(() => {
+    stopScrollWatchRef.current?.();
+    stopScrollWatchRef.current = undefined;
+  }, []);
+
+  const show = useCallback((): boolean => {
+    if (disabled || childExpanded || content == null || content === "") return false;
     clearShowTimeout();
     showTimeoutRef.current = setTimeout(() => setVisible(true), delay);
+    return true;
   }, [childExpanded, clearShowTimeout, content, delay, disabled]);
 
   const hide = useCallback(() => {
     clearShowTimeout();
+    stopScrollWatch();
     setVisible(false);
-  }, [clearShowTimeout]);
+  }, [clearShowTimeout, stopScrollWatch]);
+
+  // Scrolling moves the content out from under a resting pointer, so a hover bubble would point
+  // at the wrong thing; close it instead of tracking. Focus has not moved, so a focus bubble stays.
+  const showOnHover = useCallback(() => {
+    if (!show() || stopScrollWatchRef.current) return;
+    const onScroll = () => hide();
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    stopScrollWatchRef.current = () =>
+      document.removeEventListener("scroll", onScroll, { capture: true });
+  }, [hide, show]);
+
+  const showOnFocus = useCallback(() => {
+    stopScrollWatch();
+    show();
+  }, [show, stopScrollWatch]);
 
   const dismiss = useCallback(() => {
     hide();
@@ -118,7 +142,13 @@ export function Tooltip({
     return () => releaseShownTooltip(dismiss);
   }, [dismiss, shown]);
 
-  useEffect(() => clearShowTimeout, [clearShowTimeout]);
+  useEffect(
+    () => () => {
+      clearShowTimeout();
+      stopScrollWatch();
+    },
+    [clearShowTimeout, stopScrollWatch],
+  );
 
   useEffect(() => {
     if (childExpanded) hide();
@@ -142,7 +172,7 @@ export function Tooltip({
       ? {
           onFocus: (event: FocusEvent) => {
             childProps.onFocus?.(event);
-            show();
+            showOnFocus();
           },
           onBlur: (event: FocusEvent) => {
             childProps.onBlur?.(event);
@@ -161,7 +191,7 @@ export function Tooltip({
       ref={wrapperRef}
       className={classNames("tooltip", childDisabled && "tooltip--disabled-wrap", className)}
       style={style}
-      onMouseEnter={show}
+      onMouseEnter={showOnHover}
       onMouseLeave={hide}
       onPointerDown={hide}
       onClick={hide}

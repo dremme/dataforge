@@ -1,6 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { useRef } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnchoredPlacement } from "@/shared/lib/anchoredPosition";
 import { useAnchoredPosition } from "./useAnchoredPosition";
 
@@ -48,6 +48,10 @@ const ANCHOR = { top: 200, left: 400, width: 100, height: 40 };
 const FLOATING = { width: 200, height: 120 };
 
 describe("useAnchoredPosition", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("places the surface against its anchor and names the side it chose", () => {
     stubLayout(ANCHOR, FLOATING);
     const { getByTestId } = render(<Fixture active placement="bottom-end" />);
@@ -76,6 +80,7 @@ describe("useAnchoredPosition", () => {
   });
 
   it("follows its anchor when the page scrolls beneath it", () => {
+    vi.useFakeTimers();
     const rect = stubLayout(ANCHOR, FLOATING);
     const { getByTestId } = render(<Fixture active placement="bottom-end" />);
     expect(getByTestId("floating").style.top).toBe("248px");
@@ -85,12 +90,14 @@ describe("useAnchoredPosition", () => {
     });
     act(() => {
       fireEvent.scroll(document);
+      vi.advanceTimersToNextFrame();
     });
 
     expect(getByTestId("floating").style.top).toBe("168px");
   });
 
   it("re-places the surface when the window resizes", () => {
+    vi.useFakeTimers();
     stubLayout({ ...ANCHOR, left: 700 }, FLOATING);
     const { getByTestId } = render(<Fixture active placement="bottom-end" />);
     expect(getByTestId("floating").style.left).toBe("600px");
@@ -98,9 +105,47 @@ describe("useAnchoredPosition", () => {
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(600);
     act(() => {
       fireEvent.resize(window);
+      vi.advanceTimersToNextFrame();
     });
 
     expect(getByTestId("floating").style.left).toBe("384px");
+  });
+
+  it("measures a burst of scroll events once, on the next frame", () => {
+    vi.useFakeTimers();
+    const rect = stubLayout(ANCHOR, FLOATING);
+    render(<Fixture active placement="bottom-end" />);
+    rect.mockClear();
+
+    act(() => {
+      fireEvent.scroll(document);
+      fireEvent.scroll(document);
+      fireEvent.scroll(document);
+    });
+    expect(rect).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    // One placement reads the anchor and the surface once each.
+    expect(rect).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a frame still pending when the surface goes away", () => {
+    vi.useFakeTimers();
+    const rect = stubLayout(ANCHOR, FLOATING);
+    const { rerender } = render(<Fixture active placement="bottom-end" />);
+
+    act(() => {
+      fireEvent.scroll(document);
+    });
+    rerender(<Fixture active={false} placement="bottom-end" />);
+    rect.mockClear();
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+
+    expect(rect).not.toHaveBeenCalled();
   });
 
   it("stops listening once the surface goes away", () => {

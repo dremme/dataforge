@@ -154,8 +154,20 @@
   position: absolute;
 
   // Wrapper height is the masonry packed box; the card fills it so the two cannot disagree.
-  > .card {
+  > .card-cell {
     height: 100%;
+  }
+}
+
+// The card's tooltip wrapper is the grid item, so the card has to fill it.
+.card-cell {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+
+  > .card {
+    flex: 1;
+    min-width: 0;
   }
 }
 

@@ -61,12 +61,23 @@ export function useAnchoredPosition(
   useLayoutEffect(() => {
     if (!active) return;
 
-    window.addEventListener("resize", reposition);
-    document.addEventListener("scroll", reposition, { capture: true, passive: true });
+    // A placement forces layout, and scroll fires many times a frame; measure once per frame.
+    let frame: number | undefined;
+    const schedule = () => {
+      if (frame !== undefined) return;
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
+        reposition();
+      });
+    };
+
+    window.addEventListener("resize", schedule);
+    document.addEventListener("scroll", schedule, { capture: true, passive: true });
 
     return () => {
-      window.removeEventListener("resize", reposition);
-      document.removeEventListener("scroll", reposition, { capture: true });
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      document.removeEventListener("scroll", schedule, { capture: true });
     };
   }, [active, reposition]);
 }

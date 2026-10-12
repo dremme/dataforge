@@ -374,4 +374,39 @@ describe("GalleryCard", () => {
       expect(preview(container)).toBeNull();
     });
   });
+
+  describe("name tooltip", () => {
+    const longName = "a file name long enough to be truncated on its card.png";
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows the full file name after the usual tooltip delay", () => {
+      render(<GalleryCard item={{ ...captionedItem, name: longName }} onSelect={vi.fn()} />);
+
+      fireEvent.mouseEnter(screen.getByRole("button", { name: `View ${longName}` }));
+      act(() => vi.advanceTimersByTime(399));
+      expect(screen.queryByRole("tooltip")).toBeNull();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole("tooltip")).toHaveTextContent(longName);
+    });
+
+    it("shows the name to keyboard users too, in place of the native title", () => {
+      const { container } = render(
+        <GalleryCard item={{ ...captionedItem, name: longName }} onSelect={vi.fn()} />,
+      );
+
+      act(() => screen.getByRole("button", { name: `View ${longName}` }).focus());
+      act(() => vi.advanceTimersByTime(400));
+
+      expect(screen.getByRole("tooltip")).toHaveTextContent(longName);
+      expect(container.querySelector("[title]")).toBeNull();
+    });
+  });
 });

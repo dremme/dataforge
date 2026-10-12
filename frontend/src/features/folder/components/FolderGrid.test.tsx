@@ -260,7 +260,7 @@ describe("FolderGrid card tooltip", () => {
     );
   });
 
-  it("shows the full name and counts after a one second hover", async () => {
+  it("shows the full name and counts after the usual tooltip delay", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     stubReviewCounts({ issue_count: 0, candidate_count: 1 });
@@ -268,10 +268,11 @@ describe("FolderGrid card tooltip", () => {
     renderWithQueryClient(<FolderGrid folders={[makeFolder({ name })]} onOpen={vi.fn()} />);
 
     await user.hover(screen.getByRole("button", { name }));
-    await act(() => vi.advanceTimersByTimeAsync(900));
+    // Coarse steps: this clock also follows real time, so a 1 ms boundary would be flaky.
+    await act(() => vi.advanceTimersByTimeAsync(200));
     expect(screen.queryByRole("tooltip")).toBeNull();
 
-    await act(() => vi.advanceTimersByTimeAsync(100));
+    await act(() => vi.advanceTimersByTimeAsync(200));
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent(name);
     expect(tooltip).toHaveTextContent("No caption issues");

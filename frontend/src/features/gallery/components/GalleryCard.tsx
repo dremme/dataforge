@@ -22,6 +22,7 @@ import { formatDurationSeconds, formatMegapixels } from "@/shared/lib/format";
 import { CardBadge } from "./CardBadge";
 import { GalleryCardMedia } from "./GalleryCardMedia";
 import { Icon } from "@/shared/ui/Icon";
+import { Tooltip } from "@/shared/ui/Tooltip";
 
 type GalleryCardMode = Exclude<GalleryDisplayMode, "list">;
 
@@ -91,107 +92,107 @@ export const GalleryCard = memo(function GalleryCard({
       : null;
 
   return (
-    <button
-      data-inspected={inspected || undefined}
-      type="button"
-      className={classNames(
-        "card",
-        `card--${displayMode}`,
-        getCardModifierClass(item),
-        isMotion(item) && "card--video",
-        selected && "card--selected",
-        previewPlaying && "card--previewing",
-      )}
-      {...hoverHandlers}
-      onClick={handleClick}
-      onDragStart={(event) => event.preventDefault()}
-      aria-label={
-        selectionMode ? `${selected ? "Deselect" : "Select"} ${item.name}` : `View ${item.name}`
-      }
-      aria-pressed={selectionMode ? selected : undefined}
-    >
-      <div className="card__media">
-        <GalleryCardMedia
-          item={item}
-          previewing={previewing}
-          onPreviewPlaying={setPreviewPlaying}
-        />
-        {selectionMode && (
-          <span className="card__selection-indicator" aria-hidden="true">
-            {selected && <Icon icon={iconCheck} className="card__selection-indicator-icon" />}
-          </span>
+    <Tooltip content={item.name} className="card-cell">
+      <button
+        data-inspected={inspected || undefined}
+        type="button"
+        className={classNames(
+          "card",
+          `card--${displayMode}`,
+          getCardModifierClass(item),
+          isMotion(item) && "card--video",
+          selected && "card--selected",
+          previewPlaying && "card--previewing",
         )}
-        <span
-          className={classNames("card__overlay", selectionMode && "card__overlay--hidden")}
-          aria-hidden="true"
-        >
-          <span className="card__view">
-            <Icon icon={iconExpand} className="card__view-icon" />
-            Open
-          </span>
-        </span>
-        {itemIsVideo && (
-          <CardBadge
-            icon={iconVideo}
-            compact={compactBadges}
-            label={videoLength || "Video"}
-            variant="video"
-            numeric={!!videoLength}
+        {...hoverHandlers}
+        onClick={handleClick}
+        onDragStart={(event) => event.preventDefault()}
+        aria-label={
+          selectionMode ? `${selected ? "Deselect" : "Select"} ${item.name}` : `View ${item.name}`
+        }
+        aria-pressed={selectionMode ? selected : undefined}
+      >
+        <div className="card__media">
+          <GalleryCardMedia
+            item={item}
+            previewing={previewing}
+            onPreviewPlaying={setPreviewPlaying}
           />
-        )}
-        {itemIsGif && (
-          <CardBadge icon={iconFileImage} compact={compactBadges} label="GIF" variant="gif" />
-        )}
-        {(item.has_issue_file || item.has_candidate || item.has_duplicate_file) && (
-          <span className="card__badge-stack">
-            {item.has_issue_file && (
-              <CardBadge
-                icon={iconMessageWarning}
-                compact={compactBadges}
-                label="Issue"
-                variant="issue"
-              />
-            )}
-            {item.has_candidate && (
-              <CardBadge
-                icon={iconScanSquare}
-                compact={compactBadges}
-                label="Candidate"
-                variant="candidate"
-              />
-            )}
-            {item.has_duplicate_file && (
-              <CardBadge
-                icon={iconFiles}
-                compact={compactBadges}
-                label="Duplicate"
-                variant="duplicate"
-              />
-            )}
-          </span>
-        )}
-      </div>
-      <div className="card__body">
-        <span className="card__head">
-          <span className="card__title" title={item.name}>
-            {item.name}
-          </span>
-          {meta && <span className="card__meta">{meta}</span>}
-        </span>
-        {captionLines === 0 ? null : item.description ? (
-          <p
-            className="card__description"
-            style={{ "--card-caption-lines": captionLines } as CSSProperties}
+          {selectionMode && (
+            <span className="card__selection-indicator" aria-hidden="true">
+              {selected && <Icon icon={iconCheck} className="card__selection-indicator-icon" />}
+            </span>
+          )}
+          <span
+            className={classNames("card__overlay", selectionMode && "card__overlay--hidden")}
+            aria-hidden="true"
           >
-            {item.description}
-          </p>
-        ) : captionDisplay ? (
-          <div className={`card__caption-status card__caption-status--${captionDisplay.variant}`}>
-            <Icon icon={statusIcon} className="card__caption-status__icon" />
-            <span>{captionDisplay.message}</span>
-          </div>
-        ) : null}
-      </div>
-    </button>
+            <span className="card__view">
+              <Icon icon={iconExpand} className="card__view-icon" />
+              Open
+            </span>
+          </span>
+          {itemIsVideo && (
+            <CardBadge
+              icon={iconVideo}
+              compact={compactBadges}
+              label={videoLength || "Video"}
+              variant="video"
+              numeric={!!videoLength}
+            />
+          )}
+          {itemIsGif && (
+            <CardBadge icon={iconFileImage} compact={compactBadges} label="GIF" variant="gif" />
+          )}
+          {(item.has_issue_file || item.has_candidate || item.has_duplicate_file) && (
+            <span className="card__badge-stack">
+              {item.has_issue_file && (
+                <CardBadge
+                  icon={iconMessageWarning}
+                  compact={compactBadges}
+                  label="Issue"
+                  variant="issue"
+                />
+              )}
+              {item.has_candidate && (
+                <CardBadge
+                  icon={iconScanSquare}
+                  compact={compactBadges}
+                  label="Candidate"
+                  variant="candidate"
+                />
+              )}
+              {item.has_duplicate_file && (
+                <CardBadge
+                  icon={iconFiles}
+                  compact={compactBadges}
+                  label="Duplicate"
+                  variant="duplicate"
+                />
+              )}
+            </span>
+          )}
+        </div>
+        <div className="card__body">
+          <span className="card__head">
+            <span className="card__title">{item.name}</span>
+            {meta && <span className="card__meta">{meta}</span>}
+          </span>
+          {captionLines === 0 ? null : item.description ? (
+            <p
+              className="card__description"
+              style={{ "--card-caption-lines": captionLines } as CSSProperties}
+            >
+              {item.description}
+            </p>
+          ) : captionDisplay ? (
+            <div className={`card__caption-status card__caption-status--${captionDisplay.variant}`}>
+              <Icon icon={statusIcon} className="card__caption-status__icon" />
+              <span>{captionDisplay.message}</span>
+            </div>
+          ) : null}
+        </div>
+      </button>
+    </Tooltip>
   );
 });

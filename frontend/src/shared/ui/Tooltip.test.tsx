@@ -395,3 +395,81 @@ describe("Tooltip placement", () => {
     expect(bubble.style.left).toBe("128px");
   });
 });
+
+describe("Tooltip on scroll", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function renderInScroller(props: { open?: boolean } = {}) {
+    render(
+      <div data-testid="scroller">
+        <Tooltip content="Full name" {...props}>
+          <button type="button">Card</button>
+        </Tooltip>
+      </div>,
+    );
+    return screen.getByRole("button", { name: "Card" });
+  }
+
+  // Scroll does not bubble; any scroller in the page must still reach the bubble.
+  const scrollSomething = () => {
+    act(() => {
+      fireEvent.scroll(screen.getByTestId("scroller"));
+    });
+  };
+
+  it("closes a hover bubble when anything scrolls, rather than chasing its trigger", () => {
+    vi.useFakeTimers();
+    const button = renderInScroller();
+    fireEvent.mouseEnter(button.parentElement!);
+    act(() => vi.advanceTimersByTime(400));
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    scrollSomething();
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("cancels a hover bubble still waiting for its delay", () => {
+    vi.useFakeTimers();
+    const button = renderInScroller();
+    fireEvent.mouseEnter(button.parentElement!);
+    act(() => vi.advanceTimersByTime(200));
+
+    scrollSomething();
+    act(() => vi.advanceTimersByTime(400));
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  // Focusing an off-screen control scrolls it into view; that must not cancel its bubble.
+  it("keeps a focus bubble through scroll", () => {
+    vi.useFakeTimers();
+    const button = renderInScroller();
+    act(() => button.focus());
+    scrollSomething();
+    act(() => vi.advanceTimersByTime(400));
+
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
+
+  it("keeps a forced-open bubble through scroll", () => {
+    renderInScroller({ open: true });
+
+    scrollSomething();
+
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
+
+  it("stops watching scroll once the hover ends", () => {
+    vi.useFakeTimers();
+    const remove = vi.spyOn(document, "removeEventListener");
+    const button = renderInScroller();
+    fireEvent.mouseEnter(button.parentElement!);
+    fireEvent.mouseLeave(button.parentElement!);
+
+    expect(remove).toHaveBeenCalledWith("scroll", expect.any(Function), { capture: true });
+    remove.mockRestore();
+  });
+});

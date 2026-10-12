@@ -81,9 +81,6 @@ function FolderCardCoverage({ folder }: { folder: Subfolder }) {
   );
 }
 
-/** Long enough that sweeping the pointer across the grid does not flash a bubble per card. */
-const FOLDER_TOOLTIP_DELAY_MS = 1000;
-
 function countLabel(count: number, singular: string, plural: string): string {
   if (count === 0) return `No ${plural}`;
   return `${formatCount(count)} ${count === 1 ? singular : plural}`;
@@ -117,7 +114,7 @@ function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: stri
   );
 
   return (
-    <Tooltip content={tooltip} delay={FOLDER_TOOLTIP_DELAY_MS} className="folder-grid__cell">
+    <Tooltip content={tooltip} className="folder-grid__cell">
       <button
         type="button"
         className="folder-card"
