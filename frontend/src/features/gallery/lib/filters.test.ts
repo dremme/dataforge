@@ -5,6 +5,7 @@ import {
   iconImage,
   iconSearch,
   iconVideo,
+  iconAudioLines,
 } from "@/shared/icons";
 import { getFilterEmptyState } from "./filters";
 
@@ -16,6 +17,7 @@ const baseOptions = {
   hasFilterMatches: false,
   imageCount: 3,
   videoCount: 1,
+  audioCount: 2,
 };
 
 describe("getFilterEmptyState", () => {
@@ -53,6 +55,18 @@ describe("getFilterEmptyState", () => {
 
     expect(state.icon).toBe(iconVideo);
     expect(state.title).toBe("No videos");
+    expect(state.variant).toBe("muted");
+  });
+
+  it("describes folders without audio", () => {
+    const state = getFilterEmptyState({
+      ...baseOptions,
+      mediaTypeFilter: "audio",
+      audioCount: 0,
+    });
+
+    expect(state.icon).toBe(iconAudioLines);
+    expect(state.title).toBe("No audio");
     expect(state.variant).toBe("muted");
   });
 

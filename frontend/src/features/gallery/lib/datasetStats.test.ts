@@ -104,7 +104,8 @@ describe("computeDatasetStats", () => {
       images: 1,
       videos: 1,
       gifs: 1,
-      extensions: { images: [".png"], videos: [".mp4"], gifs: [".gif"] },
+      audio: 0,
+      extensions: { images: [".png"], videos: [".mp4"], gifs: [".gif"], audio: [] },
       byExtension: [
         { label: ".gif", count: 1 },
         { label: ".mp4", count: 1 },
@@ -127,6 +128,7 @@ describe("computeDatasetStats", () => {
       images: [".png", ".jpg"],
       videos: [".mp4", ".mov"],
       gifs: [],
+      audio: [],
     });
     expect(stats.mediaTypes.byExtension).toEqual([
       { label: ".mp4", count: 2 },
@@ -134,6 +136,23 @@ describe("computeDatasetStats", () => {
       { label: ".jpg", count: 1 },
       { label: ".mov", count: 1 },
     ]);
+  });
+
+  it("counts audio on its own, outside resolution and video length", () => {
+    const stats = computeDatasetStats([
+      mediaItem("one.png", HOME_PATH),
+      mediaItem("voice.wav", HOME_PATH, { width: null, height: null, duration: 4 }),
+      mediaItem("song.mp3", HOME_PATH, { width: null, height: null, duration: 180 }),
+      mediaItem("take.mp3", HOME_PATH, { width: null, height: null, duration: null }),
+    ]);
+
+    expect(stats.mediaTypes.audio).toBe(3);
+    expect(stats.mediaTypes.images).toBe(1);
+    expect(stats.mediaTypes.extensions.audio).toEqual([".mp3", ".wav"]);
+    // Audio has no pixels, so missing dimensions are not an unknown resolution.
+    expect(stats.unknownResolution).toBe(0);
+    expect(stats.unknownDuration).toBe(0);
+    expect(stats.durations.every((bucket) => bucket.count === 0)).toBe(true);
   });
 
   it("keeps files with unknown dimensions out of the megapixel buckets", () => {

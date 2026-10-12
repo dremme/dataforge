@@ -88,9 +88,21 @@ describe("formatModifiedAt", () => {
 });
 
 describe("formatDurationSeconds", () => {
-  it("formats a video length as whole seconds", () => {
+  it("keeps short clips in whole seconds", () => {
     expect(formatDurationSeconds(5.4)).toBe("5 s");
     expect(formatDurationSeconds(10)).toBe("10 s");
+    expect(formatDurationSeconds(59.4)).toBe("59 s");
+  });
+
+  it("switches to minutes and seconds from one minute", () => {
+    // Rounds first, so 59.6 s reads as a minute rather than "60 s".
+    expect(formatDurationSeconds(59.6)).toBe("1:00");
+    expect(formatDurationSeconds(75)).toBe("1:15");
+    expect(formatDurationSeconds(605)).toBe("10:05");
+  });
+
+  it("adds hours for long recordings", () => {
+    expect(formatDurationSeconds(3725)).toBe("1:02:05");
   });
 
   it("returns an empty string when the length is missing", () => {

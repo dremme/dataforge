@@ -5,10 +5,10 @@ from fastapi import HTTPException
 from automation import job_outcome
 from constants import (
     CANDIDATE_SOURCE_EXTENSIONS,
+    GALLERY_EXTENSIONS,
     GIF_EXTENSION,
     IMAGE_EDIT_EXTENSIONS,
     IMAGE_EXTENSIONS,
-    MEDIA_EXTENSIONS,
     VIDEO_EDIT_EXTENSIONS,
 )
 from filesystem import normalize_user_path, resolve_folder
@@ -35,7 +35,7 @@ def resolve_optional_media_file(path: str) -> Path | None:
 
     if not file_path.is_file():
         return None
-    if file_path.suffix.lower() not in MEDIA_EXTENSIONS:
+    if file_path.suffix.lower() not in GALLERY_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Not a supported media file")
 
     return file_path

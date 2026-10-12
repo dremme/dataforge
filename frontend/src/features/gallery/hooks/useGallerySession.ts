@@ -13,6 +13,7 @@ import { useGalleryOverlays } from "@/features/gallery/hooks/useGalleryOverlays"
 import { useGalleryQuery } from "@/features/gallery/hooks/useGalleryQuery";
 import type { useGallerySelection } from "@/features/gallery/hooks/useGallerySelection";
 import { useIssueResolverOverlay } from "@/features/gallery/hooks/useIssueResolverOverlay";
+import { jobEligibleItems, jobEligiblePaths } from "@/features/gallery/lib/itemKind";
 import { countResolvableIssues, isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { instructionApplies, type InstructionKind } from "@/shared/api/folderInstructions";
 import type { FolderResponse, GalleryItem, InstructionFileResponse } from "@/shared/types";
@@ -85,8 +86,8 @@ export function useGallerySession({
 
   const getJobPaths = useCallback((): string[] | undefined => {
     if (!selectionMode || visibleSelectedCount === 0)
-      return query.filteredItems.map((item) => item.path);
-    return Array.from(visibleSelectedPaths);
+      return jobEligibleItems(query.filteredItems).map((item) => item.path);
+    return jobEligiblePaths(visibleSelectedPaths);
   }, [query.filteredItems, selectionMode, visibleSelectedCount, visibleSelectedPaths]);
 
   const { displayMode, setDisplayMode } = useGalleryDisplayMode(folderPath);

@@ -208,6 +208,11 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
 
+    // Four tiles would crowd one row of a narrow drawer, and three plus one leaves a hole.
+    &--pairs {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
     + .stats-drawer__chart,
     + .stats-drawer__mix {
       margin-top: 0.875rem;

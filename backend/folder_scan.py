@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from constants import (
+    AUDIO_EXTENSIONS,
     CAPTION_RULES_FILENAME,
     GIF_EXTENSION,
     IMAGE_EXTENSIONS,
@@ -51,6 +52,8 @@ def get_media_type(path: Path) -> str | None:
         return "image"
     if suffix in VIDEO_EXTENSIONS:
         return "video"
+    if suffix in AUDIO_EXTENSIONS:
+        return "audio"
     return None
 
 

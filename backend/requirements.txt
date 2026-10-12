@@ -12,6 +12,8 @@ python-dotenv==1.2.4
 httpx==0.28.1
 openai==3.26.1
 Pillow==12.3.0
+# Audio length for the gallery; header reads only, no decoding.
+mutagen==1.48.1
 imageio-ffmpeg==0.6.0
 # The Adjust tool's LUT, detail filters and analysis; OpenCV installs it anyway.
 numpy>=2.1,<3

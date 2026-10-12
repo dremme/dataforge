@@ -3,6 +3,7 @@ import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
 import { DEFAULT_CARD_OPTIONS } from "@/features/gallery/lib/cardOptions";
 import { getCardCaptionDisplay, getCardModifierClass } from "@/features/gallery/lib/captionStatus";
 import {
+  iconAudioLines,
   iconCheck,
   iconExpand,
   iconFileImage,
@@ -13,7 +14,13 @@ import {
   iconTriangleAlert,
   iconVideo,
 } from "@/shared/icons";
-import { isEditableVideo, isGif, isMotion, isVideo } from "@/features/gallery/lib/itemKind";
+import {
+  isAudio,
+  isEditableVideo,
+  isGif,
+  isMotion,
+  isVideo,
+} from "@/features/gallery/lib/itemKind";
 import { useHoverVideoPreview } from "@/features/gallery/hooks/useHoverVideoPreview";
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
 import type { GalleryDisplayMode, GalleryItem } from "@/shared/types";
@@ -61,6 +68,7 @@ export const GalleryCard = memo(function GalleryCard({
   const statusIcon = captionDisplay?.variant === "warning" ? iconTriangleAlert : iconMessageDashed;
   const itemIsVideo = isVideo(item);
   const itemIsGif = isGif(item);
+  const itemIsAudio = isAudio(item);
   // The editable set is exactly what a <video> element can decode.
   const { previewing, hoverHandlers } = useHoverVideoPreview(isEditableVideo(item));
   const [previewPlaying, setPreviewPlaying] = useState(false);
@@ -80,7 +88,7 @@ export const GalleryCard = memo(function GalleryCard({
   };
 
   const compactBadges = displayMode === "small";
-  const videoLength = formatDurationSeconds(item.duration);
+  const mediaLength = formatDurationSeconds(item.duration);
   const meta =
     item.width && item.height
       ? [
@@ -136,9 +144,18 @@ export const GalleryCard = memo(function GalleryCard({
             <CardBadge
               icon={iconVideo}
               compact={compactBadges}
-              label={videoLength || "Video"}
+              label={mediaLength || "Video"}
               variant="video"
-              numeric={!!videoLength}
+              numeric={!!mediaLength}
+            />
+          )}
+          {itemIsAudio && (
+            <CardBadge
+              icon={iconAudioLines}
+              compact={compactBadges}
+              label={mediaLength || "Audio"}
+              variant="audio"
+              numeric={!!mediaLength}
             />
           )}
           {itemIsGif && (

@@ -46,6 +46,7 @@ const defaultProps = {
     all: 3,
     image: 2,
     video: 1,
+    audio: 0,
   },
   fileFilter: "all" as FileFilter,
   fileFilterCounts: { all: 5, edited: 3, duplicates: 2, candidates: 1 },

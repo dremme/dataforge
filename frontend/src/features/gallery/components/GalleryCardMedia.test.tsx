@@ -178,6 +178,36 @@ describe("GalleryCardMedia", () => {
     expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
   });
 
+  it("paints an audio waveform as a mask, never as an image", () => {
+    vi.spyOn(scrollRoot, "getGalleryMediaZones").mockReturnValue(visible);
+    const { container } = renderWithThumbnails(
+      <GalleryCardMedia item={{ ...item, name: "voice.wav", media_type: "audio" }} />,
+    );
+    expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
+    act(() => {
+      loads.load();
+    });
+    const waveform = container.querySelector<HTMLElement>(".card__waveform")!;
+    expect(waveform.style.getPropertyValue("--waveform-src")).toContain("/api/thumbnail?");
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".card__media-placeholder")).toBeNull();
+  });
+
+  it("keeps an audio file whose waveform fails as a placeholder, without the raw file", () => {
+    vi.spyOn(scrollRoot, "getGalleryMediaZones").mockReturnValue(visible);
+    const { container } = renderWithThumbnails(
+      <GalleryCardMedia item={{ ...item, name: "voice.wav", media_type: "audio" }} />,
+    );
+    act(() => {
+      loads.fail();
+    });
+    expect(container.querySelector(".card__waveform")).toBeNull();
+    expect(container.querySelector(".card__media-placeholder")).not.toBeNull();
+    expect(loads.images.some((image) => image.getAttribute("src")?.includes("/api/media?"))).toBe(
+      false,
+    );
+  });
+
   it("loads reordered cards inside the retention boundary without a scroll event", async () => {
     let top = 1600;
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (

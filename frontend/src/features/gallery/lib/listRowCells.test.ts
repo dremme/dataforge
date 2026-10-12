@@ -75,6 +75,13 @@ describe("rowMetaCells", () => {
     expect(cells.find((cell) => cell.key === "duration")?.value).toBe("5 s");
   });
 
+  it("formats long audio and video alike, in minutes", () => {
+    const audio = rowMetaCells(item({ name: "song.mp3", media_type: "audio", duration: 185 }));
+    const video = rowMetaCells(item({ duration: 185 }));
+    expect(audio.find((cell) => cell.key === "duration")?.value).toBe("3:05");
+    expect(video.find((cell) => cell.key === "duration")?.value).toBe("3:05");
+  });
+
   it("leaves the duration cell empty when the item has no length", () => {
     const cells = rowMetaCells(item({ media_type: "image", duration: null }));
     expect(cells.find((cell) => cell.key === "duration")?.value).toBe("");

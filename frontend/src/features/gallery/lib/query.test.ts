@@ -56,14 +56,16 @@ describe("applyMediaTypeFilter", () => {
     item("b.mp4", "video"),
     item("c.jpg", "image"),
     item("d.gif", "gif"),
+    item("e.mp3", "audio"),
   ];
 
   it.each<[MediaTypeFilter, string[]]>([
-    ["all", ["a.png", "b.mp4", "c.jpg", "d.gif"]],
+    ["all", ["a.png", "b.mp4", "c.jpg", "d.gif", "e.mp3"]],
     ["image", ["a.png", "c.jpg"]],
     // GIFs group with video: both carry a frame sequence, which is the distinction
     // the filter is really offering.
     ["video", ["b.mp4", "d.gif"]],
+    ["audio", ["e.mp3"]],
   ])("filters to %s", (filter, expectedNames) => {
     expect(applyMediaTypeFilter(items, filter).map((entry) => entry.name)).toEqual(expectedNames);
   });
@@ -75,14 +77,16 @@ describe("countMediaType", () => {
     item("b.mp4", "video"),
     item("c.jpg", "image"),
     item("d.gif", "gif"),
+    item("e.mp3", "audio"),
   ];
 
   it("counts images and motion", () => {
     expect(countMediaType(items, "image")).toBe(2);
     expect(countMediaType(items, "video")).toBe(2);
+    expect(countMediaType(items, "audio")).toBe(1);
   });
 
-  it.each<MediaTypeFilter>(["all", "image", "video"])(
+  it.each<MediaTypeFilter>(["all", "image", "video", "audio"])(
     "agrees with the grid it labels for %s",
     (filter) => {
       expect(countMediaType(items, filter)).toBe(applyMediaTypeFilter(items, filter).length);

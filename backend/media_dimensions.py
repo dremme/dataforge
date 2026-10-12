@@ -1,4 +1,4 @@
-"""Pixel size and video length from a media file header, not its sample data. Non-MP4-family containers return empty."""
+"""Pixel size and video or audio length from a media file header, not its sample data. Non-MP4-family video containers return empty."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from typing import BinaryIO
 
 from PIL import Image, UnidentifiedImageError
 
+from audio_info import audio_duration
 from caption_cache import cached_by_stat
 from constants import ISOBMFF_EXTENSIONS
 from image_io import displayed_size
@@ -234,11 +235,15 @@ def _image_info(path: Path) -> MediaInfo:
 
 
 def media_info(path: Path, media_type: str, mtime_ns: int, size: int) -> MediaInfo:
-    """Pixel size and, for an MP4-family video, length in seconds. Missing facts are ``None``."""
+    """Pixel size and, for MP4-family video and audio, length in seconds. Missing facts are ``None``."""
     if media_type == "video":
         return cached_by_stat(_NAMESPACE, path, mtime_ns, size, lambda: _video_info(path, size))
     if media_type in {"image", "gif"}:
         return cached_by_stat(_NAMESPACE, path, mtime_ns, size, lambda: _image_info(path))
+    if media_type == "audio":
+        return cached_by_stat(
+            _NAMESPACE, path, mtime_ns, size, lambda: MediaInfo(duration=audio_duration(path))
+        )
     return MediaInfo()
 
 

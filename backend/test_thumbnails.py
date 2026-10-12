@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
+from ffmpeg_bin import ffmpeg_path
 from testing_fixtures import (
     CacheFolderTestCase,
     TempMediaFolder,
@@ -18,10 +19,13 @@ from testing_fixtures import (
     write_gif,
     write_image,
     write_media,
+    write_mp3,
     write_mp4_video,
+    write_wav,
 )
 from thumbnails import (
     PARTIAL_SUFFIX,
+    WAVEFORM_ASPECT,
     _video_thumbnail_commands,
     clear_thumbnail_cache,
     get_or_create_thumbnail,
@@ -142,6 +146,28 @@ class ThumbnailGenerationTests(CacheFolderTestCase):
 
             self.assertTrue(thumbnail.is_file())
             self.assertGreater(thumbnail.stat().st_size, 0)
+
+
+class AudioWaveformThumbnailTests(CacheFolderTestCase):
+    def test_audio_thumbnail_requires_ffmpeg(self) -> None:
+        with TempMediaFolder() as root:
+            for media in (write_wav(root), write_mp3(root)):
+                with self.subTest(name=media.name):
+                    with patch("thumbnails.ffmpeg_path", return_value=None):
+                        with self.assertRaisesRegex(Exception, "ffmpeg"):
+                            get_or_create_thumbnail(media, 200)
+
+    @unittest.skipUnless(ffmpeg_path(), "ffmpeg is not available")
+    def test_wav_renders_a_tintable_waveform(self) -> None:
+        with TempMediaFolder() as root:
+            thumbnail = get_or_create_thumbnail(write_wav(root), 200)
+
+            with Image.open(thumbnail) as image:
+                self.assertEqual(image.format, "WEBP")
+                self.assertEqual(image.size, (200, round(200 / WAVEFORM_ASPECT)))
+                # The frontend masks with alpha, so the wave must be opaque on a clear ground.
+                alpha = image.convert("RGBA").getchannel("A")
+                self.assertEqual(alpha.getextrema(), (0, 255))
 
 
 class ThumbnailCachePruneTests(CacheFolderTestCase):

@@ -10,7 +10,7 @@ test("free crop readouts reflect the visible image and video rectangles", async 
 }, testInfo) => {
   const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
   await copyFile(
-    path.join(projectRoot, "sample_images", "sunset.jpg"),
+    path.join(projectRoot, "sample_media", "sunset.jpg"),
     path.join(WORKSPACE, "landscape.jpg"),
   );
   const backend = path.join(projectRoot, "backend");

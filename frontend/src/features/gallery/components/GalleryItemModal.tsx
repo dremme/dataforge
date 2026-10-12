@@ -20,7 +20,7 @@ import {
   openMediaInViewer,
   type MediaTransferMode,
 } from "@/features/gallery/api/media";
-import { galleryItemMediaUrl } from "@/features/gallery/lib/thumbnail";
+import { galleryItemMediaUrl, galleryItemWaveformUrl } from "@/features/gallery/lib/thumbnail";
 import { formatApiError } from "@/shared/api/http";
 import { useComfyWorkflowFlag } from "@/features/gallery/hooks/useComfyWorkflowFlag";
 import { useCopyFeedback } from "@/shared/hooks/useCopyFeedback";
@@ -59,6 +59,7 @@ import {
 import { isResolvableIssueItem } from "@/features/gallery/lib/issues";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import {
+  isAudio,
   isEditableImage,
   isEditableVideo,
   isGif,
@@ -97,6 +98,7 @@ import { ImageEditPanel } from "./ImageEditPanel";
 import { ImageEditStage } from "./ImageEditStage";
 import { VideoEditPanel } from "./VideoEditPanel";
 import { ZoomableImage } from "./ZoomableImage";
+import { AudioWaveform } from "./AudioWaveform";
 import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
@@ -222,6 +224,7 @@ export function GalleryItemModal({
 
   const itemIsGif = item ? isGif(item) : false;
   const itemIsVideo = item ? isVideo(item) : false;
+  const itemIsAudio = item ? isAudio(item) : false;
   const gifFrameCount = useGifFrameCount(item?.path, itemIsGif);
 
   // Both hooks run unconditionally; hooks cannot be called behind a branch.
@@ -646,7 +649,7 @@ export function GalleryItemModal({
                 </button>
               </Tooltip>
             )}
-            {!isMotion(item) && (
+            {!isMotion(item) && !itemIsAudio && (
               <Tooltip content={viewerError ?? "Open in image preview"}>
                 <button
                   type="button"
@@ -881,6 +884,21 @@ export function GalleryItemModal({
                 />
               )}
             </>
+          ) : itemIsAudio ? (
+            <div className="gallery-item-modal__audio">
+              <AudioWaveform
+                src={galleryItemWaveformUrl(item)}
+                className="gallery-item-modal__waveform"
+              />
+              <audio
+                // Paging swaps the element, so the next clip starts from the top, not mid-play.
+                key={item.path}
+                className="gallery-item-modal__audio-player"
+                src={galleryItemMediaUrl(item)}
+                controls
+                preload="metadata"
+              />
+            </div>
           ) : editMode && canEditImageItem ? (
             <ImageEditStage
               edit={imageEdit}

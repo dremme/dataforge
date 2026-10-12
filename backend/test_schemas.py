@@ -64,10 +64,10 @@ class GalleryItemSchemaTests(unittest.TestCase):
 
     def test_rejects_unknown_media_type(self) -> None:
         with self.assertRaises(ValidationError):
-            _gallery_item(media_type="audio")
+            _gallery_item(media_type="vector")
 
     def test_accepts_every_media_type_the_scanner_can_emit(self) -> None:
-        for media_type in ("image", "video", "gif"):
+        for media_type in ("image", "video", "gif", "audio"):
             self.assertEqual(_gallery_item(media_type=media_type).media_type, media_type)
 
 

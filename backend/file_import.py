@@ -10,8 +10,8 @@ from typing import BinaryIO
 
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
+    GALLERY_EXTENSIONS,
     IMPORT_EXTENSIONS,
-    MEDIA_EXTENSIONS,
     SIDECAR_EXTENSIONS,
     SYSPROMPT_FILENAME,
 )
@@ -125,7 +125,7 @@ def import_uploaded_files(
             if overwrite:
                 replaced = (
                     _replaced_media_state(destination)
-                    if destination.suffix.lower() in MEDIA_EXTENSIONS and destination.is_file()
+                    if destination.suffix.lower() in GALLERY_EXTENSIONS and destination.is_file()
                     else []
                 )
                 os.replace(temporary, destination)

@@ -10,6 +10,11 @@ MOTION_EXTENSIONS = VIDEO_EXTENSIONS | {GIF_EXTENSION}
 
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | MOTION_EXTENSIONS
 
+AUDIO_EXTENSIONS = {".wav", ".mp3"}
+
+# Listed, served, captioned by hand and moved around; jobs list MEDIA_EXTENSIONS, so skip audio.
+GALLERY_EXTENSIONS = MEDIA_EXTENSIONS | AUDIO_EXTENSIONS
+
 # Header/metadata readers only; ffmpeg accepts a wider set.
 ISOBMFF_EXTENSIONS = {".mp4", ".mov", ".m4v"}
 
@@ -54,12 +59,14 @@ MEDIA_MIME_TYPES = {
     ".avi": "video/x-msvideo",
     ".wmv": "video/x-ms-wmv",
     ".flv": "video/x-flv",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
 }
 
 # Only .txt is a caption; leftover Ideogram .json next to media is not.
 CAPTION_SIDECAR_EXTENSIONS = (".txt",)
 SIDECAR_EXTENSIONS = set(CAPTION_SIDECAR_EXTENSIONS)
-IMPORT_EXTENSIONS = MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS
+IMPORT_EXTENSIONS = GALLERY_EXTENSIONS | SIDECAR_EXTENSIONS
 
 # Two suffixes deep; `Path.stem`/`Path.suffix` both mis-read it.
 ISSUE_SIDECAR_SUFFIX = ".issue.json"
@@ -211,6 +218,7 @@ SHARED_CONSTANTS: dict[str, object] = {
     "CAPTION_EDIT_PREVIEW_LIMIT": CAPTION_EDIT_PREVIEW_LIMIT,
     "VIDEO_EXTENSIONS": sorted(VIDEO_EXTENSIONS),
     "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
+    "AUDIO_EXTENSIONS": sorted(AUDIO_EXTENSIONS),
     "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
     "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,

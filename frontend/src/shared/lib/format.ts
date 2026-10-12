@@ -81,10 +81,19 @@ export function durationSeconds(seconds: number | null | undefined): number | nu
   return seconds;
 }
 
-/** Video length for the list's duration column, e.g. ``5 s``. */
+/** Media length: ``5 s`` under a minute, then ``m:ss`` or ``h:mm:ss``. */
 export function formatDurationSeconds(seconds: number | null | undefined): string {
   const value = durationSeconds(seconds);
-  return value == null ? "" : `${value.toFixed(0)} s`;
+  if (value == null) return "";
+
+  // Rounded first so 59.6 s reads as a minute, never as "60 s".
+  const total = Math.round(value);
+  if (total < 60) return `${total} s`;
+
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = String(total % 60).padStart(2, "0");
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${secs}` : `${minutes}:${secs}`;
 }
 
 /** Length where a small difference is the point, e.g. ``10.4 s``. The list column rounds. */

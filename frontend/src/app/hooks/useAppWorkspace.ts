@@ -17,6 +17,7 @@ import { useCandidateReviewOverlay } from "@/features/gallery/hooks/useCandidate
 import { useSidecarSweep } from "@/features/gallery/hooks/useSidecarSweep";
 import { useSettleAllCandidates } from "@/features/gallery/hooks/useSettleAllCandidates";
 import { countDuplicateGroups, countDuplicates } from "@/features/gallery/lib/duplicates";
+import { jobEligibleItems } from "@/features/gallery/lib/itemKind";
 import { isCandidateItem } from "@/features/gallery/lib/candidateReview";
 import { useStatsDrawer } from "@/features/gallery/hooks/useStatsDrawer";
 import { useSettingsModal } from "@/features/settings/hooks/useSettingsModal";
@@ -202,10 +203,11 @@ export function useAppWorkspace() {
   const openFolderPicker = useCallback(() => setFolderPickerOpen(true), []);
   const closeFolderPicker = useCallback(() => setFolderPickerOpen(false), []);
 
+  const jobItems = useMemo(() => jobEligibleItems(items), [items]);
   const automation = useAutomationHost({
     folder: folder?.path,
     breadcrumbs: folder?.breadcrumbs ?? [],
-    items,
+    items: jobItems,
     hasSysprompt: folder?.has_sysprompt ?? false,
     syspromptApplies: folder?.sysprompt_applies ?? false,
     hasCaptionRules: folder?.has_caption_rules ?? false,

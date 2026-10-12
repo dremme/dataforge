@@ -176,10 +176,12 @@ export function useGalleryQuery(items: GalleryItem[]) {
   const mediaTypeFilterCounts = useMemo(() => {
     const images = countMediaType(mediaTypeFilterCountItems, "image");
     const videos = countMediaType(mediaTypeFilterCountItems, "video");
+    const audio = countMediaType(mediaTypeFilterCountItems, "audio");
     return {
       all: mediaTypeFilterCountItems.length,
       image: images,
       video: videos,
+      audio,
     } as const;
   }, [mediaTypeFilterCountItems]);
 
@@ -194,6 +196,7 @@ export function useGalleryQuery(items: GalleryItem[]) {
         hasFilterMatches: filterMatchedItems.length > 0,
         imageCount: countMediaType(items, "image"),
         videoCount: countMediaType(items, "video"),
+        audioCount: countMediaType(items, "audio"),
       }),
     [
       filterMatchedItems.length,

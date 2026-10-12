@@ -18,9 +18,11 @@ from testing_fixtures import (
     write_gif,
     write_issue_sidecar,
     write_media,
+    write_mp3,
     write_mp4_video,
     write_sysprompt,
     write_txt_caption,
+    write_wav,
 )
 
 
@@ -64,10 +66,15 @@ class MediaTypeTests(unittest.TestCase):
             self.assertIsNone(get_media_type(root / "notes.md"))
             # Vector, so nothing that decodes pixels here could read it.
             self.assertIsNone(get_media_type(root / "logo.svg"))
-            # Audio-only files are deliberately out of scope.
-            for name in ("track.mp3", "track.wav", "track.flac", "track.ogg"):
+            for name in ("track.flac", "track.ogg"):
                 with self.subTest(name=name):
                     self.assertIsNone(get_media_type(root / name))
+
+    def test_classifies_audio_formats(self) -> None:
+        with TempMediaFolder() as root:
+            for name in ("track.wav", "track.mp3", "TRACK.MP3"):
+                with self.subTest(name=name):
+                    self.assertEqual(get_media_type(root / name), "audio")
 
 
 class FolderScanTests(unittest.TestCase):
@@ -221,6 +228,31 @@ class ScanBackedListingTests(unittest.TestCase):
             self.assertIsNone(by_name["alpha.png"]["duration"])
             self.assertIsNone(by_name["loop.gif"]["duration"])
             self.assertEqual(by_name["clip.mp4"]["duration"], 10.0)
+
+    def test_listing_carries_audio_duration_without_dimensions(self) -> None:
+        with TempMediaFolder() as root:
+            write_wav(root, "voice.wav", seconds=2.0)
+            write_mp3(root, "song.mp3", frames=100)
+
+            by_name = {item["name"]: item for item in _listing(root)}
+
+            self.assertEqual(by_name["voice.wav"]["media_type"], "audio")
+            self.assertEqual(by_name["voice.wav"]["duration"], 2.0)
+            self.assertEqual(by_name["song.mp3"]["media_type"], "audio")
+            # 100 frames of 1152 samples at 44.1 kHz.
+            self.assertAlmostEqual(by_name["song.mp3"]["duration"], 2.6, delta=0.05)
+            for item in by_name.values():
+                self.assertIsNone(item["width"])
+                self.assertIsNone(item["height"])
+
+    def test_listing_leaves_audio_duration_empty_when_unreadable(self) -> None:
+        with TempMediaFolder() as root:
+            (root / "broken.mp3").write_bytes(b"not an mp3")
+
+            item = _listing(root)[0]
+
+            self.assertEqual(item["media_type"], "audio")
+            self.assertIsNone(item["duration"])
 
     def test_listing_leaves_dimensions_empty_when_they_cannot_be_read(self) -> None:
         with TempMediaFolder() as root:

@@ -64,7 +64,7 @@ Both checks write `.issue.json` findings and leave captions unchanged. Model and
 
 ### Caption rules
 
-Linting needs no model. Edit the rules in the folder-instructions dialog, run **Lint captions**, then use **With issues** or the resolver to inspect hits. Try the rules supplied in [`sample_images/`](../sample_images/).
+Linting needs no model. Edit the rules in the folder-instructions dialog, run **Lint captions**, then use **With issues** or the resolver to inspect hits. Try the rules supplied in [`sample_media/`](../sample_media/).
 
 Example `.captionrules`:
 
@@ -172,7 +172,7 @@ For model recommendations, setup, all variables, and troubleshooting, see [Confi
 
 ## Supported formats
 
-All listed formats appear in the gallery, take `.txt` captions, and can be sent to AI caption jobs or ComfyUI. The chosen workflow or training model must support the actual media; gallery support does not guarantee integration compatibility.
+All listed formats appear in the gallery and take `.txt` captions. Images and videos can be sent to AI caption jobs or ComfyUI; audio is for listening and hand captioning only, and every job skips it. The chosen workflow or training model must support the actual media; gallery support does not guarantee integration compatibility.
 
 | Format             | Gallery                                                       | Editing / Auto-adjust | Strip metadata   | Watermark | Embedded ComfyUI workflow |
 | ------------------ | ------------------------------------------------------------- | --------------------- | ---------------- | --------- | ------------------------- |
@@ -182,6 +182,7 @@ All listed formats appear in the gallery, take `.txt` captions, and can be sent 
 | GIF                | Animation and frame capture                                   | Convert to MP4 first  | —                | Yes       | —                         |
 | MP4, MOV, M4V      | Playback and frame capture, if the browser supports the codec | Video                 | Yes              | Yes       | Yes                       |
 | AVI, MKV, WMV, FLV | Thumbnail only                                                | —                     | —                | —         | —                         |
+| WAV, MP3           | Waveform and playback                                         | —                     | —                | —         | —                         |
 
 GIF captioning and verification use its first frame. Video caption jobs sample frames across the clip, even for containers without browser playback. GIF-to-MP4 conversion uses 24 fps and asks before overwriting an existing MP4. A watermarked GIF stays an animated GIF with the original frame timing, loop count, and transparency.
 

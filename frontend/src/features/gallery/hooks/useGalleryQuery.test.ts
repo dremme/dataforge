@@ -126,6 +126,7 @@ describe("useGalleryQuery", () => {
       all: 4,
       image: 2,
       video: 2,
+      audio: 0,
     });
 
     act(() => {
@@ -136,6 +137,7 @@ describe("useGalleryQuery", () => {
       all: 2,
       image: 1,
       video: 1,
+      audio: 0,
     });
   });
 
@@ -335,7 +337,7 @@ describe("useGalleryQuery", () => {
       result.current.setFileFilter("duplicates");
     });
 
-    expect(result.current.mediaTypeFilterCounts).toEqual({ all: 3, image: 2, video: 1 });
+    expect(result.current.mediaTypeFilterCounts).toEqual({ all: 3, image: 2, video: 1, audio: 0 });
   });
 
   it("scopes the duplicate count by the caption filter and media type", () => {

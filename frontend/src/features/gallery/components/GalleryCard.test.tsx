@@ -211,6 +211,27 @@ describe("GalleryCard", () => {
     expect(container.querySelector(".card__badge--video")).toHaveTextContent("Video");
   });
 
+  it("badges audio with its length, and never as a video", () => {
+    const audio: GalleryItem = {
+      ...uncaptionedItem,
+      name: "voice.wav",
+      path: `${HOME_PATH}\\voice.wav`,
+      media_type: "audio",
+      width: null,
+      height: null,
+      duration: 75,
+    };
+    const { container, rerender } = render(<GalleryCard item={audio} onSelect={vi.fn()} />);
+
+    expect(container.querySelector(".card__badge--audio")).toHaveTextContent("1:15");
+    expect(container.querySelector(".card__badge--video")).toBeNull();
+    expect(container.querySelector(".card")).not.toHaveClass("card--video");
+
+    rerender(<GalleryCard item={{ ...audio, duration: null }} onSelect={vi.fn()} />);
+
+    expect(container.querySelector(".card__badge--audio")).toHaveTextContent("Audio");
+  });
+
   it("shows the megapixel count beside the title on large and small cards", () => {
     const { container, rerender } = render(<GalleryCard item={captionedItem} onSelect={vi.fn()} />);
 

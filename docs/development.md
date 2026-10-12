@@ -52,7 +52,7 @@ docs/                  User and contributor documentation
 comfy_workflows/       ComfyUI presets
 ostris_templates/      AI-Toolkit training templates
 llm_templates/         Local model chat templates
-sample_images/         Example dataset
+sample_media/          Example dataset
 .github/workflows/     Checks and separate end-to-end CI
 .env.example           Commented app environment settings
 setup / start / dev / stop (.bat, .ps1, .sh)   Launchers

@@ -23,7 +23,7 @@ The processing menu appears when presets exist, even if ComfyUI is stopped. The 
 
 ## Try it
 
-The bundled [`example_lanczos_2x.json`](../comfy_workflows/example_lanczos_2x.json) resizes images 2× using core nodes, without model downloads. To try review without a run, open [`sample_images/`](../sample_images/) and choose **Review candidates**.
+The bundled [`example_lanczos_2x.json`](../comfy_workflows/example_lanczos_2x.json) resizes images 2× using core nodes, without model downloads. To try review without a run, open [`sample_media/`](../sample_media/) and choose **Review candidates**.
 
 ## Run a folder
 

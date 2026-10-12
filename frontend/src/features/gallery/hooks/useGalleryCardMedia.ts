@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useThumbnailRuntime } from "@/features/gallery/context/thumbnailContext";
 import {
-  galleryItemMediaUrl,
+  galleryItemThumbnailFallbackUrl,
   galleryItemThumbnailPreviewUrl,
 } from "@/features/gallery/lib/thumbnail";
 import { getGalleryScrollRoot } from "@/features/gallery/lib/scrollRoot";
@@ -31,7 +31,7 @@ export function useGalleryCardMedia(
   const [loadedSrc, setLoadedSrc] = useState<string>();
   const epoch = useThumbnailEpoch();
   const url = galleryItemThumbnailPreviewUrl(item, epoch);
-  const fallbackUrl = item.media_type === "video" ? undefined : galleryItemMediaUrl(item);
+  const fallbackUrl = galleryItemThumbnailFallbackUrl(item);
   const source = useMemo(() => ({ url, fallbackUrl }), [url, fallbackUrl]);
   const subscribe = useCallback(
     (listener: () => void) => store.subscribe(url, listener),

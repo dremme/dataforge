@@ -398,6 +398,34 @@ describe("GalleryItemModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("plays audio in a player, with no image tools", async () => {
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("voice.wav", { media_type: "audio", width: null, height: null })]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+        currentFolder={HOME_PATH}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing voice.wav" });
+    const audio = dialog.querySelector("audio")!;
+    expect(audio.getAttribute("src")).toContain("/api/media?");
+    expect(audio).toHaveAttribute("controls");
+    // Paging through clips must not start sound on its own.
+    expect(audio).not.toHaveAttribute("autoplay");
+    expect(dialog.querySelector(".gallery-item-modal__waveform")).not.toBeNull();
+    expect(dialog.querySelector(".gallery-item-modal__img")).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "Open in image preview" }),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Save a frame/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+  });
+
   it("navigates within the filtered item list only", async () => {
     const user = userEvent.setup();
     const onNext = vi.fn();

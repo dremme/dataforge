@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { useThumbnailRuntime } from "@/features/gallery/context/thumbnailContext";
-import { galleryItemThumbnailPreviewUrl, galleryItemMediaUrl } from "./thumbnail";
+import { galleryItemThumbnailFallbackUrl, galleryItemThumbnailPreviewUrl } from "./thumbnail";
 import { useThumbnailEpoch } from "./thumbnailEpoch";
 import type { ThumbnailDemand } from "./thumbnailStore";
 import type { GalleryItem } from "@/shared/types";
@@ -26,7 +26,7 @@ export function collectGalleryPreviewTargets(
     for (const item of rowAt(index)) {
       targets.push({
         url: galleryItemThumbnailPreviewUrl(item, epoch),
-        fallbackUrl: item.media_type === "video" ? undefined : galleryItemMediaUrl(item),
+        fallbackUrl: galleryItemThumbnailFallbackUrl(item),
         priority: index >= min && index <= max ? "visible" : "prefetch",
       });
     }

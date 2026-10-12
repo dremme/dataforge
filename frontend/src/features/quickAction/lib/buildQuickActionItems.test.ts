@@ -716,7 +716,7 @@ function filterItems(overrides: Partial<FilterCommandOptions> = {}) {
     caption: "all",
     file: "all",
     counts: {
-      mediaType: { all: 9, image: 6, video: 3 },
+      mediaType: { all: 9, image: 6, video: 3, audio: 0 },
       caption: { all: 9, captioned: 5, issue: 1, uncaptioned: 4 },
       file: { all: 9, edited: 2, duplicates: 0, candidates: 1 },
     },
@@ -745,6 +745,7 @@ describe("buildFilterItems", () => {
     expect(filterItems().map((item) => item.id)).toEqual([
       "filter:mediaType:image",
       "filter:mediaType:video",
+      "filter:mediaType:audio",
       "filter:caption:captioned",
       "filter:caption:issue",
       "filter:caption:uncaptioned",

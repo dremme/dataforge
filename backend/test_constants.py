@@ -3,7 +3,9 @@ from __future__ import annotations
 import unittest
 
 from constants import (
+    AUDIO_EXTENSIONS,
     COMFY_WORKFLOW_EXTENSIONS,
+    GALLERY_EXTENSIONS,
     GIF_EXTENSION,
     IMAGE_EXTENSIONS,
     IMPORT_EXTENSIONS,
@@ -18,8 +20,8 @@ from constants import (
     WATERMARK_EXTENSIONS,
 )
 
-#: Audio is deliberately out of scope, and SVG is vector - nothing here decodes either.
-UNSUPPORTED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".svg"}
+#: Only WAV and MP3 are listed so far, and SVG is vector - nothing here decodes it.
+UNSUPPORTED_EXTENSIONS = {".flac", ".ogg", ".svg"}
 
 
 class MediaExtensionInvariantTests(unittest.TestCase):
@@ -44,7 +46,12 @@ class MediaExtensionInvariantTests(unittest.TestCase):
     def test_every_media_extension_has_a_mime_type(self) -> None:
         # A missing entry falls through to `mimetypes.guess_type`, which answers
         # from the Windows registry and can return text/plain for real media.
-        self.assertEqual(MEDIA_EXTENSIONS - set(MEDIA_MIME_TYPES), set())
+        self.assertEqual(GALLERY_EXTENSIONS - set(MEDIA_MIME_TYPES), set())
+
+    def test_jobs_never_see_audio(self) -> None:
+        # Every job lists MEDIA_EXTENSIONS; audio is in the gallery but in no job yet.
+        self.assertEqual(MEDIA_EXTENSIONS & AUDIO_EXTENSIONS, set())
+        self.assertEqual(GALLERY_EXTENSIONS, MEDIA_EXTENSIONS | AUDIO_EXTENSIONS)
 
     def test_pillow_and_motion_split_the_gif_between_them(self) -> None:
         self.assertEqual(PILLOW_EXTENSIONS, IMAGE_EXTENSIONS | {GIF_EXTENSION})
@@ -52,10 +59,10 @@ class MediaExtensionInvariantTests(unittest.TestCase):
         self.assertEqual(MEDIA_EXTENSIONS, IMAGE_EXTENSIONS | MOTION_EXTENSIONS)
 
     def test_import_adds_sidecars_to_media(self) -> None:
-        self.assertEqual(IMPORT_EXTENSIONS, MEDIA_EXTENSIONS | SIDECAR_EXTENSIONS)
+        self.assertEqual(IMPORT_EXTENSIONS, GALLERY_EXTENSIONS | SIDECAR_EXTENSIONS)
 
     def test_unsupported_formats_stay_out(self) -> None:
-        self.assertEqual(MEDIA_EXTENSIONS & UNSUPPORTED_EXTENSIONS, set())
+        self.assertEqual(GALLERY_EXTENSIONS & UNSUPPORTED_EXTENSIONS, set())
         self.assertEqual(set(MEDIA_MIME_TYPES) & UNSUPPORTED_EXTENSIONS, set())
 
 
@@ -67,9 +74,15 @@ class SharedConstantsTests(unittest.TestCase):
             SHARED_CONSTANTS["COMFY_WORKFLOW_EXTENSIONS"], sorted(COMFY_WORKFLOW_EXTENSIONS)
         )
         self.assertEqual(SHARED_CONSTANTS["IMPORT_EXTENSIONS"], sorted(IMPORT_EXTENSIONS))
+        self.assertEqual(SHARED_CONSTANTS["AUDIO_EXTENSIONS"], sorted(AUDIO_EXTENSIONS))
 
     def test_exported_sets_are_sorted_for_a_stable_diff(self) -> None:
-        for name in ("IMPORT_EXTENSIONS", "VIDEO_EXTENSIONS", "COMFY_WORKFLOW_EXTENSIONS"):
+        for name in (
+            "IMPORT_EXTENSIONS",
+            "VIDEO_EXTENSIONS",
+            "AUDIO_EXTENSIONS",
+            "COMFY_WORKFLOW_EXTENSIONS",
+        ):
             with self.subTest(name=name):
                 value = SHARED_CONSTANTS[name]
                 assert isinstance(value, list)

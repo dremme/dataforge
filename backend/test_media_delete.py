@@ -9,7 +9,13 @@ from candidate_pairing import candidate_sidecar_path
 from captions import issue_file_path
 from constants import CAPTION_BACKUP_DIR_NAME, STAGING_DIR_NAME
 from media_delete import delete_media_with_sidecars, delete_path
-from testing_fixtures import TempMediaFolder, write_media, write_mp4_video, write_txt_caption
+from testing_fixtures import (
+    TempMediaFolder,
+    write_media,
+    write_mp4_video,
+    write_txt_caption,
+    write_wav,
+)
 
 
 class DeletePathTests(unittest.TestCase):
@@ -155,6 +161,17 @@ class SharedStemDeleteTests(unittest.TestCase):
                 delete_media_with_sidecars(jpg)
 
             self.assertFalse(jpg.exists())
+            self.assertEqual(caption.read_text(encoding="utf-8"), "Shared.")
+
+    def test_an_audio_sibling_keeps_the_caption_they_share(self) -> None:
+        with TempMediaFolder() as root:
+            cover = write_media(root, "song.png")
+            write_wav(root, "song.wav")
+            caption = write_txt_caption(cover, "Shared.")
+
+            with patch("media_delete.sys.platform", "linux"):
+                delete_media_with_sidecars(cover)
+
             self.assertEqual(caption.read_text(encoding="utf-8"), "Shared.")
 
     def test_the_last_owner_takes_the_caption_with_it(self) -> None:

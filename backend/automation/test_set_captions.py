@@ -17,6 +17,7 @@ from testing_fixtures import (
     write_media,
     write_mp4_video,
     write_txt_caption,
+    write_wav,
 )
 
 
@@ -25,6 +26,8 @@ class SetCaptionsMediaListingTests(unittest.TestCase):
         with TempMediaFolder() as root:
             write_media(root, "photo.png")
             write_mp4_video(root, "clip.mp4")
+            # Listed in the gallery, but no job takes audio yet.
+            write_wav(root, "voice.wav")
             (root / "notes.txt").write_text("ignore", encoding="utf-8")
 
             names = [path.name for path in list_set_captions_media(root)]

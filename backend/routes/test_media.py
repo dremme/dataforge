@@ -14,6 +14,7 @@ from testing_fixtures import (
     write_media,
     write_mp4_video,
     write_txt_caption,
+    write_wav,
 )
 
 
@@ -43,6 +44,8 @@ class MediaEndpointTests(unittest.TestCase):
             "clip.avi": "video/x-msvideo",
             "clip.wmv": "video/x-ms-wmv",
             "clip.flv": "video/x-flv",
+            "voice.wav": "audio/wav",
+            "song.mp3": "audio/mpeg",
         }
 
         with TempMediaFolder() as root:
@@ -130,6 +133,24 @@ class MediaEndpointTests(unittest.TestCase):
             self.assertFalse(media.exists())
             self.assertFalse(media.with_suffix(".txt").exists())
             self.assertTrue(media.with_suffix(".json").is_file())
+
+    def test_deletes_audio_and_its_caption(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_wav(root, "voice.wav")
+            write_txt_caption(media, "A short greeting.")
+
+            response = client.delete(f"/api/media?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(set(response.json()["deleted"]), {"voice.wav", "voice.txt"})
+
+    def test_open_rejects_audio(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_wav(root, "voice.wav")
+
+            response = client.post(f"/api/media/open?path={quote(str(media))}")
+
+            self.assertEqual(response.status_code, 400)
 
     def test_delete_returns_404_for_missing_media(self) -> None:
         with TempMediaFolder() as root:

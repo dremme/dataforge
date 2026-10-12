@@ -4,7 +4,7 @@ import {
   aspectRatioLabel,
 } from "@/features/gallery/lib/aspectRatio";
 import { tokenizeCaptionWords } from "@/features/gallery/lib/captionTokens";
-import { isGif, isVideo } from "@/features/gallery/lib/itemKind";
+import { isAudio, isGif, isVideo } from "@/features/gallery/lib/itemKind";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem } from "@/shared/types";
 
@@ -56,10 +56,12 @@ export interface MediaTypeStats {
   images: number;
   videos: number;
   gifs: number;
+  audio: number;
   extensions: {
     images: string[];
     videos: string[];
     gifs: string[];
+    audio: string[];
   };
   byExtension: StatBucket[];
 }
@@ -180,9 +182,11 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
   let images = 0;
   let videos = 0;
   let gifs = 0;
+  let audio = 0;
   const imageExtensions = new Map<string, number>();
   const videoExtensions = new Map<string, number>();
   const gifExtensions = new Map<string, number>();
+  const audioExtensions = new Map<string, number>();
   let unknownResolution = 0;
   let unknownDuration = 0;
 
@@ -200,6 +204,13 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
       captioned += 1;
       captions.push(item.description);
       lengths.push(item.description.length);
+    }
+
+    if (isAudio(item)) {
+      // No pixels to measure, and its length is not a clip length.
+      audio += 1;
+      bumpExtension(audioExtensions, item.name);
+      continue;
     }
 
     if (isGif(item)) {
@@ -251,12 +262,19 @@ export function computeDatasetStats(media: GalleryItem[]): DatasetStats {
       images,
       videos,
       gifs,
+      audio,
       extensions: {
         images: rankedExtensions(imageExtensions),
         videos: rankedExtensions(videoExtensions),
         gifs: rankedExtensions(gifExtensions),
+        audio: rankedExtensions(audioExtensions),
       },
-      byExtension: rankedExtensionBuckets(imageExtensions, videoExtensions, gifExtensions),
+      byExtension: rankedExtensionBuckets(
+        imageExtensions,
+        videoExtensions,
+        gifExtensions,
+        audioExtensions,
+      ),
     },
     megapixels: bucketize(megapixels, MEGAPIXEL_BUCKETS),
     aspectRatios: countAspectRatios(aspectRatioLabels),

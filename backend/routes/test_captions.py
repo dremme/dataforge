@@ -15,6 +15,7 @@ from testing_fixtures import (
     write_media,
     write_mp4_video,
     write_txt_caption,
+    write_wav,
 )
 
 
@@ -308,6 +309,20 @@ class CaptionEndpointTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue((root / "new.txt").is_file())
             self.assertEqual(response.json()["caption_status"], "text")
+
+    def test_audio_takes_a_caption_by_hand(self) -> None:
+        with TempMediaFolder() as root:
+            media = write_wav(root, "voice.wav")
+
+            response = client.put(
+                f"/api/caption?path={quote(str(media))}",
+                json={"text": "A short greeting."},
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                (root / "voice.txt").read_text(encoding="utf-8").strip(), "A short greeting."
+            )
 
     def test_empty_caption_clears_txt_file(self) -> None:
         with TempMediaFolder() as root:

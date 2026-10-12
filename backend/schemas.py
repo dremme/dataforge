@@ -18,7 +18,7 @@ from constants import (
 type CaptionStatus = Literal["none", "empty", "text"]
 
 #: GIF is its own type so it renders as ``<img>``.
-type MediaType = Literal["image", "video", "gif"]
+type MediaType = Literal["image", "video", "gif", "audio"]
 
 type WatermarkSizeName = Literal["small", "medium", "large"]
 type WatermarkOpacity = Literal[25, 50, 75]
@@ -140,7 +140,7 @@ class GalleryItem(BaseModel):
     media_type: MediaType
     width: int | None = None
     height: int | None = None
-    #: Empty for stills, GIFs, and non-MP4-family containers.
+    #: Empty for stills, GIFs, non-MP4-family containers, and audio mutagen cannot read.
     duration: float | None = None
     size: int | None = None
     modified_at: str | None = None

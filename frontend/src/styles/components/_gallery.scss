@@ -367,6 +367,16 @@
     pointer-events: none;
   }
 
+  // A mask, not an <img>: the thumbnail's wave is white, and the theme picks the color.
+  &__waveform {
+    position: absolute;
+    inset: 18% 8%;
+    z-index: 0;
+    background: var(--accent);
+    mask: var(--waveform-src) center / contain no-repeat;
+    pointer-events: none;
+  }
+
   &__media-skeleton {
     width: 100%;
     aspect-ratio: 4 / 3;
@@ -452,6 +462,7 @@
     letter-spacing: var(--tracking-caps);
 
     &--video,
+    &--audio,
     &--gif {
       position: absolute;
       top: 0.625rem;
@@ -596,6 +607,7 @@
 
   .card__badge {
     &--video,
+    &--audio,
     &--gif {
       top: 0.4375rem;
       left: 0.4375rem;

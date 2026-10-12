@@ -1,4 +1,5 @@
 import {
+  AUDIO_EXTENSIONS,
   GIF_EXTENSION,
   IMAGE_EDIT_EXTENSIONS,
   VIDEO_EDIT_EXTENSIONS,
@@ -7,6 +8,7 @@ import {
 import type { GalleryItem } from "@/shared/types";
 
 const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
+const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS);
 const VIDEO_EDIT_EXTENSION_SET = new Set<string>(VIDEO_EDIT_EXTENSIONS);
 const IMAGE_EDIT_EXTENSION_SET = new Set<string>(IMAGE_EDIT_EXTENSIONS);
 
@@ -32,6 +34,30 @@ export function isVideo(item: GalleryItem): boolean {
   }
 
   return isVideoName(item.name);
+}
+
+export function isAudioName(name: string): boolean {
+  const extension = extensionOfName(name);
+  return extension !== null && AUDIO_EXTENSION_SET.has(extension);
+}
+
+/** Listed and playable only: no job, editor, or frame tool takes audio yet. */
+export function isAudio(item: GalleryItem): boolean {
+  if (item.media_type) {
+    return item.media_type === "audio";
+  }
+
+  return isAudioName(item.name);
+}
+
+/** The server lists only visual media for jobs; counting audio would overstate every dialog. */
+export function jobEligibleItems(items: readonly GalleryItem[]): GalleryItem[] {
+  return items.filter((item) => !isAudio(item));
+}
+
+/** Like jobEligibleItems, for selected paths whose items are not at hand. */
+export function jobEligiblePaths(paths: Iterable<string>): string[] {
+  return Array.from(paths).filter((path) => !isAudioName(path));
 }
 
 /** Narrower than isVideo: the editor reads duration off <video>, which never decodes matroska. */
@@ -66,5 +92,6 @@ export function isMotion(item: GalleryItem): boolean {
 export function mediaLabelFor(item: GalleryItem): string {
   if (isGif(item)) return "GIF";
   if (isVideo(item)) return "video";
+  if (isAudio(item)) return "audio";
   return "image";
 }

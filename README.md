@@ -24,7 +24,7 @@ Browse, caption, review, and edit datasets for LoRA training and fine-tuning. Op
   ./start.sh
   ```
 
-The app opens at `http://localhost:18081`. Try [`sample_images/`](sample_images/) for an example dataset. See [Getting started](docs/getting-started.md) for updating and troubleshooting.
+The app opens at `http://localhost:18081`. Try [`sample_media/`](sample_media/) for an example dataset. See [Getting started](docs/getting-started.md) for updating and troubleshooting.
 
 ## What it does
 

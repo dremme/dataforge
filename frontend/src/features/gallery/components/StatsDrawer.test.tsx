@@ -266,6 +266,21 @@ describe("StatsDrawer", () => {
     expect(tileFigure("Images")).toHaveTextContent("1");
     expect(tileFigure("Videos")).toHaveTextContent("1");
     expect(tileFigure("GIFs")).toHaveTextContent("1");
+    expect(screen.queryByText("Audio")).not.toBeInTheDocument();
+  });
+
+  it("adds an audio tile only when the folder has audio", () => {
+    const frames = stubCountUpFrames();
+    renderDrawer({
+      items: [
+        mediaItem("one.png", HOME_PATH),
+        mediaItem("voice.wav", HOME_PATH, { width: null, height: null }),
+      ],
+    });
+    frames.playTo(COUNT_UP_MS);
+
+    expect(tileFigure("Audio")).toHaveTextContent("1");
+    expect(tileFigure("Images")).toHaveTextContent("1");
   });
 
   it("counts a tile up once it is on screen", () => {

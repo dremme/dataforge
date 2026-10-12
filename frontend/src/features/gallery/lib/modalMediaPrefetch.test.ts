@@ -29,6 +29,12 @@ describe("collectAdjacentModalMediaTargets", () => {
     ]);
   });
 
+  it("skips audio: an <audio> loads its metadata on open, and decoding ahead buys nothing", () => {
+    const withAudio = [item("a.wav", "audio"), item("b.jpg"), item("c.mp3", "audio")];
+
+    expect(collectAdjacentModalMediaTargets(withAudio, 1)).toEqual([]);
+  });
+
   it("can collect only the next item for forward-only flows", () => {
     expect(collectAdjacentModalMediaTargets(items, 1, { offsets: [1] })).toEqual([
       {

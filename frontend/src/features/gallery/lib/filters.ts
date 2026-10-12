@@ -11,6 +11,7 @@ import {
   iconImage,
   iconImages,
   iconVideo,
+  iconAudioLines,
 } from "@/shared/icons";
 import type { FileFilter, ItemFilter, MediaTypeFilter } from "./query";
 
@@ -79,6 +80,7 @@ export const MEDIA_TYPE_FILTER_OPTIONS = [
   { value: "all" as const, label: "All", ariaLabel: "All types", icon: iconImages },
   { value: "image" as const, label: "Images", ariaLabel: "Images", icon: iconImage },
   { value: "video" as const, label: "Videos", ariaLabel: "Videos and GIFs", icon: iconVideo },
+  { value: "audio" as const, label: "Audio", ariaLabel: "Audio", icon: iconAudioLines },
 ] satisfies ReadonlyArray<{
   value: MediaTypeFilter;
   label: string;
@@ -140,6 +142,7 @@ export function getFilterEmptyState(options: {
   hasFilterMatches: boolean;
   imageCount: number;
   videoCount: number;
+  audioCount: number;
 }): FilterEmptyState {
   const trimmedSearch = options.searchQuery.trim();
   const hasActiveSearch = trimmedSearch.length > 0;
@@ -167,6 +170,15 @@ export function getFilterEmptyState(options: {
       icon: iconVideo,
       title: "No videos",
       description: "This folder has no supported video or GIF files.",
+      variant: "muted",
+    };
+  }
+
+  if (options.mediaTypeFilter === "audio" && options.audioCount === 0) {
+    return {
+      icon: iconAudioLines,
+      title: "No audio",
+      description: "This folder has no supported audio files.",
       variant: "muted",
     };
   }

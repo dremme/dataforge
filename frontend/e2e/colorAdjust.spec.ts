@@ -134,7 +134,7 @@ function stillVideo(name: string): string {
     "-loop",
     "1",
     "-i",
-    path.join(projectRoot, "sample_images", "sunset.jpg"),
+    path.join(projectRoot, "sample_media", "sunset.jpg"),
     "-t",
     "1",
     "-r",
@@ -169,7 +169,7 @@ test("the adjust preview matches the image Apply writes", async ({ page }) => {
   execFileSync(python, [
     "-c",
     "import sys; from PIL import Image; Image.open(sys.argv[1]).convert('RGB').save(sys.argv[2])",
-    path.join(projectRoot, "sample_images", "sunset.jpg"),
+    path.join(projectRoot, "sample_media", "sunset.jpg"),
     freshMedia("adjust.png"),
   ]);
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);
@@ -206,7 +206,7 @@ test("the wand moves the tools it reads a fault in", async ({ page }) => {
   execFileSync(python, [
     "-c",
     "import sys; from PIL import Image; Image.open(sys.argv[1]).convert('RGB').point(lambda v: v // 3).save(sys.argv[2])",
-    path.join(projectRoot, "sample_images", "sunset.jpg"),
+    path.join(projectRoot, "sample_media", "sunset.jpg"),
     freshMedia("dark.png"),
   ]);
   await page.goto(`/?path=${encodeURIComponent(WORKSPACE)}`);

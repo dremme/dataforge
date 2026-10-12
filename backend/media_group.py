@@ -14,7 +14,7 @@ from captions import issue_file_path
 from constants import (
     CAPTION_BACKUP_DIR_NAME,
     CAPTION_SIDECAR_EXTENSIONS,
-    MEDIA_EXTENSIONS,
+    GALLERY_EXTENSIONS,
     SIDECAR_EXTENSIONS,
 )
 from duplicates import duplicate_file_path
@@ -67,7 +67,7 @@ def stem_siblings(media: Path) -> list[Path]:
         entry
         for entry in entries
         if entry.name != media.name
-        and entry.suffix.lower() in MEDIA_EXTENSIONS
+        and entry.suffix.lower() in GALLERY_EXTENSIONS
         and os.path.normcase(entry.stem) == stem
         and entry.is_file()
     ]

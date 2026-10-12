@@ -159,6 +159,7 @@ export {
   Undo2 as iconUndo2,
   Unlink as iconUnlink,
   Video as iconVideo,
+  AudioLines as iconAudioLines,
   Volume2 as iconVolume2,
   VolumeX as iconVolumeX,
   WandSparkles as iconWandSparkles,

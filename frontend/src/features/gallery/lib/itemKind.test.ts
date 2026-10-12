@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { GalleryItem } from "@/shared/types";
-import { isEditableVideo, isGif, isMotion, isVideo, isVideoName, mediaLabelFor } from "./itemKind";
+import {
+  isAudio,
+  isAudioName,
+  isEditableImage,
+  isEditableVideo,
+  isGif,
+  isMotion,
+  isVideo,
+  isVideoName,
+  jobEligibleItems,
+  jobEligiblePaths,
+  mediaLabelFor,
+} from "./itemKind";
 
 /** media_type is required on the wire; undefined reproduces a partial item for the fallback. */
 function item(name: string, mediaType: GalleryItem["media_type"] | undefined): GalleryItem {
@@ -102,10 +114,46 @@ describe("isMotion", () => {
   });
 });
 
+describe("isAudio", () => {
+  it("trusts the server's media_type over the extension", () => {
+    expect(isAudio(item("track.wav", "image"))).toBe(false);
+    expect(isAudio(item("still.png", "audio"))).toBe(true);
+  });
+
+  it("falls back to the extension for WAV and MP3 only", () => {
+    expect(["voice.wav", "song.mp3", "SONG.MP3"].filter((name) => !isAudioName(name))).toEqual([]);
+    expect(["track.flac", "clip.mp4", "photo.png"].filter(isAudioName)).toEqual([]);
+    expect(isAudio(item("song.mp3", undefined))).toBe(true);
+  });
+
+  it("is neither motion nor editable", () => {
+    const audio = item("song.mp3", "audio");
+
+    expect(isMotion(audio)).toBe(false);
+    expect(isEditableImage(audio)).toBe(false);
+    expect(isEditableVideo(audio)).toBe(false);
+  });
+});
+
+describe("job eligibility", () => {
+  it("leaves audio out of the items a job would count", () => {
+    const items = [item("photo.png", "image"), item("voice.wav", "audio"), item("loop.gif", "gif")];
+
+    expect(jobEligibleItems(items).map((entry) => entry.name)).toEqual(["photo.png", "loop.gif"]);
+  });
+
+  it("leaves audio out of selected paths", () => {
+    expect(
+      jobEligiblePaths(["C:\\Photos\\clip.mp4", "C:\\Photos\\song.MP3", "C:\\Photos\\voice.wav"]),
+    ).toEqual(["C:\\Photos\\clip.mp4"]);
+  });
+});
+
 describe("mediaLabelFor", () => {
   it("names the new types", () => {
     expect(mediaLabelFor(item("clip.mov", undefined))).toBe("video");
     expect(mediaLabelFor(item("photo.bmp", undefined))).toBe("image");
     expect(mediaLabelFor(item("loop.gif", "gif"))).toBe("GIF");
+    expect(mediaLabelFor(item("song.mp3", "audio"))).toBe("audio");
   });
 });

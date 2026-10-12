@@ -1,8 +1,8 @@
 import { memo, type MouseEvent } from "react";
 import { rowMarkers, rowMetaCells, rowStatus } from "@/features/gallery/lib/listRowCells";
-import { isVideo } from "@/features/gallery/lib/itemKind";
+import { isAudio, isVideo } from "@/features/gallery/lib/itemKind";
 import { selectionIntentFor } from "@/features/gallery/lib/selectionIntent";
-import { iconCheck, iconImage, iconVideo } from "@/shared/icons";
+import { iconAudioLines, iconCheck, iconImage, iconVideo } from "@/shared/icons";
 import type { GalleryItem } from "@/shared/types";
 import { classNames } from "@/shared/lib/classNames";
 import { Icon } from "@/shared/ui/Icon";
@@ -75,7 +75,7 @@ export const GalleryListRow = memo(function GalleryListRow({
       </span>
       <span className="gallery-list-row__name" title={item.name}>
         <Icon
-          icon={isVideo(item) ? iconVideo : iconImage}
+          icon={isVideo(item) ? iconVideo : isAudio(item) ? iconAudioLines : iconImage}
           className="gallery-list-row__name-icon"
         />
         <span className="gallery-list-row__name-text">{item.name}</span>

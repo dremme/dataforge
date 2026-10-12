@@ -119,10 +119,16 @@ function StatsContent({
       )}
 
       <Section title="Media" icon={iconImages}>
-        <div className="stats-drawer__tiles">
+        <div
+          className={classNames(
+            "stats-drawer__tiles",
+            stats.mediaTypes.audio > 0 && "stats-drawer__tiles--pairs",
+          )}
+        >
           <Tile value={stats.mediaTypes.images} label="Images" />
           <Tile value={stats.mediaTypes.videos} label="Videos" />
           <Tile value={stats.mediaTypes.gifs} label="GIFs" />
+          {stats.mediaTypes.audio > 0 && <Tile value={stats.mediaTypes.audio} label="Audio" />}
         </div>
         <MediaMix buckets={stats.mediaTypes.byExtension} total={stats.total} />
       </Section>

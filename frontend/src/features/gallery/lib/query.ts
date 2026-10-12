@@ -1,7 +1,7 @@
 import { isResolvableIssueItem } from "./issues";
 import { isDuplicateItem } from "./duplicates";
 import { isCandidateItem } from "./candidateReview";
-import { isMotion } from "@/features/gallery/lib/itemKind";
+import { isAudio, isMotion } from "@/features/gallery/lib/itemKind";
 import { DEFAULT_GALLERY_SORT } from "@/shared/constants";
 import { durationSeconds } from "@/shared/lib/format";
 import type { GalleryItem, GallerySort, Subfolder } from "@/shared/types";
@@ -11,13 +11,13 @@ export type SortOption = GallerySort;
 export type ItemFilter = "all" | "captioned" | "issue" | "uncaptioned";
 
 /** video means has motion, so it covers GIFs as well as MP4s. */
-export type MediaTypeFilter = "all" | "image" | "video";
+export type MediaTypeFilter = "all" | "image" | "video" | "audio";
 
 export type FileFilter = "all" | "edited" | "duplicates" | "candidates";
 
 const ITEM_FILTER_VALUES = new Set<ItemFilter>(["all", "captioned", "issue", "uncaptioned"]);
 
-const MEDIA_TYPE_FILTER_VALUES = new Set<MediaTypeFilter>(["all", "image", "video"]);
+const MEDIA_TYPE_FILTER_VALUES = new Set<MediaTypeFilter>(["all", "image", "video", "audio"]);
 
 const FILE_FILTER_VALUES = new Set<FileFilter>(["all", "edited", "duplicates", "candidates"]);
 
@@ -214,6 +214,7 @@ export function applyFileFilter(items: GalleryItem[], fileFilter: FileFilter): G
 export function matchesMediaTypeFilter(item: GalleryItem, filter: MediaTypeFilter): boolean {
   if (filter === "image") return item.media_type === "image";
   if (filter === "video") return isMotion(item);
+  if (filter === "audio") return isAudio(item);
   return true;
 }
 

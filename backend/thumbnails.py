@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 
 from app_settings import effective_settings
-from constants import MEDIA_EXTENSIONS, PILLOW_EXTENSIONS
+from constants import AUDIO_EXTENSIONS, GALLERY_EXTENSIONS, PILLOW_EXTENSIONS
 from ffmpeg_bin import ffmpeg_path
 from image_io import displayed_image
 from schemas import ThumbnailCacheCleared, ThumbnailCacheStats
@@ -22,6 +22,13 @@ DEFAULT_THUMBNAIL_WIDTH = 400
 MIN_THUMBNAIL_WIDTH = 64
 MAX_THUMBNAIL_WIDTH = 1200
 WEBP_QUALITY = 80
+
+#: Width over height of an audio thumbnail; the card centres it inside its own box.
+WAVEFORM_ASPECT = 2.0
+
+VIDEO_THUMBNAIL_TIMEOUT_SECONDS = 30
+#: A waveform decodes the whole file, not one frame.
+AUDIO_THUMBNAIL_TIMEOUT_SECONDS = 120
 
 #: A prune walks the whole cache tree; a gallery scrolling a new folder generates in bursts.
 PRUNE_EVERY_N_THUMBNAILS = 200
@@ -148,13 +155,43 @@ def _video_thumbnail_commands(source: Path, destination: Path, width: int) -> li
     ]
 
 
-def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None:
+def _audio_thumbnail_command(source: Path, destination: Path, width: int) -> list[str]:
+    """White wave on a clear ground: the frontend uses it as a mask, so the theme picks the color."""
+    height = round(width / WAVEFORM_ASPECT)
+    waveform = (
+        f"aformat=channel_layouts=mono,"
+        f"showwavespic=s={width}x{height}:colors=white:scale=sqrt,format=yuva420p"
+    )
+    return [
+        "-i",
+        str(source),
+        "-filter_complex",
+        waveform,
+        "-frames:v",
+        "1",
+        "-f",
+        "image2",
+        "-c:v",
+        "libwebp",
+        "-quality",
+        str(WEBP_QUALITY),
+        "-update",
+        "1",
+        "-y",
+        str(destination),
+    ]
+
+
+def _run_ffmpeg_thumbnail(
+    attempts: list[list[str]], destination: Path, *, kind: str, product: str, timeout: float
+) -> None:
+    """First attempt that writes a non-empty ``destination`` wins; the last failure is raised."""
     ffmpeg = ffmpeg_path()
     if not ffmpeg:
-        raise ThumbnailUnavailableError("Video thumbnail requires ffmpeg")
+        raise ThumbnailUnavailableError(f"{kind} thumbnail requires ffmpeg")
 
     errors: list[str] = []
-    for command_args in _video_thumbnail_commands(source, destination, width):
+    for command_args in attempts:
         destination.unlink(missing_ok=True)
 
         command = [
@@ -171,22 +208,42 @@ def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None
                 command,
                 check=False,
                 capture_output=True,
-                timeout=30,
+                timeout=timeout,
             )
         except FileNotFoundError as exc:
-            raise ThumbnailUnavailableError("Video thumbnail requires ffmpeg") from exc
+            raise ThumbnailUnavailableError(f"{kind} thumbnail requires ffmpeg") from exc
         except subprocess.TimeoutExpired:
-            errors.append("Timed out while extracting a video frame")
+            errors.append(f"Timed out while extracting {product}")
             continue
 
         if completed.returncode == 0 and destination.is_file() and destination.stat().st_size > 0:
             return
 
         stderr = completed.stderr.decode("utf-8", errors="replace").strip()
-        errors.append(stderr or "ffmpeg failed to extract a video frame")
+        errors.append(stderr or f"ffmpeg failed to extract {product}")
 
-    detail = errors[-1] if errors else "ffmpeg failed to extract a video frame"
+    detail = errors[-1] if errors else f"ffmpeg failed to extract {product}"
     raise ThumbnailUnavailableError(detail)
+
+
+def _render_video_thumbnail(source: Path, destination: Path, width: int) -> None:
+    _run_ffmpeg_thumbnail(
+        _video_thumbnail_commands(source, destination, width),
+        destination,
+        kind="Video",
+        product="a video frame",
+        timeout=VIDEO_THUMBNAIL_TIMEOUT_SECONDS,
+    )
+
+
+def _render_audio_thumbnail(source: Path, destination: Path, width: int) -> None:
+    _run_ffmpeg_thumbnail(
+        [_audio_thumbnail_command(source, destination, width)],
+        destination,
+        kind="Audio",
+        product="a waveform",
+        timeout=AUDIO_THUMBNAIL_TIMEOUT_SECONDS,
+    )
 
 
 def _cached_thumbnails() -> list[tuple[float, int, Path]]:
@@ -272,7 +329,7 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
     normalized_width = normalize_thumbnail_width(width)
     suffix = source.suffix.lower()
 
-    if suffix not in MEDIA_EXTENSIONS:
+    if suffix not in GALLERY_EXTENSIONS:
         raise ThumbnailError("Unsupported media type for thumbnails")
 
     cached = thumbnail_cache_path(source, normalized_width)
@@ -296,6 +353,8 @@ def get_or_create_thumbnail(source: Path, width: int) -> Path:
             if suffix in PILLOW_EXTENSIONS:
                 # GIF via Pillow: frame zero is the poster a still thumbnail wants.
                 _render_image_thumbnail(source, temp_path, normalized_width)
+            elif suffix in AUDIO_EXTENSIONS:
+                _render_audio_thumbnail(source, temp_path, normalized_width)
             else:
                 _render_video_thumbnail(source, temp_path, normalized_width)
             os.replace(temp_path, cached)

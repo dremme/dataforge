@@ -423,6 +423,31 @@ def write_mp4_video(root: Path, name: str = "clip.mp4", **options: Any) -> Path:
     return media
 
 
+def write_wav(root: Path, name: str = "tone.wav", *, seconds: float = 2.0) -> Path:
+    """8 kHz mono PCM square wave: loud enough that a waveform render draws something."""
+    import wave
+
+    media = root / name
+    rate = 8000
+    samples = round(rate * seconds)
+    period = struct.pack("<h", 8000) * 8 + struct.pack("<h", -8000) * 8
+    with wave.open(str(media), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes((period * (samples // 16 + 1))[: samples * 2])
+    return media
+
+
+def write_mp3(root: Path, name: str = "tone.mp3", *, frames: int = 100) -> Path:
+    """Zero-filled CBR frames (MPEG-1 Layer III, 128 kbps, 44.1 kHz): 1152 samples each."""
+    header = bytes.fromhex("fffb9004")
+    frame = header + b"\x00" * (417 - len(header))
+    media = root / name
+    media.write_bytes(frame * frames)
+    return media
+
+
 def write_txt_caption(media: Path, text: str) -> Path:
     caption = media.with_suffix(".txt")
     caption.write_text(text, encoding="utf-8")

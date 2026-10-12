@@ -24,6 +24,18 @@ describe("gallery prefetch targets", () => {
     expect(targets[0].url).toContain("frame-1.jpg");
     expect(targets[0].fallbackUrl).toContain("/api/media?");
   });
+  it("never falls back to the raw file for video or audio", () => {
+    const motionRows = [
+      [{ path: "C:\\Photos\\clip.mp4", size: 1, media_type: "video" } as GalleryItem],
+      [{ path: "C:\\Photos\\voice.wav", size: 1, media_type: "audio" } as GalleryItem],
+    ];
+    const targets = collectGalleryPreviewTargets((i) => motionRows[i], motionRows.length, [
+      { index: 0 },
+      { index: 1 },
+    ]);
+    expect(targets.map((target) => target.fallbackUrl)).toEqual([undefined, undefined]);
+  });
+
   it("bounds masonry neighbors at the folder edges", () => {
     const targets = collectGalleryPreviewTargets(
       (i) => rows[i],
