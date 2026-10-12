@@ -3,7 +3,7 @@ import { openWorkspace } from "./workspace";
 
 for (const [model, title, architecture] of [
   ["krea2_raw", "Krea 2 Raw", "krea2"],
-  ["qwen_image_2_turbo", "Qwen Image 2.1 Turbo (w/ Training Adapter)", "qwen_image_2:turbo"],
+  ["qwen_image_2_turbo", "Qwen Image 2.1 Turbo", "qwen_image_2:turbo"],
 ]) {
   test(`${title}: loads its template and submits the selected model`, async ({
     page,
