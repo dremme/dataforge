@@ -23,9 +23,20 @@ export function hasUsableDuration(duration: number): boolean {
   return Number.isFinite(duration) && duration > 0;
 }
 
+/**
+ * Last step-aligned time before the duration. A range input only reaches step multiples, so a
+ * bare-duration max leaves the thumb short and an off-grid value splits thumb from fill.
+ */
+export function lastFrameTime(duration: number, step: number = FRAME_STEP_SECONDS): number {
+  if (!hasUsableDuration(duration)) return 0;
+  // The nudge keeps float error from flooring an exact multiple one step down.
+  const steps = Math.floor((duration - END_EPSILON) / step + 1e-9);
+  return Math.max(0, steps) * step;
+}
+
 export function clampFrameTime(time: number, duration: number): number {
   if (!hasUsableDuration(duration) || !Number.isFinite(time)) return 0;
-  return Math.min(Math.max(time, 0), duration - END_EPSILON);
+  return Math.min(Math.max(time, 0), lastFrameTime(duration));
 }
 
 export function stepFrameTime(

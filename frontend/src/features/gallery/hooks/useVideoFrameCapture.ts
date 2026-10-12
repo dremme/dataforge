@@ -5,6 +5,7 @@ import { JPEG_QUALITY, frameSaveOutcome } from "@/features/gallery/lib/frameCapt
 import {
   clampFrameTime,
   hasUsableDuration,
+  lastFrameTime,
   snapFrameTime,
   stepFrameTime,
   videoFrameTargetName,
@@ -26,6 +27,8 @@ export interface UseVideoFrameCaptureOptions {
 export interface VideoFrameCapture extends FrameCapture {
   videoRef: RefObject<HTMLVideoElement | null>;
   duration: number;
+  /** Slider max: the last step the range input can actually reach. */
+  sliderMax: number;
   sliderTime: number;
   /** Presented frame time where known, otherwise sliderTime. */
   displayTime: number;
@@ -94,7 +97,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
 
   const seedFromVideo = useCallback((video: HTMLVideoElement) => {
     video.pause();
-    const seeded = snapFrameTime(clampFrameTime(video.currentTime, video.duration));
+    const seeded = clampFrameTime(snapFrameTime(video.currentTime), video.duration);
     setSliderTimeState(seeded);
     setPresentedTime(video.currentTime);
   }, []);
@@ -182,6 +185,7 @@ export function useVideoFrameCapture(options: UseVideoFrameCaptureOptions): Vide
     frameMode,
     ready,
     duration,
+    sliderMax: lastFrameTime(duration),
     sliderTime,
     displayTime,
     saving,

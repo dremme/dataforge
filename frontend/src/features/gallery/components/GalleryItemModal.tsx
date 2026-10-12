@@ -814,7 +814,8 @@ export function GalleryItemModal({
                   controls={!frameCapture.frameMode && !editMode}
                   autoPlay
                   // Editing loops the trim band itself, and needs `ended` to reach the band's end.
-                  loop={!editMode}
+                  // Capture: Chrome wraps a looping video to 0 when seeking into its last frame.
+                  loop={!editMode && !frameCapture.frameMode}
                   muted
                   playsInline
                   onLoadedMetadata={(event) => {
@@ -954,7 +955,7 @@ export function GalleryItemModal({
           ) : (
             <FrameCaptureBar
               min={0}
-              max={videoCapture.duration}
+              max={videoCapture.sliderMax}
               step={FRAME_STEP_SECONDS}
               value={videoCapture.sliderTime}
               ready={videoCapture.ready}

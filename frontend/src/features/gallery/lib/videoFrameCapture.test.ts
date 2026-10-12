@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { frameSaveOutcome } from "./frameCapture";
 import {
-  END_EPSILON,
   FRAME_STEP_SECONDS,
   clampFrameTime,
   formatFrameTime,
   frameTimeStamp,
   hasUsableDuration,
+  lastFrameTime,
   snapFrameTime,
   stepFrameTime,
   videoFrameTargetName,
@@ -96,12 +96,31 @@ describe("clampFrameTime", () => {
     expect(clampFrameTime(-3, 10)).toBe(0);
   });
 
-  it("stops short of the duration so the seek still lands on a frame", () => {
-    expect(clampFrameTime(99, 10)).toBe(10 - END_EPSILON);
+  it("stops on the last step so the seek still lands on a frame", () => {
+    expect(clampFrameTime(99, 10)).toBe(lastFrameTime(10));
   });
 
   it("passes an in-range time through", () => {
     expect(clampFrameTime(4.25, 10)).toBe(4.25);
+  });
+});
+
+describe("lastFrameTime", () => {
+  // A range input only reaches step-aligned values, so a bare duration leaves the thumb short.
+  it("lands on a step boundary when the duration is off the step grid", () => {
+    expect(lastFrameTime(1.625)).toBeCloseTo(48 * FRAME_STEP_SECONDS, 9);
+  });
+
+  it("stays one step short of a duration on the step grid", () => {
+    expect(lastFrameTime(10)).toBeCloseTo(10 - FRAME_STEP_SECONDS, 9);
+  });
+
+  it("collapses to zero for a clip shorter than a step", () => {
+    expect(lastFrameTime(FRAME_STEP_SECONDS / 2)).toBe(0);
+  });
+
+  it("collapses to zero when the duration is unusable", () => {
+    expect(lastFrameTime(Number.POSITIVE_INFINITY)).toBe(0);
   });
 });
 
@@ -115,7 +134,12 @@ describe("stepFrameTime", () => {
   });
 
   it("never steps onto the duration itself", () => {
-    expect(stepFrameTime(10, 1, 10)).toBe(10 - END_EPSILON);
+    expect(stepFrameTime(10, 1, 10)).toBe(lastFrameTime(10));
+  });
+
+  it("stays on the last step when stepping forward from it", () => {
+    const last = lastFrameTime(1.625);
+    expect(stepFrameTime(last, 1, 1.625)).toBe(last);
   });
 
   it("never steps below zero", () => {
