@@ -1,7 +1,12 @@
 import type { GalleryItem } from "@/shared/types";
 import type { MediaResolution } from "@/features/gallery/hooks/useMediaResolution";
 import { formatAspectRatio } from "@/features/gallery/lib/aspectRatio";
-import { formatCount, formatMegapixels, formatModifiedAt } from "@/shared/lib/format";
+import {
+  formatCount,
+  formatFileSize,
+  formatMegapixels,
+  formatModifiedAt,
+} from "@/shared/lib/format";
 import { Icon } from "@/shared/ui/Icon";
 import { iconComfyUi } from "@/shared/brandIcons";
 import { classNames } from "@/shared/lib/classNames";
@@ -29,9 +34,11 @@ export function MediaInfoBar({
   role,
 }: MediaInfoBarProps) {
   const modifiedLabel = item.modified_at ? formatModifiedAt(item.modified_at) : null;
+  const sizeLabel = item.size ? formatFileSize(item.size) : null;
   const showWorkflow = Boolean(hasComfyWorkflow && onInspectComfyWorkflow);
-  const hasFollowingMeta = Boolean(resolution) || showWorkflow;
-  const hasMediaMeta = Boolean(modifiedLabel) || hasFollowingMeta;
+  const hasMetaAfterSize = Boolean(resolution) || showWorkflow;
+  const hasMetaAfterModified = Boolean(sizeLabel) || hasMetaAfterSize;
+  const hasMediaMeta = Boolean(modifiedLabel) || hasMetaAfterModified;
 
   return (
     <div className={classNames("media-info", className)} role={role} aria-label="Media details">
@@ -41,7 +48,16 @@ export function MediaInfoBar({
             <span className="media-info__value">{modifiedLabel}</span>
             <span className="media-info__label">Modified</span>
           </div>
-          <MetaDivider show={hasFollowingMeta} />
+          <MetaDivider show={hasMetaAfterModified} />
+        </>
+      )}
+      {sizeLabel && (
+        <>
+          <div className="media-info__item">
+            <span className="media-info__value">{sizeLabel}</span>
+            <span className="media-info__label">File size</span>
+          </div>
+          <MetaDivider show={hasMetaAfterSize} />
         </>
       )}
       {resolution && (

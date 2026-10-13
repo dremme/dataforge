@@ -29,16 +29,17 @@ import { Icon } from "@/shared/ui/Icon";
 import { Tooltip } from "@/shared/ui/Tooltip";
 import {
   iconHammer,
-  iconMessageCheck,
+  iconMessageWarning,
   iconCpu,
-  iconFileCheck,
   iconFilePen,
   iconFilePlus,
+  iconFiles,
   iconScanSquare,
   iconChevronDown,
   iconBan,
   iconLoader2,
   iconCircleAlert,
+  iconSearchCheck,
   iconTriangleAlert,
   iconX,
 } from "@/shared/icons";
@@ -153,15 +154,15 @@ function ReviewMenu({ panel }: { panel: AutomationActions }) {
   const queues = [
     {
       label: "Caption issues",
-      icon: iconMessageCheck,
+      icon: iconMessageWarning,
       tone: "warning",
       count: panel.issueCount ?? 0,
       action: panel.onResolveIssues,
     },
     {
       label: "Duplicate groups",
-      icon: iconFileCheck,
-      tone: "warning",
+      icon: iconFiles,
+      tone: "accent",
       count: panel.duplicateGroupCount ?? 0,
       action: panel.onResolveDuplicates,
     },
@@ -180,7 +181,7 @@ function ReviewMenu({ panel }: { panel: AutomationActions }) {
     <>
       <div ref={menu.rootRef}>
         <button type="button" className="workspace-button" {...menu.triggerProps}>
-          <Icon icon={iconMessageCheck} />
+          <Icon icon={iconSearchCheck} />
           Review <span className="workspace-actions__count">{total}</span>
           <Icon icon={iconChevronDown} />
         </button>

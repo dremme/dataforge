@@ -144,6 +144,25 @@ describe("GalleryItemModal", () => {
     expect(within(dialog).getByText(modifiedLabel!)).toBeInTheDocument();
   });
 
+  it("shows the file size in the media meta section", async () => {
+    renderWithProviders(
+      <GalleryItemModal
+        items={[makeItem("sunset.png", { size: 2.5 * 1024 * 1024 })]}
+        index={0}
+        onClose={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onCaptionSaved={vi.fn()}
+      />,
+    );
+
+    const dialog = await screen.findByRole("dialog", { name: "Viewing sunset.png" });
+    const meta = within(dialog).getByLabelText("Media details");
+
+    expect(within(meta).getByText("File size")).toBeInTheDocument();
+    expect(within(meta).getByText("2.5 MB")).toBeInTheDocument();
+  });
+
   it("shows the aspect ratio next to the dimensions", async () => {
     renderWithProviders(
       <GalleryItemModal

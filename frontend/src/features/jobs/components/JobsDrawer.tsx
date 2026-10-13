@@ -17,9 +17,9 @@ import { isUnseenJob } from "@/features/jobs/lib/jobSeen";
 import { ModalShell } from "@/shared/ui/ModalShell";
 import {
   iconBot,
-  iconFileCheck,
+  iconFiles,
   iconFolder,
-  iconMessageCheck,
+  iconMessageWarning,
   iconScanSquare,
   iconTrash2,
   iconX,
@@ -89,7 +89,7 @@ function followUpsFor(
   if (issueCount > 0 && actions.onResolveIssues && ISSUE_JOB_TYPES.has(job.job_type)) {
     followUps.push({
       label: `Review ${plural(issueCount, "issue")}`,
-      icon: iconMessageCheck,
+      icon: iconMessageWarning,
       onClick: thenClose(actions.onResolveIssues),
     });
   }
@@ -100,7 +100,7 @@ function followUpsFor(
   ) {
     followUps.push({
       label: `Resolve ${plural(duplicateGroupCount, "duplicate group")}`,
-      icon: iconFileCheck,
+      icon: iconFiles,
       onClick: thenClose(actions.onResolveDuplicates),
     });
   }
