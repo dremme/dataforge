@@ -1,6 +1,7 @@
 import { iconClapperboard } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
+import { Tooltip } from "@/shared/ui/Tooltip";
 import type { VideoProjectSummary } from "@/shared/types";
 import { optionalThumbnailUrl } from "@/features/gallery/api/media";
 import { useVideoProjectList } from "@/features/videoEditor/hooks/useVideoProjectList";
@@ -58,34 +59,44 @@ function VideoProjectCard({
   onOpen: (projectPath: string) => void;
 }) {
   const edited = new Date(project.updated_at);
+  const hasEdited = !Number.isNaN(edited.getTime());
   const clips = `${project.clip_count} ${project.clip_count === 1 ? "clip" : "clips"}`;
+
+  const tooltip = (
+    <span className="video-project-card__tip">
+      <span className="video-project-card__tip-name">{project.name}</span>
+      <span>{fileName(project.path)}</span>
+      {hasEdited && <span>Edited {edited.toLocaleString()}</span>}
+    </span>
+  );
+
   return (
-    <button
-      type="button"
-      className="video-project-card"
-      onClick={() => onOpen(project.path)}
-      aria-label={`Open the video project ${project.name} in the video editor`}
-      title={[
-        fileName(project.path),
-        project.initial_source_name && `from ${project.initial_source_name}`,
-      ]
-        .filter(Boolean)
-        .join(", ")}
-    >
-      <span className="video-project-card__thumb" aria-hidden="true">
-        {project.initial_source_path && (
-          <img src={optionalThumbnailUrl(project.initial_source_path, 200)} alt="" loading="lazy" />
-        )}
-        <Icon icon={iconClapperboard} className="video-project-card__badge" />
-      </span>
-      <span className="video-project-card__body">
-        <span className="video-project-card__name">{project.name}</span>
-        <span className="video-project-card__meta">
-          {formatTimecode(project.duration)} · {clips}
-          {Number.isNaN(edited.getTime()) ? "" : ` · ${edited.toLocaleDateString()}`}
+    <Tooltip content={tooltip} className="video-project-grid__cell">
+      <button
+        type="button"
+        className="video-project-card"
+        onClick={() => onOpen(project.path)}
+        aria-label={`Open the video project ${project.name} in the video editor`}
+      >
+        <span className="video-project-card__thumb" aria-hidden="true">
+          {project.initial_source_path && (
+            <img
+              src={optionalThumbnailUrl(project.initial_source_path, 200)}
+              alt=""
+              loading="lazy"
+            />
+          )}
+          <Icon icon={iconClapperboard} className="video-project-card__badge" />
         </span>
-      </span>
-    </button>
+        <span className="video-project-card__body">
+          <span className="video-project-card__name">{project.name}</span>
+          <span className="video-project-card__meta">
+            {formatTimecode(project.duration)} · {clips}
+            {hasEdited ? ` · ${edited.toLocaleDateString()}` : ""}
+          </span>
+        </span>
+      </button>
+    </Tooltip>
   );
 }
 

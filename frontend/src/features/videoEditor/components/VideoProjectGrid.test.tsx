@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { VideoProjectSummary } from "@/shared/types";
 import { renderWithQueryClient } from "@/test/queryClient";
@@ -40,5 +41,30 @@ describe("VideoProjectGrid", () => {
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Video projects" })).not.toBeInTheDocument(),
     );
+  });
+
+  it("describes the project in a tooltip on hover", async () => {
+    vi.mocked(api.listVideoProjects).mockResolvedValue({ projects: [summary] });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    try {
+      renderWithQueryClient(
+        <VideoProjectGrid folderPath="C:\media" fingerprint="" searchQuery="" onOpen={vi.fn()} />,
+      );
+
+      await user.hover(
+        await screen.findByRole("button", {
+          name: "Open the video project Trip in the video editor",
+        }),
+      );
+      await act(() => vi.advanceTimersByTimeAsync(500));
+
+      const tooltip = screen.getByRole("tooltip");
+      expect(tooltip).toHaveTextContent("Trip");
+      expect(tooltip).toHaveTextContent("trip.video-project.json");
+      expect(tooltip).toHaveTextContent("Edited");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

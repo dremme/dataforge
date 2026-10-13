@@ -115,6 +115,7 @@ class FolderReviewCountsResponse(BaseModel):
 
     path: str
     issue_count: int
+    duplicate_count: int
     candidate_count: int
 
 

@@ -1,7 +1,7 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Subfolder } from "@/shared/types";
+import type { FolderReviewCountsResponse, Subfolder } from "@/shared/types";
 import { FOLDER_CLAMP_LIMIT, FOLDER_CLAMP_MIN_HIDDEN } from "@/features/folder/lib/folderCards";
 import { readFolderExpanded, writeFolderExpanded } from "@/features/folder/lib/folderExpansion";
 import { FolderGrid } from "./FolderGrid";
@@ -57,65 +57,28 @@ describe("FolderGrid", () => {
     expect(needsReview).toBeInTheDocument();
     expect(issueBadge(clean)).toBeNull();
     expect(issueBadge(needsReview)).toHaveTextContent("3");
-    expect(duplicateBadge(needsReview)).toBeNull();
   });
 
-  it("warns about duplicates on their own, with no caption issues", () => {
+  it("shows no badge or label for duplicates", () => {
     renderWithQueryClient(
       <FolderGrid
-        folders={[makeFolder({ issue_count: 0, duplicate_count: 2 })]}
+        folders={[makeFolder({ issue_count: 2, duplicate_count: 3 })]}
         onOpen={vi.fn()}
       />,
     );
 
-    const card = screen.getByRole("button", { name: "Album (2 duplicates)" });
-
-    expect(duplicateBadge(card)).toHaveTextContent("2");
-    expect(issueBadge(card)).toBeNull();
-  });
-
-  it("names caption issues and duplicates separately rather than as a total", () => {
-    // The two counts come from separate sidecars and one file can carry both, so a
-    // 2-file folder can hold 2 issues and 2 duplicates without contradicting itself.
-    renderWithQueryClient(
-      <FolderGrid
-        folders={[makeFolder({ issue_count: 2, duplicate_count: 2 })]}
-        onOpen={vi.fn()}
-      />,
-    );
-
-    const card = screen.getByRole("button", { name: "Album (2 caption issues, 2 duplicates)" });
+    const card = screen.getByRole("button", { name: "Album (2 caption issues)" });
 
     expect(issueBadge(card)).toHaveTextContent("2");
-    expect(duplicateBadge(card)).toHaveTextContent("2");
+    expect(card.querySelectorAll(".folder-card__finding")).toHaveLength(1);
   });
 
-  it("puts a lone issue and a lone duplicate in the singular", () => {
+  it("puts a lone issue in the singular", () => {
     renderWithQueryClient(
-      <FolderGrid
-        folders={[makeFolder({ issue_count: 1, duplicate_count: 1 })]}
-        onOpen={vi.fn()}
-      />,
+      <FolderGrid folders={[makeFolder({ issue_count: 1 })]} onOpen={vi.fn()} />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Album (1 caption issue, 1 duplicate)" }),
-    ).toBeInTheDocument();
-  });
-
-  // duplicate_count arrives from a separate stats call and is optional, so gating the
-  // warning on both counts being present would silently drop it.
-  it("still warns about caption issues while the duplicate count is missing", () => {
-    renderWithQueryClient(
-      <FolderGrid
-        folders={[makeFolder({ issue_count: 3, duplicate_count: null })]}
-        onOpen={vi.fn()}
-      />,
-    );
-
-    const card = screen.getByRole("button", { name: "Album (3 caption issues)" });
-
-    expect(issueBadge(card)).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: "Album (1 caption issue)" })).toBeInTheDocument();
   });
 
   it("leaves a folder with no findings unlabelled and unmarked", () => {
@@ -219,16 +182,12 @@ function issueBadge(card: HTMLElement) {
   return card.querySelector(".folder-card__finding--issue");
 }
 
-function duplicateBadge(card: HTMLElement) {
-  return card.querySelector(".folder-card__finding--duplicate");
-}
-
 function coverage(card: HTMLElement) {
   return card.querySelector(".folder-card__coverage");
 }
 
 describe("FolderGrid card tooltip", () => {
-  function stubReviewCounts(counts: { issue_count: number; candidate_count: number }) {
+  function stubReviewCounts(counts: Omit<FolderReviewCountsResponse, "path">) {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(String(input), "http://localhost").searchParams.get("path");
       return new Response(JSON.stringify({ path, ...counts }), {
@@ -247,7 +206,7 @@ describe("FolderGrid card tooltip", () => {
 
   it("fetches review counts for the hovered card only, not on load", async () => {
     const user = userEvent.setup();
-    const fetchMock = stubReviewCounts({ issue_count: 0, candidate_count: 0 });
+    const fetchMock = stubReviewCounts({ issue_count: 0, duplicate_count: 0, candidate_count: 0 });
     renderWithQueryClient(<FolderGrid folders={makeFolders(3)} onOpen={vi.fn()} />);
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -263,7 +222,7 @@ describe("FolderGrid card tooltip", () => {
   it("shows the full name and counts after the usual tooltip delay", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    stubReviewCounts({ issue_count: 0, candidate_count: 1 });
+    stubReviewCounts({ issue_count: 0, duplicate_count: 2, candidate_count: 1 });
     const name = "A folder name long enough to be clamped on its card";
     renderWithQueryClient(<FolderGrid folders={[makeFolder({ name })]} onOpen={vi.fn()} />);
 
@@ -277,6 +236,7 @@ describe("FolderGrid card tooltip", () => {
     expect(tooltip).toHaveTextContent(name);
     expect(tooltip).toHaveTextContent("No caption issues");
     expect(tooltip).toHaveTextContent("1 staged candidate");
+    expect(tooltip).toHaveTextContent("2 duplicates");
   });
 });
 

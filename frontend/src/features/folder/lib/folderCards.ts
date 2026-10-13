@@ -6,14 +6,9 @@ export const FOLDER_CLAMP_LIMIT = 10;
 // keeps every "Show N more folders" label plural.
 export const FOLDER_CLAMP_MIN_HIDDEN = 5;
 
-export function folderFindings({
-  issue_count: issues,
-  duplicate_count: duplicates,
-}: Subfolder): string[] {
-  const findings: string[] = [];
-  if (issues) findings.push(issues === 1 ? "1 caption issue" : `${issues} caption issues`);
-  if (duplicates) findings.push(duplicates === 1 ? "1 duplicate" : `${duplicates} duplicates`);
-  return findings;
+export function folderFindings({ issue_count: issues }: Subfolder): string[] {
+  if (!issues) return [];
+  return [issues === 1 ? "1 caption issue" : `${issues} caption issues`];
 }
 
 export function folderCardLabel(folder: Subfolder): string {

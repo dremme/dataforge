@@ -293,10 +293,13 @@ class FolderContentsEndpointTests(unittest.TestCase):
 
 
 class FolderReviewCountsEndpointTests(unittest.TestCase):
-    def test_counts_caption_issues_and_staged_candidates(self) -> None:
+    def test_counts_caption_issues_duplicates_and_staged_candidates(self) -> None:
         with TempMediaFolder() as root:
             flagged = write_media(root, "flagged.png")
             issue_file_path(flagged).write_text('{"correct": false}', encoding="utf-8")
+            save_duplicate_finding(
+                flagged, DuplicateFinding(group="abc123", max_distance=0, threshold="exact")
+            )
             write_media(root, "photo.jpg")
             write_media(root, "plain.png")
             (root / STAGING_DIR_NAME).mkdir()
@@ -308,6 +311,7 @@ class FolderReviewCountsEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["issue_count"], 1)
+        self.assertEqual(response.json()["duplicate_count"], 1)
         self.assertEqual(response.json()["candidate_count"], 1)
 
     def test_returns_404_for_missing_folder(self) -> None:

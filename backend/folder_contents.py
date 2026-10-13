@@ -7,7 +7,12 @@ from time import perf_counter
 from fastapi import HTTPException
 
 from candidate_pairing import candidate_name_for
-from constants import ISSUE_SIDECAR_SUFFIX, LAST_FOLDER_KEY, STAGING_DIR_NAME
+from constants import (
+    DUPLICATE_SIDECAR_SUFFIX,
+    ISSUE_SIDECAR_SUFFIX,
+    LAST_FOLDER_KEY,
+    STAGING_DIR_NAME,
+)
 from db import get_preference, set_preference
 from filesystem import build_breadcrumbs, get_home_folder, list_subfolders
 from folder_fingerprint import (
@@ -135,11 +140,18 @@ def build_folder_review_counts(folder: Path) -> FolderReviewCountsResponse:
     """Counts by the listing's own pairing rule, so they match the folder's gallery filters."""
     scan = scan_folder(folder)
     if scan is None:
-        return FolderReviewCountsResponse(path=str(folder), issue_count=0, candidate_count=0)
+        return FolderReviewCountsResponse(
+            path=str(folder), issue_count=0, duplicate_count=0, candidate_count=0
+        )
     return FolderReviewCountsResponse(
         path=str(folder),
         issue_count=sum(
             1 for entry in scan.media if scan.sidecar(entry.name, ISSUE_SIDECAR_SUFFIX) is not None
+        ),
+        duplicate_count=sum(
+            1
+            for entry in scan.media
+            if scan.sidecar(entry.name, DUPLICATE_SIDECAR_SUFFIX) is not None
         ),
         candidate_count=sum(
             1

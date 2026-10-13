@@ -28,13 +28,15 @@ function makeFolders(count: number, overrides: (index: number) => Partial<Subfol
 }
 
 describe("folderFindings", () => {
-  it("counts caption issues and duplicates, singular and plural", () => {
+  it("counts caption issues, singular and plural", () => {
     expect(folderFindings(makeFolder({ issue_count: 1 }))).toEqual(["1 caption issue"]);
     expect(folderFindings(makeFolder({ issue_count: 3 }))).toEqual(["3 caption issues"]);
-    expect(folderFindings(makeFolder({ duplicate_count: 1 }))).toEqual(["1 duplicate"]);
+  });
+
+  it("does not report duplicates", () => {
+    expect(folderFindings(makeFolder({ duplicate_count: 4 }))).toEqual([]);
     expect(folderFindings(makeFolder({ issue_count: 2, duplicate_count: 4 }))).toEqual([
       "2 caption issues",
-      "4 duplicates",
     ]);
   });
 
@@ -92,12 +94,12 @@ describe("clampFolders", () => {
     expect(clampFolders(folders).hiddenFlagged).toBe(2);
   });
 
-  it("counts duplicates as needing review too", () => {
+  it("does not count duplicates as needing review", () => {
     const folders = makeFolders(FOLDER_CLAMP_LIMIT + HIDDEN, (index) =>
       index === FOLDER_CLAMP_LIMIT ? { duplicate_count: 5 } : {},
     );
 
-    expect(clampFolders(folders).hiddenFlagged).toBe(1);
+    expect(clampFolders(folders).hiddenFlagged).toBe(0);
   });
 
   it("flags nothing while the counts are still pending", () => {

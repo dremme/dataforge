@@ -2940,6 +2940,15 @@ $lane-inset: 4px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 0.75rem;
+
+  // The card's tooltip wrapper is the grid item, so the card has to fill it.
+  &__cell {
+    align-items: stretch;
+
+    > .video-project-card {
+      flex: 1;
+    }
+  }
 }
 
 .video-project-card {
@@ -2960,6 +2969,21 @@ $lane-inset: 4px;
     border-color: var(--accent-border);
     box-shadow: var(--shadow);
     @include fade-bg(var(--bg-elevated));
+  }
+
+  // Portalled out of the card, so these style the bubble's content, not the card.
+  &__tip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    color: var(--text-muted);
+    font-weight: var(--font-normal);
+    overflow-wrap: anywhere;
+  }
+
+  &__tip-name {
+    color: var(--text);
+    font-weight: var(--font-semibold);
   }
 
   &__thumb {

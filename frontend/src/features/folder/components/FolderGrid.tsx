@@ -12,6 +12,7 @@ import {
   iconFolderOpen,
   iconFolderTree,
   iconImage,
+  iconScanSquare,
   iconTriangleAlert,
 } from "@/shared/icons";
 import { formatCount } from "@/shared/lib/format";
@@ -43,25 +44,16 @@ function FolderCardStats({ folder }: { folder: Subfolder }) {
   );
 }
 
-/** Issues and duplicates stay separate badges: one file can carry both, so a sum would mislead. */
 function FolderCardFindings({ folder }: { folder: Subfolder }) {
-  const { issue_count: issues, duplicate_count: duplicates } = folder;
-  if (!issues && !duplicates) return null;
+  const { issue_count: issues } = folder;
+  if (!issues) return null;
 
   return (
     <span className="folder-card__findings" aria-hidden="true">
-      {!!issues && (
-        <span className="folder-card__finding folder-card__finding--issue">
-          <Icon icon={iconTriangleAlert} className="folder-card__finding-icon" />
-          {formatCount(issues)}
-        </span>
-      )}
-      {!!duplicates && (
-        <span className="folder-card__finding folder-card__finding--duplicate">
-          <Icon icon={iconFiles} className="folder-card__finding-icon" />
-          {formatCount(duplicates)}
-        </span>
-      )}
+      <span className="folder-card__finding folder-card__finding--issue">
+        <Icon icon={iconTriangleAlert} className="folder-card__finding-icon" />
+        {formatCount(issues)}
+      </span>
     </span>
   );
 }
@@ -101,10 +93,20 @@ function FolderCard({ folder, onOpen }: { folder: Subfolder; onOpen: (path: stri
     <span className="folder-card__tip">
       <span className="folder-card__tip-name">{folder.name}</span>
       {counts ? (
-        <>
-          <span>{countLabel(counts.issue_count, "caption issue", "caption issues")}</span>
-          <span>{countLabel(counts.candidate_count, "staged candidate", "staged candidates")}</span>
-        </>
+        <div className="folder-card__tip-counts">
+          <span>
+            <Icon icon={iconTriangleAlert} />{" "}
+            {countLabel(counts.issue_count, "caption issue", "caption issues")}
+          </span>
+          <span>
+            <Icon icon={iconScanSquare} />{" "}
+            {countLabel(counts.candidate_count, "staged candidate", "staged candidates")}
+          </span>
+          <span>
+            <Icon icon={iconFiles} />{" "}
+            {countLabel(counts.duplicate_count, "duplicate", "duplicates")}
+          </span>
+        </div>
       ) : (
         <span className="folder-card__tip-pending">
           {failed ? "Counts unavailable" : "Counting..."}
