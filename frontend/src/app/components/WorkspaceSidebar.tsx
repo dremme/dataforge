@@ -21,6 +21,7 @@ import {
   iconFolderPlus,
   iconChevronLeft,
   iconChevronRight,
+  iconClapperboard,
   iconHammer,
 } from "@/shared/icons";
 import { Icon } from "@/shared/ui/Icon";
@@ -35,6 +36,9 @@ interface WorkspaceSidebarProps {
   onOpenFolder: () => void;
   onCreateFolder: () => void;
   onOpenSettings: () => void;
+  /** Starts an empty project in the open folder; off while no folder is open. */
+  onOpenVideoEditor: () => void;
+  videoEditorDisabled: boolean;
   createDisabled: boolean;
 }
 
@@ -53,6 +57,8 @@ export function WorkspaceSidebar({
   onOpenFolder,
   onCreateFolder,
   onOpenSettings,
+  onOpenVideoEditor,
+  videoEditorDisabled,
   createDisabled,
 }: WorkspaceSidebarProps) {
   const [collapsedWide, setCollapsedWide] = useState(() => readCollapsed(COLLAPSED_KEY, false));
@@ -172,6 +178,21 @@ export function WorkspaceSidebar({
           >
             <Icon icon={iconFolderOpen} />
             {!hidden && "Open folder"}
+          </button>
+        </Tooltip>
+        <Tooltip content="Open the video editor on a new project in this folder" placement="right">
+          <button
+            type="button"
+            className="workspace-button"
+            onClick={() => {
+              onOpenVideoEditor();
+              setShowNarrow(false);
+            }}
+            disabled={videoEditorDisabled}
+            aria-label="Open video editor"
+          >
+            <Icon icon={iconClapperboard} />
+            {!hidden && "Open video editor"}
           </button>
         </Tooltip>
         <SettingsButton onOpen={onOpenSettings} showLabel={!hidden} />

@@ -428,6 +428,28 @@ class BuildPromptTests(unittest.TestCase):
 
         self.assertEqual(prompt["7"]["inputs"]["text"], "sharp photograph")
 
+    def test_a_multiline_text_node_takes_the_prompt_under_value(self) -> None:
+        workflow = parse(
+            graph(**{"7": node("PrimitiveStringMultiline", {"value": ""}, "DataForge Prompt")})
+        )
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.png", filename_prefix="out", prompt_text="sharp photograph"
+        )
+
+        self.assertEqual(prompt["7"]["inputs"]["value"], "sharp photograph")
+
+    def test_an_encoder_takes_the_prompt_under_prompt(self) -> None:
+        workflow = parse(
+            graph(**{"7": node("TextEncodeQwenImageEdit", {"prompt": ""}, "DataForge Prompt")})
+        )
+
+        prompt = build_comfy_prompt(
+            workflow, media_ref="a.png", filename_prefix="out", prompt_text="sharp photograph"
+        )
+
+        self.assertEqual(prompt["7"]["inputs"]["prompt"], "sharp photograph")
+
     def test_a_preview_output_survives_the_prefix_patch(self) -> None:
         workflow = parse(
             {

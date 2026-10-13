@@ -9,6 +9,7 @@ import type {
   JobFileResult,
   FolderResponse,
   InstructionFileResponse,
+  VideoProjectSummary,
 } from "@/shared/types";
 import type { InstructionKind } from "@/shared/api/folderInstructions";
 import { appSettings, emptyFolder, HOME_SYSPROMPT, homeFolder, vacationFolder } from "./fixtures";
@@ -36,6 +37,8 @@ export interface MockBackendOptions {
   jobResults?: Record<string, JobFileResult[]>;
   /** Favorite folder paths; the home folder alone when absent. */
   folderFavorites?: string[];
+  /** Video editor drafts keyed by folder path; none unless a test needs them. */
+  videoProjects?: Record<string, VideoProjectSummary[]>;
 }
 
 function normalizeFolderKey(path: string | null | undefined): string | undefined {
@@ -411,6 +414,24 @@ export function installMockBackend(options: MockBackendOptions = {}) {
       }
 
       return jsonResponse(data);
+    }
+
+    if (url.pathname === "/api/video-projects") {
+      const folder = normalizeFolderKey(url.searchParams.get("folder"));
+      return jsonResponse({ projects: (folder && options.videoProjects?.[folder]) || [] });
+    }
+
+    if (url.pathname === "/api/video-projects/fonts") {
+      return jsonResponse({
+        families: [
+          { family: "Sample Sans", styles: ["Regular", "Italic", "Bold"] },
+          { family: "Sample Serif", styles: ["Regular"] },
+        ],
+      });
+    }
+
+    if (url.pathname === "/api/video-projects/exports") {
+      return jsonResponse({ exports: [] });
     }
 
     if (url.pathname === "/api/system/specs") {

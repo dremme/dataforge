@@ -12,13 +12,16 @@ vi.mock("@/features/gallery/lib/toolbarCompact", async (importOriginal) => ({
   toolbarNeedsCompact: needsCompact,
 }));
 
-function ToolbarProbe() {
+function ToolbarProbe({ label = "Auto-caption" }: { label?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const compact = useToolbarCompactMode(ref);
   return (
     <div ref={ref} className={classNames("toolbar", compact && "toolbar--compact")}>
-      <div className="toolbar__actions" />
-      <div className="toolbar__controls" />
+      <span className="toolbar__measure" />
+      <div className="toolbar__actions">{label}</div>
+      <div className="toolbar__controls">
+        <input aria-label="Search" />
+      </div>
     </div>
   );
 }
@@ -26,6 +29,7 @@ function ToolbarProbe() {
 describe("useToolbarCompactMode", () => {
   const SetupResizeObserver = window.ResizeObserver;
   let resized: ResizeObserverCallback | undefined;
+  let watched: Element[] = [];
   let actEnvironment: unknown;
 
   beforeEach(() => {
@@ -34,11 +38,14 @@ describe("useToolbarCompactMode", () => {
       constructor(callback: ResizeObserverCallback) {
         resized = callback;
       }
-      observe() {}
+      observe(element: Element) {
+        watched.push(element);
+      }
       unobserve() {}
       disconnect() {}
     };
     actEnvironment = Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT");
+    watched = [];
   });
 
   afterEach(() => {
@@ -58,5 +65,25 @@ describe("useToolbarCompactMode", () => {
     resized!([], {} as ResizeObserver);
 
     expect(toolbar).toHaveClass("toolbar--compact");
+  });
+
+  it("watches nothing that resizes when it flips, which browsers report as a loop", () => {
+    const { container } = render(<ToolbarProbe />);
+    const classes = watched.map((element) => element.className || element.tagName);
+
+    expect(classes).toContain("toolbar__measure");
+    expect(classes).toContain("INPUT");
+    // The toolbar's height and the actions' width both change with the compact mode.
+    expect(watched).not.toContain(container.querySelector(".toolbar"));
+    expect(watched).not.toContain(container.querySelector(".toolbar__actions"));
+  });
+
+  it("checks again when an action's label changes", async () => {
+    const { rerender } = render(<ToolbarProbe />);
+    needsCompact.mockClear();
+
+    rerender(<ToolbarProbe label="Auto-caption 3 of 120" />);
+
+    await vi.waitFor(() => expect(needsCompact).toHaveBeenCalled());
   });
 });

@@ -98,7 +98,7 @@ The following are unsupported:
 
 | Node title         | Input DataForge changes                                               |
 | ------------------ | --------------------------------------------------------------------- |
-| `DataForge Prompt` | The node's own `text` value, if a prompt is entered                   |
+| `DataForge Prompt` | `text`, `value` or `prompt`, if a prompt is entered                   |
 | `DataForge Seed`   | `seed` or `noise_seed`, if a seed is entered                          |
 | `DataForge FPS`    | The node's own numeric value, set to the source's measured frame rate |
 

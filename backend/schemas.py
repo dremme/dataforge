@@ -10,6 +10,9 @@ from constants import (
     DEFAULT_RESIZE_MULTIPLE,
     MAX_RESIZE_MEGAPIXELS,
     MAX_RESIZE_MULTIPLE,
+    VIDEO_PROJECT_MAX_TRACKS,
+    VIDEO_PROJECT_MIN_CLIP_SECONDS,
+    VIDEO_PROJECT_TIME_EPSILON,
 )
 
 # PEP 695 ``type`` aliases so pydantic emits named schemas, which become TS unions.
@@ -1499,6 +1502,392 @@ class ComfyCandidateBatchResponse(BaseModel):
     failed: list[ComfyCandidateFailure] = Field(default_factory=list)
 
 
+type VideoProjectSourceKind = Literal["video", "image", "audio"]
+type VideoProjectTrackKind = Literal["video", "audio"]
+type VideoProjectClipKind = Literal["video", "image", "audio", "title"]
+#: ``fit`` letterboxes inside the canvas, ``fill`` covers it and crops the overflow.
+type VideoProjectFitMode = Literal["fit", "fill"]
+type VideoProjectTitleAlign = Literal["left", "center", "right"]
+type VideoProjectSizePreset = Literal["source", "720p", "1080p"]
+type VideoProjectOrientation = Literal["landscape", "portrait", "square"]
+type VideoProjectQuality = Literal["standard", "high", "small"]
+#: ``changed`` means the file's size or modification time no longer matches the recorded one.
+type VideoProjectSourceState = Literal["ok", "missing", "changed"]
+type VideoProjectExportStatus = Literal["running", "completed", "failed", "cancelled"]
+
+MAX_PROJECT_CLIPS = 1000
+MAX_PROJECT_DIMENSION = 7680
+MIN_PROJECT_DIMENSION = 16
+MAX_PROJECT_FRAME_RATE = 120.0
+MAX_TITLE_LENGTH = 500
+
+type HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
+type ProjectId = Annotated[str, StringConstraints(min_length=1, max_length=64)]
+
+
+class VideoProjectSource(BaseModel):
+    """A file in the project's own folder, named rather than pathed so the folder can move."""
+
+    id: ProjectId
+    name: Annotated[str, StringConstraints(min_length=1, max_length=255)]
+    kind: VideoProjectSourceKind
+    #: Size and mtime as recorded when the source was added or last accepted. Microseconds, not
+    #: nanoseconds: a browser holds integers exactly only up to 2**53.
+    size: int = Field(ge=0)
+    modified_us: int = Field(ge=0)
+    duration: float | None = Field(None, gt=0)
+    width: int | None = Field(None, gt=0)
+    height: int | None = Field(None, gt=0)
+    frame_rate: float | None = Field(None, gt=0)
+    has_audio: bool = False
+
+
+class VideoProjectTrack(BaseModel):
+    id: ProjectId
+    kind: VideoProjectTrackKind
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+    locked: bool = False
+    #: Video tracks only: a hidden track is left out of the preview and the export.
+    hidden: bool = False
+    #: Audio tracks only.
+    muted: bool = False
+    solo: bool = False
+
+
+class VideoProjectTransform(BaseModel):
+    """Offsets are fractions of the canvas, measured from its center to the clip's center."""
+
+    x: float = Field(0.0, ge=-2.0, le=2.0)
+    y: float = Field(0.0, ge=-2.0, le=2.0)
+    #: Multiplies the fit or fill size.
+    scale: float = Field(1.0, ge=0.05, le=8.0)
+    #: Clockwise degrees.
+    rotation: float = Field(0.0, ge=-360.0, le=360.0)
+    opacity: float = Field(1.0, ge=0.0, le=1.0)
+
+
+class VideoProjectFont(BaseModel):
+    """An installed family and one of its styles, as Pillow names them; see ``system_fonts``."""
+
+    family: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    style: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] = (
+        "Regular"
+    )
+
+
+class VideoProjectTitle(BaseModel):
+    """A static text layer drawn over the full canvas."""
+
+    text: Annotated[str, StringConstraints(max_length=MAX_TITLE_LENGTH)] = "Title"
+    #: Line height as a fraction of the canvas height.
+    size: float = Field(0.08, ge=0.01, le=0.5)
+    color: HexColor = "#ffffff"
+    align: VideoProjectTitleAlign = "center"
+    #: Anchor point as fractions of the canvas; ``align`` decides which edge sits on it.
+    x: float = Field(0.5, ge=0.0, le=1.0)
+    y: float = Field(0.5, ge=0.0, le=1.0)
+    #: Fraction of the text size; 0 draws no outline.
+    outline: float = Field(0.0, ge=0.0, le=0.25)
+    outline_color: HexColor = "#000000"
+    #: None draws the default font, as does a family this machine does not have.
+    font: VideoProjectFont | None = None
+
+
+class VideoProjectClip(BaseModel):
+    """One placement on a track. ``start`` and ``duration`` are timeline seconds; ``source_in``
+    is where the take begins in the source, so it spans ``duration * speed`` source seconds."""
+
+    id: ProjectId
+    track_id: ProjectId
+    kind: VideoProjectClipKind
+    #: None for titles only.
+    source_id: ProjectId | None = None
+    start: float = Field(ge=0.0)
+    duration: float = Field(ge=VIDEO_PROJECT_MIN_CLIP_SECONDS)
+    source_in: float = Field(0.0, ge=0.0)
+    speed: float = Field(1.0, ge=MIN_EDIT_SPEED, le=MAX_EDIT_SPEED)
+    #: Clips sharing a link id move, trim, split and retime together.
+    link_id: ProjectId | None = None
+    transform: VideoProjectTransform = Field(default_factory=VideoProjectTransform)
+    crop: EditCropRect | None = None
+    fit: VideoProjectFitMode = "fit"
+    adjust: ColorAdjust = Field(default_factory=ColorAdjust)
+    #: What the wand last read, so its dial can rescale it; ``adjust`` already includes it.
+    auto_adjust: AutoAdjust | None = None
+    #: Audio clips only.
+    gain: float = Field(1.0, ge=MIN_EDIT_VOLUME, le=MAX_EDIT_VOLUME)
+    fade_in: float = Field(0.0, ge=0.0)
+    fade_out: float = Field(0.0, ge=0.0)
+    title: VideoProjectTitle | None = None
+
+    @property
+    def end(self) -> float:
+        return self.start + self.duration
+
+    @model_validator(mode="after")
+    def _check(self) -> "VideoProjectClip":
+        self.crop = validated_crop(self.crop)
+        if self.kind == "title":
+            if self.source_id is not None or self.title is None:
+                raise ValueError("A title clip carries its text and no source")
+        elif self.source_id is None:
+            raise ValueError(f"A {self.kind} clip needs a source")
+        if self.fade_in + self.fade_out > self.duration + VIDEO_PROJECT_TIME_EPSILON:
+            raise ValueError("A clip's fades cannot be longer than the clip")
+        return self
+
+
+class VideoProjectTransition(BaseModel):
+    """A cross-dissolve. Its length is the overlap of the two clips, never stored on its own."""
+
+    id: ProjectId
+    from_clip_id: ProjectId
+    to_clip_id: ProjectId
+
+
+class VideoProjectExportSettings(BaseModel):
+    #: Empty asks for the default, ``<initial source stem>-edited.mp4``.
+    filename: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
+    size: VideoProjectSizePreset = "source"
+    #: None follows the project's own shape.
+    orientation: VideoProjectOrientation | None = None
+    quality: VideoProjectQuality = "standard"
+    copy_caption: bool = False
+
+
+class VideoProject(BaseModel):
+    """Everything needed to rebuild an edit. Tracks are listed top to bottom as displayed: a
+    video track composites above every video track listed after it."""
+
+    format_version: Literal[1] = 1
+    id: ProjectId
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    #: Bumped by every save; a save naming an older revision is refused.
+    revision: int = Field(0, ge=0)
+    created_at: str
+    updated_at: str
+    width: int = Field(ge=MIN_PROJECT_DIMENSION, le=MAX_PROJECT_DIMENSION)
+    height: int = Field(ge=MIN_PROJECT_DIMENSION, le=MAX_PROJECT_DIMENSION)
+    frame_rate: float = Field(gt=0.0, le=MAX_PROJECT_FRAME_RATE)
+    #: The video the project was started from; its caption is the one an export may copy.
+    initial_source_id: ProjectId | None = None
+    sources: list[VideoProjectSource] = Field(default_factory=list)
+    tracks: list[VideoProjectTrack] = Field(min_length=1, max_length=VIDEO_PROJECT_MAX_TRACKS)
+    clips: list[VideoProjectClip] = Field(default_factory=list, max_length=MAX_PROJECT_CLIPS)
+    transitions: list[VideoProjectTransition] = Field(default_factory=list)
+    export: VideoProjectExportSettings = Field(default_factory=VideoProjectExportSettings)
+
+    @model_validator(mode="after")
+    def _check(self) -> "VideoProject":
+        validate_project_structure(self)
+        return self
+
+
+_CLIP_KINDS_BY_TRACK: dict[str, frozenset[str]] = {
+    "video": frozenset({"video", "image", "title"}),
+    "audio": frozenset({"audio"}),
+}
+_SOURCE_KINDS_BY_CLIP: dict[str, frozenset[str]] = {
+    "video": frozenset({"video"}),
+    "image": frozenset({"image"}),
+    "audio": frozenset({"audio", "video"}),
+}
+
+
+def _unique(ids: list[str], what: str) -> None:
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"Two {what} share an id")
+
+
+def validate_project_structure(project: VideoProject) -> None:
+    """References resolve, clips sit on tracks of their kind, and nothing on a track overlaps
+    except the two clips of a dissolve and their linked audio."""
+    _unique([source.id for source in project.sources], "sources")
+    _unique([track.id for track in project.tracks], "tracks")
+    _unique([clip.id for clip in project.clips], "clips")
+    _unique([transition.id for transition in project.transitions], "transitions")
+
+    sources = {source.id: source for source in project.sources}
+    tracks = {track.id: track for track in project.tracks}
+    clips = {clip.id: clip for clip in project.clips}
+
+    if project.initial_source_id is not None and project.initial_source_id not in sources:
+        raise ValueError("The initial source is not one of the project's sources")
+
+    for clip in project.clips:
+        track = tracks.get(clip.track_id)
+        if track is None:
+            raise ValueError(f"Clip {clip.id} is on a track the project does not have")
+        if clip.kind not in _CLIP_KINDS_BY_TRACK[track.kind]:
+            raise ValueError(f"A {clip.kind} clip cannot sit on a {track.kind} track")
+        if clip.source_id is not None:
+            source = sources.get(clip.source_id)
+            if source is None:
+                raise ValueError(f"Clip {clip.id} names a source the project does not have")
+            if source.kind not in _SOURCE_KINDS_BY_CLIP[clip.kind]:
+                raise ValueError(f"A {clip.kind} clip cannot play a {source.kind} file")
+
+    paired: set[frozenset[str]] = set()
+    for transition in project.transitions:
+        first = clips.get(transition.from_clip_id)
+        second = clips.get(transition.to_clip_id)
+        if first is None or second is None:
+            raise ValueError("A dissolve names a clip the project does not have")
+        if first.track_id != second.track_id or tracks[first.track_id].kind != "video":
+            raise ValueError("A dissolve joins two clips on the same video track")
+        if not (first.start < second.start < first.end - VIDEO_PROJECT_TIME_EPSILON):
+            raise ValueError("A dissolve needs its second clip to overlap the end of the first")
+        if second.end <= first.end:
+            raise ValueError("A dissolve's second clip must run past the first")
+        paired.add(frozenset({first.id, second.id}))
+        for partner in linked_audio_pairs(project, first, second):
+            paired.add(partner)
+
+    by_track: dict[str, list[VideoProjectClip]] = {}
+    for clip in project.clips:
+        by_track.setdefault(clip.track_id, []).append(clip)
+    for track_clips in by_track.values():
+        ordered = sorted(track_clips, key=lambda clip: clip.start)
+        for index, clip in enumerate(ordered):
+            for later in ordered[index + 1 :]:
+                if later.start >= clip.end - VIDEO_PROJECT_TIME_EPSILON:
+                    break
+                if frozenset({clip.id, later.id}) not in paired:
+                    track = tracks[clip.track_id]
+                    raise ValueError(f"Two clips overlap on {track.name}")
+
+
+def linked_audio_pairs(
+    project: VideoProject, first: VideoProjectClip, second: VideoProjectClip
+) -> list[frozenset[str]]:
+    """Audio clips linked to a dissolve's two clips that share a track: they cross-fade too."""
+    if first.link_id is None or second.link_id is None:
+        return []
+    first_audio = [c for c in project.clips if c.link_id == first.link_id and c.kind == "audio"]
+    second_audio = [c for c in project.clips if c.link_id == second.link_id and c.kind == "audio"]
+    return [
+        frozenset({a.id, b.id})
+        for a in first_audio
+        for b in second_audio
+        if a.track_id == b.track_id
+    ]
+
+
+class VideoProjectSourceStatus(BaseModel):
+    source_id: str
+    state: VideoProjectSourceState
+    #: Where the source is looked for: the project folder joined with its name.
+    path: str
+
+
+class VideoProjectDocument(BaseModel):
+    """A project as the editor opens it, with each source checked against the folder."""
+
+    #: None for a project not saved yet; the first save allocates a draft name.
+    path: str | None = None
+    folder: str
+    project: VideoProject
+    sources: list[VideoProjectSourceStatus] = Field(default_factory=list)
+    #: The exported video this project is the snapshot of, when opened from one.
+    opened_from_export: str | None = None
+
+
+class VideoProjectSummary(BaseModel):
+    path: str
+    name: str
+    updated_at: str
+    duration: float
+    clip_count: int
+    initial_source_name: str | None = None
+    #: The first video's path, for a thumbnail; None when it is gone.
+    initial_source_path: str | None = None
+
+
+class VideoProjectListResponse(BaseModel):
+    projects: list[VideoProjectSummary] = Field(default_factory=list)
+
+
+class VideoProjectSaveRequest(BaseModel):
+    folder: str
+    #: None saves a new draft under an allocated name.
+    path: str | None = None
+    #: The revision the client last read or saved; a newer one on disk refuses the save.
+    base_revision: int | None = None
+    project: VideoProject
+
+
+class VideoProjectSaveResponse(BaseModel):
+    path: str
+    revision: int
+    updated_at: str
+
+
+class VideoProjectFontFamily(BaseModel):
+    family: str
+    styles: list[str]
+
+
+class VideoProjectFontsResponse(BaseModel):
+    families: list[VideoProjectFontFamily] = Field(default_factory=list)
+
+
+class VideoProjectAutoAdjustRequest(BaseModel):
+    """The part of a source one clip shows: its take, and its crop."""
+
+    path: str
+    start: float = Field(0.0, ge=0.0)
+    #: None reads to the end of the source; a still has no time and ignores both.
+    end: float | None = Field(None, ge=0.0)
+    crop: EditCropRect | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "VideoProjectAutoAdjustRequest":
+        self.crop = validated_crop(self.crop)
+        return self
+
+
+class VideoProjectSourceInfo(BaseModel):
+    """What adding or relinking a file records about it."""
+
+    path: str
+    name: str
+    kind: VideoProjectSourceKind
+    size: int
+    modified_us: int
+    duration: float | None = None
+    width: int | None = None
+    height: int | None = None
+    frame_rate: float | None = None
+    has_audio: bool = False
+
+
+class VideoProjectExportRequest(BaseModel):
+    folder: str
+    #: The draft the export was started from, recorded for the outcome message only.
+    project_path: str | None = None
+    #: Frozen when the export starts: later draft edits never reach this render.
+    project: VideoProject
+
+
+class VideoProjectExportState(BaseModel):
+    id: str
+    folder: str
+    status: VideoProjectExportStatus
+    #: 0..1 of the rendered duration.
+    progress: float = 0.0
+    output_path: str
+    output_name: str
+    project_name: str
+    project_path: str | None = None
+    error: str | None = None
+    started_at: str
+    finished_at: str | None = None
+
+
+class VideoProjectExportsResponse(BaseModel):
+    exports: list[VideoProjectExportState] = Field(default_factory=list)
+
+
 class JobEvent(BaseModel):
     type: Literal["job"] = "job"
     job: JobResponse
@@ -1552,6 +1941,13 @@ class VideoEditEvent(BaseModel):
     duration: float | None = None
 
 
+class VideoProjectExportEvent(BaseModel):
+    """Broadcast to every tab, so an export left running in the background stays visible."""
+
+    type: Literal["video_project_export"] = "video_project_export"
+    export: VideoProjectExportState
+
+
 class NotificationRecord(BaseModel):
     id: str
     message: str
@@ -1597,6 +1993,7 @@ type ServerEvent = Annotated[
     | HeartbeatEvent
     | FolderEvent
     | VideoEditEvent
+    | VideoProjectExportEvent
     | NotificationEvent
     | ResyncEvent,
     Field(discriminator="type"),

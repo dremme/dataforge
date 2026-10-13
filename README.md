@@ -33,6 +33,7 @@ The app opens at `http://localhost:18081`. Try [`sample_media/`](sample_media/) 
 - **Auto-caption:** generate image and video captions with an OpenAI-compatible vision model, optionally including video audio.
 - **Review:** model checks, caption-rule linting, near-duplicate detection, and dataset statistics.
 - **Edit media:** crop, resize, color adjustment, Auto-adjust, video trim/speed/audio, and blur or blackout regions. Editor changes retain originals for reversion.
+- **Video editor:** cut videos, stills, sound, and titles together on a multi-track timeline with dissolves, fades, and per-clip color, then export an MP4. See the [User guide](docs/user-guide.md#video-editor).
 - **Process:** run ComfyUI workflows and review results before accepting them individually or in bulk.
 - **Train:** start and monitor LoRA training on the current folder through AI-Toolkit.
 

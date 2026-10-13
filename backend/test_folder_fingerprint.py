@@ -8,7 +8,7 @@ import os
 import unittest
 
 from captions import save_issue_findings
-from constants import STAGING_DIR_NAME
+from constants import STAGING_DIR_NAME, VIDEO_PROJECT_SUFFIX
 from duplicates import DuplicateFinding, save_duplicate_finding
 from folder_fingerprint import compute_folder_fingerprint
 from testing_fixtures import (
@@ -93,6 +93,18 @@ class FolderFingerprintTests(unittest.TestCase):
             self.assertIsNotNone(first)
             self.assertIsNotNone(second)
             self.assertNotEqual(first, second)
+
+    def test_fingerprint_follows_video_project_drafts(self) -> None:
+        with TempMediaFolder() as root:
+            write_media(root, "alpha.png")
+            empty = compute_folder_fingerprint(root)
+            draft = root / f"edit{VIDEO_PROJECT_SUFFIX}"
+            draft.write_text("{}", encoding="utf-8")
+            saved = compute_folder_fingerprint(root)
+            draft.unlink()
+
+            self.assertNotEqual(empty, saved)
+            self.assertEqual(compute_folder_fingerprint(root), empty)
 
     def test_fingerprint_changes_when_subfolder_is_added(self) -> None:
         with TempMediaFolder() as root:

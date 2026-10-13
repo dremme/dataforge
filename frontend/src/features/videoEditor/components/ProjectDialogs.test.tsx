@@ -1,0 +1,100 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { makeClip, makeProject, makeSource } from "@/test/videoProject";
+import { ExportDialog } from "./ExportDialog";
+import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
+
+describe("ProjectSettingsDialog", () => {
+  const project = makeProject({
+    sources: [
+      makeSource("still", "still.png", "image"),
+      makeSource("film", "film.mp4", "video", { width: 1280, height: 720, frame_rate: 25 }),
+    ],
+  });
+
+  it("matches a video of the project and applies its size and rate", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Match a video" }), "film");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(onSave).toHaveBeenCalledWith({ width: 1280, height: 720, frame_rate: 25 });
+  });
+
+  it("rounds an odd size down to even, as the encoder needs", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn()} />);
+
+    await user.clear(screen.getByRole("textbox", { name: "Width" }));
+    await user.type(screen.getByRole("textbox", { name: "Width" }), "1001");
+    await user.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(onSave).toHaveBeenCalledWith({ width: 1000, height: 360, frame_rate: 30 });
+  });
+
+  it("explains an out-of-range value and will not apply it", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<ProjectSettingsDialog project={project} onSave={onSave} onCancel={vi.fn()} />);
+
+    await user.clear(screen.getByRole("textbox", { name: "Frame rate" }));
+    await user.type(screen.getByRole("textbox", { name: "Frame rate" }), "500");
+
+    expect(screen.getByText("The frame rate must be above 0 and at most 120.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+});
+
+describe("ExportDialog", () => {
+  const project = makeProject({
+    initial_source_id: "film",
+    sources: [makeSource("film", "trip.mp4", "video")],
+    clips: [makeClip("shot", "v1", 0, 2, { kind: "video", source_id: "film" })],
+  });
+
+  it("names the file after the first video and exports with the chosen settings", async () => {
+    const user = userEvent.setup();
+    const onExport = vi.fn();
+    render(
+      <ExportDialog
+        project={project}
+        busy={false}
+        error={null}
+        blocked={null}
+        onExport={onExport}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("textbox", { name: "File name" })).toHaveValue("trip-edited");
+
+    await user.click(screen.getByRole("radio", { name: "1080p" }));
+    await user.click(screen.getByRole("radio", { name: "Portrait" }));
+    expect(screen.getByText(/1080 × 1920/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Export" }));
+
+    expect(onExport).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: "trip-edited", size: "1080p", orientation: "portrait" }),
+    );
+  });
+
+  it("says why an export cannot start and keeps the button off", () => {
+    render(
+      <ExportDialog
+        project={project}
+        busy={false}
+        error="Disk full"
+        blocked="The timeline is empty."
+        onExport={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("The timeline is empty.")).toBeInTheDocument();
+    expect(screen.getByText("Disk full")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+  });
+});

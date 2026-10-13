@@ -4,8 +4,8 @@ Run from the project root:
   backend/.venv/Scripts/python scripts/run_checks.py [--fix] [--lint-only] [--scope SCOPE]
 
 A passing step is one line. A failing step prints everything it wrote, and the run stops there.
-Lint and type warnings fail their step. Warnings raised while tests pass are only counted;
-``run_tests.py -v`` or ``npm test`` shows them.
+Lint and type warnings fail their step. Warnings raised while tests pass cannot fail it; their
+count follows the step's line and a one-line description of each is listed under it.
 
 ``--scope`` exists for CI, which matrixes the backend over Python versions and so
 would otherwise repeat the (version-independent) frontend checks for each one.
@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import astuple, dataclass
 from pathlib import Path
 from typing import Any, TextIO
@@ -42,6 +42,7 @@ BACKEND_TEST_COUNT = re.compile(r"^Ran (\d+) tests? in", re.MULTILINE)
 FRONTEND_TEST_COUNT = re.compile(r"^\s*Tests\s.*\((\d+)\)\s*$", re.MULTILINE)
 PROGRESS_MARKER = re.compile(r"@progress (\d+)/(\d+)\n?")
 WARNINGS_MARKER = re.compile(r"@warnings (\d+)\n?")
+WARNING_MARKER = re.compile(r"@warning (\".*\")\n?")
 PROGRESS_ENV = "DATAFORGE_PROGRESS"
 COVERAGE_ENV = "DATAFORGE_COVERAGE_DIR"
 BACKEND_COVERAGE_FILE = "backend.json"
@@ -93,6 +94,7 @@ class Outcome:
     output: str
     seconds: float
     warnings: int = 0
+    warning_details: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -189,6 +191,10 @@ class Console:
             line += self._paint(", ", DIM) if detail else "  "
             line += self._paint(_plural(warnings, "warning"), YELLOW)
         self._write(line)
+
+    def warning_details(self, details: Sequence[str]) -> None:
+        for detail in details:
+            self._write("      " + self._paint(detail, YELLOW))
 
     def failure(self, step: Step, outcome: Outcome) -> None:
         where = f"{step.shown_location}, " if step.shown_location else ""
@@ -463,6 +469,7 @@ def _capture(
     started = time.monotonic()
     chunks: list[str] = []
     warnings = 0
+    details: list[str] = []
     with subprocess.Popen(
         step.command,
         cwd=step.cwd,
@@ -481,6 +488,10 @@ def _capture(
                     line = line[: marker.start()] + line[marker.end() :]
                     if on_progress is not None and int(marker[2]) > 0:
                         on_progress(int(marker[1]) / int(marker[2]))
+                described = WARNING_MARKER.search(line)
+                if described:
+                    line = line[: described.start()] + line[described.end() :]
+                    details.append(json.loads(described[1]))
                 counted = WARNINGS_MARKER.search(line)
                 if counted:
                     line = line[: counted.start()] + line[counted.end() :]
@@ -489,7 +500,13 @@ def _capture(
         except BaseException:
             process.kill()
             raise
-    return Outcome(process.returncode, "".join(chunks), time.monotonic() - started, warnings)
+    return Outcome(
+        process.returncode,
+        "".join(chunks),
+        time.monotonic() - started,
+        warnings,
+        tuple(details),
+    )
 
 
 def _detail(step: Step, output: str) -> str:
@@ -511,7 +528,9 @@ def _execute(console: Console, step: Step, environ: Mapping[str, str]) -> bool:
         detail=detail,
         warnings=outcome.warnings if passed else 0,
     )
-    if not passed:
+    if passed:
+        console.warning_details(outcome.warning_details)
+    else:
         console.failure(step, outcome)
     return passed
 

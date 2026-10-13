@@ -14,6 +14,7 @@ export const SHORTCUT_GROUPS = [
   { id: "viewer", label: "Item viewer" },
   { id: "review", label: "Review queues" },
   { id: "editors", label: "Editors" },
+  { id: "videoEditor", label: "Video editor" },
 ] as const;
 
 export type ShortcutGroup = (typeof SHORTCUT_GROUPS)[number]["id"];
@@ -121,6 +122,92 @@ export const SHORTCUTS = {
     chords: [{ key: "Arrows", shift: true }],
   },
   removeMask: { group: "editors", label: "Remove the focused mask", chords: [{ key: "Delete" }] },
+
+  editorPlayPause: { group: "videoEditor", label: "Play or pause", chords: [{ key: " " }] },
+  editorStepBack: {
+    group: "videoEditor",
+    label: "Step one frame back",
+    chords: [{ key: "ArrowLeft" }],
+  },
+  editorStepForward: {
+    group: "videoEditor",
+    label: "Step one frame forward",
+    chords: [{ key: "ArrowRight" }],
+  },
+  editorGoToStart: { group: "videoEditor", label: "Go to the start", chords: [{ key: "Home" }] },
+  editorGoToEnd: { group: "videoEditor", label: "Go to the end", chords: [{ key: "End" }] },
+  editorPreviousEdit: {
+    group: "videoEditor",
+    label: "Jump to the previous clip edge",
+    chords: [{ key: "ArrowUp" }],
+  },
+  editorNextEdit: {
+    group: "videoEditor",
+    label: "Jump to the next clip edge",
+    chords: [{ key: "ArrowDown" }],
+  },
+  editorMarkIn: {
+    group: "videoEditor",
+    label: "Mark in at the playhead",
+    chords: [{ key: "i" }],
+  },
+  editorMarkOut: {
+    group: "videoEditor",
+    label: "Mark out at the playhead",
+    chords: [{ key: "o" }],
+  },
+  editorClearMarks: {
+    group: "videoEditor",
+    label: "Clear the selection and the marked range",
+    chords: [{ key: "Escape" }],
+  },
+  editorSelectTool: { group: "videoEditor", label: "Select tool", chords: [{ key: "v" }] },
+  editorBladeTool: { group: "videoEditor", label: "Blade tool", chords: [{ key: "b" }] },
+  editorRangeTool: { group: "videoEditor", label: "Range tool", chords: [{ key: "r" }] },
+  editorSnapping: { group: "videoEditor", label: "Toggle snapping", chords: [{ key: "s" }] },
+  editorZoomIn: {
+    group: "videoEditor",
+    label: "Zoom the timeline in",
+    chords: [{ key: "+" }, { key: "=" }],
+  },
+  editorZoomOut: { group: "videoEditor", label: "Zoom the timeline out", chords: [{ key: "-" }] },
+  editorZoomFit: {
+    group: "videoEditor",
+    label: "Fit the project in the timeline",
+    chords: [{ key: "z", shift: true }],
+  },
+  editorSplit: {
+    group: "videoEditor",
+    label: "Split at the playhead",
+    chords: [{ key: "b", mod: true }],
+  },
+  editorDelete: {
+    group: "videoEditor",
+    label: "Delete the selected clips",
+    chords: [{ key: "Delete" }, { key: "Backspace" }],
+  },
+  editorRippleDelete: {
+    group: "videoEditor",
+    label: "Ripple delete the selected range",
+    chords: [
+      { key: "Delete", shift: true },
+      { key: "Backspace", shift: true },
+    ],
+  },
+  editorDuplicate: {
+    group: "videoEditor",
+    label: "Duplicate the selected clips",
+    chords: [{ key: "d", mod: true }],
+  },
+  editorUndo: { group: "videoEditor", label: "Undo", chords: [{ key: "z", mod: true }] },
+  editorRedo: {
+    group: "videoEditor",
+    label: "Redo",
+    chords: [
+      { key: "z", mod: true, shift: true },
+      { key: "y", mod: true },
+    ],
+  },
 } as const satisfies Record<string, ShortcutDefinition>;
 
 export type ShortcutId = keyof typeof SHORTCUTS;

@@ -52,6 +52,9 @@ _SEED_INPUT_KEYS = ("seed", "noise_seed")
 
 _FPS_INPUT_KEYS = ("value", "fps", "frame_rate")
 
+#: CLIPTextEncode holds "text", Text (Multiline) "value", and Qwen's encoders "prompt".
+_PROMPT_INPUT_KEYS = ("text", "value", "prompt")
+
 _EXPORT_HINT = "Use Save (API Format) in ComfyUI, not the editor's Save."
 
 
@@ -86,6 +89,7 @@ class ComfyWorkflow:
     prompt_node: str | None
     fps_node: str | None = None
     fps_key: str | None = None
+    prompt_key: str | None = None
 
 
 def _node_title(node: dict[str, Any]) -> str:
@@ -155,6 +159,15 @@ def _numeric_key(node: dict[str, Any], keys: tuple[str, ...]) -> str | None:
     inputs = _node_inputs(node)
     for key in keys:
         if isinstance(inputs.get(key), int | float):
+            return key
+    return None
+
+
+def _prompt_key(node: dict[str, Any]) -> str | None:
+    """The first key holding text of its own. A linked input is a list and must not match."""
+    inputs = _node_inputs(node)
+    for key in _PROMPT_INPUT_KEYS:
+        if isinstance(inputs.get(key), str):
             return key
     return None
 
@@ -253,13 +266,13 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
         )
 
     prompt_node = _optional_titled_node(payload, PROMPT_NODE_TITLE)
-    # A linked text input is a list; writing over it would be dropped without a word.
-    if prompt_node is not None and not isinstance(
-        _node_inputs(payload[prompt_node]).get("text"), str
-    ):
+    prompt_key = _prompt_key(payload[prompt_node]) if prompt_node else None
+    if prompt_node is not None and prompt_key is None:
+        keys = ", ".join(repr(key) for key in _PROMPT_INPUT_KEYS)
         raise ComfyWorkflowError(
             f'The node titled "{PROMPT_NODE_TITLE}" in preset "{source}" has no text input to '
-            f"write. Title a node that holds its own prompt text, such as CLIPTextEncode."
+            f"write. Title a node holding its own prompt text under one of {keys}, such as "
+            f"CLIPTextEncode or Text (Multiline)."
         )
 
     return ComfyWorkflow(
@@ -273,6 +286,7 @@ def parse_comfy_workflow(raw: str, *, source: str) -> ComfyWorkflow:
         prompt_node=prompt_node,
         fps_node=fps_node,
         fps_key=fps_key,
+        prompt_key=prompt_key,
     )
 
 
@@ -386,9 +400,11 @@ def build_comfy_prompt(
     if frame_rate is not None and workflow.fps_node is not None and workflow.fps_key is not None:
         prompt[workflow.fps_node]["inputs"][workflow.fps_key] = frame_rate
 
-    if prompt_text is not None and workflow.prompt_node is not None:
-        node_inputs = prompt[workflow.prompt_node].get("inputs")
-        if isinstance(node_inputs, dict) and isinstance(node_inputs.get("text"), str):
-            node_inputs["text"] = prompt_text
+    if (
+        prompt_text is not None
+        and workflow.prompt_node is not None
+        and workflow.prompt_key is not None
+    ):
+        prompt[workflow.prompt_node]["inputs"][workflow.prompt_key] = prompt_text
 
     return prompt

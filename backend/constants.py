@@ -27,6 +27,35 @@ WATERMARK_EXTENSIONS = IMAGE_EXTENSIONS | ISOBMFF_EXTENSIONS | {GIF_EXTENSION}
 VIDEO_EDIT_EXTENSIONS = ISOBMFF_EXTENSIONS
 VIDEO_EDIT_MUXERS = {".mp4": "mp4", ".m4v": "mp4", ".mov": "mov"}
 
+# The multi-track editor previews in the browser and renders with ffmpeg; GIF stays out.
+VIDEO_PROJECT_VIDEO_EXTENSIONS = ISOBMFF_EXTENSIONS
+VIDEO_PROJECT_IMAGE_EXTENSIONS = IMAGE_EXTENSIONS
+VIDEO_PROJECT_AUDIO_EXTENSIONS = AUDIO_EXTENSIONS
+VIDEO_PROJECT_SOURCE_EXTENSIONS = (
+    VIDEO_PROJECT_VIDEO_EXTENSIONS | VIDEO_PROJECT_IMAGE_EXTENSIONS | VIDEO_PROJECT_AUDIO_EXTENSIONS
+)
+
+# Two suffixes deep. A draft is `<stem>-edit<suffix>`; an export's snapshot keeps the whole
+# video name, `<name>.mp4<suffix>`, so file operations carry it like `.bak`.
+VIDEO_PROJECT_SUFFIX = ".video-project.json"
+VIDEO_PROJECT_DRAFT_TAG = "-edit"
+VIDEO_PROJECT_EXPORT_TAG = "-edited"
+VIDEO_PROJECT_EXPORT_EXTENSION = ".mp4"
+VIDEO_PROJECT_FORMAT_VERSION = 1
+
+# Must not end in a media suffix or `folder_scan` would list a half-written export.
+VIDEO_PROJECT_EXPORT_TEMP_SUFFIX = ".export-tmp"
+
+# Shorter clips cannot hold one frame at the slowest rate a project accepts.
+VIDEO_PROJECT_MIN_CLIP_SECONDS = 0.04
+# Overlap tolerance for float noise from a drag; well under one frame at any rate.
+VIDEO_PROJECT_TIME_EPSILON = 1e-4
+VIDEO_PROJECT_MAX_TRACKS = 16
+# A still placed on the timeline starts this long; its duration is edited from there.
+VIDEO_PROJECT_STILL_SECONDS = 5.0
+# A project opened without a video; the first video added names it after itself.
+VIDEO_PROJECT_UNTITLED_NAME = "Untitled project"
+
 # GIF delays are per-frame, not a rate; 24 matches the rest of the video tooling.
 GIF_MP4_FRAME_RATE = 24.0
 GIF_MP4_EXTENSION = ".mp4"
@@ -219,6 +248,16 @@ SHARED_CONSTANTS: dict[str, object] = {
     "VIDEO_EXTENSIONS": sorted(VIDEO_EXTENSIONS),
     "VIDEO_EDIT_EXTENSIONS": sorted(VIDEO_EDIT_EXTENSIONS),
     "AUDIO_EXTENSIONS": sorted(AUDIO_EXTENSIONS),
+    "VIDEO_PROJECT_VIDEO_EXTENSIONS": sorted(VIDEO_PROJECT_VIDEO_EXTENSIONS),
+    "VIDEO_PROJECT_IMAGE_EXTENSIONS": sorted(VIDEO_PROJECT_IMAGE_EXTENSIONS),
+    "VIDEO_PROJECT_AUDIO_EXTENSIONS": sorted(VIDEO_PROJECT_AUDIO_EXTENSIONS),
+    "VIDEO_PROJECT_EXPORT_EXTENSION": VIDEO_PROJECT_EXPORT_EXTENSION,
+    "VIDEO_PROJECT_EXPORT_TAG": VIDEO_PROJECT_EXPORT_TAG,
+    "VIDEO_PROJECT_MIN_CLIP_SECONDS": VIDEO_PROJECT_MIN_CLIP_SECONDS,
+    "VIDEO_PROJECT_TIME_EPSILON": VIDEO_PROJECT_TIME_EPSILON,
+    "VIDEO_PROJECT_MAX_TRACKS": VIDEO_PROJECT_MAX_TRACKS,
+    "VIDEO_PROJECT_STILL_SECONDS": VIDEO_PROJECT_STILL_SECONDS,
+    "VIDEO_PROJECT_UNTITLED_NAME": VIDEO_PROJECT_UNTITLED_NAME,
     "IMAGE_EDIT_EXTENSIONS": sorted(IMAGE_EDIT_EXTENSIONS),
     "GIF_EXTENSION": GIF_EXTENSION,
     "GIF_MP4_FRAME_RATE": GIF_MP4_FRAME_RATE,

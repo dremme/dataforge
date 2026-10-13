@@ -48,8 +48,17 @@
   --media-scrim-border: rgba(255, 255, 255, 0.35);
   --media-guide: rgba(255, 255, 255, 0.25);
   --media-outline: rgba(255, 255, 255, 0.6);
+  --media-text: #f3f4f6;
   --media-warning: #fbbf24;
   --media-warning-deep: #cf9604;
+
+  // Video editor: one hue per clip kind, the playhead, and the line a snapped edge lands on.
+  --clip-video: #6f8cff;
+  --clip-image: #3fb6d6;
+  --clip-audio: #45c08a;
+  --clip-title: #b28cf5;
+  --playhead: #ff5c63;
+  --snap-line: #ffd166;
 
   // Miniature windows in the theme picker show each scheme whatever the active one is.
   --sketch-light-canvas: #e6e9ef;

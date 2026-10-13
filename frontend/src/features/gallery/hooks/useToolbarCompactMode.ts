@@ -84,12 +84,16 @@ export function useToolbarCompactMode(toolbarRef: RefObject<HTMLElement | null>)
       const next = decide();
       if (next !== compactRef.current) flushSync(() => setCompact(next));
     };
-    // The search field grows as it is typed into, and job state swaps action buttons.
+    // The search field grows as it is typed into, and job state swaps action buttons. Nothing
+    // watched may change size when the mode flips: a box resized inside the observer's own
+    // callback is reported as "ResizeObserver loop completed with undelivered notifications".
+    // So the toolbar's width is read off a zero-height probe, since the toolbar's height drops
+    // with the flip, and the actions, which narrow with it, are left to the mutation observer.
     const resizes = new ResizeObserver(measure);
     const observe = () => {
-      resizes.observe(toolbar);
+      resizes.observe(toolbar.querySelector(".toolbar__measure") ?? toolbar);
       toolbar
-        .querySelectorAll(".toolbar__stats, .toolbar__actions, .toolbar__controls > *")
+        .querySelectorAll(".toolbar__stats, .toolbar__controls > *")
         .forEach((element) => resizes.observe(element));
     };
     const mutations = new MutationObserver(() => {
@@ -100,7 +104,13 @@ export function useToolbarCompactMode(toolbarRef: RefObject<HTMLElement | null>)
     observe();
     // Inside the layout effect a plain update already lands before paint.
     setCompact(decide());
-    mutations.observe(toolbar, { childList: true, subtree: true });
+    mutations.observe(toolbar, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
     return () => {
       resizes.disconnect();
       mutations.disconnect();

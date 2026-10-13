@@ -18,6 +18,18 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
+describe("requestJson", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("resolves a 204 No Content answer without reading a body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(requestJson("/api/thing", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+});
+
 describe("requestJson errors", () => {
   afterEach(() => {
     vi.restoreAllMocks();

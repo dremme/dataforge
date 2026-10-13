@@ -31,6 +31,8 @@ type GalleryOverlayState = {
   onFocusViewChange?: (focus: boolean) => void;
   onEditExpandedChange?: (expanded: boolean) => void;
   transitionRef?: RefObject<WorkspaceTransition | null>;
+  /** The video editor covers the viewer; its keys and focus trap must stay off meanwhile. */
+  suspended?: boolean;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;

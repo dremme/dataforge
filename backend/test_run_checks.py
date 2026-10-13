@@ -356,6 +356,16 @@ class ExecuteTests(RunChecksTestCase):
         self.assertNotIn("old", shown)
         self.assertIn("2 warnings", shown)
 
+    def test_a_passing_step_lists_each_warning_under_its_line(self) -> None:
+        passed, shown = self._run(
+            "import json; print('@warning ' + json.dumps('DeprecationWarning: old (a.py:3)'));"
+            " print('@warnings 1')"
+        )
+        self.assertTrue(passed)
+        lines = shown.splitlines()
+        self.assertIn("1 warning", lines[0])
+        self.assertEqual(lines[1], "      DeprecationWarning: old (a.py:3)")
+
     def test_a_failing_step_shows_no_warning_count(self) -> None:
         passed, shown = self._run("print('@warnings 2'); raise SystemExit(1)")
         self.assertFalse(passed)
@@ -411,6 +421,13 @@ class CaptureTests(RunChecksTestCase):
         self.assertEqual(outcome.warnings, 3)
         self.assertEqual(outcome.output, "kept\n")
 
+    def test_warning_markers_are_decoded_and_left_out_of_the_output(self) -> None:
+        outcome = self._capture(
+            "import json; print('kept'); print('@warning ' + json.dumps('two' + chr(10) + 'lines'))"
+        )
+        self.assertEqual(outcome.warning_details, ("two\nlines",))
+        self.assertEqual(outcome.output, "kept\n")
+
     def test_a_step_without_a_warnings_marker_has_none(self) -> None:
         self.assertEqual(self._capture("print('kept')").warnings, 0)
 
@@ -441,11 +458,19 @@ class ProgressProtocolTests(RunChecksTestCase):
         )
         self.assertIsNotNone(marker)
 
+    def test_the_backend_runner_speaks_the_warning_detail_marker_the_console_reads(self) -> None:
+        detail = 'a "quoted" one'
+        line = f"{self._load_run_tests().WARNING_PREFIX}{json.dumps(detail)}\n"
+        marker = self.run_checks.WARNING_MARKER.fullmatch(line)
+        self.assertIsNotNone(marker)
+        self.assertEqual(json.loads(marker[1]) if marker else None, detail)
+
     def test_the_frontend_reporter_speaks_the_same_marker(self) -> None:
         run_tests = self._load_run_tests()
         source = (ROOT / "frontend" / "vitest.progress.ts").read_text(encoding="utf-8")
         self.assertIn(f'PROGRESS_PREFIX = "{run_tests.PROGRESS_PREFIX}"', source)
         self.assertIn(f'WARNINGS_PREFIX = "{run_tests.WARNINGS_PREFIX}"', source)
+        self.assertIn(f'WARNING_PREFIX = "{run_tests.WARNING_PREFIX}"', source)
         self.assertIn(f"process.env.{self.run_checks.PROGRESS_ENV}", source)
 
     def test_the_backend_runner_counts_shown_warnings_but_not_expected_ones(self) -> None:
@@ -460,15 +485,25 @@ class ProgressProtocolTests(RunChecksTestCase):
                     warnings.warn("expected", UserWarning, stacklevel=1)
 
         suite = unittest.defaultTestLoader.loadTestsFromTestCase(Sample)
-        runner = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0, buffer=True)
         # Keeps the sample's warning away from the counter of the run executing this test.
         with warnings.catch_warnings(), mock.patch.object(warnings, "showwarning"):
             warnings.simplefilter("default")
             counter = run_tests.WarningCounter()
             warnings.showwarning = counter.show
+            runner = unittest.TextTestRunner(
+                stream=io.StringIO(),
+                verbosity=0,
+                buffer=True,
+                resultclass=run_tests.tracking_result(unittest.TextTestResult, counter),
+            )
             result = runner.run(suite)
         self.assertTrue(result.wasSuccessful())
         self.assertEqual(counter.count, 1)
+        [detail] = counter.details
+        self.assertTrue(
+            detail.startswith("DeprecationWarning: unexpected (backend/test_run_checks.py:")
+        )
+        self.assertIn("Sample.test_unexpected)", detail)
 
     def test_the_frontend_step_loads_the_reporter_it_names(self) -> None:
         steps = self.run_checks._check_steps(None, "npm", interpreter=Path("python"), scope="all")

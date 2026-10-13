@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ThumbnailProvider } from "@/features/gallery/context/ThumbnailProvider";
 import { AppFolderContent } from "@/app/components/AppFolderContent";
 import { AppHeader } from "@/app/components/AppHeader";
@@ -7,6 +9,21 @@ import { GallerySelectionProvider } from "@/features/gallery/context/GallerySele
 import { WorkspaceSidebar } from "@/app/components/WorkspaceSidebar";
 import { ActiveFilters } from "@/features/gallery/components/ActiveFilters";
 import { WorkspaceActions, WorkspaceActivity } from "@/app/components/WorkspaceActions";
+import { VideoEditorWorkspace } from "@/features/videoEditor/components/VideoEditorWorkspace";
+import { VideoExportTracker } from "@/features/videoEditor/components/VideoExportTracker";
+import { VIDEO_PROJECTS_QUERY_KEY } from "@/features/videoEditor/hooks/useVideoProjectList";
+import {
+  VideoEditorContext,
+  type VideoEditorRequest,
+} from "@/features/videoEditor/context/VideoEditorContext";
+
+/** How long an exported video may take to show up in the listing before the open gives up. */
+const OPEN_EXPORT_TIMEOUT_MS = 15_000;
+
+function parentFolder(path: string): string {
+  const cut = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  return cut > 0 ? path.slice(0, cut) : path;
+}
 
 export function AppContent() {
   const {
@@ -57,6 +74,47 @@ export function AppContent() {
     onGalleryItemsCopied,
   } = gallery;
 
+  const queryClient = useQueryClient();
+  const [editorRequest, setEditorRequest] = useState<VideoEditorRequest | null>(null);
+  const [pendingOpen, setPendingOpen] = useState<string | null>(null);
+  const editorLauncher = useMemo(
+    () => ({
+      open: (path: string) => setEditorRequest({ kind: "video", path }),
+      openProject: (path: string) => setEditorRequest({ kind: "project", path }),
+      isOpen: editorRequest !== null,
+    }),
+    [editorRequest],
+  );
+
+  // An export lands in the listing once the folder watcher reports it; open it then.
+  const { openGalleryItem: openItem } = gallery;
+  useEffect(() => {
+    if (!pendingOpen) return;
+    if (query.filteredItems.some((item) => item.path === pendingOpen)) {
+      setPendingOpen(null);
+      openItem(pendingOpen);
+      return;
+    }
+    const timer = window.setTimeout(() => setPendingOpen(null), OPEN_EXPORT_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [openItem, pendingOpen, query.filteredItems]);
+
+  // Drafts are not part of the folder's fingerprint, so leaving the editor re-reads them.
+  const closeEditor = useCallback(() => {
+    setEditorRequest(null);
+    void queryClient.invalidateQueries({ queryKey: VIDEO_PROJECTS_QUERY_KEY });
+  }, [queryClient]);
+
+  const openExport = useCallback(
+    (path: string) => {
+      closeEditor();
+      const target = parentFolder(path);
+      if (folder?.path !== target) void navigateTo(target);
+      setPendingOpen(path);
+    },
+    [closeEditor, folder, navigateTo],
+  );
+
   return (
     <ThumbnailProvider
       paused={Boolean(gallery.selectedPath && (gallery.focusView || gallery.editExpanded))}
@@ -86,6 +144,8 @@ export function AppContent() {
             onOpenFolder={folderPicker.openPicker}
             onCreateFolder={createFolder.openDialog}
             onOpenSettings={settings.openSettings}
+            onOpenVideoEditor={() => folder && setEditorRequest({ kind: "new", path: folder.path })}
+            videoEditorDisabled={!folder || folderNotFound}
             createDisabled={!folder || folderNotFound || createFolder.busy}
           />
           {folder && (
@@ -142,6 +202,8 @@ export function AppContent() {
                 filteredItems={query.filteredItems}
                 filterEmptyState={query.filterEmptyState}
                 onOpenGalleryItem={openGalleryItem}
+                onOpenVideoProject={editorLauncher.openProject}
+                searchQuery={query.searchQuery}
                 displayMode={gallery.displayMode}
                 onDisplayModeChange={gallery.setDisplayMode}
                 activeFilters={
@@ -170,70 +232,82 @@ export function AppContent() {
             </div>
           </main>
 
-          <AppOverlays
-            currentJobActions={automation.actions}
-            currentFolder={folder?.path}
-            onOpenFolder={navigateTo}
-            folderPicker={folderPicker}
-            quickAction={quickAction}
-            selectionActions={selectionActions.overlay}
-            sidecarSweep={sidecarSweep.overlay}
-            settleAllCandidates={settleAllCandidates.overlay}
-            onCaptionSaved={gallery.onCaptionSaved}
-            gallery={{
-              selectedPath: gallery.selectedPath,
-              selectedIndex: gallery.selectedIndex,
-              modalItems: gallery.modalItems,
-              searchQuery: query.searchQuery,
-              searchRegex: query.searchRegex,
-              hasCaptionBackup: folder?.has_caption_backup ?? false,
-              focusView: gallery.focusView,
-              onFocusViewChange: gallery.setFocusView,
-              onEditExpandedChange: gallery.setEditExpanded,
-              transitionRef,
-              onClose: gallery.closeGalleryItem,
-              onPrevious: gallery.goToPrevious,
-              onNext: gallery.goToNext,
-              onGoTo: gallery.goToIndex,
-              onDeleted: gallery.onGalleryItemDeleted,
-              onMoved: onGalleryItemsMoved,
-              onCopied: onGalleryItemsCopied,
-              onResolveIssue: gallery.onResolveGalleryItemIssue,
-              onReviewCandidate: candidateReview.reviewGalleryItemCandidate,
-            }}
-            issueResolver={gallery.issueResolver.overlay}
-            instructions={{
-              open: gallery.instructionsOpen,
-              folderPath: folder?.path,
-              onClose: gallery.closeInstructions,
-              onSaved: gallery.onInstructionsSaved,
-            }}
-            stats={{
-              open: statsDrawer.statsOpen,
-              items,
-              onClose: statsDrawer.closeStats,
-              onSearchWord: (word) => {
-                query.setSearchNames(false);
-                query.setSearchQuery(word);
-                statsDrawer.closeStats();
-              },
-            }}
-            duplicateResolver={duplicateResolver.overlay}
-            candidateReview={candidateReview.overlay}
-            jobStart={automation.jobStartConfirm}
-            automation={automation.dialogs}
-            fileImport={{
-              overwritePrompt: fileDrop.overwritePrompt,
-              busy: fileDrop.importing,
-              onReplaceExisting: fileDrop.confirmOverwrite,
-              onCopyNewOnly: fileDrop.importNewFilesOnly,
-              onCancel: fileDrop.dismissOverwritePrompt,
-            }}
-            createFolder={createFolder.overlay}
-            deleteFolder={deleteFolder.overlay}
-            settings={{ open: settings.open, onClose: settings.closeSettings }}
-            shortcuts={{ open: shortcuts.open, onClose: shortcuts.closeShortcuts }}
-          />
+          <VideoEditorContext value={editorLauncher}>
+            <AppOverlays
+              currentJobActions={automation.actions}
+              currentFolder={folder?.path}
+              onOpenFolder={navigateTo}
+              folderPicker={folderPicker}
+              quickAction={quickAction}
+              selectionActions={selectionActions.overlay}
+              sidecarSweep={sidecarSweep.overlay}
+              settleAllCandidates={settleAllCandidates.overlay}
+              onCaptionSaved={gallery.onCaptionSaved}
+              gallery={{
+                selectedPath: gallery.selectedPath,
+                selectedIndex: gallery.selectedIndex,
+                modalItems: gallery.modalItems,
+                searchQuery: query.searchQuery,
+                searchRegex: query.searchRegex,
+                hasCaptionBackup: folder?.has_caption_backup ?? false,
+                focusView: gallery.focusView,
+                onFocusViewChange: gallery.setFocusView,
+                onEditExpandedChange: gallery.setEditExpanded,
+                transitionRef,
+                onClose: gallery.closeGalleryItem,
+                onPrevious: gallery.goToPrevious,
+                onNext: gallery.goToNext,
+                onGoTo: gallery.goToIndex,
+                onDeleted: gallery.onGalleryItemDeleted,
+                onMoved: onGalleryItemsMoved,
+                onCopied: onGalleryItemsCopied,
+                onResolveIssue: gallery.onResolveGalleryItemIssue,
+                onReviewCandidate: candidateReview.reviewGalleryItemCandidate,
+                suspended: editorRequest !== null,
+              }}
+              issueResolver={gallery.issueResolver.overlay}
+              instructions={{
+                open: gallery.instructionsOpen,
+                folderPath: folder?.path,
+                onClose: gallery.closeInstructions,
+                onSaved: gallery.onInstructionsSaved,
+              }}
+              stats={{
+                open: statsDrawer.statsOpen,
+                items,
+                onClose: statsDrawer.closeStats,
+                onSearchWord: (word) => {
+                  query.setSearchNames(false);
+                  query.setSearchQuery(word);
+                  statsDrawer.closeStats();
+                },
+              }}
+              duplicateResolver={duplicateResolver.overlay}
+              candidateReview={candidateReview.overlay}
+              jobStart={automation.jobStartConfirm}
+              automation={automation.dialogs}
+              fileImport={{
+                overwritePrompt: fileDrop.overwritePrompt,
+                busy: fileDrop.importing,
+                onReplaceExisting: fileDrop.confirmOverwrite,
+                onCopyNewOnly: fileDrop.importNewFilesOnly,
+                onCancel: fileDrop.dismissOverwritePrompt,
+              }}
+              createFolder={createFolder.overlay}
+              deleteFolder={deleteFolder.overlay}
+              settings={{ open: settings.open, onClose: settings.closeSettings }}
+              shortcuts={{ open: shortcuts.open, onClose: shortcuts.closeShortcuts }}
+            />
+          </VideoEditorContext>
+          {editorRequest && (
+            <VideoEditorWorkspace
+              request={editorRequest}
+              items={items}
+              onExit={closeEditor}
+              onOpenInGallery={openExport}
+            />
+          )}
+          <VideoExportTracker hidden={editorRequest !== null} onOpen={openExport} />
         </div>
       </GallerySelectionProvider>
     </ThumbnailProvider>

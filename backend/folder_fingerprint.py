@@ -23,6 +23,7 @@ from constants import (
 from folder_instructions import find_instruction_file
 from folder_scan import FolderScan, folder_entries_in_order, scan_folder
 from sysprompt import load_sysprompt
+from video_project import is_draft_file
 
 EntrySignature = tuple[str, str, int, int]
 ItemSignature = tuple[tuple[int, int], ...]
@@ -64,6 +65,12 @@ def entry_signatures_from_scan(scan: FolderScan) -> tuple[EntrySignature, ...]:
         candidate = scan.candidates.get(candidate_name) if candidate_name else None
         if candidate is not None:
             signatures.append(("candidate", candidate.name, candidate.mtime_ns, candidate.size))
+
+    # Drafts are listed beside the media, so a draft added or deleted outside the app is news too.
+    for name in sorted(scan.files):
+        entry = scan.files[name]
+        if is_draft_file(entry.path):
+            signatures.append(("video_project", name, entry.mtime_ns, entry.size))
 
     return tuple(signatures)
 

@@ -30,6 +30,8 @@ function renderSidebar(options: Parameters<typeof installMockBackend>[0] = {}) {
         onOpenFolder={vi.fn()}
         onCreateFolder={vi.fn()}
         onOpenSettings={vi.fn()}
+        onOpenVideoEditor={vi.fn()}
+        videoEditorDisabled={false}
         createDisabled={false}
       />
     </NotificationsProvider>,

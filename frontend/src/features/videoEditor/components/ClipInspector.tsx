@@ -1,0 +1,1028 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  iconBlend,
+  iconChevronDown,
+  iconFilm,
+  iconImage,
+  iconLink,
+  iconLoader2,
+  iconMusic,
+  iconRotateCcw,
+  iconTrash2,
+  iconType,
+  iconUnlink,
+  iconWandSparkles,
+} from "@/shared/icons";
+import { classNames } from "@/shared/lib/classNames";
+import { SHORTCUTS, type ShortcutDefinition } from "@/shared/lib/shortcuts";
+import { readStoredJson, writeStoredJson } from "@/shared/lib/storage";
+import { Icon } from "@/shared/ui/Icon";
+import { ShortcutKeys } from "@/shared/ui/ShortcutKeys";
+import { AUTO_ADJUST_DEFAULT_AMOUNT } from "@/shared/constants";
+import type { ColorAdjust, VideoProjectTitleAlign } from "@/shared/types";
+import {
+  adjustRange,
+  formatAdjustValue,
+  isAdjustIdentity,
+  type AdjustTool,
+} from "@/features/gallery/lib/colorAdjust";
+import { rescaleAuto, withoutAuto } from "@/features/gallery/lib/autoAdjust";
+import { SPEED_PRESETS } from "@/features/gallery/lib/videoEdit";
+import { rangeFill } from "@/features/videoEditor/lib/rangeFill";
+import {
+  clipEnd,
+  clipLabel,
+  findTransition,
+  formatTimecode,
+  MIN_CLIP_SECONDS,
+  nextNeighbour,
+  projectDuration,
+  restingAdjust,
+  sourceById,
+  transitionOverlap,
+  type Clip,
+  type Project,
+} from "@/features/videoEditor/lib/timeline";
+import { FontPicker } from "./FontPicker";
+
+const COLOR_GROUPS: { label: string; tools: { id: AdjustTool; label: string }[] }[] = [
+  {
+    label: "Light",
+    tools: [
+      { id: "exposure", label: "Exposure" },
+      { id: "brilliance", label: "Brilliance" },
+      { id: "highlights", label: "Highlights" },
+      { id: "shadows", label: "Shadows" },
+      { id: "contrast", label: "Contrast" },
+      { id: "brightness", label: "Brightness" },
+      { id: "black_point", label: "Black Point" },
+      { id: "white_point", label: "White Point" },
+    ],
+  },
+  {
+    label: "Color",
+    tools: [
+      { id: "saturation", label: "Saturation" },
+      { id: "vibrance", label: "Vibrance" },
+      { id: "warmth", label: "Warmth" },
+      { id: "tint", label: "Tint" },
+      { id: "hue", label: "Hue" },
+    ],
+  },
+  {
+    label: "Detail",
+    tools: [
+      { id: "definition", label: "Definition" },
+      { id: "noise_reduction", label: "Noise Reduction" },
+    ],
+  },
+];
+
+const RESTING_TRANSFORM: Clip["transform"] = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
+
+const KIND_ICONS: Record<Clip["kind"], typeof iconFilm> = {
+  video: iconFilm,
+  image: iconImage,
+  audio: iconMusic,
+  title: iconType,
+};
+
+const QUICK_KEYS: { label: string; shortcuts: ShortcutDefinition[] }[] = [
+  { label: "Play or pause", shortcuts: [SHORTCUTS.editorPlayPause] },
+  { label: "Split at the playhead", shortcuts: [SHORTCUTS.editorSplit] },
+  {
+    label: "Select, Blade, Range",
+    shortcuts: [SHORTCUTS.editorSelectTool, SHORTCUTS.editorBladeTool, SHORTCUTS.editorRangeTool],
+  },
+  { label: "Mark in, out", shortcuts: [SHORTCUTS.editorMarkIn, SHORTCUTS.editorMarkOut] },
+  { label: "Ripple delete the range", shortcuts: [SHORTCUTS.editorRippleDelete] },
+  {
+    label: "Previous, next edit",
+    shortcuts: [SHORTCUTS.editorPreviousEdit, SHORTCUTS.editorNextEdit],
+  },
+  { label: "Fit the timeline", shortcuts: [SHORTCUTS.editorZoomFit] },
+];
+
+/** A listing has room for one way to press each; the full set is in the shortcut sheet. */
+function firstChord(shortcut: ShortcutDefinition): ShortcutDefinition {
+  return { ...shortcut, chords: shortcut.chords.slice(0, 1) };
+}
+
+const SECTIONS_KEY = "video-editor-inspector-sections";
+
+/** Collapsed or open per section title, remembered across clips and sessions. */
+const SectionContext = createContext<{
+  isOpen: (title: string, fallback: boolean) => boolean;
+  toggle: (title: string, fallback: boolean) => void;
+}>({ isOpen: (_title, fallback) => fallback, toggle: () => undefined });
+
+function parseSections(value: unknown): Record<string, boolean> | null {
+  if (!value || typeof value !== "object") return null;
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+    ),
+  );
+}
+
+function SectionMemory({ children }: { children: ReactNode }) {
+  const [sections, setSections] = useState<Record<string, boolean>>(() =>
+    readStoredJson(SECTIONS_KEY, parseSections, {}),
+  );
+  useEffect(() => writeStoredJson(SECTIONS_KEY, sections), [sections]);
+  const isOpen = useCallback(
+    (title: string, fallback: boolean) => sections[title] ?? fallback,
+    [sections],
+  );
+  const toggle = useCallback((title: string, fallback: boolean) => {
+    setSections((current) => ({ ...current, [title]: !(current[title] ?? fallback) }));
+  }, []);
+  return <SectionContext.Provider value={{ isOpen, toggle }}>{children}</SectionContext.Provider>;
+}
+
+/** ``final`` is false while a control is still being dragged; only the final edit is recorded. */
+export type ClipEdit = (patch: Partial<Clip>, final: boolean) => void;
+
+interface ClipInspectorProps {
+  project: Project;
+  selection: Clip[];
+  transitionId: string | null;
+  onEdit: ClipEdit;
+  onSpeed: (speed: number) => void;
+  onDuration: (seconds: number) => void;
+  onUnlink: () => void;
+  onLink: () => void;
+  onAddDissolve: () => void;
+  onDissolveDuration: (seconds: number, final: boolean) => void;
+  onRemoveDissolve: () => void;
+  onDelete: () => void;
+  /** Whether the wand is reading the selected clip's source right now. */
+  autoPending: boolean;
+  /** Asks the wand for the selected clip; the workspace applies what it suggests. */
+  onAuto: () => void;
+}
+
+export function ClipInspector(props: ClipInspectorProps) {
+  return (
+    <SectionMemory>
+      <InspectorContent {...props} />
+    </SectionMemory>
+  );
+}
+
+function InspectorContent({
+  project,
+  selection,
+  transitionId,
+  onEdit,
+  onSpeed,
+  onDuration,
+  onUnlink,
+  onLink,
+  onAddDissolve,
+  onDissolveDuration,
+  onRemoveDissolve,
+  onDelete,
+  autoPending,
+  onAuto,
+}: ClipInspectorProps) {
+  const transition = project.transitions.find((item) => item.id === transitionId);
+  if (transition) {
+    const overlap = transitionOverlap(project, transition);
+    const outgoing = project.clips.find((clip) => clip.id === transition.from_clip_id);
+    const incoming = project.clips.find((clip) => clip.id === transition.to_clip_id);
+    const longest = Math.min(outgoing?.duration ?? 1, incoming?.duration ?? 1) - MIN_CLIP_SECONDS;
+    return (
+      <div className="video-editor__inspector-body">
+        <InspectorHeader
+          icon={iconBlend}
+          kind="dissolve"
+          title="Cross-dissolve"
+          meta={`${outgoing ? clipLabel(project, outgoing) : "?"} → ${
+            incoming ? clipLabel(project, incoming) : "?"
+          }`}
+        />
+        <Panel title="Dissolve">
+          <p className="video-editor__hint">
+            Its length is the overlap; changing it slides the incoming clip and its sound.
+          </p>
+          <Slider
+            label="Duration"
+            value={overlap}
+            min={MIN_CLIP_SECONDS}
+            max={Math.max(MIN_CLIP_SECONDS, longest)}
+            step={1 / project.frame_rate}
+            format={(value) => `${value.toFixed(2)} s`}
+            onChange={onDissolveDuration}
+          />
+          <div className="video-editor__inspector-actions">
+            <button
+              type="button"
+              className="video-editor__secondary-btn video-editor__secondary-btn--danger"
+              onClick={onRemoveDissolve}
+            >
+              <Icon icon={iconTrash2} /> Remove dissolve
+            </button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  if (selection.length === 0) {
+    return (
+      <div className="video-editor__inspector-body">
+        <div className="video-editor__project-card">
+          <span className="video-editor__project-card-title">{project.name}</span>
+          <dl className="video-editor__facts">
+            <div>
+              <dt>Frame</dt>
+              <dd>
+                {project.width} × {project.height}
+              </dd>
+            </div>
+            <div>
+              <dt>Rate</dt>
+              <dd>{Number(project.frame_rate.toFixed(3))} fps</dd>
+            </div>
+            <div>
+              <dt>Duration</dt>
+              <dd>{formatTimecode(projectDuration(project), project.frame_rate)}</dd>
+            </div>
+            <div>
+              <dt>Clips</dt>
+              <dd>{project.clips.length}</dd>
+            </div>
+          </dl>
+        </div>
+        <p className="video-editor__inspector-empty">
+          Select a clip on the timeline to adjust it, or drag files from Media onto a track.
+        </p>
+        <Panel title="Keys">
+          <ul className="video-editor__quick-keys">
+            {QUICK_KEYS.map((item) => (
+              <li key={item.label}>
+                <span>{item.label}</span>
+                <span className="video-editor__quick-keys-caps">
+                  {item.shortcuts.map((shortcut, index) => (
+                    <ShortcutKeys key={index} shortcut={firstChord(shortcut)} />
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </div>
+    );
+  }
+
+  if (selection.length > 1) {
+    const linkable =
+      selection.filter((clip) => clip.kind === "video").length === 1 &&
+      selection.some((clip) => clip.kind === "audio");
+    return (
+      <div className="video-editor__inspector-body">
+        <InspectorHeader
+          icon={iconFilm}
+          kind="multiple"
+          title={`${selection.length} clips selected`}
+          meta="Drag one of them to move them together. Linked clips always come along."
+        />
+        <div className="video-editor__inspector-actions video-editor__inspector-actions--padded">
+          {linkable && (
+            <button type="button" className="video-editor__secondary-btn" onClick={onLink}>
+              <Icon icon={iconLink} /> Link video and audio
+            </button>
+          )}
+          <button
+            type="button"
+            className="video-editor__secondary-btn video-editor__secondary-btn--danger"
+            onClick={onDelete}
+          >
+            <Icon icon={iconTrash2} /> Delete clips
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const clip = selection[0];
+  const source = sourceById(project, clip.source_id);
+  const visual = clip.kind !== "audio";
+  const timed = clip.kind === "video" || clip.kind === "audio";
+  const outgoingDissolve = findTransition(project, clip.id).find((t) => t.from_clip_id === clip.id);
+  const neighbour = visual ? nextNeighbour(project, clip) : undefined;
+  const frame = 1 / project.frame_rate;
+  const seconds = (value: number) => `${value.toFixed(2)} s`;
+
+  return (
+    <div className="video-editor__inspector-body" data-scroll-lock-allow>
+      <InspectorHeader
+        icon={KIND_ICONS[clip.kind]}
+        kind={clip.kind}
+        title={clipLabel(project, clip)}
+        meta={`${formatTimecode(clip.start, project.frame_rate)} → ${formatTimecode(
+          clipEnd(clip),
+          project.frame_rate,
+        )} · ${clip.duration.toFixed(2)} s`}
+        detail={source && source.name !== clipLabel(project, clip) ? source.name : undefined}
+        action={
+          clip.link_id ? (
+            <button type="button" className="video-editor__secondary-btn" onClick={onUnlink}>
+              <Icon icon={iconUnlink} /> Unlink
+            </button>
+          ) : undefined
+        }
+      />
+
+      <Panel title="Timing" changed={clip.speed !== 1 || clip.fade_in > 0 || clip.fade_out > 0}>
+        {timed ? (
+          <div className="video-editor__field video-editor__field--stacked">
+            <span id={`speed-${clip.id}`}>Speed</span>
+            <div
+              className="video-editor__chips"
+              role="radiogroup"
+              aria-labelledby={`speed-${clip.id}`}
+            >
+              {SPEED_PRESETS.map((speed) => (
+                <button
+                  key={speed}
+                  type="button"
+                  role="radio"
+                  aria-checked={clip.speed === speed}
+                  className={classNames(
+                    "video-editor__chip",
+                    clip.speed === speed && "video-editor__chip--on",
+                  )}
+                  onClick={() => onSpeed(speed)}
+                >
+                  {speed}×
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <NumberField
+            label="Duration"
+            unit="s"
+            value={clip.duration}
+            min={MIN_CLIP_SECONDS}
+            step={0.1}
+            onCommit={onDuration}
+          />
+        )}
+        {timed && clip.speed !== 1 && (
+          <p className="video-editor__hint">Sound keeps its pitch at any speed.</p>
+        )}
+        <Slider
+          label="Fade in"
+          value={clip.fade_in}
+          resting={0}
+          min={0}
+          max={Math.max(0, clip.duration - clip.fade_out)}
+          step={frame}
+          format={seconds}
+          onChange={(value, final) => onEdit({ fade_in: value }, final)}
+        />
+        <Slider
+          label="Fade out"
+          value={clip.fade_out}
+          resting={0}
+          min={0}
+          max={Math.max(0, clip.duration - clip.fade_in)}
+          step={frame}
+          format={seconds}
+          onChange={(value, final) => onEdit({ fade_out: value }, final)}
+        />
+      </Panel>
+
+      {clip.kind === "audio" && (
+        <Panel title="Audio" changed={clip.gain !== 1}>
+          <Slider
+            label="Gain"
+            value={clip.gain}
+            resting={1}
+            min={0}
+            max={2}
+            step={0.01}
+            format={(value) => `${Math.round(value * 100)}%`}
+            onChange={(value, final) => onEdit({ gain: value }, final)}
+          />
+        </Panel>
+      )}
+
+      {clip.kind === "title" && clip.title && <TitlePanel clip={clip} onEdit={onEdit} />}
+
+      {visual && clip.kind !== "title" && (
+        <Panel
+          title="Transform"
+          changed={!sameTransform(clip.transform, RESTING_TRANSFORM) || clip.fit !== "fit"}
+          action={
+            <ResetButton
+              label="Reset transform"
+              onClick={() => onEdit({ transform: RESTING_TRANSFORM, fit: "fit" }, true)}
+            />
+          }
+        >
+          <div
+            className="video-editor__segmented video-editor__segmented--wide"
+            role="radiogroup"
+            aria-label="Fit"
+          >
+            {(["fit", "fill"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={clip.fit === mode}
+                className={classNames(
+                  "video-editor__segment",
+                  clip.fit === mode && "video-editor__segment--on",
+                )}
+                onClick={() => onEdit({ fit: mode }, true)}
+              >
+                {mode === "fit" ? "Fit" : "Fill"}
+              </button>
+            ))}
+          </div>
+          <TransformSliders clip={clip} onEdit={onEdit} />
+        </Panel>
+      )}
+
+      {clip.kind === "title" && (
+        <Panel title="Opacity" changed={clip.transform.opacity !== 1}>
+          <Slider
+            label="Opacity"
+            value={clip.transform.opacity}
+            resting={1}
+            min={0}
+            max={1}
+            step={0.01}
+            format={(value) => `${Math.round(value * 100)}%`}
+            onChange={(value, final) =>
+              onEdit({ transform: { ...clip.transform, opacity: value } }, final)
+            }
+          />
+        </Panel>
+      )}
+
+      {(clip.kind === "video" || clip.kind === "image") && (
+        <>
+          <CropPanel clip={clip} onEdit={onEdit} />
+          <ColorPanel clip={clip} onEdit={onEdit} autoPending={autoPending} onAuto={onAuto} />
+        </>
+      )}
+
+      {visual && (
+        <Panel title="Cross-dissolve" changed={Boolean(outgoingDissolve)}>
+          {outgoingDissolve ? (
+            <p className="video-editor__hint">
+              Dissolves into the next clip over{" "}
+              {transitionOverlap(project, outgoingDissolve).toFixed(2)} s. Select the dissolve on
+              the timeline to change it.
+            </p>
+          ) : (
+            <>
+              <p className="video-editor__hint">
+                {neighbour
+                  ? "Overlaps the next clip on this track and blends between them; the next clip and its sound slide back."
+                  : "Needs a following clip on the same track."}
+              </p>
+              <div className="video-editor__inspector-actions">
+                <button
+                  type="button"
+                  className="video-editor__secondary-btn"
+                  onClick={onAddDissolve}
+                  disabled={!neighbour}
+                >
+                  <Icon icon={iconBlend} /> Add cross-dissolve
+                </button>
+              </div>
+            </>
+          )}
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+function sameTransform(a: Clip["transform"], b: Clip["transform"]): boolean {
+  return (
+    a.x === b.x &&
+    a.y === b.y &&
+    a.scale === b.scale &&
+    a.rotation === b.rotation &&
+    a.opacity === b.opacity
+  );
+}
+
+function InspectorHeader({
+  icon,
+  kind,
+  title,
+  meta,
+  detail,
+  action,
+}: {
+  icon: typeof iconFilm;
+  kind: Clip["kind"] | "dissolve" | "multiple";
+  title: string;
+  meta: string;
+  detail?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <header
+      className={classNames("video-editor__clip-header", `video-editor__clip-header--${kind}`)}
+    >
+      <span className="video-editor__clip-icon" aria-hidden="true">
+        <Icon icon={icon} />
+      </span>
+      <div className="video-editor__clip-heading">
+        <h3 className="video-editor__clip-title" title={title}>
+          {title}
+        </h3>
+        <p className="video-editor__clip-meta">{meta}</p>
+        {detail && (
+          <p className="video-editor__clip-meta" title={detail}>
+            {detail}
+          </p>
+        )}
+      </div>
+      {action}
+    </header>
+  );
+}
+
+/** A collapsible group; a dot marks one that holds changes while it is folded away. */
+function Panel({
+  title,
+  action,
+  changed = false,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  changed?: boolean;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const { isOpen, toggle } = useContext(SectionContext);
+  const open = isOpen(title, defaultOpen);
+  const bodyId = useId();
+  return (
+    <section className={classNames("video-editor__section", open && "video-editor__section--open")}>
+      <header className="video-editor__section-header">
+        <button
+          type="button"
+          className="video-editor__section-toggle"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => toggle(title, defaultOpen)}
+        >
+          <Icon icon={iconChevronDown} className="video-editor__section-chevron" />
+          <h3 className="video-editor__section-title">{title}</h3>
+          {changed && (
+            <span className="video-editor__section-changed" title="Changed from the default" />
+          )}
+        </button>
+        {action}
+      </header>
+      {open && (
+        <div id={bodyId} className="video-editor__section-body">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ResetButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="video-editor__icon-btn"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+    >
+      <Icon icon={iconRotateCcw} />
+    </button>
+  );
+}
+
+interface SliderProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (value: number) => string;
+  onChange: (value: number, final: boolean) => void;
+  /** The untouched value: the fill grows from it, and double-clicking the label returns to it. */
+  resting?: number;
+}
+
+/** Previews while dragged; the release, or a key, records one undo step. */
+export function Slider({ label, value, min, max, step, format, onChange, resting }: SliderProps) {
+  const id = useId();
+  const clamped = Math.min(max, Math.max(min, value));
+  const changed = resting !== undefined && Math.abs(clamped - resting) > step / 2;
+  const origin = resting !== undefined && resting >= min && resting <= max ? resting : min;
+  return (
+    <div className={classNames("video-editor__slider", changed && "video-editor__slider--changed")}>
+      <label
+        htmlFor={id}
+        title={resting !== undefined ? "Double-click to reset" : undefined}
+        onDoubleClick={() => {
+          if (resting !== undefined && changed) onChange(resting, true);
+        }}
+      >
+        {label}
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={clamped}
+        style={rangeFill(clamped, min, max, origin)}
+        onChange={(event) => onChange(Number(event.target.value), false)}
+        onPointerUp={(event) => onChange(Number(event.currentTarget.value), true)}
+        onKeyUp={(event) => onChange(Number(event.currentTarget.value), true)}
+        onBlur={(event) => onChange(Number(event.currentTarget.value), true)}
+      />
+      <output htmlFor={id}>{format(clamped)}</output>
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  unit,
+  value,
+  min,
+  step,
+  onCommit,
+}: {
+  label: string;
+  unit: string;
+  value: number;
+  min: number;
+  step: number;
+  onCommit: (value: number) => void;
+}) {
+  return (
+    <label className="video-editor__field">
+      <span>{label}</span>
+      <span className="video-editor__number">
+        <input
+          key={value}
+          type="number"
+          min={min}
+          step={step}
+          defaultValue={Number(value.toFixed(2))}
+          aria-label={`${label} (${unit})`}
+          onBlur={(event) => {
+            const next = Number(event.target.value);
+            if (Number.isFinite(next) && Math.abs(next - value) > 1e-6)
+              onCommit(Math.max(min, next));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+        <span aria-hidden="true">{unit}</span>
+      </span>
+    </label>
+  );
+}
+
+function TransformSliders({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
+  const set = (patch: Partial<Clip["transform"]>, final: boolean) =>
+    onEdit({ transform: { ...clip.transform, ...patch } }, final);
+  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  return (
+    <>
+      <Slider
+        label="Position X"
+        value={clip.transform.x}
+        resting={0}
+        min={-1}
+        max={1}
+        step={0.005}
+        format={percent}
+        onChange={(x, f) => set({ x }, f)}
+      />
+      <Slider
+        label="Position Y"
+        value={clip.transform.y}
+        resting={0}
+        min={-1}
+        max={1}
+        step={0.005}
+        format={percent}
+        onChange={(y, f) => set({ y }, f)}
+      />
+      <Slider
+        label="Scale"
+        value={clip.transform.scale}
+        resting={1}
+        min={0.05}
+        max={4}
+        step={0.01}
+        format={percent}
+        onChange={(scale, f) => set({ scale }, f)}
+      />
+      <Slider
+        label="Rotation"
+        value={clip.transform.rotation}
+        resting={0}
+        min={-180}
+        max={180}
+        step={1}
+        format={(value) => `${Math.round(value)}°`}
+        onChange={(rotation, f) => set({ rotation }, f)}
+      />
+      <Slider
+        label="Opacity"
+        value={clip.transform.opacity}
+        resting={1}
+        min={0}
+        max={1}
+        step={0.01}
+        format={percent}
+        onChange={(opacity, f) => set({ opacity }, f)}
+      />
+    </>
+  );
+}
+
+function CropPanel({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
+  const crop = clip.crop ?? { x: 0, y: 0, width: 1, height: 1 };
+  const set = (patch: Partial<typeof crop>, final: boolean) => {
+    const next = { ...crop, ...patch };
+    next.width = Math.min(next.width, 1 - next.x);
+    next.height = Math.min(next.height, 1 - next.y);
+    const whole = next.x === 0 && next.y === 0 && next.width === 1 && next.height === 1;
+    onEdit({ crop: whole ? null : next }, final);
+  };
+  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  return (
+    <Panel
+      title="Crop"
+      defaultOpen={false}
+      changed={clip.crop !== null}
+      action={<ResetButton label="Reset crop" onClick={() => onEdit({ crop: null }, true)} />}
+    >
+      <Slider
+        label="Left"
+        value={crop.x}
+        resting={0}
+        min={0}
+        max={0.95}
+        step={0.005}
+        format={percent}
+        onChange={(x, f) => set({ x }, f)}
+      />
+      <Slider
+        label="Top"
+        value={crop.y}
+        resting={0}
+        min={0}
+        max={0.95}
+        step={0.005}
+        format={percent}
+        onChange={(y, f) => set({ y }, f)}
+      />
+      <Slider
+        label="Width"
+        value={crop.width}
+        resting={1 - crop.x}
+        min={0.05}
+        max={1 - crop.x}
+        step={0.005}
+        format={percent}
+        onChange={(width, f) => set({ width }, f)}
+      />
+      <Slider
+        label="Height"
+        value={crop.height}
+        resting={1 - crop.y}
+        min={0.05}
+        max={1 - crop.y}
+        step={0.005}
+        format={percent}
+        onChange={(height, f) => set({ height }, f)}
+      />
+    </Panel>
+  );
+}
+
+function ColorPanel({
+  clip,
+  onEdit,
+  autoPending,
+  onAuto,
+}: {
+  clip: Clip;
+  onEdit: ClipEdit;
+  autoPending: boolean;
+  onAuto: () => void;
+}) {
+  const resting = restingAdjust();
+  const auto = clip.auto_adjust ?? null;
+  const set = (tool: AdjustTool, value: number, final: boolean) =>
+    onEdit({ adjust: { ...clip.adjust, [tool]: value } as ColorAdjust }, final);
+  return (
+    <Panel
+      title="Color"
+      defaultOpen={false}
+      changed={!isAdjustIdentity(clip.adjust) || auto !== null}
+      action={
+        <ResetButton
+          label="Reset color"
+          onClick={() => onEdit({ adjust: restingAdjust(), auto_adjust: null }, true)}
+        />
+      }
+    >
+      <div className="video-editor__auto">
+        <button
+          type="button"
+          className={classNames("video-editor__auto-btn", auto && "video-editor__auto-btn--on")}
+          aria-pressed={auto !== null}
+          aria-busy={autoPending || undefined}
+          disabled={autoPending}
+          title={auto ? "Turn Auto off" : "Fix levels and color cast from this clip's frames"}
+          onClick={() => {
+            if (!auto) onAuto();
+            else onEdit({ adjust: withoutAuto(clip.adjust, auto), auto_adjust: null }, true);
+          }}
+        >
+          <Icon icon={autoPending ? iconLoader2 : iconWandSparkles} spin={autoPending} />
+          {autoPending ? "Reading frames..." : "Auto"}
+        </button>
+        {auto ? (
+          <Slider
+            label="Amount"
+            value={auto.amount}
+            resting={AUTO_ADJUST_DEFAULT_AMOUNT}
+            min={0}
+            max={1}
+            step={0.01}
+            format={(amount) => String(Math.round(amount * 100))}
+            onChange={(amount, final) => {
+              const next = rescaleAuto(clip.adjust, auto, amount);
+              onEdit({ adjust: next.adjust, auto_adjust: next.autoAdjust }, final);
+            }}
+          />
+        ) : (
+          <p className="video-editor__hint">
+            Reads the clip's frames and sets levels and color for you; fine-tune below.
+          </p>
+        )}
+      </div>
+      {COLOR_GROUPS.map((group) => (
+        <div key={group.label} className="video-editor__group">
+          <h4 className="video-editor__group-title">{group.label}</h4>
+          {group.tools.map((tool) => {
+            const range = adjustRange(tool.id);
+            return (
+              <Slider
+                key={tool.id}
+                label={tool.label}
+                value={clip.adjust[tool.id]}
+                resting={resting[tool.id]}
+                min={range.min}
+                max={range.max}
+                step={range.step}
+                format={(value) => formatAdjustValue(tool.id, value)}
+                onChange={(value, final) => set(tool.id, value, final)}
+              />
+            );
+          })}
+        </div>
+      ))}
+    </Panel>
+  );
+}
+
+function TitlePanel({ clip, onEdit }: { clip: Clip; onEdit: ClipEdit }) {
+  const title = clip.title;
+  const textId = useId();
+  if (!title) return null;
+  const set = (patch: Partial<typeof title>, final: boolean) =>
+    onEdit({ title: { ...title, ...patch } }, final);
+  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  return (
+    <Panel title="Title">
+      <label className="video-editor__field video-editor__field--stacked" htmlFor={textId}>
+        <span>Text</span>
+      </label>
+      <textarea
+        id={textId}
+        className="video-editor__textarea"
+        value={title.text}
+        rows={3}
+        maxLength={500}
+        onChange={(event) => set({ text: event.target.value }, false)}
+        onBlur={(event) => set({ text: event.target.value }, true)}
+      />
+      <div className="video-editor__field video-editor__field--stacked">
+        <span>Font</span>
+        <FontPicker value={title.font ?? null} onChange={(font) => set({ font }, true)} />
+      </div>
+      <div
+        className="video-editor__segmented video-editor__segmented--wide"
+        role="radiogroup"
+        aria-label="Alignment"
+      >
+        {(["left", "center", "right"] as VideoProjectTitleAlign[]).map((align) => (
+          <button
+            key={align}
+            type="button"
+            role="radio"
+            aria-checked={title.align === align}
+            className={classNames(
+              "video-editor__segment",
+              title.align === align && "video-editor__segment--on",
+            )}
+            onClick={() => set({ align }, true)}
+          >
+            {align[0].toUpperCase() + align.slice(1)}
+          </button>
+        ))}
+      </div>
+      <Slider
+        label="Size"
+        value={title.size}
+        resting={0.08}
+        min={0.02}
+        max={0.3}
+        step={0.005}
+        format={percent}
+        onChange={(size, f) => set({ size }, f)}
+      />
+      <Slider
+        label="Position X"
+        value={title.x}
+        resting={0.5}
+        min={0}
+        max={1}
+        step={0.005}
+        format={percent}
+        onChange={(x, f) => set({ x }, f)}
+      />
+      <Slider
+        label="Position Y"
+        value={title.y}
+        resting={0.5}
+        min={0}
+        max={1}
+        step={0.005}
+        format={percent}
+        onChange={(y, f) => set({ y }, f)}
+      />
+      <Slider
+        label="Outline"
+        value={title.outline}
+        resting={0.04}
+        min={0}
+        max={0.25}
+        step={0.005}
+        format={percent}
+        onChange={(outline, f) => set({ outline }, f)}
+      />
+      <div className="video-editor__swatches">
+        <label className="video-editor__swatch">
+          <input
+            type="color"
+            value={title.color}
+            aria-label="Text color"
+            onChange={(event) => set({ color: event.target.value }, true)}
+          />
+          <span>Text</span>
+        </label>
+        <label className="video-editor__swatch">
+          <input
+            type="color"
+            value={title.outline_color}
+            aria-label="Outline color"
+            onChange={(event) => set({ outline_color: event.target.value }, true)}
+          />
+          <span>Outline</span>
+        </label>
+      </div>
+    </Panel>
+  );
+}

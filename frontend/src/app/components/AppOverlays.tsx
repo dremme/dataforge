@@ -113,7 +113,7 @@ export function AppOverlays({
 
       {gallery.selectedPath && gallery.selectedIndex >= 0 && (
         <GalleryItemModal
-          suspended={instructions.open}
+          suspended={instructions.open || gallery.suspended}
           focusView={gallery.focusView}
           onFocusViewChange={gallery.onFocusViewChange}
           onEditExpandedChange={gallery.onEditExpandedChange}

@@ -275,6 +275,7 @@ export function Toolbar({
   const compact = useToolbarCompactMode(toolbarRef);
   return (
     <div ref={toolbarRef} className={classNames("toolbar", compact && "toolbar--compact")}>
+      <span className="toolbar__measure" aria-hidden="true" />
       <div
         className={classNames("toolbar__stats", statsLoading && "toolbar__stats--loading")}
         aria-busy={statsLoading || undefined}

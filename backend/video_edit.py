@@ -339,17 +339,19 @@ def definition_expression(params: DefinitionParams) -> str:
 
 
 def definition_links(
-    params: DefinitionParams, frame: tuple[int, int], source: str, target: str
+    params: DefinitionParams, frame: tuple[int, int], source: str, target: str, prefix: str = ""
 ) -> list[str]:
-    """The base is blurred small and scaled back, as the image path and the preview take it."""
+    """The base is blurred small and scaled back, as the image path and the preview take it.
+    ``prefix`` keeps the inner labels apart when one graph defines several clips."""
     small_width, small_height = params.size
     width, height = frame
     return [
-        f"[{source}]split=2[defsrc][defbase]",
-        f"[defbase]scale=w={small_width}:h={small_height}:flags=area,"
+        f"[{source}]split=2[{prefix}defsrc][{prefix}defbase]",
+        f"[{prefix}defbase]scale=w={small_width}:h={small_height}:flags=area,"
         f"gblur=sigma={_fraction(params.sigma)}:steps=4:planes=1,"
-        f"scale=w={width}:h={height}:flags=bilinear[defblur]",
-        f"[defsrc][defblur]lut2=c0={definition_expression(params)}:c1=x:c2=x[{target}]",
+        f"scale=w={width}:h={height}:flags=bilinear[{prefix}defblur]",
+        f"[{prefix}defsrc][{prefix}defblur]lut2=c0={definition_expression(params)}:c1=x:c2=x"
+        f"[{target}]",
     ]
 
 
@@ -371,7 +373,11 @@ class StreamColor:
 
 
 def build_adjust_stage(
-    spec: VideoEditSpec, frame: tuple[int, int] | None, *, color: StreamColor = StreamColor()
+    spec: VideoEditSpec,
+    frame: tuple[int, int] | None,
+    *,
+    color: StreamColor = StreamColor(),
+    cube_name: str = ADJUST_CUBE_NAME,
 ) -> AdjustStage:
     """Detail on full-range planes, then the LUT, then back to limited range for the encoder."""
     adjust = spec.adjust
@@ -409,7 +415,7 @@ def build_adjust_stage(
 
     if not is_global_identity(adjust):
         # Float planes: swscale's 8-bit RGB round trip alone darkens by about a level.
-        tail.append(f"format=gbrpf32le,lut3d=file={ADJUST_CUBE_NAME}:interp=trilinear")
+        tail.append(f"format=gbrpf32le,lut3d=file={cube_name}:interp=trilinear")
     if ranged:
         tail.append("scale=out_range=limited,format=yuv420p")
 

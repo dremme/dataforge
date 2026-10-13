@@ -18,6 +18,7 @@ from routes import (
     settings,
     sidecars,
     system,
+    video_projects,
 )
 
 router = APIRouter(prefix="/api")
@@ -40,5 +41,6 @@ for module in (
     jobs,
     external_jobs,
     events,
+    video_projects,
 ):
     router.include_router(module.router)

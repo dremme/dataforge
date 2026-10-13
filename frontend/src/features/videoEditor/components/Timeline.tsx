@@ -1,0 +1,1034 @@
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  iconChevronDown,
+  iconChevronUp,
+  iconEye,
+  iconEyeOff,
+  iconHeadphones,
+  iconLink,
+  iconLock,
+  iconLockOpen,
+  iconTrash2,
+  iconTriangleAlert,
+  iconType,
+  iconVolume2,
+  iconVolumeX,
+} from "@/shared/icons";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
+import { classNames } from "@/shared/lib/classNames";
+import { Icon } from "@/shared/ui/Icon";
+import { filmstripUrl, waveformUrl } from "@/features/videoEditor/api/videoProjects";
+import { usePlayheadTime } from "@/features/videoEditor/hooks/usePlayhead";
+import type { PreviewEngine, SourceLocation } from "@/features/videoEditor/lib/previewEngine";
+import {
+  clipEnd,
+  clipLabel,
+  clipTrackKind,
+  formatTimecode,
+  moveClipsFlush,
+  moveTrack,
+  projectDuration,
+  removeTrack,
+  snapBlockDelta,
+  snapTargets,
+  snapTo,
+  snapToFrame,
+  sourceById,
+  splitClips,
+  tracksOfKind,
+  transitionOverlap,
+  trimClipFlush,
+  updateTrack,
+  withLinked,
+  type Clip,
+  type EditResult,
+  type Project,
+  type TimeRange,
+  type Track,
+  type TrimEdge,
+} from "@/features/videoEditor/lib/timeline";
+import { thumbnailUrl } from "@/features/gallery/api/media";
+import { ToolButton } from "./ToolButton";
+
+export type TimelineTool = "select" | "blade" | "range";
+
+/** Drag-and-drop payload type of a media browser row. */
+export const SOURCE_DRAG_TYPE = "application/x-dataforge-editor-source";
+
+/** Width of the track header column; the stylesheet's `$header-width` matches it. */
+export const TRACK_HEADER_PX = 184;
+/** Room before 00:00, so the playhead and a clip's first edge never sit under the headers. */
+export const TIMELINE_ORIGIN_PX = 12;
+const VIDEO_LANE_PX = 60;
+const AUDIO_LANE_PX = 48;
+const SNAP_PX = 8;
+/** Seconds of empty timeline after the last clip, so there is room to drop and drag. */
+const TAIL_SECONDS = 10;
+const FILMSTRIP_FRAME_PX = 72;
+const FILMSTRIP_HEIGHT = 48;
+/** How far ahead of the right edge the view pages forward while playing. */
+const FOLLOW_MARGIN_PX = 32;
+/** Frames get their own ruler ticks once one is this wide. */
+const FRAME_TICK_PX = 6;
+
+interface TimelineProps {
+  project: Project;
+  engine: PreviewEngine;
+  sources: Map<string, SourceLocation>;
+  selection: Set<string>;
+  selectedTransition: string | null;
+  range: TimeRange | null;
+  tool: TimelineTool;
+  snapping: boolean;
+  pxPerSecond: number;
+  onSelect: (ids: Set<string>, transition?: string | null) => void;
+  onRange: (range: TimeRange | null) => void;
+  onPreview: (project: Project) => void;
+  onCommit: (next: Project, from: Project) => void;
+  onError: (message: string) => void;
+  onSeek: (time: number) => void;
+  onDropSource: (path: string, time: number, trackId: string) => void;
+  onTracks: (next: Project) => void;
+  onZoom: (pxPerSecond: number) => void;
+}
+
+type Drag =
+  | {
+      kind: "move";
+      base: Project;
+      clipId: string;
+      ids: Set<string>;
+      originX: number;
+      originY: number;
+      /** The last position the edit could take; `error` says why the pointer's own cannot. */
+      result: EditResult | null;
+      error?: string;
+    }
+  | {
+      kind: "trim";
+      base: Project;
+      clipId: string;
+      edge: TrimEdge;
+      result: EditResult | null;
+      error?: string;
+    }
+  | { kind: "range"; anchor: number }
+  | { kind: "scrub" };
+
+function laneHeight(track: Track): number {
+  return track.kind === "video" ? VIDEO_LANE_PX : AUDIO_LANE_PX;
+}
+
+export function Timeline({
+  project,
+  engine,
+  sources,
+  selection,
+  selectedTransition,
+  range,
+  tool,
+  snapping,
+  pxPerSecond,
+  onSelect,
+  onRange,
+  onPreview,
+  onCommit,
+  onError,
+  onSeek,
+  onDropSource,
+  onTracks,
+  onZoom,
+}: TimelineProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lanesRef = useRef<HTMLDivElement>(null);
+  const playheadRef = useRef<HTMLDivElement>(null);
+  const playheadHeadRef = useRef<HTMLDivElement>(null);
+  const bladeRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<Drag | null>(null);
+  const zoomAnchorRef = useRef<{ time: number; offset: number } | null>(null);
+  const shownPxRef = useRef(pxPerSecond);
+  const [dragError, setDragError] = useState<string | null>(null);
+  const [snapAt, setSnapAt] = useState<number | null>(null);
+  const [drop, setDrop] = useState<{ trackId: string; time: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+
+  const duration = projectDuration(project);
+  const [viewWidth, setViewWidth] = useState(0);
+  // The lanes always reach the right edge, however short the project or far out the zoom.
+  const contentWidth = Math.max(
+    TIMELINE_ORIGIN_PX + (duration + TAIL_SECONDS) * pxPerSecond,
+    viewWidth - TRACK_HEADER_PX,
+  );
+  const at = (time: number) => TIMELINE_ORIGIN_PX + time * pxPerSecond;
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const measure = () => setViewWidth(scroller.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, []);
+
+  // The line follows the clock without React; while playing, the view pages along with it.
+  useEffect(() => {
+    const move = (time: number) => {
+      const x = TIMELINE_ORIGIN_PX + time * pxPerSecond;
+      const transform = `translateX(${x}px)`;
+      if (playheadRef.current) playheadRef.current.style.transform = transform;
+      if (playheadHeadRef.current) playheadHeadRef.current.style.transform = transform;
+      const scroller = scrollRef.current;
+      if (!scroller || !engine.isPlaying) return;
+      const view = scroller.clientWidth - TRACK_HEADER_PX;
+      if (x > scroller.scrollLeft + view - FOLLOW_MARGIN_PX || x < scroller.scrollLeft) {
+        scroller.scrollLeft = Math.max(0, x - FOLLOW_MARGIN_PX);
+      }
+    };
+    move(engine.currentTime);
+    return engine.subscribe(move);
+  }, [engine, pxPerSecond]);
+
+  // A zoom keeps one moment where it was on screen: the pointer's for a wheel zoom, otherwise
+  // the playhead when it is in view, otherwise the left edge.
+  useLayoutEffect(() => {
+    const before = shownPxRef.current;
+    shownPxRef.current = pxPerSecond;
+    const scroller = scrollRef.current;
+    if (!scroller || before === pxPerSecond) return;
+    let anchor = zoomAnchorRef.current;
+    zoomAnchorRef.current = null;
+    if (!anchor) {
+      const view = scroller.clientWidth - TRACK_HEADER_PX;
+      const playX = TIMELINE_ORIGIN_PX + engine.currentTime * before - scroller.scrollLeft;
+      anchor =
+        playX >= 0 && playX <= view
+          ? { time: engine.currentTime, offset: playX }
+          : { time: scroller.scrollLeft / before, offset: 0 };
+    }
+    scroller.scrollLeft = Math.max(
+      0,
+      TIMELINE_ORIGIN_PX + anchor.time * pxPerSecond - anchor.offset,
+    );
+  }, [engine, pxPerSecond]);
+
+  // Ctrl/Cmd + wheel zooms around the pointer. A plain wheel scrolls sideways while every track
+  // fits, since there is nothing to scroll the other way.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const offset = event.clientX - scroller.getBoundingClientRect().left - TRACK_HEADER_PX;
+        zoomAnchorRef.current = { time: timeAt(event.clientX), offset: Math.max(0, offset) };
+        onZoom(pxPerSecond * (event.deltaY < 0 ? 1.25 : 0.8));
+        return;
+      }
+      const fits = scroller.scrollHeight <= scroller.clientHeight;
+      if (fits && event.deltaX === 0 && event.deltaY !== 0 && !event.shiftKey) {
+        event.preventDefault();
+        scroller.scrollLeft += event.deltaY;
+      }
+    };
+    scroller.addEventListener("wheel", wheel, { passive: false });
+    return () => scroller.removeEventListener("wheel", wheel);
+  });
+
+  function timeAt(clientX: number): number {
+    const lanes = lanesRef.current;
+    if (!lanes) return 0;
+    const x = clientX - lanes.getBoundingClientRect().left - TIMELINE_ORIGIN_PX;
+    return Math.max(0, x / pxPerSecond);
+  }
+
+  /** The track whose lane is under ``clientY``. */
+  function trackAt(clientY: number): Track | undefined {
+    const lanes = lanesRef.current;
+    if (!lanes) return undefined;
+    let offset = clientY - lanes.getBoundingClientRect().top;
+    if (offset < 0) return undefined;
+    for (const track of project.tracks) {
+      offset -= laneHeight(track);
+      if (offset < 0) return track;
+    }
+    return undefined;
+  }
+
+  function laneTop(trackId: string): number {
+    let top = 0;
+    for (const track of project.tracks) {
+      if (track.id === trackId) return top;
+      top += laneHeight(track);
+    }
+    return top;
+  }
+
+  const threshold = SNAP_PX / pxPerSecond;
+  const frame = (time: number) => snapToFrame(time, project.frame_rate);
+
+  function startDrag(event: ReactPointerEvent, drag: Drag) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = drag;
+    setDragError(null);
+    hideBlade();
+  }
+
+  function handleClipPointerDown(event: ReactPointerEvent, clip: Clip) {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    const time = frame(timeAt(event.clientX));
+    if (tool === "blade") {
+      const result = splitClips(project, time, [clip.id]);
+      if (result.project) onCommit(result.project, project);
+      else onError(result.error);
+      return;
+    }
+    if (tool === "range") {
+      startDrag(event, { kind: "range", anchor: time });
+      onRange({ start: time, end: time });
+      return;
+    }
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+    let ids = selection;
+    if (additive) {
+      ids = new Set(selection);
+      if (ids.has(clip.id)) ids.delete(clip.id);
+      else ids.add(clip.id);
+      onSelect(ids, null);
+      if (!ids.has(clip.id)) return;
+    } else if (!selection.has(clip.id)) {
+      ids = new Set([clip.id]);
+      onSelect(ids, null);
+    }
+    startDrag(event, {
+      kind: "move",
+      base: project,
+      clipId: clip.id,
+      ids,
+      originX: event.clientX,
+      originY: event.clientY,
+      result: null,
+    });
+  }
+
+  function handleTrimPointerDown(event: ReactPointerEvent, clip: Clip, edge: TrimEdge) {
+    if (event.button !== 0 || tool !== "select") return;
+    event.stopPropagation();
+    if (!selection.has(clip.id)) onSelect(new Set([clip.id]), null);
+    startDrag(event, { kind: "trim", base: project, clipId: clip.id, edge, result: null });
+  }
+
+  function handleLanePointerDown(event: ReactPointerEvent) {
+    if (event.button !== 0) return;
+    const time = frame(timeAt(event.clientX));
+    if (tool === "range") {
+      startDrag(event, { kind: "range", anchor: time });
+      onRange({ start: time, end: time });
+      return;
+    }
+    onSelect(new Set(), null);
+    onSeek(time);
+  }
+
+  function handleRulerPointerDown(event: ReactPointerEvent) {
+    if (event.button !== 0) return;
+    startDrag(event, { kind: "scrub" });
+    onSeek(frame(timeAt(event.clientX)));
+  }
+
+  /** The blade's cut line, drawn over the lane under the pointer without a React render. */
+  function showBlade(clientX: number, clientY: number) {
+    const line = bladeRef.current;
+    const lanes = lanesRef.current;
+    if (!line || !lanes) return;
+    const track = trackAt(clientY);
+    const inside = clientX >= lanes.getBoundingClientRect().left;
+    if (!track || !inside) {
+      hideBlade();
+      return;
+    }
+    line.style.display = "block";
+    line.style.top = `${laneTop(track.id)}px`;
+    line.style.height = `${laneHeight(track)}px`;
+    line.style.transform = `translateX(${at(frame(timeAt(clientX)))}px)`;
+  }
+
+  function hideBlade() {
+    if (bladeRef.current) bladeRef.current.style.display = "none";
+  }
+
+  function handlePointerMove(event: ReactPointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) {
+      if (tool === "blade") showBlade(event.clientX, event.clientY);
+      return;
+    }
+    const time = timeAt(event.clientX);
+    if (drag.kind === "scrub") {
+      onSeek(frame(time));
+      return;
+    }
+    if (drag.kind === "range") {
+      const end = frame(time);
+      onRange({ start: Math.min(drag.anchor, end), end: Math.max(drag.anchor, end) });
+      return;
+    }
+    if (drag.kind === "trim") {
+      let target = frame(time);
+      let snapped: number | null = null;
+      if (snapping) {
+        const excluded = withLinked(drag.base, [drag.clipId]);
+        snapped = snapTo(target, snapTargets(drag.base, engine.currentTime, excluded), threshold);
+        target = snapped ?? target;
+      }
+      setSnapAt(snapped);
+      followDrag(drag, trimClipFlush(drag.base, drag.clipId, drag.edge, target));
+      return;
+    }
+    const moving = withLinked(drag.base, drag.ids);
+    const movingClips = drag.base.clips.filter((clip) => moving.has(clip.id));
+    let delta = (event.clientX - drag.originX) / pxPerSecond;
+    const first = Math.min(...movingClips.map((clip) => clip.start));
+    delta = Math.max(delta, -first);
+    let snapped: number | null = null;
+    if (snapping) {
+      const last = Math.max(...movingClips.map(clipEnd));
+      const targets = snapTargets(drag.base, engine.currentTime, moving);
+      delta = snapBlockDelta(first, last, delta, targets, threshold);
+      snapped =
+        [first + delta, last + delta].find((edge) =>
+          targets.some((target) => Math.abs(target - edge) < 1e-6),
+        ) ?? null;
+    } else {
+      delta = frame(first + delta) - first;
+    }
+    setSnapAt(snapped);
+    const dragged = drag.base.clips.find((clip) => clip.id === drag.clipId);
+    let trackShift = 0;
+    const over = trackAt(event.clientY);
+    if (dragged && over && over.kind === clipTrackKind(dragged)) {
+      const ordered = tracksOfKind(drag.base, over.kind);
+      trackShift =
+        ordered.findIndex((track) => track.id === over.id) -
+        ordered.findIndex((track) => track.id === dragged.track_id);
+    }
+    followDrag(
+      drag,
+      moveClipsFlush(drag.base, { ids: drag.ids, delta, trackShift, draggedId: drag.clipId }),
+    );
+  }
+
+  /** A position the edit cannot take leaves the clips at the last one it could. */
+  function followDrag(drag: Extract<Drag, { result: EditResult | null }>, result: EditResult) {
+    if (result.project) {
+      drag.result = result;
+      onPreview(result.project);
+      setDragError(null);
+    } else {
+      drag.error = result.error;
+      setDragError(result.error);
+    }
+  }
+
+  function handlePointerUp() {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    setSnapAt(null);
+    if (!drag || drag.kind === "scrub" || drag.kind === "range") return;
+    if (drag.result?.project) onCommit(drag.result.project, drag.base);
+    else if (drag.error) onError(drag.error);
+    setDragError(null);
+  }
+
+  /** Where a drop at this point lands: the track under it, and a time snapped like a move. */
+  function dropPoint(event: ReactDragEvent): { track: Track | undefined; time: number } {
+    const time = frame(timeAt(event.clientX));
+    const snapped = snapping
+      ? snapTo(time, snapTargets(project, engine.currentTime, new Set()), threshold)
+      : null;
+    return { track: trackAt(event.clientY), time: snapped ?? time };
+  }
+
+  function handleDragOver(event: ReactDragEvent) {
+    if (!event.dataTransfer.types.includes(SOURCE_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    const { track, time } = dropPoint(event);
+    const next = track ? { trackId: track.id, time } : null;
+    if (next?.trackId !== drop?.trackId || next?.time !== drop?.time) setDrop(next);
+  }
+
+  function handleDrop(event: ReactDragEvent) {
+    setDrop(null);
+    const path = event.dataTransfer.getData(SOURCE_DRAG_TYPE);
+    if (!path) return;
+    event.preventDefault();
+    const { track, time } = dropPoint(event);
+    if (!track) {
+      onError("Drop the file on a track.");
+      return;
+    }
+    onDropSource(path, time, track.id);
+  }
+
+  const ruler = useMemo(
+    () =>
+      rulerTicks(
+        pxPerSecond,
+        (contentWidth - TIMELINE_ORIGIN_PX) / pxPerSecond,
+        project.frame_rate,
+      ),
+    [pxPerSecond, contentWidth, project.frame_rate],
+  );
+  const ranged = range !== null && range.end > range.start;
+  const firstAudio = project.tracks.findIndex((track) => track.kind === "audio");
+
+  return (
+    <div className="video-timeline">
+      {dragError && (
+        <p className="video-timeline__drag-error" role="status">
+          <Icon icon={iconTriangleAlert} /> {dragError}
+        </p>
+      )}
+      <div
+        ref={scrollRef}
+        className="video-timeline__scroll"
+        data-scroll-lock-allow
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={hideBlade}
+      >
+        <div className="video-timeline__grid" style={{ width: contentWidth + TRACK_HEADER_PX }}>
+          <div className="video-timeline__corner">
+            <CornerTimecode engine={engine} frameRate={project.frame_rate} />
+          </div>
+          <div
+            className="video-timeline__ruler"
+            style={
+              {
+                width: contentWidth,
+                "--minor-tick": `${ruler.minorPx}px`,
+              } as CSSProperties
+            }
+            onPointerDown={handleRulerPointerDown}
+            role="slider"
+            aria-label="Timeline position"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration * 100) / 100}
+            aria-valuenow={Math.round(engine.currentTime * 100) / 100}
+            aria-valuetext={formatTimecode(engine.currentTime, project.frame_rate)}
+            tabIndex={-1}
+          >
+            {ruler.ticks.map((tick) => (
+              <span key={tick} className="video-timeline__tick" style={{ left: at(tick) }}>
+                {rulerLabel(tick)}
+              </span>
+            ))}
+            {range && (
+              <span
+                className={classNames(
+                  "video-timeline__ruler-range",
+                  !ranged && "video-timeline__ruler-range--in",
+                )}
+                style={{
+                  left: at(range.start),
+                  width: Math.max(0, (range.end - range.start) * pxPerSecond),
+                }}
+                aria-hidden="true"
+              />
+            )}
+            <div
+              ref={playheadHeadRef}
+              className="video-timeline__playhead-head"
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="video-timeline__headers">
+            {project.tracks.map((track, index) => (
+              <TrackHeader
+                key={track.id}
+                track={track}
+                project={project}
+                divided={index === firstAudio && index > 0}
+                renaming={renaming === track.id}
+                onRenameStart={() => setRenaming(track.id)}
+                onRenameEnd={() => setRenaming(null)}
+                onTracks={onTracks}
+                onError={onError}
+              />
+            ))}
+          </div>
+
+          <div
+            ref={lanesRef}
+            className={classNames("video-timeline__lanes", `video-timeline__lanes--${tool}`)}
+            style={{ width: contentWidth }}
+            onPointerDown={handleLanePointerDown}
+            onDragOver={handleDragOver}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDrop(null);
+            }}
+            onDrop={handleDrop}
+          >
+            {project.tracks.map((track, index) => (
+              <div
+                key={track.id}
+                className={classNames(
+                  "video-timeline__lane",
+                  `video-timeline__lane--${track.kind}`,
+                  index === firstAudio && index > 0 && "video-timeline__lane--divided",
+                  track.locked && "video-timeline__lane--locked",
+                  track.hidden && "video-timeline__lane--hidden",
+                  track.muted && "video-timeline__lane--muted",
+                  drop?.trackId === track.id && "video-timeline__lane--drop",
+                )}
+                style={{ height: laneHeight(track) }}
+                data-track={track.id}
+              >
+                {project.clips
+                  .filter((clip) => clip.track_id === track.id)
+                  .map((clip) => (
+                    <TimelineClip
+                      key={clip.id}
+                      clip={clip}
+                      project={project}
+                      location={clip.source_id ? sources.get(clip.source_id) : undefined}
+                      pxPerSecond={pxPerSecond}
+                      selected={selection.has(clip.id)}
+                      invalid={Boolean(dragError) && selection.has(clip.id)}
+                      onPointerDown={(event) => handleClipPointerDown(event, clip)}
+                      onTrimPointerDown={(event, edge) => handleTrimPointerDown(event, clip, edge)}
+                      onChoose={(additive) => {
+                        const ids = new Set(additive ? selection : []);
+                        if (additive && ids.has(clip.id)) ids.delete(clip.id);
+                        else ids.add(clip.id);
+                        onSelect(ids, null);
+                      }}
+                    />
+                  ))}
+                {project.transitions
+                  .map((transition) => ({
+                    transition,
+                    outgoing: project.clips.find((clip) => clip.id === transition.from_clip_id),
+                  }))
+                  .filter(({ outgoing }) => outgoing?.track_id === track.id)
+                  .map(({ transition, outgoing }) => {
+                    const overlap = transitionOverlap(project, transition);
+                    const start = clipEnd(outgoing as Clip) - overlap;
+                    return (
+                      <button
+                        key={transition.id}
+                        type="button"
+                        className={classNames(
+                          "video-timeline__dissolve",
+                          selectedTransition === transition.id &&
+                            "video-timeline__dissolve--selected",
+                        )}
+                        style={{ left: at(start), width: overlap * pxPerSecond }}
+                        aria-label={`Cross-dissolve, ${overlap.toFixed(2)} seconds`}
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          onSelect(new Set(), transition.id);
+                        }}
+                      />
+                    );
+                  })}
+              </div>
+            ))}
+            {project.clips.length === 0 && (
+              <p className="video-timeline__empty" aria-hidden="true">
+                Drag media here from the browser, or press + on a file to add it at the playhead
+              </p>
+            )}
+            {ranged && (
+              <div
+                className="video-timeline__range"
+                style={{
+                  left: at(range.start),
+                  width: (range.end - range.start) * pxPerSecond,
+                }}
+                aria-hidden="true"
+              />
+            )}
+            {drop && (
+              <div
+                className="video-timeline__drop-line"
+                style={{
+                  top: laneTop(drop.trackId),
+                  height: laneHeight(
+                    project.tracks.find((track) => track.id === drop.trackId) as Track,
+                  ),
+                  transform: `translateX(${at(drop.time)}px)`,
+                }}
+                aria-hidden="true"
+              />
+            )}
+            {snapAt !== null && (
+              <div
+                className="video-timeline__snap"
+                style={{ transform: `translateX(${at(snapAt)}px)` }}
+                aria-hidden="true"
+              />
+            )}
+            <div ref={bladeRef} className="video-timeline__blade" aria-hidden="true" />
+            <div ref={playheadRef} className="video-timeline__playhead" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The playhead's timecode, redrawn on its own so the timeline does not re-render with it. */
+function CornerTimecode({ engine, frameRate }: { engine: PreviewEngine; frameRate: number }) {
+  const time = usePlayheadTime(engine);
+  return <span className="video-timeline__timecode">{formatTimecode(time, frameRate)}</span>;
+}
+
+/** Whole seconds as a timecode; half seconds as seconds, so neighbouring labels differ. */
+function rulerLabel(time: number): string {
+  return Number.isInteger(time) ? formatTimecode(time) : `${time.toFixed(1)}s`;
+}
+
+const STEPS: [step: number, divisions: number][] = [
+  [0.5, 5],
+  [1, 4],
+  [2, 4],
+  [5, 5],
+  [10, 5],
+  [15, 3],
+  [30, 6],
+  [60, 4],
+  [120, 4],
+  [300, 5],
+  [600, 6],
+];
+
+/**
+ * One label every 0.5 to 600 seconds, whichever leaves room to read it, and minor ticks between
+ * them: single frames once they are wide enough to tell apart.
+ */
+function rulerTicks(
+  pxPerSecond: number,
+  seconds: number,
+  frameRate: number,
+): { ticks: number[]; minorPx: number } {
+  const [step, divisions] = STEPS.find(([candidate]) => candidate * pxPerSecond >= 72) ?? [600, 6];
+  const ticks: number[] = [];
+  for (let time = 0; time <= seconds; time += step) ticks.push(time);
+  const framePx = pxPerSecond / frameRate;
+  return { ticks, minorPx: framePx >= FRAME_TICK_PX ? framePx : (step * pxPerSecond) / divisions };
+}
+
+interface TrackHeaderProps {
+  track: Track;
+  project: Project;
+  /** The first audio track draws the line between picture and sound. */
+  divided: boolean;
+  renaming: boolean;
+  onRenameStart: () => void;
+  onRenameEnd: () => void;
+  onTracks: (next: Project) => void;
+  onError: (message: string) => void;
+}
+
+function TrackHeader({
+  track,
+  project,
+  divided,
+  renaming,
+  onRenameStart,
+  onRenameEnd,
+  onTracks,
+  onError,
+}: TrackHeaderProps) {
+  const [draft, setDraft] = useState(track.name);
+  const empty = !project.clips.some((clip) => clip.track_id === track.id);
+  const apply = (result: EditResult) => {
+    if (result.project) onTracks(result.project);
+    else onError(result.error);
+  };
+  const update = (patch: Partial<Track>) => apply(updateTrack(project, track.id, patch));
+  const swap = (direction: -1 | 1) => apply(moveTrack(project, track.id, direction));
+  const remove = () => apply(removeTrack(project, track.id));
+
+  return (
+    <div
+      className={classNames(
+        "video-timeline__header",
+        `video-timeline__header--${track.kind}`,
+        divided && "video-timeline__header--divided",
+        track.locked && "video-timeline__header--locked",
+      )}
+      style={{ height: laneHeight(track) }}
+    >
+      <div className="video-timeline__header-row">
+        {renaming ? (
+          <input
+            className="video-timeline__name-input"
+            value={draft}
+            maxLength={40}
+            aria-label={`Name of ${track.name}`}
+            autoFocus
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => {
+              if (draft.trim()) update({ name: draft.trim() });
+              onRenameEnd();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") {
+                setDraft(track.name);
+                onRenameEnd();
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="video-timeline__name"
+            onDoubleClick={() => {
+              setDraft(track.name);
+              onRenameStart();
+            }}
+            title="Double-click to rename"
+            aria-label={`${track.name}, double-click to rename`}
+          >
+            {track.name}
+          </button>
+        )}
+        <div className="video-timeline__header-manage">
+          <ToolButton
+            icon={iconChevronUp}
+            label={`Move ${track.name} up`}
+            onClick={() => swap(-1)}
+          />
+          <ToolButton
+            icon={iconChevronDown}
+            label={`Move ${track.name} down`}
+            onClick={() => swap(1)}
+          />
+          <ToolButton
+            icon={iconTrash2}
+            label={`Remove ${track.name}`}
+            tooltip={empty ? `Remove ${track.name}` : "Only an empty track can be removed"}
+            disabled={!empty}
+            onClick={remove}
+          />
+        </div>
+      </div>
+      <div className="video-timeline__header-toggles">
+        {track.kind === "video" ? (
+          <ToolButton
+            icon={track.hidden ? iconEyeOff : iconEye}
+            label={track.hidden ? `Show ${track.name}` : `Hide ${track.name}`}
+            pressed={track.hidden}
+            className="video-timeline__toggle video-timeline__toggle--hide"
+            onClick={() => update({ hidden: !track.hidden })}
+          />
+        ) : (
+          <>
+            <ToolButton
+              icon={track.muted ? iconVolumeX : iconVolume2}
+              label={track.muted ? `Unmute ${track.name}` : `Mute ${track.name}`}
+              pressed={track.muted}
+              className="video-timeline__toggle video-timeline__toggle--mute"
+              onClick={() => update({ muted: !track.muted })}
+            />
+            <ToolButton
+              icon={iconHeadphones}
+              label={track.solo ? `Stop soloing ${track.name}` : `Solo ${track.name}`}
+              pressed={track.solo}
+              className="video-timeline__toggle video-timeline__toggle--solo"
+              onClick={() => update({ solo: !track.solo })}
+            />
+          </>
+        )}
+        <ToolButton
+          icon={track.locked ? iconLock : iconLockOpen}
+          label={track.locked ? `Unlock ${track.name}` : `Lock ${track.name}`}
+          pressed={track.locked}
+          className="video-timeline__toggle video-timeline__toggle--lock"
+          onClick={() => update({ locked: !track.locked })}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface TimelineClipProps {
+  clip: Clip;
+  project: Project;
+  location: SourceLocation | undefined;
+  pxPerSecond: number;
+  selected: boolean;
+  invalid: boolean;
+  onPointerDown: (event: ReactPointerEvent) => void;
+  onTrimPointerDown: (event: ReactPointerEvent, edge: TrimEdge) => void;
+  /** Keyboard selection; ``additive`` toggles the clip in the current selection. */
+  onChoose: (additive: boolean) => void;
+}
+
+function TimelineClip({
+  clip,
+  project,
+  location,
+  pxPerSecond,
+  selected,
+  invalid,
+  onPointerDown,
+  onTrimPointerDown,
+  onChoose,
+}: TimelineClipProps) {
+  const width = clip.duration * pxPerSecond;
+  const source = sourceById(project, clip.source_id);
+  const missing = clip.kind !== "title" && (!location || location.missing);
+  const label = clipLabel(project, clip);
+  return (
+    <div
+      className={classNames(
+        "video-timeline__clip",
+        `video-timeline__clip--${clip.kind}`,
+        selected && "video-timeline__clip--selected",
+        invalid && "video-timeline__clip--invalid",
+        missing && "video-timeline__clip--missing",
+        width < 28 && "video-timeline__clip--narrow",
+      )}
+      style={{ left: TIMELINE_ORIGIN_PX + clip.start * pxPerSecond, width }}
+      onPointerDown={onPointerDown}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        onChoose(event.shiftKey);
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      aria-label={`${label}, ${formatTimecode(clip.start)} to ${formatTimecode(clipEnd(clip))}`}
+      data-clip={clip.id}
+    >
+      <span className="video-timeline__clip-head">
+        {missing && <Icon icon={iconTriangleAlert} className="video-timeline__clip-icon" />}
+        {clip.kind === "title" && <Icon icon={iconType} className="video-timeline__clip-icon" />}
+        {clip.link_id && <Icon icon={iconLink} className="video-timeline__clip-icon" />}
+        <span className="video-timeline__clip-label">{missing ? `${label} (missing)` : label}</span>
+        {clip.speed !== 1 && <span className="video-timeline__clip-speed">{clip.speed}×</span>}
+      </span>
+      <span className="video-timeline__clip-body">
+        {!missing && location && (
+          <ClipPicture
+            clip={clip}
+            location={location}
+            width={width}
+            sourceDuration={source?.duration ?? null}
+          />
+        )}
+        {clip.kind === "title" && clip.title && (
+          <span className="video-timeline__clip-text">{clip.title.text}</span>
+        )}
+      </span>
+      {clip.fade_in > 0 && (
+        <span
+          className="video-timeline__fade video-timeline__fade--in"
+          style={{ width: clip.fade_in * pxPerSecond }}
+          aria-hidden="true"
+        />
+      )}
+      {clip.fade_out > 0 && (
+        <span
+          className="video-timeline__fade video-timeline__fade--out"
+          style={{ width: clip.fade_out * pxPerSecond }}
+          aria-hidden="true"
+        />
+      )}
+      <span
+        className="video-timeline__trim video-timeline__trim--start"
+        onPointerDown={(event) => onTrimPointerDown(event, "start")}
+        aria-hidden="true"
+      />
+      <span
+        className="video-timeline__trim video-timeline__trim--end"
+        onPointerDown={(event) => onTrimPointerDown(event, "end")}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+function ClipPicture({
+  clip,
+  location,
+  width,
+  sourceDuration,
+}: {
+  clip: Clip;
+  location: SourceLocation;
+  width: number;
+  sourceDuration: number | null;
+}) {
+  const span = clip.duration * clip.speed;
+  // Only a settled take is fetched, not every frame of a trim drag.
+  const settled = useDebouncedValue(
+    `${clip.source_in.toFixed(2)}|${span.toFixed(2)}|${Math.max(1, Math.min(16, Math.round(width / FILMSTRIP_FRAME_PX)))}`,
+    300,
+  );
+  if (clip.kind === "video") {
+    const [start, length, count] = settled.split("|").map(Number);
+    const url = filmstripUrl(
+      location.path,
+      start,
+      start + length,
+      count,
+      FILMSTRIP_HEIGHT,
+      location.version,
+    );
+    return (
+      <span
+        className="video-timeline__filmstrip"
+        style={{ backgroundImage: `url("${url}")`, backgroundSize: `${100}% 100%` }}
+        aria-hidden="true"
+      />
+    );
+  }
+  if (clip.kind === "image") {
+    return (
+      <span
+        className="video-timeline__filmstrip video-timeline__filmstrip--still"
+        style={{ backgroundImage: `url("${thumbnailUrl(location.path, 200, location.version)}")` }}
+        aria-hidden="true"
+      />
+    );
+  }
+  if (clip.kind === "audio" && sourceDuration) {
+    const perSecond = width / Math.max(span, 1e-6);
+    const url = waveformUrl(location.path, 2000, location.version);
+    return (
+      <span
+        className="video-timeline__waveform"
+        style={{
+          maskImage: `url("${url}")`,
+          WebkitMaskImage: `url("${url}")`,
+          maskSize: `${sourceDuration * perSecond}px 100%`,
+          WebkitMaskSize: `${sourceDuration * perSecond}px 100%`,
+          maskPosition: `${-clip.source_in * perSecond}px 0`,
+          WebkitMaskPosition: `${-clip.source_in * perSecond}px 0`,
+        }}
+        aria-hidden="true"
+      />
+    );
+  }
+  return null;
+}

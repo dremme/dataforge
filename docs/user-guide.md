@@ -140,6 +140,20 @@ Run **Auto-adjust** to apply the wand and save each eligible image/video. Crops,
 
 To remove color changes from a batch, open **Auto-adjust** and select **Reset all color adjustments to zero**. This clears manual and automatic color adjustments without applying Auto. Crops, masks, trims, and other edits stay in place. This option also starts off each run.
 
+## Video editor
+
+The clapperboard in a video's viewer opens a multi-track editor for MP4, MOV, and M4V files. It starts a project with that video at 00:00 on V1 and, when it has sound, the sound linked on A1. **Open video editor** in the sidebar instead starts an empty project in the open folder; the first video added to it sets its frame size, frame rate, and name. Tracks have fixed positions: a clip stays where it is put, and a clip dragged into another one stops flush against it.
+
+- **Media** lists the open folder's videos, images, WAV, and MP3 files. Click one to preview it as the **Source**, set in and out points, then **Add to timeline**, or drag it onto a track. Files are referenced, never copied.
+- **Timeline** has Select, Blade, and Range tools, split, duplicate, delete, undo, snapping, and zoom. Higher video tracks cover lower ones. Tracks can be renamed (double-click), reordered, locked, hidden, muted, or soloed; empty tracks can be removed.
+- **Linked clips:** a video's sound moves, trims, splits, retimes, and deletes with it. Unlink it in the inspector to edit either alone.
+- **Ripple delete** removes a range marked with the Range tool, or with `I` and `O` at the playhead, from every track and closes the gap. It is refused while a track it would change is locked.
+- **Inspector:** transform, crop, fit or fill, Adjust colors with **Auto**, speed (sound keeps its pitch), gain, fades, and title text, font, and style. Titles can use any font installed on this computer; one that is missing draws in the default font. Double-click a slider's label to reset it. A **cross-dissolve** slides the next clip back over the selected one; its length is the overlap, and pulling the clips apart removes it.
+
+Projects save as you edit to `<stem>-edit.video-project.json` in the folder. They appear under **Video projects** in the gallery, above the media, and in the editor's **Projects** tab; click one to reopen it. A missing or changed source is listed with **Relink** and **Use the changed file**; nothing is substituted, and export waits until each is resolved.
+
+**Export** renders the whole timeline from the source files to a new MP4 in the folder, `<stem>-edited.mp4` by default, numbered when that name or one of its sidecars is taken. It keeps running after you return to the gallery, can be cancelled, and leaves nothing behind when cancelled or failed. Beside the video it writes `<name>.video-project.json`, the edit it was made from; opening the video in the editor rebuilds that edit as a new draft. **Copy initial video's caption** is off by default.
+
 ## Jobs
 
 **Scope:** ordinary bulk tools use visible selected files when present; otherwise they use the current search and filter results. The dialog shows its target count and freezes the paths when opened, including for previews. An empty scope cannot start a job. **Quick LoRA training** always uses the whole folder; its dialog explicitly shows that exception.
@@ -200,6 +214,8 @@ Media with the same stem, such as `scene.jpg` and `scene.png`, share a caption a
 | `<name>.issue.json`                   | Beside media               | Verify captions and Lint captions; removed when findings are resolved or cleared                                                                |
 | `<name>.duplicate.json`               | Beside media               | Find duplicates; removed when the group is resolved, dismissed, or cleared                                                                      |
 | `<name>.bak` and `<stem>.edit.json`   | Beside media               | Editor or Auto-adjust original and edit settings; Revert original removes both. Accepting a ComfyUI result also discards them                   |
+| `<stem>-edit.video-project.json`      | Beside the first video     | Video editor draft, saved while editing; deleted with **Delete project** in the editor's project menu. Its media and exports stay               |
+| `<name>.video-project.json`           | Beside an exported video   | The edit an export was made from; moves, copies, renames, and deletes with the video                                                            |
 | `<stem>.txt`                          | `.backup/`                 | Caption backup; remains after restoration until deleted or overwritten                                                                          |
 | Watermarked media                     | `watermarked/`             | Watermark copies; captions are not copied                                                                                                       |
 | Result and `<result-name>.comfy.json` | `staging/`                 | ComfyUI processing; removed when accepted, rejected, or deleted                                                                                 |
@@ -264,6 +280,31 @@ In Quick actions, use `↑`, `↓`, `Home`, and `End` to choose an action, then 
 | `Home` / `End`       | Video trim handle: jump to the start / end                   |
 
 Video trim handles move one frame per arrow press, or one second with Shift. Adjust sliders return to their resting value when double-clicked.
+
+### Video editor
+
+Outside text fields, the video editor uses its own keys; gallery shortcuts stay off while it is open.
+
+| Shortcut                  | Action                             |
+| ------------------------- | ---------------------------------- |
+| `Space`                   | Play or pause                      |
+| `←` / `→`                 | Step one frame back / forward      |
+| `↑` / `↓`                 | Jump to the previous / next edit   |
+| `Home` / `End`            | Go to the start / end              |
+| `I` / `O`                 | Mark in / out at the playhead      |
+| `Esc`                     | Clear the selection and the range  |
+| `V` / `B` / `R`           | Select / Blade / Range tool        |
+| `S`                       | Toggle snapping                    |
+| `+` / `-`                 | Zoom the timeline in / out         |
+| `Shift+Z`                 | Fit the project in the timeline    |
+| `Ctrl+B`                  | Split at the playhead              |
+| `Delete` or `Backspace`   | Delete the selected clips          |
+| `Shift+Delete`            | Ripple delete the selected range   |
+| `Ctrl+D`                  | Duplicate the selected clips       |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo (`Ctrl+Y` also redoes) |
+| `Enter` on a clip         | Select it; `Shift+Enter` toggles   |
+
+While the **Source** monitor shows a file, `Space`, the arrows, `Home`, `End`, `I`, and `O` act on that file instead.
 
 ### Focus and availability
 

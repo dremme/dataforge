@@ -19,6 +19,7 @@ from constants import (
 )
 from duplicates import duplicate_file_path
 from edit_sidecars import backup_path_for, edit_spec_path
+from video_project import snapshot_path_for
 
 
 def media_group_paths(media: Path) -> list[Path]:
@@ -36,6 +37,7 @@ def media_group_paths(media: Path) -> list[Path]:
         duplicate_file_path(media),
         backup_path_for(media),
         edit_spec_path(media),
+        snapshot_path_for(media),
     ):
         if extra.is_file():
             paths.append(extra)

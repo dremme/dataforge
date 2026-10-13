@@ -9,6 +9,7 @@ import { formatModifiedAt } from "@/shared/lib/format";
 import * as useCopyFeedbackModule from "@/shared/hooks/useCopyFeedback";
 import * as captionsApi from "@/features/gallery/api/captions";
 import * as mediaApi from "@/features/gallery/api/media";
+import { VideoEditorContext } from "@/features/videoEditor/context/VideoEditorContext";
 import { GalleryItemModal } from "./GalleryItemModal";
 
 vi.mock("@/shared/lib/defer", () => ({
@@ -905,5 +906,46 @@ describe("GalleryItemModal", () => {
         "The caption as it was backed up",
       ),
     );
+  });
+});
+
+describe("GalleryItemModal video editor action", () => {
+  beforeEach(() => {
+    installMockBackend();
+  });
+
+  function renderWithEditor(name: string, mediaType: "video" | "image") {
+    const open = vi.fn();
+    renderWithProviders(
+      <VideoEditorContext value={{ open, openProject: vi.fn(), isOpen: false }}>
+        <GalleryItemModal
+          items={[makeItem(name, { media_type: mediaType })]}
+          index={0}
+          onClose={vi.fn()}
+          onPrevious={vi.fn()}
+          onNext={vi.fn()}
+          onCaptionSaved={vi.fn()}
+        />
+      </VideoEditorContext>,
+    );
+    return open;
+  }
+
+  it("opens a supported video in the editor", async () => {
+    const user = userEvent.setup();
+    const open = renderWithEditor("clip.mov", "video");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Open clip.mov in the video editor" }),
+    );
+
+    await waitFor(() => expect(open).toHaveBeenCalledWith(makeItem("clip.mov").path));
+  });
+
+  it("offers nothing for formats the editor cannot play or for stills", async () => {
+    renderWithEditor("clip.mkv", "video");
+    await screen.findByRole("dialog", { name: "Viewing clip.mkv" });
+
+    expect(screen.queryByRole("button", { name: /in the video editor/ })).not.toBeInTheDocument();
   });
 });

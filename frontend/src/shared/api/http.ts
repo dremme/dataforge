@@ -102,6 +102,8 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   if (!response.ok) {
     throw await parseApiError(response);
   }
+  // No Content has no body to parse; callers of such endpoints type the result as void.
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 

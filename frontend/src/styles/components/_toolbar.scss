@@ -7,6 +7,7 @@ $toolbar-search-width-min: 14rem;
 $toolbar-search-width-max: 22rem;
 
 .toolbar {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -44,6 +45,16 @@ $toolbar-search-width-max: 22rem;
 
   &__actions {
     display: flex;
+  }
+
+  // As wide as the toolbar and never taller, so the compact check can watch the width alone.
+  &__measure {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 0;
+    pointer-events: none;
   }
 
   // Crowded: the folder actions keep their icons; the text stays for assistive technology.

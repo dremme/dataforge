@@ -16,6 +16,7 @@ const SCROLL_LOCK_CLASSES = [
   "training-sample-modal-open",
   "quick-action-open",
   "settings-modal-open",
+  "video-editor-open",
 ] as const;
 
 export type ScrollLockClass = (typeof SCROLL_LOCK_CLASSES)[number];

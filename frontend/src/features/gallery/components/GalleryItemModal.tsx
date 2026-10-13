@@ -43,6 +43,7 @@ import {
   iconCamera,
   iconChevronLeft,
   iconChevronRight,
+  iconClapperboard,
   iconCopy,
   iconFolderInput,
   iconLoader2,
@@ -102,8 +103,15 @@ import { AudioWaveform } from "./AudioWaveform";
 import { imageOriginalUrl } from "@/features/gallery/api/imageEdit";
 import { videoOriginalUrl } from "@/features/gallery/api/videoEdit";
 import { evenTrunc } from "@/features/gallery/lib/videoEdit";
+import { useVideoEditorLauncher } from "@/features/videoEditor/context/VideoEditorContext";
+import { VIDEO_PROJECT_VIDEO_EXTENSIONS } from "@/shared/constants";
 
 const noop = () => {};
+
+function hasExtension(name: string, extensions: readonly string[]): boolean {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 && extensions.includes(name.slice(dot).toLowerCase());
+}
 
 // Widgets outside the inspector that use arrow keys themselves.
 const OUTSIDE_ARROW_OWNERS =
@@ -417,6 +425,10 @@ export function GalleryItemModal({
 
   // Derived above the early return so the hooks below are not called conditionally.
   const canEditVideoItem = item ? isEditableVideo(item) : false;
+  const videoEditor = useVideoEditorLauncher();
+  const canOpenInVideoEditor = Boolean(
+    videoEditor && item && isVideo(item) && hasExtension(item.name, VIDEO_PROJECT_VIDEO_EXTENSIONS),
+  );
   const canEditImageItem = item ? isEditableImage(item) : false;
   const editing = editMode && (canEditVideoItem || canEditImageItem);
   const inline =
@@ -611,6 +623,19 @@ export function GalleryItemModal({
             )}
           </div>
           <div className="gallery-item-modal__header-actions">
+            {canOpenInVideoEditor && (
+              <Tooltip content="Open in video editor">
+                <button
+                  type="button"
+                  className="gallery-item-modal__video-editor"
+                  onClick={() => void leave(() => videoEditor?.open(item.path))}
+                  disabled={busy || editing}
+                  aria-label={`Open ${item.name} in the video editor`}
+                >
+                  <Icon icon={iconClapperboard} />
+                </button>
+              </Tooltip>
+            )}
             {canEditVideoItem && (
               <Tooltip content={editMode ? "Exit video editing" : "Edit video"}>
                 <button

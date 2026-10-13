@@ -16,6 +16,7 @@ import { classNames } from "@/shared/lib/classNames";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { Icon } from "@/shared/ui/Icon";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
+import { VideoProjectGrid } from "@/features/videoEditor/components/VideoProjectGrid";
 import { AppInitialLoading } from "./AppInitialLoading";
 
 type AppFolderContentProps = {
@@ -33,6 +34,9 @@ type AppFolderContentProps = {
   /** The search and filter summary, shown at the start of the Media header actions. */
   activeFilters?: ReactNode;
   onOpenGalleryItem: (path: string) => void;
+  /** Opens a saved editor draft; the drafts section is left out without it. */
+  onOpenVideoProject?: (projectPath: string) => void;
+  searchQuery?: string;
   displayMode: GalleryDisplayMode;
   onDisplayModeChange: (value: GalleryDisplayMode) => void;
   fileDrop: FileDropState;
@@ -61,6 +65,8 @@ export function AppFolderContent({
   filterEmptyState,
   activeFilters,
   onOpenGalleryItem,
+  onOpenVideoProject,
+  searchQuery = "",
   displayMode,
   onDisplayModeChange,
   fileDrop,
@@ -104,6 +110,14 @@ export function AppFolderContent({
                   folders={filteredSubfolders}
                   totalCount={subfolders.length}
                   onOpen={onNavigate}
+                />
+              )}
+              {!folderNotFound && onOpenVideoProject && (
+                <VideoProjectGrid
+                  folderPath={folder.path}
+                  fingerprint={folder.fingerprint}
+                  searchQuery={searchQuery}
+                  onOpen={onOpenVideoProject}
                 />
               )}
               {!folderNotFound && (
